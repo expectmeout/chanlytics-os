@@ -262,7 +262,7 @@ function readStanding(folder: FootageFolderDto, clock: (iso: string) => string):
       key: "checking_left",
       badge: `Checking ${folder.held.toLocaleString("en-US")} that left`,
       tone: "rest",
-      say: `${groupedPlural(folder.held, "file")} left ${quotedName(folder.name)} at once. Nothing was removed from your Library. Chanlytics looks again tomorrow before anything leaves.`,
+      say: `${groupedPlural(folder.held, "file")} left ${quotedName(folder.name)} at once, and nothing was removed from your Library. Chanlytics looks again tomorrow before anything leaves.`,
       note: "Nothing was removed. Chanlytics looks again tomorrow.",
       act: null,
     };
@@ -350,7 +350,7 @@ function stoppedStanding(account: FootageAccountDto, folder: FootageFolderDto): 
       key: "cant_open",
       badge: "Can't open the folder",
       tone: "you",
-      say: `${account.email ?? "This account"} can no longer open ${quotedName(folder.name)}. Nothing was removed. Chanlytics keeps trying, and carries on by itself once it opens.`,
+      say: `${account.email ?? "This account"} can no longer open ${quotedName(folder.name)}, and nothing was removed. Chanlytics carries on by itself once it opens.`,
       note: "Nothing was removed. Chanlytics keeps trying.",
       act: "choose_another",
     };
