@@ -116,5 +116,5 @@ export const PAGE_TITLES: Record<AskSurface, string> = {
 };
 
 /** The page's name with its view, as the aggregate opens: "Inbox, needs_you". */
-export const pageWithView = (ctx: PageContext, title: string = PAGE_TITLES[ctx.surface]): string =>
+export const pageWithView = (ctx: PageContext, title: string = PAGE_TITLES[ctx.surface] ?? "This page"): string =>
   ctx.view ? `${title}, ${ctx.view}` : title;

@@ -45,7 +45,7 @@ import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 import { readSettled } from "@/server/shared/lazy";
 import type { Member } from "@/server/shared/route";
-import { saysMissing, asFailedReply } from "@chanlytics/db/shared";
+import { saysMissing } from "@chanlytics/db/shared";
 import { findProfileName } from "@chanlytics/db/auth";
 import { hasOpenInvites } from "./team";
 import type { OpenHandoverDto, TenantId } from "@chanlytics/contracts";
@@ -173,7 +173,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   if (tenants.error) throw new DbFailure(tenants.error);
   // The name they gave is the chrome's, never the boot's to fail for: a read that fails is logged and reads as none.
   if (profileRead.error)
-    log.error("db_failed", { code: asFailedReply(profileRead.error).code ?? null, error: profileRead.error.message });
+    log.error("db_failed", { code: profileRead.error.code ?? null, error: profileRead.error.message });
   const { data } = tenants;
   // The name they gave us wins; the name they gave Google (full_name on the
   // auth user) stands in until they do. Never anything made from the email.
@@ -233,7 +233,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
 
   // The caller's role in each workspace (0012): one read of their own memberships, RLS-scoped.
   if (mine.error) throw new DbFailure(mine.error);
-  const roleOf = new Map(mine.data.map((m) => [m.tenant_id, m.role]));
+  const roleOf = new Map((mine.data ?? []).map((m) => [m.tenant_id, m.role]));
   const listed = data.map((w) => ({ ...w, role: roleOf.get(heldTenantId(w.id)) ?? null }));
 
   // A STALE PREFERENCE, and nothing else. getMemberContext throws two things:
@@ -280,7 +280,7 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
     throw new AppError("validation", "Send the workspace's timezone, or what it calls a booking.");
   const patch: { timezone?: string; appointment_word?: AppointmentWord } = {};
   if (zone) {
-    const parsed = cleanTimezone(body.timezone);
+    const parsed = cleanTimezone(body?.timezone);
     if (!parsed.ok) throw new AppError("validation", parsed.reason);
     patch.timezone = parsed.tz;
   }

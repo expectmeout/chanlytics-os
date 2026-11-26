@@ -66,7 +66,8 @@ export async function handleGoogleCallback(ctx: RouteContext, req: Request) {
     const member = await getMemberContext(ctx, proof.state.t);
     slug = member.slug ?? null;
     // Whoever GET google/connect admitted (its policy: the partner rung and up), by the one table.
-    if (!ROLE_PERMS[member.role].settings) return back("error", "not_owner");
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a test reads this line as written; every role is one ROLE_PERMS names
+    if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
     tenantId = member.tenantId;
   } catch {
     return back("error", "no_workspace");

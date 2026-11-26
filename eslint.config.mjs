@@ -372,6 +372,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/bridge/invitations",
   "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/bridge/reach-out",
+  "apps/dashboard/src/bridge/refresh",
   "apps/dashboard/src/bridge/rehearse",
   "apps/dashboard/src/bridge/surfaces",
   "apps/dashboard/src/bridge/verbs",
@@ -389,6 +390,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/leads",
   "apps/dashboard/src/server/lines",
   "apps/dashboard/src/server/notices",
+  "apps/dashboard/src/server/people",
   "apps/dashboard/src/server/metrics",
   "apps/dashboard/src/server/new-conversation",
   "apps/dashboard/src/server/console",
@@ -396,11 +398,12 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/posts",
   "apps/dashboard/src/server/previews",
   "apps/dashboard/src/server/public",
+  "apps/dashboard/src/server/readers",
   "apps/dashboard/src/server/receptionist",
   "apps/dashboard/src/server/settings",
   "apps/dashboard/src/server/setup",
   "apps/dashboard/src/server/shared",
-  "apps/dashboard/src/server/campaigns/sequences",
+  "apps/dashboard/src/server/campaigns",
   "apps/dashboard/src/server/workspace",
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
@@ -518,7 +521,9 @@ export const LIMITED_TREES = [
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
  * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). The edge's
  * voice joined on 25 November 2026, the day its call start's plan was split: six take five (the call's activity, an
- * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts).
+ * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts). The dashboard's campaigns,
+ * people and readers joined on 26 November 2026, the day their last long function was split: 16 take five to seven (a
+ * run's audience and its pools, the templates' versions, a deal's write, the import's rows, the content reader's two).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -549,6 +554,9 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/conversations",
   "apps/dashboard/src/server/drafts",
   "apps/dashboard/src/server/settings",
+  "apps/dashboard/src/server/campaigns",
+  "apps/dashboard/src/server/people",
+  "apps/dashboard/src/server/readers",
   "apps/edge/lib/ai",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",

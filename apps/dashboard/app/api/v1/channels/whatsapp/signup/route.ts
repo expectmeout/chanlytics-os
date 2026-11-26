@@ -13,6 +13,7 @@ export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
     const cfg = await getWhatsappSignupConfig({ workspace: member.tenantId, user: ctx.userId });
-    return { ...cfg, can_connect: !!ROLE_PERMS[member.role].disconnect && cfg.ready };
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a test reads this line as written; every role is one ROLE_PERMS names
+    return { ...cfg, can_connect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready };
   },
 });

@@ -180,7 +180,7 @@ function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDt
     // someone who backs the owner up (teamCounts counts them out too).
     members: Array.isArray(team.members) ? team.members.filter((m) => m.role !== "partner").length : team.members,
     invites_open: "invites" in team ? team.invites.length : team.invites_open,
-    alert_emails: cfg?.notifications?.escalation_emails.length ?? 0,
+    alert_emails: cfg?.notifications?.escalation_emails?.length ?? 0,
     // The partner who sits on the team (0012), by the name the roster already carries: on the member's own
     // read only. The back office reads counts, never the roster, so its team stays three numbers.
     ...("members" in team && Array.isArray(team.members)
@@ -308,15 +308,6 @@ export async function setupDtoFor(
   now = new Date(),
 ): Promise<SetupDto> {
   const read = await setupReads(supabase, tenantId, viewer, now);
-  // A read from before a part (the reminder, a rehearsal, the imports, the people, the business's reads) has none of it,
-  // and its card says it as unread.
-  const parts: {
-    dayBefore: typeof read.dayBefore | null;
-    rehearsal: typeof read.rehearsal | null;
-    imports: typeof read.imports | null;
-    people: typeof read.people | null;
-    reads: typeof read.reads | null;
-  } = read;
   const config = configOf(read.cfgRow);
   const { lineRows, lineStatus } = read;
   const setup: SetupDto = {
@@ -339,11 +330,11 @@ export async function setupDtoFor(
     billing: billingSection(read),
     activations: activationsSection(read.activations),
     // Said only where it was read: unread, the card offers the reminder as a read from before the field does.
-    ...(parts.dayBefore === null ? {} : { reminders: { day_before: parts.dayBefore } }),
-    ...(parts.rehearsal ? { rehearsal: parts.rehearsal } : {}),
-    ...(parts.imports ? { imports: importsSection(parts.imports) } : {}),
-    ...(parts.people === null ? {} : { people: parts.people }),
-    ...(parts.reads ? { reads: readsSection(parts.reads) } : {}),
+    ...(read.dayBefore === null ? {} : { reminders: { day_before: read.dayBefore } }),
+    ...(read.rehearsal ? { rehearsal: read.rehearsal } : {}),
+    ...(read.imports ? { imports: importsSection(read.imports) } : {}),
+    ...(read.people === null ? {} : { people: read.people }),
+    ...(read.reads ? { reads: readsSection(read.reads) } : {}),
     ...(read.choices ? { workspace_choices: read.choices } : {}),
   };
   return setup;

@@ -258,7 +258,7 @@ export function turnWords(turnFacts: TurnFacts): string {
   const then = turnFacts.focusRead
     ? "open or name it without a read; read it for anything about it"
     : "read it first, to open or name it and for anything about it";
-  if (focus && (focus.kind !== turnFacts.scope?.kind || focus.id !== turnFacts.scope.id))
+  if (focus && (focus.kind !== turnFacts.scope?.kind || focus.id !== turnFacts.scope?.id))
     lines.push(`Their words point at ${rowName(focus)} (${focus.kind} ${focus.id}): ${then}.`);
   if (turnFacts.spoken) lines.push(SPOKEN_LINE);
   else if (turnFacts.column) lines.push(columnLine(turnFacts.column));

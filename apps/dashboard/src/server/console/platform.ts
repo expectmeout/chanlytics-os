@@ -231,24 +231,20 @@ import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
+/* eslint-disable @typescript-eslint/naming-convention -- each act names its ids as the edge's body does, the list read whole */
 const EDGE_OP: Record<PlatformLineAction, (tenantId: TenantId, lineId: string) => EdgeBody<"/api/admin/lines">> = {
-  retry: (tenantId, lineId) => ({ op: "retry", tenant_id: tenantId, line_id: lineId, by: "support" }),
+  retry: (tenant_id, line_id) => ({ op: "retry", tenant_id, line_id, by: "support" }),
   // `refile` is the same edge operation as an owner's own registration, with the
   // flag that lets it replace a rehearsal or resend a rejected campaign -- the
   // two things an owner may not do and support must.
-  refile: (tenantId, lineId) => ({ op: "register", tenant_id: tenantId, line_id: lineId, refile: true }),
+  refile: (tenant_id, line_id) => ({ op: "register", tenant_id, line_id, refile: true }),
   // `replace` is the same door once more, with the flag that deletes a refused
   // campaign and files a new one -- a second vetting fee, so never implied by
   // refile and never reachable from an owner's own registration.
-  replace: (tenantId, lineId) => ({
-    op: "register",
-    tenant_id: tenantId,
-    line_id: lineId,
-    refile: true,
-    replace: true,
-  }),
-  release: (tenantId, lineId) => ({ op: "release", tenant_id: tenantId, line_id: lineId }),
+  replace: (tenant_id, line_id) => ({ op: "register", tenant_id, line_id, refile: true, replace: true }),
+  release: (tenant_id, line_id) => ({ op: "release", tenant_id, line_id }),
 };
+/* eslint-enable @typescript-eslint/naming-convention */
 
 interface PlatformActionResult {
   ok: boolean;

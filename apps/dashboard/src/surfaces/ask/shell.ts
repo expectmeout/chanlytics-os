@@ -33,7 +33,7 @@ interface LiveCall {
 export const liveCalls = (): { now?: readonly LiveCall[]; recent?: readonly LiveCall[] } => surfaceValue("live") ?? {};
 
 /** What the tab keeps (bridge/tab-memory.ts). */
-export const tabMemoryOfWindow = (): TabMemory => tabMemoryFor(window);
+export const tabMemory = (): TabMemory => tabMemoryFor(window);
 
 /** The settings' version as they were read: whether a card's undo is still true depends on it. Null before a read. */
 export const settingsVersion = (): number | null => surfaceValue("settings")?.settings?.version ?? null;

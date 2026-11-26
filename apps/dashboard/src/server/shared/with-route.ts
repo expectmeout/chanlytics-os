@@ -21,7 +21,7 @@ import {
   DbFailure,
   causedBy,
 } from "@chanlytics/contracts";
-import { databaseFailing, ReadCutShort, embedded, identityAccountOf } from "@chanlytics/db/shared";
+import { databaseFailing, ReadCutShort, identityAccountOf, nullableIn, type NullableIn } from "@chanlytics/db/shared";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -414,7 +414,11 @@ export function shareMembership(ctx: RouteContext): void {
 }
 
 /** A person's memberships, as the resolver reads them (db listMyMemberships). */
-type MembershipRows = NonNullable<Awaited<ReturnType<typeof listMyMemberships>>["data"]>;
+/** The person's memberships as read: a workspace RLS hides from this session rides as none (its embed is null). */
+type MembershipRows = NullableIn<
+  NonNullable<Awaited<ReturnType<typeof listMyMemberships>>["data"]>[number],
+  "tenants"
+>[];
 
 /** Each session's memberships, shared across a burst of its reads on this instance (auth/burst.ts). */
 const MEMBERSHIPS = burstsOf<MembershipRows>();
@@ -438,7 +442,7 @@ async function listMembershipsFor(ctx: RouteContext, shares: boolean): Promise<M
   const read = async (): Promise<MembershipRows> => {
     const { data, error } = await listMyMemberships(ctx.supabase, ctx.userId);
     if (error) throw new DbFailure(error);
-    return data;
+    return nullableIn(data, "tenants");
   };
   return shares ? MEMBERSHIPS.shared(ctx.userId, ctx.burst, read) : read();
 }
@@ -455,9 +459,7 @@ async function resolveMember(
   // person's home workspace does not move because a tenant was renamed, which
   // name-sorting allowed.
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
-  const membership = wanted
-    ? rows.find((r) => r.tenant_id === wanted || embedded(r.tenants)?.slug === wanted)
-    : rows[0];
+  const membership = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
   // A partner's seat is hidden from a session that has not shown its second factor (00218), so a workspace they hold
   // reads as not found here. The database can say, of this session alone, that it holds a partner's seat it cannot
   // see: then what is missing is the code, and the tab is sent to the second step, not told the workspace is gone.
@@ -474,7 +476,7 @@ async function resolveMember(
   // Calendar's, the Leads page's) does not wait a round trip for them (2 Oct 2026). And a reader beneath a read that
   // asks for them by the workspace is answered from here (tenant.ts getTenantFacts): never beneath a write, which may
   // change them.
-  const row = embedded(membership.tenants);
+  const row = membership.tenants;
   if (ctx.burst !== undefined && typeof row?.timezone === "string")
     tenantFactsKnown(ctx.supabase, membership.tenant_id, tenantFactsOf(row));
   return {

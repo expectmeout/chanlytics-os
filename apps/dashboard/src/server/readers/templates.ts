@@ -122,7 +122,7 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   // heading that takes a value" on Meta's array and is no reason to hold the email.
   // Meta's id stays behind too: what a page needs of it is whether WhatsApp holds the row at all (`at_meta`), since only one
   // it holds can have its words changed and sent back (template-words.ts).
-  const every = data.map(({ components, meta_id, ...t }) => ({
+  const every = (data ?? []).map(({ components, meta_id, ...t }) => ({
     ...t,
     at_meta: t.channel === "whatsapp" && !!meta_id,
     ...templateParts(components),
@@ -178,7 +178,7 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
   );
   const today = zone ? localDate(zone, rc.now) : null;
   const usedBy = templateUsage({
-    playbooks: pb.data.map((p) => ({
+    playbooks: (pb.data ?? []).map((p) => ({
       ...p,
       runs: runsWords(p),
       ended: today !== null && campaignEnded(p, today) !== null,

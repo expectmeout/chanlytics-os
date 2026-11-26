@@ -20,7 +20,7 @@ import {
   useHoldPress,
   useHoldSpace,
 } from "../hooks";
-import { tabMemoryOfWindow } from "../shell";
+import { tabMemory } from "../shell";
 import {
   arDiscBox,
   arDocked,
@@ -327,7 +327,7 @@ export const useArMemory = ({ open, A, query, setQuery, active, asked, openThrea
   // Open: what the tab kept comes back. A kept conversation is read first and the words go back after it, since
   // opening a thread empties the field; a request the shell sent as it opened (asked) wins over a kept conversation.
   useEffect(() => {
-    const m = tabMemoryOfWindow();
+    const m = tabMemory();
     if (!open || !A || !m) return;
     const kept = m.draft("ask");
     const words = typeof kept === "string" && kept && !query ? kept : null;
@@ -341,7 +341,7 @@ export const useArMemory = ({ open, A, query, setQuery, active, asked, openThrea
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once each opening, with what that draw holds: a later change is not what the tab kept
   }, [open]);
   useEffect(() => {
-    const m = tabMemoryOfWindow();
+    const m = tabMemory();
     if (!m) return;
     if (query.trim()) m.keepDraft("ask", query);
     else if (open) m.dropDraft("ask");
@@ -351,7 +351,7 @@ export const useArMemory = ({ open, A, query, setQuery, active, asked, openThrea
   const id = active ? active.id : null;
   const conversing = !!active;
   useEffect(() => {
-    const m = tabMemoryOfWindow();
+    const m = tabMemory();
     const had = threadWas.current;
     threadWas.current = id;
     if (!m) return;

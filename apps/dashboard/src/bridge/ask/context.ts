@@ -120,7 +120,7 @@ const pipeline: Provider = (w, route) => {
   return { ...got, view: got.view ?? parsePipelineRoute(`clients/${route.param ?? "pipeline"}`)?.view ?? null };
 };
 
-const calendarOnScreen: Provider = (w) => drawn(w, "calendar", "person");
+const calendar: Provider = (w) => drawn(w, "calendar", "person");
 
 /**
  * Reports' view is what it shows, read through the seam (the surface's value), as the server's context provider describes
@@ -240,7 +240,7 @@ const PROVIDERS: Partial<Record<AskSurface, Provider>> = {
   people,
   leads,
   pipeline,
-  calendar: calendarOnScreen,
+  calendar,
   reports,
   campaigns,
   settings,

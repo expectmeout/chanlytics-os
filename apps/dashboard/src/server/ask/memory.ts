@@ -277,7 +277,7 @@ export async function findThreadForTurn(
       history = rebuiltHistory(found.messages, found.turns);
       notices = history.length ? toldIn(found.messages) : null;
       cited = citedIn(found.messages);
-      waiting = found.messages.flatMap((m) => m.proposals).filter((p) => !p.outcome);
+      waiting = found.messages.flatMap((m) => m.proposals ?? []).filter((p) => !p.outcome);
       // A batch decided on Campaigns since its card was made waits for nothing: Ask never names it as waiting.
       const decided = new Set((await findRunsDecided(ctx, tenantId, waiting)).map((d) => d.id));
       // Only the latest answer with cards waits for a yes (turn.ts waitingOnThread): one further up is made again, never
@@ -289,8 +289,10 @@ export async function findThreadForTurn(
           ?.proposals.map((p) => p.id),
       );
       waiting = waiting.filter((p) => !decided.has(p.id) && latest.has(p.id));
-      cards = found.messages.filter((m) => m.proposals.length).map((m) => ({ id: m.id, proposals: m.proposals }));
-      offered = found.messages.flatMap((m) => (m.role === "user" ? [m.text] : (m.answer?.do.next ?? m.followups)));
+      cards = found.messages.filter((m) => m.proposals?.length).map((m) => ({ id: m.id, proposals: m.proposals }));
+      offered = found.messages.flatMap((m) =>
+        m.role === "user" ? [m.text] : (m.answer?.do.next ?? m.followups ?? []),
+      );
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;
@@ -439,7 +441,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const anchor: unknown = Array.isArray(items) ? items.at(-1) : undefined;
   const notice = new Set(turns.flatMap((t) => t.told ?? []));
   const own = [...ids].reverse().flatMap((id) => rows.filter((r) => r.id === id));
-  const cards = (oldest.told ? rows : own).flatMap((r) => r.proposals);
+  const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
   const since = cards
     .flatMap(({ id, title, outcome }) =>
       outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, atMs: outcome.atMs }] : [],
