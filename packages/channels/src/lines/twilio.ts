@@ -125,7 +125,7 @@ export function requestTwilio(
  * no answer is status 0 with the network's words as `error` (a text's send said "never throws" while this threw),
  * which a saga step's `need` refuses as any other failure.
  */
-export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
+const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
   // A text to a person is always sent: another call's timeouts never fail it (provider-fetch's breaker).
   const sendsMessage = method === "POST" && url.endsWith("/Messages.json");
   const first = await requestTwilio(acct, method, url, {

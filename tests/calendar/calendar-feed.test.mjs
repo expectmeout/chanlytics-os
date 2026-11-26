@@ -807,7 +807,7 @@ test("a day carries at most what the board draws; the rest are counted and said"
   assert.ok(vm.feed.line.endsWith("· 103 events"), vm.feed.line);
   assert.equal(
     vm.feed.notes.find((n) => n.id === "undrawn")?.title,
-    "3 more events aren't drawn.",
+    "3 more events aren't shown.",
     "what the day left out is said once, by its note",
   );
 });

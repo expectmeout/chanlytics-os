@@ -16,7 +16,7 @@ export {
   parsePageToken,
 } from "./answers";
 export type { PageListedPage, PagePost, PageReel, PageStory, ReelState } from "./answers";
-export { linkedPageRequest, parseLinkedPage, postablePageIdsOf, readLinkedPage } from "./linked";
+export { postablePageIdsOf, readLinkedPage } from "./linked";
 export {
   callFacebook,
   pageDeleteRequest,

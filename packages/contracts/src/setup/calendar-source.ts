@@ -13,7 +13,7 @@
  */
 import { DAY_MS } from "../shared/time";
 import { bookingToolCalendar, bookingToolName, bookingToolOptions } from "../calendar/booking-notice";
-import { CALENDAR_FEED_WORDS, type CalendarFeedHealth } from "../calendar/words/labels";
+import { CALENDAR_FEED_WORDS, CALENDAR_UNLOADED, type CalendarFeedHealth } from "../calendar/words/labels";
 import { SETUP_STATE_WORDS } from "./lines";
 
 /**
@@ -139,7 +139,7 @@ function unreadLink(
     tone: "warn",
     words: CALENDAR_FEED_WORDS.unavailable,
     ...leadAndRest(
-      "Your calendar couldn't be read.",
+      `${CALENDAR_UNLOADED}.`,
       `${sourceFacts.problem ?? ""}${emailsWork ? " Booking emails still arrive." : ""}`,
     ),
     times: false,

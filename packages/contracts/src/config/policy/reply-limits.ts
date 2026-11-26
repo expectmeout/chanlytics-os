@@ -193,9 +193,9 @@ export function hardLimitsWords(
     return v !== undefined && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
   };
   return {
-    sub: "The first two never change; the rest are yours to set",
+    sub: "The first two never change · the rest are yours to set",
     replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
-    pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    pause: `Counted from Take over, your reply in the Inbox or the WhatsApp Business app, or a handoff. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
     within: `Someone handed to you who has waited longer shows in amber on Today. ${ANSWER_WITHIN_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
     hours: pauseHoursOf(limits),

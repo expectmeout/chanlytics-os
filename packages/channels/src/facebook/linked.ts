@@ -5,16 +5,15 @@
  * that shared no Page, or one whose Page cannot be read, keeps none, and Instagram connects all the same.
  */
 import type { MetaPage } from "@chanlytics/contracts";
-import { META_GRAPH, metaObject, metaProofQuery, metaText, type MetaRequest } from "../meta/client";
+import { META_GRAPH, isMetaId, metaObject, metaProofQuery, metaText, type MetaRequest } from "../meta/client";
 import { callFacebook, type FacebookDeps } from "./page";
 
 /** At most this many Pages are read at Connect: a business shares a few, never a list to page through. */
 const PAGES_READ_MAX = 5;
 const PAGE_READ_MS = 8_000;
-const ID = /^\d{5,32}$/;
 
 /** A Page as Connect reads it: its name, and the Instagram account it is linked to. */
-export function linkedPageRequest(token: string, appSecret: string, pageId: string): MetaRequest {
+function linkedPageRequest(token: string, appSecret: string, pageId: string): MetaRequest {
   return {
     url: `${META_GRAPH}/${encodeURIComponent(pageId)}?${new URLSearchParams({
       fields: "id,name,instagram_business_account",
@@ -25,17 +24,17 @@ export function linkedPageRequest(token: string, appSecret: string, pageId: stri
 }
 
 /** A Page, read: its id, its name, and the Instagram account it is linked to; null where the answer names no Page. */
-export function parseLinkedPage(json: unknown): (MetaPage & { instagramId: string | null }) | null {
+function parseLinkedPage(json: unknown): (MetaPage & { instagramId: string | null }) | null {
   const o = metaObject(json);
   const id = metaText(o?.id);
-  if (!ID.test(id)) return null;
+  if (!isMetaId(id)) return null;
   const linked = metaText(metaObject(o?.instagram_business_account)?.id);
-  return { id, name: metaText(o?.name).trim() || null, instagramId: ID.test(linked) ? linked : null };
+  return { id, name: metaText(o?.name).trim() || null, instagramId: isMetaId(linked) ? linked : null };
 }
 
 /** The Page ids a token may post to, as its own description names them. */
 export const postablePageIdsOf = (accountsByScope: Record<string, string[]>): string[] => [
-  ...new Set((accountsByScope.pages_manage_posts ?? []).filter((id) => ID.test(id))),
+  ...new Set((accountsByScope.pages_manage_posts ?? []).filter((id) => isMetaId(id))),
 ];
 
 /** The Page the link keeps for this Instagram account, or none; never throws (a Page unread is a Page not kept). */

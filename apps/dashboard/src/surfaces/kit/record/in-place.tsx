@@ -319,7 +319,7 @@ export function InPlacePen({
       tabIndex={-1}
       className={className}
       aria-label="Save"
-      title="Save · Esc leaves it as it was"
+      data-tip="Save · Esc leaves it as it was"
       aria-busy={edit.busy || undefined}
       onMouseDown={edit.keep}
       onClick={() => void edit.done()}
@@ -336,7 +336,7 @@ export function InPlacePen({
       tabIndex={-1}
       className={className}
       aria-label={label}
-      title={label}
+      data-tip={label}
       onClick={edit.begin}
       data-testid={rest}
     >

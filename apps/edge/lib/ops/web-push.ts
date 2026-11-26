@@ -8,6 +8,7 @@ import webpush from "web-push";
 import type { WebPushPort } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
+import { finiteOrNull, valueAt } from "@chanlytics/contracts";
 
 /** A browser push is worth little after this: an hour later "Priya wrote" is old news. */
 const TTL_SECONDS = 3600;
@@ -31,7 +32,7 @@ export function webPush(): WebPushPort | null {
               { TTL: TTL_SECONDS, timeout: TIMEOUT_MS, vapidDetails },
             );
           } catch (e) {
-            const status = (e as { statusCode?: number }).statusCode;
+            const status = finiteOrNull(valueAt(e, "statusCode"));
             if (status === 404 || status === 410) gone.push(s.endpoint);
             else logger({}).warn("web_push_failed", { status: status ?? null });
           }

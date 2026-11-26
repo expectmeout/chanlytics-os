@@ -364,7 +364,7 @@ test("REGRESSION: a row is one option and holds no control of its own -- Not now
 
     const row = byTestId(tree, "ask-row-follow");
     const notNow = byTestId(row, "ask-row-rest");
-    assert.deepEqual([notNow.type, notNow.props["aria-hidden"], notNow.props.title], ["span", true, "Not now"]);
+    assert.deepEqual([notNow.type, notNow.props["aria-hidden"], notNow.props["data-tip"]], ["span", true, "Not now"]);
     assert.ok(notNow.props.className.split(" ").includes("line-remove"), "it is the kit's x, as a conversation's is");
     assert.equal(row.props["aria-keyshortcuts"], "Delete", "the option names its key");
     const said = saidOf(tree, row);
@@ -1133,8 +1133,8 @@ test("the answer on the rail: figures as chips, items with a kind mark, one Open
   // Figures are chips (D1 of the answers canvas): Open already offers Reports, so each is plain words with where it came from.
   const tiles = all(tree, (n) => n.props?.["data-testid"] === "ask-tile");
   assert.equal(tiles.length, 2);
-  assert.match(tiles[0].props.title, /From Reports, past 7 days/);
-  assert.equal(tiles[1].props.title, undefined, "a figure with no source is words");
+  assert.match(tiles[0].props["data-tip"], /From Reports, past 7 days/);
+  assert.equal(tiles[1].props["data-tip"], undefined, "a figure with no source is words");
   assert.ok(byTestId(tree, "ask-item-mark"), "a row carries its kind");
   const open = byTestId(tree, "ask-open");
   assert.ok(open.props.className.split(" ").includes("btn"), "Open is the kit's button");

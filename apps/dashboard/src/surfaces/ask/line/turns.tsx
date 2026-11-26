@@ -82,9 +82,9 @@ const arFilesAsked = (attached: Line["attached"], how: AskedHow | undefined): re
   how?.files ?? (how?.fresh ? [] : photosAsked(attached));
 
 /** The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes. */
-const arPageNow = (A: Line["A"], q: string, base: Conversation | null): PageContext | null => {
+const arPageNow = (askApi: Line["A"], q: string, base: Conversation | null): PageContext | null => {
   try {
-    return A.context ? A.context(arRoute(), q, base && base.messages) : null;
+    return askApi.context ? askApi.context(arRoute(), q, base && base.messages) : null;
   } catch {
     return null;
   }

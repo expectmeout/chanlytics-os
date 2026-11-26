@@ -232,6 +232,8 @@ function span(tz: string, start: number, end: number): string {
  * them is a member of the team confirming, never the link. A business with no
  * link has nothing to hold back, so it is told what it is told without one.
  * Left out, nothing is held: the words are auto's, byte for byte.
+ *
+ * screen-word: told to AI, never shown on a page.
  */
 export function describeOpenings(
   openings: Opening[],

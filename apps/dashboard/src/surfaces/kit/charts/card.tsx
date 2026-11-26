@@ -173,7 +173,7 @@ export function ChartCard({
               className="ck-icon-btn"
               onClick={() => ckSaveCsv(title, data)}
               aria-label={`Save “${title}” as a CSV file`}
-              title="Save as CSV"
+              data-tip="Save as CSV"
               data-testid="card-csv"
             >
               <Icon name="download" size={13} />

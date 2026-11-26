@@ -21,6 +21,7 @@ import { holderName } from "../../holder-names";
 // so "Needs you" is amber here as it is in the Inbox and on a playbook.
 // Who answered a handled chat, in the pill's words; a call keeps its own.
 const CV_ANSWERED: Record<string, string> = {
+  // screen-word: "Your team" tells the owner's people from AI and the customer (docs/words.md, The voice 5)
   team: "Your team replied",
   broadcast: "Sent once",
   playbook: "Campaign sent",

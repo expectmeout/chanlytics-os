@@ -494,7 +494,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   for (const s of [
     // The day's one derivation (dayVmOf), which the strip and the brief both read: a feed that is not ok is no day.
-    'if (!C || !C.vm || C.vm.feed.state !== "ok") return null;',
+    'if (!calendar || !calendar.vm || calendar.vm.feed.state !== "ok") return null;',
     "export function useDayVm()",
   ])
     assert.ok(dayModule.includes(s), s);
@@ -509,7 +509,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(!dayModule.includes(gone), `${gone} is not drawn from day.tsx`);
   assert.match(
     dayModule,
-    /TODAY_HELPERS\.day\(\s*C\.vm[^,]*,\s*P \? \{ rows: P\.rows, word: word \?\? P\.shape\.word \} : null,\s*word \? \{ rows: \[\], word \} : null,\s*Number\.POSITIVE_INFINITY,?\s*\)/,
+    /TODAY_HELPERS\.day\(\s*calendar\.vm[^,]*,\s*playbooks \? \{ rows: playbooks\.rows, word: word \?\? playbooks\.shape\.word \} : null,\s*word \? \{ rows: \[\], word \} : null,\s*Number\.POSITIVE_INFINITY,?\s*\)/,
     "the page composes the module: the calendar, the playbooks' rows, and the workspace's word as Today's read says it " +
       "before a playbook's, every entry of the day (the zone folds what is over itself); who is coming is the board's " +
       "own read's (calendar-person-facts.ts), so People's book is no read of the day's",

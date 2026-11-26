@@ -19,7 +19,7 @@ import {
   type KnownPerson,
   type MailboxReach,
 } from "@chanlytics/channels/email";
-import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone, recordOrEmpty } from "@chanlytics/contracts";
+import { IMPORT_STOPPED_WORDS, normalizeEmail, normalizePhone, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
 import { importCursorOf, noteImport } from "@chanlytics/db/imports";
 import { findMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
@@ -87,7 +87,7 @@ async function bring(
     });
     return person.outcome === "new";
   } catch (e) {
-    if ((e as { code?: unknown }).code === PERSON_FORGOTTEN) return false;
+    if (valueAt(e, "code") === PERSON_FORGOTTEN) return false;
     throw e;
   }
 }

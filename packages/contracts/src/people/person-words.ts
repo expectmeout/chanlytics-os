@@ -66,12 +66,12 @@ export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
   email: REPLY_VIA.email,
   instagram: REPLY_VIA.instagram,
   call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
+  calendar: "The calendar",
   manual: "Added by hand",
   import: "Imported",
   lead: "A lead you found",
   ad: "An ad",
-  website: "Your website",
+  website: "The website",
   form: "A form",
 };
 
