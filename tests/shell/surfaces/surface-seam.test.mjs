@@ -82,31 +82,20 @@ test("an unknown surface is neither ready nor failed", () => {
 
 /* --------------- 2. the gate exists before any consumer renders -------------- */
 
-test("the route gate is installed at module scope, not in an effect", () => {
+test("the route gate and the cache are the boot's, which FrameApp runs at its module scope, before its effects", () => {
+  // The frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first render, and it is a
+  // CHILD of FrameApp, whose effects run after it. A gate installed in a useEffect was undefined at the only moment it
+  // mattered: routeReady() fell back to true and a cold boot painted the seeded hero for a frame; and a cache restored
+  // inside the component showed a frame of mockup data before correcting itself. The boot itself is run, gate and cache
+  // and all, in tests/shell/boot/frame-boot.test.mjs: what is left to read is where FrameApp calls it, since FrameApp
+  // draws in a browser alone.
   const s = src("FrameApp.tsx");
-  const call = s.indexOf("\ninstallRouteGate();");
-  assert.notEqual(call, -1, "installRouteGate() must be called at top level");
-
-  // The frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first
-  // render, and it is a CHILD of this component — children render before
-  // parent effects run. Installing the gate in a useEffect left it undefined
-  // at the only moment it mattered: routeReady() fell back to true and a cold
-  // boot painted the seeded hero for a frame.
+  const call = s.indexOf("\nbootFrame();\n");
+  assert.notEqual(call, -1, "bootFrame() is called at FrameApp's top level");
+  assert.ok(call < s.indexOf("export default function FrameApp"), "before the component: React has drawn nothing");
   const firstEffect = s.indexOf("useEffect(");
-  assert.ok(
-    firstEffect === -1 || call < firstEffect,
-    "installRouteGate() moved below the effects — if it is now inside one, the first frame is ungated again",
-  );
-});
-
-test("the cache is hydrated at module scope, before React renders", () => {
-  const s = src("FrameApp.tsx");
-  const hydrate = s.indexOf("markHydrated(hydrateSurfaceCache())");
-  assert.notEqual(hydrate, -1, "boot must restore the cache");
-  assert.ok(
-    hydrate < s.indexOf("export default function FrameApp"),
-    "hydration moved inside the component — a refresh will show a frame of mockup data before correcting itself",
-  );
+  assert.ok(firstEffect === -1 || call < firstEffect, "never inside an effect: the first frame would be ungated");
+  assert.ok(s.indexOf('import "./manifest";') < s.indexOf('from "./boot/installs"'), "after the manifest's seeds");
 });
 
 /* ------------- 3. loading is derived during render, not set later ------------ */

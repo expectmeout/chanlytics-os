@@ -72,7 +72,7 @@ export const LEAD_SHEET_WORDS = {
   where: "Where",
   from: "From",
   directory: "A business directory",
-  whatWeKeep: "What we keep",
+  whatWeKeep: "What Chanlytics keeps",
   noListing: "No listing",
   /** Contact: where the sequence writes, and changing who it writes to. */
   writesHere: "The campaign writes here",
@@ -100,6 +100,7 @@ export const LEAD_SHEET_WORDS = {
     titleMany: (n: number) => `Add ${n} to`,
     sub: "Tap one to add. It becomes the pick for this search.",
     canJoin: (name: string) => `${name} can join any of these`,
+    // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
     yours: "Your lead campaigns",
     none: "No campaign takes leads yet. Make one by name · you write its emails when you're done here.",
     newOne: "New campaign",

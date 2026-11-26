@@ -161,7 +161,7 @@ function leadReach(a: LeadActsArgs, leadById: (id: string) => LeadRowVM | null) 
       msg: (
         <>
           Copied {usable.length} email{usable.length === 1 ? "" : "s"}
-          {none ? `; ${none} had none you can use` : ""}
+          {none ? ` · ${none} had none you can use` : ""}
         </>
       ),
     });

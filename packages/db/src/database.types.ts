@@ -13937,6 +13937,10 @@ export type Database = {
         Args: { p_change: Json; p_slot_id: string; p_tenant_id: string }
         Returns: Json
       }
+      plan_slots_hold: {
+        Args: { p_holds: Json; p_plan_id: string; p_tenant_id: string }
+        Returns: number
+      }
       platform_admin_add: {
         Args: { p_email: string; p_role?: string }
         Returns: string
@@ -14253,6 +14257,10 @@ export type Database = {
       post_report: {
         Args: { p_file_id: string; p_link?: string; p_tenant_id: string }
         Returns: Json
+      }
+      post_seen_say: {
+        Args: { p_post_id: string; p_there: boolean; p_words?: string }
+        Returns: boolean
       }
       post_shape: { Args: { p_kind: string; p_place: string }; Returns: string }
       post_story_ended: {

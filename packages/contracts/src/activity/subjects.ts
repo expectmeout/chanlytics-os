@@ -80,6 +80,10 @@ export const ACTIVITY_SUBJECT_HOMES = {
   job: { none: "a platform job: the back office reads it, and an owner has no page for it" },
   user: { none: "a member's Ask usage: counted, and there is no page it belongs to" },
   lead_round: { none: "one round of a search: the search holds it, and a round has no page of its own" },
+  post: {
+    none: "a post is its piece's: Files and the week say where each post stands, and a post has no page of its own",
+  },
+  plan_slot: { none: "a week's slot is its week's: Content draws the week, and a slot has no page of its own" },
 } as const satisfies Record<string, SubjectHome>;
 
 /**
