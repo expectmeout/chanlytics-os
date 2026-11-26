@@ -755,7 +755,7 @@ const KIT_ROWS = SHEET_SERVICES.map(
 const kitSheet = () =>
   `<button type="button" class="btn">Open the services</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<section class="sheet" role="dialog" aria-modal="true" tabindex="-1">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Services</h2>` +
   `<p class="rec-sheet-sub">What you offer, and how long each takes.</p></div>` +
@@ -772,7 +772,7 @@ const kitSheet = () =>
 const kitMarkSheet = () =>
   `<button type="button" class="btn">Open the business</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<section class="sheet" role="dialog" aria-modal="true" tabindex="-1">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head" data-marked="true"><span class="sheet-mark"><span class="face face-lg" aria-hidden="true">HP</span></span>` +
   `<div class="rec-sheet-heading"><h2 class="rec-sheet-title">Hyde Park Personal Training</h2>` +
@@ -787,7 +787,7 @@ const kitMarkSheet = () =>
 const kitOpensSheet = () =>
   `<button type="button" class="btn">Open the deal</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<section class="sheet" role="dialog" aria-modal="true" tabindex="-1">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head" data-marked="true"><span class="sheet-mark">` +
   `<button type="button" class="rec-sheet-opens" tabindex="-1" aria-hidden="true"><span class="face face-lg" aria-hidden="true">DW</span></button></span>` +
@@ -805,7 +805,7 @@ const kitOpensSheet = () =>
 const kitKickerSheet = () =>
   `<button type="button" class="btn">Turn on Win-back</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet sheet-kicker" role="dialog" tabindex="-1">` +
+  `<section class="sheet sheet-kicker" role="dialog" aria-modal="true" tabindex="-1">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Turn on</h2></div>` +
   `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
@@ -821,7 +821,7 @@ const kitKickerSheet = () =>
 const kitUnsaidSheet = () =>
   `<button type="button" class="btn">Spring offer</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet sheet-kicker" role="dialog" tabindex="-1" data-unsaid="true">` +
+  `<section class="sheet sheet-kicker" role="dialog" aria-modal="true" tabindex="-1" data-unsaid="true">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Messages</h2></div>` +
   `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
@@ -834,7 +834,7 @@ const kitUnsaidSheet = () =>
 const kitRestsSheet = () =>
   `<button type="button" class="btn">Go through them</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet sheet-kicker sheet-rests" role="dialog" tabindex="-1" data-rest="half">` +
+  `<section class="sheet sheet-kicker sheet-rests" role="dialog" aria-modal="true" tabindex="-1" data-rest="half">` +
   `<button type="button" class="sheet-handle" aria-label="Show all of it" aria-expanded="false"></button>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Going through</h2></div>` +
   `<button type="button" tabindex="0" aria-label="Close" class="rec-sheet-close">${icon("x", 13)}</button></header>` +
@@ -850,7 +850,7 @@ const kitRestsSheet = () =>
 const kitFitSheet = () =>
   `<button type="button" class="btn">Reply to Chris</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet sheet-rests" role="dialog" tabindex="-1" data-rest="half" data-rest-fit="true">` +
+  `<section class="sheet sheet-rests" role="dialog" aria-modal="true" tabindex="-1" data-rest="half" data-rest-fit="true">` +
   `<button type="button" class="sheet-handle" aria-label="Pull up for the whole conversation" aria-expanded="false"></button>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Chris Webb</h2>` +
   `<p class="rec-sheet-sub">Text · waited 7h</p></div>` +
@@ -867,7 +867,7 @@ const kitFitSheet = () =>
 const kitSolidSheet = () =>
   `<button type="button" class="btn">Open the visit</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet" role="dialog" tabindex="-1" data-solid="true">` +
+  `<section class="sheet" role="dialog" aria-modal="true" tabindex="-1" data-solid="true">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="rec-sheet-head"><div class="rec-sheet-heading"><h2 class="rec-sheet-title">Consultation</h2>` +
   `<p class="rec-sheet-sub">Yesterday, 10:30 to 11 AM</p></div>` +
@@ -884,7 +884,7 @@ const kitSolidSheet = () =>
 const kitJobSheet = () =>
   `<button type="button" class="btn">Work the 3 selected</button>` +
   `<div class="sheet-backdrop" role="presentation" aria-hidden="true"></div>` +
-  `<section class="sheet" role="dialog" tabindex="-1">` +
+  `<section class="sheet" role="dialog" aria-modal="true" tabindex="-1">` +
   `<div class="sheet-handle" aria-hidden="true"></div>` +
   `<header class="sheet-job-head">` +
   `<button type="button" aria-label="Back" class="sheet-job-back">${icon("chevron", 18)}</button>` +
