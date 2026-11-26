@@ -8,7 +8,6 @@ import { SURFACE_VALUE_SLOT } from "@/bridge/surface-cache";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { surfaceCode } from "@/bridge/surfaces/code";
 import { declareReads } from "@/bridge/surface-registry";
-import type { LeadsSurface } from "./surface-types";
 import { isList, isObjectRecord, valueAt } from "@chanlytics/contracts";
 
 /** The rows the tab's cache keeps of the view: what an instant paint needs. */

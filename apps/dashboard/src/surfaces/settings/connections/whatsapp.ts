@@ -23,7 +23,7 @@ import type { LineCodeDto } from "@chanlytics/contracts";
 import { unwrap } from "@/client/api";
 import { api, read } from "@/bridge/api";
 import { signupDoorRead } from "../frame/pane-reads";
-import { valueAt } from "@chanlytics/contracts";
+import { valueAt, textOrEmpty } from "@chanlytics/contracts";
 
 type Refused = {
   ok: false;
@@ -205,8 +205,8 @@ export function parseSignupMessage(origin: string, data: unknown): SignupSaid | 
     const phone = valueAt(obj, "data", "phone_number_id");
     const waba = valueAt(obj, "data", "waba_id") ?? valueAt(obj, "data", "waba_ids", 0);
     const said = {
-      phone_number_id: phone ? String(phone) : null,
-      waba_id: waba ? String(waba) : null,
+      phone_number_id: textOrEmpty(phone) || null,
+      waba_id: textOrEmpty(waba) || null,
     };
     return said.phone_number_id || said.waba_id ? said : null;
   }

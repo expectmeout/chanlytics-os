@@ -7,7 +7,7 @@
  * the door: the whole row, as a link, with the time as plain text.
  */
 import { Fragment } from "react";
-import type { MouseEventHandler, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { TIMELINE_FILTERS, filterTimeline, personFaceOf, timelineFilterLabel } from "@chanlytics/contracts";
 import { NEW_SINCE_WORDS } from "./model/new-since";
 import type { AppointmentWord, PersonVM } from "@chanlytics/contracts";

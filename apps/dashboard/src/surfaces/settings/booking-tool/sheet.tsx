@@ -16,7 +16,6 @@ import { recFolds } from "../../kit/record/registry";
 import { canDo, navigate, refreshSurface } from "../../frame-verbs";
 import type { FrameFlash } from "../../frame-verbs";
 import { BtBookingTool, BOOKING_TOOL_FOLD } from "../business/open-bookings";
-import type { Config } from "../business/save";
 import { businessTabSave } from "../business/saver";
 import { calendarNow, settingsNow } from "../business/shell";
 

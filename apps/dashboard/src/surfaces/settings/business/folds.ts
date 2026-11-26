@@ -62,6 +62,7 @@ import {
   listOrEmpty,
   recordOrEmpty,
   valueAt,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import { amountKeysOf, amountProblemAt } from "./model/service-amount";
 import { greetingDraftOf, greetingStoredOf } from "./phone/greeting-draft";
@@ -163,7 +164,7 @@ const btOpenRules = (p: Profile): RulesDraft => {
   const draft: RulesDraft = { notes: "", ask_email: false };
   BT_RULES.forEach(([key]) => {
     const value = rules[key];
-    draft[key] = value !== undefined ? String(value) : "";
+    draft[key] = textOrEmpty(value);
   });
   draft.notes = (rules.notes || []).join("\n");
   draft.ask_email = !!rules.ask_email;
@@ -565,8 +566,8 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
   languages: (draft): Problems => {
     const list = listOrEmpty(draft);
     if (list.length > BT_LIMITS.languages) return { languages: btRefusalOf("languages") };
-    const odd = list.find((l) => String(l).length < BT_LIMITS.languageMin || String(l).length > BT_LIMITS.languageMax);
-    return odd !== undefined ? { languages: btRefusalOf("language", undefined, String(odd)) } : {};
+    const odd = list.map(textOrEmpty).find((l) => l.length < BT_LIMITS.languageMin || l.length > BT_LIMITS.languageMax);
+    return odd !== undefined ? { languages: btRefusalOf("language", undefined, odd) } : {};
   },
   escalate_when: (draft): Problems => {
     const reasons = btLines(draft);

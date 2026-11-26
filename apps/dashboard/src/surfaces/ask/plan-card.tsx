@@ -58,11 +58,12 @@ function planSaid(now: readonly AskProposal[], t: LineWords): { line: string; ok
 
 /** The press, its Undo, its Pause and its Not now, each holding the card until what it did is kept. */
 const usePlanPress = (
-  A: AskApi,
+  askApi: AskApi,
   cards: AskProposal[],
   use: { messageId?: string | null; t: LineWords; onOutcome?: OnOutcome },
 ) => {
   const { messageId, t, onOutcome } = use;
+  const A = askApi;
   const { now, keep } = usePlanCards(cards, (pid, o, kept) =>
     recordCardOutcome({ A, messageId, onOutcome }, pid, o, kept),
   );

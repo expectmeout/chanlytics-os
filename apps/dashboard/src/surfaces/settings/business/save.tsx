@@ -18,6 +18,7 @@ import {
   whyNotAPhone,
   E164,
   valueAt,
+  textOrEmpty,
 } from "@chanlytics/contracts";
 import { isValidElement, type ReactNode } from "react";
 import type { FrameFlash } from "../../frame-verbs";
@@ -184,7 +185,7 @@ export const phoneShown = (v: string | null | undefined) => (v && E164.test(v) ?
 // Two drafts are the same when saving either would write the same thing.
 const btSame = (a: unknown, b: unknown) =>
   JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
-const btTrimmed = (d: unknown) => String(d ?? "").trim();
+const btTrimmed = (d: unknown) => textOrEmpty(d).trim();
 
 /**
  * A job's patch, applied to a config: the config it would send, with the config it was applied to left exactly as it

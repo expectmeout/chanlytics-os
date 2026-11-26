@@ -44,8 +44,7 @@ import { unwrap, type ApiResult } from "@/client/api";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
 
 export type { LeadsSurface } from "./surface-types";
-import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
-import type { DraftData } from "./peek/types";
+import type { LeadsPageAnswer, LeadsView } from "./surface-types";
 import { keepLastOrder, lastOrderOf, viewOrderOf, type LeadViewOrder } from "./last-order";
 import { keptRows, leadRowsOf } from "./row-memo";
 import { oneOut } from "./one-out";

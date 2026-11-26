@@ -204,7 +204,7 @@ async function listRenameGo(a: PhoneActsArgs, saved: SavedList, n: string, close
 
 /** The open list's acts on a phone (the more-menu's): the desktop's doors, the page's draft, the desktop's words. */
 function listActGoOf(a: PhoneActsArgs, closePhoneSheet: () => void) {
-  const { listAct, listDraft, setListDraft, activeSaved, viewRule, shownIds, openMade, setSavedId, plFlash } = a;
+  const { listAct, listDraft, setListDraft, activeSaved, viewRule, shownIds, openMade, plFlash } = a;
   return async () => {
     const d = listDraft;
     if (d.busy) return;

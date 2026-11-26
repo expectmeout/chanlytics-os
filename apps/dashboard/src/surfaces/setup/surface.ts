@@ -497,7 +497,7 @@ export const setupVerbs: SetupApi = {
     async search(areaCode) {
       const r = await api()("POST lines/search", { body: { area_code: areaCode } });
       if (!r.ok) return { ok: false, numbers: [], message: r.message };
-      return { ok: true, numbers: r.data.numbers, message: "" };
+      return { ok: true, numbers: r.data.numbers as LineChoice[], message: "" };
     },
     async buy(number, areaCode) {
       const r = await api()("POST lines/buy", { body: { number, area_code: areaCode }, once: true });

@@ -201,7 +201,7 @@ export const btWeekOf = (draft: unknown): Partial<Record<string, DayDraft>> => {
 
 // The lines of a box, one rule or reason each: those with something on them, trimmed.
 export const btLines = (text: unknown) =>
-  String(text ?? "")
+  textOrEmpty(text)
     .split("\n")
     .map((x) => x.trim())
     .filter(Boolean);

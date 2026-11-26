@@ -14,7 +14,6 @@ import {
   isReplyIntent,
   sequenceLeftWords,
   LEAD_CALL_OUTCOME_WORDS,
-  type LeadCallOutcome,
   LEAD_OWN_EMAIL_WORDS,
   leadEmailLineOf,
   type LeadEmailDto,
