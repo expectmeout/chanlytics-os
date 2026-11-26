@@ -19,9 +19,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
@@ -29,13 +31,15 @@ import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 // The list routes run below build no service client; a module that ever does reads these, and nothing dials it.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "anon-test-only";
+// Next's request stores, as a server gives them (globalThis.AsyncLocalStorage), for the cookie read below.
+globalThis.AsyncLocalStorage ??= AsyncLocalStorage;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../..");
 const API = path.join(ROOT, "apps/dashboard/app/api/v1");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
-const withRoute = read("apps/dashboard/src/server/shared/with-route.ts");
 // The seam and each surface's module beside it (bridge/surfaces/), read as one text.
 const surfaceData = [
   "apps/dashboard/src/bridge/surface-data.ts",
@@ -62,16 +66,48 @@ test("getMemberContext is the only place a default workspace is chosen", () => {
   assert.deepEqual(offenders, [], "these routes still pick a default tenant themselves");
 });
 
-test("an explicit workspace resolves by id OR slug", () => {
-  // /metrics accepted slugs and nothing else did, so the same query string
-  // meant different things depending on which endpoint received it.
-  assert.match(withRoute, /r\.tenant_id === wanted \|\| r\.tenants\?\.slug === wanted/);
+/* The resolver, run: a member of two workspaces, harbor (the older membership) and bayside, on a session that has
+ * shown its second factor, so a workspace not found is not a partner's hidden seat. Pinned as with-route.ts's text
+ * until 26 Nov 2026. */
+const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
+const { getMemberContext, withRoute } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));
+const HARBOR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const BAYSIDE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const STRANGER = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const seat = (tenant_id, slug, created_at) => ({
+  user_id: "u-two",
+  tenant_id,
+  role: "owner",
+  tenants: { slug, name: slug, timezone: "America/New_York" },
+  created_at,
+});
+const memberOf = (...seats) => ({
+  supabase: fakeDb({ memberships: seats }),
+  userId: "u-two",
+  email: "two@example.com",
+  aal: "aal2",
+});
+const memberOfTwo = () =>
+  memberOf(seat(HARBOR, "harbor", "2026-01-01T00:00:00Z"), seat(BAYSIDE, "bayside", "2026-02-01T00:00:00Z"));
+const refusedAs = (code, status) => (e) => {
+  assert.equal(e.code, code, e.message);
+  if (status) assert.equal(e.status, status, e.message);
+  return true;
+};
+
+test("an explicit workspace resolves by id OR slug", async () => {
+  // /metrics accepted slugs and nothing else did, so the same query string meant different things depending on which
+  // endpoint received it.
+  assert.equal((await getMemberContext(memberOfTwo(), BAYSIDE)).tenantId, BAYSIDE, "by its id");
+  assert.equal((await getMemberContext(memberOfTwo(), "bayside")).tenantId, BAYSIDE, "by its slug");
+  assert.equal((await getMemberContext(memberOfTwo(), "harbor")).tenantId, HARBOR);
 });
 
-test("a workspace the caller is not a member of is never silently swapped", () => {
-  // RLS means the query cannot see other people's memberships, so a forged id
-  // finds nothing — and that must 404, not fall through to their own default.
-  assert.match(withRoute, /if \(!membership\) throw new AppError\("not_found"/);
+test("a workspace the caller is not a member of is never silently swapped", async () => {
+  // RLS means the query cannot see other people's memberships, so a forged id finds nothing -- and that must 404, not
+  // fall through to their own default.
+  await assert.rejects(getMemberContext(memberOfTwo(), STRANGER), refusedAs("not_found", 404));
+  await assert.rejects(getMemberContext(memberOfTwo(), "someone-elses-slug"), refusedAs("not_found", 404));
 });
 
 /* --------------------------- reads are scoped ----------------------------- */
@@ -163,30 +199,26 @@ test("every list endpoint filters by tenant, not by RLS alone", async () => {
 
 /* --------------------------- writes never guess --------------------------- */
 
-test("a request refuses to act on a workspace nobody named, read or write", () => {
-  // Reads used to fall back to the oldest membership, so a member of two
-  // workspaces saw one business under another's name until the workspace
-  // surface answered. Since plan 3.4 the resolver refuses before it picks:
-  // one rule, in getMemberContext, for every route, read or write.
-  const fn = withRoute.slice(withRoute.indexOf("export async function getMemberContext"));
-  assert.match(
-    fn,
-    /if \(!wanted && rows\.length > 1 && !opts\.defaultAllowed\) throw new AppError\("choose_workspace", AMBIGUOUS\);/,
-    "the resolver must refuse an unnamed workspace",
-  );
-  assert.ok(
-    fn.indexOf("!opts.defaultAllowed") < fn.indexOf("const membership = wanted"),
-    "the refusal must come BEFORE the pick, or the default leaks",
-  );
+test("a request refuses to act on a workspace nobody named, read or write", async () => {
+  // Reads used to fall back to the oldest membership, so a member of two workspaces saw one business under another's
+  // name until the workspace surface answered. Since plan 3.4 the resolver refuses before it picks: one rule, in
+  // getMemberContext, for every route, read or write.
+  await assert.rejects(getMemberContext(memberOfTwo(), null), refusedAs("choose_workspace"));
+  await assert.rejects(getMemberContext(memberOfTwo(), ""), refusedAs("choose_workspace"), "an empty name is none");
+  const one = memberOf(seat(HARBOR, "harbor", "2026-01-01T00:00:00Z"));
+  assert.equal((await getMemberContext(one, null)).tenantId, HARBOR, "a member of one workspace is in it");
 });
 
-test("only /workspaces may take the default: answering where am I is its job", () => {
-  const ws = read("apps/dashboard/src/server/workspace/list.ts");
-  assert.match(ws, /getMemberContext\(ctx, preferred, \{ defaultAllowed: true \}\)/);
-  assert.ok(
-    !read("apps/dashboard/src/server/shared/route.ts").includes("defaultAllowed"),
-    "route() never takes the default",
-  );
+test("only /workspaces may take the default: answering where am I is its job", async () => {
+  // The list's own default is run in workspace/account-routes.test.mjs ("where you are"): the oldest membership.
+  const taken = await getMemberContext(memberOfTwo(), null, { defaultAllowed: true });
+  assert.equal(taken.tenantId, HARBOR, "the oldest membership");
+  // route() never takes it: a workspace's route asked with no workspace is refused, and named, it acts there.
+  const { read: readRoute, workspace } = await import(at("apps/dashboard/src/server/shared/route.ts"));
+  const probe = readRoute({ scope: workspace, handle: ({ member }) => member.tenantId });
+  const asked = (q) => probe.run(new Request(`http://localhost/api/v1/probe${q}`), memberOfTwo());
+  await assert.rejects(asked(""), refusedAs("choose_workspace"));
+  assert.equal(await asked(`?workspace=${BAYSIDE}`), BAYSIDE);
 });
 
 /* ------------------------------ the client -------------------------------- */
@@ -330,66 +362,85 @@ test("the cache is keyed on the ACTIVE workspace", () => {
 });
 
 /* ---------------- the checks every mutation should pass ------------------- */
-{
-  const { readCode } = await import("../_source.mjs");
-  const wrapper = readCode("apps/dashboard/src/server/shared/with-route.ts");
-  const guards = readCode("apps/dashboard/src/server/shared/request-guards.ts");
-  const verbsSrc = readCode("apps/dashboard/src/server/shared/verbs.ts");
-  const replySrc = readCode("packages/core/src/conversations/reply.ts");
-  const replyRoute = readCode("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts");
+// Run since 26 Nov 2026; until then this block read with-route.ts, request-guards.ts, verbs.ts, core reply.ts and the
+// reply route as text. Two are run elsewhere, as they were said here:
+//   - a cross-site write is refused before anything reads the database: auth/bearer.test.mjs ("without a bearer the
+//     cookie's path is taken: a cross-site POST is refused before any session is read"), a 403 with the verifier never
+//     asked;
+//   - template params come from config, never from the browser: conversations/reply/core-reply.test.mjs ("outside the
+//     window ... the params are the workspace's facts, never the client's").
 
-  test("a cross-site write is refused before anything reads the database", () => {
-    // These endpoints authenticate with a cookie, so a form on another site
-    // could aim at them. Nothing stopped that except two accidents:
-    // @supabase/ssr's SameSite=Lax default, and vercel.app being on the
-    // public-suffix list. Both stop being true on a shared custom domain.
-    const at = wrapper.indexOf("isSameOrigin(req)");
-    assert.ok(at > -1, "withRoute must make the check");
-    assert.ok(at < wrapper.indexOf("getClaims()"), "and make it before the session lookup");
-    assert.match(wrapper, /status: 403/);
+const NEXT = createRequire(path.join(ROOT, "apps/dashboard/package.json"));
+const { workAsyncStorage } = NEXT("next/dist/server/app-render/work-async-storage.external");
+/** A browser with no session cookie: Next's request store answers cookies() with none. */
+const withNoCookie = (fn) => workAsyncStorage.run({ route: "/api/v1/probe", forceStatic: true }, fn);
+const crossSite = (method) =>
+  new Request("http://localhost/api/v1/probe", {
+    method,
+    headers: { "sec-fetch-site": "cross-site" },
+    ...(method === "POST" ? { body: "{}" } : {}),
   });
 
-  test("reads stay exempt from the origin check", () => {
-    // A GET changes nothing, and cross-site GETs are how link previews and
-    // prefetches legitimately arrive.
-    assert.match(wrapper, /req\.method !== "GET"/);
-    assert.match(wrapper, /req\.method !== "HEAD"/);
-  });
+test("reads stay exempt from the origin check", async () => {
+  // A GET changes nothing, and cross-site GETs are how link previews and prefetches legitimately arrive: one is asked who
+  // is signed in (no one, here: 401), never refused for where it came from. A POST from the same page is refused first.
+  const ran = [];
+  const probe = withRoute(async () => ran.push("handler"));
+  const answer = async (method) => {
+    const res = await withNoCookie(() => probe(crossSite(method), { params: Promise.resolve({}) }));
+    const body = method === "HEAD" ? null : await res.json();
+    return [res.status, body?.error?.code ?? null];
+  };
+  assert.deepEqual(await answer("GET"), [401, "unauthorized"], "a cross-site read goes on to the session");
+  assert.equal((await answer("HEAD"))[0], 401, "and so does a HEAD");
+  assert.deepEqual(await answer("POST"), [403, "forbidden"], "a cross-site write does not");
+  assert.deepEqual(ran, [], "and none reached the handler");
+});
 
-  test("a malformed id is a 404, not a 500", () => {
-    // PostgREST answers 22P02 for a bad uuid, which withRoute turns into
-    // "Something went wrong" — a typo in a URL reading as a server fault.
-    assert.match(guards, /export function requireUuid/);
-    assert.match(guards, /"not_found"/);
-    // A playbook's loader says "campaign", the word its reader reads (decision 19 of 9 Oct 2026).
-    for (const what of ["conversation", "contact", "message", "call", "list", "broadcast", "template", "campaign"])
-      assert.ok(
-        verbsSrc.includes('requireUuid(id, "' + what + '")'),
-        what + ": checked once at the chokepoint, its loader",
-      );
-  });
+test("a malformed id is a 404, not a 500", async () => {
+  // PostgREST answers 22P02 for a bad uuid, which withRoute turns into "Something went wrong" -- a typo in a URL reading
+  // as a server fault. Checked once at the chokepoint, each scope's loader, before anything reads the database. A
+  // playbook's loader says "campaign", the word its reader reads (decision 19 of 9 Oct 2026).
+  const { requireUuid } = await import(at("apps/dashboard/src/server/shared/request-guards.ts"));
+  assert.throws(() => requireUuid("not-a-uuid", "conversation"), refusedAs("not_found", 404));
+  assert.equal(requireUuid(HARBOR, "conversation"), HARBOR);
+  const verbs = await import(at("apps/dashboard/src/server/shared/verbs.ts"));
+  const untouched = new Proxy(
+    {},
+    {
+      get: (_, k) => {
+        throw new Error(`the database was asked (${String(k)}) before the id was checked`);
+      },
+    },
+  );
+  const ctx = { ...memberOfTwo(), supabase: untouched };
+  for (const [scope, what] of [
+    ["conversationScope", "conversation"],
+    ["contactScope", "contact"],
+    ["messageScope", "message"],
+    ["callScope", "call"],
+    ["listScope", "list"],
+    ["broadcastScope", "broadcast"],
+    ["templateScope", "template"],
+    ["playbookScope", "campaign"],
+  ])
+    await assert.rejects(verbs[scope].load(ctx, { id: "not-a-uuid" }), (e) => {
+      assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, `That ${what} does not exist.`], scope);
+      return true;
+    });
+});
 
-  test("the reply body is validated at the door", () => {
-    // The one route that reaches a real person took whatever the body held. An
-    // over-length reply was stored, reported queued, and failed 15 seconds
-    // later as an escalation plus an alert email. Each wire's own limit is the
-    // verb's now, asked before anything is queued (core-reply.test.mjs runs a
-    // 4097-character WhatsApp reply); the door bounds what any wire could take.
-    assert.match(replyRoute, /REPLY_MAX_ANY/);
-    assert.match(replyRoute, /input: ReplyBody/);
-    assert.match(replyRoute, /\.strict\(\)/);
-  });
-
-  test("template params come from config, never from the browser", () => {
-    // The route's own comment has always said params are tenant facts resolved
-    // server-side "so the browser neither knows nor ships any workspace's
-    // booking link" — and the code fell back to whatever the browser sent for
-    // a workspace with no facts, so an operator session could still choose the
-    // link that lands on the customer's phone. The verb reads the facts alone.
-    assert.ok(replySrc.includes("await ports.templateFacts(conv.tenant_id)"));
-    assert.ok(
-      !replySrc.includes("body.template.params"),
-      "the browser's params are never read (core-reply.test.mjs runs it)",
-    );
-  });
-}
+test("the reply body is validated at the door", async () => {
+  // The one route that reaches a real person took whatever the body held. An over-length reply was stored, reported
+  // queued, and failed 15 seconds later as an escalation plus an alert email. Each wire's own limit is the verb's now,
+  // asked before anything is queued (core-reply.test.mjs runs a 4097-character WhatsApp reply); the door bounds what any
+  // wire could take. What the route declares it takes is what route() parses before its handler runs.
+  const { REPLY_MAX_ANY } = await import("@chanlytics/contracts");
+  const reply = await import(at("apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts"));
+  const takes = (body) => reply.POST.input.safeParse(body).success;
+  assert.ok(takes({ text: "x".repeat(REPLY_MAX_ANY) }), "the longest any channel carries");
+  assert.ok(!takes({ text: "x".repeat(REPLY_MAX_ANY + 1) }), "one character more is refused at the door");
+  assert.ok(!takes({ text: "hi", tenant_id: STRANGER }), "a field the door does not take is refused, not ignored");
+  assert.ok(!takes({ template: { name: "reservar_ahora", language: "en_US", link: "https://elsewhere.example" } }));
+  assert.ok(takes({ template: { name: "reservar_ahora", language: "en_US", params: ["kept for an older client"] } }));
+});

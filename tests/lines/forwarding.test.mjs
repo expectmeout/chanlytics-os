@@ -26,7 +26,7 @@ import {
   agoWords,
   EVENT_KINDS,
 } from "@chanlytics/contracts";
-import { importSrc, readCode } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { TENANT, rows } from "../_rows.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
@@ -338,10 +338,8 @@ test("the wiring: the forwarding event kind, and Setup's two verbs ask the two r
     { at: "POST /api/v1/lines/forwarding/test", body: { line_id: "f1" } },
   ]);
   globalThis.window.fetch = realFetch;
-  // The one part not yet drawn: the chooser's Keep my number, which hands the owner to the card (a seam: the chooser
-  // is drawn on a line row no Setup test opens with the receptionist already answering).
-  const chooser = readCode("apps/dashboard/src/surfaces/setup/rows/line-chooser.tsx");
-  assert.ok(chooser.includes('data-testid="setup-keep-go"'));
+  // The chooser's Keep my number, which hands the owner to the card, is drawn on its own in
+  // lines/chooser/keep-my-number-hands-the-owner-to-the-number-s-row.test.mjs (line-chooser.tsx's text until 26 Nov 2026).
   // The nightly spec walks the first run a step at a time (e2e/setup.spec.ts) and counts no rows at all.
 });
 
