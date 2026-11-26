@@ -246,6 +246,9 @@ test("every schedule the watchdog depends on is present and active", { skip }, a
   // Catches someone re-scheduling sweep-health onto the */30 grid live, where
   // it goes blind to deadman failures with no code change to blame.
   assert.equal(byName.get("sweep-health").schedule, "13,43 * * * *");
+  // And the lines sweep off the health check's own grid, at its four minutes (00097; pinned as its text in
+  // lines/line-recovery.test.mjs until 26 Nov 2026).
+  assert.equal(byName.get("lines-sweep").schedule, "8,23,38,53 * * * *", "never onto the health check's own grid");
 });
 
 test("the cron-history purge exists and is callable, without deleting anything", { skip }, async () => {
