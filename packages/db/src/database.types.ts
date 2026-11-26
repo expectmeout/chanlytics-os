@@ -12474,6 +12474,10 @@ export type Database = {
         Args: { p_by: string; p_channel_id: string; p_tenant_id: string }
         Returns: Json
       }
+      invitation_accept: {
+        Args: { p_invitation_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }

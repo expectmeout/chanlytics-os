@@ -98,8 +98,8 @@ export { findSetupAsked, requestSetup } from "./setup";
 export { findWorkspaceFacts, listChannelsForPage, readSetupRows } from "./setup-rows";
 export type { SetupRows } from "./setup-rows";
 export {
+  acceptInvitation,
   changeTeamRole,
-  insertMembership,
   inviteToTeam,
   joinTeam,
   leaveWorkspaceTeam,
@@ -115,7 +115,6 @@ export {
   readTeamRoster,
   removeFromTeam,
   renewTeamInvite,
-  stampInvitationAccepted,
   withdrawInviteRenewal,
   withdrawTeamInvite,
 } from "./team";

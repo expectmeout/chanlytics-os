@@ -1903,6 +1903,53 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       });
       return true;
     },
+    /**
+     * A person's open invitation taken up (00722 invitation_accept): the seat (one held is kept), member.joined where the
+     * ledger does not hold it for the invitation, the stamp; false where the invitation is not open.
+     */
+    invitation_accept: ({ p_invitation_id, p_user_id }) => {
+      // One transaction: a seat, a news or a stamp the database refuses refuses the whole door, and nothing is kept.
+      const fault = faults["memberships.insert"] ?? faults["events.insert"] ?? faults["invitations.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const inv = (tables.invitations ?? []).find(
+        (i) =>
+          i.id === p_invitation_id &&
+          !i.accepted_at &&
+          !i.revoked_at &&
+          (!i.expires_at || Date.parse(i.expires_at) > Date.now()),
+      );
+      if (!inv) return false;
+      const held = (tables.memberships ?? []).some((m) => m.user_id === p_user_id && m.tenant_id === inv.tenant_id);
+      if (!held) {
+        const seat = { tenant_id: inv.tenant_id, user_id: p_user_id, role: inv.role };
+        insertRow("memberships", seat);
+        seen.push({ table: "memberships", op: "insert", values: [seat] });
+      }
+      const said = (tables.events ?? []).some(
+        (e) =>
+          e.tenant_id === inv.tenant_id &&
+          e.kind === "member.joined" &&
+          e.subject_type === "invitation" &&
+          e.subject_id === inv.id,
+      );
+      if (!said)
+        tellEvent({
+          tenant_id: inv.tenant_id,
+          kind: "member.joined",
+          category: "system",
+          subject_type: "invitation",
+          subject_id: inv.id,
+          data: { by: p_user_id, role: inv.role },
+        });
+      inv.accepted_at = stampOf(tables);
+      seen.push({
+        table: "invitations",
+        op: "update",
+        values: { accepted_at: inv.accepted_at },
+        filters: [["eq", "id", inv.id]],
+      });
+      return true;
+    },
     /** The owner's echo's pause and its event (00721 conversation_owner_echo_keep); false where the thread is not theirs. */
     conversation_owner_echo_keep: ({ p_tenant_id, p_conversation_id, p_patch, p_until }) => {
       const fault = faults["conversations.update"];

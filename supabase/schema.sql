@@ -15683,6 +15683,45 @@ COMMENT ON FUNCTION public.instagram_account_disconnect(p_tenant_id uuid, p_chan
 
 
 --
+-- Name: invitation_accept(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.invitation_accept(p_invitation_id uuid, p_user_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_inv public.invitations;
+begin
+  select * into v_inv from public.invitations i
+   where i.id = p_invitation_id and i.accepted_at is null and i.revoked_at is null and i.expires_at > now()
+   for update;
+  if not found then
+    return false;
+  end if;
+  insert into public.memberships (user_id, tenant_id, role)
+  values (p_user_id, v_inv.tenant_id, v_inv.role)
+  on conflict do nothing;
+  if not exists (select 1 from public.events e
+                  where e.tenant_id = v_inv.tenant_id and e.kind = 'member.joined'
+                    and e.subject_type = 'invitation' and e.subject_id = v_inv.id) then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_inv.tenant_id, 'member.joined', 'system', 'invitation', v_inv.id,
+            jsonb_build_object('by', p_user_id, 'role', v_inv.role));
+  end if;
+  update public.invitations i set accepted_at = now() where i.id = v_inv.id and i.accepted_at is null;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION invitation_accept(p_invitation_id uuid, p_user_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.invitation_accept(p_invitation_id uuid, p_user_id uuid) IS 'A person''s open invitation taken up, in one transaction (00722): the seat at the invited role (one held already is kept), member.joined where the ledger does not hold it for this invitation, and the invitation stamped accepted. False where the invitation is not open (taken, revoked or expired). The service role''s: the dashboard''s team route, after it reads the person''s verified address.';
+
+
+--
 -- Name: is_acting_member(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -71798,6 +71837,14 @@ GRANT ALL ON FUNCTION public.instagram_account_connect(p_tenant_id uuid, p_accou
 
 REVOKE ALL ON FUNCTION public.instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION invitation_accept(p_invitation_id uuid, p_user_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.invitation_accept(p_invitation_id uuid, p_user_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.invitation_accept(p_invitation_id uuid, p_user_id uuid) TO service_role;
 
 
 --
