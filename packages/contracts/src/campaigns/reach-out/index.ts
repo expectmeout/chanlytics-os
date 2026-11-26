@@ -12,7 +12,7 @@ export {
   waitingRunsDoor,
 } from "./approval";
 export type { ToSendRowVM } from "./approval";
-export { COLD_EMAIL_CONNECT_WORDS } from "./connect-words";
+export { COLD_EMAIL_CONNECT_WORDS } from "./words/connect";
 export {
   chainFirstSender,
   previewLinesOf,
@@ -184,8 +184,8 @@ export {
   leadReplyNote,
   REPLY_MODE_UNSET,
   replyOfferSteer,
-} from "./reply-draft";
-export type { DraftWhy, LeadNoteKind } from "./reply-draft";
+} from "./replies/draft";
+export type { DraftWhy, LeadNoteKind } from "./replies/draft";
 export {
   isReplyUndoRefusal,
   REPLIES_PAGE,

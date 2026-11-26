@@ -125,6 +125,108 @@ async function identified(
   return { rows, toJudge, yoursAt };
 }
 
+/** The provider's word on a run: its state, what it has cost so far and where its items are. One it no longer has failed. */
+async function remoteRunOf(
+  leadPorts: LeadPorts,
+  run: LeadRunRow,
+): Promise<{ state: LeadRunState; usage: number; datasetId: LeadRunRow["dataset_id"] }> {
+  const kept = { state: run.state, usage: run.usage_usd, datasetId: run.dataset_id };
+  if (FINAL_RUN_STATES.has(run.state)) return kept;
+  if (outOfTime(leadPorts)) throw new LeadRetry("out of time before reading the run");
+  try {
+    const remote = await leadPorts.apify.getRun(run.apify_run_id as string);
+    return {
+      state: runStateOf(remote.status),
+      usage: remote.usageTotalUsd ?? kept.usage,
+      datasetId: remote.datasetId ?? kept.datasetId,
+    };
+  } catch (e) {
+    if (!isRefused(e)) throw e;
+    return { ...kept, state: "failed" }; // the provider no longer has it: an answer
+  }
+}
+
+/** A batch's places up to where it commits, each with what the judge said of it, or the rule that settled it. */
+function placesOf(
+  round: LeadRoundRow,
+  run: LeadRunRow,
+  rows: BatchPlace[],
+  said: Map<Prepared, Said>,
+  end: number,
+  geo: { center: LatLng | null; radiusM: number },
+): CollectPlace[] {
+  return rows
+    .filter((r) => r.prep.index < end)
+    .map((item) => {
+      const { answer, judgment, model } = said.get(item.prep) ?? { answer: null, judgment: null, model: null };
+      const rule =
+        item.duplicateOf && !item.prep.rule
+          ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
+          : item.prep.rule;
+      return memberOf(
+        round.plan,
+        run.term ?? "",
+        item.prep.clean,
+        answer,
+        judgment?.op_id ?? null,
+        model,
+        rule,
+        geo,
+        item.shares,
+        item.duplicateOf,
+      );
+    });
+}
+
+/**
+ * The next collect, riding the commit when this invocation will not read on: the page ended, or time is short. One that
+ * moved nothing waits under a name of its own: this job holds the name its offset would give it, and a second row for a
+ * name is no row at all.
+ */
+function nextCollectOf(
+  leadPorts: LeadPorts,
+  at: { to: number; runDone: boolean; isLastOfPage: boolean; stopHere: boolean; waiting: boolean; pageShort: boolean },
+): CollectPage["next"] {
+  if (at.runDone || (!at.isLastOfPage && !at.stopHere)) return null;
+  return {
+    kind: "lead_collect",
+    seq: at.waiting ? `p${at.to}.w${minute(leadPorts)}` : `p${at.to}`,
+    run_after_seconds: at.waiting || (at.isLastOfPage && at.pageShort) ? POLL_SECONDS : 0,
+  };
+}
+
+/** Of a batch's places, how many have a website, and of those how many the provider read for contacts. */
+function sitesOf(prepared: Prepared[]): { withSite: number; read: number } {
+  const withSite = prepared.filter((p) => p.clean.raw.website);
+  return { withSite: withSite.length, read: withSite.filter((p) => p.clean.raw.contactsRead).length };
+}
+
+/** The page a batch commits: its places and judgments, the run's counts, and what comes next for the run and its round. */
+function pageOf(
+  round: LeadRoundRow,
+  parts: {
+    places: CollectPlace[];
+    judgments: CollectJudgment[];
+    usage: number;
+    itemsSeen: number;
+    alreadyYours: number;
+    runState: LeadRunState | null;
+    next: CollectPage["next"];
+  },
+  decision: Awaited<ReturnType<typeof roundDecision>> | null,
+): CollectPage {
+  return {
+    judgment: parts.judgments.length ? parts.judgments : null,
+    places: parts.places,
+    usage_usd: parts.usage,
+    items_seen: parts.itemsSeen,
+    already_yours: parts.alreadyYours,
+    run_state: parts.runState,
+    next: decision?.next ?? parts.next,
+    round: decision?.round ?? (round.state === "queued" ? { state: "probing", question: null, ending: null } : null),
+  };
+}
+
 /**
  * One run's page, under its lease (collect above). A place the workspace already holds was read and paid for and is
  * skipped: it is counted on the run (`already_yours`, 00506), so what a main phase pays again for its probe's places is
@@ -142,21 +244,7 @@ export async function collectHeld(
   const card = CARDS[plan.card];
   const phase: Phase = (await runIdFor(round.id, "probe", run.term ?? "")) === run.id ? "probe" : "main";
   const alreadyFinal = FINAL_RUN_STATES.has(run.state);
-  let remoteState: LeadRunState = run.state;
-  let usage = run.usage_usd;
-  let datasetId = run.dataset_id;
-  if (!alreadyFinal) {
-    if (outOfTime(leadPorts)) throw new LeadRetry("out of time before reading the run");
-    try {
-      const remote = await leadPorts.apify.getRun(run.apify_run_id as string);
-      remoteState = runStateOf(remote.status);
-      usage = remote.usageTotalUsd ?? usage;
-      datasetId = remote.datasetId ?? datasetId;
-    } catch (e) {
-      if (!isRefused(e)) throw e;
-      remoteState = "failed"; // the provider no longer has it: an answer
-    }
-  }
+  const { state: remoteState, usage, datasetId } = await remoteRunOf(leadPorts, run);
   const members = await leadPorts.db.membersOfRound(round.id);
   const geo = phase === "probe" ? { center: areaCenter(plan), radiusM: plan.area.radius_m } : centerOf(plan, members);
 
@@ -187,11 +275,9 @@ export async function collectHeld(
 
   do {
     const batch = takeBatch(card, plan, items, cursor, judgeBatchPlaces(plan), judgesAddressesOnly(plan, phase));
-    for (const p of batch.prepared)
-      if (p.clean.raw.website) {
-        withSite += 1;
-        if (p.clean.raw.contactsRead) siteRead += 1;
-      }
+    const onPage = sitesOf(batch.prepared);
+    withSite += onPage.withSite;
+    siteRead += onPage.read;
     // Identity, by what the workspace already holds: place ids, suppressions, shared details (decision 25).
     const { rows, toJudge, yoursAt } = await identified(leadPorts, round, batch.prepared, geo, phase);
     const { said, judgments, refused, cutAt } = await judgedBatch(leadPorts, round, run.id, from, toJudge, sites);
@@ -199,29 +285,7 @@ export async function collectHeld(
     // A plan that reads sites commits only as far as they could be read: the rest is the next job's, whole.
     const end = cutAt ?? batch.end;
     const isLastOfPage = end >= items.length;
-    const waiting = end === cursor && !isLastOfPage;
-    const yours = yoursAt.filter((at) => at < end).length;
-    const places = rows
-      .filter((r) => r.prep.index < end)
-      .map((item) => {
-        const { answer, judgment, model } = said.get(item.prep) ?? { answer: null, judgment: null, model: null };
-        const rule =
-          item.duplicateOf && !item.prep.rule
-            ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
-            : item.prep.rule;
-        return memberOf(
-          plan,
-          run.term ?? "",
-          item.prep.clean,
-          answer,
-          judgment?.op_id ?? null,
-          model,
-          rule,
-          geo,
-          item.shares,
-          item.duplicateOf,
-        );
-      });
+    const places = placesOf(round, run, rows, said, end, geo);
     // Their own marks, read from their own sites, before the page is committed with everything else about them.
     await markPlaces(
       leadPorts,
@@ -236,18 +300,8 @@ export async function collectHeld(
     // No judge is started short of its bound, nor a place read short of its least, so a batch that would be is the next
     // job's, not a retry of this one.
     const stopHere = !isLastOfPage && (cutAt !== null || outOfTime(leadPorts, JUDGE_MARGIN_MS));
-    // The next collect rides the commit when this invocation will not read on: the page ended, or time is short. One that
-    // moved nothing waits under a name of its own: this job holds the name its offset would give it, and a second row
-    // for a name is no row at all.
-    const next: CollectPage["next"] = runDone
-      ? null
-      : !isLastOfPage && !stopHere
-        ? null
-        : {
-            kind: "lead_collect",
-            seq: waiting ? `p${to}.w${minute(leadPorts)}` : `p${to}`,
-            run_after_seconds: waiting || (isLastOfPage && pageShort) ? POLL_SECONDS : 0,
-          };
+    const waiting = end === cursor && !isLastOfPage;
+    const next = nextCollectOf(leadPorts, { to, runDone, isLastOfPage, stopHere, waiting, pageShort });
     const decision = runDone
       ? await roundDecision(
           leadPorts,
@@ -259,16 +313,19 @@ export async function collectHeld(
           Math.max(0, usage - run.usage_usd) + sites.count() * LEAD_SITE_READ_USD,
         )
       : null;
-    const page: CollectPage = {
-      judgment: judgments.length ? judgments : null,
-      places,
-      usage_usd: usage,
-      items_seen: seen + end,
-      already_yours: yours,
-      run_state: runDone ? remoteState : null,
-      next: decision?.next ?? next,
-      round: decision?.round ?? (round.state === "queued" ? { state: "probing", question: null, ending: null } : null),
-    };
+    const page = pageOf(
+      round,
+      {
+        places,
+        judgments,
+        usage,
+        itemsSeen: seen + end,
+        alreadyYours: yoursAt.filter((at) => at < end).length,
+        runState: runDone ? remoteState : null,
+        next,
+      },
+      decision,
+    );
     const res = await leadPorts.db.collectCommit(run.id, owner, gen, from, to, page);
     if (!res.ok) return { kind: "lost", why: res.why };
     commits += 1;

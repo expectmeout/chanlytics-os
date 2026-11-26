@@ -3,7 +3,7 @@
 import { isSiteRoot, siteHost } from "../../../leads/search/clean";
 import { wallClockAt, zoneDayKey } from "../../../shared/clock";
 import { normalizeEmail } from "../../../shared/email-address";
-import { draftExcerpt } from "../reply-draft";
+import { draftExcerpt } from "./draft";
 import { REPLY_INTENT_WORDS, type ReplyIntent, type ReplyReading, type Unread, withinChars } from "./intents";
 import {
   BACK_MAX_DAYS,
