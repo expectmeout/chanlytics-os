@@ -107,8 +107,8 @@ test("a first email and its nudge are one reach-out: counted once, and each part
   assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", 1, 2), "Florists · a short nudge · 2");
   assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", 2, 1), "Florists · email 3 · 1");
   assert.equal(TO_SEND_ALL_WORDS.runHead("Florists", null, 3), "Florists · 3", "before the run's detail is read");
-  assert.deepEqual(TO_SEND_ALL_WORDS.brief(1), { label: "Your cold email", verb: "is", waits: "waiting for you" });
-  assert.deepEqual(TO_SEND_ALL_WORDS.brief(2), { label: "Your cold emails", verb: "are", waits: "waiting for you" });
+  assert.deepEqual(TO_SEND_ALL_WORDS.brief(1), { label: "A cold email", verb: "is", waits: "waiting for you" });
+  assert.deepEqual(TO_SEND_ALL_WORDS.brief(2), { label: "Cold emails", verb: "are", waits: "waiting for you" });
 });
 
 test("To send is a part of the Inbox's Needs you, and Sent's old address of it lands there, never on Send once to an audience called to-send", () => {

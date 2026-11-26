@@ -303,14 +303,12 @@ export const TO_SEND_ALL_WORDS = {
   sentence: (n: number, from: number) =>
     `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} campaigns` : ""}, each written and checked.`,
   /**
-   * Today's brief for them, as one run's line: "Your cold emails are waiting for you: …".
-   *
-   * screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
+   * Today's brief for them, as one run's line: "Cold emails are waiting for you: …".
    */
   brief: (from: number) =>
     from > 1
-      ? { label: "Your cold emails", verb: "are" as const, waits: "waiting for you" }
-      : { label: "Your cold email", verb: "is" as const, waits: "waiting for you" },
+      ? { label: "Cold emails", verb: "are" as const, waits: "waiting for you" }
+      : { label: "A cold email", verb: "is" as const, waits: "waiting for you" },
   /**
    * How the list is worked, and what Skip does: the owner's word that it did not go counts as the business's first email
    * (00427's one-first rule; 0059's Risks), so neither this reach-out nor another writes to them after it.

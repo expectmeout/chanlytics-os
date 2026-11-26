@@ -7,7 +7,6 @@
  * is the verb, whichever room it starts from. The frame's crumbs and strip name each room from here too, so the words of
  * Sequences' and New's pages stay out of the frame every page loads (lane 1 of the cold-load review, 30 Oct 2026).
  */
-import { WHATSAPP_REVIEW_TAKES } from "../campaigns/templates/templates";
 
 export const CAMPAIGN_ROOMS = {
   home: "Campaigns",
@@ -47,11 +46,11 @@ export const LIBRARY_WORDS = {
   failedWhat: "your messages",
   failedBody: "AI keeps sending · this page just can't show what it holds at the moment.",
   /**
-   * The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions.
-   *
-   * screen-word: behind Why, with the consent an offer needs (docs/words.md, "Kept on purpose")
+   * The count's hover: what the Library holds is every message, on each channel it goes by, whoever writes its versions,
+   * and who a marketing message reaches. How long WhatsApp's review takes is the message's sheet's to say.
    */
-  headTip: `What AI and your campaigns send, as the customer sees it. A WhatsApp version is approved by WhatsApp (${WHATSAPP_REVIEW_TAKES}), whether it is written here or in WhatsApp Manager · an email or a text is ready the moment it is saved. A marketing message can only go to people who said yes to offers.`,
+  headTip:
+    "What AI and your campaigns send, as customers see it. A marketing message can only go to people who said yes to offers.",
   noNumber:
     "No WhatsApp number yet. Email and text versions are written here, and WhatsApp versions wait for a number.",
   /** A template is written to a number's account, which is the edge's own answer (no_channel) when it has none. */
