@@ -16,7 +16,7 @@ import type {
   PostDto,
 } from "@chanlytics/contracts";
 import type { PieceAdStands } from "@/server/content/ad-pictures";
-import { fileVerbs } from "./verbs";
+import { fileVerbs } from "../verbs";
 
 /**
  * How a post was made and where it is up, or what was heard of a video, read as its sheet opens: none of it is on the list a page

@@ -96,7 +96,7 @@ what a page shows them. So a picture needs one place, one name and a written rec
     the photo at Save. Save and Undo are the partner's, as adding a photo is. A Save calls `file_start` first, as an upload does, so
     a library at its cap is told before anything is drawn, and a function that dies between storing the shapes and `file_made` leaves
     nothing for good: the purge empties that folder a day on.
-14. **A kept post is one piece, wherever it is looked at** (`surfaces/files/post-shapes.tsx`, in Ask's card and the Files
+14. **A kept post is one piece, wherever it is looked at** (`surfaces/files/post/shapes.tsx`, in Ask's card and the Files
     sheet): the picture in the shape chosen, the shapes, and what to do with that one. Share opens the device's own sheet, which is
     how a picture reaches Instagram, and on an iPhone how it reaches Photos, since a download lands in Files there. Safari opens that
     sheet only inside the tap, and one that waits on the network first works or not by how fast the network is, so the picture comes
@@ -106,8 +106,8 @@ what a page shows them. So a picture needs one place, one name and a written rec
     and about 60 KB.
 15. **A post is changed where it stands, for nothing.** Whoever may save it can change its words, its layout, its type and where the
     words stand, on the card. A pause in the typing draws again (`POST files/post/preview`, on a limit of its own), a newer change lets
-    the last request go, and what the tab has drawn comes back at once (`surfaces/files/post-drawn.ts`, a few dozen pictures, the oldest
-    let go). The picture stands until the next is read whole, then gives way to it (`post-frame.tsx`), and saved, the same picture stays
+    the last request go, and what the tab has drawn comes back at once (`surfaces/files/post/drawn.ts`, a few dozen pictures, the oldest
+    let go). The picture stands until the next is read whole, then gives way to it (`post/frame.tsx`), and saved, the same picture stays
     on screen, so a press never answers with an empty frame. What was pressed rides with the card's outcome, so a reload says the words
     that were saved, not the ones proposed. Four layouts: over the photo, from the margin over it, on a band of the business's colour,
     or under it in a frame. Words over a photo stand on the scrim; words on a colour take black or white, whichever reads, and of those
@@ -121,7 +121,7 @@ what a page shows them. So a picture needs one place, one name and a written rec
     once, since the card can change them for nothing. Ask's chips say the same sentence where it opens on a photo.
 17. **A kept post remembers how it was made.** Its sheet says which photo it came from, a door to that photo while it is here, and
     New version starts from what the post was asked to be and keeps another file, the first left as it was (`GET files/[id]`,
-    `surfaces/files/post-version.tsx`). A member's session has no grant on `made`, so the service role reads it, after the caller's own
+    `surfaces/files/post/version.tsx`). A member's session has no grant on `made`, so the service role reads it, after the caller's own
     read of the row. Beside a picture opened, Ask reads how the newest post looks (`last_post`: its type, its layout, its number), and
     keeps that unless it is asked for something else. It is told rather than held to it by code: before the first post the model
     chooses from the business, and it can only know there is none by being told.

@@ -224,7 +224,7 @@ async function proposePersonDetails(
   const changed = (["name", "email"] as const).filter((k) => fields[k] !== undefined && fields[k] !== person[k]);
   if (!changed.length)
     return refuse(`already their ${(["name", "email"] as const).filter((k) => fields[k] !== undefined).join(" and ")}`);
-  const to = Object.fromEntries(changed.map((k) => [k, fields[k] as string]));
+  const to = Object.fromEntries(changed.flatMap((k) => (fields[k] === undefined ? [] : [[k, fields[k]]])));
   const previous = Object.fromEntries(changed.map((k) => [k, person[k]]));
   // A field asked that already says it is left off the card, and said beside it.
   const same = (["name", "email"] as const).filter((k) => fields[k] !== undefined && !changed.includes(k));
@@ -250,7 +250,7 @@ async function proposePersonDetails(
 const QUESTIONS = { messages: "conversational", offers: "marketing" } as const;
 /** Their answer, in a model's words, as the door stores it. */
 const ANSWERS = { yes: "opted_in", no: "opted_out", not_asked: "unknown" } as const;
-const SOURCE_IDS = CONSENT_SOURCES.map((x) => x.id) as [string, ...string[]];
+const SOURCE_IDS = CONSENT_SOURCES.map((x) => x.id);
 
 /**
  * A person's answer, heard by a member (PUT contacts/:id/consent or marketing-consent): a yes or a no, with how they gave

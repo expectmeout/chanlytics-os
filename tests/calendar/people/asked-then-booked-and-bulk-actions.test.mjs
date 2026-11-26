@@ -948,7 +948,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     assert.equal(none.person.booking_link, null, "no link to send");
   }
   assert.ok(
-    /const all = allVisitsIn\(index, person\)\s*\.map\(\(x\) => toVisitDto\(x\) as VisitDto\)\s*\.slice\(-60\);/.test(
+    /const all = allVisitsIn\(index, person\)\s*\.flatMap\(\(x\) => toVisitDto\(x\) \?\? \[\]\)\s*\.slice\(-60\);/.test(
       readCode("apps/dashboard/src/server/calendar/person-visits.ts"),
     ),
   );
