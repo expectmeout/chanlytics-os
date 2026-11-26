@@ -20,47 +20,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { readRaw } from "../_source.mjs";
-
-const SQL = readRaw("supabase/migrations/00087_which_table_owns_a_number.sql");
-
-test("the answer is written where it cannot be lost: on the tables themselves", () => {
-  // A comment in a migration is findable by grep; a comment ON THE TABLE is
-  // findable by anyone with a psql prompt, which is who asks this question.
-  assert.match(SQL, /comment on table public\.lines is/);
-  assert.match(SQL, /comment on table public\.tenant_channels is/);
-  assert.match(SQL, /comment on column public\.tenant_channels\.config is/);
-  assert.ok(SQL.includes("config.line_id points back here"), "lines says which way the arrow points");
-  assert.ok(SQL.includes("The ROUTING table"), "and tenant_channels says what it is for");
-  // The two shapes a reader gets wrong. A voice route is per RECEPTIONIST, so
-  // two numbers on one agent share it -- which is why the row's number names
-  // whichever line got there first, by design and not by drift.
-  assert.ok(SQL.includes("keyed on the receptionist (external_id = agent id)"));
-  assert.ok(SQL.includes("keyed on the number, because a message arrives addressed to one"));
-});
-
-test("number_drift() is silent about the states that are fine and loud about the ones that are not", () => {
-  const fn = SQL.slice(SQL.indexOf("create or replace function public.number_drift"));
-  for (const kind of ["orphan_route", "route_number_unknown", "answering_unrouted", "texting_unrouted"]) {
-    assert.ok(fn.includes(`'${kind}'::text`), `${kind} is reported`);
-  }
-  // Every case requires a line_id or a finished line, so a Retell-bought voice
-  // number and a Meta WhatsApp number -- both of which have a channel row and
-  // no line, in production, today -- produce nothing.
-  assert.ok(!/config \? 'line_id'\s*is not true/.test(fn), "a channel without a line is not drift");
-  assert.ok(fn.includes("l.voice_state = 'answering'"), "a line still provisioning is not expected to be routable");
-  assert.ok(fn.includes("l.sms_state = 'active'"));
-  // Case 2 asks whether ANY line of the workspace has the number, not whether
-  // the row's own line does: sharing a receptionist leaves the first number in
-  // place, and that number is still the workspace's own.
-  assert.ok(fn.includes("where l.tenant_id = c.tenant_id and l.e164 = c.number_e164"));
-  // A diagnostic that dies on the data it is diagnosing is worse than none.
-  assert.match(fn, /~\* '\^\[0-9a-f\]\{8\}-/, "the line_id is shaped like an id before it is cast to one");
-  assert.ok(
-    fn.includes("revoke execute on function public.number_drift() from public, anon, authenticated;") ||
-      SQL.includes("revoke execute on function public.number_drift() from public, anon, authenticated;"),
-  );
-});
+// Where the answer is written (the comments ON the tables, which anyone with a psql prompt can read) and what
+// number_drift() reports -- silent about a channel with no line, a line still being set up and a config that holds no
+// id; loud, each by its kind and in a person's words, about a route naming a line that is gone, a route publishing a
+// number no line of its workspace has, a line answering with nothing routing to it and one texting with no route for
+// its number -- run on the replayed stack in which-table-owns-a-number.db.test.mjs. Pinned as 00087's text here until
+// 26 Nov 2026; no key but the service's may run it (database/tenancy/, beside the vault's doors).
 
 // /api/diag reading number_drift(), with an empty list as agreement, is run in diag-door.test.mjs.
 

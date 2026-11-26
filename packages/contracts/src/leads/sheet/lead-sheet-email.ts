@@ -34,12 +34,13 @@ export const LEAD_OWN_EMAIL_WORDS = {
   notTakenBack: "Not taken back",
   sub: "Written for them. Change anything, then send it.",
   subject: "Subject",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   words: "Your email",
   foot: "Added under your email",
   row: {
     from: (address: string) => `You wrote to them from ${address}`,
     yourself: "You wrote to them yourself",
-    notSent: (reason: string) => (reason ? `Your email did not go: ${reason}` : "Your email did not go"),
+    notSent: (reason: string) => (reason ? `The email didn't go: ${reason}` : "The email didn't go"),
   },
 } as const;
 

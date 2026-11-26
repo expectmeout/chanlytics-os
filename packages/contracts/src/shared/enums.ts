@@ -687,6 +687,12 @@ export const EVENT_KINDS = [
   "form_entry.accepted",
   "form_entry.asked",
   "form_key.set",
+  /**
+   * A post moved ({ from, to, place, by?, seen? }: post_moved, 00720), at every step of its making and sending and on its
+   * owner's word; and a week's slot an approval left out, held with why ({ why, plan_id, by? }: plan_slots_hold).
+   */
+  "post.moved",
+  "plan_slot.held",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

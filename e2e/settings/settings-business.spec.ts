@@ -82,10 +82,14 @@ async function openFold(page: Page, id: string): Promise<Locator> {
 
 /**
  * Throw away whatever the test typed: Cancel, and the ask it raises when something was typed. Answering "Discard" is
- * how this spec ends an editor; the one Save it presses goes to a stand-in (the header says which).
+ * how this spec ends an editor; the one Save it presses goes to a stand-in (the header says which). On a phone a sheet's
+ * foot draws no Cancel beside its act, and its round Close does what Cancel did, asking first where something was
+ * written (kit.css, "One design for every sheet on a phone": Ruben, 25 Nov 2026).
  */
 async function discard(page: Page, id: string, kind: "fold" | "sheet" = "fold"): Promise<void> {
-  await page.getByTestId(`rec-${kind}-cancel-${id}`).click();
+  const cancel = page.getByTestId(`rec-${kind}-cancel-${id}`);
+  if (await cancel.isVisible()) await cancel.click();
+  else await page.getByTestId(`rec-${kind}-${id}`).locator(".rec-sheet-close").click();
   const yes = page.getByTestId(`rec-${kind}-${id}-cancel-yes`);
   if (await yes.count()) await yes.click();
   if (kind === "fold") await expect(foldOf(page, id)).toBeHidden();
@@ -1126,7 +1130,8 @@ test.describe("Settings › Business on a real workspace", () => {
     }
 
     // On a phone: each block's line carries its share as one meter, the head holds still over the blocks, the foot is
-    // Done, the corner's Close is out of sight beside it, nothing scrolls sideways, and nothing in it is loud.
+    // Done, the round Close stands in its corner as on every sheet (one design for every sheet on a phone, Ruben,
+    // 25 Nov 2026: a foot's word no longer stands in for the ×), nothing scrolls sideways, and nothing in it is loud.
     await page.setViewportSize({ width: 390, height: 844 });
     for (const channel of ["WhatsApp", "Phone"]) {
       await door.click();
@@ -1147,10 +1152,7 @@ test.describe("Settings › Business on a real workspace", () => {
         await sheet.locator('div[data-testid^="rec-prompt-share-"]').count(),
         `${channel}: one meter for each block`,
       ).toBe(count);
-      await expect(sheet.locator(".rec-sheet-close"), `${channel}: the corner's Close is out of sight`).toHaveCSS(
-        "clip-path",
-        /inset/,
-      );
+      await expect(sheet.locator(".rec-sheet-close"), `${channel}: the round Close stands in its corner`).toBeVisible();
       await expectNoSidewaysScroll(page, `the prompt sheet on a phone, ${channel}`, [PANE, ".rec-sheet-body"]);
       await expectPromptSheetQuiet(page, `the prompt sheet on a phone, ${channel}`);
       const body = page.locator(".rec-sheet-body");
@@ -1578,7 +1580,13 @@ test.describe("Settings › Business on a real workspace", () => {
         });
         expect(leaving.dialogs, `${where}: the fold is closed the moment it is`).toBe(0);
         expect(leaving.focus, `${where}: focus is back on the row's act at once`).toBe("rec-row-act-tone");
-        if (reduced) expect([leaving.copy, leaving.wash], "nothing leaves under reduced motion").toEqual([null, null]);
+        // Under reduced motion nothing moves as it goes. Base UI may still hold the closing sheet and its wash a frame as
+        // leaving elements, with no animation on either, so what is read is motion, not whether an element stands.
+        if (reduced)
+          expect([leaving.copy ?? [], leaving.wash ?? []], "nothing moves as it leaves under reduced motion").toEqual([
+            [],
+            [],
+          ]);
         else {
           expect(leaving.copy, "the sheet goes down on sheet-out, its cut with it").toEqual([
             { prop: "sheet-out", ms: 180, easing: EASE_IN },

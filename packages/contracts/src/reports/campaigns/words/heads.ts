@@ -46,7 +46,9 @@ export function peopleHeadWords({ messages, people, runs, wroteBack, before, ran
 /** The head without the ledger: the sends alone, over the sources' runs, and the answered messages from five. */
 export function sendsHeadWords(sent: { messages: number; runs: number; replied: number }): string {
   const sentence = `${plural(sent.messages, "message")} over ${plural(sent.runs, "run")}`;
-  return sent.messages >= REPORT_MIN_N ? `${sentence}; people wrote back to ${sent.replied} of them.` : `${sentence}.`;
+  return sent.messages >= REPORT_MIN_N
+    ? `${sentence}, and people wrote back to ${sent.replied} of them.`
+    : `${sentence}.`;
 }
 
 /* ------------------------------------------------------------------------------------------------ the strip */

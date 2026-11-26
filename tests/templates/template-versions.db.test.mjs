@@ -751,3 +751,30 @@ test("a message has no kind to set afterwards: there is no set_message_kind", { 
   );
   assert.deepEqual(rows, [{ kind: false, door: true }]);
 });
+
+test(
+  "put away, back, and renamed through their two doors: an owner's or an operator's; a viewer and another workspace's owner change nothing (00049, 00050)",
+  { skip },
+  async () => {
+    // Pinned as the two migrations' text in starter-templates.test.mjs until 26 Nov 2026.
+    const before = await rowOf(whatsappId);
+    for (const [who, said] of [
+      [viewer, "a viewer"],
+      [stranger, "another workspace's owner"],
+    ]) {
+      const hide = await who.client.rpc("set_template_hidden", { p_template_id: whatsappId, p_hidden: true });
+      assert.ok(hide.error, `${said} may not put it away`);
+      const title = await who.client.rpc("set_template_title", { p_template_id: whatsappId, p_title: "Theirs" });
+      assert.ok(title.error, `${said} may not rename it`);
+    }
+    const untouched = await rowOf(whatsappId);
+    assert.deepEqual([untouched.hidden_at, untouched.title], [before.hidden_at, before.title], "nothing changed");
+
+    const away = await operator.client.rpc("set_template_hidden", { p_template_id: whatsappId, p_hidden: true });
+    assert.equal(away.error, null, away.error?.message);
+    assert.ok((await rowOf(whatsappId)).hidden_at, "an operator puts it away");
+    const back = await owner.client.rpc("set_template_hidden", { p_template_id: whatsappId, p_hidden: false });
+    assert.equal(back.error, null, back.error?.message);
+    assert.equal((await rowOf(whatsappId)).hidden_at, null, "and an owner brings it back");
+  },
+);
