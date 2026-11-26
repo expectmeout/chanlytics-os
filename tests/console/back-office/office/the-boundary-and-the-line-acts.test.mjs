@@ -6,8 +6,8 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { setupSteps, platformLineActions, platformActionWarning, platformRows } from "@chanlytics/contracts";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { LINE_ACTS, setupSteps, platformLineActions, platformActionWarning, platformRows } from "@chanlytics/contracts";
 import { importSrc } from "../../../_source.mjs";
 import { fakeDb } from "../../../_fake-db.mjs";
 const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
@@ -51,11 +51,12 @@ import { bootRunsOneNamed } from "../../../shell/boot/_frame-boot.mjs";
 // console/console.db.test.mjs ("the back office's join is no door at all"); 00093's own revoke asked Postgres which
 // roles exist and failed the deploy on a grant that came back. Pinned as 00093's text until 26 Nov 2026.
 
-test("every route under /api/v1/platform asks the database who is calling", () => {
-  // The invariant the PRD's Risk section asks for, made mechanical: "every path
-  // to it goes through the RPC's own check, so there is one thing to review
-  // rather than one per route." A route added tomorrow without the guard fails
-  // here rather than in production.
+test("every route under /api/v1/platform asks the database who is calling", async () => {
+  // The invariant the PRD's Risk section asks for, made mechanical: "every path to it goes through the RPC's own check,
+  // so there is one thing to review rather than one per route." A route added tomorrow without the guard fails here
+  // rather than in production. Every route under the folder, found by walking it, imported and run as a customer who
+  // guessed the URL: the database says no, the answer is "No such page." and nothing behind the door is asked, neither
+  // the service client nor a workspace's memberships (this surface is about workspaces the caller is not in).
   const here = path.dirname(fileURLToPath(import.meta.url));
   const dir = path.join(here, "../../../../apps/dashboard/app/api/v1/platform");
   const routes = [];
@@ -68,43 +69,54 @@ test("every route under /api/v1/platform asks the database who is calling", () =
   };
   walk(dir);
   assert.ok(routes.length >= 2, `found ${routes.length} platform routes`);
-  for (const file of routes) {
-    const src = fs.readFileSync(file, "utf8");
-    // Obtaining the handle IS the check: `backOffice(ctx)` throws unless the
-    // database says yes, and nothing cross-tenant can be read without one. A
-    // route that forgot would not compile rather than not being caught here.
-    assert.ok(src.includes("scope: platform,"), `${path.basename(path.dirname(file))}: no admin check`);
-    const guard = src.indexOf("scope: platform,");
-    // DERIVED, not listed. This was a hardcoded array of four READS, so
-    // `runPlatformLineAct(` -- the only WRITE on this surface, and the one that
-    // touches another business's carrier registration and phone number -- was not
-    // in it. A write added tomorrow with its guard below the call would have
-    // passed, which is the opposite of what this test's own header promises.
-    // Every helper the route imports from the platform module has to come after
-    // the handle it needs.
-    // The Console's modules behind the door (decisions 0066, 0067, 0068): platform, its acts, its reads, its requests,
-    // Support, Health, and what the finder set aside (decision 0133).
-    const imported = [
-      ...src.matchAll(
-        /import\s*\{([^}]+)\}\s*from\s*"@\/server\/console\/(?:platform|acts|console|requests|support|health|set-aside)"/g,
-      ),
-    ];
-    assert.ok(imported.length, `${path.basename(path.dirname(file))}: nothing imported from @/server/console`);
-    const helpers = imported
-      .flatMap((m) => m[1].split(","))
-      .map((x) => x.trim())
-      .filter((x) => x && x !== "backOffice");
-    assert.ok(helpers.length > 0, `${path.basename(path.dirname(file))}: only the guard is imported`);
-    for (const fn of helpers) {
-      const i = src.indexOf(`${fn}(`, guard === -1 ? 0 : 0);
-      if (i !== -1) assert.ok(guard < i, `${path.basename(path.dirname(file))}: ${fn}() runs before the check`);
+  const reached = [];
+  const nothingBehind = new Proxy(
+    {},
+    {
+      get(_, key) {
+        reached.push(String(key));
+        throw new Error(`the service client was reached (${String(key)})`);
+      },
+    },
+  );
+  setServiceClient(nothingBehind);
+  try {
+    for (const file of routes) {
+      const at = path.relative(dir, path.dirname(file)).split(path.sep).join("/");
+      const mod = await import(pathToFileURL(file).href);
+      const handlers = Object.entries(mod).filter(([, h]) => typeof h?.run === "function");
+      assert.ok(handlers.length > 0, `${at}: a route with no handler`);
+      for (const [method, handler] of handlers) {
+        assert.equal(handler.policy?.scope, "platform", `${method} ${at}: declares the back office's scope`);
+        const asked = [];
+        const customer = fakeDb(
+          {},
+          {},
+          {
+            platform_staff_state: () => (asked.push("platform_staff_state"), "none"),
+          },
+        );
+        await assert.rejects(
+          handler.run(
+            new Request(`http://localhost/api/v1/platform/${at}`, {
+              method,
+              ...(method === "GET" ? {} : { body: "{}", headers: { "content-type": "application/json" } }),
+            }),
+            { supabase: customer, userId: "u-customer", email: "ana@example.com", params: { id: TENANT } },
+          ),
+          (e) => e.code === "not_found" && e.message === "No such page.",
+          `${method} ${at}: a customer who guessed the URL learns nothing`,
+        );
+        assert.deepEqual(
+          asked,
+          ["platform_staff_state"],
+          `${method} ${at}: the database is asked who is calling, first`,
+        );
+      }
     }
-    // No workspace scoping: this surface is about workspaces the caller is not
-    // in, so getMemberContext would be a category error rather than a safeguard.
-    assert.ok(
-      !src.includes("getMemberContext("),
-      `${path.basename(path.dirname(file))}: platform routes are not workspace-scoped`,
-    );
+    assert.deepEqual(reached, [], "and nothing behind the door was asked");
+  } finally {
+    setServiceClient(null);
   }
 });
 
@@ -452,7 +464,7 @@ test("every action says what it spends, or says that it spends nothing", () => {
   assert.match(retry.cost, /buys one/);
 });
 
-test("three named operations, and no way to send a fourth", () => {
+test("three named operations, and no way to send a fourth", async () => {
   // THE RISK THIS DESIGN REFUSES. A route that forwards an arbitrary `op` to
   // /api/admin/lines is a back door with extra steps -- it would hand a
   // platform admin's session the master key to every edge operation, including
@@ -466,20 +478,16 @@ test("three named operations, and no way to send a fourth", () => {
     .sort();
   assert.deepEqual(routes, ["refile", "release", "replace", "retry"]);
 
+  // Each one's policy, as its route declares it (route-policy.json pins the same): the back office's scope, its own
+  // rate, and the act a role is asked for. That the operation is its own literal and the caller's `op` is never the
+  // edge's, and that both ids and why are judged by the schema first, is run through the routes: below, and
+  // console/back-office/platform-routes.test.mjs ("behind the door": a bad id or no why refused before the edge).
   for (const action of routes) {
-    const src = fs.readFileSync(path.join(dir, action, "route.ts"), "utf8");
-    // Its own operation, named in its own file, not taken from the request, and the Console's act it is.
-    assert.ok(
-      src.includes(`runPlatformLineAct(office, "${action}", heldTenantId(input.tenant_id), input.line_id, input.why)`),
-      `${action}: the action is a literal`,
-    );
-    assert.ok(src.includes(`act: LINE_ACTS.${action},`), `${action}: the act its role is asked for`);
-    assert.ok(!/body\.(op|action)/.test(src), `${action}: the caller must not choose the operation`);
-    assert.ok(src.includes("scope: platform,"), `${action}: no admin check`);
-    assert.ok(src.indexOf("scope: platform,") < src.indexOf("runPlatformLineAct("), `${action}: the check runs first`);
-    assert.ok(src.includes('rate: "platform_line_'), `${action}: rate-limited`);
-    assert.ok(src.includes("input: LineActSchema,"), `${action}: both ids, and why, are judged by the schema`);
-    assert.ok(!src.includes("getMemberContext("), `${action}: this surface is about workspaces the caller is not in`);
+    const { POST, ...rest } = await import(pathToFileURL(path.join(dir, action, "route.ts")).href);
+    assert.deepEqual(Object.keys(rest), [], `${action}: one handler`);
+    assert.equal(POST.policy.scope, "platform", `${action}: no admin check`);
+    assert.match(POST.policy.rate ?? "", /^platform_line_/, `${action}: rate-limited, in a line act's bucket`);
+    assert.equal(POST.policy.act, LINE_ACTS[action], `${action}: the act its role is asked for`);
   }
 
   // And the edge operation each one maps to is a written-out list rather than a parameter somebody can widen by
