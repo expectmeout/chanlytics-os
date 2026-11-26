@@ -368,7 +368,7 @@ const personPick = ({ found = true, reading = false } = {}) =>
       `<span class="person-pick-name">Aisha Rahman</span>` +
       `<span class="person-pick-said">Proposal sent · 2d</span></button></li>` +
       `<li><button type="button" class="person-pick-row">` +
-      `<span class="face face-glyph face-sm person-pick-face" title="No name yet" aria-hidden="true">${icon("phone", 12)}</span>` +
+      `<span class="face face-glyph face-sm person-pick-face" data-tip="No name yet" aria-hidden="true">${icon("phone", 12)}</span>` +
       `<span class="person-pick-name">+1 (212) 555-0143<span class="pill person-pick-stopped">Stopped</span></span>` +
       `<span class="person-pick-said">Phoned · Oct 31</span></button></li></ul>`
     : `<p class="person-pick-none"${reading ? ` role="status"` : ""}>${reading ? "Reading…" : "No one matches."}</p>`) +
@@ -439,7 +439,7 @@ const tableHeading = (c, t) => {
 /** A box for a selection: the head's (all of them) or a row's. */
 const tableCheck = (label, { checked = false, all = false, half = false } = {}) =>
   `<input type="checkbox" class="dtable-check"${checked ? " checked" : ""} aria-label="${label}"` +
-  `${all ? ` title="${label}" data-testid="select-all"` : ' data-testid="row-select"'}` +
+  `${all ? ` data-tip="${label}" data-testid="select-all"` : ' data-testid="row-select"'}` +
   `${half ? " data-gx-indeterminate" : ""} />`;
 
 /** A row's cell for a column: what the page's cell draws, marked with its column and its pin by the row. */
@@ -2266,7 +2266,7 @@ export const FAMILIES = [
           `<div class="notice notice-line" role="group" aria-label="Aisha Rahman signed the reply" style="grid-column: 1 / -1">` +
           `<p class="notice-fact">Signed <b>Aisha Rahman</b><span class="notice-src"> · Oct 6</span></p>` +
           `<div class="notice-acts"><button type="button" class="btn btn-sm">Use this name</button>` +
-          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not their name" title="Not their name">` +
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not their name" data-tip="Not their name">` +
           `${icon("x", 11)}</button></div></div></div></div>`,
       },
       {
@@ -2665,7 +2665,7 @@ export const FAMILIES = [
           `<div class="notice" role="group" aria-label="Gave their name as Dana Ruiz">` +
           `<p class="notice-fact">Gave their name as <b>Dana Ruiz</b><span class="notice-src"> · on the call Oct 2</span></p>` +
           `<div class="notice-acts"><button type="button" class="btn btn-sm">Use this name</button>` +
-          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not theirs" title="Not theirs">` +
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not theirs" data-tip="Not theirs">` +
           `${icon("x", 11)}</button></div></div>`,
       },
       {
@@ -2681,7 +2681,7 @@ export const FAMILIES = [
           `<div class="notice notice-line" role="group" aria-label="Dana Ruiz signed the reply">` +
           `<p class="notice-fact">Signed <b>Dana Ruiz</b><span class="notice-src"> · Oct 6</span></p>` +
           `<div class="notice-acts"><button type="button" class="btn btn-sm">Use this name</button>` +
-          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not their name" title="Not their name">` +
+          `<button type="button" class="btn btn-icon btn-sm btn-ghost notice-x" aria-label="Not their name" data-tip="Not their name">` +
           `${icon("x", 11)}</button></div></div>`,
       },
     ],

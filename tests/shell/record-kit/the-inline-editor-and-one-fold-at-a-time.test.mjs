@@ -75,7 +75,7 @@ test("an inline editor is the row's label and its field, what saving writes, and
   const save = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-save-website");
   const cancel = find(tree, (n) => n.props?.["data-testid"] === "rec-inline-cancel-website");
   assert.deepEqual(
-    [save.props["aria-label"], save.props.title, cancel.props["aria-label"], cancel.props.title],
+    [save.props["aria-label"], save.props["data-tip"], cancel.props["aria-label"], cancel.props["data-tip"]],
     ["Save", "Save", "Cancel", "Cancel"],
   );
   assert.deepEqual(keysDrawn(tree), [], "REGRESSION: Save (Enter) and Cancel (Esc) on the presses' hover");
