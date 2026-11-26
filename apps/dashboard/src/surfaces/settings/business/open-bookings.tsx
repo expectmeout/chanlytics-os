@@ -366,7 +366,7 @@ const BtoSourceBody = ({ f, stored, offers, bookingLink, name }: PartProps & { b
       />
       {guess && !f.readOnly ? (
         <p className="bt-fold-note" data-testid="bto-bookings-guess">
-          Your booking link is on {bookingToolName(guess)}.{" "}
+          {`Your booking link is on ${bookingToolName(guess)}.`}{" "}
           <button type="button" className={BTO_QUIET} onClick={() => pick(guess)}>
             Use {bookingToolName(guess)}
           </button>

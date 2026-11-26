@@ -121,7 +121,7 @@ export function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[]
 }
 
 /** The columns assembleHistory needs. One string, so no caller can under-select. */
-export const HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
+const HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
 
 export async function readThreadState(
   db: Db,

@@ -20,6 +20,7 @@ import { capabilityStatus } from "./capabilities";
 import { activationWords, forwardedLineOf, keptPhoneKind, type SetupInputs, type SetupVM } from "./setup";
 import {
   lineStuckProvisioning,
+  LINE_SET_UP_WITH_YOU,
   LINE_STEP_WORDS,
   type LineDto,
   type SetupDto,
@@ -290,7 +291,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
               title: "A line for calls and texts",
               state: "waiting_you",
               required: !answering,
-              sentence: "We set up your phone line with you.",
+              sentence: LINE_SET_UP_WITH_YOU,
               details: [
                 "A number, AI answering it, and forwarding from the number you have",
                 "Billing is not open on this deployment yet, so there is nothing to add a card to",
@@ -305,7 +306,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
     title: "A line for calls and texts",
     state: "waiting_you",
     required: !answering,
-    sentence: "We set up your phone line with you.",
+    sentence: LINE_SET_UP_WITH_YOU,
     details: ["A number, AI answering it, and forwarding from the number you have"],
     verb: { label: "Ask for a line", to: "verb:request-line" },
   };

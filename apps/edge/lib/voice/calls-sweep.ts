@@ -82,7 +82,7 @@ import {
   setCallRecording,
 } from "@chanlytics/db/voice";
 import { removeMedia, resolveChannelDetailed } from "@chanlytics/db/channels";
-import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS } from "@chanlytics/contracts";
+import { ABANDONED_MS, ANALYSIS_GRACE_MS, HOUR_MS, MIN_MS, finiteOrZero, valueAt } from "@chanlytics/contracts";
 import { settleCall } from "./call-webhook.js";
 import {
   copyRecording,
@@ -430,8 +430,8 @@ async function retryRecordings(leg: ProviderLeg) {
   );
   if (recErr) L.error("calls_sweep_recordings_query_failed", { error: recErr.message });
   for (const row of pendingRec ?? []) {
-    const rec = (row.recording ?? {}) as { attempts?: number };
-    if ((rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue;
+    const tries = finiteOrZero(valueAt(row.recording, "attempts"));
+    if (tries >= RECORDING_MAX_ATTEMPTS) continue;
     if (recordings.candidates >= MAX_RECORDINGS_PER_TICK) break;
     recordings.candidates++;
     // An outage past its limit spends the tries again (RECORDING_DEFER_LIMIT_MS); a hold still touches nothing.
@@ -456,7 +456,7 @@ async function retryRecordings(leg: ProviderLeg) {
         recordings.deferred++;
         continue;
       }
-      const attempts = (rec.attempts ?? 0) + (deferralsSpend ? 1 : 0);
+      const attempts = tries + (deferralsSpend ? 1 : 0);
       const exhausted = attempts >= RECORDING_MAX_ATTEMPTS;
       await setCallRecording(db, row.tenant_id, row.id, {
         fetch_state: exhausted ? "failed" : "pending",
@@ -474,7 +474,7 @@ async function retryRecordings(leg: ProviderLeg) {
       // "couldn't be saved" after RECORDING_MAX_ATTEMPTS. Skipped and
       // unwritten, it said "still processing" for ever, and with its
       // updated_at never moving it stood first in line on every run.
-      const attempt = (rec.attempts ?? 0) + 1;
+      const attempt = tries + 1;
       const exhausted = attempt >= RECORDING_MAX_ATTEMPTS;
       await setCallRecording(db, row.tenant_id, row.id, {
         fetch_state: exhausted ? "failed" : "pending",
@@ -488,7 +488,7 @@ async function retryRecordings(leg: ProviderLeg) {
       tenantId: row.tenant_id,
       callId: row.id,
       providerUrl: url,
-      attempts: rec.attempts ?? 0,
+      attempts: tries,
       timeoutMs: SWEEP_COPY_TIMEOUT_MS,
       deferralsSpend,
     });

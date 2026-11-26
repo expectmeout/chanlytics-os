@@ -14,7 +14,7 @@
 import type { SchemaSet, TemplateStatus, TenantId } from "@chanlytics/contracts";
 import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
 import { answerObject, fetchFromProvider } from "@chanlytics/channels/shared";
-import { NUMBERED_SLOT, recordOrNull, textOrEmpty } from "@chanlytics/contracts";
+import { NUMBERED_SLOT, recordOrNull, textOrEmpty, valueAt } from "@chanlytics/contracts";
 
 export interface MetaTemplateComponent {
   type: string;
@@ -200,10 +200,7 @@ export function labelsOf(variables: unknown): TemplateVariable[] {
   return variables
     .filter(
       (v): v is { position: number; label: string } =>
-        !!v &&
-        typeof v === "object" &&
-        typeof (v as { position?: unknown }).position === "number" &&
-        typeof (v as { label?: unknown }).label === "string",
+        typeof valueAt(v, "position") === "number" && typeof valueAt(v, "label") === "string",
     )
     .map((v) => ({ position: v.position, label: v.label, example: null }));
 }

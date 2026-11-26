@@ -10,7 +10,15 @@ import {
   reclaimBillingEvent,
 } from "@chanlytics/db/billing";
 import { emitEvent } from "@chanlytics/db/events";
-import { type BillingInvoiceDto, type BillingStatus, type SchemaSet, MIN_MS, DbFailure } from "@chanlytics/contracts";
+import {
+  type BillingInvoiceDto,
+  type BillingStatus,
+  type SchemaSet,
+  MIN_MS,
+  DbFailure,
+  recordOrEmpty,
+  recordOrNull,
+} from "@chanlytics/contracts";
 import { mendWarnings } from "../shared/alerts/notify.js";
 import { tellOnce } from "./notices.js";
 import { logger } from "../shared/log.js";
@@ -217,12 +225,12 @@ type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "u
  */
 export function saysGone(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const { statusCode, code } = error as { statusCode?: unknown; code?: unknown };
+  const { statusCode, code } = recordOrEmpty(error);
   return statusCode === 404 && code === "resource_missing";
 }
 
 function stripeFailure(e: unknown): StripeFailure {
-  const err = e && typeof e === "object" ? (e as { type?: unknown; statusCode?: unknown; message?: unknown }) : null;
+  const err = recordOrNull(e);
   return {
     type: typeof err?.type === "string" ? err.type : e instanceof Error ? e.name : "Error",
     status: typeof err?.statusCode === "number" ? err.statusCode : null,

@@ -103,26 +103,26 @@ export const PARTNER_WORDS = {
   /** The offer, before the share, which is printed from the row (shareWords). */
   offer:
     "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set AI up for it and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
-  codeLabel: "Your code",
+  codeLabel: "Partner code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It ends your link, for good.`,
   terms:
     "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up…",
-  linkLabel: "Your link",
+  linkLabel: "Partner link",
   copy: "Copy link",
   copied: "Copied",
   since: (at: string) =>
     `A partner since ${new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
-  paused: "Your partner account is paused. Write to us to have it looked at.",
+  paused: "Your partner account is paused. Write to Chanlytics to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account…",
   failed: "your partner account",
   /** What the switcher and Team show for a workspace brought this way. */
   role: "Partner",
   earnings: "Earnings",
-  workspaces: "Your workspaces",
+  workspaces: "Workspaces",
   open: "Open",
   readingWorkspaces: "Reading your workspaces…",
   failedWorkspaces: "your workspaces",

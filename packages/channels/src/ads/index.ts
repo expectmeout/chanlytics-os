@@ -1,8 +1,8 @@
 /**
  * The ads domain: `@chanlytics/channels/ads`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { isMetaId } from "../meta/client";
 export {
-  isMetaId,
   metaAccountId,
   metaAdAccountRequest,
   metaAssignedAdAccountsRequest,
@@ -74,8 +74,6 @@ export {
 } from "./meta-preview";
 export type { MetaPreviewAsk, MetaPreviewFrame, MetaPreviewPlace } from "./meta-preview";
 export {
-  META_ADS_PAGE,
-  META_DAYS_PAGE,
   META_IDS_MAX,
   metaAdDaysRequest,
   metaAdsByIdRequest,

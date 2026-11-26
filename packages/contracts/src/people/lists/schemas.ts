@@ -23,7 +23,7 @@ export const PeopleExportQuerySchema = z.object({
   list: z
     .string()
     .max(80)
-    .refine((t) => parseListToken(t) !== null, "Name a list by its token.")
+    .refine((t) => parseListToken(t) !== null, "That list isn't one this workspace has.")
     .optional(),
 });
 

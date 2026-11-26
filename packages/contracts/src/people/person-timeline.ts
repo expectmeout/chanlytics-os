@@ -116,7 +116,7 @@ function howKnown(consentChange: ConsentChange): string {
   if (consentChange.source === WHATSAPP_CONSENT_SOURCE) {
     // WhatsApp's report of a no to offers we never heard (131050 on a message Meta counts as marketing): their own
     // choice, made in WhatsApp, said by WhatsApp. Neither their words to us nor a member's record.
-    return "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered";
+    return "WhatsApp says they stopped offers from your business there, so a message to them wasn't delivered";
   }
   if (consentChange.source === MERGE_CONSENT_SOURCE) {
     // Two records of this person were merged, and the more careful of their two answers stands (00326). Nobody on the
@@ -222,9 +222,9 @@ function decidedBy(
   names: HolderNames | null,
 ): string {
   if (dec.actor_type === "ai") return "AI";
-  if (dec.actor_type === "system") return "The system";
+  if (dec.actor_type === "system") return "Chanlytics";
   if (dec.actor_user_id && dec.actor_user_id === viewerId) return "You";
-  return (dec.actor_user_id ? names?.(dec.actor_user_id) : null) || "Your team";
+  return (dec.actor_user_id ? names?.(dec.actor_user_id) : null) || "Your team"; // screen-word: "Your team" tells the owner's people from AI and the customer (docs/words.md, The voice 5)
 }
 
 /**
@@ -256,10 +256,12 @@ function asRunMessage(message: MessageDto, run: PersonCampaignDto | undefined): 
  * Who sent one of ours, in the words the Inbox uses (messageAuthor): a person's reply is the team's, since the row
  * does not say which member sent it, and a run's message is its playbook's or its broadcast's. Every one of ours read
  * "You", a playbook's run among them.
+ *
+ * screen-word: "Your team" tells the owner's people from AI and the customer (docs/words.md, The voice 5)
  */
 function speakerOf(author: MessageAuthor | null): string {
   return !author
-    ? "System"
+    ? "Chanlytics"
     : author.kind === "receptionist"
       ? "AI"
       : author.kind === "team"

@@ -593,7 +593,7 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
     assert.ok(textOf(byTestId(fold, "bto-link")).startsWith("Calendar link So AI can offer open times."));
     assert.match(
       textOf(byTestId(fold, "rec-calendar-note")),
-      /^Paste the private address of the calendar your bookings land in\. It is only ever read\. Nothing is booked from here; your booking link does that\.$/,
+      /^Paste the private address of the calendar your bookings land in\. It is only ever read, and nothing is booked from here: your booking link does that\.$/,
     );
     assert.equal(byTestId(tree, "rec-calendar-open"), null, "no door to a calendar that is not connected");
     assert.equal(byTestId(tree, "bto-emails"), null, "and no emails' part: there is no tool to send them");
@@ -631,7 +631,7 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
     tree = redrawTab(flash);
     assert.equal(
       textOf(byTestId(tree, "rec-calendar-note")),
-      "It is only ever read. Nothing is booked from here; your booking link does that.",
+      "It is only ever read, and nothing is booked from here: your booking link does that.",
     );
     linkBox(tree).props.onChange({ target: { value: "" } });
     tree = redrawTab(flash);
@@ -644,7 +644,7 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
     tree = drawTab({ flash, config: masked });
     assert.equal(
       textOf(find(byTestId(tree, "rec-row-calendar"), (n) => classes(n).includes("bt-feed-where"))),
-      "Your calendar",
+      "The calendar",
       "a masked address is no address to take a host out of: the row names what it is instead",
     );
     openFold(tree, "calendar");

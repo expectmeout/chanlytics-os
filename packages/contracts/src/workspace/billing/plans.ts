@@ -108,10 +108,10 @@ export function planBilling(
           : `The subscription ended. ${PAUSED_WORDS} Resume from Billing.`,
     };
   } else if (switched === "resumed") {
-    bell = { title: "AI is back", body: "Billing is in order; AI answers again." };
+    bell = { title: "AI is back", body: "Billing is in order · AI answers again." };
   } else if (before.status !== "trialing" && sub.status === "trialing") {
     bell = {
-      title: "Your trial has started",
+      title: "The trial has started",
       body: `${trialWords(sub.trial_end, nowMs, tz)}. Cancel any time from Billing.`,
     };
   }
@@ -238,7 +238,7 @@ export function trialUseWords(used: { callSeconds: number; replies: number }): s
 
 /** Said on the bell when the trial's use nears what it includes, and when it ends the trial early. */
 export const TRIAL_SPENT_WORDS = {
-  nearTitle: "Your trial is nearly used",
+  nearTitle: "The trial is nearly used",
   near: (use: string) => `${use}. When either runs out your plan starts on the card you gave, so AI keeps answering.`,
   title: "Your trial's use is spent, so your plan has started",
   detail: (use: string) => `${use}. Your plan started today on the card you gave and keeps AI answering.`,
@@ -330,7 +330,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
         headline: account.cancel_at_period_end || account.cancel_at ? "Subscribed, ending" : "Subscribed",
         detail:
           account.cancel_at || account.cancel_at_period_end
-            ? `Ends ${billingDayWords(account.cancel_at ?? account.current_period_end, tz)}; AI answers until then.`
+            ? `Ends ${billingDayWords(account.cancel_at ?? account.current_period_end, tz)} · AI answers until then.`
             : `Next invoice ${billingDayWords(account.current_period_end, tz) || "on the renewal date"}${card ? ` on ${card}` : ""}.`,
         tone: "ok",
         actions: { checkout: false, portal: true, resume: false, startNow: false },
@@ -359,7 +359,7 @@ export function toBillingVM(dto: BillingDto, nowMs: number, tz: string): Billing
         ...base,
         headline: "Paused",
         detail:
-          "The trial ended without a card on file. Add one in Manage billing, then resume · messages keep landing in the Inbox meanwhile.",
+          "The trial ended without a card on file. Add one in Manage billing, then resume · messages still reach the Inbox.",
         tone: "danger",
         actions: { checkout: false, portal: true, resume: true, startNow: false },
         paused: true,
