@@ -433,7 +433,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   );
   const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   assert.ok(
-    dayModule.includes('if (!C || !C.vm || C.vm.feed.state !== "ok") return null;') &&
+    dayModule.includes('if (!calendar || !calendar.vm || calendar.vm.feed.state !== "ok") return null;') &&
       !dayModule.includes('data-testid="today-day"'),
     "Today reads the day from the calendar once, for the strip and the brief (no pane of its own since canvas E3), and a feed that is not ok is no day",
   );

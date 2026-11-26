@@ -60,7 +60,7 @@ export interface PreviewInput {
   language: string;
 }
 
-export interface Preview {
+interface Preview {
   lead: { id: string; business_name: string; email: string } | null;
   subject: string | null;
   body: string | null;

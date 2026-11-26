@@ -11,8 +11,6 @@ import "server-only";
  */
 
 import { parseFrame, type GatewayEvent } from "./stream";
-export { parseFrame } from "./stream";
-export type { GatewayEvent } from "./stream";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, streamEdge, type EdgeBody } from "../edge";

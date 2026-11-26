@@ -356,9 +356,14 @@ export function SequencePeople(p: { rec: SequenceRecordDto; flash: Flash; again:
   const takeOut = async (key: string, ids: string[]) => {
     setBusy(key);
     // A place in it leaves by its enrollment; a lead on its list nothing was planned for comes off the list (00455).
-    const enrollment_ids = ids.filter((i) => i.startsWith("e:")).map((i) => i.slice(2));
-    const lead_ids = ids.filter((i) => i.startsWith("l:")).map((i) => i.slice(2));
-    await pressed("sequence_leave", { sequence_id: rec.sequence.id, enrollment_ids, lead_ids }, flash, moved);
+    const enrollmentIds = ids.filter((i) => i.startsWith("e:")).map((i) => i.slice(2));
+    const leadIds = ids.filter((i) => i.startsWith("l:")).map((i) => i.slice(2));
+    await pressed(
+      "sequence_leave",
+      { sequence_id: rec.sequence.id, enrollment_ids: enrollmentIds, lead_ids: leadIds },
+      flash,
+      moved,
+    );
     setBusy(null);
   };
   const checkAgain = async (ids: string[]) => {
