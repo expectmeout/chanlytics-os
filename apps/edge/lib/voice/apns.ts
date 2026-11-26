@@ -128,12 +128,13 @@ export function apns(keys: ApnsKeys, wire: ApnsWire = {}): ApnsPort {
       const session = connect(origin);
       // A refused or dropped connection is an error on the session; with no listener it takes the process down.
       const waiting = new Set<(e: Error) => void>();
-      let broken: Error | null = null;
+      // How the session ended, written by its listener and the timers and read once the sends are in: on one object, so
+      // the read after them is not taken for the values it started with.
+      const ended: { broken: Error | null; hung: boolean } = { broken: null, hung: false };
       session.on("error", (e) => {
-        broken = e;
+        ended.broken = e;
         for (const fail of [...waiting]) fail(e);
       });
-      let hung = false;
       const one = (device: string) =>
         new Promise<ActivitySend>((resolve) => {
           // Read by `done` before the timer is set (a broken connection fails at once), so never a const.
@@ -144,10 +145,10 @@ export function apns(keys: ApnsKeys, wire: ApnsWire = {}): ApnsPort {
             resolve(send);
           };
           const fail = (e: Error) => done({ token: device, state: "refused", error: e.message });
-          if (broken) return fail(broken);
+          if (ended.broken) return fail(ended.broken);
           waiting.add(fail);
           timer = setTimeout(() => {
-            hung = true;
+            ended.hung = true;
             fail(new Error("apns_timeout"));
           }, waitMs);
           try {
@@ -169,7 +170,7 @@ export function apns(keys: ApnsKeys, wire: ApnsWire = {}): ApnsPort {
         });
       const sends = await Promise.all(tokens.map(one));
       // A push that never answered holds its stream open, and close() would wait for it.
-      if (hung || broken) session.destroy();
+      if (ended.hung || ended.broken) session.destroy();
       else session.close();
       return sends;
     },
