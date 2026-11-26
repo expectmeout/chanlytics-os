@@ -28,7 +28,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import { resolveChannelDetailed } from "@chanlytics/db/channels";
+import { resolveChannelDetailed, type RoutedChannel } from "@chanlytics/db/channels";
 import { readLeadContext, describeLead } from "@chanlytics/db/conversations";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { findOpenings, findVisits } from "../calendar/availability.js";
@@ -394,12 +394,9 @@ interface PlanSoFar {
 }
 
 /** The first failure, said once: what went wrong first is what the call's row keeps. */
-function failed(plan: PlanSoFar, e: unknown): void {
+function planFailed(plan: PlanSoFar, e: unknown): void {
   if (plan.error === null) plan.error = e instanceof Error ? e.message : String(e);
 }
-
-/** The channel a call came in on, by its agent. */
-type RoutedChannel = NonNullable<Awaited<ReturnType<typeof resolveChannelDetailed>>["channel"]>;
 
 /**
  * Whose call this is, before anything is read. No tenant means no memory we are entitled to read: a returning caller
@@ -407,10 +404,10 @@ type RoutedChannel = NonNullable<Awaited<ReturnType<typeof resolveChannelDetaile
  * told apart, as the texting door tells them apart: only the first is a switched-off channel worth paging the platform
  * for. The database and the channel, or null where the call is no workspace's (said on the plan).
  */
-async function routeOf(plan: PlanSoFar, input: CallStartInput): Promise<{ db: Db; routed: RoutedChannel } | null> {
+async function routeCall(plan: PlanSoFar, input: CallStartInput): Promise<{ db: Db; routed: RoutedChannel } | null> {
   const db = input.db;
   if (!db) {
-    failed(plan, "no database to route the call with");
+    planFailed(plan, "no database to route the call with");
     return null;
   }
   if (!input.agentId) {
@@ -421,7 +418,7 @@ async function routeOf(plan: PlanSoFar, input: CallStartInput): Promise<{ db: Db
   const lookup = await resolveChannelDetailed(db, "voice", input.agentId);
   const routed = lookup.channel;
   if (lookup.lookupFailed) {
-    failed(plan, "the voice channel could not be looked up");
+    planFailed(plan, "the voice channel could not be looked up");
     return null;
   }
   if (!routed) {
@@ -441,13 +438,13 @@ function readWorkspaceFacts(
   now: Date,
 ): TenantRuntime | null {
   if (rtR.status === "rejected") {
-    failed(plan, rtR.reason);
+    planFailed(plan, rtR.reason);
     return null;
   }
   const rt = rtR.value;
   plan.line = spokenLineOf(rt);
   if (rt.loadFailed) {
-    failed(plan, "the workspace's runtime could not be loaded");
+    planFailed(plan, "the workspace's runtime could not be loaded");
   } else if (rt.paused) {
     // Billing stopped: the phone receptionist takes a message and promises a call back, nothing more -- its whole prompt
     // for the call.
@@ -468,7 +465,7 @@ function readWorkspaceFacts(
     plan.businessFacts = composedFacts(rt, rt.brain, now, settledOrThrow(openingsR));
   } else {
     plan.facts = "missing";
-    if (rt.configBroken) failed(plan, "the workspace's config does not parse");
+    if (rt.configBroken) planFailed(plan, "the workspace's config does not parse");
   }
   return rt;
 }
@@ -489,7 +486,7 @@ function readCallerMemory(
     plan.memory = "none";
   } else if (leadR.status === "rejected") {
     plan.memory = "unread";
-    failed(plan, leadR.reason);
+    planFailed(plan, leadR.reason);
   } else if (leadR.value) {
     // Said once the whole of it is built: a memory that threw halfway is told as none, never as half.
     ({
@@ -538,12 +535,12 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
     tenantId: null,
   };
   try {
-    const route = await routeOf(plan, callStartInput);
+    const route = await routeCall(plan, callStartInput);
     if (route) await readForCall(plan, { ...route, phone, now }, calendar);
   } catch (e) {
     // A throw past the reads above leaves whatever was composed in place, and says so: the caller still gets the facts
     // that were read before it.
-    failed(plan, e);
+    planFailed(plan, e);
   }
 
   const { facts, line } = plan;
