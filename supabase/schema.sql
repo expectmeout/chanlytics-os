@@ -37367,6 +37367,9 @@ begin
   update public.templates set hidden_at = coalesce(hidden_at, now())
    where id in (select p.template_id from public.sequence_steps p where p.id = any (v_steps));
   delete from public.sequence_steps where id = p_root_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'playbook', p_root_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'reach_out', true, 'steps', cardinality(v_steps), 'by', auth.uid())));
   return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
 end $$;
 
@@ -41543,6 +41546,11 @@ begin
   update public.sequence_batches set state = 'canceled'
    where tenant_id = p_tenant_id and id = p_batch_id and state = p_from;
   get diagnostics v_n = row_count;
+  if v_n = 1 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_batch_id,
+            jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'canceled', 'by', auth.uid())));
+  end if;
   return v_n = 1;
 end $$;
 
@@ -42393,6 +42401,9 @@ begin
     -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
     delete from public.sequence_steps where id = p_sequence_id;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', p_sequence_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'was', v_q.state, 'steps', v_steps, 'by', v_actor)));
   return jsonb_build_object('id', p_sequence_id, 'steps', v_steps)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'discard_sequence',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('name', v_q.name, 'was', v_q.state), p_via,
@@ -42435,7 +42446,13 @@ begin
        and case when g.lead_id is null then s.lead_id is null and s.contact_id = g.contact_id
                 else s.lead_id = g.lead_id end
        and s.state in ('planned', 'held', 'queued', 'drafted')
-    returning s.id)
+    returning s.id),
+  told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_strip_nulls(jsonb_build_object('people', count(*), 'why', v_why, 'by', p_by))
+      from gone g group by g.sequence_id
+    returning 1)
   select count(*) into v_n from gone;
   return v_n;
 end $$;
@@ -43075,6 +43092,11 @@ begin
   values (p_tenant_id, p_sequence_id, p_contact_id, p_occasion, p_due_at, p_due_at)
   on conflict (sequence_id, contact_id, occasion) do nothing;
   get diagnostics v_made = row_count;
+  if v_made > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'sequence.enrolled', 'message', 'sequence', p_sequence_id,
+            jsonb_strip_nulls(jsonb_build_object('occasion', p_occasion, 'due_at', p_due_at, 'contact_id', p_contact_id)));
+  end if;
   return case when v_made > 0 then 'enrolled' else 'already' end;
 end $$;
 
@@ -43161,13 +43183,21 @@ begin
   if p_starts_with is null or char_length(p_starts_with) < 3 or p_why is null then
     return 0;
   end if;
-  update public.sequence_occasions o
-     set state = 'left', why = left(p_why, 60), settled_at = now()
-   where o.tenant_id = p_tenant_id and o.state = 'waiting'
-     and left(o.occasion, char_length(p_starts_with)) = p_starts_with
-     -- All but one: a visit's occasions for its other starts, where the one for the start it has now stays.
-     and (p_except is null or o.occasion <> p_except);
-  get diagnostics v_left = row_count;
+  with gone as (
+    update public.sequence_occasions o
+       set state = 'left', why = left(p_why, 60), settled_at = now()
+     where o.tenant_id = p_tenant_id and o.state = 'waiting'
+       and left(o.occasion, char_length(p_starts_with)) = p_starts_with
+       and (p_except is null or o.occasion <> p_except)
+    returning o.sequence_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_build_object('people', count(*), 'why', left(p_why, 60), 'occasion', p_starts_with)
+      from gone g group by g.sequence_id
+    returning 1
+  )
+  select count(*) into v_left from gone;
   return v_left;
 end $$;
 
@@ -43239,6 +43269,9 @@ begin
       raise exception 'Draft not found.' using errcode = 'P0002';
     end if;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'draft', 'once', true, 'kept', p_id is not null, 'by', v_actor)));
   return jsonb_build_object('id', v_id, 'state', 'draft')
     || public.team_decision(p_tenant_id, v_actor, 'sequence', v_id, 'make_sequence',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('once', true, 'kept', p_id is not null), p_via,

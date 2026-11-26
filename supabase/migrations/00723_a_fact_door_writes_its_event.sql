@@ -2266,3 +2266,283 @@ begin
   end if;
   return v_renamed > 0;
 end $$;
+/* -- a sequence and its people, and a batch of it: each move with its event -- */
+
+-- A sequence kept as a draft or removed, a cold email removed, the people who leave it (their enrolments, their
+-- occasions) and those an occasion enrols, and a batch cancelled, each now write sequence.changed, sequence.left,
+-- sequence.enrolled or broadcast.moved in their own transaction, with who where a member did. All are kept from
+-- Activity's rows: Campaigns says each sequence and batch as it stands.
+
+-- sequence_batch_cancel
+CREATE OR REPLACE FUNCTION public.sequence_batch_cancel(p_tenant_id uuid, p_batch_id uuid, p_from text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n int;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_from not in ('pending_approval', 'scheduled', 'sending') then
+    return false;
+  end if;
+  update public.sequence_batches set state = 'canceled'
+   where tenant_id = p_tenant_id and id = p_batch_id and state = p_from;
+  get diagnostics v_n = row_count;
+  if v_n = 1 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_batch_id,
+            jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'canceled', 'by', auth.uid())));
+  end if;
+  return v_n = 1;
+end $$;
+
+-- sequence_occasions_leave
+CREATE OR REPLACE FUNCTION public.sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_left integer;
+begin
+  if p_starts_with is null or char_length(p_starts_with) < 3 or p_why is null then
+    return 0;
+  end if;
+  with gone as (
+    update public.sequence_occasions o
+       set state = 'left', why = left(p_why, 60), settled_at = now()
+     where o.tenant_id = p_tenant_id and o.state = 'waiting'
+       and left(o.occasion, char_length(p_starts_with)) = p_starts_with
+       and (p_except is null or o.occasion <> p_except)
+    returning o.sequence_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_build_object('people', count(*), 'why', left(p_why, 60), 'occasion', p_starts_with)
+      from gone g group by g.sequence_id
+    returning 1
+  )
+  select count(*) into v_left from gone;
+  return v_left;
+end $$;
+
+-- sequence_enrollments_leave
+CREATE OR REPLACE FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uuid[], p_why text, p_by uuid DEFAULT NULL::uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_why text := left(nullif(btrim(coalesce(p_why, '')), ''), 60);
+  v_n int;
+begin
+  if p_tenant_id is null or v_why is null or coalesce(cardinality(p_ids), 0) = 0 then
+    return 0;
+  end if;
+  with gone as (
+    update public.sequence_enrollments e
+       set state = 'left', why = v_why, ended_at = now(), next_at = null, left_by = p_by
+     where e.tenant_id = p_tenant_id and e.id = any (p_ids) and e.state = 'in'
+    returning e.sequence_id, e.contact_id, e.lead_id),
+  skipped as (
+    update public.sequence_sends s
+       set state = 'skipped', reason = v_why
+      from gone g
+     where s.tenant_id = p_tenant_id and s.sequence_id = g.sequence_id
+       and case when g.lead_id is null then s.lead_id is null and s.contact_id = g.contact_id
+                else s.lead_id = g.lead_id end
+       and s.state in ('planned', 'held', 'queued', 'drafted')
+    returning s.id),
+  told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_strip_nulls(jsonb_build_object('people', count(*), 'why', v_why, 'by', p_by))
+      from gone g group by g.sequence_id
+    returning 1)
+  select count(*) into v_n from gone;
+  return v_n;
+end $$;
+
+-- sequence_occasion_enrol
+CREATE OR REPLACE FUNCTION public.sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean DEFAULT false, p_replaces text DEFAULT NULL::text, p_rest_days integer DEFAULT 0) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_made integer;
+begin
+  if p_occasion is null or p_due_at is null then
+    raise exception 'sequence_occasion_enrol: an occasion has a key and a time' using errcode = '22004';
+  end if;
+  -- Someone erased, or not this workspace's, is enrolled in nothing.
+  if not exists (select 1 from public.contacts c
+                  where c.id = p_contact_id and c.tenant_id = p_tenant_id and c.erased_at is null) then
+    return 'gone';
+  end if;
+  -- A visit that moved: the occasions made for its other starts leave, so one reminder stands for it.
+  if p_replaces is not null and char_length(p_replaces) > 0 then
+    update public.sequence_occasions o
+       set state = 'left', why = 'moved', settled_at = now()
+     where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id and o.state = 'waiting'
+       and left(o.occasion, char_length(p_replaces)) = p_replaces and o.occasion <> p_occasion;
+  end if;
+  -- One at a time, where the moment keeps it so: another of theirs waits here, or they are still in the sequence.
+  if p_single and (
+       exists (select 1 from public.sequence_occasions o
+                where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id
+                  and o.state = 'waiting' and o.occasion <> p_occasion)
+       or exists (select 1 from public.sequence_enrollments e
+                   where e.sequence_id = p_sequence_id and e.lead_id is null
+                     and e.contact_id = p_contact_id and e.state = 'in')) then
+    return 'busy';
+  end if;
+  -- A moment that rests between occasions: nothing new while another of theirs here began inside the rest, whatever
+  -- became of it. A sequence's own message can be what starts its next occasion (a follow-up that carries the booking
+  -- link); the rest is what keeps that from going round.
+  if coalesce(p_rest_days, 0) > 0 and exists (
+       select 1 from public.sequence_occasions o
+        where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id and o.occasion <> p_occasion
+          and o.created_at > now() - make_interval(days => p_rest_days)) then
+    return 'busy';
+  end if;
+  insert into public.sequence_occasions (tenant_id, sequence_id, contact_id, occasion, due_at, try_at)
+  values (p_tenant_id, p_sequence_id, p_contact_id, p_occasion, p_due_at, p_due_at)
+  on conflict (sequence_id, contact_id, occasion) do nothing;
+  get diagnostics v_made = row_count;
+  if v_made > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'sequence.enrolled', 'message', 'sequence', p_sequence_id,
+            jsonb_strip_nulls(jsonb_build_object('occasion', p_occasion, 'due_at', p_due_at, 'contact_id', p_contact_id)));
+  end if;
+  return case when v_made > 0 then 'enrolled' else 'already' end;
+end $$;
+
+-- sequence_once_keep
+CREATE OR REPLACE FUNCTION public.sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid DEFAULT NULL::uuid, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_name  text := left(btrim(coalesce(p_name, '')), 80);
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_actor, p_tenant_id, 'approve') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if char_length(v_name) = 0 then
+    raise exception 'A message sent once is named.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_once) is distinct from 'object' then
+    raise exception 'A kept one-off says who, when and what.' using errcode = '22023';
+  end if;
+  if p_id is null then
+    insert into public.sequences (tenant_id, name, starts, state, created_by, mode, once)
+    values (p_tenant_id, v_name, 'date', 'draft', v_actor, null, p_once)
+    returning id into v_id;
+  else
+    update public.sequences set name = v_name, once = p_once, updated_at = now()
+     where tenant_id = p_tenant_id and id = p_id and starts = 'date' and state = 'draft'
+    returning id into v_id;
+    if v_id is null then
+      raise exception 'Draft not found.' using errcode = 'P0002';
+    end if;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'draft', 'once', true, 'kept', p_id is not null, 'by', v_actor)));
+  return jsonb_build_object('id', v_id, 'state', 'draft')
+    || public.team_decision(p_tenant_id, v_actor, 'sequence', v_id, 'make_sequence',
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('once', true, 'kept', p_id is not null), p_via,
+         p_undo_of);
+end $$;
+
+-- sequence_discard
+CREATE OR REPLACE FUNCTION public.sequence_discard(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_q public.sequences%rowtype;
+  v_steps int;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  select * into v_q from public.sequences where tenant_id = p_tenant_id and id = p_sequence_id for update;
+  if v_q.id is null or not (v_q.starts in ('moment', 'list') or (v_q.starts = 'date' and v_q.state = 'draft'
+                                                                  and v_q.once is not null)) then
+    raise exception 'Sequence not found.' using errcode = 'P0002';
+  end if;
+  -- What has sent keeps its history: a sequence that made a batch, or took anyone in, is paused, never taken away.
+  if exists (select 1 from public.sequence_batches b where b.sequence_id = p_sequence_id)
+     or exists (select 1 from public.sequence_enrollments e where e.sequence_id = p_sequence_id) then
+    raise exception 'It has sent: pause it instead.' using errcode = 'P0001';
+  end if;
+  select count(*) into v_steps from public.sequence_steps where sequence_id = p_sequence_id;
+  if v_q.starts = 'date' then
+    -- A kept one-off (00465) has no step: the draft itself goes.
+    delete from public.sequences where id = p_sequence_id;
+  else
+    -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
+    delete from public.sequence_steps where id = p_sequence_id;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', p_sequence_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'was', v_q.state, 'steps', v_steps, 'by', v_actor)));
+  return jsonb_build_object('id', p_sequence_id, 'steps', v_steps)
+    || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'discard_sequence',
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('name', v_q.name, 'was', v_q.state), p_via,
+         p_undo_of);
+end $$;
+
+-- reach_out_remove
+CREATE OR REPLACE FUNCTION public.reach_out_remove(p_tenant_id uuid, p_root_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_steps uuid[];
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  perform 1 from public.sequence_steps
+   where id = p_root_id and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first' for update;
+  if not found then raise exception 'Cold email not found.' using errcode = 'P0002'; end if;
+  with recursive c as (
+    select id from public.sequence_steps where id = p_root_id
+    union all
+    select p.id from public.sequence_steps p join c on p.after_step_id = c.id
+  )
+  select array_agg(id) into v_steps from c;
+  -- Held against a claim while it is judged: a claim waits, or finds the chain gone.
+  perform 1 from public.sequence_sends s where s.lead_id is not null and ( s.sequence_id = p_root_id) for update;
+  if exists (select 1 from public.sequence_sends s
+              where s.lead_id is not null and ( s.sequence_id = p_root_id
+                and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
+                     or (s.state = 'skipped' and s.drafted_at is not null)))) then
+    raise exception 'This cold email has written already. Pause it instead.' using errcode = '23503';
+  end if;
+  update public.sequence_batches set state = 'canceled'
+   where tenant_id = p_tenant_id and audience->>'kind' = 'reach_out' and audience->>'root_id' = p_root_id::text
+     and state in ('pending_approval', 'scheduled', 'sending');
+  update public.templates set hidden_at = coalesce(hidden_at, now())
+   where id in (select p.template_id from public.sequence_steps p where p.id = any (v_steps));
+  delete from public.sequence_steps where id = p_root_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'playbook', p_root_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'reach_out', true, 'steps', cardinality(v_steps), 'by', auth.uid())));
+  return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
+end $$;
