@@ -73,14 +73,14 @@ export const LeadCallMenu = ({
       variant={look.variant}
       size={look.size}
       aria-label={title}
-      title={title}
+      data-tip={title}
       data-testid={testid}
       className={look.className}
     >
       <Icon name="phone" size={size} />
     </Button>
   ) : (
-    <Button variant={look.variant} size={look.size} title={title} data-testid={testid} className={look.className}>
+    <Button variant={look.variant} size={look.size} data-tip={title} data-testid={testid} className={look.className}>
       {label} <Icon name="chevron-down" size={10} />
     </Button>
   );
@@ -123,7 +123,7 @@ export const LeadRowCall = ({ l, handle }: { l: Pick<LeadRowVM, "id" | "name" | 
             variant="quiet"
             size="sm"
             aria-label={title}
-            title={title}
+            data-tip={title}
             data-testid="lead-call"
             className="ld-call"
           >

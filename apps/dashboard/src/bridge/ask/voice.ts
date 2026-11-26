@@ -185,7 +185,7 @@ interface World {
 }
 
 /** An event of the vendor's heard: reduced to the Line's actions, each told to the turn's listener and to every watcher. */
-const hear = (line: Line, ev: VoiceEvent) => {
+const hearVendor = (line: Line, ev: VoiceEvent) => {
   if (!line.listener && line.watchers.size === 0) return;
   const r = reduceVoiceEvent(line.state, ev);
   line.state = r.state;
@@ -267,11 +267,11 @@ function callbacksFor(w: World, mine: number, measured: Clock): Callbacks {
     onConnect: () => {
       if (live() && measured.connectedAt == null) measured.connectedAt = now();
     },
-    onMessage: (m) => live() && hear(line, { kind: "message", payload: m }),
-    onAgentChatResponsePart: (p) => live() && hear(line, { kind: "part", payload: p }),
-    onAgentResponseCorrection: (p) => live() && hear(line, { kind: "correction", payload: p }),
-    onInterruption: (p) => live() && hear(line, { kind: "interruption", payload: p }),
-    onVadScore: (p) => live() && hear(line, { kind: "vad", payload: p }),
+    onMessage: (m) => live() && hearVendor(line, { kind: "message", payload: m }),
+    onAgentChatResponsePart: (p) => live() && hearVendor(line, { kind: "part", payload: p }),
+    onAgentResponseCorrection: (p) => live() && hearVendor(line, { kind: "correction", payload: p }),
+    onInterruption: (p) => live() && hearVendor(line, { kind: "interruption", payload: p }),
+    onVadScore: (p) => live() && hearVendor(line, { kind: "vad", payload: p }),
     onModeChange: (p) => {
       if (!live()) return;
       // The agent's first turn to speaking is the first audio the person hears (WebRTC plays it straight through).
@@ -280,7 +280,7 @@ function callbacksFor(w: World, mine: number, measured: Clock): Callbacks {
       line.speaking = p.mode === "speaking";
       // The speech is over: the idle clock runs from here.
       if (was && !line.speaking && !line.asked) armIdle(w);
-      hear(line, { kind: "mode", payload: p });
+      hearVendor(line, { kind: "mode", payload: p });
     },
     onIncomingEvent: (e: { type?: string }) => {
       if (!live()) return;
@@ -291,11 +291,11 @@ function callbacksFor(w: World, mine: number, measured: Clock): Callbacks {
         line.asked = false;
         armIdle(w);
       }
-      hear(line, { kind: "event", payload: e });
+      hearVendor(line, { kind: "event", payload: e });
     },
     onDisconnect: (d) => {
       if (!live()) return;
-      hear(line, { kind: "disconnect", payload: d });
+      hearVendor(line, { kind: "disconnect", payload: d });
       const ended = line.session;
       forget(w);
       // The far side ended it (the vendor's limit, a dropped connection): the row says so.

@@ -325,7 +325,7 @@ export const reordered = (order: readonly string[], next: readonly string[]): st
     : [...next, ...order.filter((k) => !next.includes(k))];
 
 /** A row of the Columns menu: the column's key, its heading's words, whether it shows, whether it always does, and its heading there. */
-export interface ColumnOption {
+interface ColumnOption {
   key: string;
   label: string;
   on: boolean;

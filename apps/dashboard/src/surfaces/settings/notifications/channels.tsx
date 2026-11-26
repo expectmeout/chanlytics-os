@@ -125,7 +125,7 @@ function EmailEditor(o: EmailRowProps) {
           size="sm"
           variant="primary"
           disabled={shut || !email.trim()}
-          title={o.locked ?? undefined}
+          data-tip={o.locked ?? undefined}
           onClick={add}
           {...o.gated}
         >

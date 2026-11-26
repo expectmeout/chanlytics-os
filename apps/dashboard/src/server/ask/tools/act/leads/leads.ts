@@ -375,6 +375,7 @@ export const propose_leads = defineActions({
       }),
       examples: [{ name: "Businesses near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] }],
       label: "Preparing the list of leads",
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       words: `Action list keeps chosen leads (at most ${LEAD_LIST_MAX}) as a list of their own, a search a cold email writes to; it spends nothing. In a plan, a cold email step names it by its token.`,
       build: (t, input) => Promise.resolve(proposeLeadList(t, input)),
     }),
