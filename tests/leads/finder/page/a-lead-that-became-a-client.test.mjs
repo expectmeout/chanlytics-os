@@ -88,7 +88,7 @@ test("a converted lead whose person became a client reads Client, on the desktop
     business.cell(rows[0], { ...rowNode.props.ctx, peopleRows: people, onOpenPerson: (id) => went.push(id) }),
   );
   assert.ok(door, "the Client pill is a door");
-  assert.equal(door.props.title, LEAD_WORDS.openPerson);
+  assert.equal(door.props["data-tip"], LEAD_WORDS.openPerson);
   door.props.onClick({ stopPropagation() {} });
   assert.deepEqual(went, ["k1"], "it opens the person the lead converted into");
   assert.equal(doorOf(business.cell(rows[1], { ...rowNode.props.ctx, peopleRows: people })), null);

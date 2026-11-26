@@ -198,7 +198,7 @@ function CopyItem({ item, copy }: { item: MenuItem; copy: { text: string; said: 
       nativeButton
       render={<button type="button" />}
       label={item.label}
-      title={item.title}
+      data-tip={item.title}
       closeOnClick={false}
       data-copied={copied || undefined}
       onClick={() => press(copy.text)}
@@ -231,7 +231,7 @@ function Item({ item }: { item: MenuItem }) {
       nativeButton
       render={<button type="button" />}
       label={item.label}
-      title={item.title}
+      data-tip={item.title}
       disabled={item.disabled}
       closeOnClick={!refused}
       onClick={() => act()}

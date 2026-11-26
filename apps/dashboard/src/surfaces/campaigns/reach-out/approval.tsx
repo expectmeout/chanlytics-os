@@ -261,7 +261,7 @@ function RoName({ name, leadId, testid }: { name: string; leadId: string | null;
     <LinkButton
       size="inherit"
       className="ro-name"
-      title={REACH_OUT_SHEET_WORDS.openLead}
+      data-tip={REACH_OUT_SHEET_WORDS.openLead}
       {...leadOverDoor(leadId)}
       data-testid={testid}
     >

@@ -176,7 +176,7 @@ function DemoBusiness() {
           <span className="cl-prof-attr-key">Hours</span>
           <span className="cl-prof-attr-val set-hours-val">
             Mon–Sun · 9:00 AM – 6:00 PM
-            <LinkButton title="Availability rules live on the Calendar" onClick={() => navigate("calendar")}>
+            <LinkButton data-tip="Availability rules live on the Calendar" onClick={() => navigate("calendar")}>
               Edit on Calendar <Icon name="arrow-right" size={10} />
             </LinkButton>
           </span>

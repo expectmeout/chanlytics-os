@@ -15,6 +15,7 @@ import {
   filesReadBy,
   isProse,
   isWords,
+  markupFiles,
   refusalWordsIn,
   screenWordsIn,
   titleTooltipsIn,
@@ -203,6 +204,16 @@ test("a browser's tooltip is a title on an element, never a component's own titl
   assert.equal(titleTooltipsIn(sf), 2);
 });
 
+test("a frame's title is its name, and a Base UI part or a kit control that hands its title on is a tooltip", () => {
+  const sf = source(
+    'const a = <iframe title="The letter, as it is sent" srcDoc="" />;',
+    'const b = <Tabs.Tab value="all" title="Everyone on the list" />;',
+    'const c = <LinkButton href="/x" title="Open them in People">Dana</LinkButton>;',
+    'const d = <EmptyState title="Nobody yet" />;',
+  );
+  assert.equal(titleTooltipsIn(sf), 2, "the tab's and the link's, never the frame's name or the empty state's heading");
+});
+
 test("who reads a file is said by where it lives", () => {
   const reads = (file) => audienceOf(file);
   assert.equal(reads("apps/dashboard/src/surfaces/today/page.tsx"), "owner");
@@ -277,11 +288,14 @@ test("the ratchets say what they hold and read the tree", () => {
   // provider word on 16 Nov 2026 ("the carriers" became the phone networks), the pages their last word that never
   // reaches a screen on 25 Nov 2026, what AI is taught its last the same day (what is left are the tools' own names,
   // each marked), and the server's refusals theirs on 26 Nov 2026 (what is left is staff's and operators', each marked).
+  // The markup's last browser tooltip became the house's tip the same day (what is left are three frames' titles, each
+  // its frame's name).
   const EARNED_ZERO = {
     "customer-words.json": () => filesReadBy("customer").length,
     "screen-words.json": () => filesReadBy("owner").length,
     "server-words.json": () => filesReadBy("server").length,
     "taught-words.json": () => filesReadBy("taught").length,
+    "title-tooltips.json": () => markupFiles().length,
   };
   for (const r of WORD_RATCHETS) {
     assert.ok(r.advice && r.name, r.file);

@@ -747,7 +747,11 @@ test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rul
   assert.ok(textIn(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textIn(bar)}`);
   // Each door says where it goes, for a tab named Business: 'Edit in Settings' named a tab there is none of.
   assert.deepEqual(
-    [...new Set(all(bar, (n) => /^cal-rules-door-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props.title))],
+    [
+      ...new Set(
+        all(bar, (n) => /^cal-rules-door-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props["data-tip"]),
+      ),
+    ],
     ["Change it in Settings › Hours & booking"],
     "REGRESSION: 'Edit in Settings', for a tab named Business",
   );
