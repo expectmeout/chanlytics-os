@@ -319,6 +319,37 @@ test("the page: the row's Turn on reaches the bridge with the capability's name,
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
 });
 
+test("the page: the billing row's Start the trial and Update the card are Billing's own verbs, each pressed once", async () => {
+  // A row's verb (surfaces/setup/rows/acts.tsx pressVerb) for a workspace that pays by card: Checkout and Stripe's portal,
+  // through Billing's verbs (settings/billing/surface.ts), which billing/billing.test.mjs runs to Stripe's pages.
+  const { pressVerb } = await importSrc("apps/dashboard/src/surfaces/setup/rows/acts.tsx");
+  const { billingVerbs } = await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts");
+  const pressed = [];
+  const kept = { checkout: billingVerbs.checkout, portal: billingVerbs.portal };
+  Object.assign(billingVerbs, {
+    checkout: async () => (pressed.push("checkout"), { ok: true, message: "" }),
+    portal: async () => (pressed.push("portal"), { ok: false, message: "The portal is closed." }),
+  });
+  const flashed = [];
+  const k = {
+    flash: (f) => flashed.push(f),
+    once: async (_to, run) => run(),
+    toggleChooser() {},
+    toggleForwarding() {},
+    openForwarding() {},
+  };
+  try {
+    await pressVerb({ label: "Start the trial", to: "verb:billing-checkout" }, k);
+    await pressVerb({ label: "Update the card", to: "verb:billing-portal" }, k);
+  } finally {
+    Object.assign(billingVerbs, kept);
+  }
+  assert.deepEqual(pressed, ["checkout", "portal"]);
+  assert.equal(flashed.length, 1, "a door that refuses says so");
+  assert.equal(flashed[0].tone, "danger");
+  assert.deepEqual(calls.nav, [], "and nothing navigated away: Stripe's pages are Billing's to open");
+});
+
 test("REGRESSION (S15): an operator sees Turn on gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
   const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
   Object.assign(globalThis.window, {

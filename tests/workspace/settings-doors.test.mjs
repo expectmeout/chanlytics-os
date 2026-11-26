@@ -335,6 +335,28 @@ const stripe = () => {
   return called;
 };
 
+test("Billing is the real pane: its plan's card, and what the browser came back from Stripe with, said once in the pane", () => {
+  // The pane's parts e2e reaches by name (billing-real, billing-note), drawn where billing.test.mjs read the pane's
+  // text until 26 Nov 2026.
+  asRole("owner");
+  billing({ status: "trialing", trial_end: "2026-09-29T12:00:00Z" });
+  stripe();
+  const verbs = provided("billing");
+  const kept = { outcome: verbs.outcome, outcomeWords: verbs.outcomeWords };
+  try {
+    assert.ok(byTestId(render(Billing, { flash() {} }), "billing-real"), "the plan's card");
+    assert.equal(
+      byTestId(render(Billing, { flash() {} }), "billing-note"),
+      null,
+      "nothing to say when nothing came back",
+    );
+    Object.assign(verbs, { outcome: () => "done", outcomeWords: { done: "Your card is saved." } });
+    assert.equal(textOf(byTestId(render(Billing, { flash() {} }), "billing-note")), "Your card is saved.");
+  } finally {
+    Object.assign(verbs, kept);
+  }
+});
+
 test("REGRESSION (one gate): Billing's doors to Stripe stay on the page for a role that may not open them, gated, saying why -- they were disabled with no reason at the control", () => {
   asRole("operator");
   billing({ status: "none" });
