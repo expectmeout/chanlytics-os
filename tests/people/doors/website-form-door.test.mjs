@@ -517,7 +517,7 @@ test("a sign-up asks its person to confirm: one email on their thread from the m
     proactive: true,
   });
   assert.equal(w.notifications.length, 1, "the notice waited for the ask, and was told once");
-  assert.match(w.notifications[0].body, /\nWe emailed them to confirm\. Offers by email start once they do\.\n/);
+  assert.match(w.notifications[0].body, /\nEmailed them to confirm\. Offers by email start once they do\.\n/);
 });
 
 test("asked once: the same form again, or another sign-up while the ask is open, sends nothing more", async (t) => {
@@ -534,7 +534,7 @@ test("asked once: the same form again, or another sign-up while the ask is open,
   assert.equal(asks().length, 1);
   assert.equal(sends().length, 1);
   assert.equal(w.notifications.length, 2, "the same form is told once; another sign-up is told");
-  assert.match(w.notifications.at(-1).body, /We already emailed them to confirm\./);
+  assert.match(w.notifications.at(-1).body, /Already emailed them to confirm\./);
 
   // Two posts at once both read no open ask; the second's email is the first's, by its id, and is sent once.
   w = world({ person: { email: "ana@example.com" }, mailbox: true });
@@ -590,13 +590,13 @@ test("the notice handed on twice at once tells the owner once, and the delivery 
 test("not asked, and the owner told why: no mailbox, a made-up address, another address on their page, a yes given", async (t) => {
   canSend(t);
   const cases = [
-    [{ person: { email: "ana@example.com" }, mailbox: false }, SIGNUP, /you have no email address yet/],
+    [{ person: { email: "ana@example.com" }, mailbox: false }, SIGNUP, /connect an email address first/],
     [
       { person: { email: "a.n.a.r@gmail.com" }, mailbox: true },
       { ...SIGNUP, email: "a.n.a.r@gmail.com" },
       /looks made up/,
     ],
-    [{ person: { email: "ana@other.example" }, mailbox: true }, SIGNUP, /an address their page does not have/],
+    [{ person: { email: "ana@other.example" }, mailbox: true }, SIGNUP, /an address their page doesn't have/],
     [{ person: { email: "ana@example.com", email_marketing: "opted_in" }, mailbox: true }, SIGNUP, /already said yes/],
     [{ person: { email: "ana@example.com", consent: "opted_out" }, mailbox: true }, SIGNUP, /asked you to stop/],
   ];
@@ -672,7 +672,7 @@ test("the limits: three asks to one inbox in ninety days, fifty a day, and none 
   setPg(w.db);
   await postAndSettle(SIGNUP);
   assert.equal(asks().length, 3);
-  assert.match(w.notifications[0].body, /did not arrive/);
+  assert.match(w.notifications[0].body, /didn't arrive/);
 });
 
 /* ------------------------------------------------- where a visitor came from (the Ads tracking plan's T4) -- */

@@ -24,6 +24,7 @@ import { actAction, type ProposalOutcome, type ToolContext } from "../context/to
 import { propose, refuse, refuseThrown } from "../context/context";
 
 /** Where a playbook's id is read, said as the model calls it. */
+// screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
 const PLAYBOOK_FROM = "sequences with action moments";
 
 /**

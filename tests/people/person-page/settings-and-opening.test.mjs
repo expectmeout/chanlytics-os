@@ -170,8 +170,8 @@ test("History names who added a person, by the door that did: the calendar, the 
     const e = vm.timeline.find((i) => i.id === "added");
     return e && [e.who, e.text];
   };
-  assert.deepEqual(entry(added("calendar", "Balayage")), ["Calendar", "Added from your calendar (Balayage)"]);
-  assert.deepEqual(entry(added("calendar")), ["Calendar", "Added from your calendar"]);
+  assert.deepEqual(entry(added("calendar", "Balayage")), ["Calendar", "Added from the calendar (Balayage)"]);
+  assert.deepEqual(entry(added("calendar")), ["Calendar", "Added from the calendar"]);
   assert.deepEqual(
     entry(added("lead")),
     ["Leads", "Added from a lead you found"],
@@ -188,7 +188,7 @@ test("History names who added a person, by the door that did: the calendar, the 
   );
   // About says the same door in the same words.
   for (const [source, how] of [
-    ["calendar", "from your calendar"],
+    ["calendar", "from the calendar"],
     ["lead", "from a lead you found"],
     ["import", "from a spreadsheet"],
     ["manual", "by hand"],

@@ -14,9 +14,11 @@ import {
   type PersonDetailDto,
   type PersonReachDto,
   DAY_KEY,
+  listOrEmpty,
   recordOrEmpty,
   recordOrNull,
   textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { writeReachOf } from "@/server/new-conversation/write-reach";
 import { SMS_FOOTER } from "@chanlytics/channels/lines";
@@ -143,16 +145,12 @@ const proposalLinkOf = (row: { proposal_url?: string | null } | null): Pick<Pers
  * names the service it was for (0008).
  */
 function configFacts(config: unknown): { bookingLink: string | null; services: string[]; consultFirst: string[] } {
-  type Brain = {
-    booking_link?: unknown;
-    profile?: { services?: { name: string }[]; booking_rules?: { consult_first?: unknown } };
-  };
-  const brain = (config as { brain?: Brain } | null)?.brain;
-  const link = brain?.booking_link;
-  const consult = brain?.profile?.booking_rules?.consult_first;
+  const brain = valueAt(config, "brain");
+  const link = valueAt(brain, "booking_link");
+  const consult = valueAt(brain, "profile", "booking_rules", "consult_first");
   return {
     bookingLink: typeof link === "string" && link.trim() ? link.trim() : null,
-    services: (brain?.profile?.services ?? []).map((s) => s.name),
+    services: listOrEmpty(valueAt(brain, "profile", "services")).map((s) => textOrEmpty(valueAt(s, "name"))),
     consultFirst: Array.isArray(consult) ? consult.filter((x): x is string => typeof x === "string") : [],
   };
 }
@@ -437,13 +435,14 @@ export const personReach: Reader<{ id: string }, { reach: PersonReachDto }> = {
         : findSignedFirst(rc.ctx, rc.tenantId),
     ]);
     const mode = own ?? workspace.find((p) => p.class === "reply")?.mode ?? null;
-    const brain = (settings?.config as { brain?: { business_name?: string; booking_link?: string } } | null)?.brain;
+    const brain = recordOrEmpty(valueAt(settings?.config, "brain"));
+    const businessName = textOrEmpty(brain.business_name);
     const reach = writeReachOf(row, {
       ready: readyOrWhatsApp(ready),
       mode,
       // The name is enough: a message that sends no link needs none (the send refuses one that does, reply.ts).
-      facts: brain?.business_name
-        ? { business_name: brain.business_name, booking_link: brain.booking_link || null }
+      facts: businessName
+        ? { business_name: businessName, booking_link: textOrEmpty(brain.booking_link) || null }
         : null,
       firstTextLine: texted ? null : SMS_FOOTER,
       emailSigned,

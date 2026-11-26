@@ -7,7 +7,13 @@
  * on the wire, which line each op logs, and what the body may say about
  * Checkout.
  */
-import { isCheckoutReturn, type CheckoutReturn, type EdgeErrorCode, type EdgeRefusal } from "@chanlytics/contracts";
+import {
+  isCheckoutReturn,
+  type CheckoutReturn,
+  type EdgeErrorCode,
+  type EdgeRefusal,
+  entryOf,
+} from "@chanlytics/contracts";
 import type { LogEvent } from "../shared/log.js";
 import type { DoorAnswer } from "../shared/admin-door.js";
 
@@ -79,8 +85,8 @@ export function billingLogOf(
           fields: { error: billingOutcome.error, detail: billingOutcome.detail?.slice(0, 200) },
         };
   }
-  if (!Object.hasOwn(MOVES, op)) return null;
-  const names = MOVES[op as keyof typeof MOVES];
+  const names = entryOf(MOVES, op);
+  if (!names) return null;
   return billingOutcome.ok
     ? { event: names.done, fields: { status: billingOutcome.status } }
     : { event: names.refused, fields: { error: billingOutcome.error } };

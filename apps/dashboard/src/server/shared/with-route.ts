@@ -652,10 +652,7 @@ export function dbRefusal(
  */
 export function refusalHeaders(error: AppError): Record<string, string> {
   if (error.code !== "rate_limited") return {};
-  const s =
-    error.details && typeof error.details === "object"
-      ? (error.details as { retry_after_s?: unknown }).retry_after_s
-      : undefined;
+  const s = valueAt(error.details, "retry_after_s");
   return typeof s === "number" && Number.isFinite(s) && s >= 0
     ? { "retry-after": String(Math.max(1, Math.ceil(s))) }
     : {};

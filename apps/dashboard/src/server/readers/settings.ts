@@ -33,6 +33,7 @@ import {
   type ReachOutSettingsMailbox,
   type ReachOutSettingsSequence,
   firstNameOf,
+  valueAt,
 } from "@chanlytics/contracts";
 import { findRehearsalById } from "@chanlytics/db/facts";
 import { countHeldForAddress, countSentByStep, findReviewLink, findWorkspaceWords } from "@chanlytics/db/campaigns";
@@ -79,10 +80,10 @@ export function feedVisibleTo<T extends { calendar?: { ical_url: string } | null
  */
 export function withHiddenFeed(role: string, incoming: unknown, stored: unknown): unknown {
   if (role === "owner" || !incoming || typeof incoming !== "object") return incoming;
-  const storedUrl = (stored as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
-  const sent = (incoming as { calendar?: { ical_url?: unknown } }).calendar?.ical_url;
+  const storedUrl = valueAt(stored, "calendar", "ical_url");
+  const sent = valueAt(incoming, "calendar", "ical_url");
   if (typeof storedUrl !== "string" || typeof sent !== "string" || sent !== maskFeedUrl(storedUrl)) return incoming;
-  return { ...recordOrEmpty(incoming), calendar: (stored as { calendar: unknown }).calendar };
+  return { ...recordOrEmpty(incoming), calendar: valueAt(stored, "calendar") };
 }
 
 /**

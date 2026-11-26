@@ -45,15 +45,46 @@ export const LIVE = {
   loadFailed: "Couldn't load your ads.",
   /** The head where its first read failed: what stood is nothing, and the clock asks again. */
   notReadYet: { strong: null, rest: "Couldn't read your ads from Meta yet. Chanlytics tries again by itself." },
-  /** Who is charged, said once under the head. */
-  money:
-    "Charged to your card by Meta, never through Chanlytics. Pause an ad and it stops. Meta still bills what it already showed.",
+  /**
+   * The page's one quiet line under its sentence: that what it shows is paid, then what was spent over its days and what
+   * each booked person cost, or the update's day; where nothing was spent yet, who is charged.
+   */
+  paid: (parts: readonly (string | null)[]) => ["Paid", ...parts.filter(Boolean)].join(" · "),
+  paidNothing: "Paid · Meta charges your card, never Chanlytics",
+  spentIn: (spent: string, days: number) => `${spent} spent in the last ${days} days`,
   spent: (spent: string) => `${spent} spent`,
+  /**
+   * The page's figures under its tabs (Ruben, 25 Nov 2026: the sentence and its quiet line, one compact strip): what was
+   * spent over the page's days, Meta's; who booked of who came from an ad and what each cost, Chanlytics'; who commented
+   * on an ad that opens no chat (00719).
+   */
+  figures: {
+    spent: (days: number) => `Spent · last ${days} days`,
+    booked: "Booked from ads",
+    of: (came: number) => `of ${came}`,
+    each: "For each who booked",
+    soFar: "so far",
+    commented: "Commented on ads",
+  },
   each: (cost: string, soFar: boolean) => `${cost} for each person who booked${soFar ? " so far" : ""}`,
   updated: (when: string) => `Updated ${when}`,
   /** A read that failed keeps the last good numbers, and says so. */
   couldntUpdate: (when: string) => `Couldn't update · Updated ${when}. Chanlytics tries again by itself.`,
   list: "Your ads",
+  /**
+   * The list's groups, the order an owner reads it in (Ruben, 25 Nov 2026: fifty ads read as People's and the Inbox's lists
+   * do): what needs you, what runs, what is paused, and what has ended, folded once anything else is there.
+   */
+  groups: { needs: "Needs you", on: "On", paused: "Paused", ended: "Ended" },
+  /** The filter beside Ads, a pill on a phone and a row on a desk, as Made's views are: what it is, and its first choice. */
+  showWhich: "Ads to show",
+  allAds: "All",
+  /** The find line over a long list (from AD_FIND_FROM ads), as Content's and the Inbox's are. */
+  find: "Find an ad",
+  /** The Ended group's heading, which folds it: what it is, to a screen reader (its press says whether it is open). */
+  endedFold: (n: number) => `The ${n} ended`,
+  /** A find that matches no ad. */
+  noneFound: "No ad has that in its name.",
   results: "Results",
   /** What a tap on an ad opens, in a row's line and a drawer's head. */
   opens: {
@@ -66,7 +97,6 @@ export const LIVE = {
     other: "another page",
   } satisfies Record<AdOpens, string>,
   madeInMeta: "made in Meta",
-  opensWord: (what: string) => `opens ${what}`,
   /** A row's first word, by where the ad stands: the one table, which a piece's Used in says too (contracts). */
   state: AD_STATE_WORDS,
   /** An ad made here, while Turn on's job makes it at Meta: nothing shows until Meta checks it. */
@@ -99,6 +129,10 @@ export const LIVE = {
     way_in: "AI can't answer the people it brings",
     paused_at_platform: "Paused in Meta",
   },
+  /** A day said near: today, tomorrow, yesterday, by the account's own clock. */
+  today: "today",
+  tomorrow: "tomorrow",
+  yesterday: "yesterday",
   ends: (day: string) => `ends ${day}`,
   stillEnds: (day: string) => `it still ends ${day}`,
   ended: (day: string) => `Ended ${day}`,
@@ -117,12 +151,10 @@ export const LIVE = {
   leftWasPaused: "was paused",
   bookedCell: (n: number) => `${n} booked`,
   eachCell: (cost: string) => `${cost} each`,
-  notCounted: "People not counted",
-  /** Under the list. */
-  adoptedNote:
-    "An ad made in Meta can be paused here. It turns back on here when Meta holds a total and an end date for it.",
-  notCountedNote: (what: string) =>
-    `An ad that opens ${what} shows what Meta spent. Its people are counted only when they write to AI.`,
+  /** Under what an ad that opens no chat spent: who commented on it, the people it can name (00719). */
+  commentedCell: (n: number) => `${n} commented`,
+  /** In the drawer of the ad it is about, under Meta's numbers, and Reports › Ads' notes. */
+  notCountedNote: (what: string) => `Chanlytics can't see who this ad brings: it opens ${what}, not a chat with AI.`,
   unnamed: (came: number, booked: number) =>
     `${peopleCount(came)} came from an ad you run in Meta that Chanlytics can't name yet` +
     (booked > 0 ? `, and ${booked} of them ${booked === 1 ? "has" : "have"} booked.` : "."),
@@ -163,8 +195,7 @@ export const LIVE = {
  */
 export const AI_LINE = {
   /** An account ready and no ad made here yet: the first, opening New ad, where AI writes it. */
-  first: (inMeta: boolean) =>
-    `Make your first ad${inMeta ? " here" : ""}? AI writes it, and nothing runs until you turn it on.`,
+  first: (inMeta: boolean) => `Make your first ad${inMeta ? " here" : ""} with AI`,
   /** An ad on that AI can't answer the people of (call 11): it spends for nothing, so AI proposes the pause. */
   wayIn: (name: string) => `${name} is on, and AI can't answer the people it brings. Pause it?`,
   /** An ad made in Meta that brought people and ends within days: keep it going, in Meta, where it is changed. */
@@ -186,32 +217,51 @@ export const NEEDS_YOU_LINE = {
 
 /** An ad's drawer (the plan's 4.5). */
 export const SHEET = {
-  /** The handle's names on a phone, where an ad opens on the whole screen as a piece does (Campaigns in three tabs). */
-  whole: "Show all of the ad",
-  less: "Show less of the ad",
   /** The piece of Content an ad made here shows, one press back to it, or that it has gone from Made (its ads paused). */
   madeFrom: "Made from",
   fromGone: "a piece removed from Made",
+  /** Under what people see of it: where it shows, then what a tap on it opens where that is a place of its own. */
+  where: (places: string, opens: string | null) => `Shows on ${places}${opens ? ` · Opens ${opens}` : ""}`,
   /** Where an ad shows, by Meta's own names for its places; "Meta" where that is not known yet. */
   platform: "Meta",
   places: META_PLACE_WORDS,
-  madeInMeta: "Made in Meta Ads Manager. Change it in Meta.",
+  /** What a total has spent of it, over its bar: "$4.61 of $5 spent". */
+  spentOf: (spent: string, total: string) => `${spent} of ${total} spent`,
+  /** Its days: "Mon 24 Nov – today", or "Since Mon 24 Nov" where it has no end. */
+  days: (start: string, end: string) => `${start} – ${end}`,
+  since: (start: string) => `Since ${start}`,
+  /** The ad in Meta Ads Manager, where it is paused or changed when nothing can be pressed here. */
+  openInMeta: "Open in Meta",
+  /** Why nothing can be pressed here, by what stands in the way (the read's press_off). */
+  pressOff: {
+    role: "Only the owner can pause an ad or turn one back on.",
+    off: "Pausing and turning ads back on from Chanlytics isn't switched on yet. Do it in Meta.",
+    meta: "Meta hasn't let Chanlytics pause or turn on ads yet. Do it in Meta.",
+  },
   metasReason: "Meta's reason",
   neverRan: "It never ran, so Meta charged nothing for it.",
   fixInMeta: "Fix it in Meta",
   /** Chanlytics' half, and Meta's, each labelled as whose it is. */
-  ours: "Counted by Chanlytics · last 30 days",
+  ours: "From this ad · last 30 days",
   cameLabel: "Wrote to AI",
   bookedLabel: "Booked",
   eachLabel: "For each who booked",
   only: (n: number) => `only ${n}`,
   theirs: "Meta's numbers · last 30 days",
+  /** Meta's numbers for every day of an ad that started inside the page's window: its days are said over them. */
+  theirsAll: "Meta's numbers",
   spentLabel: "Spent",
   shownLabel: "Times shown",
+  /** What its post did, as Meta counts it (00719): plays of three seconds or more, and engagement with the post. */
+  playsLabel: "Plays",
+  engagedLabel: "Engagement",
   tapsLabel: "Taps",
+  /** Its post, one press away, under what people read on it. */
+  seeOnInstagram: "See it on Instagram",
+  /** Who commented on it (00719): its own list, each opening their page. */
+  commented: "Commented on it",
   chatsLabel: "Chats Meta counted",
   formsLabel: "Forms Meta counted",
-  theirsNote: "Meta's count includes someone who tapped twice. It is never added to Chanlytics' people.",
   /** Meta's count beside the messages that reached Chanlytics, up to the last day Meta has settled (tracking plan T2). */
   chatsKept: (o: { meta: number; kept: number; through: string }) =>
     `Meta counted ${o.meta} chats from this ad up to ${o.through}. ${o.kept} reached Chanlytics.`,
@@ -301,7 +351,6 @@ export const SHEET = {
   unconfirmed: "Meta didn't answer when Chanlytics turned it on, so it may be on or still paused. Check asks Meta now.",
   check: "Check",
   checked: "Chanlytics asked Meta. This page shows what Meta says in a minute or two.",
-  ownerOnly: "Only the owner can pause an ad or turn one back on.",
   signedOut: "Chanlytics is signed out of Meta, so it can't pause this ad. Connect again, or pause it in Meta.",
   leftInMeta: "This ad was left in Meta when you disconnected. It can only be changed there.",
   readOnly: "Chanlytics may read your ads, and Meta didn't allow it to pause them. Connect again to allow it.",

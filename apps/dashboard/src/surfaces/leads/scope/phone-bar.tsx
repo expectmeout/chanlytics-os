@@ -195,7 +195,7 @@ export const LeadsPhoneBar = ({
             type="button"
             className="pp-bar-icon ld-bar-find"
             aria-label="Find leads"
-            title="Find leads"
+            data-tip="Find leads"
             data-testid="leads-bar-find"
             onClick={() => onFind()}
             {...(canFind ? {} : gate("find", "find businesses for you"))}

@@ -402,7 +402,7 @@ const BtaFallback = ({
           <span className="bt-disc-sub">{when}</span>
         </>
       }
-      mark={wrong ? "Check it" : own ? "Your words" : null}
+      mark={wrong ? "Check it" : own ? "Written by you" : null}
       forceOpen={!!wrong}
       testid={`rec-fallback-${key}`}
     >

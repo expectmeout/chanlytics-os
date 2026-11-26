@@ -2,25 +2,28 @@
  * Campaigns › Ads once an account is or was connected: real ads, read from the owner's own Meta account (the Ads
  * plan's 4.4, as the canvas draws it on a phone and on a desk). At the left the notice where AI is stopped with ads
  * still on, or where Chanlytics is signed out or an ad was left running, then AI's one line and who from an ad needs
- * you, then "Your ads": each ad with where it stands and what it brought; under them the quiet
- * lines (what an ad made in Meta can do here, whose people are not counted, the people from an ad Chanlytics cannot
- * name). At the right, or at the foot on a phone, the ad account's card and the line for the platforms that come
- * later. An ad opens in its drawer (ad-sheet.tsx). Every sentence is the model's (model.ts).
+ * you, then the ads as a list under the headings every list wears (Ruben, 25 Nov 2026: fifty ads read as People's and the
+ * Inbox's lists do): Needs you, On, Paused and Ended, Ended folded while anything else stands over it, each ad with where it
+ * stands and its one number, narrowed by the filter and the find line in the bar (ad-list.ts); under them the people from
+ * an ad Chanlytics cannot name, a quiet line each. What an ad made in Meta can do here, and whose people are not counted, are said in
+ * the drawer of the ad they are about (ad-sheet.tsx). At the right, or at the foot on a phone, the ad account's card,
+ * folded to its head while nothing needs the owner, and first on a phone where it says the one thing missing. Every
+ * sentence is the model's (model.ts).
  */
 import "./live.css";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { newAdRoute } from "@chanlytics/contracts";
 import { EmptyState } from "../../../kit/empty/empty";
+import { GroupHead } from "../../../kit/head/group-head";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { ListRow } from "../../../kit/list-row/list-row";
-import { Panel } from "../../../kit/panel/panel";
 import { cx } from "../../../kit/variants";
 import { gate, routeDoor } from "../../../frame-verbs";
 import { cmRowPress } from "../../parts/head";
-import { CARD } from "../connect/words";
 import { GATE } from "../model/words";
 import { HEAD } from "../model/words-page";
+import { adGroupsOf, useAdsLooked } from "./ad-list";
 import { AdsLines } from "./lines";
 import type { LiveNoticeVM, LiveRowVM, LiveVM } from "./model";
 import { ADS_MANAGER, LIVE, META_TAB } from "./words";
@@ -39,16 +42,21 @@ function Notice({ notice }: { notice: LiveNoticeVM }) {
   );
 }
 
+/**
+ * An ad's row: its picture, its name over two lines at most, where it stands in its tone with the rest of its line quiet
+ * after it, and at its end its one number. The whole row opens its drawer (cmRowPress).
+ */
 function Row({ row, onOpen }: { row: LiveRowVM; onOpen: (route: string) => void }) {
   return (
-    <div className="cmh-phone-row ads-live-row" data-opens="true" data-row-id={row.id} data-testid="ads-live-row">
+    <div className="ads-live-row" data-row-id={row.id} data-testid="ads-live-row">
       <ListRow
-        bare
+        // What it shows people, so an owner sees which ad is which (Ruben, 25 Nov 2026); its initials where nothing was read.
+        face={{ person: { name: row.name }, ...(row.picture ? { photo: row.picture } : {}), tile: true, size: "xl" }}
         name={
           <LinkButton
             {...routeDoor(row.open, onOpen)}
             size="inherit"
-            className="cmh-row-name"
+            className="ads-live-name"
             data-row-open
             data-testid="ads-live-row-open"
           >
@@ -63,12 +71,15 @@ function Row({ row, onOpen }: { row: LiveRowVM; onOpen: (route: string) => void 
           </span>
         )}
         said={
-          <span className="ads-phone-state" data-tone={row.tone}>
+          <span className="ads-phone-state">
             <span className="ads-dot" data-state={row.tone} aria-hidden="true" />
-            {row.line}
+            <span className="ads-state-word" data-tone={row.tone}>
+              {row.state}
+            </span>
+            {row.facts ? <span className="ads-state-facts">· {row.facts}</span> : null}
           </span>
         }
-        className="cmh-phone-line"
+        className="ads-live-line"
         role="presentation"
         onClick={cmRowPress}
       />
@@ -76,10 +87,53 @@ function Row({ row, onOpen }: { row: LiveRowVM; onOpen: (route: string) => void 
   );
 }
 
+/**
+ * The ads under their headings, as the filter and the find line in the bar leave them (ad-list.ts): rows flush with the
+ * list's edges and a hairline between two, as Made's, People's and the Inbox's rows stand. Ended, folded while another group
+ * stands over it, opens and closes by its heading.
+ */
+function AdGroups({ rows, onOpen }: { rows: readonly LiveRowVM[]; onOpen: (route: string) => void }) {
+  const looked = useAdsLooked();
+  const [endedOpen, setEndedOpen] = useState(false);
+  const groups = adGroupsOf(rows, looked);
+  if (groups.length === 0)
+    return (
+      <p className="ads-hero-muted" data-testid="ads-live-none">
+        {LIVE.noneFound}
+      </p>
+    );
+  return (
+    <div className="cnv-groups ads-groups" role="group" aria-label={LIVE.list} data-testid="ads-live-list">
+      {groups.map((group) => (
+        <section key={group.key} className="cnv-group" aria-label={group.label} data-testid={`ads-group-${group.key}`}>
+          <GroupHead
+            label={group.label}
+            count={group.rows.length}
+            needs={group.key === "needs"}
+            fold={
+              group.folds
+                ? {
+                    open: endedOpen,
+                    onFold: () => setEndedOpen((open) => !open),
+                    label: LIVE.endedFold(group.rows.length),
+                    testid: "ads-ended-fold",
+                  }
+                : null
+            }
+          />
+          {group.folds && !endedOpen ? null : group.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 interface LiveBodyProps {
   vm: LiveVM;
-  /** The ad account's card, as the page draws it everywhere. */
+  /** The ad account's card where it has something to say; null where the page's top says where the account stands. */
   card: ReactNode;
+  /** The card says the one thing missing (a payment Meta can't take, a sign-out): on a phone it stands first. */
+  cardFirst: boolean;
   /** AI stopped with ads still on (stop-notice.tsx), first on the page. */
   stop: ReactNode;
   onOpen: (route: string) => void;
@@ -87,10 +141,15 @@ interface LiveBodyProps {
   onPause: (id: string, version: number) => void;
 }
 
-/** The page under its head: the notice, the ads, the quiet lines, and the card. */
-export function LiveBody({ vm, card, stop, onOpen, onPause }: LiveBodyProps) {
+/** The page under its head: the notice, the ads, the people no ad holds, and the card. */
+export function LiveBody({ vm, card, cardFirst, stop, onOpen, onPause }: LiveBodyProps) {
   return (
-    <div className="ads-hero ads-live" data-testid="ads-live">
+    <div
+      className="ads-hero ads-live"
+      data-card-first={cardFirst || undefined}
+      data-side={card ? "" : undefined}
+      data-testid="ads-live"
+    >
       <section className="ads-hero-main">
         {stop}
         {vm.notice ? <Notice notice={vm.notice} /> : null}
@@ -119,24 +178,7 @@ export function LiveBody({ vm, card, stop, onOpen, onPause }: LiveBodyProps) {
             testid="ads-live-empty"
           />
         ) : null}
-        {vm.rows.length > 0 ? (
-          <>
-            <p className="ads-live-list-head" data-testid="ads-live-list-head">
-              <b>{LIVE.list}</b> <span className="tabular">{vm.rows.length}</span>
-            </p>
-            <Panel
-              as="section"
-              size="flush"
-              className="cmh-block ads-phone-list"
-              aria-label={LIVE.list}
-              data-testid="ads-live-list"
-            >
-              {vm.rows.map((row) => (
-                <Row key={row.id} row={row} onOpen={onOpen} />
-              ))}
-            </Panel>
-          </>
-        ) : null}
+        {vm.rows.length > 0 ? <AdGroups rows={vm.rows} onOpen={onOpen} /> : null}
         {vm.notes.map((note) => (
           <p key={note} className="ads-hero-note" data-testid="ads-live-note">
             {note}
@@ -148,12 +190,7 @@ export function LiveBody({ vm, card, stop, onOpen, onPause }: LiveBodyProps) {
           </p>
         ) : null}
       </section>
-      <section className="ads-hero-side">
-        {card}
-        <p className="ads-conn-later" data-testid="ads-later">
-          {CARD.later}
-        </p>
-      </section>
+      {card ? <section className="ads-hero-side">{card}</section> : null}
     </div>
   );
 }

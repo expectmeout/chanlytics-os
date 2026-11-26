@@ -193,29 +193,25 @@ export const ESCALATION_SUMMARIES: Record<EscalationReason, string> = {
   send_failed: "The reply didn't reach them. As far as they know, nobody answered.",
   policy_block: "Your reply setting keeps every message for a person. Nothing was sent, so answer them yourself.",
   policy_ask:
-    "Your setting hands bookings or service questions to a person. AI told them someone will follow up, and that someone is you.",
+    "Bookings and service questions go to a person, as you set it. AI told them someone will follow up: that's you.",
   person_hold: "You set AI to stay out of this person's conversations. Nothing was sent, so answer them yourself.",
   rate_cap: "AI hit its daily reply limit and stopped. Nothing was sent, and they're waiting.",
   deadman: "This sat unanswered long enough to flag. Nobody has replied.",
   manual: "Flagged by hand for a person.",
   opt_out: `${STOP_WORDS.said("They")}. Nothing was sent, and nothing may be.`,
   state_unavailable: "AI couldn't read this conversation, so it stayed quiet. No reply went out.",
-  stale:
-    "Hours passed between their message and any reply AI could send, so AI didn't answer. Nothing was sent, and they've been waiting since they wrote.",
-  budget:
-    "The daily AI limit is reached, so AI paused itself and sent nothing. Answer them yourself, or raise the limit in Settings › Autonomy.",
+  stale: "Too many hours passed before AI could reply, so it didn't. Nothing was sent, and they're still waiting.",
+  budget: "The daily AI limit is reached, so AI sent nothing. Answer them yourself, or raise the limit.",
   callback:
     "They phoned and are still owed a call: the call didn't connect, they hung up without a word, or AI couldn't finish it.",
-  paused:
-    "The workspace is paused because billing stopped, so AI did not answer. Resume from Settings › Billing, or answer this one yourself.",
-  carriers:
-    "This text came in before texting was approved for your number, so AI didn't answer. Answer it yourself, or wait for the approval on Setup.",
+  paused: "Billing stopped, so the workspace is paused and AI didn't answer. Answer them yourself, or resume billing.",
+  carriers: "This text came in before texting was approved, so AI didn't answer it. Answer it yourself.",
   email_review: "They wrote by email. Nothing was sent: email is always yours to answer.",
   booking_request:
-    "They picked a time the calendar shows open, and AI told them the team will confirm it. That's you: Booked it, or Can't and reply.",
+    "They picked an open time, and AI told them the team will confirm it. That's you: Booked it, or Can't and reply.",
   booking_reply: "They asked to book a time, and AI told them the team will confirm. Reply with a time that works.",
   wrote_while_held:
-    "They wrote again while your team had this conversation, so AI stayed out and sent nothing. Answer them yourself, or hand it back.",
+    "They wrote again while your team had this conversation, so AI stayed out. Answer them, or hand it back.",
 };
 
 /** The label for a reason, or the reason's own words for one the set does not know: a row never reads as nothing. */

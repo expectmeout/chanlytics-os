@@ -78,6 +78,22 @@ test("a blur other than zero counts in filter and backdrop-filter, prefixed or n
   assert.deepEqual(values(".a { filter: blur(0); } .b { backdrop-filter: blur(var(--blur-md)); }"), NONE);
 });
 
+test("what prints is kept as written, not counted: a rule under @media print, and the desk sign's own rules", () => {
+  const kept = (css) => cssFacts(css).kept;
+  assert.deepEqual(values("@media print { body { color: #000; background: #fff; } }"), NONE);
+  assert.deepEqual(kept("@media print { body { color: #000; background: #fff; } }"), only("colour", 2));
+  assert.deepEqual(values(".sign-sheet { color: #000; box-shadow: 0 1px 2px #000; }"), NONE, "the sheet is paper");
+  assert.deepEqual(kept(".sign-long .sign-business { font-size: max(2.6cqi, 11px); }"), only("font", 1));
+  assert.deepEqual(values(".sign-bar { color: #fff; }"), only("colour", 1), "the sign's bar is the screen's");
+  assert.deepEqual(values("@media screen { .a { color: #000; } } .b { color: #000; }"), only("colour", 2));
+  assert.deepEqual(values("@media not print { .a { color: #000; } }"), only("colour", 1), "not print is the screen");
+  assert.deepEqual(
+    values("@media print { .a { color: #000; } } .a { color: #fff; }"),
+    only("colour", 1),
+    "a rule after the print block counts again",
+  );
+});
+
 test("a stylesheet the parser cannot read whole is refused, not measured in part", () => {
   assert.ok(cssFacts(".a { color: var(--ink); } } .b { font-size: 12px; }").warnings.length > 0);
   assert.throws(() => strictFacts(".a { color: var(--ink); } } .b { font-size: 12px; }", "broken.css"), /broken\.css/);
@@ -130,7 +146,10 @@ test("a style prop counts on an element or a component; another prop, a style ke
 test("the measures see the dashboard's stylesheets and the shell's markup, and leave the tokens alone", () => {
   const components = "apps/dashboard/src/styles/components.css";
   const { values: v, classes } = cssOf(components);
-  assert.ok(v.font > 0 && v.radius > 0, "components.css parsed, and its written sizes were found");
+  assert.ok(
+    Object.values(v).some((n) => n > 0),
+    "components.css parsed, and the literal values it still writes were found",
+  );
   assert.ok(classes.btn > 0, "its selectors were read");
   const measure = (name) => MEASURES.find((m) => m.name === name).measure();
   const styleValues = measure("literal style values");

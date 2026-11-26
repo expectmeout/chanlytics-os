@@ -370,13 +370,6 @@
   background: var(--surface-inset-fill);
 }
 
-/* A lead's next email as it reads, at reading width. */
-.sq-lead-mail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
 /* A step changed in its sheet (step-sheet.tsx; the canvas's Editor board), the sheet its ground: its fields beside the
    message as one person reads it, then what a save reaches over its two presses. The halves stand side by side where the pane has room, one over the other where not. */
 .sq-editor {
@@ -656,18 +649,6 @@
   border-radius: var(--surface-inset-radius);
   background: var(--selected-fill);
 }
-.sq-day-open {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0 var(--space-2) var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--surface-inset-radius);
-  background: var(--surface-inset-fill);
-}
-.sq-day-door {
-  align-self: flex-start;
-}
 
 /* What needs you, on a row's line: amber, as every badge and sentence that says it is (kit.css, one shape per job). */
 .sq-needs {
@@ -677,8 +658,6 @@
 /* Motion: what opens in place arrives on the house's one entrance (kit.css rise-in), on the kit's durations; Ask's draft
    arrives row by row down its flow; History's figures dim while the pages behind them are still being counted. */
 .sq-editor,
-.sq-day-open,
-.sq-lead-mail,
 .sq-needs-part {
   animation: rise-in var(--duration-base) var(--ease-out) backwards;
 }
@@ -695,8 +674,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sq-editor,
-  .sq-day-open,
-  .sq-lead-mail,
   .sq-needs-part {
     animation: none;
   }

@@ -118,7 +118,7 @@ export function scopeFromRoute(
   if (page === "clients") return clientsScope(param, label);
   // A visit open in its sheet, on whichever view and day the Calendar shows it (contracts calendar visitRoute).
   const visit = page === "calendar" ? /(?:^|:)a-([0-9a-f-]{36})$/.exec(param)?.[1] : undefined;
-  if (visit && UUID.test(visit)) return { kind: "visit", id: visit, label: label || "this visit" };
+  if (visit && UUID.test(visit)) return { kind: "visit", id: visit, label: label || "this appointment" };
   return null;
 }
 

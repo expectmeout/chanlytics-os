@@ -577,10 +577,10 @@ test("Team: the owner asks a partner by code and may take it back; anyone else s
   assert.ok(byTestId(tree, "team-partner-form"));
   assert.deepEqual(asked, ["nobody", "https://app.chanlytics.com/p/ada-co", "withdraw"]);
 
-  // A partner on the team is "Your partner"; one removed is still the workspace's one partner, and says so.
+  // A partner on the team is "Partner"; one removed is still the workspace's one partner, and says so.
   const was = { state: "partner", canInvite: false, canWithdraw: false };
   for (const [vm, words] of [
-    [{ ...was, seated: true, sentence: "ada-co is your partner." }, /^Your partner/],
+    [{ ...was, seated: true, sentence: "ada-co is your partner." }, /^Partner/],
     [{ ...was, seated: false, sentence: "ada-co was your partner." }, /^Former partner/],
   ]) {
     card = vm;
@@ -766,8 +766,7 @@ test("over the real bridge: who is asking, joining and declining, and the owner'
     const joined = await P.answer("t9", true);
     assert.deepEqual(joined, {
       ok: true,
-      message:
-        "You're Harbor's partner. It was already paying when you joined, so it earns you no share · the owner's team is yours to help run.",
+      message: "You're Harbor's partner. It was already paying when you joined, so it earns you no share.",
     });
     assert.deepEqual(await P.answer("t9", false), { ok: true, message: "" });
 

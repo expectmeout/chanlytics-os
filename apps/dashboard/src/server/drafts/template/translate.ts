@@ -21,6 +21,8 @@ import {
   templateUntranslatable,
   validateTemplateDraft,
   type TemplateCategoryChoice,
+  listOrEmpty,
+  recordOrEmpty,
   textOrEmpty,
   DbFailure,
 } from "@chanlytics/contracts";
@@ -125,17 +127,14 @@ export async function getTranslationSource(
       };
     // One entry per slot, by its number: the variables as the sync or the create
     // path filed them, a starter's library words where a row kept no example.
-    const vars = (Array.isArray(data.variables) ? data.variables : []) as Array<{
-      position?: unknown;
-      example?: unknown;
-    } | null>;
+    const vars = listOrEmpty(data.variables).map(recordOrEmpty);
     const row = { name: data.name, language: data.language, variables: data.variables };
     const labels = slotLabels(row);
     const kinds = defaultSlotKinds(row);
     const lib = starterByName(data.name);
     const libExamples = lib ? starterText(lib, data.language).slots.map((x) => x.example) : [];
     const slots = placeholdersOf(body).map((_, i) => {
-      const found = vars.findIndex((v) => v?.position === i + 1);
+      const found = vars.findIndex((v) => v.position === i + 1);
       const k = found >= 0 ? found : i;
       const given = vars[k]?.example;
       const example = typeof given === "string" && given.trim() ? given.trim() : (libExamples[i] ?? "");

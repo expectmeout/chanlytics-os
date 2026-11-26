@@ -51,6 +51,7 @@ export const TONE_PRESETS: readonly { key: Personality; label: string; tone: str
     key: "polished",
     label: "Polished",
     tone: "Polished and courteous. Clear and complete, with no small talk and no exclamation marks.",
+    // screen-word: a message a customer reads, in the business's own voice, which docs/words.md does not bind ("Who reads it")
     sample: "Certainly. Saturday at 11 is available. Would you like the link to book it?",
   },
   {

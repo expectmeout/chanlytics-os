@@ -22,7 +22,7 @@ let edgeIsHeld = false;
 export const holdingEdge = (): boolean => edgeIsHeld;
 
 /** The width a heading stands at now. */
-const standingOf = (th: Element | null): number => (th ? Math.round(th.getBoundingClientRect().width) : 0);
+const drawnWidthOf = (th: Element | null): number => (th ? Math.round(th.getBoundingClientRect().width) : 0);
 
 interface ColumnEdgeProps {
   /** The column, whose width the slider is (`data-edge`). */
@@ -67,7 +67,7 @@ export function ColumnEdge({
     const edge = e.currentTarget;
     const th = edge.closest("th");
     const x0 = e.clientX;
-    const w0 = standingOf(th);
+    const w0 = drawnWidthOf(th);
     // Never narrower than the heading says: its words and caret whole, or the column's own least, whichever is wider.
     const floor = Math.max(min, headingFloorOf(th));
     let px = w0;
@@ -112,7 +112,7 @@ export function ColumnEdge({
     }
     const step = e.shiftKey ? TABLE_NUDGE_BIG_PX : TABLE_NUDGE_PX;
     const heading = e.currentTarget.closest("th");
-    const width = standingOf(heading);
+    const width = drawnWidthOf(heading);
     const floor = Math.min(width, Math.max(min, headingFloorOf(heading)));
     let handled = true;
     if (e.key === "ArrowLeft") onSize(Math.max(floor, clampWidth(width - step, width)), true);

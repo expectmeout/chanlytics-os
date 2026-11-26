@@ -6,8 +6,10 @@ import {
   type ConversationDto,
   type MessageDto,
   type SeenOf,
+  listOrEmpty,
   recordOrEmpty,
   recordOrNull,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { ContactId } from "@chanlytics/contracts";
 
@@ -27,7 +29,7 @@ import type { ContactId } from "@chanlytics/contracts";
 
 interface ConversationRow {
   id: string;
-  state: string;
+  state: ConversationDto["state"];
   paused_until: string | null;
   snooze_until: string | null;
   set_aside_at: string | null;
@@ -62,8 +64,8 @@ interface ConversationRow {
 interface MessageRow {
   id: string;
   conversation_id: string;
-  direction: string;
-  sender: string;
+  direction: MessageDto["direction"];
+  sender: MessageDto["sender"];
   type: string;
   body: string | null;
   media: unknown;
@@ -83,14 +85,14 @@ interface MessageRow {
  */
 function failedErrorOf(status: string, error: unknown): Pick<MessageDto, "error"> {
   return status === "failed" && error !== null && typeof error === "object" && !Array.isArray(error)
-    ? { error: error as Record<string, unknown> }
+    ? { error: recordOrEmpty(error) }
     : {};
 }
 
 interface CallRow {
   id: string;
   retell_call_id: string;
-  direction: string;
+  direction: CallDto["direction"];
   call_type: string | null;
   status: string;
   from_e164: string | null;
@@ -142,9 +144,10 @@ export function mediaPublic(raw: unknown): MessageDto["media"] {
   if (!raw || typeof raw !== "object") return null;
   const match = recordOrEmpty(raw);
   const str = (k: string) => (typeof match[k] === "string" ? match[k] : null);
+  const fetchState = str("fetch_state");
   return {
     mime_type: str("mime_type"),
-    ...(str("fetch_state") ? { fetch_state: str("fetch_state") as string } : {}),
+    ...(fetchState ? { fetch_state: fetchState } : {}),
     filename: str("filename"),
     caption: str("caption"),
   };
@@ -178,8 +181,8 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
     const list = byConv.get(row.conversation_id) ?? [];
     list.unshift({
       id: row.id,
-      direction: row.direction as MessageDto["direction"],
-      sender: row.sender as MessageDto["sender"],
+      direction: row.direction,
+      sender: row.sender,
       type: row.type,
       // The wire it travelled: a reply goes back on it, and the window is that wire's (replyWindow, I5).
       ...(row.channel ? { channel: row.channel } : {}),
@@ -213,7 +216,7 @@ export function toConversationDto(
 ): ConversationDto {
   return {
     id: conversation.id,
-    state: conversation.state as ConversationDto["state"],
+    state: conversation.state,
     paused_until: conversation.paused_until,
     snooze_until: conversation.snooze_until,
     set_aside_at: conversation.set_aside_at,
@@ -262,19 +265,13 @@ export function toConversationDto(
 export function stripWordTimings(raw: unknown): CallDto["transcript_object"] {
   if (!Array.isArray(raw)) return null;
   return raw.map((item) => {
-    const turn = (item ?? {}) as {
-      role?: string;
-      content?: string;
-      words?: Array<{ start?: number; end?: number }>;
-      start?: number;
-      end?: number;
-    };
-    const words = turn.words ?? [];
-    const start = typeof turn.start === "number" ? turn.start : words[0]?.start;
-    const end = typeof turn.end === "number" ? turn.end : words[words.length - 1]?.end;
+    const turn = recordOrEmpty(item);
+    const words = listOrEmpty(turn.words);
+    const start = typeof turn.start === "number" ? turn.start : valueAt(words[0], "start");
+    const end = typeof turn.end === "number" ? turn.end : valueAt(words.at(-1), "end");
     return {
-      role: turn.role,
-      content: turn.content,
+      role: typeof turn.role === "string" ? turn.role : undefined,
+      content: typeof turn.content === "string" ? turn.content : undefined,
       ...(typeof start === "number" ? { start } : {}),
       ...(typeof end === "number" ? { end } : {}),
     };
@@ -306,14 +303,14 @@ export function listedCall(dto: CallDto): CallDto {
 }
 
 export function toCallDto(call: CallRow): CallDto {
-  const rec = call.recording as { fetch_state?: string; mime?: string | null; bytes?: number } | null;
+  const rec = recordOrNull(call.recording);
   // The address the caller spelled out, from the post-call analysis (voice-shell CALL_ANALYSIS_FIELDS): a string
   // in the analysis object, or nothing. Any other shape the provider might send is nothing too.
   const spelled = recordOrNull(call.analysis)?.caller_email;
   return {
     id: call.id,
     retell_call_id: call.retell_call_id,
-    direction: call.direction as CallDto["direction"],
+    direction: call.direction,
     call_type: call.call_type,
     status: call.status,
     from_e164: call.from_e164,
@@ -338,7 +335,13 @@ export function toCallDto(call: CallRow): CallDto {
     transcript_object: stripWordTimings(call.transcript_object),
     // storage_path and provider_url never leave the server: audio is reachable
     // only through the signed-URL route.
-    recording: rec ? { fetch_state: rec.fetch_state, mime: rec.mime ?? null, bytes: rec.bytes } : null,
+    recording: rec
+      ? {
+          fetch_state: typeof rec.fetch_state === "string" ? rec.fetch_state : undefined,
+          mime: typeof rec.mime === "string" ? rec.mime : null,
+          bytes: typeof rec.bytes === "number" ? rec.bytes : undefined,
+        }
+      : null,
     conversation_id: call.conversation_id,
     contact_id: call.contact_id,
     message_id: call.message_id,

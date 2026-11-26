@@ -16,7 +16,7 @@ import {
   planPressOf,
   roleAtLeast,
   type AskProposal,
-  type AskStopped,
+  type BusinessProfile,
   type FreedomWorld,
   type TenantId,
 } from "@chanlytics/contracts";
@@ -46,10 +46,9 @@ async function turnWorld(ctx: RouteContext, member: Member, now: Date): Promise<
   const known = counts !== null && facts !== null;
   const parsed = parseTenantConfigResult(row?.config ?? null);
   const cfg = parsed.ok ? parsed.config : null;
-  const ask = cfg?.ask as { alone?: boolean; stopped?: AskStopped | null } | undefined;
+  const ask = cfg?.ask;
   const tz = facts?.timezone ?? "UTC";
-  const profile = cfg?.brain?.profile as { hours?: Record<string, never>; closures?: never[] } | undefined;
-  const open = openHere(profile, tz, now);
+  const open = openHere(cfg?.brain?.profile, tz, now);
   return {
     rows: Object.fromEntries((policies ?? []).map((p) => [p.class, p.mode])),
     alone: ask?.alone === true && known,
@@ -73,18 +72,12 @@ async function readFreedom(ctx: RouteContext, tenantId: TenantId): Promise<{ alo
     .catch(logAndGoOn("alone config", null));
   if (!read) return { alone: false, stopped: false };
   const parsed = parseTenantConfigResult(read.config);
-  const ask = parsed.ok
-    ? (parsed.config.ask as { alone?: boolean; stopped?: AskStopped | null } | undefined)
-    : undefined;
+  const ask = parsed.ok ? parsed.config.ask : undefined;
   return { alone: ask?.alone === true, stopped: !!ask?.stopped };
 }
 
 /** Whether the business is open now, by its own hours; with no hours set, whether it is the sending day (8 to 20). */
-function openHere(
-  profile: { hours?: Record<string, never>; closures?: never[] } | undefined,
-  tz: string,
-  now: Date,
-): boolean {
+function openHere(profile: Pick<BusinessProfile, "hours" | "closures"> | undefined, tz: string, now: Date): boolean {
   const hour = localHour(tz, now);
   if (!profile?.hours || Object.keys(profile.hours).length === 0) return hour >= 8 && hour < 20;
   return openAt(profile.hours, profile.closures, localDate(tz, now), hour * 60);

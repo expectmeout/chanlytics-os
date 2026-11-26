@@ -657,8 +657,8 @@ async function firstSearchIdeas(): Promise<LeadSuggestionsDto | null> {
   return written?.ok ? written.data : read;
 }
 
-export async function setBusinessLine(business_line: string) {
-  return leadCall<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } });
+export async function setBusinessLine(businessLine: string) {
+  return leadCall<{ business_line: string }>("PUT lead-suggestions", { body: { business_line: businessLine } });
 }
 
 /* ------------------------------------------ a lead on no page loaded (PR 9) */

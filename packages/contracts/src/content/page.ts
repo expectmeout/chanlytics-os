@@ -332,6 +332,8 @@ export const CONTENT_WORDS = {
     /** The amber dot beside a list that holds something for the owner, to a screen reader. */
     madeNeeds: "Something in Made needs you",
     libraryWaits: "Photos found online wait for you",
+    /** Ads, the third list where the workspace runs ads (Ruben, 25 Nov 2026): its amber dot, to a screen reader. */
+    adsNeeds: "Something in Ads needs you",
   },
   /** Made's views, as the control beside Made says them, and what each says when it holds nothing. */
   views: {

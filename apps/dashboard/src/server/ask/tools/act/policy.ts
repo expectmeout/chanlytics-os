@@ -7,9 +7,11 @@ import {
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
+  finiteOrNull,
   policyModeRefusal,
   type PolicyClass,
   type PolicyMode,
+  valueAt,
 } from "@chanlytics/contracts";
 import { actAction, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";
@@ -23,14 +25,14 @@ import { findWorkspaceRule } from "@chanlytics/db/ask";
  */
 function classHolds(
   cls: PolicyClass,
-  input: { mode: string; conf: number | null },
+  input: { mode: PolicyMode | null; conf: number | null },
   was: { mode: string | null; conf: number | null } | null,
 ): { all: boolean; words: string } | null {
   if (!was) return null;
   const sameMode = !!input.mode && was.mode === input.mode;
   const sameConf = input.conf !== null && was.conf === input.conf;
   const holds = [
-    sameMode ? `is already ${POLICY_MODE_WORDS[input.mode as PolicyMode].chip}` : null,
+    sameMode && input.mode ? `is already ${POLICY_MODE_WORDS[input.mode].chip}` : null,
     sameConf ? `already has its confidence dial at ${Math.round((input.conf ?? 0) * 100)}%` : null,
   ].filter((x): x is string => x !== null);
   if (!holds.length) return null;
@@ -43,7 +45,7 @@ async function proposePolicy(
   input: { class: string; mode: string; min_confidence?: number },
 ): Promise<ProposalOutcome> {
   const cls = str(input.class, 20);
-  const mode = str(input.mode, 10);
+  const modeAsked = str(input.mode, 10);
   const conf = typeof input.min_confidence === "number" ? input.min_confidence : null;
   if (!isOneOf(POLICY_CLASSES, cls))
     return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
@@ -51,9 +53,11 @@ async function proposePolicy(
   if (cls === "outreach") return refuse("a cold email's runs are set where cold emails are made, not here");
   // Content's rows (00714): only the owner moves a rung, on the Autonomy pane, where AI suggests one with its record.
   if (isOneOf(CONTENT_POLICY_CLASSES, cls)) return refuse("content's rows are set by the owner on the Autonomy page");
-  if (mode && !isOneOf(POLICY_MODES, mode)) return refuse("mode must be auto, veto, ask or never");
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
+  if (modeAsked && !isOneOf(POLICY_MODES, modeAsked)) return refuse("mode must be auto, veto, ask or never");
+  const mode = isOneOf(POLICY_MODES, modeAsked) ? modeAsked : null;
   // What each class may be set to is one rule, the Autonomy page's (contracts POLICY_CLASS_MODES), in its words.
-  const notOffered = mode ? policyModeRefusal(cls, mode as PolicyMode) : null;
+  const notOffered = mode ? policyModeRefusal(cls, mode) : null;
   if (notOffered) return refuse(notOffered);
   if (conf !== null && (cls !== "reply" || conf < 0 || conf > 1))
     return refuse("the confidence dial is 0 to 1 and applies to reply");
@@ -63,13 +67,13 @@ async function proposePolicy(
   if (rowErr) throw new Error(`cannot read the workspace's ${cls} rule: ${rowErr.message}`);
   const was = {
     mode: row?.mode ?? null,
-    conf: (row?.limits as { min_confidence?: number } | null)?.min_confidence ?? null,
+    conf: finiteOrNull(valueAt(row?.limits, "min_confidence")),
   };
   const held = classHolds(cls, { mode, conf }, row ? was : null);
   if (held?.all) return refuse(`${held.words}: say so, and change nothing`);
   // The Autonomy page's own words for the row and the mode, never a class id.
   const summary = [
-    mode ? `${POLICY_CLASS_WORDS[cls].name}: ${POLICY_MODE_WORDS[mode as PolicyMode].chip}` : null,
+    mode ? `${POLICY_CLASS_WORDS[cls].name}: ${POLICY_MODE_WORDS[mode].chip}` : null,
     conf !== null ? `confidence dial ${Math.round(conf * 100)}%` : null,
   ]
     .filter(Boolean)
@@ -81,7 +85,7 @@ async function proposePolicy(
       summary,
       payload: {
         class: cls,
-        mode: mode || null,
+        mode,
         min_confidence: conf,
         previous: { mode: was.mode, min_confidence: was.conf },
       },
@@ -99,9 +103,7 @@ export const autonomyAction = actAction({
   input: z.object({
     // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).
     class: z
-      .enum(
-        POLICY_CLASSES.filter((c) => c !== "outreach" && !isOneOf(CONTENT_POLICY_CLASSES, c)) as [string, ...string[]],
-      )
+      .enum(POLICY_CLASSES.filter((c) => c !== "outreach" && !isOneOf(CONTENT_POLICY_CLASSES, c)))
       .describe("The class of message."),
     mode: z
       .enum(POLICY_MODES)
@@ -117,6 +119,7 @@ export const autonomyAction = actAction({
     { class: "reply", min_confidence: 0.8 },
   ],
   label: "Preparing an autonomy change",
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   words: `Action autonomy changes what AI may do alone for a whole class of message: class with mode, or the reply confidence dial (min_confidence) alone. Call it when they want it to act on its own, wait for them, or hold its replies for a look; propose_person with action mode is for one person. Each class takes the modes its Autonomy row offers (veto holds a reply, or the reply to a review, so a person can stop it); a mode a class does not take is refused in that page's words. For reengage, campaign and follow_up the row is what a NEW campaign starts as (decision 0064): each existing campaign keeps its own mode, changed by propose_sequence's change with its mode, and a campaign that should not send is paused, so those rows take no never. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.`,
   build: (t, input) =>
     proposePolicy(t, { class: input.class, mode: input.mode ?? "", min_confidence: input.min_confidence }),

@@ -61,7 +61,7 @@ export const REACH_OUT_FIRST_WORDS = {
 export const REACH_OUT_GAP_FIRST = 20;
 
 /** A chain's name when it is given none: the search it writes to. */
-export function reachOutDefaultName(searchName: string): string {
+function reachOutDefaultName(searchName: string): string {
   return `Write to ${searchName}`.slice(0, 80);
 }
 
@@ -261,7 +261,7 @@ export function reachOutSheetPaceOf(
 }
 
 /** Why the preview could not write this business's email, as the sender would hold or skip it. */
-export function previewRefusedWords(reason: string): string {
+function previewRefusedWords(reason: string): string {
   switch (reason) {
     case "no_booking_link":
       return "Your words name {{booking link}}, and your booking link isn't set.";

@@ -9,7 +9,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { Press } from "../../../kit/press";
 import { gate, routeDoor } from "../../../frame-verbs";
 import { GATE } from "../model/words";
-import type { AiLineVM, NeedsYouLineVM } from "./model";
+import type { AiLineVM, NeedsYouLineVM } from "./ai-line";
 
 /** What a line holds: its mark, its words, and the chevron that says it opens. */
 function LineParts({ mark, children }: { mark: ReactNode; children: ReactNode }) {

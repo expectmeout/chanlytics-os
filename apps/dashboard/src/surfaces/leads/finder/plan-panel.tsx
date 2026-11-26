@@ -81,7 +81,7 @@ const answerRow = (p: PlanPanelProps, composing: boolean, thinking: boolean) => 
         type="button"
         className="lf-close"
         aria-label="Close"
-        title="Close"
+        data-tip="Close"
         data-testid="plan-close"
         onClick={p.onClose}
       >

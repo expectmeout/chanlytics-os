@@ -137,6 +137,8 @@ export function useAdsConnection(on: boolean, timezone: string, title: string, s
           vm={vm}
           acts={acts}
           stop={stopIn === "card" && stop ? <StopNotice stop={stop} className="ads-conn-need" /> : null}
+          // The Ads page, which says AI's stop itself, folds the card to its head while nothing needs the owner.
+          folded={stopIn === "page"}
         />
         {sheets}
       </>

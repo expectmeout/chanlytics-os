@@ -112,12 +112,6 @@ export async function findOutsideForm(db: Db, tenantId: TenantId, formId: string
   return data ? outsideFormOf(data) : null;
 }
 
-/** One site, or null where the workspace has none by that id. */
-export async function findFormSite(db: Db, tenantId: TenantId, siteId: string): Promise<FormSiteRead | null> {
-  const sites = await listFormSites(db, tenantId);
-  return sites.find((site) => site.id === siteId) ?? null;
-}
-
 /** An entry of a form owned elsewhere, as its sheet lists it. */
 export interface OutsideEntryRead {
   id: string;

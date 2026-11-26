@@ -65,6 +65,7 @@ export const NEED_YOU_WORDS = {
   /** The signature an email reply leaves with (00487), under the draft: what is sent is what is seen. */
   changeSignature: "Change",
   changeSignatureTip: "Change what this mailbox signs with, in Settings › Connections",
+  // screen-word: "Your" tells the member's own words from AI's draft (docs/words.md, The voice 5)
   yourWords: (personName: string) => `Your reply to ${personName}`,
   yours: "Yours now",
   /** Over the words while a send counts down. */
@@ -340,6 +341,7 @@ export const NEED_YOU_WORDS = {
     missedOffer: (who: string) => `${who} missed it. Offer another time?`,
     leaveIt: "Leave it",
     rebook: "Rebook",
+    // screen-word: told to AI, never shown on a page.
     rebookAbout: (word: string, when: string) =>
       `They missed their ${word} ${when}. Say sorry we missed them, and ask whether they would like another time. Use the booking link where one helps.`,
     rebookSent: "Missed · rebook sent",

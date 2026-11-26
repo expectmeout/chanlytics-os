@@ -1,5 +1,5 @@
 /** Ads: an owner's own ad accounts and the ads they run (Campaigns › Ads), and the models and words their page draws. */
-export { AD_ACCOUNT_STANDINGS, AD_CARD_CHECKS, adCardChecksOf, adStandingOf, metaAdConfigOf } from "./account";
+export { AD_CARD_CHECKS, adCardChecksOf, adStandingOf, metaAdConfigOf } from "./account";
 export type {
   AdAccountCard,
   AdAccountChoice,
@@ -102,6 +102,7 @@ export {
 } from "./live";
 export type {
   AdBudgetLive,
+  AdEngaged,
   AdLaunchLive,
   AdLiveDto,
   AdMadeFromLive,

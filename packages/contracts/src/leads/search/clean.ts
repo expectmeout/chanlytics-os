@@ -16,7 +16,7 @@ import { US_CODES, US_STATES } from "./plan";
  * Hosts that are a booking platform (booking-page.ts, which names them once), a site builder's shared domain or a
  * social page: a business there has no site of its own.
  */
-export const LEAD_PLATFORM_HOSTS: readonly string[] = /* @__PURE__ */ (() => [
+const LEAD_PLATFORM_HOSTS: readonly string[] = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,
   "square.site",
   "godaddysites.com",
@@ -50,7 +50,7 @@ export const LEAD_JUNK_EMAIL_DOMAINS: readonly string[] = /* @__PURE__ */ (() =>
   "email.com",
 ])();
 /** Local parts that are a template's placeholder, not a mailbox. */
-export const LEAD_PLACEHOLDER_LOCALS = [
+const LEAD_PLACEHOLDER_LOCALS = [
   "filler",
   "yourdomain",
   "youremail",
@@ -66,7 +66,7 @@ export const LEAD_PLACEHOLDER_LOCALS = [
   "donotreply",
 ] as const;
 /** Corporate roles that are not how a business takes a customer (§7.2). */
-export const LEAD_ROLE_LOCALS = [
+const LEAD_ROLE_LOCALS = [
   "careers",
   "career",
   "jobs",

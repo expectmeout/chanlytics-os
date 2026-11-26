@@ -102,14 +102,14 @@ test("the card reads the Autonomy tab: a pause nobody set is a day, and held boo
       },
     }),
   );
-  assert.match(textOf(byTestId(held, "rec-can-booking_link")), /Your Autonomy tab holds bookings for you to confirm/);
+  assert.match(textOf(byTestId(held, "rec-can-booking_link")), /Bookings wait for you to confirm, as Autonomy is set/);
 });
 
 test("a workspace with both lines and an approved booking-link message is told the call sends the link", () => {
   // hasBookingTemplate is contracts' bookingTemplate over the workspace's templates: left out,
   // every two-channel workspace was told the call can't send it.
   const row = byTestId(canCard(drawTab({ profile: marisa })), "rec-can-booking_link");
-  assert.match(textOf(row), /caller's WhatsApp, when their number has one/);
+  assert.match(textOf(row), /caller's WhatsApp, if they have it/);
 });
 
 test("what it cannot do carries no switch", () => {
@@ -124,7 +124,7 @@ test("what it cannot do carries no switch", () => {
     );
     assert.equal(chipsOf(row).length, 0, `${c.id} names no channel: there is none`);
   }
-  assert.match(textOf(byTestId(card, "rec-cannot-sms")), /not part of what is sold yet/i);
+  assert.match(textOf(byTestId(card, "rec-cannot-sms")), /once the phone networks approve a number/);
 });
 
 /* ------------------------------------ the quiet rule ------------------------------------ */
@@ -139,7 +139,7 @@ test("a whole ability is its title and two glyphs: the sentence is there to be r
   for (const id of ["answer", "open_times", "booking_link", "transfer", "handoff"]) {
     const row = byTestId(card, `rec-can-${id}`);
     assert.equal(saidAtRest(row), null, `${id} is whole, so it says nothing at rest`);
-    assert.equal(row.props.title, rows[id].detail, `${id} still carries its sentence`);
+    assert.equal(row.props["data-tip"], rows[id].detail, `${id} still carries its sentence`);
     assert.ok(textOf(row).includes(rows[id].detail), `${id}'s sentence is drawn for a reader`);
   }
   // The photo switch is off, which is a decision, so that one row does say so.
@@ -409,8 +409,8 @@ test("a viewer reads the whole card and is offered no door", () => {
 
 test("where the workspace takes booking requests, the booking limit says it still never books itself, and where a picked time waits (decision 0061)", () => {
   const book = (o) => cannotRows({ smsLive: false, hasBookingLink: false, ...o }).find((r) => r.id === "book");
-  assert.match(book({ takesRequests: true }).detail, /never makes, moves or cancels a booking itself/);
-  assert.match(book({ takesRequests: true }).detail, /waits on Today for your Booked it or Can't/);
+  assert.match(book({ takesRequests: true }).detail, /never makes, moves or cancels a booking\./);
+  assert.match(book({ takesRequests: true }).detail, /waits on Today for Booked it or Can't/);
   assert.equal(book({}).detail, book({ takesRequests: false }).detail, "left out, none is promised");
   assert.doesNotMatch(book({}).detail, /Booked it/);
 });

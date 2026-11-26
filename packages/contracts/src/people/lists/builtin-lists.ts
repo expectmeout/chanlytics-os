@@ -25,6 +25,7 @@ export const PEOPLE_LIST_GROUPS: readonly { id: PeopleListGroup; label: string }
  * never "Your lists". They were "Smart lists" and "Saved" on People, "People's lists" and "Your lists" on Campaigns, and
  * "Your lists" over both on Today. Leads' six views of a lead's stage are not lists (LEAD_WORDS.viewsHeading).
  */
+// screen-word: "Your" tells the workspace's own lists from the ready-made ones (docs/words.md, The voice 5)
 export const LIST_GROUP_WORDS = { builtin: "Ready-made lists", own: "Your lists", pinned: "Pinned lists" } as const;
 
 export interface BuiltinSpec {
@@ -110,7 +111,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "lapsed",
     label: "Lapsed",
-    tip: "Forty-five days or more since they were last on the calendar, nothing ahead · the win-back list, from the calendar rather than silence",
+    tip: "45 days or more since they were last on the calendar, and nothing ahead · the win-back list",
     group: "journey",
     rule: r({ field: "booked", op: "is", yes: false }, { field: "last_visit", op: "more_than", days: 44 }),
   },
@@ -194,7 +195,7 @@ export const BUILTIN_LISTS: readonly BuiltinSpec[] = [
   {
     id: "opted_out",
     label: STOP_WORDS.pill,
-    tip: "Asked to stop; AI stays silent, offers included",
+    tip: "Asked to stop · AI stays silent, offers included",
     group: "reach",
     onProfile: false,
     rule: r({ field: "stopped", op: "is", yes: true }),

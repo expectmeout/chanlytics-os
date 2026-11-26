@@ -33,7 +33,6 @@ import {
   MAILBOX_PROVIDERS,
   UUID,
   normalizeEmail,
-  type MailboxProvider,
   TRY_AGAIN_IN_A_MINUTE,
   isOneOf,
   isTenantId,
@@ -127,7 +126,7 @@ async function connectOp(
   by: string | null,
   body: Partial<Body>,
 ): Promise<Response> {
-  const provider = stringOf(body.provider) as MailboxProvider;
+  const provider = stringOf(body.provider);
   const code = stringOf(body.code);
   if (!isOneOf(MAILBOX_PROVIDERS, provider) || !code || code.length > 4_096)
     return refuse(400, "bad_request", "provider and code are required");
