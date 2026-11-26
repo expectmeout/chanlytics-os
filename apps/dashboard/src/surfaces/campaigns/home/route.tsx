@@ -67,6 +67,8 @@ import { CampaignsToast } from "./route-toast";
 const contentWarm = () => import("../content/warm").then((m) => m.warmContent());
 // Forms readied ahead: its list read as a load that opens on it reads it (forms/opening.ts), which its first draw takes.
 const formsWarm = () => import("../forms/opening").then((m) => m.readFormsOpening());
+// Ads readied from Content (ads/warm.ts): the ad account and its ads read, which the page, drawn hidden, starts from.
+const adsWarm = () => import("../ads/warm").then((m) => m.warmAds());
 
 /**
  * How long a view shown waits before the others are readied: the frame's idle moment where the browser has one, and at most
@@ -116,7 +118,11 @@ const VIEW_SEAT = "campaigns-view";
  * was left on), and the side the view shown comes in from: the view before it, on the draw that
  * changes it.
  */
-function useKeptViews(view: View, route: string, ahead: { others: boolean; content: boolean; forms: boolean }) {
+function useKeptViews(
+  view: View,
+  route: string,
+  ahead: { others: boolean; content: boolean; forms: boolean; ads: boolean },
+) {
   const drawn = useRef(new Set<View>());
   drawn.current.add(view);
   // Sequences, drawn hidden once the frame is idle on any view (useViewsAhead).
@@ -125,6 +131,8 @@ function useKeptViews(view: View, route: string, ahead: { others: boolean; conte
   if (ahead.content) drawn.current.add("content");
   // Forms the same way: its code and its list in, drawn hidden.
   if (ahead.forms) drawn.current.add("forms");
+  // Ads, from Content, once its code and its two reads are in (useAdsAhead): drawn hidden beside Made and the Library.
+  if (ahead.ads) drawn.current.add("ads");
   const sequencesAt = useRef(SEQUENCES_ROUTE);
   if (view === "sequences") sequencesAt.current = route;
   const adsAt = useRef(ADS_ROUTE);
@@ -229,6 +237,36 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
 }
 
 /**
+ * Ads, drawn hidden while Content is shown, as the Library is while Made is (content/warm.ts): once the frame is idle on
+ * Content, Ads' code fetched and the two reads its page opens on made (ads/warm.ts, which says why), and then the page drawn
+ * from them, so a press on the Ads tab shows it whole, its bar where Made's stands. Only from Content: the Ads tab is one of
+ * Content's lists, and Content's tab on the strip reopens Ads only where Ads was shown, and so drawn.
+ * Where the reads could not be made the page is drawn as it is pressed, reading for itself, as before.
+ */
+function useAdsAhead(view: View, adsShown: boolean): boolean {
+  const [ready, setReady] = useState(false);
+  const onContent = view === "content";
+  useEffect(() => {
+    if (ready || !adsShown || !onContent || typeof window === "undefined") return undefined;
+    let live = true;
+    const stop = aheadWhenIdle(() => {
+      adsCode.warm();
+      void Promise.all([adsCode(), adsWarm()]).then(
+        ([, held]) => {
+          if (live && held) setReady(true);
+        },
+        () => undefined,
+      );
+    }, VIEWS_AHEAD_MS);
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [ready, adsShown, onContent]);
+  return ready;
+}
+
+/**
  * Which view an address is. `campaigns/content` is the Content view, and `campaigns/ads…` the Ads view where it is drawn
  * (ads/shown.ts): a workspace without it has no ads to read, so its Ads address opens Content's Made, where Ads would be.
  */
@@ -284,7 +322,8 @@ export function CampaignsRoute() {
   const [AdsPage] = useState(adsPageNow);
   const [FormsPage] = useState(formsPageNow);
   const ahead = useViewsAhead(view, adsShown);
-  const kept = useKeptViews(view, landing ?? route, ahead);
+  const adsAhead = useAdsAhead(view, adsShown);
+  const kept = useKeptViews(view, landing ?? route, { ...ahead, ads: adsAhead });
   useEffect(() => {
     if (landing) replaceRoute(landing);
   }, [landing]);

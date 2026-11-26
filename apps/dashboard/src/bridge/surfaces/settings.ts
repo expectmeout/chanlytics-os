@@ -31,7 +31,7 @@ import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { StoredProfile } from "@/surfaces/settings/business/save";
 import { setSurfaceValue } from "../../surfaces/surface-values";
 import { getActiveWorkspace, routeOnScreen } from "../workspace";
-import { readAdsOpening } from "./ads-first-reads";
+import { readAdsBesideContent, readAdsOpening } from "./ads-first-reads";
 import { pageReport } from "@/client/page-report";
 
 /**
@@ -217,6 +217,21 @@ function askAdsOpening(): void {
   void readAdsOpening({ read, route: routeOnScreen(), workspace: getActiveWorkspace() });
 }
 
+/** Whether this tab has asked for Ads' first reads beside Content's: once, as the boot first answers this read. */
+let adsBesideContentAsked = false;
+
+/**
+ * Where the tab opened on Campaigns › Content and the read says Ads is drawn, Ads' first reads come with Content's first draw
+ * as well (./ads-first-reads.ts readAdsBesideContent), so the Ads tab's figure stands with Made's and the Library's. Asked
+ * once this read has said whether Ads is drawn, before the read is the surface's, so the first draw is still waiting.
+ */
+function askAdsBesideContent(adsShown: boolean): void {
+  if (adsBesideContentAsked) return;
+  adsBesideContentAsked = true;
+  if (!adsShown || typeof window === "undefined" || typeof window.location?.pathname !== "string") return;
+  void readAdsBesideContent({ read, route: routeOnScreen(), workspace: getActiveWorkspace() });
+}
+
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
   value: "settings",
@@ -271,6 +286,7 @@ export const settingsOverride: SurfaceOverride = {
       // never a reason to lose the page.
       workspaceZone().catch(() => pageClock().zone()),
     ]);
+    askAdsBesideContent(cfg.ads === true);
     // `broken` is its own state, not an empty config: the pane closes its
     // forms on it, because a save from a form that read {} would replace the
     // broken row with the form's few fields.
