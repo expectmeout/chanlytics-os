@@ -7,7 +7,7 @@ import { setPersonReplyMode } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
 import { recordDecision } from "@/server/shared/verbs";
 import { NO_ADDRESS_TO_SORT } from "@/server/people/mailbox-senders";
-import { addBulkNote, listPeopleWith } from "@chanlytics/db/people";
+import { addBulkNote, listPeopleStanding } from "@chanlytics/db/people";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -26,16 +26,14 @@ interface ManyOutcome {
   skipped: string[];
 }
 
-async function ours<T extends { id: string; tenant_id: TenantId; erased_at: string | null }>(
+async function ours(
   ctx: RouteContext,
   tenantId: TenantId,
   ids: ContactId[],
-  columns: string,
-): Promise<{ rows: T[]; skipped: string[] }> {
-  const { data, error } = await listPeopleWith(ctx.supabase, ids, columns);
+): Promise<{ rows: { id: ContactId; tenant_id: TenantId; erased_at: string | null }[]; skipped: string[] }> {
+  const { data, error } = await listPeopleStanding(ctx.supabase, ids);
   if (error) throw new DbFailure(error);
-  // The columns are the caller's, chosen at run time, past the client's typed parser: T is the columns it named.
-  const rows = ((data ?? []) as unknown as T[]).filter((c) => c.tenant_id === tenantId && !c.erased_at);
+  const rows = data.filter((c) => c.tenant_id === tenantId && !c.erased_at);
   return { rows, skipped: ids.filter((id) => !rows.some((c) => c.id === id)) };
 }
 
@@ -52,12 +50,7 @@ export async function setReceptionistMany(
   mode: PersonReceptionistMode,
 ): Promise<ManyOutcome> {
   const uniq = [...new Set(ids)].map(heldContactId);
-  const { rows, skipped } = await ours<{ id: ContactId; tenant_id: TenantId; erased_at: string | null }>(
-    ctx,
-    tenantId,
-    uniq,
-    "id, tenant_id, erased_at",
-  );
+  const { rows, skipped } = await ours(ctx, tenantId, uniq);
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
   for (const row of rows) {
@@ -95,11 +88,7 @@ export async function appendNotesMany(
 ): Promise<ManyOutcome> {
   const uniq = [...new Set(ids)].map(heldContactId);
   const text = line.trim().slice(0, NOTE_LINE_MAX);
-  const { rows, skipped } = await ours<{
-    id: ContactId;
-    tenant_id: TenantId;
-    erased_at: string | null;
-  }>(ctx, tenantId, uniq, "id, tenant_id, erased_at");
+  const { rows, skipped } = await ours(ctx, tenantId, uniq);
   const failed: ManyOutcome["failed"] = [];
   let done = 0;
   for (const row of rows) {

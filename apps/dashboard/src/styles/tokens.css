@@ -203,6 +203,8 @@
   --danger: oklch(0.52 0.2 18);
   --danger-soft: oklch(0.52 0.2 18 / 0.12);
   --danger-fg: oklch(0.99 0 0);
+  /* What is written on the ok's own fill (the Inbox's step that runs by itself): white, as it was written there. */
+  --ok-fg: oklch(1 0 0);
   --info: oklch(0.6 0.12 235);
   --info-soft: oklch(0.6 0.12 235 / 0.12);
 

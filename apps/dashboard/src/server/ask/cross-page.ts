@@ -2,6 +2,7 @@ import {
   dayWordIn,
   fenced,
   isAskMorningQuestion,
+  entryOf,
   parseLeadsRoute,
   type AskScope,
   type AskSurface,
@@ -206,7 +207,7 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   // The table reads a person's words; the morning's are Ask's own, and what they name ("call briefs", "your drafts") is
   // what to leave alone. The page's own read below still rides in.
   const query = isAskMorningQuestion(text) ? "" : text.replace(/\s+/g, " ").trim();
-  const own = ON_PAGE[surface as AskSurface] ?? new Set<string>();
+  const own = entryOf(ON_PAGE, surface) ?? new Set<string>();
   const out: ToolRun[] = [];
   // `answered`: the reads the page's rows answer, skipped; none where the question asks what they do not hold.
   const add = (name: string, input: Record<string, unknown>, answered: ReadonlySet<string> = own) => {
