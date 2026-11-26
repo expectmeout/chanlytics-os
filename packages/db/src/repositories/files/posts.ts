@@ -119,12 +119,12 @@ export async function movePost(
  */
 export async function sayPostSeen(
   db: Db,
-  said: { postId: string; there: boolean; words: string | null },
+  seen: { postId: string; there: boolean; words: string | null },
 ): Promise<boolean> {
   const { data, error } = await db.rpc("post_seen_say", {
-    p_post_id: said.postId,
-    p_there: said.there,
-    ...(said.words === null ? {} : { p_words: said.words }),
+    p_post_id: seen.postId,
+    p_there: seen.there,
+    ...(seen.words === null ? {} : { p_words: seen.words }),
   });
   if (error) throw new DbFailure(error, "post seen said");
   return data === true;
