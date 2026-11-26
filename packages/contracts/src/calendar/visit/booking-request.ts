@@ -18,6 +18,8 @@ export interface BookingRequestFields {
 /**
  * The fields as the answer's schema says them, added to it only where a workspace takes requests (contracts
  * brainOutputSchemaFor): every other turn is sent and read exactly as before.
+ *
+ * screen-word: its descriptions are said to the model, never shown on a page.
  */
 export const BOOKING_REQUEST_SCHEMA_FIELDS = {
   booking_slot: {
@@ -148,6 +150,8 @@ export function slotNear(atMs: number, tz: string, nowMs: number): string {
 /**
  * The words Another time has ready (his call D5, 9 Nov 2026): that the time has gone, and the one or two they picked to offer.
  * With none picked yet, it asks; they say more to Ask, or type over it.
+ *
+ * screen-word: a reply a customer reads, in the business's own voice, which docs/words.md does not bind ("Who reads it")
  */
 export function otherTimeWords(when: string, offered: readonly string[]): string {
   const gone = `${when.charAt(0).toUpperCase()}${when.slice(1)} has gone, sorry.`;

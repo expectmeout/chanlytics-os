@@ -85,12 +85,12 @@ test("what the Business tab says about it is what the receptionist does, claim b
   const { strength, sentence } = ruleStrength("never_quote_prices");
   const written = (on) => brainCfg({ never_quote_prices: on }, "$180");
   assert.equal(strength, "checked");
-  assert.match(sentence, /Every reply is checked for a price in dollars or pesos/);
+  assert.match(sentence, /Every reply is checked for prices in dollars or pesos/);
   for (const priced of ["It's $180.", "Son 180 pesos."])
     assert.equal(reply(priced, written(false)).priceBlocked, false);
-  assert.match(sentence, /On, it says none/);
+  assert.match(sentence, /On, it names none/);
   assert.equal(reply("It's $180.", written(true)).priceBlocked, true);
-  assert.match(sentence, /off, it may say the ones you've written, and any other is swapped out/);
+  assert.match(sentence, /off, only yours, and others are swapped out/);
   const other = reply("It's $200.", written(false));
   assert.equal(other.priceBlocked, true);
   assert.doesNotMatch(other.replyText, /200/, "swapped out: the customer never reads it");

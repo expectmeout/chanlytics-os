@@ -85,6 +85,8 @@ export const COMPANY_JUDGE_OUTPUT_SCHEMA: Record<string, unknown> = {
  * a commercial builder for "owners of home service companies" because the question led with "Construction companies"
  * and gave the owner's words only in brackets. A plan typed on Find people's own boxes has no words beyond its titles:
  * its filters are the whole question.
+ *
+ * screen-word: said to the model, never shown on a page.
  */
 export function companyJudgeQuestion(plan: LeadPeoplePlan): string {
   const words = plan.asked.trim();

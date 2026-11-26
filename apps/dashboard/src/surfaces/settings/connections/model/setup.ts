@@ -34,6 +34,8 @@ import {
   SETUP_STATE_WORDS,
   textingWords,
   SOLE_PROP_CEILING_SENTENCE,
+  TEXTING_CODE_SENTENCE,
+  LINE_SET_UP_WITH_YOU,
   TEXTING_NEEDS_RECORD_SENTENCE,
   ownLineStandOf,
   agoWords,
@@ -273,14 +275,14 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         stateWords: "On",
         sentence: line?.reg_sole_prop
           ? `Customers text ${num ?? "this number"} and AI answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}`
-          : `Customers text ${num ?? "this number"}; AI answers inside your hours.`,
+          : `Customers text ${num ?? "this number"} and AI answers inside your hours.`,
       };
     case "approved":
       return {
         ...base,
         state: "waiting_them",
         stateWords: "Texting is being approved",
-        sentence: `Your business is approved. One last check on the line is with the phone networks · usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.`,
+        sentence: `Your business is approved. One last check of the number takes days, then texting turns on by itself${since ? ` · approved ${since}` : ""}.`,
       };
     case "needs_record":
       // The pre-flight's own sentences when it has them, exactly as `rejected` and
@@ -326,8 +328,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         ...base,
         state: "waiting_you",
         stateWords: SETUP_STATE_WORDS.waiting_you,
-        sentence:
-          "The phone networks texted your mobile · reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day · if it runs out, Chanlytics asks the phone networks for another.",
+        sentence: TEXTING_CODE_SENTENCE,
       };
     case "registering":
     case "hosting":
@@ -352,7 +353,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
         ...base,
         state: "attention",
         stateWords: "Sent back",
-        sentence: `The phone networks sent the registration back${line?.last_error ? `: ${line.last_error}` : ""}. Correct what they named and Chanlytics sends it again · resubmitting is ours to do, and it costs nothing.`,
+        sentence: `The phone networks asked for a change${line?.last_error ? `: ${line.last_error}` : ""}. Fix what they named and Chanlytics sends it again, and it costs nothing.`,
         verb: { label: "Open the record", to: "verb:business-record", who: "owner" },
         body: "business_record",
       };
@@ -420,7 +421,7 @@ function signupCodeNote(own: ConnectionFacts["own"]): ConnectionNote {
   const line = own?.e164 ? formatPhoneDisplay(own.e164) : null;
   return {
     text: line
-      ? `Meta texts a code to the number. If it is your Chanlytics number, ${line}, the code shows here on the Texting row: choose Text message, not Phone call. ${KEEP_SIGNUP_PAGE_OPEN}`
+      ? `Meta texts the number a code. If it's your Chanlytics number, ${line}, it shows on the Texting row: choose Text message. ${KEEP_SIGNUP_PAGE_OPEN}`
       : `Meta texts a code to the number: have its phone at hand. ${KEEP_SIGNUP_PAGE_OPEN}`,
   };
 }
@@ -448,7 +449,7 @@ const SIGNUP_LEFT_OPEN_WITHIN_MS = HOUR_MS;
  * code back (it rides the SDK's own callback), so the way on is to press Connect again and choose the account Meta already made.
  */
 const SIGNUP_LEFT_OPEN_NOTE =
-  "A WhatsApp sign-up was started here and did not come back to Chanlytics · if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.";
+  "A WhatsApp sign-up here didn't return · if you finished it with Meta, press Connect WhatsApp and pick its account.";
 
 /** The left-open note, while the mark is under an hour old (a mark in the future, or one that is no time, is no sign-up anyone is waiting on). */
 function signupLeftOpenNotes(startedAt: string | null | undefined, nowMs: number): ConnectionNote[] {
@@ -463,7 +464,7 @@ const KEEP_APP_VERB: ConnectionVerb = {
   who: "owner",
 };
 const KEEP_APP_NOTE: ConnectionNote = {
-  text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, AI answers what you don't, and your contacts and last six months of chats come in if you share them in the app.",
+  text: "Keep using the WhatsApp Business app: AI answers what you don't, and your contacts and 6 months of chats can come in.",
 };
 
 /** The WhatsApp row's own verb: Campaigns, where every message sent on the number is (decision 0140). */
@@ -614,7 +615,7 @@ function phoneRow(connectionInputs: ConnectionInputs, { voice, own, nowMs }: Con
     detail: null,
     state: "none",
     stateWords: "Not connected",
-    sentence: "We set up your phone line with you.",
+    sentence: LINE_SET_UP_WITH_YOU,
     verb: { label: "Ask for a line", to: firstRunStepRoute("channels"), who: "owner" },
   };
 }

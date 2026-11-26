@@ -44,7 +44,7 @@ const CALL_OUTCOME_ORDER: readonly PersonCallOutcome[] = [
 export const PERSON_CALL_WORDS = {
   call: "Call",
   dial: "Call from your phone",
-  dialHint: "Your own phone rings them; AI never does",
+  dialHint: "Your own phone rings them · AI never does",
   logPast: "Log a call you already made",
   question: LEAD_CALL_QUESTION,
   outcomes: { spoke: "Spoke", ...LEAD_CALL_OUTCOME_WORDS } satisfies Record<PersonCallOutcome, string>,

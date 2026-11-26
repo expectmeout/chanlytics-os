@@ -217,7 +217,7 @@ test("the route: whoever may record an answer on a person; the edge's yes and it
     answer = [200, { ok: true, asked: false, why: "open" }];
     assert.deepEqual(await route.POST.run(press(), ctx()), {
       asked: false,
-      said: "We already emailed them to confirm.",
+      said: "Already emailed them to confirm.",
     });
     answer = [502, { ok: false, error: "could_not_queue" }];
     await assert.rejects(route.POST.run(press(), ctx()), (x) => x.status === 502);

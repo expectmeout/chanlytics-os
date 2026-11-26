@@ -62,7 +62,7 @@ test("a code is six digits, spaces dropped; the Auth server's refusals read as a
   assert.equal(cleanFactorCode("abcdef"), null);
   assert.match(factorCodeWords("Invalid TOTP code entered"), /didn't match/);
   assert.match(factorCodeWords("too many requests"), /Too many tries/);
-  assert.match(factorCodeWords("socket hang up"), /couldn't check/);
+  assert.match(factorCodeWords("socket hang up"), /^Couldn't check/);
   assert.deepEqual(enrolRefusalWords("MFA enroll is disabled for TOTP"), {
     unavailable: true,
     words: SECOND_FACTOR_WORDS.unavailable,

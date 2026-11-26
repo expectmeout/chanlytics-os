@@ -497,29 +497,10 @@
   }
 }
 
-/* A made video's words, made again (video-again.tsx): what pressing does, said above the boxes. */
-.cnv-again-says {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-}
-
 /* A still from a video (still.tsx): five moments across it, each its picture and its time, the one pressed filled. */
 .cnv-still {
   display: grid;
   gap: 10px;
-}
-.cnv-still-moments {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 8px;
-}
-.cnv-still-moment {
-  display: grid;
-  gap: 4px;
-  justify-items: center;
-  height: auto;
-  padding: 6px;
 }
 
 /* ---- A piece opened on a phone: the viewer (viewer/viewer.tsx; the content canvas, board PhView) ----
@@ -1139,19 +1120,6 @@
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.cnv-viewer-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  width: 100%;
-}
-.cnv-viewer-pair > * {
-  justify-content: center;
-}
-/* One press alone (a video's Edit words before it has words to copy; Save for a reader) takes the whole row. */
-.cnv-viewer-pair > :only-child {
-  grid-column: 1 / -1;
 }
 
 /* ---- The home, as the content canvas draws it (body.tsx, views.tsx, page.tsx) ---- */

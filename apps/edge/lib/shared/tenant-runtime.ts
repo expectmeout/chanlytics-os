@@ -22,6 +22,7 @@ import {
   type KnownFacts,
   DbFailure,
   causedBy,
+  valueAt,
 } from "@chanlytics/contracts";
 import {
   findWhatsappLine,
@@ -203,9 +204,13 @@ async function resolveWaCredentials(
     logger().error("wa_credentials_lookup_failed", { tenant_id: routed.tenantId, error: error.message });
     return { creds: null };
   }
-  const item = data as { access_token?: string; phone_id?: string } | null;
+  const accessToken = valueAt(data, "access_token");
+  const phoneId = valueAt(data, "phone_id");
   return {
-    creds: item?.access_token && item?.phone_id ? { accessToken: item.access_token, phoneId: item.phone_id } : null,
+    creds:
+      typeof accessToken === "string" && accessToken && typeof phoneId === "string" && phoneId
+        ? { accessToken, phoneId }
+        : null,
   };
 }
 
@@ -452,9 +457,10 @@ async function credentialsOfNumber(
         log.error("wa_credentials_for_tenant_failed", { tenant_id: tenantId, error: error.message });
         return { outcome: "unavailable", error: error.message };
       }
-      const item = data as { access_token?: string; phone_id?: string } | null;
-      return item?.access_token && item?.phone_id
-        ? { outcome: "present", credentials: { phoneId: item.phone_id, accessToken: item.access_token } }
+      const accessToken = valueAt(data, "access_token");
+      const phoneId = valueAt(data, "phone_id");
+      return typeof accessToken === "string" && accessToken && typeof phoneId === "string" && phoneId
+        ? { outcome: "present", credentials: { phoneId, accessToken } }
         : { outcome: "absent" };
     }
     return { outcome: "absent" };
