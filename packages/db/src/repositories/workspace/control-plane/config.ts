@@ -376,8 +376,8 @@ export interface OpenToCustomersRead {
 }
 
 /** The plan as the one rule reads it: null for no billing row. */
-const billingPlanOf = (row: { mode: string; status: string } | null): OpenToCustomersRead["billing"] =>
-  row ? { mode: row.mode as BillingMode, status: row.status as BillingStatus } : null;
+const billingPlanOf = (row: { mode: BillingMode; status: BillingStatus } | null): OpenToCustomersRead["billing"] =>
+  row ? { mode: row.mode, status: row.status } : null;
 
 /**
  * Whether a workspace is open to its customers right now, by contracts' one rule: not while it is paused (tenants.status:

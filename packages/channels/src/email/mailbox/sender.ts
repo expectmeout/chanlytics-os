@@ -7,6 +7,7 @@
 import { addressesOf } from "../header-values";
 import { noReplyAddress, type ReceivedEmail } from "../intake";
 import { gmailEmailOf, type MailboxEmail } from "./read";
+import { valueAt } from "@chanlytics/contracts";
 
 /**
  * The hosts mailing services send from, as their Message-ID or Return-Path names them (a subdomain of one is one): what a
@@ -111,6 +112,6 @@ function snippetWords(s: string): string {
 export function gmailHeadOf(json: unknown): MailboxEmail | null {
   const e = gmailEmailOf(json);
   if (!e) return null;
-  const snippet = (json as { snippet?: unknown }).snippet;
+  const snippet = valueAt(json, "snippet");
   return { ...e, text: typeof snippet === "string" && snippet.trim() ? snippetWords(snippet) : null, html: null };
 }

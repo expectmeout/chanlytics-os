@@ -4,7 +4,7 @@
  */
 import type { AskProposal, AskProposalOutcome } from "../thread-words";
 import type { ApiRouteKey } from "../../route-keys.generated";
-import { listOrEmpty, textOrEmpty } from "../../shared/unknown";
+import { listOrEmpty, textOrEmpty, recordOrEmpty } from "../../shared/unknown";
 
 /**
  * What a spec reads of what it commits: a card of Ask's, or the same act pressed on a sheet (the dashboard's
@@ -248,8 +248,7 @@ export const ASK_SENDS: ReadonlySet<AskProposal["kind"]> = /* @__PURE__ */ (() =
 /** A payload field as the route's string param: the proposal carries ids as JSON, the route takes them as text. */
 export const asText = textOrEmpty;
 /** A route's answer as a record to read fields from. */
-export const rec = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+export const rec = (value: unknown): Record<string, unknown> => recordOrEmpty(value);
 /** A ledger row id the route answered with, or null when it answered none. */
 export const decisionOf = (data: unknown): string | null => {
   const id = rec(data).decision_id;

@@ -10,7 +10,7 @@
  */
 
 import { DAY_KEY } from "../../shared/zone/day-keys";
-import { isOneOf } from "../../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../../shared/unknown";
 
 /** The page a member's follow-ups are kept under in their views. */
 export const ASK_VIEW_PAGE = "ask";
@@ -46,7 +46,7 @@ const clipped = (v: unknown, max: number): string => (typeof v === "string" ? v.
 /** One follow-up as a view keeps it, or null where it is not one: a view is the member's, and read leniently. */
 function followUpOf(value: unknown): AskFollowUp | null {
   if (!value || typeof value !== "object") return null;
-  const item = value as Record<string, unknown>;
+  const item = recordOrEmpty(value);
   const id = clipped(item.id, 40);
   const sentence = clipped(item.said, FOLLOW_UP_SAID_MAX);
   const prompt = clipped(item.prompt, FOLLOW_UP_PROMPT_MAX);
@@ -59,8 +59,8 @@ function followUpOf(value: unknown): AskFollowUp | null {
 
 /** A member's follow-ups, from their views (GET views' `views`), oldest first: none where the view holds none. */
 export function followUpsOf(views: unknown): AskFollowUp[] {
-  const ask = views && typeof views === "object" ? (views as Record<string, unknown>)[ASK_VIEW_PAGE] : null;
-  const list = ask && typeof ask === "object" ? (ask as Record<string, unknown>).follow_ups : null;
+  const ask = views && typeof views === "object" ? recordOrEmpty(views)[ASK_VIEW_PAGE] : null;
+  const list = ask && typeof ask === "object" ? recordOrEmpty(ask).follow_ups : null;
   return Array.isArray(list) ? list.map(followUpOf).filter((f): f is AskFollowUp => f !== null) : [];
 }
 
@@ -103,7 +103,7 @@ export const ASK_STYLE_MAX = 300;
 
 /** A member's note on how they like answers, from their views (GET views' `views`): "" where they keep none. */
 export function answerStyleOf(views: unknown): string {
-  const page = views && typeof views === "object" ? (views as Record<string, unknown>)[ASK_STYLE_PAGE] : null;
-  const words = page && typeof page === "object" ? (page as Record<string, unknown>).words : null;
+  const page = views && typeof views === "object" ? recordOrEmpty(views)[ASK_STYLE_PAGE] : null;
+  const words = page && typeof page === "object" ? recordOrEmpty(page).words : null;
   return typeof words === "string" ? words.trim().slice(0, ASK_STYLE_MAX) : "";
 }

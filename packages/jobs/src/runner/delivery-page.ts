@@ -1,4 +1,5 @@
 import type { TenantId } from "@chanlytics/contracts";
+import { recordOrEmpty } from "@chanlytics/contracts";
 /**
  * The platform's page for a change's delivery that failed for good (00334, decision 0032): the ledger's words to the
  * operator, under one condition key, whichever way it failed. The tick pages it when the job's last try fails (ledger
@@ -11,10 +12,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 /** A field a job's payload carries (the relay's, 00334; a collect's, collect-page.ts), or "unknown" when it carries none. */
 export function carried(payload: unknown, key: string): string {
-  const p = (payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {}) as Record<
-    string,
-    unknown
-  >;
+  const p = recordOrEmpty(payload);
   const v = p[key];
   return typeof v === "string" && v ? v : "unknown";
 }

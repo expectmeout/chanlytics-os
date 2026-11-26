@@ -28,6 +28,7 @@ import { isReplyIntent } from "../campaigns/reach-out/replies/intents";
 import { replyIntentQuestion } from "../campaigns/reach-out/replies/words";
 import { judgeShadowCalls, type PlaceFacts } from "../leads/judge";
 import type { LeadSearchPlan } from "../leads/search/plan";
+import { valueAt } from "../shared/unknown";
 
 /** The confidence at which a shadow answer counts as decided: the line the pilot was read at. */
 export const SHADOW_CONFIDENT = 0.8;
@@ -211,7 +212,7 @@ export function replyReadShadowCall(readerUserContent: string): ShadowCallSpec {
 
 /** The reader's answer as a label: its intent, or null when the answer named none the reader may give. */
 export function replyReadPrimary(answer: unknown): Record<string, string | null> {
-  const intent = answer && typeof answer === "object" ? (answer as { intent?: unknown }).intent : null;
+  const intent = answer && typeof answer === "object" ? valueAt(answer, "intent") : null;
   return { [SHADOW_QUESTIONS.reply_read.intent]: isReplyIntent(intent) ? intent : null };
 }
 

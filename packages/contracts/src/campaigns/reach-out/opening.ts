@@ -23,7 +23,7 @@ import { languageBase } from "../templates/languages";
 import { leadCalledByOf } from "../../leads/search/called-by";
 import { DATA_NOT_INSTRUCTIONS, defang, fenceLine, fencedInline } from "../../ai/fence";
 import { MODEL_ROUTES } from "../../ai/models/routes";
-import { isOneOf } from "../../shared/unknown";
+import { isOneOf, recordOrEmpty, valueAt } from "../../shared/unknown";
 
 export const REACH_OUT_MODEL = MODEL_ROUTES.reach_out_check.model;
 
@@ -192,7 +192,7 @@ export function openingAskedOf(stored: unknown): OpeningAsked | null {
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
   const s = stored as { change?: unknown; was?: unknown };
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const was = s.was && typeof s.was === "object" ? text((s.was as { opening?: unknown }).opening) : null;
+  const was = s.was && typeof s.was === "object" ? text(valueAt(s.was, "opening")) : null;
   return { was, change: text(s.change) };
 }
 
@@ -307,7 +307,7 @@ function angleOf(raw: string): string {
 
 export function parseOpening(first: unknown): WrittenOpening | null {
   if (!first || typeof first !== "object") return null;
-  const value = first as Record<string, unknown>;
+  const value = recordOrEmpty(first);
   if (typeof value.opening !== "string" || typeof value.angle !== "string" || !Array.isArray(value.facts_used))
     return null;
   // A name that is no field of the record is kept as written: checkOpening refuses it (unnamed_fact), never drops it.
@@ -332,7 +332,7 @@ const isClaimKind = (k: unknown): k is OpeningClaimKind => typeof k === "string"
 
 export function parseReading(first: unknown): Reading | null {
   if (!first || typeof first !== "object") return null;
-  const value = first as Record<string, unknown>;
+  const value = recordOrEmpty(first);
   // An answer missing a part is no reading: the check fails closed (asked again, then held), never open.
   if (typeof value.backed !== "boolean" || typeof value.pitch !== "boolean" || typeof value.language !== "string")
     return null;

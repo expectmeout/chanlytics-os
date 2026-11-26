@@ -3,6 +3,7 @@ import { DAY_MS } from "../shared/time";
 import { clockDate } from "../shared/clock";
 import { ROLES, ROLE_SAYS } from "../config/workspace-config/role-perms";
 import { UNKNOWN_MEMBER_WORD } from "../shared/words";
+import { recordOrEmpty } from "../shared/unknown";
 
 /**
  * Who a person is, in words.
@@ -88,7 +89,7 @@ export function cleanDisplayName(raw: unknown): { ok: true; name: string } | { o
  */
 export function providerNameOf(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== "object") return null;
-  const m = metadata as Record<string, unknown>;
+  const m = recordOrEmpty(metadata);
   for (const key of ["full_name", "name"]) {
     const v = m[key];
     if (typeof v === "string" && v.trim()) return v.trim().replace(/\s+/g, " ").slice(0, 80);

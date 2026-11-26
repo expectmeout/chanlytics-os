@@ -12,6 +12,7 @@ import type { BroadcastState } from "../../campaigns/broadcasts/states";
 import { plural } from "../../shared/words";
 import { ASK_IDEA_REST_DAYS, dayAfterDays } from "./lately";
 import type { AskMorningCard } from "./morning";
+import { recordOrEmpty } from "../../shared/unknown";
 
 /** How many batches in a row, none of them stopped, make a sequence worth asking less about. */
 const STEADY_BATCHES = 3;
@@ -172,7 +173,7 @@ export function repliesFellCard(askFinding: Extract<AskFinding, { kind: "replies
 export function restedOf(view: unknown): AskRested {
   const rested: unknown = view && typeof view === "object" ? Reflect.get(view, "rested") : null;
   if (!rested || typeof rested !== "object") return {};
-  const kept = Object.entries(rested as Record<string, unknown>);
+  const kept = Object.entries(recordOrEmpty(rested));
   return Object.fromEntries(kept.filter((e): e is [string, string] => typeof e[1] === "string"));
 }
 

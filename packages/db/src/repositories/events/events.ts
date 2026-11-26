@@ -12,6 +12,7 @@ import {
   type WabaEventKind,
   recordOrEmpty,
   DbFailure,
+  entryOf,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import { dbLog, dbRequestId } from "../../shared/observe";
@@ -291,7 +292,7 @@ export function rowOf<K extends EmittedKind>(
   subjectId: string | null,
   data: EventData[K],
 ) {
-  const write = kind in WRITES ? WRITES[kind as keyof TableData] : WABA_WRITE;
+  const write = entryOf(WRITES, kind) ?? WABA_WRITE;
   // The request this row was written in (00277): the one a person's click, a webhook's delivery or a job's
   // originating request was named. Absent outside one; the column's own default then reads the header the database
   // client sent, which is how a SQL function's rows say it too.

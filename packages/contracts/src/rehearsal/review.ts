@@ -16,7 +16,7 @@
 import { defang } from "../ai/fence";
 import type { Tone } from "../shell/tone";
 import type { RehearsalTurn } from "./rehearsal";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty, valueAt } from "../shared/unknown";
 
 export const REVIEW_VERDICTS = ["right", "rule", "guessed", "didnt_know", "off"] as const;
 export type ReviewVerdict = (typeof REVIEW_VERDICTS)[number];
@@ -197,7 +197,7 @@ export function checkReview(
   instructions: string,
   blockOf: (quote: string) => string | null,
 ): { items: ReviewItem[]; dropped: number } {
-  const list = (answer as { exchanges?: unknown } | null)?.exchanges;
+  const list = valueAt(answer, "exchanges");
   const given = Array.isArray(list) ? list : [];
   const byN = new Map(exchanges.map((e) => [e.n, e]));
   const seenIndexes = new Set<number>();
@@ -205,7 +205,7 @@ export function checkReview(
   const items: ReviewItem[] = [];
   let dropped = 0;
   for (const raw of given) {
-    const item = (raw ?? {}) as Record<string, unknown>;
+    const item = recordOrEmpty(raw);
     const count = typeof item.n === "number" ? item.n : NaN;
     const found = byN.get(count);
     if (!found || seenIndexes.has(count) || !isVerdict(item.verdict)) {

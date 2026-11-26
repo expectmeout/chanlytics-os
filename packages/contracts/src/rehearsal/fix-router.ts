@@ -18,7 +18,7 @@ import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/settings-change";
 import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/suggest";
 import type { FixKind } from "./review";
 import { DAY_KEY } from "../shared/zone/day-keys";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../shared/unknown";
 
 type Day = (typeof DAYS)[number];
 
@@ -408,7 +408,7 @@ const field = (v: unknown, max: number) => (typeof v === "string" ? squashedSpac
  * Null when it does not pass, with why.
  */
 export function checkFixRoute(answer: unknown, ask: FixAsk): FixRouted {
-  const a = (answer ?? {}) as Record<string, unknown>;
+  const a = recordOrEmpty(answer);
   const check = typeof a.op === "string" ? FIX_CHECKS.get(a.op) : undefined;
   return check ? check(a, ask, squashedSpaces(defang(ask.words))) : NO_FIX;
 }

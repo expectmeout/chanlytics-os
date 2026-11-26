@@ -17,6 +17,7 @@ import { PREVIEW_STARTERS_MOST, previewStartersWrittenOf } from "./starters";
 import { previewTheirsOf } from "./theirs";
 import { TRIED_JOIN, previewTriedParts } from "./tried";
 import { LEAD_PREVIEW_WORDS } from "./words";
+import { recordOrEmpty } from "../shared/unknown";
 
 /* ---- its page ---- */
 
@@ -142,9 +143,9 @@ function turnSpansOf(raw: unknown, length: number): [number, number][] {
 export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((kept: unknown): PreviewTurnVM[] => {
-    const row = kept && typeof kept === "object" ? (kept as Record<string, unknown>) : null;
+    const row = kept && typeof kept === "object" ? recordOrEmpty(kept) : null;
     if (!row || (row.role !== "user" && row.role !== "assistant") || typeof row.content !== "string") return [];
-    const then = row.then && typeof row.then === "object" ? (row.then as Record<string, unknown>) : null;
+    const then = row.then && typeof row.then === "object" ? recordOrEmpty(row.then) : null;
     const spans = then?.taught === true ? turnSpansOf(then.spans, row.content.length) : [];
     const turn =
       row.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
