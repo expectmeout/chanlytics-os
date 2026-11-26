@@ -25,7 +25,7 @@ export const RETIRED_STARTERS: readonly StarterTemplate[] = [
     purpose: "for anyone quiet 30 days",
     category: "marketing",
     trigger: "quiet_30",
-    retired: { by: "winback_reply", why: "It sent people to a link; its place asks for a reply." },
+    retired: { by: "winback_reply", why: "It sent people to a link, and its place asks for a reply." },
     texts: {
       en_US: {
         body: "Hi {{1}}, it's been a while since we last saw you at {{2}}. We'd love to have you back — pick a time that suits you here: {{3}} and we'll take care of the rest.",
@@ -48,7 +48,7 @@ export const RETIRED_STARTERS: readonly StarterTemplate[] = [
     trigger: "new_week",
     retired: {
       by: null,
-      why: "AI answers a first contact itself; as an offer, a welcome reached nobody new.",
+      why: "AI answers a first contact itself, and as an offer a welcome reached nobody new.",
     },
     texts: {
       en_US: {
@@ -66,13 +66,13 @@ export const RETIRED_STARTERS: readonly StarterTemplate[] = [
   {
     key: "save_our_number",
     name: "save_our_number",
-    title: "Save our number",
+    title: "Save the number",
     purpose: "for anyone who only ever phoned",
     category: "marketing",
     trigger: "phoned_only",
     retired: {
       by: "call_text",
-      why: "Its people only ever phoned, so none could have said yes to offers; the call's text does its work during the call.",
+      why: "Its people only ever phoned, so none could have said yes to offers. The call's text does its work during the call.",
     },
     texts: {
       en_US: {
@@ -117,7 +117,7 @@ export const RETIRED_STARTERS: readonly StarterTemplate[] = [
     trigger: "visited",
     retired: {
       by: "after_visit_check",
-      why: "Asking them to book again made it an offer, which reached only a yes to offers; its place asks how it went.",
+      why: "Asking them to book again made it an offer, which reached only a yes to offers. Its place asks how it went.",
     },
     texts: {
       en_US: {

@@ -602,7 +602,7 @@ test("the ledger's names to a screen reader are contracts' too", () => {
   const W = C.LIFECYCLE_WORDS.ledger;
   assert.deepEqual(
     [W.label, W.tabs.label, W.strip, W.find],
-    ["Your campaigns", "Campaigns by state", "Campaigns by moment", "Search campaigns"],
+    ["Campaigns", "Campaigns by state", "Campaigns by moment", "Search campaigns"],
   );
 });
 

@@ -175,15 +175,15 @@ export const LIVE = {
   disconnected: {
     title: (names: string, many: boolean) => `${names} ${many ? "were" : "was"} on when you disconnected`,
     body: (day: string, many: boolean) =>
-      `That was ${day}. Meta charges while ${many ? "they run" : "it runs"}. ${many ? "They" : "It"} can only be paused in Meta now.`,
+      `That was ${day}, and Meta charges while ${many ? "they run" : "it runs"}. ${many ? "They" : "It"} can only be paused in Meta now.`,
     /** Left on, and Meta was still checking it: it starts by itself once approved. */
     checkingTitle: (names: string) => `Meta was checking ${names} when you disconnected`,
     checkingBody: (day: string, many: boolean) =>
-      `That was ${day}. If Meta approves ${many ? "them, they run" : "it, it runs"} and Meta charges. ${many ? "They" : "It"} can only be paused in Meta now.`,
+      `That was ${day}: if Meta approves ${many ? "them, they run" : "it, it runs"} and Meta charges. ${many ? "They" : "It"} can only be paused in Meta now.`,
     /** Some were running and Meta was checking others. */
     bothTitle: (names: string) => `${names} were left on when you disconnected`,
     bothBody: (day: string) =>
-      `That was ${day}. Meta charges while an ad runs, and one it was checking starts when Meta approves it. They can only be paused in Meta now.`,
+      `That was ${day}: Meta charges while they run, and one in review starts once approved. They can only be paused in Meta now.`,
     openMeta: "Open Meta",
     again: "Connect to read and pause them here again.",
   },
@@ -362,8 +362,8 @@ export const SHEET = {
   pauseUnsure: (name: string) =>
     `Meta didn't answer, so ${name} may still be on. Chanlytics is checking, and this page shows what Meta did in a few minutes.`,
   resumeUnsure: (name: string) =>
-    `Meta didn't answer, so ${name} may still be paused. Chanlytics is checking, and this page shows what Meta did in a few minutes.`,
-  failed: "Couldn't reach Meta just now. Nothing was changed. Try again.",
+    `Meta didn't answer, so ${name} may still be paused. Chanlytics checks, and this page shows the answer in a few minutes.`,
+  failed: "Couldn't reach Meta just now, and nothing was changed. Try again.",
   /** A paused ad, while AI is stopped: nothing is turned on until AI runs again. */
   stopped: "AI is stopped, so this ad stays paused until AI runs again.",
 } as const;
@@ -452,7 +452,7 @@ export const LENS = {
   unnamed: "An ad you run in Meta that Chanlytics can't name yet",
   elsewhere: "Ads in an ad account you connected before this one",
   counted:
-    "A person is counted once, for the ad they first wrote from. Booked means something on your calendar after that first message that wasn't cancelled.",
+    "A person counts once, for the ad they first wrote from. Booked: on your calendar after that, and not cancelled.",
   open: "Open Ads",
   /** No ad account was ever connected here. */
   none: {

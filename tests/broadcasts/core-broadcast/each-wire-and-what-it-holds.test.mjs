@@ -566,11 +566,11 @@ test("the mail provider's day or month used up gives the claim back and stops th
   for (const [limit, end] of [
     [
       "daily",
-      "It resets on its own. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+      "It resets on its own. It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice.",
     ],
     [
       "monthly",
-      "It resets with the new month. It does not run again today · the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.",
+      "It resets with the new month. It doesn't run again today · the next run reaches the people this one missed, and nobody gets it twice.",
     ],
   ]) {
     const { f } = world({
@@ -791,7 +791,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
   // The page has words for a run that an earlier build stopped with it, and they say what is wrong: not WhatsApp, not the mailbox.
   const { broadcastFailureWords, broadcastFailureFix, BROADCAST_FAILURES } = await import("@chanlytics/contracts");
   assert.match(broadcastFailureWords("campaigns_domain_unverified"), /not verified with the mail provider/);
-  assert.match(broadcastFailureFix("campaigns_domain_unverified"), /Nothing is wrong with your mailbox/);
+  assert.match(broadcastFailureFix("campaigns_domain_unverified"), /Your mailbox is fine/);
   assert.ok(BROADCAST_FAILURES.includes("email_offers_paused"), "a run of email alone stops for a pause on offers too");
 
   // A run of email alone stops, before anyone is claimed, saying so: everyone left would be held alike, each a skip that
@@ -813,7 +813,7 @@ test("offers by email, where the deployment names a campaigns domain the provide
   assert.deepEqual(call(alone.f.log, "fail").slice(1), ["b1", "campaigns_domain_unverified"]);
   assert.equal(
     call(alone.f.log, "alert")[1].body,
-    "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent. 3 people got it. Nothing is wrong with your mailbox, and the platform has been told; send it again once the domain is verified.",
+    "The domain offers by email go out from is not verified with the mail provider right now, so the rest was not sent. 3 people got it. Your mailbox is fine, and Chanlytics is on it · send it again once the domain is verified.",
   );
   assert.deepEqual(alonePages, [
     [
@@ -1131,13 +1131,13 @@ test("a billing pause the door meets stops the run, once, and gives the person b
   // the whole list. Tomorrow's run reaches who this one did not (a stopped run touched only the people it had sent to).
   assert.match(
     await stopped(forMoment("quiet_30")),
-    /Resume from Settings › Billing\. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice\.$/,
+    /Resume from Settings › Billing\. It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice\.$/,
   );
   assert.doesNotMatch(await stopped(forMoment("everyone_monthly")), /send it again/i);
   // A visit's message belongs to the day of the visit: tomorrow's run is for tomorrow's visits, so these are not reached later.
   assert.match(
     await stopped(forMoment("visit_tomorrow")),
-    /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/,
+    /a reminder belongs to its day, so the people it missed aren't sent it later\.$/,
   );
   assert.doesNotMatch(await stopped(forMoment("visited")), /send it again|tomorrow's run reaches/i);
   // The same pause met at the head, before anyone is claimed: the same words, once.
@@ -1146,6 +1146,6 @@ test("a billing pause the door meets stops the run, once, and gives the person b
   assert.deepEqual(head.ops(), ["fail", "alert"]);
   assert.match(
     call(head.log, "alert")[1].body,
-    /^The workspace is paused until billing resumes, so nothing went out\. Resume from Settings › Billing\. It does not run again today ·/,
+    /^The workspace is paused until billing resumes, so nothing went out\. Resume from Settings › Billing\. It doesn't run again today ·/,
   );
 });

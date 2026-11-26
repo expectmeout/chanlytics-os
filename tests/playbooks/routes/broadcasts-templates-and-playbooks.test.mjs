@@ -271,7 +271,7 @@ test("a broadcast: the workspace must be named, a viewer is refused as a viewer,
     ),
     "conflict",
     409,
-    "Nobody there has said yes to messages yet.",
+    "Nobody there has said yes to messages, which even a reminder needs.",
   );
   await refused(
     broadcasts.POST.run(
