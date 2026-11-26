@@ -13,6 +13,7 @@
  * A control the change took with it (Mark all read, a form's "Not right?") still has the page held where it stood. Where
  * nothing scrolls (on a phone the window does: mobile.css) the change just runs. One landing later is not held.
  */
+import { flushSync } from "react-dom";
 
 /** The room a scroller was given, and the padding it had of its own: one per scroller, grown by each switch. */
 interface Room {
@@ -89,9 +90,7 @@ export const holdStill = (control: Element | null | undefined, change: () => voi
   const was = control.getBoundingClientRect().top;
   const at = box ? box.scrollTop : 0;
   // Drawn now, so where the page and the control landed are read before anything is painted.
-  const flush = window.ReactDOM && window.ReactDOM.flushSync;
-  if (flush) flush(run);
-  else run();
+  flushSync(run);
   if (!box) return;
   // Pulled back: the page came out shorter than where it stood. The difference goes under everything, and the page back.
   const pulled = Math.ceil(at - box.scrollTop);

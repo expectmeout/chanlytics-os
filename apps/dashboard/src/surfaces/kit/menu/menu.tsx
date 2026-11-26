@@ -66,7 +66,7 @@ type MenuWords = {
 
 /**
  * What an item says on hover (`title`), and the honesty gate's props where a role may not press it (`gate`:
- * window.gate(...)'s, spread after the item's act). A refused item stays in the menu and keeps it open.
+ * the role gate's (frame/gate.ts `gate`), spread after the item's act). A refused item stays in the menu and keeps it open.
  */
 type MenuGate = { title?: string; gate?: Record<string, unknown> };
 

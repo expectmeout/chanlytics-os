@@ -1,8 +1,8 @@
 /**
  * The shell's shared contracts (moved from legacy/data/constants.jsx, the one-system plan's step 7e): the confidence
- * thresholds, the seed clock, the route builders, the frame's move and the address, and the money words. Canonical values
- * live here: never fork a threshold, a route string or an agent's identity in a page. Published
- * as `window.CHANLY` by frame-globals.ts, where the pages and the adapters read it (step 9 ends the reads).
+ * thresholds, the seed clock, the route builders, the address, and the money words. Canonical values
+ * live here: never fork a threshold, a route string or an agent's identity in a page. Imported where it is read; a move
+ * is frame-doors.ts `navigate`.
  */
 import { frameShell } from "./frame-window";
 
@@ -114,9 +114,6 @@ export const CHANLY = {
     agent: (id: string) => `fleet/${id}`,
     broadcast: (segId: string) => `broadcasts/${segId}`,
     admin: (pane: string) => `admin/${pane}`,
-  },
-  nav(route: string): void {
-    if (window.appNavigate) window.appNavigate(route);
   },
   address,
 

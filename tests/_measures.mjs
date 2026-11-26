@@ -392,6 +392,19 @@ export function doorsWithoutEventsIn(sql) {
   return out;
 }
 
+/**
+ * The two places the dashboard writes on the window for code that is not the app's, each with why. Every other write
+ * is a part the bridge holds (bridge/provided.ts) or a module's own value (decision 0151).
+ */
+export const WINDOW_CONTRACTS = {
+  "apps/dashboard/src/bridge/app-bridge.ts":
+    "the phone app's door: its native shell calls `window.__appBridge` by that name, from outside the page",
+  "apps/dashboard/src/bridge/ask.ts":
+    "the nightly's specs: they ask `window.__ask` what the page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts), from outside the bundle, and nothing of the app reads it",
+  "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts":
+    "Meta's SDK: it calls `window.fbAsyncInit` once loaded, and its sign-in opens through `window.open`, which the page wraps for that press alone",
+};
+
 export const MEASURES = [
   {
     name: "functions over the limit",
@@ -436,7 +449,8 @@ export const MEASURES = [
     mode: "set",
     measure: () => {
       const files = {};
-      for (const f of SHELL) for (const n of windowUse(parse(f)).names) files[n] = (files[n] ?? 0) + 1;
+      for (const f of SHELL.filter((file) => !(file in WINDOW_CONTRACTS)))
+        for (const n of windowUse(parse(f)).names) files[n] = (files[n] ?? 0) + 1;
       return files;
     },
     advice: "No new global: feed the surface through the seam (surface-data.ts), or reuse one that exists.",
@@ -444,7 +458,11 @@ export const MEASURES = [
   {
     name: "window publishers",
     file: "window-publishers.json",
-    measure: () => perFile(SHELL, (sf) => windowUse(sf).publishers),
+    measure: () =>
+      perFile(
+        SHELL.filter((f) => !(f in WINDOW_CONTRACTS)),
+        (sf) => windowUse(sf).publishers,
+      ),
     advice: "Publish nothing new on window: import it, or add the name to a component that already publishes.",
   },
   {

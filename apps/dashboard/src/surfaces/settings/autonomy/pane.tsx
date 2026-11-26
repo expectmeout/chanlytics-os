@@ -7,8 +7,7 @@
  * bookings and price questions are each one question on Settings (business/choices: the class with the switch or the
  * rule it goes with), and money, which nothing can change, is said once, on Limits (the Settings wiring review, 18 Oct
  * 2026). The dials write the reply row's limits through one route. The limits card shows the runtime's actual numbers:
- * two the charter's, the rest this workspace's own. Settings' page (settings.jsx) still
- * draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves; the mockup's
+ * two the charter's, the rest this workspace's own. Settings' page imports it; the mockup's
  * seeded twin (its own matrix, defaults and guardrails, kept in the browser) left with it.
  */
 import { useState, type ReactNode, type ComponentProps } from "react";

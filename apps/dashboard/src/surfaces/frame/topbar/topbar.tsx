@@ -2,21 +2,23 @@
  * The top bar (moved from legacy/components/topbar.jsx, the one-system plan's step 7d): the menu, the crumbs, Ask's
  * button, the bell with its notes (notif-popover.tsx) and the theme. The bell reads the workspace's own rows through the
  * bridge (bridge/notifications.ts): who needs you, a draft waiting, a missed call, an open invitation; read state is
- * this device's. The demo's seeded notes and its presence control went with demo mode (16 Nov 2026). The frame's JSX
- * draws it by its old name (`Topbar`, frame-globals.ts) until the frame itself is TypeScript (step 7e). Drawn as the JSX
+ * this device's. The demo's seeded notes and its presence control went with demo mode (16 Nov 2026). The frame
+ * imports it. Drawn as the JSX
  * drew it, raw buttons and all, until the frame's kit step.
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { askCalls, type FrameFlash } from "../../frame-verbs";
 import { BAR_LINE_WORDS, BELL_READ_WORDS } from "@chanlytics/contracts";
-import { askAbout, openAsk } from "../../frame-doors";
+import { askAbout, navigate, openAsk } from "../../frame-doors";
 import { Button } from "../../kit/button/button";
 import { AskFace } from "../../kit/face/ask-face";
 import { usePageSearchSaid, type PageSearch } from "../../kit/head/page-search";
-import { frameBell, frameChrome, frameGlyph, frameToastHook } from "../frame-window";
+import { frameBell, frameChrome } from "../frame-window";
 import { NotifPopover, type BellNote } from "./notif-popover";
 import type { BellApi } from "@/bridge/notifications";
+import { Icon } from "../../kit/icon/icon";
+import { usePPToast } from "../flash";
 
 type Flash = (p: FrameFlash) => void;
 type Bell = BellApi;
@@ -204,12 +206,12 @@ function bellActs({ real, realRows, flash, closeBell }: BellActsAt) {
   const act = (id: string, to: string | null) => {
     read(id);
     closeBell();
-    if (to) window.CHANLY?.nav?.(to);
+    if (to) navigate(to);
   };
   // The foot's door: what reaches you, this browser's alerts among it, is chosen on its page (decision 0137).
   const settings = () => {
     closeBell();
-    window.CHANLY?.nav?.("admin/notifications");
+    navigate("admin/notifications");
   };
   const readAll = () => {
     if (real) readAllOnBell(real, flash);
@@ -245,7 +247,7 @@ const tbCrumbs = (crumbs: readonly Crumb[]) => (
           {to && !last ? (
             <button
               className="crumb-link"
-              onClick={() => (typeof c !== "string" && c.go ? c.go() : window.CHANLY?.nav?.(to))}
+              onClick={() => (typeof c !== "string" && c.go ? c.go() : navigate(to))}
               aria-label={typeof c !== "string" && c.go ? `Back to ${label}` : undefined}
             >
               {label}
@@ -322,7 +324,6 @@ type BellState = ReturnType<typeof useBell>;
 
 /** The bell's button, its notes when open, and the theme beside it. */
 const tbBell = (b: BellState) => {
-  const Glyph = frameGlyph();
   return (
     <>
       <button
@@ -335,7 +336,7 @@ const tbBell = (b: BellState) => {
         aria-expanded={b.openNotifs}
         onClick={() => (b.openNotifs ? b.closeBell() : b.setOpenNotifs(true))}
       >
-        <Glyph name="bell" />
+        <Icon name="bell" />
         {b.unread > 0 && <span className="tb-bell-badge tally tally-icon">{b.unread}</span>}
         {b.unread === 0 && b.dots > 0 && <span className="tb-bell-unread" aria-hidden="true" />}
       </button>
@@ -365,14 +366,13 @@ export function Topbar({
   onMenu = () => {},
   right = null,
 }: TopbarProps) {
-  const Glyph = frameGlyph();
-  const [toastNode, flash] = (frameToastHook() as NonNullable<Window["usePPToast"]>)();
+  const [toastNode, flash] = usePPToast();
   const bell = useBell(flash);
   const { next: themeNext, said: themeSaid } = themeOf(theme, themePref);
   return (
     <header className="topbar">
       <button className="btn btn-ghost btn-icon btn-sm tb-menu" data-tip="Menu" aria-label="Menu" onClick={onMenu}>
-        <Glyph name="menu" />
+        <Icon name="menu" />
       </button>
       {tbCrumbs(crumbs)}
 
@@ -393,7 +393,7 @@ export function Topbar({
           aria-label={themeSaid.label}
           onClick={() => onTheme(themeNext)}
         >
-          <Glyph name={themeSaid.icon} />
+          <Icon name={themeSaid.icon} />
         </button>
       </div>
 

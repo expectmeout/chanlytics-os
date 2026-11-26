@@ -190,7 +190,7 @@ function saysMore(r: Row, says: Says): ReactNode {
 /**
  * A verb as the kit's button: someone else's page that mends the row (Meta's billing page for a WhatsApp account), in
  * a new tab with nothing of this page's passing with it; one of the page's own verbs, said gated to a role that may
- * not press it (window.gate), never hidden; or a page of the app, which is anyone's to open.
+ * not press it (the role gate), never hidden; or a page of the app, which is anyone's to open.
  */
 function verbButton(o: {
   r: Row;

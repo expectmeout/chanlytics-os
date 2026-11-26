@@ -1,11 +1,10 @@
 /**
  * PolicyChip: the ONE policy-class chip (moved whole from data-bits.jsx, decision 0015: the kit's one implementation,
- * which seed-globals publishes as window.PolicyChip for the pages that still read it). Self-subscribes to
- * policy:changed. What the shell owns of it -- the charter's rows and words, the trust digest, the route to Settings >
- * Autonomy -- comes through frame-verbs.
+ * imported where it is drawn). Self-subscribes to policy:changed. What the shell owns of it -- the charter's rows and
+ * words, the route to Settings > Autonomy -- comes through frame-verbs.
  */
 import { useEffect, useReducer } from "react";
-import { openAutonomy, policiesRead, policyStore, trustTable } from "../../frame-verbs";
+import { openAutonomy, policyStore } from "../../frame-verbs";
 import type { PolicyRow } from "../../frame-verbs";
 
 interface PolicyChipProps {
@@ -16,7 +15,7 @@ interface PolicyChipProps {
 
 /**
  * What the mode DOES, not how it is filed: "Replies · holds it", never "Replies · Veto". One word map, the matrix's
- * (window.POLICY.WORDS).
+ * (the charter's WORDS).
  */
 const polWords = (m: string | null | undefined) => {
   const words: Record<string, { chip?: string }> = policyStore()?.WORDS || {};
@@ -25,15 +24,10 @@ const polWords = (m: string | null | undefined) => {
 };
 
 /**
- * TRUST is the mockup's seeded table ("128 auto-sent · 9% edited"). A real workspace has its policies loaded (the settings
- * surface holds them, or null when the read failed) and no such figures, so its chip names the policy instead.
+ * What a hover says of a class: the policy and where it is set. The mockup's seeded trust digest ("128 auto-sent · 9%
+ * edited") went with demo mode, and a real workspace has no such figures.
  */
-function policyTip(r: PolicyRow) {
-  const trust = policiesRead() ? undefined : trustTable();
-  const t = trust && trust.cls(r.id);
-  if (!trust || !t) return "Workspace policy · Settings · Autonomy";
-  return `${r.chip} · ${polWords(policyStore()?.modeOf(r.id))} · ${t.sent.toLocaleString()} auto-sent · ${trust.rate(t)}% edited (30d)`;
-}
+const POLICY_TIP = "Workspace policy · Settings · Autonomy";
 
 export function PolicyChip({ cls, className = "" }: PolicyChipProps) {
   const [, pcTick] = useReducer((n: number) => n + 1, 0);
@@ -46,7 +40,7 @@ export function PolicyChip({ cls, className = "" }: PolicyChipProps) {
   return (
     <button
       className={`chip pol-chip ${className}`}
-      data-tip={policyTip(r)}
+      data-tip={POLICY_TIP}
       onClick={(e) => {
         e.stopPropagation();
         openAutonomy();

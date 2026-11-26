@@ -16,8 +16,8 @@ import type { PageClock } from "@/bridge/zone";
 import { provided } from "@/bridge/provided";
 import { surfaceHook } from "@/bridge/surface-status";
 import type { SurfaceNames } from "@/bridge/surface-status";
-import { askAbout, askCalls, canDo, mayAtLeast } from "../frame-verbs";
-import { fn, type Flash } from "../shell-doors";
+import { askAbout, askCalls, canDo, mayAtLeast, navigate, refusalToast } from "../frame-verbs";
+import type { Flash } from "../shell-doors";
 
 export { askAbout, canDo, mayAtLeast };
 
@@ -27,20 +27,19 @@ export type { Flash } from "../shell-doors";
 
 /* -------------------------------- the toast -------------------------------- */
 
-/** The toast a refused verb raises, in the shell's words (`window.refusalToast`): its lead, then the server's reason. */
+/** The toast a refused verb raises, in the shell's words (frame/flash.tsx `refusalToast`): its lead, then the server's reason. */
 export function refusalFlash(res: unknown, lead: string): Flash {
-  const say = fn<[unknown, string], Flash>("refusalToast");
-  return say ? say(res, lead) : { msg: lead };
+  return refusalToast(typeof res === "object" ? res : null, lead);
 }
 
 /* ------------------------------- the address ------------------------------- */
 
-/** Move to a route; nothing without the frame (`appNavigate`). */
+/** Move to a route (frame-doors.ts `navigate`). */
 /** The glyph on a door's words: the canvases' chevron (kit Icon's names). */
 export const doorGlyph = (): "chevron" => "chevron";
 
 export function appNavigate(route: string): void {
-  fn<[string], void>("appNavigate")?.(route);
+  navigate(route);
 }
 
 /* -------------------------------- the voice -------------------------------- */

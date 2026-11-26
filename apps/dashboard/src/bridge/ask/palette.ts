@@ -48,7 +48,7 @@ import {
 import { askJump, askPages, type JumpEntry } from "./jump";
 import { surfaceValue } from "@/surfaces/surface-values";
 import { adsShownIn } from "../surfaces/ads-shown";
-import { askOnScreenOf } from "./on-screen";
+import { askOnScreen } from "./on-screen";
 import { pageAsksOn } from "./page-asks";
 import { needsYouParts } from "@/surfaces/needs-you";
 import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
@@ -266,9 +266,9 @@ export function askPalette(win: Window, storage: Storage | null) {
         // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
         campaigns: campaignsRead(),
         // On Campaigns' Ads page, as the page says it: its chips are about ads.
-        onAds: askOnScreenOf(win)?.key === "ads",
+        onAds: askOnScreen()?.key === "ads",
         // On Campaigns › Content: Ask's three ideas of what it can make, the video only where the workspace takes videos.
-        onContent: askOnScreenOf(win)?.key === "content",
+        onContent: askOnScreen()?.key === "content",
         videos: videoPreviewOf(surfaceValue("settings")?.settings?.config),
       });
     },

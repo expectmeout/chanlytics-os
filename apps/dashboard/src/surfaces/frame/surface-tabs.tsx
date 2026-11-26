@@ -5,16 +5,20 @@
  * (kit/view-tabs ViewTabs: its links, its highlight, the press that starts the page leaving), as is what moves a view
  * (kit/motion/view-deck.ts) and the page a swipe walks (kit/view-tabs/pager.ts). This is the frame's part of it: which
  * views a route's group has, what each counts, their addresses warmed, and where a route stands on its strip. The
- * frame's JSX reads it by its old names (frame-globals.ts) until the frame itself is TypeScript (step 7e).
+ * frame imports it.
  */
 import { useEffect, useLayoutEffect, useReducer } from "react";
 import type { ComponentType } from "react";
 import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
-import { holdMoves } from "../kit/motion/swipe";
+import { holdMoves, touchSwipe } from "../kit/motion/swipe";
 import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
 import type { SurfaceViews } from "../routes";
 import { surfaceValue } from "../surface-values";
 import { frameChrome } from "./frame-window";
+import { CHANLY } from "./constants";
+import { useNeedsYou } from "../needs-you";
+import { provided } from "@/bridge/provided";
+import { viewPager } from "../kit/view-tabs/pager";
 
 interface StTab {
   id: string;
@@ -51,7 +55,7 @@ const ST_GROUPS: Readonly<Record<string, { match: readonly string[]; tabs: reado
     match: ["inbox", "conversations", "live"],
     tabs: [
       // The same count the sidebar badge, the phone tab, the tab's title and the phone app show: the one number
-      // (surfaces/needs-you.ts, read through `window.useNeedsYou`), handed in by the strip, never a second reading of it.
+      // (surfaces/needs-you.ts, read through its hook), handed in by the strip, never a second reading of it.
       // It counts what needs you, so it is amber, as the Needs you pill is (tone.ts warn). None of the three says a tip.
       // Named for the page: the list under it opens on its own Needs you, and the two stood one over the other.
       { id: "inbox", label: "Inbox", to: "inbox", tone: "warn", badge: (needs) => needs || null },
@@ -73,10 +77,7 @@ type StAddress = {
 };
 // What the address says of itself, for the routes a press will move to: warmed once the page is idle and when a pointer or
 // a finger reaches a tab, so the move that follows asks the server for nothing (workspace.ts warmRoute).
-const stAddress = (): StAddress | null => {
-  const chanly = Reflect.get(window, "CHANLY") as { address?: StAddress } | undefined;
-  return (chanly && chanly.address) || null;
-};
+const stAddress = (): StAddress => CHANLY.address;
 const stWarm = (route: string) => {
   const a = stAddress();
   if (a && a.warm) a.warm(route);
@@ -152,7 +153,7 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
   useViewsHeard(own);
   // What needs you, drawn again when the number changes and by nothing else (surfaces/needs-you.ts). Not read before the
   // Inbox has been.
-  const needs = window.useNeedsYou ? window.useNeedsYou() : 0;
+  const needs = useNeedsYou();
   const [groupKey, tabs] = at ? stTabsOf(at.page, own) : [null, []];
   // None stood over the list a carried page goes back to, or this is a person's profile.
   const none = !at || stOnAPerson(at.page, at.param, own);
@@ -212,8 +213,9 @@ const peopleScopeRoute = (param: string | null | undefined) => {
 };
 
 const peoplePlace = (param: string | null | undefined): StripPlace | null => {
-  const scopes = window.plScopes;
-  const routeOfScope = window.plScopeRoute;
+  const people = provided("peopleScopes");
+  const scopes = people?.list;
+  const routeOfScope = people?.routeOf;
   if (!scopes || !routeOfScope) return null;
   const route = peopleScopeRoute(param);
   const at = route
@@ -250,8 +252,7 @@ export const stripSlide = (from: StripPlace | null, to: StripPlace | null): "nex
 // where the shell is narrow enough for a page of one column (900px), and there only where the page says it travels its own
 // width (`--view-travel`: the pager asks the deck), which is every page on a phone and People's to 900px.
 const stripPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
-export const stripSwipe = () =>
-  window.touchSwipe && window.viewPager ? window.touchSwipe({ pages: window.viewPager, when: stripPhone }) : {};
+export const stripSwipe = () => touchSwipe({ pages: viewPager, when: stripPhone });
 
 // A strip's page holds its moves from its mount (kit/motion/swipe.ts holdMoves): an iPhone heeds only a listener already
 // there as the finger lands, so one added by the touch let the window scroll under a page carried across. The page says

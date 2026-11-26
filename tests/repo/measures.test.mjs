@@ -345,6 +345,22 @@ test("a window read or written through a cast or an alias is still one", () => {
   assert.equal(use.publishers, 3);
 });
 
+test("a window handed in is the window: a parameter that defaults to it, or whose type says it is one", () => {
+  const use = windowUse(
+    source(
+      [
+        "function a(win: Window = window) { win.ROLES = 1; }",
+        "function b(win: Window) { Object.assign(win, {}); }",
+        "function c(win: PolicyWindow) { win.POLICY = 2; }",
+        "function d(win: Window & { FB?: object }) { const w = win as unknown as { x: number }; w.x = 3; }",
+        "function e(w: { y: number }) { w.y = 4; }",
+        "function f(doc: Document) { doc.title = 'x'; }",
+      ].join("\n"),
+    ),
+  );
+  assert.equal(use.publishers, 4, "a, b, c and d write to the window; e and f do not");
+});
+
 test("a value laundered through unknown is counted however it is written", () => {
   const casts = (text) => unknownCasts(source(text));
   assert.equal(casts("const a = x as unknown as T;"), 1);

@@ -35,7 +35,6 @@
         "middleware.ts",
         "next.config.ts",
         "src/*.ts",
-        "src/bridge/manifest.ts",
         "src/bridge/**/*.{ts,tsx}",
         "src/**/*.type-test.ts"
       ],
