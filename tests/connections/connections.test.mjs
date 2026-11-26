@@ -22,7 +22,7 @@ import {
   CONNECTION_GROUP_WORDS,
 } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
-import { bootRunsOneNamed } from "../shell/_frame-boot.mjs";
+import { bootRunsOneNamed } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const ago = (ms) => new Date(NOW - ms).toISOString();

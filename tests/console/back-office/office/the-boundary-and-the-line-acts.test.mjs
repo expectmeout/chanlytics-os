@@ -35,7 +35,7 @@ import {
   workspaceRows,
   workspaceTables,
 } from "./_office.mjs";
-import { bootRunsOneNamed } from "../../../shell/_frame-boot.mjs";
+import { bootRunsOneNamed } from "../../../shell/boot/_frame-boot.mjs";
 
 /* ------------------------------- the boundary ------------------------------ */
 

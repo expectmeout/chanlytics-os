@@ -1,7 +1,7 @@
 /**
  * The frame's boot as it is written (apps/dashboard/src/bridge/boot): the surfaces it reads, in its order, and the steps
  * it runs, each by the function it runs. A test asks these by import where it read FrameApp.tsx's text, which draws in a
- * browser alone (`#frame-shell`); tests/shell/frame-boot.test.mjs runs the boot itself.
+ * browser alone (`#frame-shell`); tests/shell/boot/frame-boot.test.mjs runs the boot itself.
  *
  * Required, as the pages require them: tsx loads the dashboard's modules as CommonJS, and a static `import` of one from an
  * .mjs is a second copy, whose functions are not the ones the boot runs (_bridge-holds.mjs). So a function a test compares
@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const requireFromSrc = createRequire(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../apps/dashboard/src/_.js"),
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/_.js"),
 );
 
 /** A module of the dashboard, from `apps/dashboard/src` (`fromDashboard("bridge/zone.ts")`), as the boot holds it. */

@@ -23,7 +23,7 @@ import { readCode, readRaw } from "../_source.mjs";
 import { settingsRead } from "./record/_world.mjs";
 import { until } from "../shared/_until.mjs";
 import { bridgeHolds, provided, surfaceValue, heldRead } from "../shell/_bridge-holds.mjs";
-import { fromDashboard, stepRunning } from "../shell/_frame-boot.mjs";
+import { fromDashboard, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,

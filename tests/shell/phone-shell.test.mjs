@@ -16,7 +16,7 @@ import vm from "node:vm";
 import { ROOT, readCode, readRaw, importSrc } from "../_source.mjs";
 import { installStubReact } from "../_stub-react.mjs";
 import { bridgeHolds } from "./_bridge-holds.mjs";
-import { bootStep } from "./_frame-boot.mjs";
+import { bootStep } from "./boot/_frame-boot.mjs";
 
 bridgeHolds({ who: { workspaces: [], activeWorkspaceId: null } });
 installStubReact();

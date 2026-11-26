@@ -50,7 +50,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
-import { listedTogether } from "../shell/_frame-boot.mjs";
+import { listedTogether } from "../shell/boot/_frame-boot.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";

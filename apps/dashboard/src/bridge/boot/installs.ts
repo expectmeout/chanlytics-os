@@ -1,7 +1,7 @@
 /**
  * What the frame installs as it loads, in the order it does, each with why it stands where it does: the boot FrameApp
  * runs at its module scope (`bootFrame()`), before React draws anything. A list of its own so a node test can run it
- * and read it (tests/shell/frame-boot.test.mjs), where FrameApp itself draws in a browser alone (`#frame-shell`).
+ * and read it (tests/shell/boot/frame-boot.test.mjs), where FrameApp itself draws in a browser alone (`#frame-shell`).
  *
  * The order is the boot's contract: what a page reads at its first draw is installed before React draws, the cache is
  * restored before anything measures a page, and the route gate and the registry exist before the frame's first render.

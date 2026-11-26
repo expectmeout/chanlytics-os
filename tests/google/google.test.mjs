@@ -52,7 +52,7 @@ import {
 import { readCode, importSrc } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
-import { bootRunsOneNamed, listedTogether } from "../shell/_frame-boot.mjs";
+import { bootRunsOneNamed, listedTogether } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const KEY = "AIza-test-key-not-real";

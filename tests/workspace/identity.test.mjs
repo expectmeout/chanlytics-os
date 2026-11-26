@@ -18,7 +18,7 @@ import { readCode, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { installStubReact } from "../_stub-react.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
-import { fromDashboard, stepRunning } from "../shell/_frame-boot.mjs";
+import { fromDashboard, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -127,7 +127,7 @@ test("the wiring: the bridge names nobody on the window, and the chip and the ro
   // A new name reaches the chrome and the roster through the workspace and settings reads the write re-reads
   // (refresh-map.ts "PUT me"), and the bridge patches nothing ahead of them or announces a name of its own:
   // shell/hearing/channels-billing-and-rules-are-heard.test.mjs ("naming yourself is a write ...") runs it.
-  // The frame installs the identity at boot, before any page draws (bridge/boot, run in tests/shell/frame-boot.test.mjs).
+  // The frame installs the identity at boot, before any page draws (bridge/boot, run in tests/shell/boot/frame-boot.test.mjs).
   assert.ok(stepRunning(fromDashboard("bridge/identity.ts").installIdentity));
 
   // The sidebar's chip: the name given, else "Your account", and never the email's local part.

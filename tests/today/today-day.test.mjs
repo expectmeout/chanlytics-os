@@ -27,7 +27,7 @@ import { withReplies } from "../../apps/dashboard/src/surfaces/campaigns/reach-o
 import { readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
-import { bootRunsOneNamed } from "../shell/_frame-boot.mjs";
+import { bootRunsOneNamed } from "../shell/boot/_frame-boot.mjs";
 
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
 bridgeHolds({ parts: { surfaceState: () => "live" } });

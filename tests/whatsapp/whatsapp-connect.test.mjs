@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DECISION_SUBJECTS, DECISION_VERBS, templateTitle, toChannelVM } from "@chanlytics/contracts";
 import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
-import { bootRunsOneNamed } from "../shell/_frame-boot.mjs";
+import { bootRunsOneNamed } from "../shell/boot/_frame-boot.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 

@@ -4,15 +4,15 @@
  * is measured, and the route gate and the registry made before the frame's first render.
  *
  * FrameApp itself draws in a browser alone (`#frame-shell`, tests/repo/bundle-budget.test.mjs), so its boot is a module
- * of its own, and this runs it over a window of the test's own: what the boot touches of a browser, and no more.
+ * of its own, and this runs it over a window of the test's own: what the boot touches of a browser, and no more. Where
+ * FrameApp calls it is read in tests/shell/surfaces/surface-seam.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readCode } from "../_source.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 /** The window the boot is run over: an address, a history, the listeners it adds, a document and a navigator. */
 const heard = new Map();
@@ -48,7 +48,7 @@ bridgeHolds({ who: { activeWorkspaceId: "ws-1" } }, { fresh: true });
 
 // Required, as the pages require them: a static import of a dashboard module from an .mjs is a second copy (_bridge-holds.mjs).
 const requireFromDashboard = createRequire(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../apps/dashboard/src/bridge/_.js"),
+  path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../apps/dashboard/src/bridge/_.js"),
 );
 const { provided } = requireFromDashboard("./provided.ts");
 const { bootFrame, FRAME_INSTALLS } = requireFromDashboard("./boot/installs.ts");
@@ -164,15 +164,4 @@ test("the boot's order is its contract", () => {
   assert.equal(FRAME_INSTALLS[at("routeGate")]?.run, installRouteGate);
   assert.equal(FRAME_INSTALLS[at("surfaceRegistry")]?.run, installSurfaceRegistry);
   assert.equal(FRAME_INSTALLS[at("shell")]?.run, installShell);
-});
-
-test("FrameApp runs the boot at its module scope, before its component and its effects", () => {
-  // The one read of FrameApp's text left: it draws in a browser alone, so its module cannot be loaded here.
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  const call = app.indexOf("\nbootFrame();\n");
-  assert.notEqual(call, -1, "bootFrame() is called at FrameApp's top level");
-  assert.ok(call < app.indexOf("export default function FrameApp"), "before the component: React has drawn nothing");
-  const firstEffect = app.indexOf("useEffect(");
-  assert.ok(firstEffect === -1 || call < firstEffect, "never inside an effect: the first frame would be ungated");
-  assert.ok(app.indexOf('import "./manifest";') < app.indexOf('from "./boot/installs"'), "after the manifest's seeds");
 });

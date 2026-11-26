@@ -29,7 +29,7 @@ import {
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
-import { fromDashboard, listedTogether, stepRunning } from "../shell/_frame-boot.mjs";
+import { fromDashboard, listedTogether, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const SUB = {

@@ -82,12 +82,21 @@ test("an unknown surface is neither ready nor failed", () => {
 
 /* --------------- 2. the gate exists before any consumer renders -------------- */
 
-// The route gate and the cache are the boot's (bridge/boot/installs.ts), which FrameApp runs at its module scope: the
-// frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first render, and it is a CHILD
-// of FrameApp, whose effects run after it. A gate installed in a useEffect was undefined at the only moment it mattered:
-// routeReady() fell back to true and a cold boot painted the seeded hero for a frame; and a cache restored inside the
-// component showed a frame of mockup data before correcting itself. tests/shell/frame-boot.test.mjs runs the boot and
-// holds both before the first render.
+test("the route gate and the cache are the boot's, which FrameApp runs at its module scope, before its effects", () => {
+  // The frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first render, and it is a
+  // CHILD of FrameApp, whose effects run after it. A gate installed in a useEffect was undefined at the only moment it
+  // mattered: routeReady() fell back to true and a cold boot painted the seeded hero for a frame; and a cache restored
+  // inside the component showed a frame of mockup data before correcting itself. The boot itself is run, gate and cache
+  // and all, in tests/shell/boot/frame-boot.test.mjs: what is left to read is where FrameApp calls it, since FrameApp
+  // draws in a browser alone.
+  const s = src("FrameApp.tsx");
+  const call = s.indexOf("\nbootFrame();\n");
+  assert.notEqual(call, -1, "bootFrame() is called at FrameApp's top level");
+  assert.ok(call < s.indexOf("export default function FrameApp"), "before the component: React has drawn nothing");
+  const firstEffect = s.indexOf("useEffect(");
+  assert.ok(firstEffect === -1 || call < firstEffect, "never inside an effect: the first frame would be ungated");
+  assert.ok(s.indexOf('import "./manifest";') < s.indexOf('from "./boot/installs"'), "after the manifest's seeds");
+});
 
 /* ------------- 3. loading is derived during render, not set later ------------ */
 
