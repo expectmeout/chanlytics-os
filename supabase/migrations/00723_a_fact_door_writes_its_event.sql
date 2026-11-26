@@ -1550,3 +1550,502 @@ begin
   perform public.file_copy_settle(p_tenant_id, p_file_id);
   return 'mismatch';
 end $$;
+/* -- a post: its sends, its attempts, its link, a take-down: each move with its event -- */
+
+-- A post's moves that post_moved did not make (sent again, unanswered and checked, let go, moved to another time, kept
+-- by hand, taken down by hand, a take-down settled or left up) now write post.moved in their own transaction; each
+-- attempt at a place opened and closed writes post.attempted, a post's link made writes link.made, and a comment the
+-- owner answered at the place writes comment_answer.moved. All are kept from Activity's rows: Files says where each
+-- post stands.
+
+-- post_again
+CREATE OR REPLACE FUNCTION public.post_again(p_post_id uuid, p_from text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+begin
+  -- Its first send never landed: the second and last attempt, from a fresh container, with its job, in one transaction.
+  update public.posts p set status = 'queued', container_id = null, updated_at = now()
+   where p.id = p_post_id and p.status = p_from and p.attempts < 2
+  returning p.tenant_id into v_tenant;
+  if not found then
+    return false;
+  end if;
+  begin
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (v_tenant, 'post_prepare', now(), jsonb_build_object('post_id', p_post_id, 'attempt', '2'));
+  exception when unique_violation then
+    null;
+  end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'queued', 'again', true)));
+  return true;
+end $$;
+
+-- post_unanswered
+CREATE OR REPLACE FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+begin
+  -- Sent with no answer: Checking, and the reconcile that asks Instagram what it has, in one transaction, so a post is
+  -- never left Checking with nothing to settle it.
+  update public.posts p set status = 'checking', updated_at = now()
+   where p.id = p_post_id and p.status = 'publishing'
+  returning p.tenant_id into v_tenant;
+  if not found then
+    return false;
+  end if;
+  begin
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (v_tenant, 'post_reconcile', now() + interval '2 minutes',
+            jsonb_build_object('post_id', p_post_id, 'attempt', p_attempt));
+  exception when unique_violation then
+    -- One is on the ledger already: it asks.
+    null;
+  end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'publishing', 'to', 'checking', 'attempt', p_attempt)));
+  return true;
+end $$;
+
+-- post_attempt_open
+CREATE OR REPLACE FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+  v_row    public.publish_attempts;
+begin
+  select p.tenant_id into v_tenant from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  insert into public.publish_attempts (tenant_id, post_id, attempt_no, step, request)
+  values (v_tenant, p_post_id, p_attempt_no, p_step, coalesce(p_request, '{}'::jsonb))
+  on conflict (post_id, attempt_no, step) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.attempted', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'open', 'attempt', p_attempt_no, 'step', p_step)));
+  end if;
+  select * into v_row from public.publish_attempts a
+   where a.post_id = p_post_id and a.attempt_no = p_attempt_no and a.step = p_step;
+  update public.posts p set attempts = greatest(p.attempts, p_attempt_no), updated_at = now()
+   where p.id = p_post_id and p.attempts < p_attempt_no;
+  -- Opened again by a run that took up where one died: the row as it stands, which may already be finished.
+  return jsonb_build_object('fate', 'open', 'id', v_row.id, 'finished', v_row.finished_at is not null,
+                            'outcome', v_row.outcome, 'container_id', v_row.container_id,
+                            'external_id', v_row.external_id);
+end $$;
+
+-- post_attempt_close
+CREATE OR REPLACE FUNCTION public.post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer DEFAULT NULL::integer, p_answer jsonb DEFAULT NULL::jsonb, p_container_id text DEFAULT NULL::text, p_external_id text DEFAULT NULL::text, p_error jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post uuid;
+begin
+  -- Never changed once finished: a second close of the same send is the first.
+  update public.publish_attempts a
+     set finished_at = now(), outcome = p_outcome, http_status = p_http_status,
+         answer = case when p_answer is null then null
+                       when octet_length(p_answer::text) > 4096
+                         then jsonb_build_object('cut', left(p_answer::text, 4000))
+                       else p_answer end,
+         container_id = p_container_id, external_id = p_external_id, error = p_error
+   where a.id = p_attempt_id and a.finished_at is null
+  returning a.post_id into v_post;
+  if not found then
+    return false;
+  end if;
+  update public.posts p
+     set container_id = coalesce(p_container_id, p.container_id),
+         external_id = coalesce(p_external_id, p.external_id),
+         error = case when p_outcome = 'ok' then p.error else coalesce(p_error, p.error) end,
+         updated_at = now()
+   where p.id = v_post;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select p.tenant_id, 'post.attempted', 'content', 'post', p.id,
+         jsonb_strip_nulls(jsonb_build_object('to', 'closed', 'outcome', p_outcome, 'http_status', p_http_status))
+    from public.posts p where p.id = v_post;
+  return true;
+end $$;
+
+-- post_pull
+CREATE OR REPLACE FUNCTION public.post_pull(p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select p.tenant_id, p.status into v_tenant, v_status from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if not coalesce(public.caller_has_permission(v_tenant, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- Up to the moment it is sent (the jobs read the row before they act, so a pulled post is never sent), and once it
+  -- stopped: let go, it waits for no one. One the owner said they posted by hand is theirs to take back (00620).
+  update public.posts p set status = 'pulled', updated_at = now()
+   where p.id = p_post_id
+     and (p.status = any (array['queued', 'preparing', 'held', 'failed']) or (p.place = 'hand' and p.status = 'published'));
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('from', v_status, 'to', 'pulled', 'by', auth.uid())));
+    return jsonb_build_object('fate', 'pulled');
+  end if;
+  return jsonb_build_object('fate', 'late', 'status', v_status);
+end $$;
+
+-- post_move
+CREATE OR REPLACE FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post public.posts;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_post from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if not coalesce(public.caller_has_permission(v_post.tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_when is null or p_when <= now() then
+    raise exception 'A new time is later than now.' using errcode = '22023';
+  end if;
+  -- contracts POST_AHEAD_DAYS_MAX, as post_begin holds it.
+  if p_when > now() + interval '30 days' then
+    raise exception 'A post goes within thirty days.' using errcode = '22023';
+  end if;
+  -- Held while it moves: Don't post and the job's own run wait on this row, and then find it moved.
+  select * into v_post from public.posts p where p.id = p_post_id and p.status = 'queued' for update;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', (select p.status from public.posts p where p.id = p_post_id));
+  end if;
+  -- Its job moves only while no run has taken it: a run that has is already making it ready, or sending it.
+  update public.jobs j
+     set due_at = case when j.kind = 'post_prepare' then greatest(now(), p_when - interval '10 minutes') else p_when end,
+         updated_at = now()
+   where j.tenant_id = v_post.tenant_id and j.kind = any (array['post_prepare', 'post_google']) and j.state = 'scheduled'
+     and j.payload ->> 'post_id' = p_post_id::text;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', v_post.status);
+  end if;
+  update public.posts p set scheduled_for = p_when, updated_at = now() where p.id = p_post_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_post.tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'queued', 'to', 'queued', 'at', p_when, 'was', v_post.scheduled_for, 'by', auth.uid())));
+  return jsonb_build_object('fate', 'moved');
+end $$;
+
+-- post_report
+CREATE OR REPLACE FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_actor uuid := auth.uid();
+  v_file  public.files;
+  v_link  text := nullif(btrim(p_link), '');
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_link is not null and (char_length(v_link) > 500 or v_link !~* '^https://[^[:space:]]+$') then
+    raise exception 'A link starts with https:// and is at most 500 characters.' using errcode = '22023';
+  end if;
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'post_id', null);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
+  end if;
+  -- Said once a piece, which the database holds (posts_one_by_hand): said again, at once or twice together, it is the same
+  -- record, with the link it now has.
+  insert into public.posts as p (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via,
+                                 status, permalink, published_at)
+  values (p_tenant_id, p_file_id, 'hand', case when v_file.kind = 'video' then 'reel' else 'picture' end, null, now(),
+          v_actor, now(), 'press', 'published', v_link, now())
+  on conflict (file_id) where place = 'hand' and status = 'published'
+  do update set permalink = coalesce(excluded.permalink, p.permalink), updated_at = now()
+  returning p.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'published', 'by_hand', true, 'by', v_actor)));
+  return jsonb_build_object('fate', 'kept', 'post_id', v_id);
+end $_$;
+
+-- post_link_make
+CREATE OR REPLACE FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post  public.posts%rowtype;
+  v_lands text;
+  v_link  public.links%rowtype;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'post_link_make: not a member who may act here' using errcode = '42501';
+  end if;
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    raise exception 'post_link_make: no such post in this workspace' using errcode = 'P0002';
+  end if;
+  select * into v_link from public.links l
+   where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+  if not found then
+    -- Its call to action decides where it lands: the booking page where the piece was made to send people there, a
+    -- chat with the business everywhere else ("Message us", call 23).
+    select case when pc.intent->>'call_to_action' = 'book' then 'booking' else 'chat' end into v_lands
+      from public.pieces pc where pc.tenant_id = p_tenant_id and pc.id = v_post.piece_id;
+    insert into public.links (tenant_id, subject_type, subject_id, place, lands, created_by)
+    values (p_tenant_id, 'post', p_post_id, 'The post''s link', coalesce(v_lands, 'chat'), auth.uid())
+    on conflict (tenant_id, subject_id) where subject_type = 'post' do nothing
+    returning * into v_link;
+    if v_link.id is not null then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'link.made', 'content', 'post', p_post_id,
+              jsonb_strip_nulls(jsonb_build_object('link_id', v_link.id, 'lands', v_link.lands, 'by', auth.uid())));
+    end if;
+    if v_link.id is null then
+      select * into v_link from public.links l
+       where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+    end if;
+  end if;
+  return jsonb_build_object('link_id', v_link.id, 'code', v_link.code, 'lands', v_link.lands,
+                            'stopped', v_link.stopped_at is not null,
+                            'opens', coalesce((select sum(d.opens) from public.link_days d
+                                                where d.tenant_id = p_tenant_id and d.link_id = v_link.id), 0));
+end $$;
+
+-- post_own_comment_keep
+CREATE OR REPLACE FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_touch uuid;
+begin
+  if nullif(btrim(coalesce(p_parent_id, '')), '') is null then
+    return false;
+  end if;
+  -- Our own answer, delivered back by Meta, is ours already.
+  if exists (select 1 from public.comment_answers a
+              where a.tenant_id = p_tenant_id and a.external_id = btrim(p_comment_id)) then
+    return false;
+  end if;
+  select t.id into v_touch from public.touches t
+   where t.tenant_id = p_tenant_id and t.place = 'instagram' and t.provider_event_id = btrim(p_parent_id)
+     and t.kind = 'comment';
+  if v_touch is null then
+    return false;
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, by_hand, external_id, sent_at)
+  values (p_tenant_id, v_touch, 'sent', true, btrim(p_comment_id), now())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sent', by_hand = true, external_id = excluded.external_id, sent_at = excluded.sent_at,
+        updated_at = now()
+    where comment_answers.state <> 'sent';
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+            jsonb_strip_nulls(jsonb_build_object('to', 'sent', 'by_hand', true, 'touch_id', v_touch)));
+  end if;
+  return true;
+end $$;
+
+-- post_take_down_by_hand
+CREATE OR REPLACE FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- The newest take-down of this post that Chanlytics could not finish itself.
+  select * into v_action from public.remediation_actions r
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+   order by r.started_at desc, r.id desc
+   limit 1
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if v_action.outcome = 'done' then
+    return jsonb_build_object('fate', 'done');
+  end if;
+  if v_action.outcome = 'pending' then
+    return jsonb_build_object('fate', 'asking');
+  end if;
+  -- Left up by the owner's own word (00689): nothing is asked of the place until Take down is pressed again.
+  if v_action.outcome = 'left_up' then
+    return jsonb_build_object('fate', 'left_up');
+  end if;
+  -- It waits again: the place is asked whether the post is gone, and the answer settles it.
+  update public.remediation_actions r set outcome = 'pending', finished_at = null where r.id = v_action.id;
+  update public.remediations m set finished_at = null where m.id = v_action.remediation_id;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'post_take_down', now(),
+          jsonb_build_object('action_id', v_action.id, 'attempt', 'hand-' || floor(extract(epoch from now()))::bigint::text,
+                             'by_hand', 'yes'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'taking_down', 'by_hand', true, 'by', auth.uid())));
+  return jsonb_build_object('fate', 'asking');
+end $$;
+
+-- post_take_down_keep
+CREATE OR REPLACE FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+  v_post public.posts;
+  v_answer jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  -- The newest take-down of this post: the one a press on its line speaks of.
+  select * into v_action from public.remediation_actions r
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+   order by r.started_at desc, r.id desc
+   limit 1
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if v_action.outcome = 'done' then
+    return jsonb_build_object('fate', 'done');
+  end if;
+  -- Still being asked: there is nothing the place left to the owner yet.
+  if v_action.outcome = 'pending' then
+    return jsonb_build_object('fate', 'asking');
+  end if;
+  v_answer := jsonb_build_object('fate', 'left_up', 'post_id', v_post.id, 'file_id', v_post.file_id,
+                                 'place', v_post.place);
+  -- Said once: a second press, or a second owner's, keeps the first one's name and time.
+  if v_action.outcome = 'left_up' then
+    return v_answer;
+  end if;
+  if v_post.status is distinct from 'published' then
+    return jsonb_build_object('fate', 'not_up');
+  end if;
+  -- Every ask of this post that a place left to the owner is answered by the owner's word: the newest, and any older
+  -- take-down of it that was never finished (Take down pressed again before the first was deleted by hand). Nothing
+  -- of this post is then left for Today to name. Their remediations are finished already: each was, the moment its
+  -- place answered (post_take_down_settle), and an action that is not pending never holds one open.
+  update public.remediation_actions r
+     set outcome = 'left_up', finished_at = now(), left_up_by = auth.uid()
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+     and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'left_up', 'by', auth.uid())));
+  end if;
+  -- The bell's line for this piece at this place ends, for every device, once nothing of the piece there is left to
+  -- its owner (00698): a story of it still to delete keeps the line.
+  perform public.post_by_hand_bell_settle(p_tenant_id, v_post.file_id, v_post.place);
+  return v_answer;
+end $$;
+
+-- post_take_down_settle
+CREATE OR REPLACE FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+  v_file uuid;
+  v_place text;
+  v_places jsonb;
+begin
+  if p_outcome not in ('done', 'blocked', 'not_possible', 'needs_person') then
+    raise exception 'post_take_down_settle: an outcome a place can give' using errcode = '22023';
+  end if;
+  select * into v_action from public.remediation_actions r
+   where r.id = p_action_id and r.target_type = 'post' and r.act = 'take_down'
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  -- Settled once: a second answer for an action already settled changes nothing (a job run twice).
+  if v_action.outcome <> 'pending' then
+    return jsonb_build_object('fate', 'settled', 'outcome', v_action.outcome);
+  end if;
+  update public.remediation_actions r
+     set outcome = p_outcome, said = nullif(left(btrim(coalesce(p_said, '')), 300), ''), finished_at = now()
+   where r.id = v_action.id;
+  if v_action.target_type = 'post' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_action.tenant_id, 'post.moved', 'content', 'post', v_action.target_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when p_outcome = 'done' then 'taken_down' else 'take_down_' || p_outcome end)));
+  end if;
+  if p_outcome = 'done' then
+    update public.posts p set status = 'taken_down', held_reason = null, held_why = null, updated_at = now()
+     where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id
+       and p.status = any (array['published', 'publishing', 'checking']);
+  end if;
+  update public.remediations m set finished_at = now()
+   where m.id = v_action.remediation_id and m.finished_at is null
+     and not exists (select 1 from public.remediation_actions x
+                      where x.remediation_id = m.id and x.outcome = 'pending');
+  select p.file_id, p.place into v_file, v_place from public.posts p
+   where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
+  -- Gone from its place: where nothing else of the piece there is left to its owner, the bell's line for it ends
+  -- (00698). A post of the piece kept up beside it never says the piece is down, so no other news would end it.
+  if p_outcome = 'done' then
+    perform public.post_by_hand_bell_settle(v_action.tenant_id, v_file, v_place);
+  end if;
+  -- The piece is down once every place this take-down asked for it says done: those places, for the bell's one line.
+  select jsonb_agg(distinct q.place) into v_places
+    from public.remediation_actions x
+    join public.posts q on q.tenant_id = x.tenant_id and q.id = x.target_id
+   where x.remediation_id = v_action.remediation_id and x.target_type = 'post' and x.act = 'take_down'
+     and q.file_id = v_file
+  having bool_and(x.outcome = 'done');
+  return jsonb_build_object('fate', 'kept', 'outcome', p_outcome, 'post_id', v_action.target_id,
+                            'tenant_id', v_action.tenant_id, 'file_id', v_file, 'place', v_place, 'down', v_places);
+end $$;

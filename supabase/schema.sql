@@ -32608,6 +32608,9 @@ begin
   exception when unique_violation then
     null;
   end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'queued', 'again', true)));
   return true;
 end $$;
 
@@ -32972,6 +32975,10 @@ begin
          error = case when p_outcome = 'ok' then p.error else coalesce(p_error, p.error) end,
          updated_at = now()
    where p.id = v_post;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select p.tenant_id, 'post.attempted', 'content', 'post', p.id,
+         jsonb_strip_nulls(jsonb_build_object('to', 'closed', 'outcome', p_outcome, 'http_status', p_http_status))
+    from public.posts p where p.id = v_post;
   return true;
 end $$;
 
@@ -33002,6 +33009,11 @@ begin
   insert into public.publish_attempts (tenant_id, post_id, attempt_no, step, request)
   values (v_tenant, p_post_id, p_attempt_no, p_step, coalesce(p_request, '{}'::jsonb))
   on conflict (post_id, attempt_no, step) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.attempted', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'open', 'attempt', p_attempt_no, 'step', p_step)));
+  end if;
   select * into v_row from public.publish_attempts a
    where a.post_id = p_post_id and a.attempt_no = p_attempt_no and a.step = p_step;
   update public.posts p set attempts = greatest(p.attempts, p_attempt_no), updated_at = now()
@@ -33172,6 +33184,11 @@ begin
     values (p_tenant_id, 'post', p_post_id, 'The post''s link', coalesce(v_lands, 'chat'), auth.uid())
     on conflict (tenant_id, subject_id) where subject_type = 'post' do nothing
     returning * into v_link;
+    if v_link.id is not null then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'link.made', 'content', 'post', p_post_id,
+              jsonb_strip_nulls(jsonb_build_object('link_id', v_link.id, 'lands', v_link.lands, 'by', auth.uid())));
+    end if;
     if v_link.id is null then
       select * into v_link from public.links l
        where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
@@ -33234,6 +33251,9 @@ begin
     return jsonb_build_object('fate', 'late', 'status', v_post.status);
   end if;
   update public.posts p set scheduled_for = p_when, updated_at = now() where p.id = p_post_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_post.tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'queued', 'to', 'queued', 'at', p_when, 'was', v_post.scheduled_for, 'by', auth.uid())));
   return jsonb_build_object('fate', 'moved');
 end $$;
 
@@ -33414,6 +33434,11 @@ begin
     set state = 'sent', by_hand = true, external_id = excluded.external_id, sent_at = excluded.sent_at,
         updated_at = now()
     where comment_answers.state <> 'sent';
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+            jsonb_strip_nulls(jsonb_build_object('to', 'sent', 'by_hand', true, 'touch_id', v_touch)));
+  end if;
   return true;
 end $$;
 
@@ -33453,6 +33478,9 @@ begin
    where p.id = p_post_id
      and (p.status = any (array['queued', 'preparing', 'held', 'failed']) or (p.place = 'hand' and p.status = 'published'));
   if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('from', v_status, 'to', 'pulled', 'by', auth.uid())));
     return jsonb_build_object('fate', 'pulled');
   end if;
   return jsonb_build_object('fate', 'late', 'status', v_status);
@@ -33505,6 +33533,9 @@ begin
   on conflict (file_id) where place = 'hand' and status = 'published'
   do update set permalink = coalesce(excluded.permalink, p.permalink), updated_at = now()
   returning p.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'published', 'by_hand', true, 'by', v_actor)));
   return jsonb_build_object('fate', 'kept', 'post_id', v_id);
 end $_$;
 
@@ -33690,6 +33721,9 @@ begin
   values (p_tenant_id, 'post_take_down', now(),
           jsonb_build_object('action_id', v_action.id, 'attempt', 'hand-' || floor(extract(epoch from now()))::bigint::text,
                              'by_hand', 'yes'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'taking_down', 'by_hand', true, 'by', auth.uid())));
   return jsonb_build_object('fate', 'asking');
 end $$;
 
@@ -33757,6 +33791,11 @@ begin
      set outcome = 'left_up', finished_at = now(), left_up_by = auth.uid()
    where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
      and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'left_up', 'by', auth.uid())));
+  end if;
   -- The bell's line for this piece at this place ends, for every device, once nothing of the piece there is left to
   -- its owner (00698): a story of it still to delete keeps the line.
   perform public.post_by_hand_bell_settle(p_tenant_id, v_post.file_id, v_post.place);
@@ -33801,6 +33840,11 @@ begin
   update public.remediation_actions r
      set outcome = p_outcome, said = nullif(left(btrim(coalesce(p_said, '')), 300), ''), finished_at = now()
    where r.id = v_action.id;
+  if v_action.target_type = 'post' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_action.tenant_id, 'post.moved', 'content', 'post', v_action.target_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when p_outcome = 'done' then 'taken_down' else 'take_down_' || p_outcome end)));
+  end if;
   if p_outcome = 'done' then
     update public.posts p set status = 'taken_down', held_reason = null, held_why = null, updated_at = now()
      where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id
@@ -33863,6 +33907,9 @@ begin
     -- One is on the ledger already: it asks.
     null;
   end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'publishing', 'to', 'checking', 'attempt', p_attempt)));
   return true;
 end $$;
 
