@@ -203,7 +203,7 @@ test("the booking tool row states what the owner books with, and under it one ma
       (n) => n.props?.["data-testid"] === "bto-bookings-held-row",
     );
     assert.equal(heldRows.length, 2);
-    assert.equal(find(heldRows[0], (n) => n.props?.title === "no-reply@booksy.com") != null, true);
+    assert.equal(find(heldRows[0], (n) => n.props?.["data-tip"] === "no-reply@booksy.com") != null, true);
     assert.doesNotMatch(textOf(heldRows[0]), /no-reply@booksy\.com/);
     // An owner who keeps a calendar of their own all the same: one press, and the box is there.
     press(byTestId(open, "bto-link-anyway"));

@@ -16,7 +16,7 @@ import "./place.css";
  * An email's words in parts: words, a value filled for them, the opening still to come, a slot with no value. `plain`
  * reads it as it goes, a value in the words round it, where the marks would only stand between you and the email.
  */
-export const EmailParts = ({ parts, plain = false }: { parts: readonly LeadCardPart[]; plain?: boolean }) => (
+const EmailParts = ({ parts, plain = false }: { parts: readonly LeadCardPart[]; plain?: boolean }) => (
   <>
     {parts.map((p, i) =>
       p.kind === "text" ? (

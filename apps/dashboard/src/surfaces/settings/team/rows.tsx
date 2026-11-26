@@ -277,7 +277,7 @@ export function memberRow(m: TeamPerson, k: RowActs): ReactNode {
     >
       <Face className="set-team-face" initials={m.initials} />
       <span className="set-team-body">
-        <span className="set-team-name" title={m.email || undefined}>
+        <span className="set-team-name" data-tip={m.email || undefined}>
           <span className="set-team-who">{m.name}</span>
           {m.isMe && <span className="chip set-team-you">You</span>}
         </span>
@@ -305,7 +305,7 @@ export function inviteRow(i: TeamPerson, k: RowActs): ReactNode {
     >
       <Face className="set-team-face" glyph={<Icon name="mail" size={13} />} />
       <span className="set-team-body">
-        <span className="set-team-name" title={i.email}>
+        <span className="set-team-name" data-tip={i.email}>
           {i.email}
         </span>
         <span className="set-team-mail">

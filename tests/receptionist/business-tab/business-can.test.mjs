@@ -139,7 +139,7 @@ test("a whole ability is its title and two glyphs: the sentence is there to be r
   for (const id of ["answer", "open_times", "booking_link", "transfer", "handoff"]) {
     const row = byTestId(card, `rec-can-${id}`);
     assert.equal(saidAtRest(row), null, `${id} is whole, so it says nothing at rest`);
-    assert.equal(row.props.title, rows[id].detail, `${id} still carries its sentence`);
+    assert.equal(row.props["data-tip"], rows[id].detail, `${id} still carries its sentence`);
     assert.ok(textOf(row).includes(rows[id].detail), `${id}'s sentence is drawn for a reader`);
   }
   // The photo switch is off, which is a decision, so that one row does say so.
