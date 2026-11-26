@@ -26,7 +26,7 @@ const facts = {
   name: "Northside Movers",
   hours: true,
   services: 4,
-  bookingLink: true,
+  booking_link: true,
   address: true,
   handoff: "+15555550199",
   broken: false,

@@ -34,14 +34,14 @@ export interface CardStep {
 export const atDone = (result: Committed, at: number): AskProposalOutcome => ({
   state: "done",
   receipt: result.receipt,
-  atMs: at,
+  at_ms: at,
   undo: result.undo || null,
   made: result.made || null,
 });
 export const atFailed = (message: string, at: number, moved?: boolean): AskProposalOutcome => ({
   state: "failed",
   receipt: message,
-  atMs: at,
+  at_ms: at,
   undo: null,
   ...(moved ? { moved: true } : {}),
 });
@@ -73,7 +73,7 @@ const atTold = (
     setters.setState(outcome.state);
     setters.setReceipt(outcome.receipt);
     setters.setUndoData(outcome.undo || null);
-    setters.setDoneAt(outcome.atMs || 0);
+    setters.setDoneAt(outcome.at_ms || 0);
   }
 };
 
@@ -87,7 +87,7 @@ const useCardOutcome = (proposal: AskProposal, ran: AskProposalOutcome | null) =
   const [undoData, setUndoData] = useState<AskProposalOutcome["undo"]>(
     proposal.outcome ? proposal.outcome.undo || null : null,
   );
-  const [doneAt, setDoneAt] = useState(proposal.outcome ? proposal.outcome.atMs || 0 : 0);
+  const [doneAt, setDoneAt] = useState(proposal.outcome ? proposal.outcome.at_ms || 0 : 0);
   const [err, setErr] = useState("");
   // A step the group's press decided is drawn from the outcome that press recorded, once, as a reload would draw it.
   const [took, setTook] = useState<AskProposalOutcome | null>(null);
@@ -96,7 +96,7 @@ const useCardOutcome = (proposal: AskProposal, ran: AskProposalOutcome | null) =
     setState(ran.state);
     setReceipt(ran.receipt);
     setUndoData(ran.undo || null);
-    setDoneAt(ran.atMs || 0);
+    setDoneAt(ran.at_ms || 0);
     setErr(ran.state === "failed" ? ran.receipt : "");
   }
   // A card another turn set aside (a search card a newer one replaced, contracts withAnswerLanded) is drawn as it now is.
@@ -173,7 +173,7 @@ const pressMadeOf = (
   const kept = proposal.outcome?.state === "done" ? proposal.outcome : null;
   return {
     made: state === "done" ? (pressed?.made ?? kept?.made?.id ?? null) : null,
-    madeAt: pressed?.at ?? kept?.atMs ?? 0,
+    madeAt: pressed?.at ?? kept?.at_ms ?? 0,
   };
 };
 
@@ -234,7 +234,7 @@ export const useCardPress = (
       record(atDone(result, at), result.kept === true);
       openSearchCard(
         { ask, proposal, onNav },
-        { state: "done", receipt: result.receipt, atMs: at, undo: result.undo, made: result.made ?? null },
+        { state: "done", receipt: result.receipt, at_ms: at, undo: result.undo, made: result.made ?? null },
       );
     } else {
       setState("failed");
@@ -247,19 +247,19 @@ export const useCardPress = (
     land.current = "receipt";
     setHere(true);
     setState("dismissed");
-    record({ state: "dismissed", receipt: t.notNow, atMs: Date.now(), undo: null });
+    record({ state: "dismissed", receipt: t.notNow, at_ms: Date.now(), undo: null });
   };
   const undo = async () => {
     if (held || !ask) return;
     working(true);
-    const result = await ask.undo(proposal, { state: "done", receipt, atMs: doneAt, undo: undoData }, messageId);
+    const result = await ask.undo(proposal, { state: "done", receipt, at_ms: doneAt, undo: undoData }, messageId);
     working(false);
     if (result.ok) {
       land.current = "receipt";
       setState("undone");
       setReceipt(result.receipt);
       setUndoData(null);
-      record({ state: "undone", receipt: result.receipt, atMs: Date.now(), undo: null }, result.kept === true);
+      record({ state: "undone", receipt: result.receipt, at_ms: Date.now(), undo: null }, result.kept === true);
     } else setErr(result.message);
   };
   const onClock = () => {

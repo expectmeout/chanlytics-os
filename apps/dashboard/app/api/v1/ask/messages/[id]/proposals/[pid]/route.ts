@@ -28,7 +28,7 @@ export const POST = write({
     const body: unknown = await req.json().catch(() => null);
     const parsed = AskProposalOutcomeSchema.safeParse(body);
     if (!parsed.success) throw new AppError("validation", "An outcome is { state, receipt, atMs, undo?, made? }.");
-    const proposal = await setProposalOutcome(ctx, id, pid, { ...parsed.data, atMs: parsed.data.atMs || Date.now() });
+    const proposal = await setProposalOutcome(ctx, id, pid, { ...parsed.data, at_ms: parsed.data.at_ms || Date.now() });
     return { proposal };
   },
 });

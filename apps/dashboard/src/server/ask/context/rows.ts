@@ -1,6 +1,6 @@
 import "server-only";
 import { PROFILE_NAME_MAX, UUID } from "@chanlytics/contracts";
-import type { AskContextRowKind, AskSurface, PageContext, PageContextRow } from "@chanlytics/contracts";
+import type { AskContextRowKind, AskSurface, PageContextDto, PageContextRow } from "@chanlytics/contracts";
 import { load, type ReaderContext, type RowKind, type RowRef } from "../../shared/reader";
 import * as facts from "../../readers/facts";
 
@@ -28,7 +28,7 @@ export interface Provided {
   aggregate: string;
 }
 
-export type Provider = (rc: ReaderContext, ctx: PageContext) => Promise<Provided>;
+export type Provider = (rc: ReaderContext, ctx: PageContextDto) => Promise<Provided>;
 
 /** The workspace's time zone, as its facts say it: a provider's dates are said in it. */
 export const readZone = (rc: ReaderContext): Promise<string> =>
@@ -78,7 +78,7 @@ export const aggregateOf = (xs: Part[]): string => parts(xs).join(" · ");
 /** A row's id as the database keeps it. An id read by id in SQL must be one, or the read fails for the whole page. */
 export const ROW_ID = UUID;
 
-export function idsOf(ctx: PageContext, ...kinds: AskContextRowKind[]): PageContextRow[] {
+export function idsOf(ctx: PageContextDto, ...kinds: AskContextRowKind[]): PageContextRow[] {
   const seen = new Set<string>();
   return ctx.rows.filter((r) => {
     if (!kinds.includes(r.kind) || seen.has(`${r.kind}:${r.id}`)) return false;
@@ -116,5 +116,5 @@ export const PAGE_TITLES: Record<AskSurface, string> = {
 };
 
 /** The page's name with its view, as the aggregate opens: "Inbox, needs_you". */
-export const pageWithView = (ctx: PageContext, title: string = PAGE_TITLES[ctx.surface] ?? "This page"): string =>
+export const pageWithView = (ctx: PageContextDto, title: string = PAGE_TITLES[ctx.surface] ?? "This page"): string =>
   ctx.view ? `${title}, ${ctx.view}` : title;

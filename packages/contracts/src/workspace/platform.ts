@@ -534,7 +534,7 @@ export interface PlatformHealth {
   backlog: number | null;
   /** How many clocks the read returned, healthy or not. None is never healthy (platformHealthOf). */
   clocks: number;
-  checkedAt: string;
+  checked_at: string;
 }
 
 /**
@@ -560,7 +560,7 @@ export function platformHealthOf(
     unhealthy,
     backlog,
     clocks: read.length,
-    checkedAt: now.toISOString(),
+    checked_at: now.toISOString(),
   };
 }
 

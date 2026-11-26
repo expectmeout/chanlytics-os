@@ -949,7 +949,7 @@ test(
     );
     assert.deepEqual(
       sql.find((p) => p.id === w.A.lapsed).totals,
-      { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
+      { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, last_run: null, waiting: null, history: [] },
       "a playbook that never ran",
     );
     assert.equal(

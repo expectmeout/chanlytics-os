@@ -12,7 +12,7 @@ const dtoOf = (over = {}) => ({
     name: "Harbor Moving",
     hours: true,
     services: 4,
-    bookingLink: true,
+    booking_link: true,
     address: true,
     handoff: "+17865550199",
     broken: false,
@@ -124,7 +124,7 @@ test("Live (canvas R9): the four lines, the greeting word for word, and Finish's
 
 test("Live says what is not there: its own number, a message instead of a transfer, nobody emailed yet, only the name", () => {
   const bare = dtoOf({
-    business: { ...dtoOf().business, handoff: null, hours: false, services: 0, bookingLink: false, address: false },
+    business: { ...dtoOf().business, handoff: null, hours: false, services: 0, booking_link: false, address: false },
     lines: { ...dtoOf().lines, rows: [] },
     activations: [
       { capability: "voice", activated_at: "2026-09-24T15:00:00Z", activated_by: "u1", deactivated_at: null },

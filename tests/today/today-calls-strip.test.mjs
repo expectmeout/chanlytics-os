@@ -18,7 +18,6 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toTodayVM } from "@chanlytics/contracts";
-import { readRaw } from "../_source.mjs";
 import { changesOf } from "../_live-feed.mjs";
 import { installStubReact, fresh, all, byTestId } from "../_stub-react.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
@@ -154,14 +153,9 @@ test("Today's queue leaves the call in progress to the frame's bar, draws the pe
     all(queue, (n) => String(n.props?.["data-testid"]).startsWith("queue-")).length >= 1,
     "the person waiting is drawn",
   );
-  const vmSrc = readRaw("packages/contracts/src/today/queue.ts");
-  const esc = vmSrc.indexOf("for (const r of escRecords) {");
-  const win = vmSrc.indexOf("for (const c of closingConvs) {");
-  const ear = vmSrc.indexOf("for (const r of callRows) {");
-  assert.ok(
-    esc > 0 && esc < win && win < ear && vmSrc.includes("waitedMs: Number.NEGATIVE_INFINITY"),
-    "a voicemail is worth an ear, after the people waiting on you",
-  );
+  // A voicemail is worth an ear, after the people waiting on you, whatever its wait: the queue's order (contracts
+  // todayQueue) run in today-queue.test.mjs ("one queue, by what each is worth"), pinned here as queue.ts's text until
+  // 26 Nov 2026.
   // The hero, over the same day and the same call on the line, draws neither the call nor a row of one.
   const hero = draw(TodayAlertBand);
   assert.equal(

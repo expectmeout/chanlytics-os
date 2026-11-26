@@ -1,5 +1,7 @@
 /** Partner: dtos. */
 
+import { dateFormat } from "../../shared/time";
+
 /** The row, as `GET partner` answers it. */
 export interface PartnerDto {
   id: string;
@@ -115,8 +117,9 @@ export const PARTNER_WORDS = {
   linkLabel: "Partner link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at: string) =>
-    `A partner since ${new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  /** The day the account was made, by the workspace's clock (the page's zone), as every date a page says. */
+  since: (at: string, zone: string) =>
+    `A partner since ${dateFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: zone }).format(new Date(at))}.`,
   paused: "Your partner account is paused. Write to Chanlytics to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account…",

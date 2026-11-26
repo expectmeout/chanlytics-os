@@ -12,10 +12,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readCode } from "../../_source.mjs";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   assembleHistory,
   describeLead,
@@ -24,10 +20,6 @@ import {
   searchMessages,
 } from "@chanlytics/db/conversations";
 import { fakeDb } from "../../_fake-db.mjs";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(here, "../../..");
-const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
 const row = (over = {}) => ({
   body: "hello",
@@ -205,38 +197,102 @@ test("a stand-in's name is said as the business they are at, never as theirs (00
 
 /* ------------------------------ the wiring -------------------------------- */
 
-const voice = read("apps/edge/lib/voice/call-start.ts");
-const wa = read("packages/core/src/inbound/model-turn.ts");
-// describeLead is a VALUE from the db package, which a core verb may not
-// import, so the receptionist reaches the one description through a port. The
-// edge is where the two are joined.
-const waPorts = read("apps/edge/lib/inbound/ports.ts");
-const brain = read("apps/edge/lib/ai/receptionist-brain.ts");
+// Both receptionists say who the person is through the one description, read from Postgres. The call's memory: run in
+// voice/call-start.test.mjs ("a routed call: ... the memory is the caller's own"; "a number nobody has on file is told as
+// new, in the words the text receptionist uses for the same person"), where no Blob mirror is read (it is gone, 00151).
+// The text's: the edge hands core the db package's describeLead through its ports, run below. All pinned as call-start.ts's,
+// model-turn.ts's, the edge ports' and receptionist-brain.ts's text until 26 Nov 2026.
 
-test("REGRESSION: the voice agent no longer reads the Blob mirror", () => {
-  assert.ok(!/getThread\(/.test(voice), "caller context must come from Postgres");
-  assert.match(voice, /readLeadContext\(/);
+test("both agents describe the lead with the same function: the text's turn reaches it through the edge's ports", async () => {
+  const { corePorts } = await import("../../../apps/edge/lib/inbound/ports.ts");
+  const inbound = { leads: { read: async () => null, personReplyMode: async () => null } };
+  assert.equal(corePorts(inbound).leads.describe, describeLead);
 });
 
-test("both agents describe the lead with the same function", () => {
-  assert.match(voice, /describeLead\(/);
-  assert.match(wa, /ports\.leads\.describe\(/);
-  assert.match(waPorts, /describe: describeLead/);
+test("a failed lead lookup costs recognition, never the reply", async () => {
+  const { text, world } = await import("../../inbound/_world.mjs");
+  const { linesOf } = await import("../../_log-lines.mjs");
+  const w = world({ env: { modelKey: "sk-test" } });
+  let told;
+  const { lines } = await linesOf(() =>
+    w.run(text("Do you have anything Saturday?"), {
+      leads: {
+        read: async () => {
+          throw new Error("contacts: statement timeout");
+        },
+        personReplyMode: async () => null,
+      },
+      brain: async () => ({
+        generateReply: async (asked) => {
+          told = asked;
+          return {
+            text: "Saturday at 11 is open.",
+            escalate: false,
+            meta: { confidence: 0.95 },
+            usage: { input_tokens: 9 },
+          };
+        },
+      }),
+    }),
+  );
+  assert.equal(w.seen.sent.length, 1, "the reply still goes");
+  assert.equal(told.leadNote, undefined, "without who they are");
+  assert.ok(
+    lines.some((l) => l.event === "lead_context_unavailable"),
+    "and the log says why",
+  );
 });
 
-test("a failed lead lookup costs recognition, never the reply", () => {
-  assert.match(wa, /lead_context_unavailable/);
+test("the per-contact note does not evict the business profile from cache", async () => {
+  // The profile is identical for every customer and is cached; one line that changes per contact would invalidate it on
+  // every new person. Run through the receptionist's own call with the model at the wire.
+  const { setModelFetch } = await import("../../../apps/edge/lib/ai/model.ts");
+  const { generateReply } = await import("../../../apps/edge/lib/ai/receptionist-brain.ts");
+  const { scripted, json } = await import("../../ai/_model-world.mjs");
+  const api = scripted(
+    json({
+      reply: "Hi Maria.",
+      intent: "other",
+      escalate: false,
+      reason: "",
+      confidence: 0.9,
+      facts_used: [],
+      language: "en",
+    }),
+  );
+  setModelFetch(api.fetch);
+  const key = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "model-key-for-this-file";
+  try {
+    const NOTE = "Name on record: Maria Lopez. Returning contact. Last in touch today.";
+    await generateReply({
+      history: [],
+      userText: "hi",
+      systemPrompt: "Answer as the front desk of Harbor Nails: brief and warm, and never guess a price.",
+      fallbackText: "Hold on.",
+      leadNote: NOTE,
+      call: { tenantId: null },
+    });
+    const { system, messages } = api.calls[0].body;
+    const profile = system.find((b) => b.text.startsWith("Answer as the front desk"));
+    assert.deepEqual(profile.cache_control, { type: "ephemeral" }, "the profile is cached");
+    const noted = [
+      ...system,
+      ...messages.flatMap((m) => (Array.isArray(m.content) ? m.content : [{ text: m.content }])),
+    ].filter((b) => String(b.text ?? "").includes(NOTE));
+    assert.ok(noted.length > 0, "the note reaches the model");
+    assert.ok(
+      noted.every((b) => !b.cache_control),
+      "and is never cached",
+    );
+  } finally {
+    setModelFetch(null);
+    if (key === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = key;
+  }
 });
 
-test("the per-contact note does not evict the business profile from cache", () => {
-  // The profile is identical for every customer and is cached; one line that
-  // changes per contact would invalidate it on every new person.
-  assert.match(brain, /cache_control: \{ type: "ephemeral" \} \},/);
-  const sysBlock = brain.slice(brain.indexOf("system: ["), brain.indexOf("messages,"));
-  assert.ok(!/leadNote[\s\S]*cache_control/.test(sysBlock), "the lead note must stay uncached");
-});
-
-test("the owner's notes ride with who the person is — as facts, with the rule never to recite them", () => {
+test("the owner's notes ride with who the person is — as facts, with the rule never to recite them", async () => {
   const d = describeLead(
     {
       contactId: "c1",
@@ -268,23 +324,42 @@ test("the owner's notes ride with who the person is — as facts, with the rule 
     NOW,
   );
   assert.ok(!none.includes("Notes from the owner"), "blank notes say nothing");
-  const src = [
-    "packages/db/src/repositories/conversations/thread/history.ts",
-    "packages/db/src/repositories/conversations/thread/messages.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  // Changed on purpose (0009 for email, then the ask for the yes to offers; and on 18 Oct 2026 the workspace's answer
-  // to how its customers buy left it, every workspace having deals): whether an address is on file, and their answer
-  // about offers with whether they were asked ride on the same read, one round trip on the live path. Checked as the
-  // string literal alone, not the surrounding .select(...) call, since a line this long is Prettier's to wrap however
-  // it likes.
-  assert.ok(
-    src.includes(
-      '"id, display_name, wa_profile_name, name_source, last_seen_at, consent, dnc, notes, proposal_url, email, marketing_consent, marketing_channels, offers_asked_at"',
-    ),
-    "read with the rest of who they are (and whether their name is the business's, 0052), whether an email is on file, what they said about offers and on which channels",
+  // Read with the rest of who they are, in one round trip on the live path (pinned as the select's text until 26 Nov 2026):
+  // whether their name is the business's (0052), whether an address is on file, what they said about offers and on which
+  // channels, and whether they were asked.
+  const T = "aaaaaaaa-0000-4000-8000-0000000000e1";
+  const db = fakeDb({
+    contacts: [
+      {
+        id: "c1",
+        tenant_id: T,
+        phone_e164: "+13055550144",
+        display_name: "Bloom & Vow Bridal",
+        name_source: "lead",
+        wa_profile_name: null,
+        last_seen_at: null,
+        consent: "opted_in",
+        dnc: false,
+        notes: "Prefers mornings",
+        proposal_url: null,
+        email: "hello@bloomandvow.example",
+        marketing_consent: "opted_in",
+        marketing_channels: ["sms"],
+        offers_asked_at: "2026-09-01T12:00:00Z",
+      },
+    ],
+    conversations: [],
+    messages: [],
+    calls: [],
+    deals: [],
+    contact_notes: [],
+  });
+  const ctx = await readLeadContext(db, T, "+13055550144");
+  assert.deepEqual(
+    [ctx.standIn, ctx.hasEmail, ctx.marketingConsent, ctx.marketingChannels, ctx.offersAskedAt, ctx.notes],
+    [true, true, "opted_in", ["sms"], "2026-09-01T12:00:00Z", "Prefers mornings"],
   );
+  assert.equal(db.seen.filter((q) => q.table === "contacts").length, 1, "one read of who they are");
 });
 
 test("a proposal on file rides with who the person is: the address to send, the rule to state no figure, and never to read it out on a call", () => {
