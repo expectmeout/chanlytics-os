@@ -97,7 +97,6 @@ export const VOICE_EVENTS = [
   "voice_guardrail_correction",
   "voice_policy_block_price",
   "voice_provision",
-  "voice_provision_event_failed",
   "voice_watch_failed",
   "webhook_delivery_event_failed",
 ] as const;

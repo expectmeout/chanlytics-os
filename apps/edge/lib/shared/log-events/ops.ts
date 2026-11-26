@@ -1,6 +1,5 @@
 /** The edge's log names of the clocks, the jobs, the alerts and the platform's own health. Sorted, so two changes that add a name each land apart. */
 export const OPS_EVENTS = [
-  "activation_read_failed",
   "ai_usage_purge_failed",
   "alert_test_sent",
   "alert_test_unaddressed",

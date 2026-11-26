@@ -36,13 +36,12 @@ import {
 import { deletePhoneNumber, type RetellConfig } from "@chanlytics/channels/voice";
 import { TwilioError, type ProviderAccount } from "@chanlytics/channels/lines";
 import {
-  deleteLineRow,
   dropLineCredentials,
   getLineCredentials,
   listLinesOfWorkspaces,
+  releaseLineRow,
   saveLineFacts,
 } from "@chanlytics/db/lines";
-import { emitEvent } from "@chanlytics/db/events";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
 import { factsOf } from "./resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -52,7 +51,6 @@ import { findPlanForRelease, listStripeAccountsIn } from "@chanlytics/db/billing
 import { listWorkspaceStandings } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
 import { logFailure } from "../shared/log.js";
-import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
@@ -192,15 +190,12 @@ export async function releaseLine(
   } catch (e) {
     return { ok: false, status: 503, error: "write_failed", detail: logFailure("write", e), released };
   }
-  const del = await deleteLineRow(db, tenantId, line.id);
-  if (del.error)
-    return { ok: false, status: 503, error: "write_failed", detail: logFailure("write", del.error), released };
-  await emitEvent(db, tenantId, "line.released", "line", line.id, {
-    e164: line.e164,
-    provider: choice.name,
-    ...released,
-    ...event,
-  }).catch(logAndGoOn("event line.released"));
+  // The row goes with its event, in one transaction (00721).
+  try {
+    await releaseLineRow(db, tenantId, line.id, { provider: choice.name, ...released, ...event });
+  } catch (e) {
+    return { ok: false, status: 503, error: "write_failed", detail: logFailure("write", e), released };
+  }
   return { ok: true, released };
 }
 

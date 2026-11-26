@@ -39,10 +39,9 @@ import {
   listActiveRoutingKinds,
   listLineFilingsOf,
   listLinesOf,
-  saveBusinessOnRecord,
+  keepBusinessOnRecord,
   saveLineRow,
 } from "@chanlytics/db/lines";
-import { emitEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import {
   SPEND_NUMBER,
@@ -314,17 +313,24 @@ async function record(lineCall: LineCall): Promise<Response> {
   } catch (e) {
     return refuseFailure(503, "read_failed", e);
   }
-  const up = await saveBusinessOnRecord(lineCall.db, lineCall.tenantId, plan.row);
-  if (up.error) return refuseFailure(503, "write_failed", up.error);
-  const saved = recordSaved(before, up.data, lines);
-  await emitEvent(lineCall.db, lineCall.tenantId, "business.recorded", "tenant", lineCall.tenantId, {
-    legal_name: plan.row.legal_name,
-    path: plan.path,
-    // Who saved it: the ledger said the record changed and never whose hand it was.
-    by: lineCall.person,
-    changed: saved.first ? null : saved.changed,
-  }).catch(() => {});
-  return respond(recordAnswer(up.data, saved));
+  // The record is saved whole, so what it moved is what the draft moves; the save and its event are one transaction
+  // (00721), and the record is read back for the answer.
+  const changed = before ? recordSaved(before, { ...before, ...plan.row }, lines).changed : null;
+  let kept: RecordRow | null;
+  try {
+    await keepBusinessOnRecord(lineCall.db, lineCall.tenantId, plan.row, {
+      legal_name: plan.row.legal_name,
+      path: plan.path,
+      // Who saved it: the ledger said the record changed and never whose hand it was.
+      by: lineCall.person,
+      changed,
+    });
+    kept = await findBusinessOnRecord(lineCall.db, lineCall.tenantId);
+  } catch (e) {
+    return refuseFailure(503, "write_failed", e);
+  }
+  if (!kept) return refuseFailure(503, "write_failed", new Error("the record was not there after its save"));
+  return respond(recordAnswer(kept, recordSaved(before, kept, lines)));
 }
 
 /* ------------------------------------------------------------ register */
