@@ -10,9 +10,9 @@
  * campaigns, ad sets, creatives and ads alone, and the same bytes sent twice answer the same hash.
  */
 import { valueAt } from "@chanlytics/contracts";
-import { META_GRAPH, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { META_GRAPH, isMetaId, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
-import { isMetaId, metaAccountPath, metaUnitsToMinor } from "./meta-account";
+import { metaAccountPath, metaUnitsToMinor } from "./meta-account";
 
 /** The least an ad set billed for each showing takes a day, in its account's currency: Meta's minimum_budgets. */
 export function metaMinimumBudgetsRequest(token: string, appSecret: string, accountId: string): MetaRequest {
