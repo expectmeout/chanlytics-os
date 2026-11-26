@@ -44,7 +44,7 @@ const { heardTables, heardOnItsPage, subscribesToRealtime, wantsRefresh } = awai
 const { declareReads, ownsTable, ownsTheScreen } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 const { ON_DEMAND_STALE_MIN } = await importSrc("apps/dashboard/src/bridge/surface-data.ts");
 
-/** Every surface the shell registers (FrameApp.tsx), from the module it imports each from: the shell's own list, no copy of it. */
+/** Every surface the shell registers (bridge/boot/surfaces.ts), from the module it imports each from: the shell's own list, no copy of it. */
 const OVERRIDES = [];
 for (const { name, file } of registeredSurfaces()) OVERRIDES.push((await importSrc(file))[name]);
 const byKey = (key) => OVERRIDES.find((o) => o.key === key);

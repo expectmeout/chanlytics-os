@@ -105,7 +105,7 @@ globalThis.window.fetch = async (url) => {
 globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };
 const S = "apps/dashboard/src";
 const { startSurfaces } = await importSrc(`${S}/bridge/surface-runner.ts`);
-/** Every other override the app registers (FrameApp.tsx), recorded rather than read: the runner decides what is read. */
+/** Every other override the app registers (bridge/boot/surfaces.ts), recorded rather than read: the runner decides what is read. */
 const OTHERS = [
   (await importSrc(`${S}/bridge/surface-data.ts`)).workspaceOverride,
   (await importSrc(`${S}/surfaces/inbox/conversations-surface.ts`)).conversationsOverride,
