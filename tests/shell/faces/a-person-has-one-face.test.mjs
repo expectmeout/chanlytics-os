@@ -187,13 +187,13 @@ test("the kit's Face draws a person by contracts: their initials, the phone glyp
   assert.equal(textOf(named), "AR");
   assert.equal(glyphIn(named), null);
   assert.equal(named.rendered.props.className, "face");
-  assert.equal(named.rendered.props.title, undefined, "a named person has nothing to say to a pointer");
+  assert.equal(named.rendered.props["data-tip"], undefined, "a named person has nothing to say to a pointer");
 
   const number = h(Face, { person: { name: NUMBER, initials: "00" }, size: "sm" });
   assert.equal(glyphIn(number), "phone");
   assert.equal(textOf(number), "", "never the two digits");
   assert.equal(number.rendered.props.className, "face face-glyph face-sm");
-  assert.equal(number.rendered.props.title, "No name yet");
+  assert.equal(number.rendered.props["data-tip"], "No name yet");
 
   const address = h(Face, { person: { name: ADDRESS, initials: "AN" } });
   assert.equal(glyphIn(address), "mail", "an address is the mail glyph here as on the board, and never a phone");

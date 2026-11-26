@@ -29,6 +29,7 @@ import {
   type AskScope,
   type AskSurface,
   type PageContext,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { cvRoute, inChannel } from "@/surfaces/inbox/cv-rules";
 import { surfaceValue } from "@/surfaces/surface-values";
@@ -273,7 +274,8 @@ const fold = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
-const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
+/** A row a scope may be: one of a kind the palette scopes to. */
+const isScopeRow = (r: Row): r is Row & { kind: AskScope["kind"] } => isOneOf(ASK_SCOPE_KINDS, r.kind);
 
 /**
  * The place the words name a row by (folded words): "#2", "number 2", "el número 2" where it ends the question (an
@@ -296,18 +298,18 @@ function placeOf(said: string): number | null {
  * never); otherwise none. Only a row a scope may be.
  */
 export function focusFromWords(words: string, rows: Row[]): AskScope | null {
-  const scoped = rows.filter((r) => SCOPE_KINDS.has(r.kind));
+  const scoped = rows.filter(isScopeRow);
   if (!scoped.length) return null;
   const said = fold(words);
-  const asScope = (r: Row): AskScope => ({
-    kind: r.kind as AskScope["kind"],
+  const asScope = (r: (typeof scoped)[number]): AskScope => ({
+    kind: r.kind,
     id: r.id,
     label: (r.label ?? "").slice(0, 80) || `this ${r.kind}`,
   });
   const n = placeOf(said);
   const placed = n === null ? undefined : scoped[n - 1];
   if (placed) return asScope(placed);
-  let best: Row | null = null;
+  let best: (typeof scoped)[number] | null = null;
   const plain = words.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   for (const r of scoped) {
     const name = fold(r.label ?? "").trim();

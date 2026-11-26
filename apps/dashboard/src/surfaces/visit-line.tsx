@@ -59,7 +59,7 @@ export function VisitState({
       kind="tone"
       value={state.pill}
       label={state.text}
-      title={unmarked ? VISIT_ASK_WORDS.unmarked : null}
+      tip={unmarked ? VISIT_ASK_WORDS.unmarked : null}
       className={className}
       testid={testid}
     />

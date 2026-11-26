@@ -43,6 +43,7 @@ import {
   type TodayQueueRowVM,
   type Waits,
   runRoute,
+  entryOf,
 } from "@chanlytics/contracts";
 import { askJump, askPages, type JumpEntry } from "./jump";
 import { surfaceValue } from "@/surfaces/surface-values";
@@ -254,7 +255,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         hasCalendar: calendarFeedKeyOf(surfaceValue("settings")?.settings?.config) !== null,
         scope,
         // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
-        canAct: !!ROLE_PERMS[whoIsLooking().me?.role as keyof typeof ROLE_PERMS]?.approve,
+        canAct: !!entryOf(ROLE_PERMS, whoIsLooking().me?.role)?.approve,
         // People's surface says whether a deal was ever recorded here; until it does, the question is not offered.
         hasDeals: !!surfaceValue("people")?.hasDeals,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.

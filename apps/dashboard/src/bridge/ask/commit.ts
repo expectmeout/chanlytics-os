@@ -46,7 +46,8 @@ import {
   UUID,
 } from "@chanlytics/contracts";
 import { refreshAfter } from "../refresh-map";
-import type { Api } from "../../client/api";
+import type { Api, RouteKey } from "../../client/api";
+import { ROUTES } from "../../client/routes.generated";
 import { apiFor } from "../api";
 import { isRefusal, saidHere, specOf, tabOf, undoVerb, walkVerb } from "../verbs/commit";
 import { provided } from "../provided";
@@ -90,8 +91,8 @@ const stepKey = (plan: AskPlanStamp): string => `plan:${plan.id}:${plan.step}`;
 async function settingsInHand(client: Api, kind: string, again: boolean): Promise<ProposalTab | undefined> {
   if (kind !== "settings" || (!again && tabOf().settings)) return undefined;
   // A read that fails goes on: the spec then refuses in its own words, which is what the person should hear.
-  const read = await client("GET settings", {} as never).catch(() => null);
-  const data = read && read.ok ? (read.data as { config?: Record<string, unknown> | null; version?: number }) : null;
+  const read = await client("GET settings").catch(() => null);
+  const data = read && read.ok ? read.data : null;
   if (!data || typeof data.version !== "number" || !data.config) return undefined;
   return { settings: { config: data.config, version: data.version } };
 }
@@ -142,9 +143,13 @@ function tellDoorCalls(win: Window, answer: AskActAnswer): void {
   for (const c of answer.calls) {
     for (const e of c.events)
       win.dispatchEvent(e.detail ? new CustomEvent(e.type, { detail: e.detail }) : new CustomEvent(e.type));
-    void refreshAfter(c.route as never).catch(() => undefined); // a re-read that fails behind a write is the surface's own to say
+    // A re-read that fails behind a write is the surface's own to say; a route this build does not know has none to read.
+    if (isRouteKey(c.route)) void refreshAfter(c.route).catch(() => undefined);
   }
 }
+
+/** A route this build's client knows: a key its own table holds, which the bundle already carries. */
+const isRouteKey = (route: string): route is RouteKey => Object.hasOwn(ROUTES, route);
 
 /** The door could not act, and nothing was sent: the press goes the way it went from a browser (AskActAnswer.walkHere). */
 const WALK_HERE = Symbol("walk here");
@@ -168,7 +173,7 @@ async function actThroughDoor(
   // A door down or a server's fault: the verb's own key means the walk that follows can never act twice.
   if (!r.ok && (r.status === 0 || r.status >= 500)) return WALK_HERE;
   if (!r.ok) return { ok: false, message: r.message, ...(r.status === 404 || r.status === 409 ? { moved: true } : {}) };
-  const answer = r.data as unknown as AskActAnswer;
+  const answer: AskActAnswer = r.data;
   if (answer.walkHere) return WALK_HERE;
   tellDoorCalls(win, answer);
   if (!answer.ok)

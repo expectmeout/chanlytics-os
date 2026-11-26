@@ -168,7 +168,7 @@ export async function disconnectMeta(ctx: RouteContext, member: Member, channelI
   const body = answer.body ?? {};
   if (answer.status === 404) throw new AppError("not_found", "No account is connected through Meta here.", 404);
   if (answer.status !== 200 || body.ok !== true)
-    throw new AppError("upstream_provider", "Meta could not be disconnected just now. Try again.");
+    throw new AppError("upstream_provider", "Couldn't disconnect Meta just now. Try again.");
   return { ok: true };
 }
 

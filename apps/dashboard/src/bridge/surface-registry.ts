@@ -26,6 +26,7 @@ import {
   contentPlaceOf,
   type RecordKind,
   UUID,
+  keysOf,
 } from "@chanlytics/contracts";
 
 import {
@@ -306,9 +307,7 @@ export function ownsTheScreen(key: string, route: string): boolean {
 
 /** Each table's kind (contracts RECORD_KINDS), for a cell that names kinds. */
 const KIND_OF: ReadonlyMap<string, RecordKind> = new Map(
-  (Object.entries(RECORD_KINDS) as [RecordKind, readonly string[]][]).flatMap(([kind, tables]) =>
-    tables.map((table) => [table, kind] as const),
-  ),
+  keysOf(RECORD_KINDS).flatMap((kind) => RECORD_KINDS[kind].map((table) => [table, kind] as const)),
 );
 
 /**

@@ -230,8 +230,8 @@ export function readCache<T>(
         store.set(at, value);
         old.delete(at);
         if (opts.tab) words.set(at, said);
-        while (store.size > MAX_ENTRIES) {
-          const first = store.keys().next().value as string;
+        // The oldest go first, as many as the store is over.
+        for (const first of [...store.keys()].slice(0, Math.max(0, store.size - MAX_ENTRIES))) {
           store.delete(first);
           old.delete(first);
           words.delete(first);

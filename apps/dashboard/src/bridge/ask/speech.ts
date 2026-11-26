@@ -165,7 +165,8 @@ function heldClips(api: SpeechDeps["api"]) {
     };
     clips.opening.catch(forget);
     clips.behind?.catch(forget);
-    if (held.size > HELD_READINGS) held.delete(held.keys().next().value as string);
+    const oldest = held.size > HELD_READINGS ? held.keys().next().value : undefined;
+    if (oldest !== undefined) held.delete(oldest);
     return clips;
   };
 }
