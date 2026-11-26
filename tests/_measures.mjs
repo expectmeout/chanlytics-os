@@ -452,7 +452,7 @@ export const NO_FACT_DOORS = Object.fromEntries(
  * The vault's doors (a credential put or dropped), each kept from the count only where the connection's own door
  * writes the connect or the disconnect as its event: `{ "door()": { by: "the covering door()", kind } }`, held by
  * repo/measures.test.mjs to a door that exists and writes that kind. A vault door no event covers is counted. The
- * mailbox's and the line's are covered since 00721; the Google profile's comes with 00722, a channel's and a source's
+ * mailbox's and the line's are covered since 00721, the Google profile's since 00722; a channel's and a source's come
  * with 00723.
  */
 export const VAULT_DOORS_COVERED = {
@@ -461,6 +461,9 @@ export const VAULT_DOORS_COVERED = {
   "drop_mailbox_credentials()": { by: "mailbox_connection_move()", kind: "mailbox_connection.removed" },
   // A line's provider key kept as the line is provisioned: the line's own row says it answers (lines_tell_their_moves).
   "put_line_credentials()": { by: "lines_tell_their_moves()", kind: "line.answering" },
+  // The Google profile's token kept as its connect finishes, and dropped before its row goes (00722).
+  "put_google_credentials()": { by: "google_connect_finish()", kind: "google.connected" },
+  "drop_google_credentials()": { by: "google_connection_remove()", kind: "google.disconnected" },
 };
 
 /** sql-map.mjs's callers, read once a process: the code's and the scripts' are a walk of every module. */
