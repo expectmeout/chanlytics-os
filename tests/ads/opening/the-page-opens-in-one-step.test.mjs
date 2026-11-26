@@ -24,7 +24,8 @@ installStubReact({ CHANLY: { nav() {} } });
 const S = "../../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { api } = await import(`${S}/bridge/api.ts`);
-const { readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
+const { readAdsAhead, readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
+const { warmAds } = await import(`${S}/surfaces/campaigns/ads/warm.ts`);
 const { read } = await import(`${S}/bridge/api.ts`);
 const { getActiveWorkspace } = await import(`${S}/bridge/workspace.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
@@ -83,7 +84,7 @@ const PAGE = {
 };
 
 /** What the routes answer, and what was asked of them, by path. */
-const route = { account: CARD, accountFails: false, accountHangs: false, asked: [] };
+const route = { account: CARD, accountFails: false, accountHangs: false, pageHangs: false, asked: [] };
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input) => {
   const url = new URL(String(input instanceof Request ? input.url : input), "https://app.example.org");
@@ -96,7 +97,10 @@ globalThis.fetch = async (input) => {
       return new Response(JSON.stringify({ ok: false, error: { message: "no" } }), { status: 500 });
     return json(route.account);
   }
-  if (url.pathname === "/api/v1/ads/page") return json(route.account.meta ? PAGE : null);
+  if (url.pathname === "/api/v1/ads/page") {
+    if (route.pageHangs) return new Promise(() => {});
+    return json(route.account.meta ? PAGE : null);
+  }
   return json({ series: { first_came: { by_via: {} }, today: "2026-11-20", days: 30 }, now: null });
 };
 const realNow = Date.now;
@@ -106,9 +110,9 @@ after(() => {
 });
 
 /** What the routes answer from here, a clean count of what is asked, and a fresh page. */
-function opening({ account = CARD, fails = false, hangs = false } = {}) {
+function opening({ account = CARD, fails = false, hangs = false, pageHangs = false } = {}) {
   api().forget();
-  Object.assign(route, { account, accountFails: fails, accountHangs: hangs, asked: [] });
+  Object.assign(route, { account, accountFails: fails, accountHangs: hangs, pageHangs, asked: [] });
   fresh();
   return () => AdsPage({ param: "ads" });
 }
@@ -116,7 +120,7 @@ function opening({ account = CARD, fails = false, hangs = false } = {}) {
 /** The boot's first reads, as the settings read asks for them, over what the routes answer for `account`. */
 async function firstReads(account) {
   api().forget();
-  Object.assign(route, { account, accountFails: false, accountHangs: false });
+  Object.assign(route, { account, accountFails: false, accountHangs: false, pageHangs: false });
   // As the settings read asks them where the tab opened on Ads (bridge/surfaces/settings.ts).
   await readAdsOpening({ read, route: "campaigns/ads", workspace: getActiveWorkspace() });
 }
@@ -191,5 +195,42 @@ test("an answer read in another workspace is never drawn: the page reads its own
     assert.deepEqual(pageAsked(), ["/api/v1/ads/account"], "its own account, read");
   } finally {
     globalThis.location.pathname = where;
+  }
+});
+
+test("read ahead from Content, the page is drawn whole at its first draw, and asks nothing again", async () => {
+  await firstReads(CARD);
+  // What the boot read has aged by the time Content reads ahead: it is read again, once.
+  const later = realNow() + 5 * 60_000;
+  Date.now = () => later;
+  try {
+    route.asked = [];
+    assert.equal(await warmAds(), true, "both held");
+    assert.deepEqual(pageAsked().toSorted(), ["/api/v1/ads/account", "/api/v1/ads/page"], "each read once");
+    const draw = opening();
+    const first = draw();
+    assert.ok(byTestId(first, "ads-live"), "the ads, at the press");
+    assert.equal(byTestId(first, "ads-held-loading"), null, "no line that loads");
+    assert.ok(byTestId(again(draw), "ads-live"));
+    assert.deepEqual(pageAsked(), [], "the read ahead is the page's first answer");
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("asked ahead twice while the reads are out, the account and its ads are read once", async () => {
+  await firstReads(CARD);
+  const later = realNow() + 10 * 60_000;
+  Date.now = () => later;
+  try {
+    route.asked = [];
+    const io = { read, workspace: getActiveWorkspace() };
+    const [one, two] = await Promise.all([readAdsAhead(io), readAdsAhead(io)]);
+    assert.ok(one && two, "both held");
+    assert.deepEqual(pageAsked().toSorted(), ["/api/v1/ads/account", "/api/v1/ads/page"]);
+    assert.deepEqual(await readAdsAhead(io), one, "and nothing more while they stand");
+    assert.deepEqual(pageAsked().toSorted(), ["/api/v1/ads/account", "/api/v1/ads/page"]);
+  } finally {
+    Date.now = realNow;
   }
 });
