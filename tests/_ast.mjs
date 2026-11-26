@@ -1460,10 +1460,26 @@ function pathPieces(arg) {
 const REPLAYS = /\.db\.test\.mjs$|(^|\/)_db[^/]*\.mjs$/;
 const MIGRATION_PATH = /(^|\/)supabase\/migrations\//;
 
+/** The calls that run a script's text: a read handed straight to one of them is the run, not a read of it. */
+const RUNS_TEXT = new Set(["runInNewContext", "runInThisContext", "runInContext", "compileFunction", "Script"]);
+const calleeName = (e) => (ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? e.name.text : undefined);
+/** Whether a read's text goes straight into vm (`vm.runInNewContext(fs.readFileSync(sw), { self })`, `new vm.Script(…)`). */
+const runsWhatItReads = (call) => {
+  const p = call.parent;
+  return (
+    !!p &&
+    (ts.isCallExpression(p) || ts.isNewExpression(p)) &&
+    (p.arguments ?? []).includes(call) &&
+    RUNS_TEXT.has(calleeName(p.expression) ?? "")
+  );
+};
+
 /**
  * Whether a `readFileSync` call reads source: the file its first argument names last (`path.join(dir, action,
- * "route.ts")`, `` `packages/${p}/src/index.ts` ``) is a source file, the path is not generated output, and it is not a
- * migration a database suite replays (consent-channels.db runs 00323's own statements, as the migration wrote them).
+ * "route.ts")`, `` `packages/${p}/src/index.ts` ``) is a source file, the path is not generated output, it is not a
+ * migration a database suite replays (consent-channels.db runs 00323's own statements, as the migration wrote them), and
+ * its text is not handed straight to vm to run (a service worker is a plain script nothing can import:
+ * shell/phone-shell.test.mjs runs sw.js so).
  */
 function readsSourceDirectly(call, file) {
   if (!isReadFileSync(call) || !call.arguments.length) return false;
@@ -1473,7 +1489,8 @@ function readsSourceDirectly(call, file) {
     pieces.length > 0 &&
     SOURCE_PATH.test(pieces.at(-1)) &&
     !GENERATED.test(named) &&
-    !(REPLAYS.test(file) && MIGRATION_PATH.test(named))
+    !(REPLAYS.test(file) && MIGRATION_PATH.test(named)) &&
+    !runsWhatItReads(call)
   );
 }
 
@@ -1486,7 +1503,8 @@ function readsSourceDirectly(call, file) {
  *     `.json` fixture) is not source;
  *   - directly: each `readFileSync` whose path names a source file by its literal, or by a name bound to one in the
  *     file (readsSourceDirectly), counted where it is written. Generated output is not source (GENERATED), and a
- *     migration a database suite replays is the run, not a read of it (REPLAYS). Until 26 Nov 2026 these went
+ *     migration a database suite replays, or a script's text handed straight to vm, is the run, not a read of it
+ *     (REPLAYS, runsWhatItReads). Until 26 Nov 2026 these went
  *     uncounted: round one of lane 4 found twelve files reading source this way, which the measure did not see.
  * A helper's own `readFileSync` reads its parameter, so a read is counted once, at its call or where it is written.
  */

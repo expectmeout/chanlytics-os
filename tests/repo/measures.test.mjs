@@ -85,8 +85,8 @@ test("a source read through a helper of the file's own counts, a shadowing name 
 
 // A readFileSync of source written where it reads is as much a read as one through a helper: it went uncounted until 26
 // Nov 2026 (round one of lane 4 found twelve files). The path the call names last decides, by its literal or the value a
-// name is bound to; generated output, data, and a migration a database suite replays are not source.
-test("a direct readFileSync of source counts, by its literal or a name bound to one; generated output, data and a replayed migration do not", () => {
+// name is bound to; generated output, data, a migration a database suite replays and a script run in vm are not read.
+test("a direct readFileSync of source counts, by its literal or a name bound to one; generated output, data, a replayed migration and a script run in vm do not", () => {
   const sf = source(`
     import fs from "node:fs";
     const ROOT = path.resolve(here, "../..");
@@ -101,8 +101,14 @@ test("a direct readFileSync of source counts, by its literal or a name bound to 
     const g = fs.readFileSync(path.join(ROOT, OUT), "utf8");
     const h = fs.readFileSync(path.join(ROOT, "supabase/migrations/00439_the_business_has_one_name.sql"), "utf8");
     const i = fs.readFileSync(path.join(dir, files.find((x) => x.endsWith(".sql"))), "utf8");
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT, "apps/dashboard/public/sw.js"), "utf8"), { self });
+    const j = new vm.Script(fs.readFileSync(path.join(ROOT, "apps/dashboard/public/sw.js"), "utf8"));
   `);
-  assert.equal(sourceReads(sf), 4, "proxy.ts, kit.css by its name, route.ts, and the migration a plain test reads");
+  assert.equal(
+    sourceReads(sf),
+    4,
+    "proxy.ts, kit.css by its name, route.ts, and the migration a plain test reads: a script run in vm is the run",
+  );
   const replayed = source(
     `const m = fs.readFileSync(path.join(ROOT, "supabase/migrations/00439_the_business_has_one_name.sql"), "utf8");`,
     "public/the-business-has-one-name.db.test.mjs",
