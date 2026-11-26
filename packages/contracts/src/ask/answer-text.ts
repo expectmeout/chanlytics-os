@@ -35,6 +35,7 @@ export function cleanAnswer(raw: string): string {
  * ("Dr. Lin", "Oct. 13", "St. Louis"). A single letter (an initial) and a word with a dot inside it ("U.S.", "a.m.")
  * are not ends either.
  */
+// screen-word: not words, the abbreviations a sentence's stop may follow (docs/words.md, "Kept on purpose")
 const NOT_AN_END = new Set(
   "mr mrs ms dr st sr sra srta jr vs no etc approx inc ltd co ave blvd mt ft jan feb mar apr jun jul aug sep sept oct nov dec ene abr ago dic".split(
     " ",

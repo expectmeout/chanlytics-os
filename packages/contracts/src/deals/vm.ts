@@ -378,6 +378,7 @@ export function openDealsOf(
  * is still read (00154) -- that link's own rule stands for a price question,
  * so the proposal's sentence points at it instead of promising a follow-up.
  */
+// screen-word: said to AI before it answers this person, never shown (docs/words.md, "Kept on purpose")
 export function dealSentence(
   dealFacts: DealFacts | null | undefined,
   nowMs: number,

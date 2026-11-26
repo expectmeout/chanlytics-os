@@ -24,8 +24,10 @@ export const ASK_MORNING_CARDS_MAX = 3;
  * writes no Say of its own: the head says how the day stands, and nothing draws the morning's sentence, so its answer
  * says only how many cards it made.
  */
+// screen-word: said to AI as the member, never shown (docs/words.md, "Kept on purpose")
 const MORNING_HEAD =
   "Good morning. Look at my day: what is due, what happened since yesterday, what you remember about the business, and the lead finder's ideas if Leads has any. The people waiting on me already have their replies or call briefs drafted on Today, and the sends waiting for my OK are under Your approval there, so make no card that only answers or calls back someone who is waiting, or that approves or skips a send.";
+// screen-word: said to AI as the member, never shown (docs/words.md, "Kept on purpose")
 const MORNING_TAIL =
   "Give me at most three other things worth doing first, each as a card I can approve: its title the act in a few words, its line why it comes first, without repeating the name. Today already says how my day stands, so say only how many cards you made, in a few words. If nothing else is worth doing, say so in a few words and make no card.";
 export const ASK_MORNING_QUESTION = `${MORNING_HEAD} ${MORNING_TAIL}`;
@@ -36,6 +38,7 @@ export const ASK_MORNING_QUESTION = `${MORNING_HEAD} ${MORNING_TAIL}`;
  * changed in Ask's drafts shows a lasting habit Ask does not already remember, in any words, one card may be a line about
  * how they write, which waits for their press (act/remember.ts). A morning with nothing edited asks nothing of it.
  */
+// screen-word: said to AI as the member, never shown (docs/words.md, "Kept on purpose")
 export const ASK_MORNING_EDITED_QUESTION = `${MORNING_HEAD} I edited cold emails since yesterday: read them (the campaigns tool's edited). Where what I changed in your drafts shows a lasting habit in how I write them that you don't already remember, in any words, one card may be a line to remember about it, starting "In cold emails:". ${MORNING_TAIL}`;
 
 /** Whether a turn is the morning's, asked either way: a turn Ask asks itself, which holds no words of the member's. */

@@ -343,6 +343,7 @@ export function waitingCardsWords(
     return [`“${p.plan?.head?.title ?? p.title}” (${p.id})${terms ? `: ${terms}` : ""}`];
   });
   if (named.length === 0) return null;
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   return `Cards waiting in this conversation for their press, each with its own terms (say what a card does from these, never from memory): ${named.slice(-WAITING_NAMED).join("; ")}.`;
 }
 

@@ -54,6 +54,7 @@ export interface LeadCardBrief {
   calibrated?: { build: string; on: string; items: number; mapped: number } | null;
 }
 
+// screen-word: each card's goodFor is said to AI and never shown; the people card's rights say in full how its people were found and what is kept (docs/words.md, "Kept on purpose")
 export const LEAD_CARDS: readonly LeadCardBrief[] = [
   {
     id: "local_businesses",
