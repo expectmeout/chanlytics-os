@@ -2,14 +2,15 @@
  * The back office's boundary: one door, every platform route asking the database who calls, support seeing the
  * customer's own Setup and no member's email, and the line acts offered only where they would run, saying their cost.
  */
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { setupSteps, platformLineActions, platformActionWarning } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../../../_source.mjs";
+import { setupSteps, platformLineActions, platformActionWarning, platformRows } from "@chanlytics/contracts";
+import { importSrc, readRaw } from "../../../_source.mjs";
 import { fakeDb } from "../../../_fake-db.mjs";
+const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
 import { setupDtoFor } from "../../../../apps/dashboard/src/server/setup/setup.ts";
 import {
   GUARDED,
@@ -120,70 +121,70 @@ test("every route under /api/v1/platform asks the database who is calling", () =
 // console/back-office/platform-routes.test.mjs ("the back office's door", "behind the door: the overview is the
 // database's own list"). Pinned as the guard's text until 25 Nov 2026.
 
-test("support sees the customer's own Setup, from the customer's own function", () => {
-  // The claim this surface makes is that support and the customer are looking
-  // at the same rows. That is only true while it is literally one function, so
-  // the assembly was lifted out of the route rather than copied.
-  const assembly = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.match(assembly, /export async function setupDtoFor\(/);
-  assert.match(
-    assembly,
-    /supabase: SupabaseClient<Database>/,
-    "the client is an argument, so either caller may pass its own",
-  );
-
-  // The customer's route reads through its reader (readers/connections.ts), which is where the call now is; the
-  // route and the reader are held to the one assembly alike. ask/readers/ runs the route: setupDtoFor's own reads.
-  const [own, route] = [
-    "apps/dashboard/src/server/readers/connections.ts",
-    "apps/dashboard/app/api/v1/setup/route.ts",
-  ].map((file) => readCode(file));
-  assert.match(
-    own,
-    /setupDtoFor\(rc\.ctx\.supabase, rc\.tenantId, \{ kind: "member" \}, rc\.now\)/,
-    "the customer reads their own on the session client",
-  );
-  for (const src of [own, route])
-    assert.ok(
-      !src.includes("getTenantConfig"),
-      "REGRESSION: the assembly is back inside the route, where a second copy can grow",
-    );
-
-  const office = readCode("apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts");
-  assert.match(
-    office,
-    /setupDtoFor\(office\.db, id, \{ kind: "back_office" \}\)/,
-    "and support reads theirs through the same function",
-  );
-  // The viewer is a TYPE, not a role string. "owner" was a lie the type system
-  // could not catch, and it 500'd every detail read on team_roster.
-  assert.ok(!/setupDtoFor\([^)]*"owner"/.test(office), "REGRESSION: the back office claiming to be an owner");
-  assert.match(office, /listPlatformEvents\(office, id\)/, "with the trail emitEvent has been writing all along");
-  assert.ok(!office.includes('supabase.from("tenant_config")'), "no second assembly");
+test("support sees the customer's own Setup, from the customer's own function", async () => {
+  // The claim this surface makes is that support and the customer are looking at the same rows. That is only true while
+  // it is literally one function (server/setup setupDtoFor), its client an argument, so either caller passes its own:
+  // the customer reads theirs on the session client through their reader (GET setup answers its reader's payload, key
+  // for key: ask/readers/, "connections, for the page"), and support reads theirs, here, through the Console's page of
+  // a workspace, on the service client.
+  const tenantRoute = await importSrc("apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts");
+  const harbor = { id: TENANT, slug: "harbor", name: "Harbor Moving", status: "active", created_at: ago(30) };
+  setServiceClient(fakeDb({ ...workspaceTables(), tenants: [harbor], events: [] }));
+  try {
+    const page = await tenantRoute.GET.run(new Request("http://localhost/api/v1/platform/tenants/x"), {
+      supabase: fakeDb({}, {}, { platform_staff_state: () => "owner" }),
+      userId: "u-staff",
+      email: "alex@chanlytics.com",
+      params: { id: TENANT },
+    });
+    const own = await setupDtoFor(fakeDb({ ...workspaceTables(), tenants: [harbor] }), TENANT, { kind: "back_office" });
+    const same = (s) => ({ ...s, now: undefined, fetched_at: undefined });
+    assert.deepEqual(same(page.setup), same(own), "the customer's own assembly, as support reads it");
+    // The viewer is a TYPE, not a role string: "owner" routed it through team_roster, whose first statement asks who is
+    // signed in, and 500'd every detail read. The service client here models no RPC at all, so a roster asked for would
+    // have thrown: the team is counted (above, "no member's email crosses the tenant boundary").
+    assert.ok(Array.isArray(page.events), "with the trail emitEvent has been writing all along");
+  } finally {
+    setServiceClient(null);
+  }
 });
 
-test("the nav's one bit rides on the payload the seam already fetches", () => {
-  const route = readCode(
-    "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/list.ts",
-  );
-  // Read beside the boot's other reads, not after them (2 Oct 2026): one of the answers the route awaits together.
-  assert.match(
-    route,
-    /\[tenants, profileRead, platformAdmin, [\s\S]*?\] = await Promise\.all\(\[[\s\S]*?isPlatformAdmin\(ctx\),/,
-  );
-  assert.match(route, /platform_admin: platformAdmin/);
-  // Both exits carry it: the one with workspaces and the one for somebody who
-  // has none yet. A missing field reads as false and hides the tab from an
-  // admin whose only workspace was removed.
-  assert.equal((route.match(/platform_admin: platformAdmin/g) ?? []).length, 2);
-  const bridge = readCode("apps/dashboard/src/bridge/who.ts");
-  assert.match(bridge, /platform_admin\?: boolean;/);
-  // It is not the authorization, and the comment says so where somebody would
-  // otherwise be tempted to trust it.
-  assert.match(readRaw("apps/dashboard/src/server/workspace/list.ts"), /NOT the authorization/);
+test("the nav's one bit rides on the payload the seam already fetches", async () => {
+  // GET /api/v1/workspaces answers whether this session is on the Console's staff, beside the boot's other reads, and
+  // on both of its exits: with workspaces, and for somebody who has none yet. A missing field reads as false and hides
+  // the tab from an admin whose only workspace was removed. It is not the authorization: the Console asks the database
+  // itself (the door above), and a customer who is told true by no one learns nothing.
+  const workspacesRoute = await importSrc("apps/dashboard/app/api/v1/workspaces/route.ts");
+  // An invitation waiting for this address is read on the service role (best effort): none here.
+  setServiceClient(fakeDb({ invitations: [] }));
+  after(() => setServiceClient(null));
+  const ask = (state, memberships) =>
+    workspacesRoute.GET.run(new Request("http://localhost/api/v1/workspaces"), {
+      supabase: fakeDb(
+        {
+          memberships,
+          tenants: memberships.length ? [{ id: TENANT, slug: "harbor", name: "Harbor Moving", status: "active" }] : [],
+          profiles: [],
+        },
+        {},
+        { platform_staff_state: () => state, handovers_mine: () => [] },
+      ),
+      userId: "u-staff",
+      email: "alex@chanlytics.com",
+      params: {},
+      metadata: {},
+    });
+  const seat = [
+    { user_id: "u-staff", tenant_id: TENANT, role: "owner", tenants: { slug: "harbor" }, created_at: ago(30) },
+  ];
+  for (const [state, admin] of [
+    ["owner", true],
+    ["needs_second_factor", true],
+    ["none", false],
+  ]) {
+    assert.equal((await ask(state, [])).user.platform_admin, admin, `${state}: with no workspace yet`);
+    assert.equal((await ask(state, seat)).user.platform_admin, admin, `${state}: with one`);
+  }
 });
 
 test("the back office's Setup read touches no function that asks who is signed in", async () => {
@@ -332,42 +333,47 @@ test("REGRESSION (S14): Setup reads what was asked for per thing, from the event
   );
 });
 
-test("the service-role client cannot be obtained without passing the check", () => {
-  // The first version exported `platformDb()` — no arguments, no relationship to
-  // the guard — and relied on a test walking ONE directory to prove nothing else
-  // imported it. A grep cannot see the route that has not been written yet.
-  const src = readCode(...GUARDED);
-  assert.ok(
-    !/export function platformDb|export async function platformDb/.test(src),
-    "REGRESSION: a service-role client handed to any importer",
-  );
-  assert.match(
-    src,
-    /import \{ serviceDb \} from "\.\/service-db";/,
-    "the dashboard's one service client, kept to this module",
-  );
-  assert.ok(!/export .*serviceDb/.test(src));
-  // The only way to a client is a handle only the check can make, and the brand
-  // stops an object literal standing in for one.
-  assert.match(src, /declare const backOfficeBrand: unique symbol;/);
-  assert.match(src, /export async function getBackOffice\(ctx: RouteContext\): Promise<BackOffice>/);
-  assert.match(src, /const state = await staffState\(ctx\);/);
-  // Every cross-tenant read takes the handle rather than reaching for a client.
-  for (const [fn, tail] of [
-    ["listPlatformOverview", "\\)"],
-    ["findPlatformTenant", ","],
-    ["listPlatformEvents", ","],
-  ]) {
-    assert.match(src, new RegExp(`export async function ${fn}\\(\\s*office: BackOffice\\s*${tail}`), fn);
+test("the service-role client cannot be obtained without passing the check", async () => {
+  // The first version exported `platformDb()` -- no arguments, no relationship to the guard -- and relied on a test
+  // walking ONE directory to prove nothing else imported it. The modules, as an importer meets them: no client is
+  // handed out, only a handle the check makes (server/shared/back-office.ts getBackOffice), and every cross-tenant read
+  // takes the handle rather than reaching for a client (its brand is the compiler's to hold).
+  for (const rel of GUARDED) {
+    const surface = Object.keys(await importSrc(rel));
+    for (const name of ["platformDb", "serviceDb"]) assert.ok(!surface.includes(name), `${rel} hands out no ${name}`);
   }
-  // A database that cannot answer is not a "no". Telling a real admin "No such
-  // page" during a Postgres hiccup is the moment they opened this for.
-  assert.match(src, /if \(error\) throw new AppError\("unavailable", /);
-  // And the unbounded event payload does not go to the browser to be discarded: the read is packages/db's (decision 0111).
-  const reads = readCode("packages/db/src/repositories/ops/console.ts");
-  assert.match(src, /listWorkspaceEvents\(office\.db, tenantId, limit\)/);
-  assert.match(reads, /\.select\("kind, category, subject_type, created_at"\)/);
-  assert.ok(!/select\("kind, category, subject_type, created_at, data"\)/.test(reads));
+  const { getBackOffice } = await importSrc("apps/dashboard/src/server/shared/back-office.ts");
+  const asked = (state) =>
+    getBackOffice({
+      supabase: fakeDb({}, {}, { platform_staff_state: () => state }),
+      userId: "u1",
+      email: null,
+      params: {},
+    });
+  await assert.rejects(asked("none"), (e) => e.code === "not_found", "a customer is told there is no such page");
+  await assert.rejects(asked("needs_second_factor"), (e) => e.code === "mfa_required");
+  // A database that cannot answer is not a "no": run through the routes in console/back-office/platform-routes.test.mjs
+  // ("the back office's door").
+  setServiceClient(fakeDb({}));
+  const office = await asked("support");
+  setServiceClient(null);
+  assert.equal(office.role, "support");
+  // And the unbounded event payload does not go to the browser to be discarded: the read is packages/db's (decision
+  // 0111), and asks for the columns the page draws, as many as it shows.
+  const { listPlatformEvents } = await importSrc("apps/dashboard/src/server/console/platform.ts");
+  const db = fakeDb({
+    events: Array.from({ length: 8 }, (_, i) => ({
+      tenant_id: TENANT,
+      kind: "setup.requested",
+      category: "setup",
+      subject_type: "setup",
+      data: { secret: "the payload stays in the database" },
+      created_at: ago(i + 1),
+    })),
+  });
+  const events = await listPlatformEvents({ ...office, db }, TENANT, 5);
+  assert.equal(events.length, 5, "as many as it shows");
+  assert.ok(!JSON.stringify(events).includes("the payload stays"), "and never the payload");
 });
 
 test("an action that would be refused is not offered", () => {
@@ -483,19 +489,9 @@ test("three named operations, and no way to send a fourth", () => {
     assert.ok(!src.includes("getMemberContext("), `${action}: this surface is about workspaces the caller is not in`);
   }
 
-  // And the edge operation each one maps to is a written-out list rather than a
-  // parameter somebody can widen by accident.
-  const server = readCode("apps/dashboard/src/server/console/platform.ts");
-  assert.match(
-    server,
-    /const EDGE_OP: Record<PlatformLineAction, \(tenantId: TenantId, lineId: string\) => EdgeBody<"\/api\/admin\/lines">>/,
-  );
-  assert.match(server, /refile: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true \}\)/);
-  assert.match(
-    server,
-    /replace: \(tenant_id, line_id\) => \(\{ op: "register", tenant_id, line_id, refile: true, replace: true \}\)/,
-  );
-  assert.ok(!/op: (body|action|op)\b/.test(server), "the op is never taken from the caller");
+  // And the edge operation each one maps to is a written-out list rather than a parameter somebody can widen by
+  // accident: each route's edge body, run, in console/console-routes.test.mjs ("each line act is its own edge
+  // operation"). Pinned as platform.ts's text until 26 Nov 2026.
 });
 
 // No cross-tenant action happens that nobody can be held to: an act is written down with who, their role, where and
@@ -505,14 +501,23 @@ test("three named operations, and no way to send a fourth", () => {
 test("the back office is read on demand, not published to every browser", async () => {
   // A surface would make every customer's browser fetch a page it will never be
   // allowed to see, on every boot, for two accounts' benefit.
-  const bridge = readCode("apps/dashboard/src/bridge/platform.ts");
-  assert.ok(!bridge.includes("SurfaceOverride"), "not a surface");
-  assert.ok(
-    bridge.includes("rows: platformRows") && bridge.includes("steps: setupSteps"),
-    "the judgement and the customer's rows both come from contracts",
+  // The bridge (bridge/platform.ts), as an importer meets it: verbs read on demand and no surface to start, the
+  // judgement and the customer's rows both contracts' own functions, and nothing to publish on the window (O4b).
+  const bridge = await importSrc("apps/dashboard/src/bridge/platform.ts");
+  assert.deepEqual(Object.keys(bridge), ["backOffice"], "verbs, and no surface or installer of their own");
+  const tenants = [{ id: TENANT, slug: "harbor", name: "Harbor Moving", status: "active", created_at: ago(30) }];
+  const now = Date.parse("2026-11-26T12:00:00Z");
+  assert.deepEqual(
+    bridge.backOffice.verbs.rows(tenants, now),
+    platformRows(tenants, now),
+    "the judgement is contracts'",
   );
-  // Nothing reads the verbs off the window (the pane imports them), so nothing publishes them there (O4b).
-  assert.ok(!bridge.includes("installPlatform"), "no window name for the verbs");
+  const fixture = { ...SETUP_FIXTURE, later: [] };
+  assert.deepEqual(
+    bridge.backOffice.verbs.steps(fixture, now),
+    setupSteps(fixture, now),
+    "and so are the customer's rows",
+  );
   assert.ok(!bootRunsOneNamed("installPlatform"), "the frame's boot installs nothing of the back office's");
   // Classified as a real PANE of Settings -- without that line the shell's
   // honesty gate fell through to the page's "demo" and a platform admin who

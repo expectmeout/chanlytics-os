@@ -6,7 +6,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { CONSOLE_PATH } from "@chanlytics/contracts";
 import { all, draw, settings, textOf } from "./_settings-owner-panes.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { PaneWorkspace } = await import("../../../apps/dashboard/src/surfaces/settings/frame/workspace.tsx");
 const { PaneMemory } = await import("../../../apps/dashboard/src/surfaces/settings/memory/pane.tsx");
@@ -48,4 +50,41 @@ test("Settings derives its tab on every draw: the same page, drawn again with an
   const again = draw("billing");
   assert.equal(all(again, (n) => n.type === PaneBillingReal).length, 1, "Billing, drawn over the page that held Hours");
   assert.equal(all(again, (n) => n.type === PaneWorkspace).length, 0, "and not the business's pane it had");
+});
+
+test("Settings' Back office is a link to the Console, for the people it is for and for nobody else", () => {
+  // Not in Settings' own sections: a customer who types the route lands on a pane of theirs rather than on a locked door
+  // they now know about. For the Console's staff (the payload's one bit, platform_admin) the rail ends with The Console,
+  // which opens it, and the old address says where it went (decision 0066: one copy, not two). Read as tabs.ts's and
+  // page.tsx's text in console/back-office/office/ until 26 Nov 2026.
+  const went = [];
+  const assign = globalThis.window.location.assign;
+  globalThis.window.location.assign = (to) => went.push(to);
+  const staff = (yes) =>
+    bridgeHolds({ who: { me: { email: "alex@chanlytics.com", role: "owner", platform_admin: yes } } });
+  try {
+    staff(false);
+    const customer = settings("platform");
+    assert.equal(
+      all(customer, (n) => n.props?.["data-testid"] === "set-nav-platform").length,
+      0,
+      "no row for a customer",
+    );
+    assert.equal(all(customer, (n) => n.props?.["data-testid"] === "set-console").length, 0, "nor the Console's pane");
+    staff(true);
+    const theirs = settings("platform");
+    const [row] = all(theirs, (n) => n.props?.["data-testid"] === "set-nav-platform");
+    assert.ok(row, "the rail's row for staff");
+    assert.match(textOf(row), /The Console/);
+    assert.equal(
+      all(theirs, (n) => n.props?.["data-testid"] === "set-console").length,
+      1,
+      "and the old address says where it went",
+    );
+    row.props.onClick();
+    assert.deepEqual(went, [CONSOLE_PATH], "the row opens the Console");
+  } finally {
+    globalThis.window.location.assign = assign;
+    bridgeHolds({ who: { me: undefined } });
+  }
 });
