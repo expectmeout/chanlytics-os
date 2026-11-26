@@ -10,10 +10,11 @@ import assert from "node:assert/strict";
 import { toTodayVM, QUOTE_MAX, leadQuestionRoute } from "@chanlytics/contracts";
 import { todayBriefWords } from "../../apps/dashboard/src/surfaces/today/brief-words.ts";
 import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { DESK, PHONE, givenOn } from "../_css.mjs";
 import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
-import { installStubReact, fresh, again, all, find, byTestId, textOf } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, classes } from "../_stub-react.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 // People's cells, from the code the page draws its rows with (surfaces/people/cells/columns.tsx).
@@ -466,13 +467,23 @@ const rowsDrawn = (vm, runs) => {
   }
 };
 
-test("the wiring: one row component for People and Today, the queue in the command slot, the hero keeping only the narrative, the runs split between them", () => {
-  const bits = readCode("apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
-  assert.ok(
-    bits.includes("export function AttnRow") &&
-      globalThis.window.AttnRow === AttnRow &&
-      bits.includes('className="cl-attn-acts"'),
-    "the grammar lives in one place, and it is the row the shell publishes for the pages that still draw it by name",
+test("the wiring: one row component for People and Today, the queue in the command slot, the hero keeping only the narrative, the runs split between them", async () => {
+  // The grammar lives in one place, and it is the row the shell publishes for the pages that still draw it by name: its
+  // verbs, the quiet one then the first, in the one place a row's acts stand (pinned as attn-row.tsx's text until 26 Nov 2026).
+  assert.equal(globalThis.window.AttnRow, AttnRow);
+  fresh();
+  const row = again(() =>
+    AttnRow({
+      name: "Daniela R.",
+      initials: "DR",
+      cta: { label: "Open and reply", onClick() {} },
+      also: { label: "Snooze", onClick() {} },
+    }),
+  );
+  const acts = find(row, (n) => classes(n).includes("cl-attn-acts"));
+  assert.deepEqual(
+    all(acts, (n) => n.type === "button").map((b) => textOf(b).trim()),
+    ["Snooze", "Open and reply"],
   );
   // The Inbox's Needs you and People draw the kit's row; Today's queue draws a line of its list for each of the day's rows
   // that waits (Today, calm, D1: the card, then lines).
@@ -552,36 +563,44 @@ test("the wiring: one row component for People and Today, the queue in the comma
     ),
     "People says it on the row, once",
   );
-  const queue = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-  for (const s of [
-    // One list of lines under the card (Today, calm), named for what it holds.
-    'testid="today-queue"',
-    // The day is the seam's (surface-values.ts), where the JSX read window.TODAY_DATA.
-    'surfaceValue("today")',
-    // The list draws from its model (need-you-model.ts), which the page and the head read too, with the card the page's
-    // arrangement names; what the model hears is executed in zones/need-you-acts.test.mjs.
-    "<NeedYouList vm={vm} model={model} card={card} evening={evening} beat={beat} />",
-  ])
-    assert.ok(queue.includes(s), s);
-  assert.ok(
-    queue.includes("W.title") && !queue.includes("Agent Command"),
-    "the queue, not a command bar; the seed is gone",
+  // One list of lines under the card (Today, calm), named for what it holds, drawn from the day the seam holds (above:
+  // rowsDrawn sets it there and nowhere else); the list draws from its model, with the card the page's arrangement names,
+  // and what the model hears is executed in zones/need-you-acts.test.mjs (pinned as need-you.tsx's text until 26 Nov 2026).
+  const { NEED_YOU_WORDS } = await import("@chanlytics/contracts");
+  const list = byTestId(tree, "today-queue");
+  assert.equal(list.props["aria-label"], NEED_YOU_WORDS.title, "the queue, not a command bar");
+  assert.ok(!textOf(tree).includes("Agent Command"), "the seed is gone");
+  assert.equal(
+    find(list, (n) => classes(n).includes("tq-count")),
+    null,
+    "no count over rows that say it",
   );
-  assert.ok(!queue.includes("tq-count"), "no count over rows that say it");
-  const css = readRaw("apps/dashboard/src/styles/dashboard-a-v2.css");
-  assert.ok(css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
-  const attn = readRaw("apps/dashboard/src/styles/clients.css");
-  assert.ok(attn.includes(".cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }"));
+  // The row's looks, asked of Today's sheet and the row's own as the build's parser reads them (tests/_css.mjs givenOn;
+  // pinned as dashboard-a-v2.css's and clients.css's text until 26 Nov 2026).
+  const TODAY_SHEET = "apps/dashboard/src/styles/dashboard-a-v2.css";
+  const ROW_SHEET = "apps/dashboard/src/styles/clients.css";
+  assert.equal(
+    givenOn(TODAY_SHEET, ".tq-list .cl-attn-row:first-child", DESK)["border-top"],
+    "none",
+    "the card draws the queue's top edge, not its first row",
+  );
+  const verbs = givenOn(ROW_SHEET, ".cl-attn-acts", DESK);
+  assert.deepEqual(
+    [verbs.display, verbs["align-items"], verbs.gap],
+    ["inline-flex", "center", "6px"],
+    "the verbs in a row",
+  );
   // The line a person decides from gets TWO lines, with a real ellipsis past
   // them; one line cut 23% off a call-back summary at 1440, including who the
   // caller had asked to speak to.
-  assert.ok(
-    attn.includes("-webkit-line-clamp: 2;") &&
-      !attn.includes(
-        ".cl-attn-sentence { font-size: 12px; color: var(--ink-muted); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }",
-      ),
-    "two lines, not one",
-  );
+  for (const screen of [PHONE, DESK]) {
+    const line = givenOn(ROW_SHEET, ".cl-attn-sentence", screen);
+    assert.deepEqual(
+      [line.display, line["-webkit-line-clamp"], line["white-space"]],
+      ["-webkit-box", "2", undefined],
+      `two lines, not one, ${screen.width}px wide`,
+    );
+  }
 });
 
 test("REGRESSION: a long message is cut at a word with an ellipsis, not mid-word at a length the row could not draw", () => {

@@ -692,6 +692,51 @@ test("one list: an operator where it lives; rename, add and remove in one reques
   await refused(list.DELETE.run(send("DELETE"), ctxFor(tables, { id: S2 })), "not_found", 404, "gone");
 });
 
+test("a list's refusals are said in the helper's words: a name taken or too long, too many people at once, a person the database will not put on it; and the changes are counted on the lists' own bucket", async () => {
+  // Pinned as list-write.ts's, lists.ts's and rate-limit.ts's text in people/lists/saved-lists.test.mjs until 26 Nov 2026.
+  const tables = () => ({
+    memberships: both("viewer", "operator"),
+    segments: [{ id: S2, tenant_id: B, name: "VIP" }],
+    segment_members: [],
+  });
+  const said = (p) =>
+    p.then(
+      () => null,
+      (e) => [e.code, e.status, e.message],
+    );
+  assert.deepEqual(
+    await said(lists.POST.run(send("POST", { name: "VIP" }, `?workspace=${B}`), ctxFor(tables()))),
+    ["conflict", 409, "A list with that name already exists."],
+    "one name a workspace, said in the words Ask's card refuses in too",
+  );
+  assert.deepEqual(
+    await said(lists.POST.run(send("POST", { name: "x".repeat(61) }, `?workspace=${B}`), ctxFor(tables()))),
+    ["validation", 400, "A list needs a name of up to 60 characters."],
+  );
+  const many = Array.from({ length: 501 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+  assert.deepEqual(await said(list.PUT.run(send("PUT", { add: many }), ctxFor(tables(), { id: S2 }))), [
+    "validation",
+    400,
+    "At most 500 people at a time.",
+  ]);
+  // The database's own refusal of a person of another workspace, or one erased (00044's with-check), gets words.
+  const refusing = {
+    supabase: fakeDb(tables(), {
+      "segment_members.upsert": { code: "42501", message: "new row violates row-level security policy" },
+    }),
+    userId: USER,
+    email: "ada@example.com",
+    params: { id: S2 },
+  };
+  assert.deepEqual(await said(list.PUT.run(send("PUT", { add: [P3] }), refusing)), [
+    "validation",
+    400,
+    "One of those people is not in this workspace any more.",
+  ]);
+  const { RATE } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
+  assert.deepEqual([RATE.lists.limit, RATE.lists.windowMs, RATE.lists.noun], [60, 60_000, "list changes"]);
+});
+
 test("the list pages under one order and counts everyone: the door is named a query, an offset or a limit only when they leave their defaults", async () => {
   const asked = [];
   const rpcs = {
