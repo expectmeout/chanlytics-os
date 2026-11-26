@@ -55,7 +55,7 @@ export async function sweepRegistrations({ db, L }: SweepTick): Promise<Response
   // A refused line, only with its campaign on file (above).
   const { data: lines, error } = await listLinesAwaitingCarriers(db, ASKED, REGISTRATIONS_PER_TICK);
   if (error) return refuseFailure(503, "read_failed", error);
-  if (!lines?.length) return json(200, { ok: true, checked: 0 });
+  if (!lines.length) return json(200, { ok: true, checked: 0 });
 
   const origin = dashboardOrigin();
   let filed = 0;

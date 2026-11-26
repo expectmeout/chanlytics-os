@@ -60,7 +60,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { NO_ADS_DOORS, metaAdsApp, signInOf } from "./account-ops.js";
-import { approvedOf, endOfDayIn } from "./launch-parts.js";
+import { approvedOf, endOfDayIn } from "./launch/parts.js";
 import type { MetaSignIn } from "./meta-facts.js";
 import { ADS_USAGE_HOLD_PCT, mayAskMeta, readAfterOf } from "./pace.js";
 import { mayTellNow, type AdsWrites } from "./tell.js";

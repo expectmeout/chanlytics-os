@@ -85,7 +85,7 @@ being read is dropped by a migration.
 | `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_launch_keep`, `ad_pause_all` and 1 more | Service-role only: an owner's press that the platform will not take yet (00652). |
 | `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
 | `ad_touches_of` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/touches.ts` | The shared record's reader over ad_entries for a thread (the content loop PRD's Appendix A.2; |
-| `ad_turn_on` | the server's | the server | code `apps/edge/lib/ads/approval.ts`, `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666, 00710; |
+| `ad_turn_on` | the server's | the server | code `apps/edge/lib/ads/launch/approval.ts`, `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666, 00710; |
 | `ad_way_in_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what stands between each running ad made here and AI answering the chat it opens, as one read of its account worked it out (00676; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |

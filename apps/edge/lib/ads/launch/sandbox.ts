@@ -8,8 +8,8 @@
  */
 import { createHash } from "node:crypto";
 import { metaAreaSent, type MetaAdsAnswer, type MetaCampaignHeld, type callMetaAds } from "@chanlytics/channels/ads";
-import { LAUNCH_PLACES, type LaunchApproved, type LaunchMoment } from "./launch-parts.js";
-import { launchNameOf } from "./tag.js";
+import { LAUNCH_PLACES, type LaunchApproved, type LaunchMoment } from "./parts.js";
+import { launchNameOf } from "../tag.js";
 
 /** One request to Meta, as the wire sends it. */
 type MetaRequest = Parameters<typeof callMetaAds>[0];
