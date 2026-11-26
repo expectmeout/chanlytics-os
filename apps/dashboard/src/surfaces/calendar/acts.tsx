@@ -62,8 +62,7 @@ export function refreshAct(p: { refreshing: boolean; setRefreshing: (on: boolean
  */
 export function swipePagesOf(move: (n: number) => void) {
   return (el: Element, from: EventTarget | null): ViewPage | null => {
-    const near = from as { closest?: (selector: string) => unknown } | null;
-    const owner = near && near.closest ? near.closest(OWN_TOUCH) : null;
+    const owner = from instanceof Element ? from.closest(OWN_TOUCH) : null;
     return owner && owner !== el
       ? null
       : { prev: true, next: true, drag: stayPut, settle: stayPut, go: (step) => flushChange(() => move(step)) };

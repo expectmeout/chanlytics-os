@@ -178,7 +178,7 @@ const renamingField = (s: RailSearch, p: RailRowsProps) => (
       aria-label="The search's name"
       data-testid="leads-rename-name"
       onKeyDown={(e) => {
-        if (e.key === "Enter") p.onRenameSave(s, (e.target as HTMLInputElement).value);
+        if (e.key === "Enter") p.onRenameSave(s, e.currentTarget.value);
         if (e.key === "Escape") p.onRenameCancel();
       }}
     />

@@ -160,7 +160,8 @@ const pipeLeftColumn = (e: DragEvent<HTMLElement>) =>
     e.relatedTarget &&
     e.currentTarget &&
     e.currentTarget.contains &&
-    e.currentTarget.contains(e.relatedTarget as Node)
+    e.relatedTarget instanceof Node &&
+    e.currentTarget.contains(e.relatedTarget)
   );
 
 /**

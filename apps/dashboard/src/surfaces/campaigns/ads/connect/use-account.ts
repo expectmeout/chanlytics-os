@@ -16,7 +16,7 @@
  * no faster than every half minute (the edge keeps Meta's own pace beside this), and the card then reads what it found.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HOUR_MS, type AdAccountDto } from "@chanlytics/contracts";
+import { HOUR_MS, type AdAccountDto, valueAt } from "@chanlytics/contracts";
 import { api, read } from "@/bridge/api";
 import { adsFirstAnswer, firstAnswerStands } from "@/bridge/surfaces/ads-first-reads";
 import { getActiveWorkspace } from "@/bridge/workspace";
@@ -280,7 +280,8 @@ export function useAdAccount(on: boolean): AdAccountHere {
     };
     channel.onmessage = (event: MessageEvent) => {
       const data: unknown = event.data;
-      const { outcome: word, why } = (typeof data === "object" && data !== null ? data : {}) as Partial<Returned>;
+      const word = valueAt(data, "outcome");
+      const why = valueAt(data, "why");
       if (typeof word === "string") finish({ outcome: word, why: typeof why === "string" ? why : null });
     };
     // Back on the page with the window gone and no word said: it was closed before Meta finished.

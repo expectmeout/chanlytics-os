@@ -22,6 +22,8 @@ import {
   type BillingVM,
   type BillingInvoiceDto,
   type CheckoutReturn,
+  nonEmptyOrNull,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { api, read } from "@/bridge/api";
@@ -117,10 +119,12 @@ export const billingVerbs: BillingApi = {
   async checkoutInPage(back) {
     const r = await api()("POST billing/checkout", { body: { return: back, embedded: true } });
     if (!r.ok) return { ok: false, message: r.message };
-    const d = r.data as { url?: string; client_secret?: string; publishable_key?: string };
-    if (d.client_secret && d.publishable_key) return { ok: true, secret: d.client_secret, key: d.publishable_key };
-    if (d.url) {
-      window.location.assign(d.url);
+    const secret = nonEmptyOrNull(valueAt(r.data, "client_secret"));
+    const key = nonEmptyOrNull(valueAt(r.data, "publishable_key"));
+    if (secret && key) return { ok: true, secret, key };
+    const url = nonEmptyOrNull(valueAt(r.data, "url"));
+    if (url) {
+      window.location.assign(url);
       return { ok: true, left: true };
     }
     return { ok: false, message: "Checkout could not be opened." };

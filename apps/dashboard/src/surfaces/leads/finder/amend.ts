@@ -74,7 +74,7 @@ export const leadAnswerPlan = async (words: string, set: FinderSet): Promise<Ask
       card = (m.proposals || []).filter((p) => p && p.kind === "lead_search")[0] || null;
     } else if (ev.t === "error") said = ev.text || "";
   });
-  const got = card as AskProposal | null;
+  const got = card;
   const amends = payloadOf(got).amends;
   if (got && (!amends || amends.search_id !== answering.searchId)) {
     // The model proposed a search of its own, or one amending some other search, instead of amending this one:

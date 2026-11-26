@@ -51,7 +51,10 @@ const failureOfRead = (e: unknown): Error => (e instanceof Error ? e : new Error
  * exactly the thing the surface registry exists to prevent.
  */
 export interface WorkspaceSettings {
+  /** The rest of what the stored config holds: the Business tab reads it whole (settings/business/save.tsx Config). */
+  [key: string]: unknown;
   brain?: {
+    [key: string]: unknown;
     business_name?: string;
     phone_display?: string;
     booking_link?: string;

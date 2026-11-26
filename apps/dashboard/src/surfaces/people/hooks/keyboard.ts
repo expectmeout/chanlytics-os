@@ -5,7 +5,7 @@
  * never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a hovered row does
  * (clients.css).
  */
-import { LEAD_PILE_UNDO_KEY } from "@chanlytics/contracts";
+import { LEAD_PILE_UNDO_KEY, isOneOf } from "@chanlytics/contracts";
 import { PL_CONTROL, PL_OVERLAY, plTyping } from "../words";
 
 /**
@@ -47,11 +47,14 @@ export interface KeyDoors {
   } | null;
 }
 
+/** The keys a pile's rail takes as they are pressed (Shift+A aside). */
+const PILE_KEYS = ["a", "l", "n", "c", "1", "2", "3", "4", "5"] as const;
+
 /** The pile's keys: its rail's three, Undo, and the way out; false for any other key. */
 function pileKey(k: NonNullable<KeyDoors["pile"]>, e: KeyboardEvent): boolean {
   const key = e.key.toLowerCase();
   if (key === "a" && e.shiftKey) k.press("A");
-  else if (/^[alnc1-5]$/.test(key)) k.press(key as "a" | "l" | "n" | "c" | "1" | "2" | "3" | "4" | "5");
+  else if (isOneOf(PILE_KEYS, key)) k.press(key);
   else if (key === LEAD_PILE_UNDO_KEY) k.undo();
   else if (key === "escape") k.leave();
   else return false;
@@ -130,7 +133,7 @@ function rowKey(k: KeyDoors, e: KeyboardEvent, from: Element | null): void {
 export function onPageKey(k: KeyDoors | null, e: KeyboardEvent): void {
   // Where the key was pressed, not where focus is now: React hears it first, and a field's own Esc can close the field and
   // take focus with it, so the body had focus by the time this heard an Esc typed in the list's name.
-  const from = e.target && (e.target as Node).nodeType === 1 ? (e.target as Element) : document.activeElement;
+  const from = e.target instanceof Element ? e.target : document.activeElement;
   // A key an earlier listener took (the ? sheet's Esc) is not the page's.
   if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
   // An Esc pressed inside a sheet or a menu over the page is that one's own (the deal sheet a row's peek opened, a row's

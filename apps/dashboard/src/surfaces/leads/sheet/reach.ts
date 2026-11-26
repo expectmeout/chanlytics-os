@@ -14,8 +14,7 @@ const REST_MS = 90;
 const LEAD_ROW = /^lead-([0-9a-f-]{36})$/;
 
 const leadUnder = (e: PointerEvent<HTMLElement>): string | null => {
-  const target = e.target as Element | null;
-  const row = target && target.closest ? target.closest<HTMLElement>('[id^="lead-"]') : null;
+  const row = e.target instanceof Element ? e.target.closest('[id^="lead-"]') : null;
   const at = row ? LEAD_ROW.exec(row.id) : null;
   return at ? (at[1] ?? null) : null;
 };

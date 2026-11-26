@@ -1,7 +1,7 @@
 /** What the Line draws: plain functions, not components, making its elements in the order AskReal always did. */
 import type { MouseEvent, PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { fileViewOf, type AskMessageVM } from "@chanlytics/contracts";
+import { fileViewOf } from "@chanlytics/contracts";
 import type { Line } from "./types";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -14,7 +14,7 @@ import { leaving, touchSwipe } from "../shell";
 import { AskLatest, AskListen, AskNextRow, AskQuestion, AskThread, AskTurn } from "../turn";
 import { allArrived, AskAttachedRow, AskAttachPress } from "./attached";
 import { arField } from "./field";
-import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon } from "./place";
+import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon, lineMessage } from "./place";
 
 /** The field's end: the one button (the mic held to talk, Send, or Stop). */
 export const arLineEnd = (ln: Line) => {
@@ -108,15 +108,7 @@ export const arLineEnd = (ln: Line) => {
 
 /** Under the band: the rows, the question while Ask reads, or the answer. */
 /** The answer on its way, as a turn draws one: its words so far. */
-const LIVE_MESSAGE = (text: string) =>
-  ({
-    id: "live",
-    role: "assistant",
-    text,
-    citations: [],
-    followups: [],
-    proposals: [],
-  }) as Partial<AskMessageVM> as AskMessageVM;
+const LIVE_MESSAGE = (text: string) => lineMessage({ id: "live", role: "assistant", text });
 
 export const arBody = ({
   A,

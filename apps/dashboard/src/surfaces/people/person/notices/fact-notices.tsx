@@ -9,7 +9,7 @@
  * it), never a word to anyone else.
  */
 import { useState } from "react";
-import { CALL_FACT_WORDS, PERSON_NAME_WORDS } from "@chanlytics/contracts";
+import { CALL_FACT_WORDS, PERSON_NAME_WORDS, recordOrEmpty } from "@chanlytics/contracts";
 import type { NoticeHome, NoticeVM } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Notice } from "../../../kit/notice/notice";
@@ -22,7 +22,7 @@ const HIDDEN_KEY = "chanlytics.person.hiddenNotices";
 
 function hiddenOf(personId: string): string[] {
   try {
-    const all = JSON.parse(window.localStorage.getItem(HIDDEN_KEY) || "{}") as Record<string, unknown>;
+    const all = recordOrEmpty(JSON.parse(window.localStorage.getItem(HIDDEN_KEY) || "{}"));
     const ids = all[personId];
     return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
   } catch {
@@ -32,7 +32,7 @@ function hiddenOf(personId: string): string[] {
 
 function keepHidden(personId: string, ids: readonly string[]): void {
   try {
-    const all = JSON.parse(window.localStorage.getItem(HIDDEN_KEY) || "{}") as Record<string, unknown>;
+    const all = { ...recordOrEmpty(JSON.parse(window.localStorage.getItem(HIDDEN_KEY) || "{}")) };
     all[personId] = ids;
     window.localStorage.setItem(HIDDEN_KEY, JSON.stringify(all));
   } catch {

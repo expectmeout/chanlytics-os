@@ -6,7 +6,14 @@
 import { useState, type RefObject } from "react";
 import type { AskCardSheet, AskProposal, AskProposalOutcome } from "@chanlytics/contracts";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
-import { SEARCH_CARD_REPLACED, askPressCount, askPressOf, askTraitsOf } from "@chanlytics/contracts";
+import {
+  SEARCH_CARD_REPLACED,
+  askPressCount,
+  askPressOf,
+  askTraitsOf,
+  textOrEmpty,
+  valueAt,
+} from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
 import { Icon } from "../kit/icon/icon";
@@ -127,6 +134,13 @@ interface CardVersion {
   words: string;
 }
 
+/** One version a card's message holds, as the card reads it: each field as words, none where it says none. */
+const cardVersionOf = (version: unknown): CardVersion => ({
+  channel: textOrEmpty(valueAt(version, "channel")),
+  label: textOrEmpty(valueAt(version, "label")),
+  words: textOrEmpty(valueAt(version, "words")),
+});
+
 export const AskCardChange = ({
   p,
   t,
@@ -143,7 +157,8 @@ export const AskCardChange = ({
   const pl = p.payload || {};
   const reply = p.kind === "reply";
   const shut = pl.window_open === false;
-  const written = p.kind === "message" && Array.isArray(pl.said) ? (pl.said as CardVersion[]) : null;
+  const written = p.kind === "message" && Array.isArray(pl.said) ? pl.said.map(cardVersionOf) : null;
+  const follows = typeof pl.follows === "string" ? pl.follows : null;
   // A record: what it keeps, in a line, with no ground under it (the Keep shape).
   if (askTraitsOf(p.kind).shape === "keep" && !written && !(p.sheet && p.sheet.rows && p.sheet.rows.length))
     return <p className="ask-card-line">{p.line || p.summary}</p>;
@@ -166,7 +181,7 @@ export const AskCardChange = ({
           <p className="ask-card-summary">{p.kind === "fix" && p.line ? p.line : p.summary}</p>
         )}
       </div>
-      {written && pl.follows ? <p className="ask-card-foot">{pl.follows as string}</p> : null}
+      {written && follows ? <p className="ask-card-foot">{follows}</p> : null}
       {reply && idle && pl.price_warning ? <div className="ask-card-note">{t.priceNote}</div> : null}
       {reply && idle && shut ? <div className="ask-card-note">{t.windowNote}</div> : null}
       {reply && idle && !shut && p.undo ? <p className="ask-card-foot">{p.undo}</p> : null}
@@ -189,11 +204,14 @@ const AskFixActs = ({
   onNav: (to: string) => void;
 }) => {
   const pl = p.payload || {};
+  // A card that names a page to open, and its button's words.
+  const door =
+    typeof pl.to === "string" && typeof pl.door === "string" && pl.door ? { to: pl.to, words: pl.door } : null;
   return (
     <div className="ask-card-actions" data-foot="acts">
-      {typeof pl.to === "string" && pl.door ? (
-        <Button variant="primary" size="sm" onClick={() => onNav(pl.to as string)} data-testid="ask-card-door">
-          {pl.door as string}
+      {door ? (
+        <Button variant="primary" size="sm" onClick={() => onNav(door.to)} data-testid="ask-card-door">
+          {door.words}
         </Button>
       ) : null}
       {p.origin?.by === "idea" ? <AskNotNow t={t} busy={busy} onDismiss={onDismiss} /> : null}
@@ -300,7 +318,7 @@ export const AskCardActs = ({
           variant="quiet"
           size="sm"
           onClick={() => {
-            onNav(`inbox/th-${pl.conversation_id as string}`);
+            onNav(`inbox/th-${textOrEmpty(pl.conversation_id)}`);
             if (A) A.editReply(p);
           }}
         >
@@ -449,7 +467,7 @@ export const AskCardReceipt = ({
       ) : null}
       {can && armed ? (
         <Confirm
-          question={`${p.undo as string}?`}
+          question={`${p.undo ?? ""}?`}
           detail={t.undoCampaignDetail}
           yes={t.undoCampaignYes}
           danger

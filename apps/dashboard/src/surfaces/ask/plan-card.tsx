@@ -13,6 +13,7 @@ import {
   type AskPlanHead,
   type AskProposal,
   type AskProposalOutcome,
+  finiteOrNull,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import { PROPOSAL_GATE } from "@chanlytics/contracts/page-specs";
@@ -57,11 +58,11 @@ function planSaid(now: readonly AskProposal[], t: LineWords): { line: string; ok
 
 /** The press, its Undo, its Pause and its Not now, each holding the card until what it did is kept. */
 const usePlanPress = (
+  A: AskApi,
   cards: AskProposal[],
   use: { messageId?: string | null; t: LineWords; onOutcome?: OnOutcome },
 ) => {
   const { messageId, t, onOutcome } = use;
-  const A = askCalls() as AskApi; // a plan is drawn only from a turn the bridge read
   const { now, keep } = usePlanCards(cards, (pid, o, kept) =>
     recordCardOutcome({ A, messageId, onOutcome }, pid, o, kept),
   );
@@ -80,13 +81,7 @@ const usePlanPress = (
   const undoable = (p: AskProposal, o: AskProposalOutcome) =>
     !!p.undo &&
     !!o.undo &&
-    A.undoOpen(
-      p.kind,
-      o.undo,
-      o.atMs || 0,
-      Date.now(),
-      version ?? (o.undo.version_after as number | undefined) ?? null,
-    );
+    A.undoOpen(p.kind, o.undo, o.atMs || 0, Date.now(), version ?? finiteOrNull(o.undo.version_after));
   // One campaign started is paused or opened from the card; several are each their own on Campaigns.
   const started = now.filter(
     (p) => p.kind === "playbook" && p.outcome?.state === "done" && p.outcome.undo?.playbook_id,
@@ -341,13 +336,7 @@ const AskPlanName = ({ title, sub }: { title?: string; sub?: string }) => (
   </div>
 );
 
-export const AskPlan = ({
-  cards,
-  messageId,
-  t,
-  onNav,
-  onOutcome,
-}: {
+interface AskPlanProps {
   cards: AskProposal[];
   messageId?: string | null;
   t: LineWords;
@@ -355,9 +344,17 @@ export const AskPlan = ({
   onOutcome?: OnOutcome;
   onEdit?: (text?: string) => void;
   cardOpen?: Record<string, boolean>;
-}) => {
-  const plan = usePlanPress(cards, { messageId, t, onOutcome });
-  const { A, now, err, landRef } = plan;
+}
+
+/** A plan's card, pressed through the bridge that read its turn: a plan is drawn only from such a turn. */
+export const AskPlan = (props: AskPlanProps) => {
+  const A = askCalls();
+  return A ? <AskPlanWith {...props} A={A} /> : null;
+};
+
+const AskPlanWith = ({ A, cards, messageId, t, onNav, onOutcome }: AskPlanProps & { A: AskApi }) => {
+  const plan = usePlanPress(A, cards, { messageId, t, onOutcome });
+  const { now, err, landRef } = plan;
   const ordered = [...now].sort((a, b) => (a.plan?.step ?? 0) - (b.plan?.step ?? 0));
   const first = ordered.at(0);
   const head = ordered.find((p) => p.plan?.head)?.plan?.head ?? null;

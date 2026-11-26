@@ -24,8 +24,8 @@ import {
   type NewEmail,
   type NewMessage,
   type NewWrittenMessage,
-  type ParamSpec,
   type StarterTemplate,
+  paramSpecOf,
 } from "@chanlytics/contracts";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
@@ -222,7 +222,7 @@ function typedMessageOf(words: Words, offer: boolean, before: NewMessage | null)
     title: words.title.trim(),
     body: versions.whatsapp?.body ?? versions.sms?.body ?? versions.email?.body ?? "",
     channels,
-    params: slots.map((s) => ({ kind: s.kind }) as ParamSpec),
+    params: slots.map((s) => paramSpecOf(s.kind, "")),
     offer,
     written: {
       name: before?.written?.name ?? slugTemplateName(words.title),

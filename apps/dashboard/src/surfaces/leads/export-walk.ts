@@ -6,7 +6,7 @@
  * walked may land twice or not at all; the walk lasts seconds.
  */
 import type { ApiResult } from "@/client/api";
-import { leadCall } from "./call";
+import { api } from "@/bridge/api";
 import type { LeadsExportView } from "./surface-types";
 import { readDir } from "./view-query";
 
@@ -42,7 +42,7 @@ export function exportLeadsFile(
   view: LeadsExportView,
   after: Cursor | null = null,
 ): Promise<ApiResult<LeadsExportChunk>> {
-  return leadCall<LeadsExportChunk>("POST leads/export", {
+  return api()("POST leads/export", {
     body: { ...view, dir: readDir(view), ...(after ? { after_key: after.key, after_id: after.id } : {}) },
     refresh: false,
   });

@@ -50,6 +50,9 @@ import {
   type SequenceMode,
   type SequenceRowDto,
   templateSlots,
+  isOneOf,
+  PARAM_SOURCES,
+  paramSpecOf,
 } from "@chanlytics/contracts";
 import type { KeptSend } from "./kept-send";
 import {
@@ -299,7 +302,9 @@ function againKinds(kept: KeptSend, id: string, row: Library["rows"][number] | n
     const choices: readonly string[] = may?.[i] ?? ["text"];
     const was = kinds[i] ?? p.kind;
     const kind = choices.includes(was) ? was : (choices[0] ?? "text");
-    return kind === "text" ? { kind: "text", value: was === "text" ? (typed[i] ?? "") : "" } : ({ kind } as ParamSpec);
+    return isOneOf(PARAM_SOURCES, kind)
+      ? paramSpecOf(kind, was === "text" ? (typed[i] ?? "") : "")
+      : { kind: "text", value: "" };
   };
 }
 

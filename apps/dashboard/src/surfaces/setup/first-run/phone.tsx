@@ -8,7 +8,14 @@
  * choice of a few, the boxes its field, the code its pane.
  */
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
-import { formatPhoneDisplay, type FirstRunPhoneCodeVM, type FirstRunPhoneVM } from "@chanlytics/contracts";
+import {
+  formatPhoneDisplay,
+  isCarrier,
+  isOneOf,
+  PHONE_RINGS,
+  type FirstRunPhoneCodeVM,
+  type FirstRunPhoneVM,
+} from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { RecordField, RecordToggleGroup } from "../../kit/record/field";
@@ -76,6 +83,12 @@ function phoneFoot(ph: FirstRunPhoneVM, k: PhoneActs): ReactNode {
   );
 }
 
+/** What an option of a question answers, or null for a value that is none of that question's. */
+const phoneAnswerOf = (key: "rings" | "company", value: string): Partial<KeptPhoneChoice> | null => {
+  if (key === "rings") return isOneOf(PHONE_RINGS, value) ? { rings: value } : null;
+  return isCarrier(value) && value !== "office" ? { company: value } : null;
+};
+
 /** The two questions (canvas R4), each the record kit's radiogroup, kept with the owner's choice as they are answered. */
 function phoneQuestions(ph: FirstRunPhoneVM, k: PhoneActs): ReactNode {
   const q = ph.questions;
@@ -97,14 +110,10 @@ function phoneQuestions(ph: FirstRunPhoneVM, k: PhoneActs): ReactNode {
             labelledBy={`fr-q-${key}-label`}
             value={one.value}
             options={one.options.map((o) => ({ value: o.key, label: o.label }))}
-            onChange={(v) =>
-              answer(
-                k,
-                key === "rings"
-                  ? { rings: v as KeptPhoneChoice["rings"] }
-                  : { company: v as KeptPhoneChoice["company"] },
-              )
-            }
+            onChange={(v) => {
+              const said = phoneAnswerOf(key, v);
+              if (said) answer(k, said);
+            }}
           />
         </div>
       ))}

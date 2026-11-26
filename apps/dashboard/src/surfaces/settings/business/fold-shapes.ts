@@ -4,9 +4,18 @@
 // uses them. Pure, and no JSX.
 
 import { BUSINESS_TAB } from "@/bridge/business-tab";
-import type { BookingRuleKey, ProfileLimitKey } from "@chanlytics/contracts";
+import type { BookingRuleKey, GuardrailsInForce, ProfileLimitKey } from "@chanlytics/contracts";
 import type { ProfileRefusalKey } from "./model/fold-limits";
-import { BOOKS_BY_HAND, booksWithOf, isBookingTool } from "@chanlytics/contracts";
+import {
+  BOOKS_BY_HAND,
+  booksWithOf,
+  isBookingTool,
+  entryOf,
+  listOrEmpty,
+  recordOrEmpty,
+  recordOrNull,
+  textOrEmpty,
+} from "@chanlytics/contracts";
 import { trimmed, type Config, type StoredNote } from "./save";
 
 /**
@@ -121,7 +130,7 @@ export interface DraftOf {
   escalate_when: string;
   booking_rules: RulesDraft;
   consult_first: string;
-  guardrails: Record<string, boolean>;
+  guardrails: GuardrailsInForce;
   extra_instructions: InstructionsDraft;
   fallbacks: Record<string, string>;
   calendar: CalendarDraft;
@@ -141,9 +150,58 @@ export interface CalendarDraft {
 // The days of the week in the schema's order (contracts DAYS): the hours fold writes every one of them.
 export const BT_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
+/* ---- A fold's draft, read: what the fold's own fields hold, each where it is of its kind ---- */
+
+/** A draft's list as its rows: each an object whose fields are read one by one, anything else no row's. */
+const btRowsOf = (draft: unknown): Record<string, unknown>[] => listOrEmpty(draft).map(recordOrEmpty);
+
+/** The closures fold's rows: each one's date, last day and note, where it holds them as words. */
+export const btClosuresOf = (draft: unknown): ClosureRow[] =>
+  btRowsOf(draft).map((row) => ({
+    ...(typeof row.date === "string" ? { date: row.date } : {}),
+    ...(typeof row.until === "string" ? { until: row.until } : {}),
+    ...(typeof row.note === "string" ? { note: row.note } : {}),
+  }));
+
+/** The services fold's rows: each one's name, minutes (a number as stored, words as typed), price note and amount. */
+export const btServicesOf = (draft: unknown): ServiceRow[] =>
+  btRowsOf(draft).map((row) => ({
+    ...(typeof row.name === "string" ? { name: row.name } : {}),
+    ...(typeof row.duration_min === "number" || typeof row.duration_min === "string"
+      ? { duration_min: row.duration_min }
+      : {}),
+    ...(typeof row.price_note === "string" ? { price_note: row.price_note } : {}),
+    ...(typeof row.amount === "string" ? { amount: row.amount } : {}),
+    ...(typeof row.amount_minor === "number" ? { amount_minor: row.amount_minor } : {}),
+    ...(typeof row.currency === "string" ? { currency: row.currency } : {}),
+  }));
+
+/** The notes fold's rows: each one's title, words and last day, where it holds them as words. */
+export const btNotesOf = (draft: unknown): StoredNote[] =>
+  btRowsOf(draft).map((row) => ({
+    ...(typeof row.title === "string" ? { title: row.title } : {}),
+    ...(typeof row.text === "string" ? { text: row.text } : {}),
+    ...(typeof row.until === "string" ? { until: row.until } : {}),
+  }));
+
+/** The hours fold's week: each day it holds, open or not, with its shifts' two boxes as words. */
+export const btWeekOf = (draft: unknown): Partial<Record<string, DayDraft>> => {
+  const held = recordOrEmpty(draft);
+  const week: Partial<Record<string, DayDraft>> = {};
+  for (const d of BT_DAYS) {
+    const day = recordOrNull(held[d]);
+    if (day)
+      week[d] = {
+        isOpen: day.isOpen === true,
+        shifts: btRowsOf(day.shifts).map((s) => ({ open: textOrEmpty(s.open), close: textOrEmpty(s.close) })),
+      };
+  }
+  return week;
+};
+
 // The lines of a box, one rule or reason each: those with something on them, trimmed.
 export const btLines = (text: unknown) =>
-  String((text == null ? "" : text) as string)
+  String(text ?? "")
     .split("\n")
     .map((x) => x.trim())
     .filter(Boolean);
@@ -193,10 +251,9 @@ export const BT_FALLBACKS = ["greeting", "error", "non_text"];
  * The closures and shifts caps are contracts' (PROFILE_LIMITS, which carries MAX_CLOSURES and MAX_INTERVALS_PER_DAY),
  * read when asked.
  */
-export const BT_LIMITS = new Proxy({} as Record<ProfileLimitKey, number>, {
+export const BT_LIMITS: Readonly<Record<ProfileLimitKey, number>> = new Proxy(BUSINESS_TAB.PROFILE_LIMITS, {
   get(_t, key) {
-    const limits = BUSINESS_TAB.PROFILE_LIMITS;
-    return key in limits ? limits[key as ProfileLimitKey] : Infinity;
+    return entryOf(BUSINESS_TAB.PROFILE_LIMITS, key) ?? Infinity;
   },
 });
 // A refusal that names a cap is written from that same cap, once, in contracts (profileRefusal): the page held both,
@@ -297,7 +354,7 @@ export const btPut = (o: Record<string, unknown>, key: string, value: unknown) =
 // A draft the page built with a part missing is said, naming the part: written as it stood, a missing switch was stored
 // as off, the opposite of the schema's "absent means on", and a missing message as "", which the save refuses.
 export const btWhole = (fold: string, draft: unknown, parts: string[], kind: "boolean" | "string") => {
-  const held = (draft || {}) as Record<string, unknown>;
+  const held = recordOrEmpty(draft);
   parts.forEach((key) => {
     if (typeof held[key] !== kind) {
       throw new TypeError(
@@ -328,7 +385,7 @@ export const btCalendarDraft = (config: Config): CalendarDraft => {
  */
 export const btWriteCalendar = (next: Config, draft: unknown) => {
   btWhole("calendar", draft, ["with", "ical_url"], "string");
-  const d = draft as CalendarDraft;
+  const d = recordOrEmpty(draft);
   const feed = d.with === BOOKS_BY_HAND ? "" : trimmed(d.ical_url);
   const calendar = { ...(next.calendar || {}) };
   btPut(calendar, "ical_url", feed || undefined);
@@ -348,7 +405,7 @@ export const btWriteCalendar = (next: Config, draft: unknown) => {
  * none is judged: a refusal would be of a box that is not on screen.
  */
 export const btCalendarProblems = (draft: unknown): Problems => {
-  const d = (draft || {}) as Partial<CalendarDraft>;
+  const d = recordOrEmpty(draft);
   const feed = d.with === BOOKS_BY_HAND ? "" : trimmed(d.ical_url);
   return feed && !feed.includes("…") && !/^(https?|webcal):\/\/\S+$/i.test(feed)
     ? { ical_url: "The calendar link needs to be a full address, starting with https:// or webcal://" }

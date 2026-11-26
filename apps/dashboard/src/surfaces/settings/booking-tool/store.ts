@@ -32,8 +32,8 @@ const neverAsked = (): BookingToolAsk => NEVER;
 
 /** Open the sheet: what the door's verb asks of the host (frame-verbs.ts openBookingTool). */
 export function askBookingTool(): void {
-  const on = document.activeElement as HTMLElement | null;
-  opener = on && typeof on.focus === "function" ? on : null;
+  const on = document.activeElement;
+  opener = on instanceof HTMLElement ? on : null;
   toolAsked = { open: true, session: toolAsked.session + 1 };
   tellAsked();
 }

@@ -319,7 +319,8 @@ const AskField = ({
     onSubmit={(e) => {
       e.preventDefault();
       if (!canFind) return;
-      const box = e.currentTarget.elements.namedItem("words") as HTMLInputElement | null;
+      const named = e.currentTarget.elements.namedItem("words");
+      const box = named instanceof HTMLInputElement ? named : null;
       const words = (box?.value ?? "").trim();
       if (!words) {
         box?.focus();

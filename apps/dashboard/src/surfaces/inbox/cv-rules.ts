@@ -110,9 +110,11 @@ export function cvOnePerPerson(rows: ReadonlyArray<ConversationLine>): Conversat
     if (mine) mine.push(c);
     else byWho.set(k, [c]);
   }
-  return [...byWho.values()].map((parts) => {
-    const [newest] = parts as [ConversationLine, ...ConversationLine[]];
-    return parts.length === 1 ? newest : { ...newest, parts };
+  // A person's rows are never none: each list starts with the row that made it.
+  return [...byWho.values()].flatMap((parts) => {
+    const [newest] = parts;
+    if (!newest) return [];
+    return [parts.length === 1 ? newest : { ...newest, parts }];
   });
 }
 

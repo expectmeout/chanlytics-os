@@ -354,7 +354,9 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
     if (pa.act === "add") return void adding.press();
     const ask = vm.proposal;
     if (!ask) return undefined;
-    handOff(c, () => openDealSheet(ask as DealSheetAsk));
+    handOff(c, () =>
+      openDealSheet({ personId: ask.personId, mode: ask.mode, ...(ask.service ? { service: ask.service } : {}) }),
+    );
     return undefined;
   };
   const gated =

@@ -161,6 +161,7 @@ export {
 } from "./unknown";
 export {
   entryOf,
+  errorOfThrown,
   type GlobalSlot,
   globalSlot,
   isCount,

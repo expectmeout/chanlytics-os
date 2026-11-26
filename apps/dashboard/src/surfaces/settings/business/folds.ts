@@ -39,19 +39,30 @@ import {
   btRuleRefusal,
   btWhole,
   btWriteCalendar,
+  btClosuresOf,
+  btNotesOf,
+  btServicesOf,
+  btWeekOf,
   type ClosureRow,
   type DayDraft,
   type DraftOf,
   type FoldName,
   type Problems,
-  type ReceptionistDraft,
   type RulesDraft,
   type ServiceRow,
   type ShiftDraft,
 } from "./fold-shapes";
 import { REACH_OUT_FOLDS } from "../outreach/fold-tables";
 import { BT_RUN_BLOCKS, btChangedLines, btWillSay } from "./fold-says";
-import { FALLBACK_DEFAULTS, instructionsDraft, newReceptionistDefaults, unknownDetails } from "@chanlytics/contracts";
+import {
+  FALLBACK_DEFAULTS,
+  instructionsDraft,
+  newReceptionistDefaults,
+  unknownDetails,
+  listOrEmpty,
+  recordOrEmpty,
+  valueAt,
+} from "@chanlytics/contracts";
 import { amountKeysOf, amountProblemAt } from "./model/service-amount";
 import { greetingDraftOf, greetingStoredOf } from "./phone/greeting-draft";
 
@@ -151,7 +162,7 @@ const btOpenRules = (p: Profile): RulesDraft => {
   const rules = p.booking_rules || {};
   const draft: RulesDraft = { notes: "", ask_email: false };
   BT_RULES.forEach(([key]) => {
-    const value = rules[key] as number | undefined;
+    const value = rules[key];
     draft[key] = value !== undefined ? String(value) : "";
   });
   draft.notes = (rules.notes || []).join("\n");
@@ -242,7 +253,7 @@ const btWriteDay = (x: DayDraft) => {
 };
 
 const btWriteHours = (next: Config, draft: unknown) => {
-  const week = (draft || {}) as Record<string, DayDraft | undefined>;
+  const week = btWeekOf(draft);
   const hours: Record<string, unknown> = {};
   BT_DAYS.forEach((d) => {
     hours[d] = btWriteDay(week[d] || { isOpen: false, shifts: [] });
@@ -260,7 +271,7 @@ const btWriteHours = (next: Config, draft: unknown) => {
 // A row with no date is a row somebody started and did not finish. Sending it would fail validation and name a field
 // they cannot see; dropping it is what they meant.
 const btWriteClosures = (next: Config, draft: unknown) => {
-  const closed = ((draft || []) as ClosureRow[])
+  const closed = btClosuresOf(draft)
     .filter((c) => trimmed(c.date))
     .map((c) => {
       const o: ClosureRow = { date: trimmed(c.date) };
@@ -275,7 +286,7 @@ const btWriteClosures = (next: Config, draft: unknown) => {
 // A service's amount is written as typed in its box, else as kept: a save of the sheet never loses one (AI's card sets
 // it, and the list was once rebuilt from its name, minutes and price alone).
 const btWriteServices = (next: Config, draft: unknown) => {
-  const rows = (draft || []) as ServiceRow[];
+  const rows = btServicesOf(draft);
   const services = rows
     .filter((x) => trimmed(x.name))
     .map((x) => {
@@ -294,7 +305,7 @@ const btWriteServices = (next: Config, draft: unknown) => {
 // booking_rules -- consult_first, which is a fold of its own, and a rule added later -- is kept as it was: the form
 // this replaces started the rules from {} and deleted the slot length on every save (settingsRulesKept).
 const btWriteRules = (next: Config, draft: unknown) => {
-  const d = (draft || {}) as Record<string, unknown>;
+  const d = recordOrEmpty(draft);
   const rules = { ...(btProfileOf(next).booking_rules || {}) };
   BT_RULES.forEach(([key, lo, hi]) => btPut(rules, key, btRuleNumber(d[key], lo, hi)));
   const notes = btLines(d.notes);
@@ -308,7 +319,7 @@ const btWriteRules = (next: Config, draft: unknown) => {
 // adds are kept by this save, as a rule added later is kept under booking_rules.
 const btWriteGuardrails = (next: Config, draft: unknown) => {
   btWhole("guardrails", draft, BT_GUARDRAILS, "boolean");
-  const d = draft as Record<string, unknown>;
+  const d = recordOrEmpty(draft);
   const guardrails = { ...(btProfileOf(next).guardrails || {}) };
   BT_GUARDRAILS.forEach((key) => {
     guardrails[key] = d[key] === true;
@@ -323,7 +334,7 @@ const btWriteGuardrails = (next: Config, draft: unknown) => {
 // messages are the product's own, under the name typed, and only where none is stored: a brain that has them keeps
 // its own.
 const btWriteReceptionist = (next: Config, draft: unknown) => {
-  const d = (draft || {}) as Partial<ReceptionistDraft>;
+  const d = recordOrEmpty(draft);
   if (!next.brain) next.brain = {};
   const b = next.brain;
   const name = trimmed(d.name);
@@ -358,9 +369,9 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
   closures: btWriteClosures,
   services: btWriteServices,
   languages: (next, draft) =>
-    btPutProfile(next, "languages", draft && (draft as string[]).length ? (draft as string[]).slice() : undefined),
+    btPutProfile(next, "languages", listOrEmpty(draft).length ? listOrEmpty(draft).slice() : undefined),
   notes: (next, draft) => {
-    const notes = ((draft || []) as StoredNote[])
+    const notes = btNotesOf(draft)
       .map((n) => {
         const o: StoredNote = { title: trimmed(n.title), text: trimmed(n.text) };
         // Its last day as the box or Ask left it, so a save of the fold never drops an end it did not change; an
@@ -386,7 +397,7 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
   },
   guardrails: btWriteGuardrails,
   extra_instructions: (next, draft) => {
-    btPutProfile(next, "extra_instructions", trimmed(draft && (draft as { text?: unknown }).text) || undefined);
+    btPutProfile(next, "extra_instructions", trimmed(valueAt(draft, "text")) || undefined);
     if (!next.brain) next.brain = {};
     // The product's own opening lines, on every save (S4). The box showed the prompt written before the form, and
     // what the owner kept of it is now their instructions; left in the prompt as well it was stored twice, and an
@@ -397,7 +408,7 @@ const BT_WRITE: { [F in FoldName]: (next: Config, draft: unknown) => void } = {
   // open with its own words, never replaced because somebody opened a fold.
   fallbacks: (next, draft) => {
     btWhole("fallbacks", draft, BT_FALLBACKS, "string");
-    const d = draft as Record<string, string>;
+    const d = recordOrEmpty(draft);
     if (!next.brain) next.brain = {};
     const messages = { ...(next.brain.fallbacks || {}) };
     BT_FALLBACKS.forEach((key) => {
@@ -459,7 +470,7 @@ const btDayProblem = (d: string, x: DayDraft) => {
 const btHoursProblems = (draft: unknown) => {
   const found: Problems = {};
   BT_DAYS.forEach((d) => {
-    const x = ((draft || {}) as Record<string, DayDraft | undefined>)[d];
+    const x = btWeekOf(draft)[d];
     if (!x || !x.isOpen) return;
     const problem = btDayProblem(d, x);
     if (problem !== null) found[`hours-${d}`] = problem;
@@ -469,7 +480,7 @@ const btHoursProblems = (draft: unknown) => {
 
 const btServicesProblems = (draft: unknown) => {
   const found: Problems = {};
-  const rows = (draft || []) as ServiceRow[];
+  const rows = btServicesOf(draft);
   if (rows.filter((x) => trimmed(x.name)).length > BT_LIMITS.services) found.services = btRefusalOf("services");
   rows.forEach((x, i) => {
     const name = trimmed(x.name).length;
@@ -486,7 +497,7 @@ const btServicesProblems = (draft: unknown) => {
 
 // A number outside what a rule allows is said under its box; it used to be dropped without a word (S22).
 const btRulesProblems = (draft: unknown) => {
-  const d = (draft || {}) as Record<string, unknown>;
+  const d = recordOrEmpty(draft);
   const found: Problems = {};
   BT_RULES.forEach(([key, lo, hi]) => {
     if (trimmed(d[key]) !== "" && btRuleNumber(d[key], lo, hi) === undefined) found[key] = btRuleRefusal(key);
@@ -500,7 +511,7 @@ const btRulesProblems = (draft: unknown) => {
 // Half a note is refused; a note with neither half is dropped on save, as a row somebody started and left.
 const btNotesProblems = (draft: unknown) => {
   const found: Problems = {};
-  const rows = (draft || []) as StoredNote[];
+  const rows = btNotesOf(draft);
   if (rows.filter((n) => trimmed(n.title) || trimmed(n.text)).length > BT_LIMITS.notes) {
     found.notes = btRefusalOf("notes");
   }
@@ -517,7 +528,7 @@ const btNotesProblems = (draft: unknown) => {
 // Each message says under itself what stops it (S5): nothing to send, more than a message holds, or a name that
 // nothing fills in and a customer would read as written.
 const btFallbacksProblems = (draft: unknown) => {
-  const d = (draft || {}) as Record<string, unknown>;
+  const d = recordOrEmpty(draft);
   const found: Problems = {};
   BT_FALLBACKS.forEach((key) => {
     const t = trimmed(d[key]);
@@ -541,7 +552,7 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
   hours: btHoursProblems,
   closures: (draft) => {
     const found: Problems = {};
-    const rows = (draft || []) as ClosureRow[];
+    const rows = btClosuresOf(draft);
     const max = BT_LIMITS.closures;
     if (rows.filter((c) => trimmed(c.date)).length > max) found.closures = btRefusalOf("closures");
     rows.forEach((c, i) => {
@@ -552,7 +563,7 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
   },
   services: btServicesProblems,
   languages: (draft): Problems => {
-    const list = (draft || []) as string[];
+    const list = listOrEmpty(draft);
     if (list.length > BT_LIMITS.languages) return { languages: btRefusalOf("languages") };
     const odd = list.find((l) => String(l).length < BT_LIMITS.languageMin || String(l).length > BT_LIMITS.languageMax);
     return odd !== undefined ? { languages: btRefusalOf("language", undefined, String(odd)) } : {};
@@ -573,7 +584,7 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
   notes: btNotesProblems,
   // As much as the receptionist takes, said under the box before a round trip (S4): the server's refusal named no field.
   extra_instructions: (draft): Problems => {
-    const n = trimmed(draft && (draft as { text?: unknown }).text).length;
+    const n = trimmed(valueAt(draft, "text")).length;
     return n > BT_LIMITS.instructions ? { extra_instructions: btRefusalOf("instructions", n) } : {};
   },
   fallbacks: btFallbacksProblems,
@@ -582,7 +593,7 @@ const BT_PROBLEMS_OF: { [F in FoldName]?: (draft: unknown) => Problems } = {
   // path's sentences. The number's check needs the line the workspace answers on, which no draft holds: the create
   // card asks the row's check with it (BtFold's `check`).
   receptionist: (draft) => {
-    const d = (draft || {}) as Partial<ReceptionistDraft>;
+    const d = recordOrEmpty(draft);
     const found: Problems = {};
     const name = CHECK_OF.name(d.name);
     if (name) found.name = name;
@@ -612,11 +623,17 @@ const btSchemaWords = (message: unknown) =>
 // save's schema counts from a list the owner is not looking at.
 const BT_WRITTEN_ROWS = {
   services: (draft: unknown) =>
-    ((draft || []) as ServiceRow[]).map((x, i) => (trimmed(x.name) ? i : -1)).filter((i) => i >= 0),
+    btServicesOf(draft)
+      .map((x, i) => (trimmed(x.name) ? i : -1))
+      .filter((i) => i >= 0),
   closures: (draft: unknown) =>
-    ((draft || []) as ClosureRow[]).map((c, i) => (trimmed(c.date) ? i : -1)).filter((i) => i >= 0),
+    btClosuresOf(draft)
+      .map((c, i) => (trimmed(c.date) ? i : -1))
+      .filter((i) => i >= 0),
   notes: (draft: unknown) =>
-    ((draft || []) as StoredNote[]).map((n, i) => (trimmed(n.title) || trimmed(n.text) ? i : -1)).filter((i) => i >= 0),
+    btNotesOf(draft)
+      .map((n, i) => (trimmed(n.title) || trimmed(n.text) ? i : -1))
+      .filter((i) => i >= 0),
 };
 // The create card's field keys, by the brain's key each writes.
 const BT_RECEPTIONIST_FIELDS: Record<string, string> = {

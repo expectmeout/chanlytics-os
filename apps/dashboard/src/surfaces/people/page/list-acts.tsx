@@ -121,7 +121,7 @@ export function peopleListActs({
   const exportBlocked =
     activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? `${listGone.title}. ${listGone.body}` : null;
   const exportHref = exportLink(
-    exportName ? (activeSaved ? `list:${activeSaved.id}` : `seg:${(activeList as SmartList).id}`) : undefined,
+    !exportName ? undefined : activeSaved ? `list:${activeSaved.id}` : activeList ? `seg:${activeList.id}` : undefined,
   );
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
   // One list open at a time: it is the page's title, so two open at once would be a title over a table it does not
@@ -182,24 +182,24 @@ function listActGoOf(a: PhoneActsArgs, closePhoneSheet: () => void) {
     const n = d.name.trim();
     if (listAct !== "delete" && !n) return;
     if (listAct !== "save" && !activeSaved) return;
-    if (listAct === "rename" && n === (activeSaved as SavedList).name) {
+    if (listAct === "rename" && activeSaved && n === activeSaved.name) {
       closePhoneSheet();
       return;
     }
     setListDraft({ ...d, busy: true, error: null });
-    if (listAct === "delete") {
-      const r = await plDeleteList(activeSaved as SavedList);
+    if (listAct === "delete" && activeSaved) {
+      const r = await plDeleteList(activeSaved);
       if (!r.ok) {
         setListDraft((x) => ({ ...x, busy: false, error: r.error }));
         return;
       }
-      if (r.archived) plFlash({ msg: plArchivedWords((activeSaved as SavedList).name, r) });
+      if (r.archived) plFlash({ msg: plArchivedWords(activeSaved.name, r) });
       closePhoneSheet();
       setSavedId(null);
       return;
     }
-    if (listAct === "rename") {
-      const r = await plRenameList(activeSaved as SavedList, n);
+    if (listAct === "rename" && activeSaved) {
+      const r = await plRenameList(activeSaved, n);
       if (!r.ok) {
         setListDraft((x) => ({ ...x, busy: false, error: r.error }));
         return;

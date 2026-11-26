@@ -10,7 +10,7 @@
  * The card is a function per part, called by `ThreadCall` and not drawn as a component of its own, so the tree is the
  * tree it was; its hooks stay in `ThreadCall`, in the order they were.
  */
-import { useEffect, useRef, useState, type CSSProperties, type RefObject, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type RefObject, type SyntheticEvent } from "react";
 import { CALL_TRANSCRIPT, callAttemptWords, callNoteLines, mmss, stateOf } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -73,7 +73,7 @@ export const tlFollowBy = (
 };
 
 /** The audio element an event came from: its target, which a handler reads its moment, its length and its pause from. */
-const audioOf = (e: SyntheticEvent<HTMLAudioElement>): HTMLAudioElement => e.target as HTMLAudioElement;
+const audioOf = (e: SyntheticEvent<HTMLAudioElement>): HTMLAudioElement => e.currentTarget;
 
 /** What the call is called and how it went. */
 interface CallWords {
@@ -320,7 +320,7 @@ function callListenBar(c: CallDraw) {
           onChange={(e) => player.seek(Number(e.target.value))}
           aria-label="Position in the call"
           aria-valuetext={`${tlClock(pos)} of ${tlClock(dur)}`}
-          style={{ "--fill": `${pct}%` } as CSSProperties}
+          style={{ "--fill": `${pct}%` }}
           data-testid="tl-listen-track"
         />
         {failed ? (

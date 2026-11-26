@@ -10,6 +10,9 @@ import {
   type LeadPeoplePlan,
   type LeadSearchDto,
   type LeadSearchPlan,
+  isOneOf,
+  LEAD_CLASSES,
+  LEAD_LISTS,
 } from "@chanlytics/contracts";
 import { railToggle } from "../../people/rail/rail-kit";
 import { LEAD_ROUND_MAKERS, leadStrip } from "../finder/strip";
@@ -36,12 +39,14 @@ export const leadRailRoutes = ({
   // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads). On a
   // phone the rail is a sheet, and a press opens the row and nothing else: the sheet closes on it, so a press that went
   // back to All leads would close the sheet on a page the owner did not ask for (Ruben, 25 Sep).
-  const pickListRoute = (id: string, open = false) =>
-    leadsRoute({
+  const pickListRoute = (id: string, open = false) => {
+    const picked = isOneOf(LEAD_LISTS, id) ? id : "all";
+    return leadsRoute({
       searchId: null,
-      list: ((open ? id : railToggle(leadView.searchId ? null : leadView.list, id as LeadList)) || "all") as LeadList,
+      list: (open ? picked : railToggle(leadView.searchId ? null : leadView.list, picked)) || "all",
       cls: null,
     });
+  };
   // A search waiting on its question opens on the places the question is about (a question is only ever asked about
   // places left out); its counted view is empty while it waits.
   const waitsOn = (id: string | null) => {
@@ -116,7 +121,7 @@ export const leadStripActs = (a: {
       });
       return undefined;
     }
-    if (id === "excluded" || id === "review") return goto({ cls: arg as LeadClass });
+    if (id === "excluded" || id === "review") return isOneOf(LEAD_CLASSES, arg) ? goto({ cls: arg }) : undefined;
     // "12 new", Sort by fit and the round's undo need no plan, whatever the search.
     if (id === "take_offered") return takeOffered();
     if (id === "undo") return undoRound(searchIdOf(arg));

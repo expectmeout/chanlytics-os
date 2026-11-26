@@ -29,6 +29,7 @@ import {
   pipePeekFocus,
   pipeThreadRoute,
 } from "./scope-bits";
+import { textOrEmpty, valueAt } from "@chanlytics/contracts";
 
 /** What the frame hands the page: the door a row's press opens a person by, how the page moves the address, and the address's own part. */
 export interface PipelineScopeProps {
@@ -169,7 +170,8 @@ export function usePipelineRows(f: PipelineFrame, ui: PipelineUi) {
   const { people, view, nowMs, controls } = f;
   const { phone, q, canExport, extraView } = controls;
   const { opened, every } = ui;
-  const layout = extraView && PIPE_LAYOUTS.includes(extraView.layout as string) ? (extraView.layout as string) : "list";
+  const asked = extraView?.layout;
+  const layout = typeof asked === "string" && PIPE_LAYOUTS.includes(asked) ? asked : "list";
   const g = usePipelineGroups(f);
   const { rows, pace, all, inView, vm, sortBy, sortDir } = g;
   const rail = P.rail(all, nowMs);
@@ -391,7 +393,11 @@ export function usePipelinePeekRow(r: PipelineRows, ui: PipelineUi, f: PipelineF
   // (A deal's id is a string or null here and a string in pipelinePeekOf, which only ever compares it: a null names no card.)
   const peekDeals = peek && peek.id === peekId && peek.person ? peek.person.deals || null : null;
   const peekVm = peekRow
-    ? P.peek(peekRow.row, peekRow.group, peekDeals as readonly { id: string; stage: string }[] | null)
+    ? P.peek(
+        peekRow.row,
+        peekRow.group,
+        peekDeals && peekDeals.flatMap((d) => (d.id === null ? [] : [{ id: d.id, stage: d.stage }])),
+      )
     : null;
   // Beside an open peek on a desk, the columns that still say the row; on a phone the peek is the whole screen.
   const compact = !!peekVm && !phone;
@@ -428,14 +434,14 @@ export function usePipelineBoardFocus(r: PipelineRows, ui: PipelineUi, place: Pi
   }, [board, cursor, peekId]); // eslint-disable-line react-hooks/exhaustive-deps -- kept as the JSX drew it: a column opens as a cursor or a peek lands past its cap
   useEffect(() => {
     const onRecorded = (e: Event) => {
-      const detail = e && (e as CustomEvent<{ personId?: string } | null>).detail;
-      const id = detail && detail.personId;
+      const detail: unknown = e instanceof CustomEvent ? e.detail : null;
+      const id = textOrEmpty(valueAt(detail, "personId"));
       if (!id) return;
       setTimeout(() => {
         const doc = window.document;
         if (!doc || (doc.activeElement && doc.activeElement !== doc.body)) return;
         // The row of the deal it moved (0029), else the person's first.
-        const deal = detail && (detail as { dealId?: string | null }).dealId;
+        const deal = textOrEmpty(valueAt(detail, "dealId"));
         const el =
           doc.getElementById &&
           ((deal && doc.getElementById(`person-${P.rowId(id, deal)}`)) || doc.getElementById(`person-${id}`));

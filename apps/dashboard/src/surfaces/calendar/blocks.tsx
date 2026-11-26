@@ -416,8 +416,8 @@ function useHourFit(
 ): void {
   useLayoutEffect(() => {
     const el = scroller.current;
-    const grid = el?.firstElementChild as HTMLElement | null | undefined;
-    if (!el || !grid) return undefined;
+    const grid = el?.firstElementChild;
+    if (!el || !(grid instanceof HTMLElement)) return undefined;
     const fit = () => {
       const box = getComputedStyle(el);
       const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
@@ -457,7 +457,7 @@ export function CrBoard(p: {
           and how many rows the day lanes are, so every lane is as tall as the fullest and their tops line up. */}
       <div
         className={`cal-grid ${wide ? "cal-grid-day" : ""}`}
-        style={{ "--cal-hours": span, "--cal-lane-rows": rows } as CSSProperties}
+        style={{ "--cal-hours": span, "--cal-lane-rows": rows }}
       >
         {/* The lane's band runs through the corner too, so it reads as one row across the board. */}
         <div className="cal-corner">{rows > 0 ? <span className="cal-daylane" aria-hidden="true" /> : null}</div>

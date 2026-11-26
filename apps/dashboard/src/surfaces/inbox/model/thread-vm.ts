@@ -134,23 +134,28 @@ export function toConversationVM(
   // this surface indistinguishable from words the customer actually read. On a
   // live account that showed one message twice, identically, when one of the
   // two had been canceled before it ever left.
-  const msgs = dto.messages.map((message): ConversationMessageVM => ({
-    from: message.sender === "customer" ? "client" : "agent",
-    // The row's own channel, not an assumption. Every bubble on this surface
-    // was drawn as WhatsApp -- so a text conversation, live since the SMS
-    // channel shipped, has been labelled WhatsApp on the Conversations page
-    // this whole time, and an email one would be too. The Inbox has read the
-    // column since I1 (toInboxThreadVM); these two view models had drifted.
-    channel: message.type === "call_summary" ? "phone" : writtenChannelOf(message.channel),
-    at: bubbleTime(messageAt(message), tz, now),
-    text: messageWords(message),
-    ...(mediaVM(message) ? { media: mediaVM(message) as MediaVM } : {}),
-    ...(messageWhy(message) ? { why: messageWhy(message) as ReplyWhyVM } : {}),
-    ...(messageAuthor(message) ? { by: (messageAuthor(message) as MessageAuthor).words } : {}),
-    // Only for OUR messages. A customer's inbound message has no send status,
-    // and labelling it would be inventing one.
-    ...(message.sender !== "customer" ? sentFactsOf(message) : {}),
-  }));
+  const msgs = dto.messages.map((message): ConversationMessageVM => {
+    const media = mediaVM(message);
+    const why = messageWhy(message);
+    const author = messageAuthor(message);
+    return {
+      from: message.sender === "customer" ? "client" : "agent",
+      // The row's own channel, not an assumption. Every bubble on this surface
+      // was drawn as WhatsApp -- so a text conversation, live since the SMS
+      // channel shipped, has been labelled WhatsApp on the Conversations page
+      // this whole time, and an email one would be too. The Inbox has read the
+      // column since I1 (toInboxThreadVM); these two view models had drifted.
+      channel: message.type === "call_summary" ? "phone" : writtenChannelOf(message.channel),
+      at: bubbleTime(messageAt(message), tz, now),
+      text: messageWords(message),
+      ...(media ? { media } : {}),
+      ...(why ? { why } : {}),
+      ...(author ? { by: author.words } : {}),
+      // Only for OUR messages. A customer's inbound message has no send status,
+      // and labelling it would be inventing one.
+      ...(message.sender !== "customer" ? sentFactsOf(message) : {}),
+    };
+  });
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   // A call has its OWN row on this surface, so the chat row must summarise the
   // MESSAGING thread only. Including call notes made one call appear twice —

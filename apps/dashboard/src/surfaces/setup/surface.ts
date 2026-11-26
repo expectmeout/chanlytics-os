@@ -38,6 +38,8 @@ import {
   FORWARDING_MODE_WORDS,
   formatPhoneDisplay,
   agoWords,
+  isOneOf,
+  valueAt,
 } from "@chanlytics/contracts";
 import { api, read } from "@/bridge/api";
 import { pageClock } from "@/bridge/zone";
@@ -283,8 +285,7 @@ function later(ids: string | string[], change: SetupPutOffChange): Promise<Setup
   });
 }
 
-const isWorkspaceMark = (id: string): id is (typeof WORKSPACE_MARKS)[number] =>
-  (WORKSPACE_MARKS as readonly string[]).includes(id);
+const isWorkspaceMark = (id: string): id is (typeof WORKSPACE_MARKS)[number] => isOneOf(WORKSPACE_MARKS, id);
 
 /** The workspace's choices with this change over them, as the page shows it before the door answers. */
 function choicesWith(
@@ -496,7 +497,7 @@ export const setupVerbs: SetupApi = {
     async search(areaCode) {
       const r = await api()("POST lines/search", { body: { area_code: areaCode } });
       if (!r.ok) return { ok: false, numbers: [], message: r.message };
-      return { ok: true, numbers: r.data.numbers as LineChoice[], message: "" };
+      return { ok: true, numbers: r.data.numbers, message: "" };
     },
     async buy(number, areaCode) {
       const r = await api()("POST lines/buy", { body: { number, area_code: areaCode }, once: true });
@@ -534,9 +535,7 @@ export const setupVerbs: SetupApi = {
   async request(what) {
     const r = await api()("POST setup/request", { body: { what }, once: true });
     if (!r.ok) return { ok: false, already: false, message: r.message };
-    const req = r.data.request;
-    const already =
-      !!req && typeof req === "object" && "already" in req && (req as { already?: unknown }).already === true;
+    const already = valueAt(r.data.request, "already") === true;
     return { ok: true, already, message: "" };
   },
 };

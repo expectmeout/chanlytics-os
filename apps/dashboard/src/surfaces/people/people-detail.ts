@@ -13,6 +13,9 @@ import {
   type PersonVM,
   type AskedPurpose,
   MIN_MS,
+  finiteOrZero,
+  listOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { commitVerb, type VerbResult } from "@/bridge/verbs/commit";
@@ -437,9 +440,14 @@ interface ManyResult {
 /** A batch door's answer, in the bar's words. Not ours, or gone: not done, and said so -- it is not an error to have selected a row that changed underneath you. */
 function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): ManyResult {
   if (!r.ok) return { ok: false, done: 0, failed: asked, message: r.message };
-  const d = r.data as { done: number; failed: { id: string; message: string }[]; skipped: string[] };
+  const d = {
+    done: finiteOrZero(valueAt(r.data, "done")),
+    failed: listOrEmpty(valueAt(r.data, "failed")),
+    skipped: listOrEmpty(valueAt(r.data, "skipped")),
+  };
   const failed = d.failed.length + d.skipped.length;
-  const why = d.failed[0]?.message ?? (d.skipped.length ? "no longer in this workspace" : undefined);
+  const said = valueAt(d.failed, 0, "message");
+  const why = typeof said === "string" ? said : d.skipped.length ? "no longer in this workspace" : undefined;
   return {
     ok: failed === 0,
     done: d.done,

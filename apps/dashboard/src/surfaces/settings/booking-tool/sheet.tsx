@@ -65,7 +65,7 @@ export function BookingToolSheet({ onClosed, flash }: { onClosed: () => void; fl
   useBookingToolDraws();
   const read = useBookingToolReads();
   const settings = (read && settingsNow()) || null;
-  const config = settings ? (settings.config as Config | null) : null;
+  const config = settings ? settings.config : null;
   const brain = (config && config.brain) || null;
   const opened = useRef(false);
   // Read, and nothing here to edit: Settings says what stands in the row's place.

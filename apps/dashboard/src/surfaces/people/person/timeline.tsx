@@ -204,7 +204,7 @@ function rows(
         <button
           type="button"
           className="cl-bucket-link cl-tl-older"
-          onClick={onShowAll as MouseEventHandler<HTMLButtonElement>}
+          onClick={onShowAll ?? undefined}
           data-testid="timeline-older"
         >
           Show {older} older <Icon name="chevron-down" size={10} />

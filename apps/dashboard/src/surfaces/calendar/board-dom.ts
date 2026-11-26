@@ -16,7 +16,7 @@ export const crTyping = (): boolean => {
     (el.tagName === "INPUT" ||
       el.tagName === "TEXTAREA" ||
       el.tagName === "SELECT" ||
-      (el as HTMLElement).isContentEditable)
+      (el instanceof HTMLElement && el.isContentEditable))
   );
 };
 
@@ -67,7 +67,8 @@ export function standAfter(p: {
  * phone the window does (mobile.css, "The window scrolls"), and the hour is brought under the day heads where they stick.
  */
 function boardToNow(el: HTMLElement, nowAt: number): void {
-  const grid = el.firstElementChild as HTMLElement;
+  const grid = el.firstElementChild;
+  if (!grid) return;
   const hour = parseFloat(getComputedStyle(grid).getPropertyValue("--cal-hour")) || 64;
   const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;
   // A phone's board runs on under the tab bar, the room kept for it at the scroller's foot (mobile.css): a now line

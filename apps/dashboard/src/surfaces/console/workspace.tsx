@@ -20,6 +20,7 @@ import {
   supportPathOf,
   verdictPill,
   type ConsoleWorkspaceTab,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { AttnRow } from "../kit/attention/attn-row";
 import { Button } from "../kit/button/button";
@@ -138,7 +139,9 @@ function Workspace({
         <SubTabs
           label="Workspace"
           value={tab}
-          onSelect={(id) => go(consolePathOf("workspaces", ws.tenant.slug, id as ConsoleWorkspaceTab))}
+          onSelect={(id) => {
+            if (isOneOf(CONSOLE_WORKSPACE_TABS, id)) go(consolePathOf("workspaces", ws.tenant.slug, id));
+          }}
           tabs={CONSOLE_WORKSPACE_TABS.map((t) => ({
             id: t,
             label: CONSOLE_WORKSPACE_TAB_WORDS[t],

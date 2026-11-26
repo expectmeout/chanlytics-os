@@ -108,15 +108,15 @@ export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line
   const activate = (it: LineTaken | undefined) => {
     if (!it) return;
     if (it.type === "thread") {
-      void openThread(it.th as NonNullable<LineRow["th"]>);
+      if (it.th) void openThread(it.th);
       return;
     }
     if (it.type === "jump") {
-      nav(it.to as string, { leave: true });
+      if (it.to) nav(it.to, { leave: true });
       return;
     }
     if (it.type === "item" || it.type === "open") {
-      nav(it.to as string);
+      if (it.to) nav(it.to);
       return;
     }
     // What Ask noticed, where the thing to do is on a page: one step (D36 of the answers canvas).
@@ -125,7 +125,7 @@ export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line
       return;
     }
     if (it.compose) {
-      setQuery(it.q as string);
+      setQuery(it.q ?? "");
       setTimeout(() => inputRef.current && inputRef.current.focus(), AR_FOCUS_MS);
       return;
     }

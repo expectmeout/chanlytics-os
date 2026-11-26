@@ -341,7 +341,7 @@ function openOnTap(foot: RefObject<HTMLDivElement | null>, setFolded: (v: boolea
       const field = foot.current?.querySelector<HTMLTextAreaElement>("textarea.ix-composer-text");
       // A glance that offers a draft puts it in (composer.tsx foldedGlance), and the keys stay down: it may be sent as it is.
       if (!field || field === document.activeElement) return;
-      if (!(e.target as Element).closest?.(".ix-composer-glance:not([data-offers])")) return;
+      if (!(e.target instanceof Element && e.target.closest(".ix-composer-glance:not([data-offers])"))) return;
       field.focus({ preventScroll: true });
       field.setSelectionRange(0, 0);
     },

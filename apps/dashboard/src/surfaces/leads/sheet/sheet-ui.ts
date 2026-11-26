@@ -30,10 +30,10 @@ export interface SheetUiState {
   undo: { sendId: string; kept: RewriteUndo } | null;
 }
 
-const FRESH = {
-  step: "card" as SheetStep,
+const FRESH: Omit<SheetUiState, "lead"> = {
+  step: "card",
   full: false,
-  ask: null as DockAsk,
+  ask: null,
   wrote: false,
   openStep: null,
   whole: false,

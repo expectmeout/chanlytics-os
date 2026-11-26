@@ -30,6 +30,10 @@ import {
   type LeadStageInput,
   type LeadSuggestionsDto,
   type LeadsBulkInput,
+  isObjectRecord,
+  isOneOf,
+  LEAD_STAGES,
+  valueAt,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { workspaceZone } from "@/bridge/zone";
@@ -38,7 +42,6 @@ import { heldViews } from "@/bridge/held-views";
 import { canDo } from "../frame-verbs";
 import { unwrap, type ApiResult } from "@/client/api";
 import { setSurfaceValue, surfaceValue } from "../surface-values";
-import { leadCall } from "./call";
 
 export type { LeadsSurface } from "./surface-types";
 import type { LeadSearchesAnswer, LeadsPageAnswer, LeadsView } from "./surface-types";
@@ -50,13 +53,6 @@ import { queryOf } from "./view-query";
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "stage", dir: "asc" };
-
-/* ------------------------------------------------------ how a call is sent (call.ts) */
-
-/** A read the runner treats as the surface's own: a refusal throws, the way `api.ts`'s `read` does. */
-async function leadRead<O>(key: string, query?: Record<string, string>): Promise<O> {
-  return unwrap(await leadCall<O>(key, query ? { query } : {}));
-}
 
 /* --------------------------------------------------------- what is loaded */
 
@@ -178,7 +174,7 @@ function publishLeads(failed = false): void {
  * key. The first of each is kept, in the order the door sorted them.
  */
 async function leadsPage(v: LeadsView, after?: { key: string; id: string } | null): Promise<LeadsPageAnswer> {
-  const page = await leadRead<LeadsPageAnswer>("GET leads", queryOf(v, after));
+  const page = unwrap(await api()("GET leads", { query: queryOf(v, after) }));
   const seen = new Set<string>();
   return { ...page, rows: page.rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true))) };
 }
@@ -191,7 +187,7 @@ async function readPageOne(v: LeadsView): Promise<LeadsLoaded> {
   const readAt = api().sharesFrom();
   const asOfChange = leadsChangeCount;
   const [searches, page, tz] = await Promise.all([
-    leadRead<LeadSearchesAnswer>("GET lead-searches"),
+    api()("GET lead-searches").then(unwrap),
     leadsPage(v),
     workspaceZone(),
   ]);
@@ -275,10 +271,9 @@ export async function warmLeadsView(to: string): Promise<void> {
  */
 export function leadsBootView(route: string, restored: unknown, last: LeadViewOrder | null = null): LeadsView {
   const parsed = parseLeadsRoute(route || "");
-  const was = (restored as { view?: { sort?: unknown; dir?: unknown } } | null | undefined)?.view;
+  const was = valueAt(restored, "view");
   const order =
-    (last && viewOrderOf(last.sort, last.dir)) ??
-    (was && typeof was === "object" ? viewOrderOf(was.sort, was.dir) : null);
+    (last && viewOrderOf(last.sort, last.dir)) ?? (isObjectRecord(was) ? viewOrderOf(was.sort, was.dir) : null);
   return {
     ...DEFAULT_VIEW,
     ...(parsed ? { searchId: parsed.searchId, list: parsed.list, cls: parsed.cls, chips: parsed.chips } : {}),
@@ -293,7 +288,7 @@ async function refreshView(): Promise<void> {
   const key = L.key;
   const readAt = api().sharesFrom();
   const asOfChange = leadsChangeCount;
-  const [searches, page] = await Promise.all([leadRead<LeadSearchesAnswer>("GET lead-searches"), leadsPage(L.view)]);
+  const [searches, page] = await Promise.all([api()("GET lead-searches").then(unwrap), leadsPage(L.view)]);
   if (!leadsLoaded || leadsLoaded.key !== key) return; // the view moved while this was out
   L.readAt = readAt;
   L.asOfChange = asOfChange;
@@ -349,7 +344,9 @@ export async function leadsView(to: string | Partial<LeadsView>): Promise<void> 
         sort: view.sort,
         dir: view.dir,
       }
-    : { ...view, ...(to as Partial<LeadsView>) };
+    : typeof to === "string"
+      ? view
+      : { ...view, ...to };
   // The order the page asks in, kept for the next load's boot to read in (last-order.ts): the pile's own is no view's.
   keepLastOrder(getActiveWorkspace() ?? "", view);
   await readView(view);
@@ -475,7 +472,7 @@ const staged =
   (input: LeadStageInput) =>
   (r: LeadRowDto): LeadRowDto => {
     const a = stageArgs(input);
-    return a.p_stage ? { ...r, stage: a.p_stage as LeadRowDto["stage"], closed_reason: a.p_reason } : r;
+    return isOneOf(LEAD_STAGES, a.p_stage) ? { ...r, stage: a.p_stage, closed_reason: a.p_reason } : r;
   };
 const bulked =
   (action: "contacted" | "not_a_fit" | "keep" | "exclude") =>
@@ -496,10 +493,7 @@ export async function setLeadStage(id: string, input: LeadStageInput) {
   // An Interested call makes a person, so People is stale too: `refresh-map.ts`
   // names both surfaces for this one route.
   return actAtOnce([id], staged(input), () =>
-    leadCall<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>(
-      "POST leads/[id]/stage",
-      { params: { id }, body: input, refresh: "behind" },
-    ),
+    api()("POST leads/[id]/stage", { params: { id }, body: input, refresh: "behind" }),
   );
 }
 export async function keepLead(searchId: string, id: string) {
@@ -540,7 +534,7 @@ export async function draftForLead(
   id: string,
   input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } },
 ) {
-  return leadCall<DraftData>("POST leads/[id]/draft", {
+  return api()("POST leads/[id]/draft", {
     params: { id },
     body: input,
     refresh: false,
@@ -553,7 +547,7 @@ export async function draftForLead(
  * erased, until a reload. The counts are the re-read's, behind it.
  */
 export async function eraseLead(id: string) {
-  const r = await leadCall<{ erased: true; already: boolean }>("DELETE leads/[id]", {
+  const r = await api()("DELETE leads/[id]", {
     params: { id },
     refresh: "behind",
   });
@@ -568,7 +562,7 @@ export async function eraseLead(id: string) {
 /** The selected ids, or the view for "Select all N that match" (S13). By ids, every row shows it at once; by view nobody knows which rows it reaches, so they wait for the re-read. */
 export async function bulkLeads(body: LeadsBulkInput) {
   return actAtOnce(body.by === "ids" ? body.ids : [], bulked(body.action), () =>
-    leadCall<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", {
+    api()("POST leads/bulk", {
       body,
       refresh: "behind",
     }),
@@ -593,18 +587,15 @@ export async function stopSearch(id: string) {
 }
 /** The Done strip's Undo (§8.6, Task 4.2's `lead_search_undo`): the untouched leads of the ended round leave and the month is credited. */
 export async function removeRoundLeads(id: string) {
-  return leadCall<{ removed: number; credited: number; op_id: string; version: number }>(
-    "POST lead-searches/[id]/undo",
-    {
-      params: { id },
-    },
-  );
+  return api()("POST lead-searches/[id]/undo", {
+    params: { id },
+  });
 }
 export async function renameSearch(id: string, name: string) {
-  return leadCall<{ name: string }>("PATCH lead-searches/[id]", { params: { id }, body: { name } });
+  return api()("PATCH lead-searches/[id]", { params: { id }, body: { name } });
 }
 export async function removeSearch(id: string) {
-  return leadCall<{ archived: number; kept: number }>("DELETE lead-searches/[id]", { params: { id } });
+  return api()("DELETE lead-searches/[id]", { params: { id } });
 }
 /**
  * The ideas for a new search, read now: a phone's New search shows the first day's page over a workspace that has
@@ -637,7 +628,7 @@ export const newSuggestions = (): Promise<ApiResult<LeadSuggestionsDto>> => idea
 export const lineWrittenForMe = (): Promise<ApiResult<LeadSuggestionsDto>> => ideasWrittenNow({ ours: true });
 
 async function ideasWrittenNow(body: { again: true } | { ours: true }): Promise<ApiResult<LeadSuggestionsDto>> {
-  const r = await leadCall<LeadSuggestionsDto>("POST lead-suggestions", { body });
+  const r = await api()("POST lead-suggestions", { body });
   if (!r.ok || !leadsLoaded) return r;
   leadsLoaded = { ...leadsLoaded, suggestions: r.data };
   publishLeads();
@@ -651,14 +642,16 @@ async function ideasWrittenNow(body: { again: true } | { ours: true }): Promise<
  * what was read. Null where nothing answered (S11-8).
  */
 async function firstSearchIdeas(): Promise<LeadSuggestionsDto | null> {
-  const read = await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null);
+  const read = await api()("GET lead-suggestions")
+    .then(unwrap)
+    .catch(() => null);
   if (!read?.due || !canDo("find")) return read;
-  const written = await leadCall<LeadSuggestionsDto>("POST lead-suggestions").catch(() => null);
+  const written = await api()("POST lead-suggestions", { body: {} }).catch(() => null);
   return written?.ok ? written.data : read;
 }
 
 export async function setBusinessLine(businessLine: string) {
-  return leadCall<{ business_line: string }>("PUT lead-suggestions", { body: { business_line: businessLine } });
+  return api()("PUT lead-suggestions", { body: { business_line: businessLine } });
 }
 
 /* ------------------------------------------ a lead on no page loaded (PR 9) */
@@ -692,7 +685,7 @@ async function askPeek(id: string, searchId: string | null, again = false): Prom
   const key = peekKey(id, searchId);
   if (peekAsked.has(key) && !again) return;
   peekAsked.add(key);
-  const r = await leadCall<{ row: LeadRowDto }>("GET leads/[id]", {
+  const r = await api()("GET leads/[id]", {
     params: { id },
     ...(searchId ? { query: { search: searchId } } : {}),
   });
@@ -718,7 +711,8 @@ async function askPeek(id: string, searchId: string | null, again = false): Prom
   peeked.delete(key);
   peeked.set(key, r.data.row);
   while (peeked.size > PEEK_HELD) {
-    const oldest = peeked.keys().next().value as string;
+    const oldest = peeked.keys().next().value;
+    if (oldest === undefined) break;
     peeked.delete(oldest);
     peekAsked.delete(oldest);
   }

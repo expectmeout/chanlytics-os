@@ -132,7 +132,7 @@ export const useArDrop = (attach: (files: readonly File[]) => void) => {
       setDropping(true);
     },
     onDragLeave: (e: DragEvent) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+      if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) setDropping(false);
     },
     onDrop: (e: DragEvent) => {
       setDropping(false);
