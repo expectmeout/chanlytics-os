@@ -46,6 +46,7 @@ import {
   resolveOpenHolds,
 } from "@chanlytics/db/workspace";
 import type { ContactId } from "@chanlytics/contracts";
+import { embedded } from "@chanlytics/db/shared";
 
 export interface VerbConversation {
   id: string;
@@ -107,6 +108,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const { data, error } = await findThreadScope(ctx.supabase, convId);
   if (error) throw new DbFailure(error);
   if (!data) throw new AppError("not_found", "Conversation not found.");
+  const person = embedded(data.contacts);
   // tenant_id is a uuid column, so the check cannot refuse a row this read returns: it names what the id is.
   return {
     id: data.id,
@@ -122,17 +124,17 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     last_message_at: data.last_message_at,
     last_inbound_at: data.last_inbound_at,
     contact_id: data.contact_id,
-    phone_e164: data.contacts?.phone_e164 ?? null,
-    instagram_id: newestInstagramId(data.contacts?.contact_identities ?? []),
-    display_name: data.contacts?.display_name ?? null,
-    wa_profile_name: data.contacts?.wa_profile_name ?? null,
-    name_source: data.contacts?.name_source ?? null,
-    name_settled_at: data.contacts?.name_settled_at ?? null,
-    consent: data.contacts?.consent ?? null,
-    dnc: data.contacts?.dnc ?? false,
-    marketing_consent: data.contacts?.marketing_consent ?? null,
-    email: data.contacts?.email ?? null,
-    email_suppressed_at: data.contacts?.email_suppressed_at ?? null,
+    phone_e164: person?.phone_e164 ?? null,
+    instagram_id: newestInstagramId(person?.contact_identities ?? []),
+    display_name: person?.display_name ?? null,
+    wa_profile_name: person?.wa_profile_name ?? null,
+    name_source: person?.name_source ?? null,
+    name_settled_at: person?.name_settled_at ?? null,
+    consent: person?.consent ?? null,
+    dnc: person?.dnc ?? false,
+    marketing_consent: person?.marketing_consent ?? null,
+    email: person?.email ?? null,
+    email_suppressed_at: person?.email_suppressed_at ?? null,
   };
 }
 
@@ -162,7 +164,7 @@ async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> 
   const { data: contact, error } = await findPersonScope(ctx.supabase, contactId);
   if (error) throw new DbFailure(error);
   if (!contact || contact.erased_at) throw new AppError("not_found", "Contact not found.", 404);
-  return { id: contact.id, tenant_id: contact.tenant_id, marketing_consent: contact.marketing_consent ?? null };
+  return { id: contact.id, tenant_id: contact.tenant_id, marketing_consent: contact.marketing_consent };
 }
 
 /** The contact named by `:id`, as the row a consent route acts on. */
@@ -237,7 +239,7 @@ export async function replyChannelOf(
 ): Promise<WrittenChannel> {
   const { data, error } = await listCustomerWrites(ctx.supabase, conv.tenant_id, conv.id, LAST_WROTE_LOOKBACK);
   if (error) throw new DbFailure(error, "reading the last inbound");
-  const theirs = data ?? [];
+  const theirs = data;
   const wrote = theirs.find((m) => isPersonsWords(m.meta)) ?? theirs[0];
   if (wrote) return writtenChannelOf(wrote.channel);
   // Nothing from their side: the wire our own written words last went by, so a conversation the business began is
@@ -281,7 +283,7 @@ export async function recordDecision(
     log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb, subject: subjectType });
     attempt = await insert(null);
   }
-  if (attempt.error || !attempt.data) throw new DbFailure(attempt.error ?? { message: "no row" }, "decision");
+  if (attempt.error) throw new DbFailure(attempt.error, "decision");
   return attempt.data.id;
 }
 
@@ -297,7 +299,7 @@ export async function resolveOpenEscalation(
   // thread would sit in Needs You with the operator believing they cleared it.
   const { data, error } = await resolveOpenHolds(ctx.supabase, conversationId, ctx.userId, decisionId);
   if (error) log.error("resolve_escalation_failed", { conversation: conversationId, error: error.message });
-  else if (!data || data.length === 0) log.info("resolve_escalation_noop", { conversation: conversationId });
+  else if (data.length === 0) log.info("resolve_escalation_noop", { conversation: conversationId });
 }
 
 /**

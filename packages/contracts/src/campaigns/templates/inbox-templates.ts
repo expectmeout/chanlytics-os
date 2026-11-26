@@ -356,7 +356,7 @@ export function inboxTemplateParts(
   const parts: TemplatePart[] = [];
   let last = 0;
   for (const m of body.matchAll(NUMBERED_SLOT)) {
-    const at = m.index ?? 0;
+    const at = m.index;
     if (at > last) parts.push({ words: body.slice(last, at) });
     parts.push(valueAt.get(Number(m[1])) ?? { words: m[0] });
     last = at + m[0].length;

@@ -1,4 +1,4 @@
-import { channelsReady, type ChannelReady, type TenantId } from "@chanlytics/contracts";
+import { channelsReady, type ChannelReady, type TenantId, valueAt } from "@chanlytics/contracts";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -59,7 +59,9 @@ async function askEdge(): Promise<EmailWire> {
     { workspace: null, user: null, timeoutMs: EMAIL_WIRE_TIMEOUT_MS },
   );
   if (answer.status !== 200 || answer.body?.ok !== true || typeof answer.body.ready !== "boolean") return COULD_NOT_ASK;
-  const offers = answer.body.offers === true ? true : answer.body.offers === null ? null : false;
+  // Said by an edge that knows it; one from before says nothing of it, and nothing is promised.
+  const sentOffers = valueAt(answer.body, "offers");
+  const offers = sentOffers === true ? true : sentOffers === null ? null : false;
   return { ready: answer.body.ready, offers };
 }
 

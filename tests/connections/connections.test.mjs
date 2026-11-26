@@ -22,6 +22,7 @@ import {
   CONNECTION_GROUP_WORDS,
 } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
+import { bootRunsOneNamed } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const ago = (ms) => new Date(NOW - ms).toISOString();
@@ -397,7 +398,7 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.equal(mock.state, "attention", "joined, not working");
   assert.equal(mock.stateWords, "Waiting on Chanlytics");
   assert.match(mock.sentence, /nothing is delivered/);
-  assert.match(mock.sentence, /a person at Chanlytics is filing it/);
+  assert.match(mock.sentence, /A person at Chanlytics files it/);
   assert.ok(!/switches itself on/.test(mock.sentence), "a rehearsal never switches itself on");
   assert.ok(
     !/switches itself on/.test(words("registering", { reg_mock: true }).sentence),
@@ -504,7 +505,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     fromModel && /\bconnectionRows\b/.test(fromModel[1]) && /\bCONNECTION_GROUP_WORDS\b/.test(fromModel[1]),
     "the pane imports its model's rows and group words",
   );
-  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installConnections"));
+  assert.ok(!bootRunsOneNamed("installConnections"), "the frame's boot installs nothing of Connections'");
   const edge = readCode("apps/edge/lib/shared/google/config.ts");
   assert.ok(
     edge.includes("export function googleAudience(): GoogleAudience | null {") &&

@@ -199,7 +199,7 @@ export function installShell(win: Window = window): void {
  * Each surface by the word the status line says it stopped refreshing by: every surface the shell starts, but who is looking (a
  * workspace read that fails is the shell's own state, not a line). It named a dozen, and a bell, a Settings, a Campaigns or a Leads
  * that stopped refreshing said nothing at all, the bell being where a hand-over is announced (the wiring's second audit, S2-5).
- * shell/surfaces/shell-status.test.mjs holds it to the shell's list.
+ * shell/surfaces/status/the-live-call-bar.test.mjs holds it to the shell's list.
  */
 export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   conversations: "Conversations",
@@ -237,7 +237,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   google: "Google",
   billing: "Billing",
   partner: "Partner",
-  alerts: "Your alerts",
+  alerts: "Alerts",
 };
 
 /**

@@ -22,4 +22,4 @@ export {
 } from "./legs";
 export type { ErasedRows } from "./legs";
 export { ERASURE_STRATEGIES } from "./registry";
-export type { ErasureStrategy } from "./registry";
+export type { ErasureStrategy } from "./strategy";

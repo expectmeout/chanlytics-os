@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toInboxThreadVM, toCallVM, toPersonRowVM, toPersonVM, personStateFor } from "@chanlytics/contracts";
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -351,9 +351,10 @@ test("the profile's Right now agrees with the mode two inches away", () => {
 });
 
 test("the API attaches the mode in force, and an erasure scrubs the jobs that carried the number", async () => {
-  // The reading moved into one helper the list route and the CSV export share.
-  const list = readCode("apps/dashboard/src/server/people/people.ts");
-  assert.ok(list.includes("effective_reply_mode: personMode.get(r.id) ?? workspaceMode"));
+  // The reading moved into one helper the list route and the CSV export share: the list route attaches each person's mode
+  // in force, their own else the workspace's, run over a database in memory in people/routes/a-person-a-list-and-everyone
+  // ("the people list is the workspace the tab named"; "each person's receptionist mode past a thousand people"). Pinned
+  // as people.ts's text until 26 Nov 2026.
   // One person's page attaches it the same way, run over a database in memory: their own mode, else the workspace's,
   // else none. Another person's own mode is not theirs.
   const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -396,22 +397,11 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
   assert.deepEqual(await inForce([]), [null, null, null], "else none");
   // An erasure scrubs the jobs with every spelling of the number, and the address: an email send carries `to_email`,
   // never a number. people/erasure/erasure-door.test.mjs runs the door and reads the jobs it scrubbed;
-  // people/erasure/erasure-jobs-scrub.test.mjs runs the scrub itself.
-  const service = readCode("packages/db/src/repositories/erasure/legs.ts");
-  // No kind is spared any more. One was -- the blob_thread_erase job that
-  // removed the second copy of the conversation, which the scrub would
-  // otherwise have wiped the digits off before it could run. That store and
-  // that kind are gone (00151), so every job carrying the number is scrubbed.
-  assert.ok(!service.includes('.neq("kind"'), "nothing carrying the number is left alone");
-  assert.ok(service.includes('reason: "contact erased"'));
+  // people/erasure/erasure-jobs-scrub.test.mjs runs the scrub itself, every kind of job that carried the number and the
+  // reason it leaves ("no kind is spared"; pinned as legs.ts's text until 26 Nov 2026).
 });
 
-test("a deep link to a thread that is not in view says so instead of opening someone else's", () => {
-  const cv = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
-  assert.ok(cv.includes("const requestedMissing = !!initialId"));
-  assert.ok(!cv.includes('String(c.who || "").split(" ")[0]'), "REGRESSION: 'Latest from +1'");
-  const ix = readRaw("apps/dashboard/src/surfaces/inbox/pages/inbox-page.tsx");
-  assert.ok(/const requestedMissing =\s*!!initialThreadId/.test(ix));
-  const pane = readRaw("apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
-  assert.ok(/\{notice && \(\s*<div className="ix-notice" role="status">\s*\{notice\}\s*<\/div>\s*\)\}/.test(pane));
-});
+// A deep link to a thread that is not in view says so instead of opening someone else's: drawn on Conversations and the
+// Inbox in conversations/inbox/conversations-doors.test.mjs ("REGRESSION (A26): a link to a conversation not in view") and
+// conversations/inbox/one-thread.test.mjs ("a link to a conversation not in view says so where it would have opened").
+// Pinned as the two pages' and the thread pane's text until 26 Nov 2026.

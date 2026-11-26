@@ -187,7 +187,7 @@ export function factsRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupR
       required: true,
       sentence: `${business.name} · hours set · ${plural(business.services, "service")} on record`,
       details: [
-        business.bookingLink ? "Booking link on record" : "No booking link · AI answers, but cannot send one",
+        business.booking_link ? "Booking link on record" : "No booking link · AI answers, but cannot send one",
         business.address ? "Address on record" : "No address yet",
       ],
       verb: { label: "Edit in Business", to: "admin/workspace" },
@@ -281,7 +281,7 @@ export function whatsappRow(setupInputs: SetupInputs, ctx: SetupRowContext): Set
       title: "WhatsApp",
       state: "waiting_you",
       required: !answering,
-      sentence: `${waNum ?? "The number"} is connected but switched off.`,
+      sentence: `${waNum} is connected but switched off.`,
       details: [],
       verb: { label: "Open Connections", to: "admin/integrations" },
     };

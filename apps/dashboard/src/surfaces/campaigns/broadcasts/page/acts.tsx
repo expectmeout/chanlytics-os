@@ -15,7 +15,6 @@ import {
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { broadcasts } from "../verbs";
-import type { SendBody } from "../verbs";
 import { bcWhenWords } from "../when-words";
 import type { BcActRow, BcApproving, BcBase, BcReach, BcRunActs, BcSendActs, BcSlotWords } from "./types";
 
@@ -126,7 +125,7 @@ export function bcSendActs({
     setBusy(true);
     const r = await broadcasts.send({
       template_id: tpl.id,
-      params: specs as SendBody["params"],
+      params: specs,
       audience: { kind: active.kind, id: active.id },
       // The channels it goes by: the ones on, which the workspace can send on and the message has a version for.
       channels: on,

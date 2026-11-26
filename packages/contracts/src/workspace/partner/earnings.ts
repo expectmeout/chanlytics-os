@@ -68,10 +68,7 @@ export function partnerEarningsWords(
   const held = sumWords(list, "held");
   const payable = sumWords(list, "payable");
   const paid = sumWords(list, "paid");
-  const next = list
-    .filter((r) => r.state === "held" && r.next_payable_at)
-    .map((r) => r.next_payable_at as string)
-    .sort()[0];
+  const next = list.flatMap((r) => (r.state === "held" && r.next_payable_at ? [r.next_payable_at] : [])).sort()[0];
   return {
     none: list.every((r) => r.earned_cents === 0),
     // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
@@ -102,19 +99,22 @@ export interface PartnerVM {
   earnings: PartnerEarningsVM;
 }
 
-/** The pane's sentences, from the row, the ledger's sums, and the workspaces this person holds as partner. */
+/**
+ * The pane's sentences, from the row, the ledger's sums, and the workspaces this person holds as partner; the page's origin
+ * makes the link, and its zone (the workspace's clock) says the day the account was made.
+ */
 export function partnerVM(
   dto: PartnerDto,
-  origin: string,
+  page: { origin: string; zone: string },
   workspacesAsPartner: number,
   balance: readonly PartnerBalanceRow[] = [],
 ): PartnerVM {
   return {
     code: dto.code,
-    link: partnerLinkFor(dto.code, origin),
+    link: partnerLinkFor(dto.code, page.origin),
     status: dto.status,
     share: shareWords(dto.share_bp),
-    since: PARTNER_WORDS.since(dto.created_at),
+    since: PARTNER_WORDS.since(dto.created_at, page.zone),
     brought: broughtWords(workspacesAsPartner),
     standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
     earnings: partnerEarningsWords(balance),

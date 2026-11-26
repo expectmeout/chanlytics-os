@@ -406,9 +406,18 @@ function unattributed(ask: ModelAsk, deps: ModelDeps) {
   };
 }
 
+/**
+ * Whether the request says whom it is for. Typed as always there, but a request reaches here however it was built (an
+ * object past the type, a test's): one that says nothing never leaves (decision 0097).
+ */
+function saysWhom(ask: ModelAsk): boolean {
+  const sent: Partial<Pick<ModelAsk, "attribution">> = ask;
+  return !!sent.attribution;
+}
+
 /** One answer from the model the purpose names, or its fallback; never thrown. */
 export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelReply> {
-  if (!ask.attribution) return { ...unattributed(ask, deps), usage: NO_USAGE };
+  if (!saysWhom(ask)) return { ...unattributed(ask, deps), usage: NO_USAGE };
   const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), false);
   if (a.outcome !== "ok") {
     return {
@@ -434,7 +443,7 @@ export async function askModel(key: string, ask: ModelAsk, deps: ModelDeps = {})
 
 /** The API's event stream for one request, from the model the purpose names or its fallback; never thrown. */
 export async function streamModel(key: string, ask: ModelAsk, deps: ModelDeps = {}): Promise<ModelStreamReply> {
-  if (!ask.attribution) return unattributed(ask, deps);
+  if (!saysWhom(ask)) return unattributed(ask, deps);
   const { a, model, base } = await triesOf(key, ask, planOf(ask, deps), true);
   if (a.outcome === "ok" && a.body) return { ...base, model, outcome: "ok", body: a.body, headers: a.headers };
   return {

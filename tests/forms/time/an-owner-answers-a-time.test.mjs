@@ -27,9 +27,9 @@ const requests = await import(at("apps/dashboard/app/api/v1/forms/requests/route
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { formRequestsOpen } = await import(at("apps/dashboard/src/server/readers/forms.ts"));
+const { formRequestsOpen } = await import(at("apps/dashboard/src/server/readers/forms/forms.ts"));
 const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
-const { formRowsOf } = await import(at("packages/contracts/src/today/form-rows.ts"));
+const { formRowsOf } = await import(at("packages/contracts/src/today/queue/form-rows.ts"));
 
 const wire = emailWire(getEmailWire);
 beforeEach(async () => {

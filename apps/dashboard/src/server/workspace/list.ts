@@ -215,7 +215,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     // so the bridge makes no request of its own for it.
     return {
       workspaces: [],
-      activeWorkspaceId: null,
+      active_workspace_id: null,
       pending: pendingWorkspaceOf(ctx.metadata),
       posture: signupPosture(env.SIGNUP_CODE),
       user: {
@@ -242,7 +242,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
   // which is the degradation this fallback is for -- and a plain Error when
   // the memberships read itself failed. Catching both sent a momentary read
   // failure to the OLDEST membership instead, and the client echoes
-  // activeWorkspaceId back on every later call: the operator would be working
+  // active_workspace_id back on every later call: the operator would be working
   // in a different business's inbox with nothing on screen saying so. A
   // rejection that is not the stale preference is re-thrown with its own
   // cause, rather than replaced by a bare "no workspace" behind a 500.
@@ -257,7 +257,7 @@ export async function readWorkspaces(ctx: RouteContext, _req: Request) {
     workspaces: listed,
     // Which workspace everything else on this page is scoped to. The client
     // echoes it back as ?workspace= so a reload lands where it left off.
-    activeWorkspaceId: member.tenantId,
+    active_workspace_id: member.tenantId,
     user: {
       id: userId,
       email: email ?? null,

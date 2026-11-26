@@ -19,6 +19,7 @@ import type { KeyDoors } from "./keyboard";
 import { heardListScroll, keptTop, ldScroller } from "./scroller";
 import { heldPutBack } from "../../kit/motion/held-list";
 import { placeReader, readersScroll } from "../../kit/motion/page-scroll";
+import { finiteOrZero } from "@chanlytics/contracts";
 
 /** How long a scroll is left to settle before the view's place is kept. */
 const PLACE_SAVE_DELAY_MS = 200;
@@ -133,13 +134,16 @@ function usePlaceKeeper(
   const placeTop = useRef(0);
   const placeDue = useRef<{ view: string; top: number; q: string; fresh: boolean } | null>(null); // a scroll position waiting for its view's rows
   useEffect(() => {
-    const p = placeLoad(page, view) || {};
-    setQ((p.q as string) || "");
-    cursor.cursorAnswered.current = (p.cursor as string) || null;
-    cursor.setCursor((p.cursor as string) || null);
-    if (onPlace) onPlace(p, placeOf.current !== undefined);
-    placeTop.current = (p.top as number) || 0;
-    placeDue.current = { view, top: (p.top as number) || 0, q: (p.q as string) || "", fresh: true };
+    const place = placeLoad(page, view) || {};
+    const words = typeof place.q === "string" ? place.q : "";
+    const kept = typeof place.cursor === "string" && place.cursor ? place.cursor : null;
+    const top = finiteOrZero(place.top);
+    setQ(words);
+    cursor.cursorAnswered.current = kept;
+    cursor.setCursor(kept);
+    if (onPlace) onPlace(place, placeOf.current !== undefined);
+    placeTop.current = top;
+    placeDue.current = { view, top, q: words, fresh: true };
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
   // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
   const extraKey = extra ? JSON.stringify(extra) : "";

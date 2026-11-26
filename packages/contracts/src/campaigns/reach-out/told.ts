@@ -8,7 +8,7 @@
  * An answer to a reply is the receptionist's, over the thread and the lead's note, which differ with every reply: its
  * parts are said with no share, since no one number would be true of them.
  */
-import { leadReplyNote } from "./reply-draft";
+import { leadReplyNote } from "./replies/draft";
 import type { OpeningLine, OpeningPart } from "./opening";
 import type { OpeningRecord } from "./words/opening";
 

@@ -68,7 +68,7 @@ const CAMPAIGNS_VIEWS: ReadonlyArray<readonly [RegExp, string]> = [
  * Today for the workspace's own address, and "other" for a route the table would refuse.
  */
 export function vitalsPageOf(route: string): string {
-  const path = (route ?? "").split("?")[0] ?? "";
+  const path = route.split("?")[0] ?? "";
   const at = path.indexOf("/");
   const head = at < 0 ? path : path.slice(0, at);
   const rest = at < 0 ? "" : path.slice(at + 1);

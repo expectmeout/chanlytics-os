@@ -1,3 +1,4 @@
+import { isOneOf } from "../shared/unknown";
 /**
  * Files: kinds. A file is a picture or a video (decision 0099, stage B). A video is kept by the video platform, and its folder
  * holds only what was made of it: its sheet of frames, its poster and its sound (video.ts, sound.ts).
@@ -36,8 +37,7 @@ export type FileImageMime = (typeof FILE_IMAGE_MIMES)[number];
 export type FileVideoMime = (typeof FILE_VIDEO_MIMES)[number];
 
 /** Whether a type is a video's: what the video platform keeps. */
-export const isVideoMime = (value: unknown): value is FileVideoMime =>
-  typeof value === "string" && (FILE_VIDEO_MIMES as readonly string[]).includes(value);
+export const isVideoMime = (value: unknown): value is FileVideoMime => isOneOf(FILE_VIDEO_MIMES, value);
 
 /** A type's kind. */
 export const fileKindOf = (mime: string): FileKind => (isVideoMime(mime) ? "video" : "image");

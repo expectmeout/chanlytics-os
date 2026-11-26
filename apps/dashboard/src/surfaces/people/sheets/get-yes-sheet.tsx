@@ -62,7 +62,7 @@ function TheCode({
     <div className="bc-optin-body">
       <img
         className="bc-optin-qr"
-        src={optIn.qrPath as string}
+        src={optIn.qrPath ?? undefined}
         alt={`QR code that opens WhatsApp with “${optIn.phrase}” ready to send`}
         width={120}
         height={120}
@@ -97,7 +97,7 @@ function TheCode({
           >
             Copy link
           </Button>
-          <a className="btn btn-sm" href={optIn.qrPath as string} download="say-yes-to-offers.svg">
+          <a className="btn btn-sm" href={optIn.qrPath ?? undefined} download="say-yes-to-offers.svg">
             Download QR
           </a>
           <a className="cl-bucket-link" href={link} target="_blank" rel="noreferrer">

@@ -14,7 +14,7 @@
  * the ones the session role may update besides it (00037).
  */
 import { CONVERSATION_STATES, type ConversationState } from "../shared/enums";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, keysOf } from "../shared/unknown";
 
 type MoveColumn = "paused_until" | "snooze_until" | "assignee_user_id" | "last_message_at";
 type MoveInputName = "until" | "user" | "now";
@@ -81,7 +81,8 @@ export function conversationPatch<M extends ConversationMoveName>(
   const conversationMove: ConversationMove = CONVERSATION_MOVES[move];
   const given: Partial<Record<MoveInputName, string>> = input[0] ?? {};
   const patch: ConversationPatch = { state: conversationMove.to };
-  for (const [column, from] of Object.entries(conversationMove.sets) as [MoveColumn, MoveInputName | null][]) {
+  for (const column of keysOf(conversationMove.sets)) {
+    const from = conversationMove.sets[column] ?? null;
     const value = from === null ? null : given[from];
     if (value === undefined) throw new Error(`${move} needs ${from} for ${column}`);
     patch[column] = value;

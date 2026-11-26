@@ -31,8 +31,8 @@ import { NEED_YOU_WORDS } from "../need-you/words";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./clock";
 import { QUOTE_MAX, type EscalationRecord, type OwedThread, type TodayFacts } from "./facts";
-import { commentRowsOf } from "./comment-rows";
-import { formHeldPart, formRowsOf } from "./form-rows";
+import { commentRowsOf } from "./queue/comment-rows";
+import { formHeldPart, formRowsOf } from "./queue/form-rows";
 import { say } from "./rows";
 import type { TodayCallRowVM, TodayQueueEmptyVM, TodayQueueRowVM, TodayVM } from "./vm";
 
@@ -562,7 +562,7 @@ export function todayQueue(
     if (row) queueAll.push(row);
   }
   // Whoever asked through a form and has no answer yet (00680): people, in Need you's order with the rest. And each
-  // form's entries held for a look, left three days: one quiet row a form, after everyone waiting (form-rows.ts).
+  // form's entries held for a look, left three days: one quiet row a form, after everyone waiting (queue/form-rows.ts).
   queueAll.push(...formRowsOf(todayFacts));
   // Whoever commented on a post and waits on the owner's word: AI could not answer it, or the answer did not go (00699).
   queueAll.push(...commentRowsOf(todayFacts));

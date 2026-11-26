@@ -46,10 +46,12 @@ import {
   type NewStep,
   type NewStepDoes,
   type NewWrittenMessage,
+  type ParamSourceKind,
   type ParamSpec,
   type SequenceMode,
   type SequenceRowDto,
   templateSlots,
+  paramSpecOf,
 } from "@chanlytics/contracts";
 import type { KeptSend } from "./kept-send";
 import {
@@ -296,10 +298,10 @@ function againKinds(kept: KeptSend, id: string, row: Library["rows"][number] | n
   const kinds = kept.sources?.[id] ?? [];
   const typed = kept.params?.[id] ?? [];
   return (p: ParamSpec, i: number): ParamSpec => {
-    const choices: readonly string[] = may?.[i] ?? ["text"];
+    const choices: readonly ParamSourceKind[] = may?.[i] ?? ["text"];
     const was = kinds[i] ?? p.kind;
-    const kind = choices.includes(was) ? was : (choices[0] ?? "text");
-    return kind === "text" ? { kind: "text", value: was === "text" ? (typed[i] ?? "") : "" } : ({ kind } as ParamSpec);
+    const kind = choices.find((c) => c === was) ?? choices[0] ?? "text";
+    return paramSpecOf(kind, was === "text" ? (typed[i] ?? "") : "");
   };
 }
 

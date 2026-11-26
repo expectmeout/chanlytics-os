@@ -12,6 +12,7 @@ import {
   replyStripOf,
   type ReachOutRepliesDto,
   type ReachOutReplyDto,
+  valueAt,
 } from "@chanlytics/contracts";
 import { api, read } from "../api";
 import type { SurfaceOverride } from "../surface-data";
@@ -68,10 +69,13 @@ function readingOf(threadId: string): ReachOutReplyDto | null {
   return all ? (all.replies.find((r) => r.conversation_id === id) ?? null) : null;
 }
 
-/** A thread as the strip reads it: its id and its timeline's bubbles, oldest first. */
+/**
+ * A thread as the strip reads it: its id and its timeline's entries, oldest first, of which it reads a bubble's
+ * `messageId` and `byYou` (an event entry has neither).
+ */
 interface StripThread {
   id: string;
-  timeline?: Array<{ messageId?: string; byYou?: boolean }>;
+  timeline?: readonly object[];
 }
 
 /** The business's zone, as the shell's clock holds it. */
@@ -107,8 +111,8 @@ export const replies = {
     const r = readingOf(thread.id);
     if (!r) return null;
     const timeline = thread.timeline ?? [];
-    const at = timeline.findIndex((e) => e.messageId === r.message_id);
-    if (at >= 0 && timeline.slice(at + 1).some((e) => e.byYou)) return null;
+    const at = timeline.findIndex((e) => valueAt(e, "messageId") === r.message_id);
+    if (at >= 0 && timeline.slice(at + 1).some((e) => !!valueAt(e, "byYou"))) return null;
     const all = repliesHeld();
     return {
       reading: r,

@@ -8,8 +8,8 @@ import { REACH_OUT_LIMITS, type ReplyOffer } from "../../config/workspace-config
 import { MAILBOX_CONNECTIONS_MAX, MAILBOXES_PER_DOMAIN_MAX } from "../../email/mailbox-connections/states";
 import { MAILBOX_RAMP } from "../../email/mailbox-standing";
 import type { BusinessReadSource } from "../../imports/business-reads";
-import { COLD_EMAIL_CONNECT_WORDS } from "./connect-words";
-import { mayDraftReply } from "./reply-draft";
+import { COLD_EMAIL_CONNECT_WORDS } from "./words/connect";
+import { mayDraftReply } from "./replies/draft";
 import type { ColdEmailSending } from "./sending";
 import type { ColdEmailStanding } from "./standing";
 import { REACH_OUT_REPLY_DAYS } from "./replies/intents";

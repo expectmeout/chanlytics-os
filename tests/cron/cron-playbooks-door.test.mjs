@@ -832,8 +832,8 @@ test("a reach-out's first run waits for its owner: one pending run, its sends pl
   );
   assert.deepEqual(w.tables.broadcast_recipients, []);
   assert.deepEqual(
-    w.tables.notifications.map((n) => [n.route, n.subject_type, n.subject_id]),
-    [[`campaigns/sequences/${run.id}/runs/${run.id}`, "broadcast", run.id]],
+    w.tables.notifications.map((n) => [n.kind, n.route, n.subject_type, n.subject_id]),
+    [["playbook", `campaigns/sequences/${run.id}/runs/${run.id}`, "broadcast", run.id]],
     "its owner is told where to approve it: the row opens the run itself",
   );
   assert.equal(w.tables.playbooks[0].last_run_for, today, "the step remembers the day");
@@ -1034,11 +1034,11 @@ test("REGRESSION: a reminder nobody approved by 21:00 is skipped, and its owner 
   const told = Object.fromEntries(bellOf(w, A).map((n) => [n.subject_id, [n.title, n.body]]));
   assert.deepEqual(told["run-reminder"], [
     "“Appointment reminder” didn’t go: nobody approved it",
-    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
+    "3 people waited for your approval until 21:00, so it didn’t reach them, and nothing later sends it: open it to write to them yourself. The next day’s waits too: its sends wait for your first approval, and each one while “Before each send” says to ask.",
   ]);
   assert.deepEqual(told["run-winback"], [
     "“Win-back” didn’t go: nobody approved it",
-    "2 people waited for your approval all day, so nothing was sent. They're in line for its next send: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
+    "2 people waited for your approval all day, so nothing was sent. They're in line for its next send: its sends wait for your first approval, and each one while “Before each send” says to ask.",
   ]);
 });
 
@@ -1134,7 +1134,7 @@ test("a late booking's reminder nobody approved ends when its visit begins (0118
   );
   const [told] = bellOf(w, A).filter((n) => n.subject_id === "run-begun");
   assert.equal(told.title, "“Appointment reminder” didn’t go: nobody approved it");
-  assert.match(told.body, /^1 person booked after the day’s reminders went, .+ no later send goes in its place\./);
+  assert.match(told.body, /^1 person booked after the day’s reminders went, .+ nothing later sends it/);
 });
 
 test("two playbooks due in the same hour keep the week's breath between them: the second leaves out whoever the first just enrolled, and keeps whoever it did not (P1 3)", async () => {

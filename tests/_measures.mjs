@@ -57,7 +57,8 @@ import {
 import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { CLOCKS } from "./clocks/_clocks.mjs";
 import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../tooling/scripts/gen/schema-snapshot.mjs";
-import { SCHEMA_SETS } from "@chanlytics/contracts";
+import { KEPT_WITH_NO_CALLER, clockOf, codeCallersOf, functionsOf, mapOf } from "../tooling/scripts/gen/sql-map.mjs";
+import { ACTIVITY_NOISE_PREFIXES, SCHEMA_SETS } from "@chanlytics/contracts";
 import { ERASURE_STRATEGIES } from "@chanlytics/db/erasure";
 import { SUITES } from "../tooling/scripts/checks/test.mjs";
 import { NAME_RATCHETS } from "./repo/names/_names.mjs";
@@ -330,6 +331,16 @@ export function writersByTable() {
   return writers;
 }
 
+/**
+ * How many writers a table has, as the measure counts them (Ruben, 26 Nov 2026): each source module that writes it, and
+ * the database's doors together as one, each verb its own door under the table's guards. A table written only through
+ * its doors has one writer; one a module writes beside them, or two modules write, has more.
+ */
+export const codeWritersOf = (who) => {
+  const modules = [...who].filter((w) => !w.endsWith("()")).length;
+  return modules + (modules < who.size ? 1 : 0);
+};
+
 /* ---- Doors writing a record with no event (decision 0031, invariant 2: a fact and its event share a transaction) ---- */
 
 /** The spine's own rows: an event's outbox row and its deliveries, and the jobs that carry reactions. What a fact causes. */
@@ -338,19 +349,171 @@ const SPINE = new Set(["event_outbox", "event_deliveries", "jobs"]);
 /** A statement of the snapshot that does not run on past a blank line, which ends every statement it writes. */
 const ONE_STATEMENT = String.raw`(?:(?!\n\n)[\s\S])*?`;
 
+/** Why a door that writes rows keeps no fact: each kind of row that is the machine's, not a record's news. */
+const NO_FACT = {
+  lease:
+    "A lease, a claim or a hand-out of work: the queue's own bookkeeping of who holds what until when. The door that does the work writes its fact when it lands.",
+  meter:
+    "A meter: what an allowance spent, a link or a form was opened, an import counted, by day. A number Reports reads, not a fact a reaction follows.",
+  ownMark:
+    "A member's own mark or device: what they have seen or read, how their lists sort, where their phone is told. Theirs alone, not news of the workspace's records.",
+  providerId:
+    "The id a provider knows a caller by (whom Anthropic is told a call is for, decision 0097), made once: bookkeeping with the provider, which no reaction follows.",
+  aiWorking:
+    "AI's working copy, or its reading of the world: a draft while it is written, a turn kept for the evals (invariant 11), what it saw or heard in a file, the numbers a platform gave. The act that takes it up writes the fact.",
+  platform:
+    "The platform's own, with no workspace to write an event in: the Console's staff, and its pause of a job kind.",
+  projection: "A projection filled again from records that wrote their own events: a person's moments.",
+  harness:
+    "A sequence's own list, made inside sequence_create_leads, whose event says it; an e2e harness calls it alone to draw a state.",
+  decided:
+    "Its fact is the decision it writes in the same transaction, the Activity log's line of it (a broadcast sent now); the steps' words_ok_at beside it is the plan's memory, read by contracts batchModeOf.",
+};
+
 /**
- * Each `security definer` function of the schema, a door (0031), that writes a record and writes no event, with the
- * number of records it writes: `{ "name()": n }`. A door writes its event when its body inserts into `events`, when it
- * calls a function that does, or when it writes a table a trigger of which does, each followed to the end. The tables
- * many places write by design, the spine's own rows and the writers that only take away (the writers measure's) are no
- * record here. A statement built as a string (`execute format(…)`) is not seen.
+ * The doors that write rows and keep no fact, each with why (decision 0031, invariant 2: an event is a record's news).
+ * The measure leaves them out, and repo/measures.test.mjs holds each one to still be a door that writes no event, so the
+ * list cannot outlive what it argues.
  */
-export function doorsWithoutEventsIn(sql) {
+export const NO_FACT_DOORS = Object.fromEntries(
+  Object.entries({
+    lease: [
+      "conversation_draft_claim",
+      "fact_candidates",
+      "file_copy_returning",
+      "file_shelf_requeue",
+      "lead_check_retry",
+      "lead_run_claim",
+      "lead_run_lease",
+      "lead_run_mark_unknown",
+      "lead_run_reconcile",
+      "lead_run_record_start",
+      "lead_run_release",
+      "note_candidates",
+      "reach_out_recheck",
+      "reach_out_release_unavailable",
+      "reach_out_reply_tell_claim",
+      "reach_out_reply_told",
+      "reach_out_run_recheck",
+      "sequence_claim_drafts",
+      "sequence_claim_from",
+      "sequence_unchecked",
+      "source_takes_hand_out",
+    ],
+    meter: [
+      "billing_card_mark",
+      "billing_event_keep_amount",
+      "form_booking_open",
+      "found_read_spend",
+      "import_ledger_note",
+      "lead_site_reads_spent",
+      "link_open",
+      "reach_out_check_take",
+      "reach_out_read_take",
+      "source_take_spend",
+      "source_units_spend",
+    ],
+    ownMark: [
+      "contact_mark",
+      "member_push_off_set",
+      "member_view_set",
+      "notification_mark",
+      "notifications_read_through",
+      "notifications_seen",
+      "profile_set",
+      "push_device_forget",
+      "push_device_register",
+      "push_devices_forget_all",
+      "words_seen",
+    ],
+    providerId: ["anthropic_profile_claim"],
+    aiWorking: [
+      "ad_draft_writing",
+      "ad_draft_written",
+      "comment_answer_draft_keep",
+      "conversation_draft_write",
+      "file_look_keep",
+      "file_moments_keep",
+      "file_sound_keep",
+      "model_turn_keep",
+      "piece_version_kept",
+      "post_observations_keep",
+      "reach_out_reply_draft",
+      "touches_keep",
+    ],
+    platform: ["job_kind_pause", "job_kind_resume", "platform_admin_add"],
+    projection: ["person_moments_fill"],
+    harness: ["reach_out_list_for"],
+    decided: ["assemble_broadcast"],
+  }).flatMap(([why, doors]) => doors.map((d) => [`${d}()`, NO_FACT[why]])),
+);
+
+/**
+ * The vault's doors (a credential put or dropped), each kept from the count only where the connection's own door
+ * writes the connect or the disconnect as its event: `{ "door()": { by: "the covering door()", kind } }`, held by
+ * repo/measures.test.mjs to a door that exists and writes that kind. A vault door no event covers is counted. The
+ * mailbox's and the line's are covered since 00721; the Google profile's comes with 00722, a channel's and a source's
+ * with 00723.
+ */
+export const VAULT_DOORS_COVERED = {
+  // A mailbox's token kept as its connect stands, and dropped as it is removed: mailbox_connection_move says each.
+  "put_mailbox_credentials()": { by: "mailbox_connection_move()", kind: "mailbox_connection.connected" },
+  "drop_mailbox_credentials()": { by: "mailbox_connection_move()", kind: "mailbox_connection.removed" },
+  // A line's provider key kept as the line is provisioned: the line's own row says it answers (lines_tell_their_moves).
+  "put_line_credentials()": { by: "lines_tell_their_moves()", kind: "line.answering" },
+};
+
+/** sql-map.mjs's callers, read once a process: the code's and the scripts' are a walk of every module. */
+let outsideCallers = null;
+
+/**
+ * The functions of the schema something outside the database reaches (docs/sql-map.md's "called by"): the code, by
+ * `.rpc("…")` or its name as a string a helper hands on; a script a person runs, or an operator by hand (sql-map's
+ * KEPT_WITH_NO_CALLER); the clock (`cron.schedule`); a rule or a column's default; or a browser, through a grant to a
+ * signed-in person or to anyone. A function none of those reaches runs only when another function calls it: a step of
+ * the doors that do.
+ */
+export function reachedFromOutside(sql) {
+  if (!outsideCallers) {
+    const { fns } = functionsOf(sql);
+    const map = mapOf(sql, { clock: clockOf(), ...codeCallersOf([...fns.keys()]) });
+    outsideCallers = new Set(
+      map
+        .filter(
+          (r) =>
+            ["code", "scripts", "clock", "rules"].some((k) => r.calledBy[k].length > 0) ||
+            r.mayCall.includes("anyone") ||
+            r.mayCall.includes("a signed-in person"),
+        )
+        .map((r) => r.name.toLowerCase()),
+    );
+    for (const n of Object.keys(KEPT_WITH_NO_CALLER)) outsideCallers.add(n.toLowerCase());
+  }
+  return outsideCallers;
+}
+
+/**
+ * Each door of the schema (0031) that writes a record and writes no event, with the number of records it writes:
+ * `{ "name()": n }`. A door is a `security definer` function something outside the database reaches
+ * (reachedFromOutside). A trigger is not one: it runs inside the statement that fires it, so the door that wrote its
+ * table owns the event. Nor is a step, a function only other functions call. Each door is held to what it writes
+ * itself, what the functions it calls write and what the triggers on the tables it writes write, each followed to the
+ * end; it writes its event when any of them inserts into `events`, but a trigger that fires on a condition (a `WHEN`, or
+ * `UPDATE OF` its columns: a line's move to answering, a run's to failed) is no door's event, since nothing here can
+ * tell whether a door's write meets it. The tables many places write by design, the spine's
+ * own rows and what a writer that only takes away updates or deletes (the writers measure's) are no record here. A
+ * statement built as a string (`execute format(…)`) is not seen. `reached` stands in for the repository's callers.
+ */
+export function doorsWithoutEventsIn(sql, { reached = reachedFromOutside(sql) } = {}) {
   const tables = schemaTables(sql);
+  const headers = [
+    ...sql.matchAll(new RegExp(String.raw`^CREATE FUNCTION public\.(\w+)\(${ONE_STATEMENT}\n {4}AS `, "gm")),
+  ];
   const definer = new Set(
-    [...sql.matchAll(new RegExp(String.raw`^CREATE FUNCTION public\.(\w+)\(${ONE_STATEMENT}\n {4}AS `, "gm"))]
-      .filter((m) => /\bSECURITY DEFINER\b/.test(m[0]))
-      .map((m) => m[1].toLowerCase()),
+    headers
+      .filter((m) => /\bSECURITY DEFINER\b/.test(m[0]) && !/\bRETURNS trigger\b/.test(m[0]))
+      .map((m) => m[1].toLowerCase())
+      .filter((n) => reached.has(n)),
   );
   const bodies = new Map();
   for (const c of functionChangesIn(sql)) if (c.kind === "create" && c.body) bodies.set(c.name, c.body);
@@ -363,14 +526,19 @@ export function doorsWithoutEventsIn(sql) {
         .filter((f) => f !== n && bodies.has(f)),
     ]),
   );
+  // Every trigger on a table, for what a door's write reaches; the unconditional ones alone, for whose event it is.
   const fired = new Map();
-  const trigger = String.raw`^CREATE TRIGGER \w+ ${ONE_STATEMENT} ON public\.(\w+) ${ONE_STATEMENT}EXECUTE FUNCTION public\.(\w+)\(`;
-  for (const [, table, fn] of sql.matchAll(new RegExp(trigger, "gm")))
+  const firedAlways = new Map();
+  const trigger = String.raw`^CREATE TRIGGER \w+ (${ONE_STATEMENT}) ON public\.(\w+) (${ONE_STATEMENT})EXECUTE FUNCTION public\.(\w+)\(`;
+  for (const [, when, table, how, fn] of sql.matchAll(new RegExp(trigger, "gm"))) {
     fired.set(table, [...(fired.get(table) ?? []), fn.toLowerCase()]);
+    if (!/\bUPDATE OF\b/.test(when) && !/\bWHEN\b/.test(how))
+      firedAlways.set(table, [...(firedAlways.get(table) ?? []), fn.toLowerCase()]);
+  }
   const evented = new Set([...writes].filter(([, w]) => w.has("events")).map(([n]) => n));
   const writesItsEvent = (n) =>
     calls.get(n).some((f) => evented.has(f)) ||
-    [...writes.get(n)].some((t) => (fired.get(t) ?? []).some((f) => evented.has(f)));
+    [...writes.get(n)].some((t) => (firedAlways.get(t) ?? []).some((f) => evented.has(f)));
   for (let grew = true; grew;) {
     grew = false;
     for (const n of writes.keys())
@@ -379,15 +547,36 @@ export function doorsWithoutEventsIn(sql) {
         grew = true;
       }
   }
+  // A door and every function its run reaches: what it calls, and what fires on the tables any of them writes. Not
+  // what fires on the ledger: an event's own reactions (its outbox, its subscribers) are what a fact causes, the spine's,
+  // and a door that reaches the ledger only through a trigger that fires on a condition gains none of them as records.
+  const reachOf = (n) => {
+    const seen = new Set([n]);
+    for (const go = [n]; go.length;) {
+      const f = go.pop();
+      const next = [
+        ...(calls.get(f) ?? []),
+        ...[...(writes.get(f) ?? [])].filter((t) => t !== "events").flatMap((t) => fired.get(t) ?? []),
+      ];
+      for (const g of next)
+        if (!seen.has(g) && bodies.has(g)) {
+          seen.add(g);
+          go.push(g);
+        }
+    }
+    return seen;
+  };
   const out = {};
   for (const n of [...definer].sort()) {
     if (evented.has(n)) continue;
-    // A writer that takes away is waived for what it updates and deletes, as the writers measure waives it.
-    const inserted = takesAway(`${n}()`) ? tablesWrittenBy(bodies.get(n), tables, { inserts: true }) : null;
-    const records = [...(writes.get(n) ?? [])].filter(
-      (t) => !MANY_WRITERS_BY_DESIGN.has(t) && !SPINE.has(t) && (!inserted || inserted.has(t)),
-    );
-    if (records.length) out[`${n}()`] = records.length;
+    const records = new Set();
+    for (const f of reachOf(n)) {
+      // A writer that takes away is waived for what it updates and deletes, as the writers measure waives it.
+      const inserted = takesAway(`${f}()`) ? tablesWrittenBy(bodies.get(f), tables, { inserts: true }) : null;
+      for (const t of writes.get(f) ?? [])
+        if (!MANY_WRITERS_BY_DESIGN.has(t) && !SPINE.has(t) && (!inserted || inserted.has(t))) records.add(t);
+    }
+    if (records.size) out[`${n}()`] = records.size;
   }
   return out;
 }
@@ -591,6 +780,9 @@ export const MEASURES = [
     advice:
       "Name the length of time: a whole minute, hour or day from contracts' shared/time.ts (5 * MIN_MS, DAY_MS), anything else a constant in its module that says what it is (const RETRY_MS = 800; const LEASE_MS = 5 * MIN_MS). A value that is not a time says its unit in its name (RADIUS_MAX_M, TAB_TOTAL_CHARS).",
   },
+  // One is left, argued (26 Nov 2026): the phone app's widget (apps/mobile/src/shell/widget.ios.ts) says its "as of" in
+  // the phone's own clock, since the widget's runtime has no workspace zone. It is counted, and it waits for the phone
+  // app, paused since 7 Oct 2026, whose change nothing but a phone build could prove.
   {
     name: "dates said with no zone",
     key: "zoneless-dates",
@@ -708,7 +900,7 @@ export const MEASURES = [
     file: "writers.json",
     measure: () =>
       Object.fromEntries(
-        [...writersByTable()].filter(([, who]) => who.size > 1).map(([table, who]) => [table, who.size]),
+        [...writersByTable()].map(([table, who]) => [table, codeWritersOf(who)]).filter(([, n]) => n > 1),
       ),
     advice:
       "One record, one door writes it (decision 0031, invariant 1): write the table through the door that already writes it, the SQL function or the repository in packages/db, rather than adding a writer.",
@@ -716,9 +908,14 @@ export const MEASURES = [
   {
     name: "doors writing a record with no event",
     file: "doors-without-events.json",
-    measure: () => doorsWithoutEventsIn(readRaw(SCHEMA_SQL)),
+    measure: () =>
+      Object.fromEntries(
+        Object.entries(doorsWithoutEventsIn(readRaw(SCHEMA_SQL))).filter(
+          ([door]) => !Object.hasOwn(NO_FACT_DOORS, door) && !Object.hasOwn(VAULT_DOORS_COVERED, door),
+        ),
+      ),
     advice:
-      "A fact and its event share a transaction (decision 0031, invariant 2): write the record's event in the door, beside the write (insert into public.events, or a trigger on the table that does), or argue under Rises in docs/debt.md why the write is no fact.",
+      "A fact and its event share a transaction (decision 0031, invariant 2): write the record's event in the door, beside the write (insert into public.events, or a trigger on the table that does). A door whose rows are the machine's and no record's news is named in NO_FACT_DOORS with why.",
   },
   {
     // Each column's strategy is packages/db's ERASURE_STRATEGIES; people/erasure/erasure-registry.test.mjs holds it to
@@ -812,12 +1009,12 @@ export const RULE_TESTS_DIR = "repo/";
 /**
  * The rule tests that live beside the domain they hold, not under `tests/repo/`: each a repo-wide lint of its kind,
  * named here with the change that argued it. The list is the part that rots, so it stays a handful
- * (repo/source-scan-ratchet.test.mjs holds it to four), and a file added to it is a line of this module in review.
+ * (repo/source-scan-ratchet.test.mjs holds it to three), and a file added to it is a line of this module in review.
+ * edge/runtime-freshness.test.mjs left it on 26 Nov 2026: what it read is run now, so it is a behaviour test.
  */
 export const RULE_TESTS_ELSEWHERE = [
   "ai/flag-registry.test.mjs",
   "e2e/e2e-shape.test.mjs",
-  "edge/runtime-freshness.test.mjs",
   "routes/workspace-scoping.test.mjs",
 ];
 
@@ -1196,6 +1393,33 @@ export function emittedKinds() {
   return by;
 }
 
+/**
+ * The families of evidence: a token count, a webhook's knock, a message no workspace takes (Activity's own noise
+ * families, contracts ACTIVITY_NOISE_PREFIXES). Such an event is the only thing written, where it is observed, so it
+ * has no record to share a transaction with, and it is no kind this measure holds.
+ */
+export const EVIDENCE_FAMILIES = ACTIVITY_NOISE_PREFIXES;
+
+/**
+ * Kinds whose event is the only thing written where it is observed, each with why: no row of ours changes for them, so
+ * there is no record for the event to share a transaction with. repo/measures.test.mjs holds each to be written from
+ * TypeScript alone still, so one a door comes to write leaves this list.
+ */
+export const LEDGER_ONLY_KINDS = {
+  "policy.veto_window_skipped":
+    "A hold the workspace configured that did not happen, because its scheduling failed: the one write that would have been the record is the one that failed, and the event is what tells the owner",
+  "billing.trial_ending":
+    "Stripe's word that a trial ends in three days: no row of ours changes for it; its bell is kept once under the Stripe event, and the event records the word",
+  "call.screened":
+    "A call turned away, or let pass with no call back owed (decision 0138): a count for Reports (ACTIVITY_NOISE_KINDS), observed before any row of the call exists; the third writer, a reply draft that reads its sender as selling, sets the thread aside through its own door first, and moves with it",
+  "google.reply_held":
+    "A reply the receptionist wrote for a review and did not post, as it named a price or money: no row changes for it, and the event is the hold's one record, which the next sync reads back so the review is not drafted again (getSubjectsWith)",
+  "file.posted":
+    "A post put on the Google profile: Google holds the post, and no row of ours is written for it; the event is the record of where it is, which the file's page reads back (findFilePosted)",
+  "file.unposted":
+    "A post taken off the Google profile: the same record's other half, read back the same way (findFilePosted)",
+};
+
 export const TS_ONLY_EVENTS = {
   name: "event kinds written only from TypeScript",
   file: "ts-only-events.json",
@@ -1203,6 +1427,8 @@ export const TS_ONLY_EVENTS = {
   measure: () =>
     Object.fromEntries(
       [...emittedKinds()]
+        .filter(([kind]) => !EVIDENCE_FAMILIES.some((family) => kind.startsWith(family)))
+        .filter(([kind]) => !Object.hasOwn(LEDGER_ONLY_KINDS, kind))
         .filter(([, files]) => [...files].every((f) => !f.startsWith("supabase/")))
         .map(([kind, files]) => [kind, files.size]),
     ),

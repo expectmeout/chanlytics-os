@@ -26,6 +26,7 @@ export const LeadCard = ({
   children?: ReactNode;
   testid?: string;
 }) => (
+  // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-noninteractive-element-interactions -- the click is only stopped here, so a press inside the card is not the row's
   <div
     className="ld-card panel panel-pop"
     role="group"

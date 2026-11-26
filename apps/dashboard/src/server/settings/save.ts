@@ -25,7 +25,7 @@ import { findFiledNames } from "@chanlytics/db/lines";
 import { putTenantConfig } from "@chanlytics/db/workspace";
 import { findConfigRow } from "@/server/workspace/config-row";
 import { SETTINGS_REFUSED, settingsSaved, settingsTold } from "@/server/workspace/settings-write";
-import { feedVisibleTo, getKnownFacts, withHiddenFeed } from "@/server/readers/settings";
+import { feedVisibleTo, getKnownFacts, withHiddenFeed } from "@/server/readers/settings/settings";
 import { renameWorkspace } from "@/server/workspace/list";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -120,8 +120,8 @@ type Renamed =
  * keeps its name until a new one is filed), so the answer says it where it differs.
  */
 async function renamedWith(ctx: RouteContext, member: Member, was: unknown, next: unknown): Promise<Renamed | null> {
-  const name = parseTenantConfig(next)?.brain?.business_name?.trim() ?? "";
-  const before = parseTenantConfig(was ?? null)?.brain?.business_name?.trim() ?? "";
+  const name = parseTenantConfig(next)?.brain?.business_name.trim() ?? "";
+  const before = parseTenantConfig(was ?? null)?.brain?.business_name.trim() ?? "";
   if (!name || name === before) return null;
   let done: { from: string; to: string } | null;
   try {

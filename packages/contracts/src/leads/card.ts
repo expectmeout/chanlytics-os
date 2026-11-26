@@ -132,7 +132,7 @@ export const LEAD_CARD_WORDS = {
   greets: (fallback: string) => `Nobody is named here, so it greets them as “${fallback}”.`,
   checking: "once their address checks out",
   holes: (labels: string[]) =>
-    `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Type it in the email, or change the words in the campaign.`,
+    `Its words need ${labels.join(" and ")}, which this lead doesn't have, so Add is off. Type it in the email, or change the campaign's words.`,
   firstPile: "You write their email once, when you write to them all at the end.",
   after: (days: number | null) => `${days ?? "?"} days after, if nothing comes back`,
   emailsTitle: "What they would get",
@@ -193,7 +193,7 @@ function cardValuesOf(text: string): LeadCardPart[] {
   const parts: LeadCardPart[] = [];
   let from = 0;
   for (const m of text.matchAll(VALUE_RE)) {
-    const at = m.index ?? 0;
+    const at = m.index;
     if (at > from) parts.push(...gapsOf(text.slice(from, at)));
     parts.push({ kind: "value", text: m[1] ?? "" });
     from = at + m[0].length;

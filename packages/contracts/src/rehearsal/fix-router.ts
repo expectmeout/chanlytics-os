@@ -18,7 +18,7 @@ import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/settings-change";
 import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/suggest";
 import type { FixKind } from "./review";
 import { DAY_KEY } from "../shared/zone/day-keys";
-import { isOneOf, recordOrEmpty } from "../shared/unknown";
+import { isOneOf, recordOrEmpty, entryOf } from "../shared/unknown";
 
 type Day = (typeof DAYS)[number];
 
@@ -561,7 +561,7 @@ const FIELD_OF: Partial<Record<AskSettingsChange["op"], string>> = {
   add_service: "Services",
   set_service: "Services",
   add_note: "Things it should know",
-  set_booking_link: "Your booking link",
+  set_booking_link: "Booking link",
   set_tone: "Its voice",
   set_languages: "Languages",
   add_own_words: "In your own words",
@@ -581,8 +581,8 @@ export function fixLine(change: AskSettingsChange): string {
   switch (change.op) {
     case "set_hours":
       return change.open && change.close
-        ? `When you're open: ${DAY_NAMES[change.day as Day] ?? change.day} ${clockOf(change.open)}–${clockOf(change.close)}`
-        : `When you're open: closed on ${DAY_NAMES[change.day as Day] ?? change.day}`;
+        ? `When you're open: ${entryOf(DAY_NAMES, change.day) ?? change.day} ${clockOf(change.open)}–${clockOf(change.close)}`
+        : `When you're open: closed on ${entryOf(DAY_NAMES, change.day) ?? change.day}`;
     case "add_closure":
       return `Days you're closed: ${change.date}${change.until ? ` to ${change.until}` : ""}`;
     case "add_service":
@@ -592,7 +592,7 @@ export function fixLine(change: AskSettingsChange): string {
     case "add_note":
       return `Add to Things it should know: “${change.title}”: ${change.text}`;
     case "set_booking_link":
-      return `Your booking link: ${change.link}`;
+      return `Booking link: ${change.link}`;
     case "set_tone":
       return `Its voice: “${change.tone}”`;
     case "set_languages":
@@ -610,7 +610,7 @@ export function fixLine(change: AskSettingsChange): string {
 
 export const FIX_WORDS = {
   label: "What should it have said?",
-  placeholder: "We're open till 7 on Thursdays",
+  placeholder: "Open till 7 on Thursdays",
   route: "Show me where it goes",
   routing: "Finding where it goes…",
   keep: "Keep",

@@ -7,13 +7,7 @@ import { PHONE_LINE_OFF } from "../lines/caller-gets";
 import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../lines/failure";
 import { formatPhoneDisplay } from "../shared/phone";
 import { agoWords, spanLabel } from "../shared/time";
-import {
-  CARRIER_WORDS,
-  FORWARDING_MODE_WORDS,
-  forwardingTestOpen,
-  type Carrier,
-  type ForwardingMode,
-} from "../voice/forwarding";
+import { CARRIER_WORDS, FORWARDING_MODE_WORDS, forwardingTestOpen } from "../voice/forwarding";
 import { whyCannotSpend, billingDoorOpen } from "../workspace/billing/dtos";
 import { priceWords } from "../workspace/billing/plans";
 import { capabilityStatus } from "./capabilities";
@@ -28,6 +22,7 @@ import {
   type SetupRowDraft,
 } from "./lines";
 import { KEEP_ROW } from "./put-off";
+import { entryOf } from "../shared/unknown";
 
 /**
  * 3. A line for calls and texts — the product's own line when this deployment can get one; a person at Chanlytics otherwise.
@@ -43,9 +38,7 @@ export function lineRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRo
       required: !answering,
       sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`,
       details: [
-        ownLine?.voice_state === "answering" // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
-          ? "Your own number through Chanlytics"
-          : "",
+        ownLine?.voice_state === "answering" ? "The number you have, through Chanlytics" : "",
         ownLine || texting.done
           ? ""
           : "Texting arrives with lines that register with the phone networks · this page will say when",
@@ -444,7 +437,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const kept = fw?.e164 ? (formatPhoneDisplay(fw.e164) ?? fw.e164) : "your number";
   const dest = voiceReady && voice.number ? voiceNum : null;
   const how = forwarding
-    ? `${FORWARDING_MODE_WORDS[forwarding.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[forwarding.carrier as Carrier] ?? "your phone company"}`
+    ? `${entryOf(FORWARDING_MODE_WORDS, forwarding.mode) ?? "Forwarded"} · ${entryOf(CARRIER_WORDS, forwarding.carrier) ?? "your phone company"}`
     : "";
   const title = "The number you already have";
   if (fw && forwarding && fw.forwarding_state === "verified") {

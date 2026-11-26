@@ -103,7 +103,7 @@ export async function askMorningsSince(db: Db, tenantId: TenantId, since: string
     .order("day", { ascending: false })
     .limit(MORNINGS_READ);
   if (error) throw new DbFailure(error, "ask_mornings");
-  const threads = (mornings ?? []).flatMap((m) => (m.thread_id ? [m.thread_id] : []));
+  const threads = mornings.flatMap((m) => (m.thread_id ? [m.thread_id] : []));
   if (threads.length === 0) return [];
   const { data: answers, error: read } = await db
     .from("ask_messages")
@@ -115,8 +115,8 @@ export async function askMorningsSince(db: Db, tenantId: TenantId, since: string
   if (read) throw new Error(`ask_messages: ${read.message}`);
   // The first answer of each thread: a question asked after the morning, in its thread, is not the morning.
   const first = new Map<string, Json | null>();
-  for (const a of answers ?? []) if (!first.has(a.thread_id)) first.set(a.thread_id, a.proposals ?? null);
-  return (mornings ?? []).map((m) => ({
+  for (const a of answers) if (!first.has(a.thread_id)) first.set(a.thread_id, a.proposals ?? null);
+  return mornings.map((m) => ({
     user_id: m.user_id,
     day: m.day,
     proposals: m.thread_id ? (first.get(m.thread_id) ?? null) : null,

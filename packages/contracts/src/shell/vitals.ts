@@ -229,7 +229,7 @@ function sentenceOf(overall: ReadonlyMap<PageVital, PageVitalsRowDto>): string {
   ].filter(Boolean);
   return phrases.length
     ? `Of ${counted}, three in four ${phrases.join(" and ")}.`
-    : `${counted}; none has drawn its page yet.`;
+    : `${counted} · none has drawn its page yet.`;
 }
 
 /** The pages enough loads landed on, slowest drawn first, with how fast each answered a tap. */

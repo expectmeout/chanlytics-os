@@ -191,10 +191,10 @@ export interface OpeningAsked {
 /** A send's rewrite_asked as the check reads it: null where nobody asked, or where it holds nothing of that shape. */
 export function openingAskedOf(stored: unknown): OpeningAsked | null {
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
-  const s = stored as { change?: unknown; was?: unknown };
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const was = s.was && typeof s.was === "object" ? text(valueAt(s.was, "opening")) : null;
-  return { was, change: text(s.change) };
+  const kept = valueAt(stored, "was");
+  const was = kept && typeof kept === "object" ? text(valueAt(kept, "opening")) : null;
+  return { was, change: text(valueAt(stored, "change")) };
 }
 
 /** What an owner asked, as the writer is told it: what they turned down, and their words, fenced as the record's are. */

@@ -174,7 +174,7 @@ async function actThroughDoor(
   if (!r.ok && (r.status === 0 || r.status >= 500)) return WALK_HERE;
   if (!r.ok) return { ok: false, message: r.message, ...(r.status === 404 || r.status === 409 ? { moved: true } : {}) };
   const answer: AskActAnswer = r.data;
-  if (answer.walkHere) return WALK_HERE;
+  if (answer.walk_here) return WALK_HERE;
   tellDoorCalls(win, answer);
   if (!answer.ok)
     return {

@@ -410,7 +410,7 @@ test("a deal: the card's body to the person's deal route without the card's own 
     await undoProposal(
       t.win,
       card("deal", { contact_id: P1, stage: "won", who: "Maria" }),
-      { state: "done", receipt: "Maria · Client", atMs: 1, undo: null },
+      { state: "done", receipt: "Maria · Client", at_ms: 1, undo: null },
       t.client,
     ),
     { ok: false, message: "This one has no undo." },
@@ -599,7 +599,7 @@ test("a policy: the class with the mode or the dial, whichever the card carries;
   const back = await undoProposal(
     t.win,
     card("policy", { class: "reply" }),
-    { state: "done", receipt: "", atMs: 1, undo: { class: "reply", mode: "auto", min_confidence: 0.6 } },
+    { state: "done", receipt: "", at_ms: 1, undo: { class: "reply", mode: "auto", min_confidence: 0.6 } },
     t.client,
   );
   assert.deepEqual(back, { ok: true, receipt: "Set back", undo: null });
@@ -614,7 +614,7 @@ test("a policy: the class with the mode or the dial, whichever the card carries;
     await undoProposal(
       t.win,
       card("policy", { class: "reply" }),
-      { state: "done", receipt: "", atMs: 1, undo: { class: "reply", mode: null, min_confidence: null } },
+      { state: "done", receipt: "", at_ms: 1, undo: { class: "reply", mode: null, min_confidence: null } },
       t.client,
     ),
     { ok: false, message: "The previous setting is unknown · change it in Settings." },
@@ -639,7 +639,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   const stale = await undoProposal(
     t.win,
     card("settings", { change }),
-    { state: "done", receipt: "", atMs: 1, undo: { config: before, version_after: 4 } },
+    { state: "done", receipt: "", at_ms: 1, undo: { config: before, version_after: 4 } },
     t.client,
   );
   assert.deepEqual(
@@ -653,7 +653,7 @@ test("a settings change: applied to the loaded config and sent with its version;
   const back = await undoProposal(
     t.win,
     card("settings", { change }),
-    { state: "done", receipt: "", atMs: 1, undo: { config: before, version_after: 4 } },
+    { state: "done", receipt: "", at_ms: 1, undo: { config: before, version_after: 4 } },
     t.client,
   );
   assert.deepEqual(back, { ok: true, receipt: "Put back.", undo: null });
@@ -668,7 +668,7 @@ test("a settings change: applied to the loaded config and sent with its version;
     await undoProposal(
       cold.win,
       card("settings", { change }),
-      { state: "done", receipt: "", atMs: 1, undo: { config: {} } },
+      { state: "done", receipt: "", at_ms: 1, undo: { config: {} } },
       cold.client,
     ),
     { ok: false, message: "Settings are not loaded yet." },
@@ -751,7 +751,7 @@ test("a broadcast and a playbook: the body the route expects, the receipt from t
 
 test("an undo names the decision it reverses: the inverse call carries the commit's ledger row as x-undo-of, on every kind that has one", async () => {
   const t = tab();
-  const o = (undo) => ({ state: "done", receipt: "", atMs: 1, undo });
+  const o = (undo) => ({ state: "done", receipt: "", at_ms: 1, undo });
   assert.deepEqual(
     await undoProposal(
       t.win,
@@ -852,7 +852,7 @@ test("a campaign's change (the moment spec, A5): the commit keeps the ledger row
   const done = await commitProposal(t.win, change, t.client);
   assert.equal(done.ok, true, done.message);
   assert.deepEqual(done.undo, { playbook_id: PB1, was: { state: "running" }, decision_id: D(6) });
-  await undoProposal(t.win, change, { state: "done", receipt: "", atMs: 1, undo: done.undo }, t.client);
+  await undoProposal(t.win, change, { state: "done", receipt: "", at_ms: 1, undo: done.undo }, t.client);
   assert.deepEqual(
     t.sent.map((s) => [s.key, s.body, s.undoOf]),
     [
@@ -932,7 +932,7 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     if (r.undo) {
       // Nobody saved the settings since this card did.
       if (typeof r.undo.version_after === "number") settingsHeld().version = r.undo.version_after;
-      const u = await undoProposal(t.win, p, { state: "done", receipt: r.receipt, atMs: 1, undo: r.undo }, t.client);
+      const u = await undoProposal(t.win, p, { state: "done", receipt: r.receipt, at_ms: 1, undo: r.undo }, t.client);
       assert.equal(u.ok, true, `${p.kind} undo: ${u.message}`);
       undone.push(`${p.kind}${p.payload.verb ? `:${p.payload.verb}` : ""}`);
     }
@@ -1000,7 +1000,7 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
 
 test("no undo, an unknown inverse, and an unknown kind are each refused in words, and nothing leaves the tab", async () => {
   const t = tab();
-  assert.deepEqual(await undoProposal(t.win, card("reply", {}), { state: "done", receipt: "", atMs: 1 }, t.client), {
+  assert.deepEqual(await undoProposal(t.win, card("reply", {}), { state: "done", receipt: "", at_ms: 1 }, t.client), {
     ok: false,
     message: "This one has no undo.",
   });
@@ -1008,13 +1008,13 @@ test("no undo, an unknown inverse, and an unknown kind are each refused in words
     await undoProposal(
       t.win,
       card("thread_verb", {}),
-      { state: "done", receipt: "", atMs: 1, undo: { verb: "resolve" } },
+      { state: "done", receipt: "", at_ms: 1, undo: { verb: "resolve" } },
       t.client,
     ),
     { ok: false, message: "This one has no undo." },
   );
   assert.deepEqual(
-    await undoProposal(t.win, card("steer", {}), { state: "done", receipt: "", atMs: 1, undo: { x: 1 } }, t.client),
+    await undoProposal(t.win, card("steer", {}), { state: "done", receipt: "", at_ms: 1, undo: { x: 1 } }, t.client),
     { ok: false, message: "This one has no undo." },
   );
   assert.deepEqual(await commitProposal(t.win, card("teleport", {}), t.client), {
@@ -1164,8 +1164,7 @@ test("a card is approved while it is fresh: past a day nothing leaves the tab an
   const old = tab();
   assert.deepEqual(await commitProposal(old.win, mode({ made_at: made(72) }), old.client, { nowMs: now }), {
     ok: false,
-    message:
-      "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+    message: "This card is more than a day old, and things may have moved since. Ask again for one made from now.",
   });
   assert.deepEqual(old.sent, [], "nothing was sent");
   assert.deepEqual(old.events, [], "and the window was told nothing");
@@ -1206,8 +1205,7 @@ test("a plan's card is approved for a week, since a plan's sends are set ahead a
   const two = tab();
   assert.deepEqual(await commitProposal(two.win, mode({ made_at: made(2) }), two.client, { nowMs: now }), {
     ok: false,
-    message:
-      "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+    message: "This card is more than a day old, and things may have moved since. Ask again for one made from now.",
   });
   assert.deepEqual(two.sent, []);
 });

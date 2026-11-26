@@ -70,7 +70,7 @@ export async function listAppointmentsForClient(
     .order("starts_at", { ascending: true })
     .limit(50);
   if (error) throw new DbFailure(error, "appointments_for_client");
-  return data ?? [];
+  return data;
 }
 
 /** A page of PostgREST's thousand and no more: past it a person's earlier visits are not counted, never half-counted. */
@@ -169,7 +169,7 @@ export async function findPeopleWithEarlierVisits(
     .or(or)
     .limit(EARLIER_OF_MANY_MAX);
   if (error) throw new DbFailure(error, "people_with_earlier_visits");
-  const rows = data ?? [];
+  const rows = data;
   if (rows.length >= EARLIER_OF_MANY_MAX) return null;
   return new Set(people.filter((p) => rows.some((r) => isTheirs(r, p))).map((p) => p.id));
 }
@@ -350,7 +350,7 @@ export async function getAppointmentStates(
       .in("external_id", feedKeys.slice(index, index + KEYS_PER_READ));
     if (error && (error.code === "PGRST205" || error.code === "42P01")) return out;
     if (error) throw new DbFailure(error, "appointments");
-    for (const r of data ?? []) put(r.external_id, r);
+    for (const r of data) put(r.external_id, r);
   }
   for (let i = 0; i < ids.length; i += KEYS_PER_READ) {
     const { data, error } = await db
@@ -359,7 +359,7 @@ export async function getAppointmentStates(
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + KEYS_PER_READ));
     if (error) throw new DbFailure(error, "appointments");
-    for (const r of data ?? []) put(recordKeyOf(r.id), r);
+    for (const r of data) put(recordKeyOf(r.id), r);
   }
   return out;
 }

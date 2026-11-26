@@ -19,10 +19,10 @@ import {
   RECENT_MAX,
   toLiveVM,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
 import { settingsRead } from "./record/_world.mjs";
 import { until } from "../shared/_until.mjs";
 import { bridgeHolds, provided, surfaceValue, heldRead } from "../shell/_bridge-holds.mjs";
+import { fromDashboard, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // The bell reads the open invitations from the settings surface (its `invites`; a name on its own window, `__TEAM_INVITES`,
@@ -510,18 +510,23 @@ test("the bell raises a row for every missed call in its day, not just the newes
   );
 });
 
-test("the top bar shows the real feed", () => {
-  const tb = readRaw("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
-  assert.ok(tb.includes("const real = bell ? bell : null;"));
-  assert.ok(tb.includes("const shown: BellNote[] = real ? realRows : [];"));
-  assert.ok(tb.includes("real.onChange("), "repaints when a surface refreshes or a mark changes");
-  // What a press in the bell does is run, not read: tests/today/bell-rows.test.mjs draws the bar and presses, its
-  // foot's door to Settings › Notifications among them (this browser's one alert switch is that page's, decision 0137).
+test("the top bar shows the real feed", async () => {
+  // The bar draws the bell's own rows, again whenever the bell says they changed, and none without a bell: drawn in
+  // bell-rows.test.mjs ("the top bar shows the bell's own feed"), with what a press in the bell does, its foot's door to
+  // Settings › Notifications among them (this browser's one alert switch is that page's, decision 0137). Pinned as
+  // topbar.tsx's text until 26 Nov 2026.
   assert.ok(
-    readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installNotifications();"),
+    stepRunning(fromDashboard("bridge/notifications.ts").installNotifications),
     "the refresh map re-reads the notifications surface after a mark; the bridge never imports the runner",
   );
-  assert.ok(readCode("packages/contracts/src/today/index.ts").includes('from "./notifications/feed";'));
+  // The feed's words are contracts', reached by the package as every page reaches them (pinned as the barrel's text until
+  // 26 Nov 2026).
+  const contracts = await import("@chanlytics/contracts");
+  const feed = await import("../../packages/contracts/src/today/notifications/feed.ts");
+  for (const name of ["buildNotificationFeed", "serverNotificationRows", "dedupeFeed", "noticeRoute", "kindListDoor"]) {
+    assert.equal(typeof feed[name], "function", name);
+    assert.equal(typeof contracts[name], "function", `${name}, from the package`);
+  }
 });
 
 /* ------------------------------------------- one switch for this browser (decision 0137) ------------------------------------------- */

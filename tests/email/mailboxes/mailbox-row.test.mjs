@@ -348,7 +348,7 @@ test("its domain's records, in a sheet: how many found, each to add with its hos
     said(byTestId(changed, "mailbox-dns-spf")),
     /v=spf1 include:mailgun\.org include:_spf\.google\.com ~all/,
   );
-  assert.match(said(byTestId(changed, "mailbox-record-note-spf")), /may have only one/);
+  assert.match(said(byTestId(changed, "mailbox-record-note-spf")), /may have one SPF record only/);
 });
 
 test("the owner's acts in the sheet: settings judged before they are sent, Sending a switch saved with them, Remove asked first", async () => {

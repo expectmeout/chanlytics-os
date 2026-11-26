@@ -429,7 +429,7 @@ Writes; for a member of the workspace the request names, viewer or above; counts
 | `view` | string or null | no |  |
 | `focus` | object or null | no |  |
 | `rows` | array of object | yes | at most 40 |
-| `askedAt` | integer | yes | ≥ 0; ≤ 9007199254740991 |
+| `asked_at` | integer | yes | ≥ 0; ≤ 9007199254740991 |
 
 ### `POST /api/v1/ask/warm/model`
 

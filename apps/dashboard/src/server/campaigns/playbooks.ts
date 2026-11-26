@@ -88,7 +88,7 @@ interface PlaybookTotals {
   delivered: number;
   replied: number;
   held: number;
-  lastRun: TotalsRow["last_run"] | null;
+  last_run: TotalsRow["last_run"] | null;
   /** The run waiting for a person, with its day and its moment: what the approve verb's refusal reads (runApprovalRefusal). */
   waiting: TotalsRow["waiting"];
   /** The most recent runs, newest first, from the same rows the totals are summed over. */
@@ -274,7 +274,7 @@ const noTotals = (): PlaybookTotals => ({
   delivered: 0,
   replied: 0,
   held: 0,
-  lastRun: null,
+  last_run: null,
   waiting: null,
   history: [],
 });
@@ -326,8 +326,8 @@ export async function listPlaybookRows(ctx: RouteContext, tenantId: TenantId): P
 }
 
 /**
- * playbook_totals' answer (00374) in the card's words: storage's `last_run` is the wire's `lastRun` (banked in
- * the wire-casing measure, decision 0022), each object written in the order the fold wrote it, so GET playbooks answers the same
+ * playbook_totals' answer (00374) in the card's words: storage's `last_run` is the wire's too (decision 0022),
+ * each object written in the order the fold wrote it, so GET playbooks answers the same
  * bytes whichever counted them. The one mapping, behind contracts' isPlaybookTotalsDto, never a cast.
  */
 function toPlaybookTotals(dto: PlaybookTotalsDto): Map<string, PlaybookTotals> {
@@ -339,7 +339,7 @@ function toPlaybookTotals(dto: PlaybookTotalsDto): Map<string, PlaybookTotals> {
       delivered: t.delivered,
       replied: t.replied,
       held: t.held,
-      lastRun: {
+      last_run: {
         id: t.last_run.id,
         state: t.last_run.state,
         run_for: t.last_run.run_for,
@@ -398,8 +398,8 @@ function foldTotals(runs: BroadcastDto[]): Map<string, PlaybookTotals> {
         replied: run.counts.replied,
       });
     }
-    if (!runTotals.lastRun)
-      runTotals.lastRun = { id: run.id, state: run.state, run_for: run.run_for, recipient_count: run.recipient_count };
+    if (!runTotals.last_run)
+      runTotals.last_run = { id: run.id, state: run.state, run_for: run.run_for, recipient_count: run.recipient_count };
     if (run.state === "pending_approval" && !runTotals.waiting)
       runTotals.waiting = {
         id: run.id,

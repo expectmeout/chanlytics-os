@@ -284,7 +284,7 @@ test("a draft is asked for, never made; keeping it makes the sequence whole, and
   assert.equal(make.receipt(c.card, { id: SEQ, state: "on" }), "The campaign is on");
   assert.equal(make.made(c.card, { id: SEQ }), SEQ);
   assert.equal(
-    make.open(c.card, { state: "done", receipt: "", atMs: 0, made: { kind: "sequence_make", id: SEQ } }),
+    make.open(c.card, { state: "done", receipt: "", at_ms: 0, made: { kind: "sequence_make", id: SEQ } }),
     `campaigns/sequences/${SEQ}`,
   );
   const kept = make.undo.record(c.card, { id: SEQ, decision_id: "d4" }, TAB);

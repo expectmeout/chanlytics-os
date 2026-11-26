@@ -4,6 +4,7 @@ import type { HandoverResult, HandoverWorkspace } from "./handover";
 import type { Db } from "./partner";
 import type { TenantId } from "@chanlytics/contracts";
 import { DbFailure } from "@chanlytics/contracts";
+import { asFailedReply, embedded, identityAccountOf } from "../../shared/answers";
 
 /** The workspace the partner joined, and whether its plan earns them a share. */
 export interface PartnerJoined extends HandoverWorkspace {
@@ -13,8 +14,8 @@ export interface PartnerJoined extends HandoverWorkspace {
 /** The caller, a partner, joins the workspace that asked (00225 partner_invite_accept). */
 export async function acceptPartnerInvite(db: Db, tenantId: TenantId): Promise<HandoverResult<PartnerJoined>> {
   const { data, error } = await db.rpc("partner_invite_accept", { p_tenant: tenantId });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const row = data?.[0];
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
+  const row = data[0];
   if (!row) return { ok: false, code: "P0002", message: "There is no invitation for you there." };
   return { ok: true, value: { id: row.id, slug: row.slug, name: row.name, earns: row.earns } };
 }
@@ -22,7 +23,7 @@ export async function acceptPartnerInvite(db: Db, tenantId: TenantId): Promise<H
 /** The caller, a partner, says no (00225 partner_invite_decline). */
 export async function declinePartnerInvite(db: Db, tenantId: TenantId): Promise<HandoverResult<null>> {
   const { error } = await db.rpc("partner_invite_decline", { p_tenant: tenantId });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, value: null };
 }
 
@@ -46,16 +47,16 @@ export async function getPartnerInviteMail(db: Db, tenantId: TenantId): Promise<
     .maybeSingle();
   if (error) throw new DbFailure(error, "getPartnerInviteMail");
   if (!data || data.declined_at || Date.parse(data.expires_at) <= Date.now()) return null;
-  const userId = data.partners?.user_id;
+  const userId = embedded(data.partners)?.user_id;
   if (!userId) return null;
   const userById = await db.auth.admin.getUserById(userId);
   if (userById.error) throw new DbFailure(userById.error, "getPartnerInviteMail");
-  const email = userById.data.user?.email;
+  const email = identityAccountOf(userById)?.email;
   if (!email) return null;
   return {
     email,
-    workspace: data.tenants?.name ?? "",
-    partnerCode: data.partners?.code ?? "",
+    workspace: embedded(data.tenants)?.name ?? "",
+    partnerCode: embedded(data.partners)?.code ?? "",
     expiresAt: data.expires_at,
   };
 }

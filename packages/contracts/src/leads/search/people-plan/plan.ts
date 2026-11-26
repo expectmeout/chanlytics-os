@@ -208,9 +208,9 @@ export function peoplePlanAsk(
   month: PeopleMonth | null,
 ): { count: number; label: string; covers: string | null } {
   const binds = !!month && month.left < plan.count;
-  const count = binds && month ? Math.max(0, month.left) : plan.count;
+  const count = binds ? Math.max(0, month.left) : plan.count;
   const label = count < 1 ? "No leads left this month" : `Find ${count} ${peopleNoun(plan, count)}`;
-  if (!binds || !month) return { count, label, covers: null };
+  if (!binds) return { count, label, covers: null };
   return {
     count,
     label,
@@ -293,7 +293,7 @@ export function listTyped(text: string, max: number): string[] {
 export const PEOPLE_FIND_WORDS = {
   door: "Find people",
   title: "Find people at companies",
-  sub: "Named people at companies, by what they are called and where they work. Each company is checked for fit, and every address before anyone is written to.",
+  sub: "Named people at companies, by title and workplace. Each company is checked for fit, and each address before a send.",
   titles: "What they are called",
   titlesHint: "Up to five, with commas between: marketing manager, office manager",
   seniority: "How senior",
@@ -320,7 +320,7 @@ export const PEOPLE_FIND_WORDS = {
     const tried = near.map((n) => `“${n}”`);
     return tried.length
       ? `“${t}” isn't one of the directory's industries: try ${tried.length > 1 ? `${tried.slice(0, -1).join(", ")} or ` : ""}${tried[tried.length - 1]}.`
-      : `“${t}” isn't one of the directory's industries. Say it as the directory names it (Accounting, Construction, Real Estate), or leave industries empty and say who by what they are called.`;
+      : `“${t}” isn't one of the directory's industries. Use its names (Accounting, Construction), or leave industries empty.`;
   },
   stateUnread: (s: string) => `${s} isn't a US state: use its name or its two letters.`,
   more: "Find more like these",

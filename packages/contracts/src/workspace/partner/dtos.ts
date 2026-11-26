@@ -1,5 +1,7 @@
 /** Partner: dtos. */
 
+import { dateFormat } from "../../shared/time";
+
 /** The row, as `GET partner` answers it. */
 export interface PartnerDto {
   id: string;
@@ -101,10 +103,12 @@ export const PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
+  // screen-word: the partner terms, who is paid what and when, in full (docs/words.md, "Kept on purpose")
   offer:
     "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set AI up for it and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Partner code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It ends your link, for good.`,
+  // screen-word: the partner terms, who is paid what and when, in full (docs/words.md, "Kept on purpose")
   terms:
     "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
@@ -113,8 +117,9 @@ export const PARTNER_WORDS = {
   linkLabel: "Partner link",
   copy: "Copy link",
   copied: "Copied",
-  since: (at: string) =>
-    `A partner since ${new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  /** The day the account was made, by the workspace's clock (the page's zone), as every date a page says. */
+  since: (at: string, zone: string) =>
+    `A partner since ${dateFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: zone }).format(new Date(at))}.`,
   paused: "Your partner account is paused. Write to Chanlytics to have it looked at.",
   closed: "Your partner account is closed.",
   reading: "Reading your partner account…",
@@ -131,6 +136,7 @@ export const PARTNER_WORDS = {
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
    */
+  // screen-word: the partner terms, who is paid what and when, in full (docs/words.md, "Kept on purpose")
   joinAsk: (code: string) =>
     `Add ${code}, who sent you here, to your team as your partner? They set AI up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */

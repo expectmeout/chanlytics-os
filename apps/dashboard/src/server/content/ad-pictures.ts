@@ -18,7 +18,7 @@ import {
   type FileMemberRow,
 } from "@chanlytics/db/files";
 import { readAdsOffered } from "../connections/ads-ready";
-import { fileDtoOf } from "../readers/files";
+import { fileDtoOf } from "../readers/files/files";
 import type { ReaderContext } from "../shared/reader";
 
 /**

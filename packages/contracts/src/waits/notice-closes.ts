@@ -32,7 +32,7 @@ import {
   type ServerNotificationKind,
 } from "../today/notifications/feed-input";
 import { runWaitsOnYou, type RunDays, type WaitingRun } from "./waits";
-import { isOneOf, keysOf } from "../shared/unknown";
+import { isOneOf, keysOf, entryOf } from "../shared/unknown";
 
 /**
  * What one surface holds of the subjects a waiting row is about, and when it read them. A surface read BEFORE a notice was kept
@@ -181,7 +181,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   post_stopped: {
     ends: "news",
-    why: "A post that did not go is told once; Content's Needs you holds it, with why, until it is sent again or let go.",
+    why: "A post that did not go is told once. Content's Needs you holds it, with why, until it is sent again or let go.",
   },
   post_down: {
     ends: "news",
@@ -203,7 +203,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   ad_account: {
     ends: "news",
-    why: "An ad account signed out by its platform, or one it cannot charge, is told once when it turns. Campaigns › Ads and the account's card say it for as long as it lasts, with the one thing to do.",
+    why: "An ad account that's signed out or can't be charged is told once. Campaigns › Ads says so while it lasts.",
   },
   // Closed by the database itself the moment it is mended (00657 media_sources_ring, source_connections_ring,
   // source_items_ring_full): connected again, the folder readable again, the second look settled, room made, or let go.
@@ -372,8 +372,7 @@ const JUDGES: Record<WaitSource, (row: Row, about: { type: string; id: string },
   };
 
 /** How a row's kind ends, where it is one the edge keeps: none for a row the browser derives. */
-const noticeEndOf = (kind: string): NoticeEnd | null =>
-  Object.hasOwn(NOTICE_ENDS, kind) ? NOTICE_ENDS[kind as ServerNotificationKind] : null;
+const noticeEndOf = (kind: string): NoticeEnd | null => entryOf(NOTICE_ENDS, kind) ?? null;
 
 /**
  * Whether the thing a kept row announced still waits: true, false once it is settled, null where the row announces no wait or

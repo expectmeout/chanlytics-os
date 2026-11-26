@@ -67,6 +67,7 @@ import { serviceDb } from "../shared/service-db";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import { asFailedReply } from "@chanlytics/db/shared";
 
 /** How many rows each list reads at most: more than a month of a healthy platform's, few enough to send whole. */
 const HEALTH_ROWS = { workspaces: 2000, failedJobs: 200, pages: 100, clientErrors: 5000, requeueKind: 200 } as const;
@@ -144,7 +145,7 @@ async function partsRead(office: BackOffice, days: number): Promise<HealthPartsD
   const read: HealthPartsDto = parts;
   // What the drafts came to has its own small read: a read that fails costs the line, never the page.
   const uses = await getHealthDraftUses(office.db, days).then(
-    (r) => (r.error ? [] : (r.data ?? []).map((u) => ({ ours: u.ours, use: u.use, n: Number(u.n) }))),
+    (r) => (r.error ? [] : r.data.map((u) => ({ ours: u.ours, use: u.use, n: Number(u.n) }))),
     () => [],
   );
   // Leads' previews have theirs too (00632): unread, the figures are left out, never drawn as zeroes.
@@ -431,7 +432,10 @@ export async function keepClientErrorRow(userId: string, input: ClientErrorInput
     member_key: memberKeyOf(userId),
   });
   if (error) {
-    log.warn("client_error_not_kept", { code: error.code ?? null, message: String(error.message).slice(0, 200) });
+    log.warn("client_error_not_kept", {
+      code: asFailedReply(error).code ?? null,
+      message: String(error.message).slice(0, 200),
+    });
     return false;
   }
   return true;

@@ -94,7 +94,7 @@ export { holdDraftInstruction, LAPSE_WIRES, REQUEST_LAPSE_WORDS, REQUEST_TOLD_WI
 export { visitTitleWithout } from "./calendar/visit/service";
 export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, CALENDAR_UNLOADED, calendarHoursLines, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, readAgoLabel, ruleParts, rulesLine, visitMarkOfDto } from "./calendar/words/labels";
 export { sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, VISITS_KEPT_MAX, visitStands, visitStateOf } from "./calendar/words/visit";
-export { AUDIENCE_KINDS, audienceLate, audienceMembers, audiencePreview, audienceTrigger, CONSENT_LIST_IDS, eligibleFor, enrolFor, EVERYONE_HINT, EVERYONE_LABEL, heldWords, saidYesOnAny, UNKNOWN_AUDIENCE_WORDS } from "./campaigns/broadcasts/audience";
+export { AUDIENCE_KINDS, audienceLate, audienceMembers, audiencePreview, audienceTrigger, CONSENT_LIST_IDS, eligibleFor, enrolFor, EVERYONE_HINT, EVERYONE_LABEL, heldWords, runReachDto, saidYesOnAny, UNKNOWN_AUDIENCE_WORDS } from "./campaigns/broadcasts/audience";
 export { BROADCAST_GAP_MS, BROADCAST_HOLD_WAIT_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_THROTTLE_WAITS_MS, broadcastName, cleanParam, emptyAudienceRefusal, OUTCOME_UNKNOWN, renderTemplate, runCountsOf, runTitleOf, sentByWords, toBroadcastVM, whenLabel } from "./campaigns/broadcasts/broadcasts";
 export { CHANNELS_DOOR, channelsStandingParts, channelsStandingWords } from "./campaigns/broadcasts/channels-standing";
 export { emailOffersOpen, OFFER_GATES, offerGate, offerPauseOf, OFFERS_BY_EMAIL_WORDS, OFFERS_NOTICE_WORDS, OFFERS_PAUSED_WORDS, offersPausedLine } from "./campaigns/broadcasts/email-offers";
@@ -132,7 +132,6 @@ export { FREED_TIME_DEFAULTS, isPlaybookState, MOMENT_TRIGGERS, PLAYBOOK_CAP_CHO
 export { CAMPAIGN_NOT_FOUND, coldBatchGoesNotice, delayWords, freedTimeTakenNotice, isWinBack, lateReminderSkippedNotice, leftBehindNotice, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, owedOncePerMoment, PLAYBOOK_NAME_MAX, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, winBackWords } from "./campaigns/playbooks/triggers/notices";
 export { isOccasionTrigger, momentNamesVisit, occasionIsSingle, occasionWords, visitWhenExample, waitsForKept } from "./campaigns/playbooks/triggers/occasions";
 export { heldNoticeWords, REACH_OUT_RUN_REREAD_MS, REACH_OUT_TO_SEND_LABELS, reachOutRunMoving, reachOutRunWordsOf, TO_SEND_ALL_WORDS, toSendRowOf, toSendSaidWords, toSendWordsOf, waitingRunsDoor } from "./campaigns/reach-out/approval";
-export { COLD_EMAIL_CONNECT_WORDS } from "./campaigns/reach-out/connect-words";
 export { chainFirstSender, previewLinesOf, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_NEW_LIST_WORDS, REACH_OUT_PREVIEW_WORDS, REACH_OUT_SHEET_PARTS, reachOutAddHandStep, reachOutAddStep, reachOutAfterDayChoices, reachOutChainBodyOf, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutMayAddStep, reachOutMayPickMailbox, reachOutPreviewOf, reachOutSavedWords, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutVersionDraftOf, reachOutWhoWords } from "./campaigns/reach-out/draft";
 export { REACH_OUT_DECISIONS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_SAID_OUTCOMES } from "./campaigns/reach-out/dtos";
 export { HAND_KINDS, HAND_WORDS_MAX, handOf, handStepWords, personHandWords } from "./campaigns/reach-out/hand";
@@ -143,10 +142,10 @@ export { OPENING_SCHEMA, OPENING_UNSTATED, openingAskedOf, openingSystemPrompt, 
 export { composeLinksOf, mailtoOf } from "./campaigns/reach-out/owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./campaigns/reach-out/owner/lead-doors";
 export { CAMPAIGN_EMAIL_TAG, isCampaignEmail, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, WHY_FROM_MAPS, whyFrom } from "./campaigns/reach-out/reach-out";
+export { DRAFT_NEEDS_MS, draftExcerpt, draftRefusal, isDraftWhy, leadReplyNote, REPLY_MODE_UNSET, replyOfferSteer } from "./campaigns/reach-out/replies/draft";
 export { isReplyIntent, isUnread, OWNER_SAID_INTENTS, REACH_OUT_READS_PER_DAY, REACH_OUT_REPLY_DAYS, REPLY_INTENT_WORDS, REPLY_INTENTS, REPLY_UNREADS } from "./campaigns/reach-out/replies/intents";
 export { addressNamedIn, ownedDomainOf, readingPlan, replyNoticeWords, replyStepWords, UNREAD_READING } from "./campaigns/reach-out/replies/reading";
 export { awayUntilOf, notNowDayOf, parseReplyReading, REPLY_ANSWERED_MAX, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREADS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_WORDS_MAX, replyIntentQuestion, replySystemPrompt, replyTextOf, replyUserContent, rereadAt, stepDayFor } from "./campaigns/reach-out/replies/words";
-export { DRAFT_NEEDS_MS, draftExcerpt, draftRefusal, isDraftWhy, leadReplyNote, REPLY_MODE_UNSET, replyOfferSteer } from "./campaigns/reach-out/reply-draft";
 export { isReplyUndoRefusal, REPLIES_PAGE, REPLY_UNDO_REFUSALS, replyChipOf, replyChipStateOf, replyFromLineOf, replyLeftAsOf, replyStripOf } from "./campaigns/reach-out/reply-words";
 export { chainOfMoment, coldEndingOf, coldSignedOff, draftRefusalOf, isReachOutRun, isWaitRefusal, OUTREACH_WAIT_REFUSALS, outreachRefusalOf, REACH_OUT_DRAFTS_OPEN_MAX, REACH_OUT_DRAFTS_PER_DAY, REACH_OUT_LANGUAGE, REACH_OUT_MONTH_EMAILS, REACH_OUT_SIGNS_WITH, reachOutEmailOf, reachOutExampleLead, reachOutExampleValues, reachOutRootOf, REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } from "./campaigns/reach-out/rules";
 export { openingWorkspaceOf, reachOutOfferOf, reachOutPitchSaid, reachOutSignatureOf, reachOutSignedByOf, reachOutToneOf } from "./campaigns/reach-out/section";
@@ -160,6 +159,7 @@ export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, told
 export { US_STATE_ZONES, zoneOfRegion } from "./campaigns/reach-out/us-zones";
 export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf, coldWaitsTitle } from "./campaigns/reach-out/waiting";
 export { chainOf, customerDomainOf, heldClaimOf, HOLD_DOOR_WORDS, holdDoors, HOLDS_INCLUDED_FOR_CHAIN, holdWords, isReachOutHold, OPENING_CLAIM_KINDS, openingClaimWords, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, REACH_OUT_HOLDS, reachOutCountryOf } from "./campaigns/reach-out/words/claims";
+export { COLD_EMAIL_CONNECT_WORDS } from "./campaigns/reach-out/words/connect";
 export { ANGLE_WORDS_MAX, ASK_FIRST_WORDS_MAX, ASK_LATER_WORDS_MAX, emailWordCount, linkCount, linksIn, OPENING_CHARS_MAX, OPENING_WORDS_MAX, REACH_OUT_AFTER_DAYS, REACH_OUT_GAP_MINUTES, REACH_OUT_NAME_MAX, REACH_OUT_STEPS_MAX, reachOutRules, reachOutSlotFault, shoutingLine, SIGNED_BY_MAX, slotCount, validateReachOutWords, wordCount, wordsIssueWords, wordsNeedOpening } from "./campaigns/reach-out/words/limits";
 export { chainIssueWords, checkOpening, factValue, isOpeningProblem, OPENING_FACT_KEYS, openingProblemWords, validateReachOutChain } from "./campaigns/reach-out/words/opening";
 export { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SLOTS, REACH_OUT_SUBJECT_MAX } from "./campaigns/reach-out/words/slots";
@@ -195,7 +195,7 @@ export { LANGUAGE_GROUP_WORDS, languageLabels, languageWords, messageLanguageCho
 export { EMAIL_BODY_MAX, EMAIL_SUBJECT_MAX, noVersionWords, OWN_VERSION_CHANNELS, SMS_SEGMENTS_MAX, smsSegments, smsStopLine, smsVersionSegments, VERSION_CHANNEL_WORDS, VERSION_CHANNELS, versionWord } from "./campaigns/templates/message-versions/channels";
 export { campaignEmailRules, emailIssues, isReachOutRow, keepsValues, reachOutRowName, reachOutStepOf, renderOwnVersion, validateEmailVersion, validateOwnVersion, validateSmsVersion, versionComponents, versionSlotsRefusal, versionsOf, versionWords } from "./campaigns/templates/message-versions/email-rules";
 export { bookingTemplate, compareTemplates, defaultTemplate, groupTemplates, starterIndex } from "./campaigns/templates/order";
-export { exampleParams, exampleParamsFor, firstNameOf, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARAM_SOURCES, paramLabel, paramSaid, parseParamSpec, parseParamSpecs, playbooksStillSending, resolveParams, testParamsOf } from "./campaigns/templates/params";
+export { exampleParams, exampleParamsFor, firstNameOf, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARAM_SOURCES, paramLabel, paramSaid, paramSpecOf, parseParamSpec, parseParamSpecs, playbooksStillSending, resolveParams, testParamsOf } from "./campaigns/templates/params";
 export { footerOf, refusedWords, sendableTemplates, templateBlocked, templateFooter, templateLinkButton, templateParts } from "./campaigns/templates/parts";
 export { SENDER_WORDS, senderLanguage, senderWords } from "./campaigns/templates/sender-words";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten, slotMentions, slotOutside, slotsOut } from "./campaigns/templates/slot-sets";
@@ -563,7 +563,7 @@ export { linkHost, normalizeLink, publicObjectSrc, webAddressesIn, whyNotALink }
 export { sumOf } from "./shared/numbers";
 export { areaCodeOf, E164, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneAsWritten, phoneDialable, phoneTail, samePhone, shortCode, tollFreeNumber, US_AREA_CODE, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
 export { agoShort, agoWords, dateFormat, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, timezoneCity, VIEW_CHANGE_MS, waitedLabel, WEEK_MS, isoMs, numberFormat } from "./shared/time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, nonEmptyOrNull, recordOrNull, trimmedOrNull, entryOf, globalSlot, isCount, isList, isObjectRecord, isOneOf, keysOf, listOrEmpty, recordOrEmpty, textOrEmpty, valueAt } from "./shared/unknown";
+export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, nonEmptyOrNull, recordOrNull, trimmedOrNull, entryOf, errorOfThrown, globalSlot, isCount, isList, isObjectRecord, isOneOf, keysOf, listOrEmpty, recordOrEmpty, textOrEmpty, valueAt, withOldNames } from "./shared/unknown";
 export { clipAtWord, ANSWER_JSON_ONLY, CONTROL_CHARS, groupedPlural, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF, capitalize, joinWords, possessive } from "./shared/words";
 export { DAY_KEY, dayKeyNamed, dayWordIn, isDayKey, mondayOf, monthLabelOf, monthSpan, onOrAfter, shiftKey, shiftMonth, weekdayNamed, zoneMidnight } from "./shared/zone/day-keys";
 export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, usableZone, WEEKDAY_KEYS, zoneParts } from "./shared/zone/math";

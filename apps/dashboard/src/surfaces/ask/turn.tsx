@@ -13,7 +13,7 @@ import type {
   AskFigure as Figure,
   AskItem,
   AskLanguage,
-  AskMessageVM,
+  AskMessageDto,
   AskProposal,
   AskProposalOutcome,
 } from "@chanlytics/contracts";
@@ -47,7 +47,7 @@ type ShowOf = { show: Omit<Answer["show"], "list"> & { list: AskList | null } };
 type MoveProps = (me: number, cls: string) => { id?: string; className?: string };
 
 /** An answer no client can shape (the mockup, a test): its words, as prose. */
-const atProse = (m: AskMessageVM | null | undefined, lang: AskLanguage | undefined): Answer => ({
+const atProse = (m: AskMessageDto | null | undefined, lang: AskLanguage | undefined): Answer => ({
   v: 2,
   form: "prose",
   say: { headline: "", detail: (m && m.text) || "" },
@@ -355,7 +355,7 @@ export const AskTurn = ({
   onOutcome,
   onEdit,
 }: AnswerDoors & {
-  m: AskMessageVM | null;
+  m: AskMessageDto | null;
   q?: string;
   quick?: Answer;
   say?: LiveSay | null;
@@ -399,8 +399,8 @@ export const AskTurn = ({
   }
   const drawn: DrawnAnswer = quick
     ? { answer: quick, cardOpen: {} }
-    : A && A.answer
-      ? A.answer(m as AskMessageVM)
+    : A && m
+      ? A.answer(m)
       : { answer: atProse(m, lang), cardOpen: {} };
   const failed = !!(m && m.failed);
   return (

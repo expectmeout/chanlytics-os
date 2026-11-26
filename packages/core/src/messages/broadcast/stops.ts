@@ -108,7 +108,7 @@ export async function wireIsUnbound(
         `${channel}: a workspace's credentials could not be read`,
         `Broadcast ${broadcast.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unbound}.`,
       )
-      ?.catch(() => undefined);
+      .catch(() => undefined);
     return true;
   }
   return false;
@@ -249,7 +249,7 @@ export async function offersAtTheHead(
         "email: a broadcast's offers wait, the campaigns domain could not be checked",
         `Tenant ${cmd.tenantId}, broadcast ${b.id} ${stopped ? "stopped after waiting the most it may" : "waits"}, everyone still queued: ${unread}.`,
       )
-      ?.catch(logAndGoOn("paging the platform"));
+      .catch(logAndGoOn("paging the platform"));
     return "wait";
   }
   const reason = await ports.offersClosed();

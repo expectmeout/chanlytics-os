@@ -491,6 +491,7 @@ test("refresh on the public listing: the rating, the count and the day are writt
   });
   use(tables);
   const before = { ...tables.google_listings[0] };
+  const firstSeen = tables.google_reviews[0].first_seen_at;
   let refuse = true;
   const net = wired((req) => {
     if (req.url.split("?")[0] !== PLACE_URL(PLACE)) throw new Error(`unexpected ${req.method} ${req.url}`);
@@ -550,10 +551,11 @@ test("refresh on the public listing: the rating, the count and the day are writt
     ],
     "every review Google shows is on record",
   );
-  assert.equal(
-    tables.google_reviews.find((r) => r.review_id === "r-old").id,
-    R1,
-    "the one already there keeps its row, and so its first_seen_at",
+  const old = tables.google_reviews.find((r) => r.review_id === "r-old");
+  assert.deepEqual(
+    [old.id, old.first_seen_at],
+    [R1, firstSeen],
+    "the one already there keeps its row, and its first_seen_at: the write never names it (pinned as reviews.ts's text in google.test.mjs until 26 Nov 2026)",
   );
   assert.deepEqual(
     tables.google_listing_days.map((d) => [d.tenant_id, d.day, d.rating, d.review_count]),

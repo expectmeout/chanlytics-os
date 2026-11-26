@@ -74,8 +74,8 @@ export async function startUpload(ctx: RouteContext, member: Member, input: Star
   const started = await startFile(ctx.supabase, member.tenantId, id);
   if (started.error) throw fileDoorRefusal(started.error);
   const signed = await bucket().createSignedUploadUrl(filePathOf(member.tenantId, id, input.mime));
-  if (signed.error || !signed.data) {
-    log.error("file_upload_sign_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
+  if (signed.error) {
+    log.error("file_upload_sign_failed", { tenant_id: member.tenantId, error: signed.error.message });
     throw new AppError("unavailable", W.notSaved);
   }
   return { id, upload_url: signed.data.signedUrl, twin: false };
@@ -135,7 +135,7 @@ async function startVideo(ctx: RouteContext, member: Member, input: StartAsked):
 /** Its first bytes and its whole size, or null where nothing arrived. */
 async function firstBytesOf(path: string): Promise<{ head: Uint8Array; size: number } | null> {
   const link = await bucket().createSignedUrl(path, HEAD_LINK_S);
-  if (link.error || !link.data) return null;
+  if (link.error) return null;
   // Through the one way out (channels fetchFromProvider, as `storage`), always made: a decoder's 500 for one file is no
   // reason to hold the next person's upload.
   const res = await fetchFromProvider("storage", link.data.signedUrl, {
@@ -164,7 +164,7 @@ async function decoderRefuses(path: string, tenantId: TenantId, mime: FileMime, 
   const link = await bucket().createSignedUrl(path, HEAD_LINK_S, {
     transform: { width: DECODE_WIDTH, resize: "contain" },
   });
-  if (link.error || !link.data) {
+  if (link.error) {
     say("not signed");
     return false;
   }

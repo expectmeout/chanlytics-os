@@ -179,3 +179,43 @@ test("two deliveries of one call's end at once meter it once", { skip }, async (
   const [row] = await rowOf(callId);
   assert.equal(await metered(row.id), 1);
 });
+
+test(
+  "the call's thread is written only when its times move, and every delivery hands back the thread",
+  { skip },
+  async () => {
+    // Every transcript turn of a live call re-ingests the same started_at: an unconditional write of the conversation fired a
+    // realtime event that repainted every surface for no change at all (00034). Pinned as its text in
+    // voice/calls/calls-hardening.test.mjs until 26 Nov 2026.
+    const callId = `call_thread_${stamp}`;
+    const own = (call) => ({ ...call, from_number: "+16465550177" });
+    const d = deliveries(callId);
+    const first = await ingest("call_started", own(d.call_started));
+    assert.ok(first.conversation_id, "the thread");
+    const before = await db
+      .from("conversations")
+      .select("updated_at, last_message_at")
+      .eq("id", first.conversation_id)
+      .single();
+    assert.equal(before.error, null, before.error?.message);
+    const turn = await ingest("transcript_updated", own(d.transcript_updated));
+    assert.equal(turn.conversation_id, first.conversation_id, "a delivery that moves nothing still yields the thread");
+    const after = await db
+      .from("conversations")
+      .select("updated_at, last_message_at")
+      .eq("id", first.conversation_id)
+      .single();
+    assert.deepEqual(after.data, before.data, "and writes nothing on it");
+  },
+);
+
+test("the row only moves forward, and a delivery it declines says so", { skip }, async () => {
+  // Pinned as 00031's text in voice/calls/call-lifecycle.test.mjs until 26 Nov 2026.
+  const callId = `call_forward_${stamp}`;
+  const d = deliveries(callId);
+  await ingest("call_ended", d.call_ended);
+  const late = await ingest("call_started", d.call_started);
+  assert.equal(late.skipped, true, "a delivery behind the row is declined, and the caller is told");
+  const [row] = await rowOf(callId);
+  assert.equal(row.status, "ended", "and the row stays where it was");
+});

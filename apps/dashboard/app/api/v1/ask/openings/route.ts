@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { openings } from "@/server/readers/openings";
+import { openings } from "@/server/readers/calendar/openings";
 
 const Query = z.object({
   day: z.string().optional(),

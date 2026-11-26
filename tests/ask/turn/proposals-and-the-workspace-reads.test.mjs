@@ -902,7 +902,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
   const page = (
     await load(readerContext(ctxFor(t, doors), { tenantId: A, role: "owner" }, NOW), playbooksReader, undefined)
   ).data;
-  const chip = (key) => ({ said_yes_now: page.pools[key].saidYes, can_be_sent_now: page.pools[key].candidates });
+  const chip = (key) => ({ said_yes_now: page.pools[key].said_yes, can_be_sent_now: page.pools[key].candidates });
   // A moment that names nobody ahead of time (a deal marked won, offered here with no calendar) has no chip to say.
   for (const x of read.triggers.filter((y) => !y.counted_per_list && !y.each_at_their_own_time))
     assert.deepEqual({ said_yes_now: x.said_yes_now, can_be_sent_now: x.can_be_sent_now }, chip(x.trigger), x.trigger);

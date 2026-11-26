@@ -13,7 +13,7 @@ import type { Output } from "@/client/api";
 import { declareReads } from "@/bridge/surface-registry";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { routeOnScreen } from "@/bridge/workspace";
-import { toCallVM, type CallDto, type ConversationDto } from "@chanlytics/contracts";
+import { toCallVM, type CallDto, type ConversationDto, errorOfThrown } from "@chanlytics/contracts";
 import { toConversationVM } from "./model/thread-vm";
 import { carriedReading, carriesMark } from "../seen-carry";
 import { setSurfaceValue, shareUnchanged, surfaceValue } from "../surface-values";
@@ -85,7 +85,7 @@ export const conversationsOverride: SurfaceOverride = {
     const [data, escData, callsRes, tz] = await Promise.all([
       read("GET conversations"),
       kept?.holds ?? read("GET escalations", { query: { state: "open" } }),
-      kept?.calls ?? read("GET calls").catch((e: unknown) => e as Error),
+      kept?.calls ?? read("GET calls").catch(errorOfThrown),
       workspaceZone(),
     ]);
     lastBeside = { holds: escData, calls: callsRes };

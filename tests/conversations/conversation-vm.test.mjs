@@ -233,10 +233,10 @@ test("the summary counts messages and calls separately", () => {
     assert.equal(s.state, "snoozed");
   });
 
-  test("the snooze route leaves the escalation open", () => {
-    const src = readCode("packages/core/src/conversations/snooze.ts");
-    assert.ok(!src.includes("resolveEscalation"), "snoozing must not resolve the request the operator is postponing");
-  });
+  // The snooze verb leaves the escalation open, and so does wake: each verb's whole call is run in
+  // core-thread-verbs.test.mjs ("snooze: hides the thread, and leaves the escalation OPEN"; "wake: only a snoozed thread
+  // wakes"), where what each touches is exactly its own door and the ledger. Pinned as snooze.ts's and wake.ts's text
+  // until 26 Nov 2026.
 
   test("Wake now is its own verb, not hand-back", () => {
     // hand-back resolves the escalation AND returns the thread to the
@@ -247,13 +247,6 @@ test("the summary counts messages and calls separately", () => {
     const body = wakeFn.slice(0, wakeFn.indexOf("\n  };"));
     assert.ok(body.includes('realVerb(t, "wake"'), "wake must call the wake verb");
     assert.ok(!body.includes('"hand-back"'), "waking must not hand the thread back");
-
-    const route = readCode("packages/core/src/conversations/wake.ts");
-    assert.ok(!route.includes("resolveEscalation"), "the wake verb must not resolve either");
-    assert.ok(
-      route.includes("if (!(await ports.wake(conv.id)))"),
-      "and refuses when no row changed (run in core-thread-verbs.test.mjs)",
-    );
   });
 }
 

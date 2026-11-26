@@ -76,7 +76,7 @@ export async function sayIt(rc: ReaderContext, id: string, input: SayItInput): P
     today: zoneDayKey(rc.now.getTime(), zone),
     weekday: new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "long" }).format(rc.now),
     name: vm.name,
-    theirs: [...new Set((vm.deals ?? []).map((d) => d.service).filter((s): s is string => !!s))],
+    theirs: [...new Set(vm.deals.map((d) => d.service).filter((s): s is string => !!s))],
     // By name alone: a service's price note is never handed to the model.
     services: (brain?.profile?.services ?? []).slice(0, 12).map((s) => s.name),
   });

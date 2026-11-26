@@ -143,7 +143,7 @@ function proposeSettings(
 ): Promise<ProposalOutcome> {
   // Below the card's role, by the one predicate the registry offers it by (context.ts offeredTo).
   if (!offeredTo(settingsAct, toolContext.role)) return Promise.resolve(refuse(proposalBelowNeeds("settings")));
-  const raw = input.change && typeof input.change === "object" ? recordOrEmpty(input.change) : null;
+  const raw = typeof input.change === "object" ? recordOrEmpty(input.change) : null;
   if (!raw) return Promise.resolve(refuse("change is required"));
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
   // A row of Cold email (decision 0113) carries each op's own field, judged by the schema as it was sent; so do the

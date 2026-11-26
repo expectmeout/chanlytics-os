@@ -1,4 +1,4 @@
-import { valueAt } from "../../shared/unknown";
+import { valueAt, listOrEmpty } from "../../shared/unknown";
 /**
  * Reach out's words that more than one layer says: where a lead was found, the tag a campaign's email carries, and the
  * unsubscribe page. The foot every campaign email carries is campaigns/templates/email-foot.ts, one builder for every kind. Pure.
@@ -36,13 +36,9 @@ export const CAMPAIGN_EMAIL_TAG = "cl_campaign";
  * send verb, the receipt and the job that died all ask it.
  */
 export function isCampaignEmail(request: unknown): boolean {
-  const r = request as { headers?: Record<string, unknown>; tags?: unknown } | null | undefined;
-  const v = r?.headers?.["List-Unsubscribe"];
+  const v = valueAt(request, "headers", "List-Unsubscribe");
   if (typeof v === "string" && v.trim() !== "") return true;
-  return (
-    Array.isArray(r?.tags) &&
-    r.tags.some((t) => !!t && typeof t === "object" && valueAt(t, "name") === CAMPAIGN_EMAIL_TAG)
-  );
+  return listOrEmpty(valueAt(request, "tags")).some((t) => valueAt(t, "name") === CAMPAIGN_EMAIL_TAG);
 }
 
 /** What the unsubscribe page is showing. */

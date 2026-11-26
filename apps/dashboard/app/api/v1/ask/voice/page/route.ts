@@ -24,7 +24,7 @@ export const POST = write({
       ctx.supabase,
       sessionHashOf(input.session),
       input.context,
-      input.context.surface ?? null,
+      input.context.surface,
     );
     if (!moved) throw new AppError("not_found", "That conversation is not yours or is over.", 404);
     const built = await buildContext(readerContext(ctx, member, undefined, { keep: true }), input.context);

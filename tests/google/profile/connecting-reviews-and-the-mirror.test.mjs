@@ -46,8 +46,8 @@ import {
 } from "@chanlytics/contracts";
 import { b64url } from "@chanlytics/channels/shared";
 import { signState, verifyState, newNonce, STATE_TTL_MS } from "@chanlytics/channels/tokens";
-import { readCode, readRaw } from "../../_source.mjs";
-import { CLIENT, NOW, conn, gbp, page } from "./_profile.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { CLIENT, NOW, conn, gbp, page, vaultDoors, withOAuthEnv } from "./_profile.mjs";
 
 /* ---------------------------------------------------------------- OAuth */
 
@@ -682,7 +682,7 @@ test("the ledger and the events know the reply and the connection", () => {
         name: "N",
         hours: true,
         services: 1,
-        bookingLink: false,
+        booking_link: false,
         address: true,
         handoff: null,
         broken: false,
@@ -710,165 +710,123 @@ test("the ledger and the events know the reply and the connection", () => {
 
 /* ------------------------------------------------------------- the wiring */
 
-test("the migration: the connection row, the three Vault doors for the service role alone, realtime, the ledger's new subject and verb", () => {
-  const sql = readRaw("supabase/migrations/00070_google_profile.sql");
-  assert.ok(
-    sql.includes("create table public.google_connections (") &&
-      sql.includes("tenant_id        uuid primary key references public.tenants (id) on delete cascade"),
+test("the ledger takes an answer to a review: subject review, verb reply_review, as the database's own sets hold them", async () => {
+  // Pinned as 00070's text until 26 Nov 2026; the rest of that migration (the connection row and its check, who reads
+  // it, the three Vault doors for the service role alone, the token forgotten on disconnect, realtime) runs on the
+  // stack in google/google-credentials.db.test.mjs.
+  const db = fakeDb({ decisions: [] });
+  const put = (over) =>
+    db
+      .from("decisions")
+      .insert({
+        tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        actor_type: "user",
+        subject_id: "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        ...over,
+      })
+      .select("id")
+      .single();
+  assert.equal((await put({ subject_type: "review", verb: "reply_review" })).error, null, "an answer to a review");
+  assert.equal(
+    (await put({ subject_type: "review", verb: "reply_to_review" })).error?.code,
+    "23514",
+    "a verb it never said",
   );
-  assert.ok(
-    sql.includes("location_name    text check (location_name is null or location_name like 'locations/%')"),
-    "a connection may wait for its location",
-  );
-  assert.ok(
-    sql.includes("create policy google_connections_member_select on public.google_connections") &&
-      !sql.includes("for insert") &&
-      !sql.includes("for update"),
-    "members read; the edge writes",
-  );
-  for (const fn of [
-    "put_google_credentials(uuid, jsonb)",
-    "get_google_credentials(uuid)",
-    "drop_google_credentials(uuid)",
-  ]) {
-    assert.ok(sql.includes(`revoke execute on function public.${fn} from public, anon, authenticated;`), fn);
+  assert.equal((await put({ subject_type: "reviews", verb: "reply_review" })).error?.code, "23514");
+});
+
+// The edge: the secret alone on the edge, a read before a row, the grant given back on every refusal, the profile's
+// reviews replacing the public five. Pinned as the library's text here until 26 Nov 2026, and run where its parts are:
+// the OAuth client read from the edge's environment and the token traded with it (door/search-link-refresh-and-connect,
+// "connect"; door/the-profile-reply-draft-and-disconnect, "refresh with the profile connected"); the secrets through the
+// three vault doors by name (the doors' world answers get_google_credentials, put_google_credentials and
+// drop_google_credentials, and disconnect reads then drops); the grant handed back on a connect's refusals and on a
+// disconnect, each named (scope_missing, no_refresh_token, not_on_maps: "connect refuses -- and gives the grant back"
+// and a-failed-vault-write-and-the-review-link.test.mjs, with the rule in a-grant-is-given-back-only-when-alone.test.mjs);
+// the public read keeping only the numbers once the profile is connected (above, "with the profile connected"); and
+// the token refreshed a minute before it runs out (below). Every variable the edge reads is in its .env.example
+// (repo/env-manifest.test.mjs), where the redirect's address is the dashboard's own callback route.
+
+test("a stored token is used while it lasts, and refreshed a minute before it runs out", () =>
+  withOAuthEnv(async () => {
+    const { tokenFor } = await import("../../../apps/edge/lib/shared/google/credentials.ts");
+    const now = Date.parse("2026-09-12T00:00:00Z");
+    const asked = [];
+    const net = async (req) => {
+      asked.push(req);
+      return { status: 200, body: JSON.stringify({ access_token: "at-refreshed", expires_in: 3600 }) };
+    };
+    const lasting = vaultDoors({
+      refresh_token: "rt",
+      access_token: "at-live",
+      expires_at: now + 2 * 60_000,
+      scope: "s",
+    });
+    assert.deepEqual(await tokenFor(lasting.db, "t1", now, net), { ok: true, token: "at-live" });
+    assert.deepEqual([asked.length, lasting.vault.writes.length], [0, 0], "Google is asked nothing, nothing is kept");
+    const ending = vaultDoors({ refresh_token: "rt", access_token: "at-ending", expires_at: now + 30_000, scope: "s" });
+    assert.deepEqual(
+      await tokenFor(ending.db, "t1", now, net),
+      { ok: true, token: "at-refreshed" },
+      "inside its last minute: refreshed first",
+    );
+    assert.deepEqual([asked.length, ending.vault.secret.access_token], [1, "at-refreshed"], "and the new one kept");
+  }));
+
+// The dashboard: the way there is signed, the way back is proven before anything is trusted, and a reply is a ledger
+// entry. Pinned as the routes', google-actions.ts's, google.ts's and the card's text here until 26 Nov 2026, and run:
+// each route's role and bucket (google/google-routes.test.mjs, "the eleven declare their policy"); the way back proving
+// the state, then the person, then the owner's standing, then the code ("the way back: nothing is trusted until the state
+// proves itself"); the way there signed for the workspace and the person, the code handed to the edge without the
+// client's secret, a reply on the ledger and a disconnect the edge's (google/google-asked-of-the-edge.test.mjs); the
+// connection card read without where its token is (google-routes, "GET google answers the Google DTO whole"); the
+// browser sent to Google by the bridge's connect, with the first run's way back (google.test.mjs, "the dashboard"); the
+// row's verbs by their names and its Disconnect through the one Confirm (workspace/settings-doors.test.mjs); the reply box
+// for a member who may approve, on a review from the profile, its 4,096 characters
+// (reports/page/periods-reviews-and-every-state.test.mjs). The location choice is drawn below.
+
+test("the location choice: each place Google lists on Maps is a press that chooses it, and the owner is told in the place's name", async () => {
+  const { installStubReact, fresh, again, all, textOf, settle } = await import("../../_stub-react.mjs");
+  installStubReact();
+  const { googleVerbs } = await import("../../../apps/dashboard/src/bridge/google.ts");
+  const { GoogleChoose } = await import("../../../apps/dashboard/src/surfaces/settings/connections/google-choose.tsx");
+  const place = (n, title) => ({
+    account_name: "accounts/1",
+    account_title: "Harbor",
+    location_name: `locations/${n}`,
+    title,
+    address: "12 Pier Rd, Brooklyn",
+  });
+  const chosen = [];
+  const flashed = [];
+  const was = { locations: googleVerbs.locations, choose: googleVerbs.choose };
+  Object.assign(googleVerbs, {
+    locations: async () => ({ ok: true, locations: [place(1, "Harbor Moving"), place(2, "Harbor Storage")] }),
+    choose: async (account, location) => {
+      chosen.push([account, location]);
+      return { ok: true, read: true };
+    },
+  });
+  try {
+    fresh();
+    const draw = () =>
+      again(() => GoogleChoose({ busy: false, setBusy() {}, flash: (f) => flashed.push(f), onDisconnect() {} }));
+    draw();
+    await settle();
+    const tree = draw();
+    // The kit's Button hands its test id to the element it draws: one host button a place.
+    const presses = all(tree, (n) => n.type === "button" && n.props?.["data-testid"] === "google-place-choose");
+    assert.equal(presses.length, 2, "one press a place");
+    assert.match(
+      textOf(all(tree, (n) => n.props?.["data-testid"] === "google-choose")[0]),
+      /Which location is this workspace?/,
+    );
+    presses[1].props.onClick();
+    await settle();
+    assert.deepEqual(chosen, [["accounts/1", "locations/2"]], "the place pressed, by Google's own names for it");
+    assert.equal(flashed[0].tone, "ok");
+    assert.match(textOf(flashed[0].msg), /Harbor Storage/);
+  } finally {
+    Object.assign(googleVerbs, was);
   }
-  assert.ok(
-    sql.includes("'google-creds-' || p_tenant_id::text") && sql.includes("delete from vault.secrets where id = v_id;"),
-    "the token is forgotten on disconnect",
-  );
-  assert.ok(sql.includes("alter publication supabase_realtime add table public.google_connections;"));
-  assert.ok(
-    sql.includes("'start_playbook', 'pause_playbook', 'reply_review'") &&
-      sql.includes("'channel', 'broadcast', 'playbook', 'review'"),
-  );
-});
-
-test("the edge: the secret alone on the edge, a read before a row, the grant given back on every refusal, the profile's reviews replacing the public five", () => {
-  // The library's modules that hold the client, the vault doors, the connection, the sync and the listing's check.
-  const lib = [
-    "shared/google/config",
-    "shared/google/credentials",
-    "google/profile-connection",
-    "google/profile-sync",
-    "google/listing-check",
-  ]
-    .map((m) => readCode(`apps/edge/lib/${m}.ts`))
-    .join("\n");
-  for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"])
-    assert.ok(lib.includes(`env.${v}`), v);
-  // The vault's doors are packages/db's (decision 0111): the edge reaches them by name, never by the door's.
-  const vault = readCode("packages/db/src/repositories/google/connection.ts");
-  assert.ok(
-    vault.includes('db.rpc("put_google_credentials"') &&
-      vault.includes('db.rpc("get_google_credentials"') &&
-      vault.includes('db.rpc("drop_google_credentials"') &&
-      lib.includes("putGoogleCredentials(") &&
-      lib.includes("getGoogleCredentials(") &&
-      lib.includes("dropGoogleCredentials("),
-    "secrets through the vault doors",
-  );
-  assert.deepEqual(
-    [(lib.match(/revokeRequest\(/g) ?? []).length, (lib.match(/giveGoogleGrantBack\(/g) ?? []).length],
-    [2, 2],
-    "a grant that cannot be kept is handed back from two places, a connect's refusals (no scope, no refresh token, accounts unreadable, no locations, none on Maps, credentials unsaved) and a disconnect, and each asks the one rule first (shared/google/give-back.ts): a revoke ends every connection the Google account made. The refusals are RUN below, `net` being connectProfile's injected transport; the rule and both places in a-grant-is-given-back-only-when-alone.test.mjs",
-  );
-  assert.ok(
-    lib.includes('return { ok: false, error: "scope_missing" };') &&
-      lib.includes('return { ok: false, error: "no_refresh_token" };') &&
-      lib.includes('return { ok: false, error: "not_on_maps" };'),
-  );
-  // The public five make way for the profile on its first sync: run in google/door/ ("connect: … the public five making way").
-  assert.ok(
-    lib.includes("{ reviews: carriesReviews }"),
-    "with the profile connected the public read keeps only the numbers",
-  );
-  assert.ok(lib.includes("creds.expires_at - TOKEN_SLACK_MS > now"), "a token is refreshed before it expires");
-  // The door's profile half -- connect, locations, choose (proven against
-  // Google's list), disconnect, reply, and unlink disconnecting first -- runs
-  // in google/door/.
-  // The sweep's half -- connected profiles due are synced, forty a tick, a
-  // rejected credential written on the row -- runs in cron/doors-b/.
-  const env = readRaw("apps/edge/.env.example");
-  for (const v of ["GOOGLE_OAUTH_CLIENT_ID=", "GOOGLE_OAUTH_CLIENT_SECRET=", "GOOGLE_OAUTH_REDIRECT_URI="])
-    assert.ok(env.includes(v), v);
-  assert.ok(
-    env.includes("https://app.chanlytics.com/api/v1/google/callback"),
-    "the redirect URI is written where the operator sets it",
-  );
-});
-
-test("the dashboard: the way there is signed, the way back is proven before anything is trusted, and a reply is a ledger entry", () => {
-  const connect = readCode(
-    "apps/dashboard/app/api/v1/google/connect/route.ts",
-    "apps/dashboard/src/server/settings/google-actions.ts",
-  );
-  assert.ok(
-    connect.includes('role: "partner",') &&
-      /signState\(secret, \{\s*t: member\.tenantId,\s*u: ctx\.userId,\s*n: newNonce\(\),\s*exp: Date\.now\(\) \+ STATE_TTL_MS,(?:\s*\/\/[^\n]*)?\s*(?:\.\.\.\(back \? \{ b: back \} : \{\}\),?)?\s*\}\)/.test(
-        connect,
-      ),
-  );
-  assert.ok(connect.includes("new Response(null, { status: 302, headers: { location: url } })"));
-  const cb = readCode(
-    "apps/dashboard/app/api/v1/google/callback/route.ts",
-    "apps/dashboard/src/server/settings/google-actions.ts",
-  );
-  assert.ok(
-    cb.indexOf('verifyState(secret, url.searchParams.get("state"), Date.now())') < cb.indexOf('op: "connect"'),
-    "the state before the code",
-  );
-  assert.ok(
-    cb.includes('if (proof.state.u !== ctx.userId) return back("error", "someone_else");'),
-    "the person who started it",
-  );
-  assert.ok(cb.includes('if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");'));
-  assert.ok(!cb.includes("client_secret"), "the dashboard never sees the secret");
-  // The read is packages/db's (decision 0111): who and when, never where the token is.
-  const server = readCode("apps/dashboard/src/server/connections/google.ts");
-  assert.ok(
-    server.includes("findConnectionCard(db, tenantId)") &&
-      /\.select\("google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error"\)/.test(
-        readCode("packages/db/src/repositories/google/connection.ts"),
-      ),
-    "never credentials_ref",
-  );
-  const reply = readCode(
-    "apps/dashboard/app/api/v1/google/reviews/[id]/reply/route.ts",
-    "apps/dashboard/src/server/settings/google-actions.ts",
-  );
-  assert.ok(reply.includes('role: "operator",') && reply.includes('rate: "google_reply",'));
-  assert.ok(
-    /recordDecision\(ctx, member\.tenantId, "review", id, "reply_review", \{\s*comment,\s*replied_at: repliedAt,?\s*\}\)/.test(
-      reply,
-    ),
-  );
-  const locations = readCode("apps/dashboard/app/api/v1/google/locations/route.ts");
-  assert.equal((locations.match(/role: "partner",/g) ?? []).length, 2);
-  const connection = readCode("apps/dashboard/app/api/v1/google/connection/route.ts");
-  assert.ok(connection.includes("export const DELETE") && connection.includes('op: "disconnect"'));
-  const rate = readCode("apps/dashboard/src/server/shared/rate-limit.ts");
-  assert.ok(rate.includes("google_reply: {"));
-  const bridge = readCode("apps/dashboard/src/bridge/google.ts");
-  assert.ok(
-    // The way there, with the first run's way back where it asked (decision 0073, R17: `back: "start"`).
-    /window\.location\.assign\(\s*api\(\)\.url\("GET google\/connect"/.test(bridge) &&
-      bridge.includes("query: o?.back ? { back: o.back } : undefined") &&
-      bridge.includes("outcomeWords: CONNECT_OUTCOME_WORDS"),
-  );
-  // The card is TSX now: the pane (its note and its rows), the row (its verbs and its Confirm) and the location choice.
-  const card = ["pane", "row", "google-choose"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`))
-    .join("\n");
-  for (const t of ["google-choose", "google-place-choose"]) assert.ok(card.includes(`data-testid="${t}"`), t);
-  // The note is a record row of the kit's, which takes its test id as a prop.
-  assert.ok(card.includes('testid="google-note"'), "google-note");
-  assert.ok(card.includes('testid="google-disconnect"'), "the disconnect asks through the one Confirm");
-  for (const v of ["google-connect", "google-disconnect"])
-    assert.ok(card.includes(`"verb:${v}": "${v}"`), `${v} keeps its name as a row verb`);
-  const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
-  assert.ok(
-    reports.includes("vm.canReply && operator && r.fromProfile") && reports.includes('data-testid="google-reply-send"'),
-  );
-  assert.ok(reports.includes("maxLength={4096}"));
 });

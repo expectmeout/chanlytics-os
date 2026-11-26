@@ -33,7 +33,8 @@ export function resolveSteps(
   payload: Record<string, unknown>,
   created: PlanMade,
 ): Record<string, unknown> | { unresolved: number } {
-  let unresolved: number | null = null;
+  // The steps no made step answers, in the order met: the first is the one said.
+  const unresolved: number[] = [];
   const fill = (value: unknown): unknown => {
     if (typeof value === "string") {
       const m = STEP_TOKEN.exec(value);
@@ -41,7 +42,7 @@ export function resolveSteps(
       const n = Number(m[1]);
       const step = created[n];
       if (step && !("undone" in step) && step.id !== null) return step.id;
-      unresolved ??= n;
+      unresolved.push(n);
       return value;
     }
     if (Array.isArray(value)) return value.map(fill);
@@ -50,7 +51,8 @@ export function resolveSteps(
     return value;
   };
   const out = Object.fromEntries(Object.entries(payload).map(([k, x]) => [k, fill(x)]));
-  return unresolved === null ? out : { unresolved };
+  const [first] = unresolved;
+  return first === undefined ? out : { unresolved: first };
 }
 
 /**

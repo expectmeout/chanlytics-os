@@ -77,7 +77,7 @@ test("over the first run the Line is on the start surface: it asks about setting
         .filter((q) => q.kind === "ask")
         .slice(0, 3)
         .map((q) => q.label || q.q),
-      ["What is left to set up?", "What are our hours this week?", "What can you do for me?"],
+      ["What is left to set up?", "What are my hours this week?", "What can you do for me?"],
     );
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
     typed(tree, "What is left to set up?");
@@ -204,7 +204,7 @@ test("one press takes the plan's steps up to and including its send, handed the 
     );
     assert.deepEqual(
       Object.keys(calls.outcomes[0][2]).sort(),
-      ["atMs", "made", "receipt", "state", "undo"],
+      ["at_ms", "made", "receipt", "state", "undo"],
       "the shape a card's own press records",
     );
     assert.deepEqual(calls.commit, [], "no card was pressed on its own");
@@ -368,7 +368,7 @@ test("REGRESSION (the live run of 14 Nov 2026): a plan of sends that need nothin
     // All three on: the line says so, How it runs stands open with each one's own receipt, and nothing is left to press.
     const on = journey.map((c, i) => ({
       ...c,
-      outcome: { state: "done", receipt: `Campaign ${i + 1} is on.`, atMs: 1 },
+      outcome: { state: "done", receipt: `Campaign ${i + 1} is on.`, at_ms: 1 },
     }));
     const after = render(AskAnswer, planProps(on));
     assert.equal(textOf(byTestId(after, "ask-plan-receipt")), t.planAllOn(3));
@@ -802,7 +802,7 @@ test("a card drawn again reads back what became of it: its receipt, and no secon
     summary: "On the way",
     payload: {},
     undo: "Take it back",
-    outcome: { state: "done", receipt: "Sent to Rosa", atMs: Date.now(), undo: null },
+    outcome: { state: "done", receipt: "Sent to Rosa", at_ms: Date.now(), undo: null },
   };
   const tree = render(AskCard, { p, t: askText("en"), onNav() {} });
   assert.match(byTestId(tree, "ask-card").props.className, /\bdone\b/, "the card is as it was left");

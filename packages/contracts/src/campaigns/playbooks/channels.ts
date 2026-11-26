@@ -106,11 +106,12 @@ export function playbookChannelsRead(
   // A paused workspace sends nothing (core deliver.ts): whatever a channel could do, nothing goes by it now, and a
   // channel it keeps waits. What is ticked, kept and open stay as they are: they are the playbook's, not the pause's.
   const paused = workspace.paused === true;
-  const stands = Object.fromEntries(
-    CONSENT_CHANNELS.map((c): [ConsentChannel, ChannelStand] => [
-      c,
-      kept.includes(c) ? (on.includes(c) && !paused ? "on" : "waits") : open.includes(c) ? "could" : "off",
-    ]),
-  ) as Record<ConsentChannel, ChannelStand>;
+  const standOf = (c: ConsentChannel): ChannelStand =>
+    kept.includes(c) ? (on.includes(c) && !paused ? "on" : "waits") : open.includes(c) ? "could" : "off";
+  const stands: Record<ConsentChannel, ChannelStand> = {
+    whatsapp: standOf("whatsapp"),
+    sms: standOf("sms"),
+    email: standOf("email"),
+  };
   return { purpose, about, ready, choices, ticked, kept, on, stands };
 }

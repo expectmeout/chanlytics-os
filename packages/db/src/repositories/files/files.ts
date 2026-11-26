@@ -198,7 +198,7 @@ export async function listFilesOnShelf(
     .order("id", { ascending: false })
     .limit(page.limit);
   if (error) throw new DbFailure(error, "files on shelf");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -354,7 +354,7 @@ export async function listFilesNamedBy(
     .is("removed_at", null)
     .or(ARRIVED);
   if (error) throw new DbFailure(error, "files named");
-  return data ?? [];
+  return data;
 }
 
 /** One file whole, for the service role's work on it, removed or not. */
@@ -426,7 +426,7 @@ export async function keepClaudeCopy(
     .is("removed_at", null)
     .select("id");
   if (error) throw new DbFailure(error, "file copy");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -458,7 +458,7 @@ export async function listFilesToLookAgain(
   ]);
   if (young.error) throw new DbFailure(young.error, "files to look again");
   if (older.error) throw new DbFailure(older.error, "files to read again");
-  const seen = new Map([...(young.data ?? []), ...(older.data ?? [])].map((f) => [f.id, f]));
+  const seen = new Map([...young.data, ...older.data].map((f) => [f.id, f]));
   return [...seen.values()].slice(0, args.limit);
 }
 
@@ -485,7 +485,7 @@ export async function listVideosToDigestAgain(
     .order("looked_at", { ascending: true })
     .limit(range.limit);
   if (error) throw new DbFailure(error, "videos to digest again");
-  return data ?? [];
+  return data;
 }
 
 /** A video the platform has not answered for: its id there and where it stood. */
@@ -509,7 +509,7 @@ export async function listVideosWaiting(
     .order("updated_at", { ascending: true })
     .limit(range.limit);
   if (error) throw new DbFailure(error, "videos waiting");
-  return data ?? [];
+  return data;
 }
 
 /** The sweep's other read: a removal whose purge has not finished, so what an owner was told can't be brought back is gone. */
@@ -525,7 +525,7 @@ export async function listFilesToPurgeAgain(
     .order("removed_at", { ascending: true })
     .limit(args.limit);
   if (error) throw new DbFailure(error, "files to purge again");
-  return data ?? [];
+  return data;
 }
 
 /** The bucket, on whichever client holds the service role. */

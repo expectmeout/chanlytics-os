@@ -19,7 +19,7 @@ import {
   SECOND_MS,
 } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, KnownFacts, PolicyLimits } from "@chanlytics/contracts";
-import { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS } from "../shared/reply-horizon";
+import { ageVerdict, STALE_MS, STALE_REPLY_MS } from "../shared/reply-horizon";
 
 /**
  * A reply mode as an owner reads it, the Autonomy pane's own head for it ("Asks you", "Stays quiet"): what a hold's
@@ -29,7 +29,7 @@ export function modeSaid(mode: string): string {
   return isOneOf(POLICY_MODES, mode) ? POLICY_MODE_WORDS[mode].head : mode;
 }
 
-export { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS };
+export { ageVerdict, STALE_MS, STALE_REPLY_MS };
 
 /**
  * Whether a message is a yes that is owed its confirmation: a START on any wire, or YES OFFERS on WhatsApp, where offers

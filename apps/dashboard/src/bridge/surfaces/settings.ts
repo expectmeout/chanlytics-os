@@ -346,7 +346,7 @@ export const settingsOverride: SurfaceOverride = {
       // a template is one message in several languages, and the thing that sends
       // it names the message. Every name gets an entry, so a name MISSING from
       // the map means the usage was not read -- never "nothing sends it".
-      const used = tpl.usedBy ?? {};
+      const used = tpl.used_by ?? {};
       templateUse = Object.fromEntries(
         useNames.map((name) => {
           const u = used[name] ?? { playbooks: [], broadcasts: 0, recent: [], booking: false };

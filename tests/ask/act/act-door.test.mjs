@@ -107,7 +107,7 @@ test("a press walks its spec's call as a request of the member's own, marked as 
 });
 
 test("pressed twice, it acts once: the second is what the first did", async () => {
-  const { ctx } = world([noteCard({ outcome: { state: "done", receipt: "Noted on Priya.", atMs: 1, undo: null } })]);
+  const { ctx } = world([noteCard({ outcome: { state: "done", receipt: "Noted on Priya.", at_ms: 1, undo: null } })]);
   const a = await runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-note", by: "press" });
   assert.equal(a.ok, true);
   assert.equal(calls.length, 0);
@@ -233,7 +233,7 @@ test("an act Ask would run alone has its record first: no record, no act, said p
   );
   assert.equal(a.ok, false);
   assert.equal(calls.length, 0, "nothing ran");
-  assert.match(a.message, /didn't do this on my own/);
+  assert.match(a.message, /didn't do it on my own/);
   assert.match(a.message, /Try again/);
   const kept = tables.ask_messages[0].content.proposals[0].outcome;
   assert.equal(kept.state, "failed", "the card says so, and offers Try again");
@@ -302,7 +302,7 @@ test("a plan's send fills its tokens from what its steps made, under the step's 
   assert.equal(calls.length, 0);
 
   const done = world([
-    { ...msg, outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "message", id: "v-9" } } },
+    { ...msg, outcome: { state: "done", receipt: "", at_ms: 1, made: { kind: "message", id: "v-9" } } },
     send,
   ]);
   answers.push({
@@ -361,7 +361,7 @@ test("an undo goes through the spec's own way back, naming the decision it rever
     outcome: {
       state: "done",
       receipt: "Noted.",
-      atMs: Date.now(),
+      at_ms: Date.now(),
       undo: {
         note_id: "n1",
         contact_id: "11111111-1111-4111-8111-111111111111",

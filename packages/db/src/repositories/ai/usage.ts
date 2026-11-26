@@ -60,7 +60,7 @@ export interface AiFailures {
 export async function listAiFailuresHour(db: Db, min: number): Promise<AiFailures[]> {
   const { data, error } = await db.rpc("ai_failures_hour", { p_min: min });
   if (error) throw new DbFailure(error, "ai_failures_hour");
-  return (data ?? []).map((r) => ({
+  return data.map((r) => ({
     tenant_id: r.tenant_id,
     failed_calls: Number(r.failed_calls) || 0,
     brain_errors: Number(r.brain_errors) || 0,
@@ -109,7 +109,7 @@ export async function scrubModelTurns(db: Db, tenantId: TenantId, needles: reado
   // A database before 00401 keeps no turn, so nothing is there to scrub: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new DbFailure(error, "model_turns_scrub");
-  return data ?? 0;
+  return data;
 }
 
 /** The tokens the workspace's Ask spent in the last day (ask_tokens_day). */

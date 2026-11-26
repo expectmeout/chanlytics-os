@@ -81,18 +81,18 @@ export const listStuckLines = async (db: Db, cutoff: string, limit: number) =>
 
 /**
  * A released line's row deleted, with line.released in the same transaction (00721 line_release_row): what was let go
- * (`told`). False where the row was gone already; throws when it could not be written.
+ * (`event`). False where the row was gone already; throws when it could not be written.
  */
 export async function releaseLineRow(
   db: Db,
   tenantId: TenantId,
   lineId: string,
-  told: Record<string, unknown>,
+  event: Record<string, unknown>,
 ): Promise<boolean> {
   const { data, error } = await db.rpc("line_release_row", {
     p_tenant_id: tenantId,
     p_line_id: lineId,
-    p_data: jsonCopyOf(told),
+    p_data: jsonCopyOf(event),
   });
   if (error) throw new DbFailure(error, "cannot release the line's row");
   return data === true;
@@ -112,13 +112,13 @@ export async function keepLineTexting(
   db: Db,
   line: LineKey,
   row: Pick<LineUpdate, "sms_state" | "reg_mock" | "last_error" | "state_since">,
-  told: LineTextingTold | null,
+  event: LineTextingTold | null,
 ): Promise<boolean> {
   const { data, error } = await db.rpc("line_texting_keep", {
     p_tenant_id: line.tenant_id,
     p_line_id: line.id,
     p_row: { ...row },
-    ...(told ? { p_told: { kind: told.kind, data: told.data } } : {}),
+    ...(event ? { p_told: { kind: event.kind, data: event.data } } : {}),
   });
   if (error) throw new DbFailure(error, "cannot keep the line's texting");
   return data === true;

@@ -44,7 +44,7 @@ export async function listUnknownMailboxEmails(
     .not("message_id", "is", null)
     .limit(500);
   if (sends.error) throw new DbFailure(sends.error, "cannot read the mailbox's sends");
-  const ids = (sends.data ?? []).flatMap((s) => (s.message_id ? [s.message_id] : []));
+  const ids = sends.data.flatMap((s) => (s.message_id ? [s.message_id] : []));
   const rows: UnknownRow[] = [];
   for (let index = 0; index < ids.length; index += IDS_PER_READ) {
     const { data, error } = await db
@@ -56,7 +56,7 @@ export async function listUnknownMailboxEmails(
       .gte("created_at", span.since.toISOString())
       .lte("created_at", span.before.toISOString());
     if (error) throw new DbFailure(error, "cannot read the mailbox's unsettled emails");
-    rows.push(...(data ?? []));
+    rows.push(...data);
   }
   return rows
     .sort((a, b) => a.created_at.localeCompare(b.created_at))

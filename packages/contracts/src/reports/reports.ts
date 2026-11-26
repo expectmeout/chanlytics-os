@@ -151,7 +151,17 @@ export const withinWords = (days: number, until: string | null): string =>
  * one before it, the current days as points, both periods' totals and the receptionist's share of the answered, the
  * range in words, and its reply times in order.
  */
-function periodFactsOf(dto: ReportDto) {
+/** The parts report_series answers that a report built by hand may leave out. */
+type ReportParts = "series" | "reasons" | "reply_seconds" | "sentiments" | "voicemail";
+
+/**
+ * A report as the view model reads it. report_series answers each part (coalesced, so an empty period is none of them,
+ * never null), but the view model is handed reports built by hand too (Ask's reader of a world, a page's sample), and
+ * one that leaves a part out reads as having none.
+ */
+type ReportAsRead = Omit<ReportDto, ReportParts> & Partial<Pick<ReportDto, ReportParts>>;
+
+function periodFactsOf(dto: ReportAsRead) {
   const days = dto.days;
   const series = dto.series ?? [];
   const current = series.slice(-days);
@@ -223,7 +233,7 @@ function periodFactsOf(dto: ReportDto) {
 export type PeriodFacts = ReturnType<typeof periodFactsOf>;
 
 /** Why the receptionist handed over, the most frequent first, in the owner's words. */
-const reasonBarsOf = (reasons: ReportDto["reasons"]): ReportBarVM[] => {
+const reasonBarsOf = (reasons: ReportAsRead["reasons"]): ReportBarVM[] => {
   // One bar a reason as the owner reads it: two reasons said in the same words (a booking asked for, and the same booking
   // once you could not do its time) are one bar of both, never two bars of one name (Ruben's screenshot, 18 Oct 2026). The
   // bar keeps the id of its most frequent reason.
@@ -250,7 +260,7 @@ const reasonsShownOf = (reasons: ReportBarVM[]): ReportVM["reasonsShown"] => {
 };
 
 /** The callers' moods in their own order (good, then neither, then bad). A mood is an order, not a verdict: no status colour. */
-const moodBarsOf = (sentiments: ReportDto["sentiments"]): ReportBarVM[] =>
+const moodBarsOf = (sentiments: ReportAsRead["sentiments"]): ReportBarVM[] =>
   bars(
     Object.entries(sentiments ?? {})
       .sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1])
@@ -364,7 +374,7 @@ function linesOf(periodFacts: PeriodFacts, week: ReportWeekVM): ReportLinesVM {
  * days goes over the wire. `booking` is the calendar's line over the same days, counted beside it (the server's `bookingOf`).
  */
 export function headlineOf(
-  dto: ReportDto,
+  dto: ReportAsRead,
   period: ReportPeriodId,
   booking: BookingReportDto | null,
 ): ReportHeadlineDto {
@@ -393,7 +403,7 @@ export function headlineOf(
 
 /** The Reports page's view model: a builder per part, over the facts counted once. `profile` is the workspace's hours
  *  and closures, null where they could not be read; required, so each caller says (the node tests may leave it off). */
-export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null }): ReportVM {
+export function toReportVM(dto: ReportAsRead, opts?: { profile: ReportProfile | null }): ReportVM {
   const periodFacts = periodFactsOf(dto);
   // Built first, in the order the DTO has always been read: the calls take the moods, the lines the week and channels.
   const tiles = REPORT_TILES.map((tile) => tile(periodFacts));

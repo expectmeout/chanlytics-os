@@ -31,7 +31,7 @@ async function post<T>(token: string, door: string, body: Record<string, unknown
     body: JSON.stringify(body),
   });
   const j = res.json;
-  if (res.ok && j?.ok) return { ok: true, data: j.data as T };
+  if (res.ok && j?.ok && j.data !== undefined) return { ok: true, data: j.data };
   const wait = j?.error?.details?.retry_after_s;
   return { ok: false, message: j?.error?.message ?? null, waitS: typeof wait === "number" ? wait : null };
 }

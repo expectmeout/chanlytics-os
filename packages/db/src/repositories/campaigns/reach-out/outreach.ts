@@ -129,7 +129,7 @@ export async function getAddressesSuppressed(db: Db, tenantId: TenantId, address
   const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: items });
   if (error && isMissingFunction(error)) return addressesHeldBefore00220(db, tenantId, items);
   if (error) throw new DbFailure(error, "cannot read the never-again list");
-  return new Set((data ?? []).filter((a): a is string => typeof a === "string"));
+  return new Set(data.filter((a): a is string => typeof a === "string"));
 }
 
 /** The list as a database before 00220 holds it for addresses: each one's own email row. */
@@ -142,7 +142,7 @@ async function addressesHeldBefore00220(db: Db, tenantId: TenantId, texts: strin
     .eq("kind", "email")
     .in("hash", [...byHash.keys()]);
   if (error) throw new DbFailure(error, "cannot read the never-again list");
-  return new Set((data ?? []).flatMap((r) => byHash.get(r.hash) ?? []));
+  return new Set(data.flatMap((r) => byHash.get(r.hash) ?? []));
 }
 
 /* ---------------------------------------------------------------- a reply to a reach-out, read (00222) */
@@ -391,7 +391,7 @@ export async function resolveEscalationByReason(
     .eq("state", "open")
     .select("id");
   if (error) throw new DbFailure(error, "cannot resolve the thread's flag");
-  return !!data && data.length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -411,7 +411,7 @@ export async function archiveConversation(
     .neq("state", "archived")
     .select("id");
   if (error) throw new DbFailure(error, "cannot archive the thread");
-  return !!data && data.length > 0;
+  return data.length > 0;
 }
 
 /** A reading as the dashboard lists it: the row, and the lead, send and step it answers. */
@@ -458,7 +458,7 @@ export async function listRepliesFor(
   if (params.conversationId) query = query.eq("conversation_id", params.conversationId);
   const { data, error } = await query.order("read_at", { ascending: false }).limit(params.limit);
   if (error) throw new DbFailure(error, "cannot read the replies");
-  const rows = data ?? [];
+  const rows = data;
   const ids = (k: "lead_id" | "send_id") => [...new Set(rows.map((r) => r[k]).filter((v): v is string => !!v))];
   const [leads, sends] = await Promise.all([
     ids("lead_id").length
@@ -474,8 +474,8 @@ export async function listRepliesFor(
   ]);
   if (leads.error) throw new DbFailure(leads.error, "cannot read the replies' leads");
   if (sends.error) throw new DbFailure(sends.error, "cannot read the replies' emails");
-  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name]));
-  const step = new Map((sends.data ?? []).map((s) => [s.id, s]));
+  const business = new Map(leads.data.map((l) => [l.id, l.business_name]));
+  const step = new Map(sends.data.map((s) => [s.id, s]));
   return rows.map(({ lead_id, send_id, ...r }) => ({
     ...r,
     business: (lead_id && business.get(lead_id)) || null,
@@ -527,7 +527,7 @@ export interface ReachOutDayDue {
 export async function listReachOutDayDue(db: Db, now: Date, limit: number): Promise<ReachOutDayDue[]> {
   const { data, error } = await db.rpc("reach_out_day_due", { p_now: now.toISOString(), p_limit: limit });
   if (error) throw new DbFailure(error, "cannot read the day's reach-out numbers");
-  return (data ?? []).map((row) => {
+  return data.map((row) => {
     const numbers = recordOrEmpty(row.numbers);
     const num = (k: string) => Number(numbers[k] ?? 0) || 0;
     return {

@@ -94,7 +94,7 @@ const empty = (over = {}) => ({
     name: null,
     hours: false,
     services: 0,
-    bookingLink: false,
+    booking_link: false,
     address: false,
     handoff: null,
     broken: false,
@@ -122,7 +122,7 @@ const facts = {
   name: "Northside Movers",
   hours: true,
   services: 4,
-  bookingLink: true,
+  booking_link: true,
   address: true,
   handoff: HANDOFF,
   broken: false,
@@ -1000,7 +1000,7 @@ const harbor = (business = {}, google = {}) =>
       name: "Harbor Moving",
       hours: true,
       services: 0,
-      bookingLink: false,
+      booking_link: false,
       address: true,
       handoff: null,
       broken: false,
@@ -1311,7 +1311,7 @@ test("how it sounds, in one line: the voice, the personality where the tone is o
     soundsWords({ phone_voice: "minimax-Grace", tone: TONE_PRESETS[0].tone, assistant_name: "  Ava " }),
     "Grace · Warm · Ava",
   );
-  assert.equal(soundsWords({ phone_voice: "retired-voice", tone: "Short and dry." }), "Tamsin · Your own words");
+  assert.equal(soundsWords({ phone_voice: "retired-voice", tone: "Short and dry." }), "Tamsin · Written by you");
   // The voices native to a language the business answers in first: each one is on the list.
   for (const [language, ids] of Object.entries(PHONE_VOICES_NATIVE_TO)) {
     for (const id of ids)

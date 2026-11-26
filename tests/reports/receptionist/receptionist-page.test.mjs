@@ -9,7 +9,7 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { DESK, givenOn } from "../../_css.mjs";
 import { shiftKey } from "@chanlytics/contracts";
 import { toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
 import { installStubReact, fresh, all, byTestId, textOf, classes, find, press } from "../../_stub-react.mjs";
@@ -46,7 +46,6 @@ const { keepReportPeriod } = await import(`${S}/surfaces/reports/surface.ts`);
 const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
 const { forgetStanding } = await import(`${S}/surfaces/kit/head/standing.ts`);
 const SERIES = await import(`${S}/surfaces/reports/series.ts`);
-const CHARTS_CSS = readFileSync(new URL(`${S}/styles/charts.css`, import.meta.url), "utf8");
 const { DotPlot } = await import(`${S}/surfaces/kit/charts/dot.tsx`);
 const { BarList } = await import(`${S}/surfaces/kit/charts/bar.tsx`);
 const { LineChart } = await import(`${S}/surfaces/kit/charts/line.tsx`);
@@ -144,7 +143,7 @@ test("every sentence and number a new card draws is the fold's: the rows, their 
   const v = foldOf();
   const tree = draw();
   const rowsOf = (id) => find(byTestId(tree, id), (n) => n.type === BarList).props.rows.map((r) => [r.label, r.value]);
-  const lineOf = (id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
+  const lineOf = (id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-chart-takeaway")));
   const wanted = (part) => part.rows.map((r) => [r.label, r.value]);
   assert.deepEqual(rowsOf("chart-hold"), wanted(v.hold));
   assert.equal(lineOf("chart-hold"), v.hold.line);
@@ -346,9 +345,15 @@ test("a spread wears the ordinal ramp by place, and a sixth or seventh value sta
   );
   const seven = colors(7);
   assert.equal(seven.length, 7);
-  const defined = new Set([...CHARTS_CSS.matchAll(/--chart-ramp-(\d+):/g)].map((m) => `var(--chart-ramp-${m[1]})`));
-  assert.ok(defined.size >= 5, "the ramp's steps are the stylesheet's");
-  for (const color of seven) assert.ok(defined.has(color), `${color} is a token the ramp defines`);
+  // The ramp's steps as each theme defines them, asked of the charts' sheet as the build's parser reads it (tests/_css.mjs
+  // givenOn; pinned as charts.css's text until 26 Nov 2026).
+  for (const theme of ["light", "dark"]) {
+    const steps = Object.keys(givenOn("apps/dashboard/src/styles/charts.css", `[data-theme="${theme}"]`, DESK))
+      .filter((p) => /^--chart-ramp-\d+$/.test(p))
+      .map((p) => `var(${p})`);
+    assert.ok(steps.length >= 5, `the ramp's steps are the stylesheet's, in the ${theme} theme`);
+    for (const color of seven) assert.ok(steps.includes(color), `${color} is a step the ${theme} theme defines`);
+  }
   assert.deepEqual(seven.slice(4), Array(3).fill("var(--chart-ramp-1)"), "past its last step it stays on it");
 });
 

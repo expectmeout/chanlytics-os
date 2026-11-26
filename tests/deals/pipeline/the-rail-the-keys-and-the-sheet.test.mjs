@@ -580,7 +580,7 @@ test("each row wears its deal's steps: a consultation where one was held or is c
   // the follow-up has Wes in hand, so it is not the owner's to chase; a proposal past its valid-until day is the
   // owner's however young.
   const inHand = fixture().map((r) =>
-    r.id === "wes" ? { ...r, followUp: { kind: "will", atMs: NOW + DAY, asks: false } } : r,
+    r.id === "wes" ? { ...r, followUp: { kind: "will", at_ms: NOW + DAY, asks: false } } : r,
   );
   assert.deepEqual(
     rowOf(pipelineOf(inHand, NOW, TZ, null), "wes").track.map((s) => `${s.key}:${s.at}:${s.tone}`),

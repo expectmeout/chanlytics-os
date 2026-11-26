@@ -2,7 +2,7 @@ import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
 import { requireUuidList } from "@/server/shared/request-guards";
 import { load, readerContext } from "@/server/shared/reader";
-import { conversations } from "@/server/readers/conversations";
+import { conversations } from "@/server/readers/conversations/conversations";
 
 /** The longest a search may be: GET calls' own. */
 const SEARCH_MAX = 100;

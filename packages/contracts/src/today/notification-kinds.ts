@@ -20,7 +20,7 @@ import { agoShort } from "../shared/time";
 import type { ServerNotificationKind } from "./notifications/feed-input";
 import type { PushKind } from "./push";
 import { ALERT_PANE_WORDS } from "./alert-pane-words";
-import { isOneOf, keysOf } from "../shared/unknown";
+import { isOneOf, keysOf, entryOf } from "../shared/unknown";
 
 /**
  * How each kept kind reaches the owner, beyond the row on the bell: by email as well, or on the bell alone.
@@ -138,8 +138,7 @@ export const EMAILED_NOTIFICATION_KINDS: readonly EmailedNotificationKind[] = ke
  * (notify.ts), and so is emailed as one; no kind said is a plain alert.
  */
 export function emailsNotificationKind(kind: string | null | undefined): boolean {
-  const known = Object.hasOwn(NOTIFICATION_DELIVERY, kind ?? "");
-  return NOTIFICATION_DELIVERY[known ? (kind as ServerNotificationKind) : "alert"] === "email";
+  return (entryOf(NOTIFICATION_DELIVERY, kind) ?? NOTIFICATION_DELIVERY.alert) === "email";
 }
 
 /** The kinds that are always emailed: the receptionist must reach someone when a customer needs a person. */

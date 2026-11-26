@@ -165,9 +165,9 @@ export function foundOf(
   const ordered = [...(reads ?? [])].sort(
     (a, b) => BUSINESS_READ_SOURCES.indexOf(a.source) - BUSINESS_READ_SOURCES.indexOf(b.source),
   );
-  const listed = (record.services ?? []).map((s) => (typeof s?.name === "string" ? s.name : "")).filter(Boolean);
-  const closedDays = new Set((record.closures ?? []).map((c) => c?.date).filter(Boolean));
-  const noted = (record.notes ?? []).map((n) => `${n?.title ?? ""} ${n?.text ?? ""}`.toLowerCase());
+  const listed = (record.services ?? []).map((s) => (typeof s.name === "string" ? s.name : "")).filter(Boolean);
+  const closedDays = new Set((record.closures ?? []).map((c) => c.date).filter(Boolean));
+  const noted = (record.notes ?? []).map((n) => `${n.title ?? ""} ${n.text ?? ""}`.toLowerCase());
   const out: FoundVM = { services: [], closed: [], notes: [], description: null, unread: null, any: false };
   for (const item of ordered) {
     const from =
@@ -336,6 +336,6 @@ export function filmShotsOf(raw: unknown): FilmShot[] {
 export const WEBSITE_UNREAD_WORDS = {
   address: "it isn't an address on the public web",
   silent: "it didn't answer, or answered with no page",
-  nothing: "it says nothing about services, prices or rules that we could find",
+  nothing: "it says nothing Chanlytics could read about services, prices or rules",
   failed: "it couldn't be read just now. It is read again when you save it",
 } as const;

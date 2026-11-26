@@ -102,9 +102,9 @@ export const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string> = {
   bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
   no_email: "Their home, contact and about pages were read, and no address was on any of them.",
   site_unread:
-    "Their site couldn't be read when the search ran, so whether it shows an email isn't known. Their phone may still be good.",
+    "Their site couldn't be read during the search, so any email on it is unknown. Their phone may still be good.",
   no_phone:
-    "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
+    "This search counts a phone as enough, and the listing's number didn't match their site. An email may still reach them.",
   catch_all: "Their email provider accepts every address, so the check can't tell whether this one is real.",
   unsure: "AI couldn't tell from the listing or from their site.",
   read_only: "Only the listing says so, and this search asked to see it for itself.",
@@ -170,7 +170,7 @@ export function leadReviewGroups(
   const by = new Map<string, LeadReviewGroup>();
   for (const row of rows) {
     if (row.cls !== "review") continue;
-    const reasons = row.reasons ?? [];
+    const reasons = row.reasons;
     // An address that checks out is not a problem: it groups a lead only when nothing else holds the lead back
     // (the month was full when its check answered), for Keep to count it. Anything else the lead waits on comes first.
     const held = reasons.map(reviewGroupOf).filter((g): g is LeadReviewGroupId => g !== null && g !== "checks_out");

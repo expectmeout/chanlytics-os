@@ -47,7 +47,7 @@ export async function listNamesOfPeople(
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
     if (error) throw new DbFailure(error, "listNamesOfPeople");
-    out.push(...(data ?? []));
+    out.push(...data);
   }
   return out;
 }
@@ -80,7 +80,7 @@ export async function listPersonDecisions(
     .order("id", { ascending: false })
     .limit(PERSON_DECISIONS);
   if (error) throw new DbFailure(error, "person decisions");
-  return (data ?? []).map((d) => ({ ...d, payload: recordOrNull(d.payload) }));
+  return data.map((d) => ({ ...d, payload: recordOrNull(d.payload) }));
 }
 
 /**
@@ -131,7 +131,7 @@ function pageArgsOf(tenantId: TenantId, page: PeoplePageAsked) {
 export async function listPeoplePage(db: Db, tenantId: TenantId, page: PeoplePageAsked = {}): Promise<PersonRowDto[]> {
   const { data, error } = await db.rpc("people_list", pageArgsOf(tenantId, page));
   if (error) throw new DbFailure(error);
-  return (data ?? []).map(rowOfPeopleList);
+  return data.map(rowOfPeopleList);
 }
 
 /**
@@ -173,7 +173,7 @@ export async function findPersonRow(db: Db, tenantId: TenantId, personOf: Person
   if (!contactId) return null;
   const { data, error } = await db.rpc("people_list", { p_tenant_id: tenantId, p_contact_id: contactId });
   if (error) throw new DbFailure(error);
-  const first = (data ?? [])[0];
+  const first = data[0];
   return first ? rowOfPeopleList(first) : null;
 }
 
@@ -270,7 +270,7 @@ export async function getErasureDigests(db: Db, tenantId: TenantId, values: stri
   if (items.length === 0) return new Map();
   const { data, error } = await db.rpc("erasure_digests", { p_tenant_id: tenantId, p_values: items });
   if (error) throw new DbFailure(error, "cannot make the erasure digests");
-  const digests = data ?? [];
+  const digests = data;
   if (digests.length !== items.length) throw new Error("the erasure digests came back short");
   const out = new Map<string, string>();
   for (const [i, value] of items.entries()) {
@@ -300,7 +300,7 @@ export async function scrubPersonNotes(
   // A database before 00341 has no scrub, and the notes stay as they were: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new DbFailure(error, "person_notes_scrub");
-  return data ?? 0;
+  return data;
 }
 
 /** A door's answer as it came, with the database's own error beside it (the dashboard's noteAnswer reads it). */

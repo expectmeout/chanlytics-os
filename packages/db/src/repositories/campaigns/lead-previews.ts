@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 import { DbFailure } from "@chanlytics/contracts";
+import { embedded } from "../../shared/answers";
 
 type Db = SupabaseClient<Database>;
 
@@ -275,7 +276,7 @@ export async function listPreviewsTriedSince(db: Db, tenantId: TenantId, since: 
     .order("tried_at", { ascending: false })
     .limit(20);
   if (error) throw new DbFailure(error);
-  return (data ?? []).flatMap((item) =>
+  return data.flatMap((item) =>
     item.tried_at
       ? [
           {
@@ -287,7 +288,7 @@ export async function listPreviewsTriedSince(db: Db, tenantId: TenantId, since: 
             call_count: item.call_count,
             call_seconds: item.call_seconds,
             not_right: item.not_right,
-            business: item.lead?.business_name ?? null,
+            business: embedded(item.lead)?.business_name ?? null,
           },
         ]
       : [],
@@ -308,7 +309,7 @@ export async function listPreviewsPastTheirEnd(
     .order("ends_at", { ascending: true })
     .limit(limit);
   if (error) throw new DbFailure(error);
-  return data ?? [];
+  return data;
 }
 
 /** Whether a workspace makes previews: one marked ours (00469, decision 0079). Its own row, under its member's session. */

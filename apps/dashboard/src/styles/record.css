@@ -1,22 +1,10 @@
 /* ============================================================
-   WHAT THE RECORD KIT LEAVES HERE. Its rules are the kit's now (src/surfaces/kit/kit.css, step 2.1 of
-   docs/plans/2026-09-28-the-interface-kit-and-its-looks.md). What stays here stands where it stood, in the order it
-   had, each for a reason the move could not keep:
-   - the record kit's phone and desk, at the kit's one breakpoint, 900px: its own 760px moved there on 25 Nov 2026, the
-     listed harmony Phase 4 named (a window of 761 to 900px now draws the record kit as a phone, as it draws the kit's
-     sheet and menus);
-   - what names a class the kit does not own: the deal sheet's layout (components/deal-sheet.jsx), and the answers to
-     the shell's touch floor (html.frame-on, bridge/frame.css);
-   - two rules that must still come after a rule of another sheet: a busy Save's pointer, after components.css's role
-     gate, and reduced motion, after the phone block's transitions below.
+   THE DEAL SHEET'S OWN LAYOUT. The record kit's rules are the kit's (src/surfaces/kit/kit.css, step 2.1 of
+   docs/plans/2026-09-28-the-interface-kit-and-its-looks.md); the last of them that stood here (its phone and desk at
+   the kit's one breakpoint, its answers to the shell's touch floor, a busy Save's pointer and its reduced motion)
+   moved there on 26 Nov 2026. What stays is the deal sheet's (components/deal-sheet.jsx): how its fields, its reasons
+   and its send stand, and its rows under Glass.
    ============================================================ */
-
-/* Save while it saves: busy, and the pointer says so (record-fold.jsx RecordFoot). It comes after components.css's
-   role gate (.btn[data-gated], as heavy), as it always did, so a Save both gated and busy says it is busy. */
-.rec-foot [aria-busy="true"] { cursor: progress; }
-
-/* The inline editor's two presses keep their 28px under the shell's touch floor (frame.css). */
-html.frame-on .rec-inline-act { min-height: 0; }
 
 /* ---------- The deal sheet (components/deal-sheet.jsx, 0008): the kit's fields, in one column ---------- */
 .deal-sheet .deal-sheet-fields { display: flex; flex-direction: column; gap: 18px; padding: 20px 0 24px; }
@@ -39,73 +27,9 @@ html.frame-on .rec-inline-act { min-height: 0; }
 .deal-sheet .deal-sheet-said { margin: 20px 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 .deal-sheet .deal-sheet-reading { padding: 20px 0; }
 
-/* ---------- On a touch screen ---------- */
-/* frame.css gives every button on a touch screen 44px of height. A switch keeps its shape and takes its 44px from the
-   space around it, as .set-switch does; a box with a unit grows with the box inside it (min-height, not height). */
-@media (pointer: coarse) {
-  html.frame-on .rec-switch { min-height: 0; }
-  html.frame-on .rec-switch::after { content: ""; position: absolute; inset: -13px -7px; }
-  html.frame-on .rec-tip { width: 28px; height: 28px; min-height: 0; }
-  html.frame-on .rec-tip::after { content: ""; position: absolute; inset: -8px; }
-  html.frame-on .rec-sheet-close { min-width: 44px; }
-}
-/* A word that is a button keeps the word's box under that 44px floor, and takes a thumb's reach from an ::after
-   instead (#748's pattern, components.css .tl-msg-why): a fold's Close, a tip card's act. Grown to 44px they swelled
-   the fold's head from 56px to 81px. A row's act is such a word wherever a row is not a phone's: there, its ::after is
-   the whole row, and its box stays where the row can hold it. */
-html.frame-on .rec-fold-close, html.frame-on .rec-card-tip-act { position: relative; min-height: 0; }
-html.frame-on .rec-row-act { min-height: 0; }
-@media (width > 900px) {
-  .rec-row-act { position: relative; }
-  .rec-row-act::after { content: ""; position: absolute; inset: -14px -8px; }
-}
-
-/* ---------- On a phone: 900px and under, the kit's one breakpoint (the record kit's own 760px until 25 Nov 2026) ---------- */
+/* On a phone the six reasons stand two to a row. */
 @media (max-width: 900px) {
-  .rec-card { --rec-gutter: 15px; padding: 15px var(--rec-gutter) 8px; }
-  /* A card's subtitle is not drawn on a phone (23 Sep): its title says what the card is, and the line under it took a
-     second and third line of every card on a screen that fits three rows. */
-  .rec-card-sub { display: none; }
-  /* At a phone's width the whole row is the act, and its chevron is drawn, under a mouse too. The act's own box
-     stretches over the row (its ::after), so it stays one button with one name; anything else in the row that can be
-     pressed sits above that. */
-  .rec-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 3px; }
-  .rec-row-key, .rec-row-val { grid-column: 1; }
-  .rec-row-act { grid-column: 2; grid-row: 1 / span 2; }
-  .rec-row-act::after { content: ""; position: absolute; inset: 0; }
-  .rec-row-val :is(button, a, input, select, textarea, [tabindex]) { position: relative; z-index: 1; }
-  .rec-row-act-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  /* A row that HAS its fact states it and stops. Its hint is a sentence about what the fact is for ("Sent instead of
-     confirming an appointment itself"), which the editor says again over the box, and which at a phone's width is a
-     second and third line under every filled row of the card. A row with NOTHING in it keeps its hint: that sentence
-     says what empty means, which is the one thing there is to read and the one thing to decide. */
-  .rec-row[data-empty="false"] .rec-row-hint { display: none; }
-  .rec-row-chev { display: inline-flex; color: var(--ink-faint); }
-  .rec-row-act-icon { display: none; }
-  .rec-row:hover::before { background: none; }
-  .rec-fold-head { flex-wrap: wrap; row-gap: 3px; }
-  .rec-fold-label { flex: 1 1 auto; }
-  .rec-fold-hint { flex: 1 1 100%; order: 3; }
-  .rec-foot-note { flex-basis: 100%; text-align: left; }
-  /* No label column beside a phone's fields: they, what saving writes and the foot start at the fold's edge. */
-  .rec-fold-inner, .rec-fold[data-wide="true"] .rec-fold-inner { padding-left: 4px; }
-  .rec-fold[data-wide="true"] .rec-says { margin-inline-start: 0; }
-  .rec-fold[data-wide="true"] .rec-foot { padding-inline-start: 0; }
-  /* No label column beside a phone's box: the label goes above it, as a phone's row puts its value under its label,
-     with ✓ and ✕ beside the box; and what it will say stacks, as a fold's does. The box is a finger's 44px here
-     (frame.css's floor for every box on a touch screen), so the editor's own padding is all but gone and its label
-     sits 2px over the box: the editor is then 68px to the row's 65, and the rows under it hold still. */
-  .rec-inline { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "key key" "field acts"; row-gap: 2px; padding: 1px 0; }
-  .rec-inline-more { grid-column: 1 / -1; grid-row: 3; }
-  .rec-says[data-inline="true"] .rec-says-part { flex-direction: column; gap: 6px; }
-  .rec-says[data-inline="true"] .rec-says-eyebrow { margin-top: 0; }
   .deal-sheet .deal-sheet-reasons .rec-seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-/* Under reduced motion nothing of the record kit moves. After the phone block, whose transitions it stops. */
-@media (prefers-reduced-motion: reduce) {
-  .rec-row::before, .rec-row-act, .rec-inline-act, .rec-fold-close, .rec-fold-body,
-  .rec-switch, .rec-knob, .rec-seg-btn, .rec-tip, .rec-sheet-close { transition: none; }
 }
 
 /* ---------- Glass: the deal sheet as its canvas's one composer (D3), the rows the playbook composer wears (C2) ----------

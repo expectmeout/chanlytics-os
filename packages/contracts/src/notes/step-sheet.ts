@@ -178,7 +178,7 @@ export function stepSheetFor(
     draft: openedWith(note, kind, days, dealId ? (ask.lead ?? null) : null),
     note: note ? { id: note.id, version: note.version } : null,
     dealId,
-    blocked: ask.noteId && !note ? words.noStep : note && !note.mine ? (NOTE_REFUSALS.not_yours ?? null) : null,
+    blocked: ask.noteId && !note ? words.noStep : note && !note.mine ? NOTE_REFUSALS.not_yours : null,
     save: mode === "edit" ? words.save.edit : words.save[kind === "note" ? "note" : "add"],
   };
 }

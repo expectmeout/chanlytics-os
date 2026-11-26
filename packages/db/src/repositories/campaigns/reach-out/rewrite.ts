@@ -69,13 +69,13 @@ export async function sendOpeningsOf(
     .in("id", params.sendIds)
     .not("lead_id", "is", null);
   if (error) throw new DbFailure(error, "cannot read the emails' openings");
-  const rows = data ?? [];
+  const rows = data;
   const stepIds = [...new Set(rows.flatMap((r) => [r.step_id, r.sequence_id]).filter((x): x is string => !!x))];
   const steps = stepIds.length
     ? await db.from("sequence_steps").select("id, state").eq("tenant_id", params.tenantId).in("id", stepIds)
     : { data: [], error: null };
   if (steps.error) throw new DbFailure(steps.error, "cannot read the emails' steps");
-  const running = new Set((steps.data ?? []).filter((s) => s.state === "running").map((s) => s.id));
+  const running = new Set(steps.data.filter((s) => s.state === "running").map((s) => s.id));
   const byId = new Map(rows.map((r) => [r.id, r]));
   return params.sendIds.flatMap((id) => {
     const found = byId.get(id);

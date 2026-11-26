@@ -15,7 +15,7 @@ import {
   type PieceFollowedDto,
 } from "@chanlytics/contracts";
 import { findFile, findPiece, type PieceMemberRow } from "@chanlytics/db/files";
-import { fileDtoOf } from "@/server/readers/files";
+import { fileDtoOf } from "@/server/readers/files/files";
 import { requireUuid } from "@/server/shared/request-guards";
 import { row } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";

@@ -62,7 +62,7 @@ export async function claimIdempotencyKey(
     )
     .select("key");
   if (claimed.error) throw new DbFailure(claimed.error, "idempotency claim");
-  if ((claimed.data ?? []).length > 0) return { won: true };
+  if (claimed.data.length > 0) return { won: true };
   const held = await db
     .from("idempotency_keys")
     .select(HOLD_COLUMNS)
@@ -91,7 +91,7 @@ export async function takeIdempotencyKey(
     .eq("created_at", params.from)
     .select("key");
   if (taken.error) throw new DbFailure(taken.error, "idempotency take");
-  return (taken.data ?? []).length > 0;
+  return taken.data.length > 0;
 }
 
 /**
@@ -131,5 +131,5 @@ export async function keepIdempotencyReceipt(
     .eq("created_at", params.stamp)
     .select("key");
   if (kept.error) throw new DbFailure(kept.error, "idempotency receipt");
-  return (kept.data ?? []).length > 0;
+  return kept.data.length > 0;
 }

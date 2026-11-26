@@ -320,7 +320,7 @@ function quietOf(dealPerson: DealPerson, nowMs: number, tz: string): DealQuietVM
       [{ consultedMs: consulted, deal: dealPerson.deal, nextVisitMs: dealPerson.nextVisitMs ?? null }],
       nowMs,
     ).length > 0;
-  const sub = fresh && consulted !== null ? consultationWas(consulted, tz, nowMs) : null;
+  const sub = fresh ? consultationWas(consulted, tz, nowMs) : null;
   if (!closed)
     return {
       words: DEAL_LINE_NONE,

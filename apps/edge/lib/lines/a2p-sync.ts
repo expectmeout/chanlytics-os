@@ -68,7 +68,7 @@ async function keepAnswer(
   db: Db,
   line: LineRow,
   answer: { smsState: LineRow["sms_state"]; mock: LineRow["reg_mock"]; reason: string | null },
-  told: LineTextingTold | null = null,
+  event: LineTextingTold | null = null,
 ): Promise<void> {
   const { smsState, mock, reason } = answer;
   const moved = smsState !== line.sms_state;
@@ -86,7 +86,7 @@ async function keepAnswer(
       // have had it, which therefore never got past an hour.
       ...(moved ? { state_since: new Date().toISOString() } : {}),
     },
-    told,
+    event,
   ).catch((e: unknown) => lineStateNotWritten(line, e instanceof Error ? e.message : String(e)));
 }
 
@@ -242,11 +242,11 @@ async function tellThenKeep(
     about: { type: "line", id: line.id },
     onceKey: `a2p_verdict:${line.id}:${line.sms_state}:${line.state_since}:${smsState}`,
   };
-  const told: LineTextingTold | null = verdict && {
+  const event: LineTextingTold | null = verdict && {
     kind: TEXTING_KINDS[verdict.event],
     data: { e164: line.e164, from: line.sms_state, to: smsState, mock },
   };
   if (notice && !(await keepOnce(line.tenant_id, notice))) return null;
-  await keepAnswer(db, line, answer, told);
+  await keepAnswer(db, line, answer, event);
   return verdict !== null;
 }

@@ -47,7 +47,7 @@ import {
   type AdConnectOutcome,
 } from "@chanlytics/db/ads";
 import { findChannelNumber } from "@chanlytics/db/channels";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import {
   isTenantId,
   metaAdConfigOf,
@@ -78,6 +78,7 @@ import {
 import { mayAskMeta, readAfterOf } from "./pace.js";
 import { pickAccount, pickPage, type AccountSeen } from "./pick.js";
 import { adsWrites, pauseLeftOn } from "./tell.js";
+import { jsonCopyOf } from "@chanlytics/db/shared";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -318,7 +319,7 @@ async function chooseAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId:
       config: { ...kept, ...accountConfigOf(account), choices: [] },
       token_expires_at: waiting.token_expires_at,
     },
-    secret: secret as Json,
+    secret: jsonCopyOf(secret),
     chosen: true,
   });
   if (connected.outcome === "connected") await readSoon(db, log, account.id);

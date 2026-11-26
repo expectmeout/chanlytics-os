@@ -21,6 +21,7 @@ import {
   type ProposalSpec,
   type ProposalSpecAboveOperator,
 } from "./spec";
+import { entryOf } from "../../shared/unknown";
 
 /** The person a card names, on their page. */
 const cardPersonRoute = ({ payload }: Pick<AskProposal, "payload">): string | null => {
@@ -69,7 +70,7 @@ export const personModeSpec: ProposalSpecAboveOperator = {
     events: [PEOPLE_CHANGED],
   }),
   receipt: (p) =>
-    `AI for ${asText(p.payload.who)}: ${PERSON_MODE_WORDS[asText(p.payload.mode) as keyof typeof PERSON_MODE_WORDS] ?? asText(p.payload.mode)}`,
+    `AI for ${asText(p.payload.who)}: ${entryOf(PERSON_MODE_WORDS, p.payload.mode) ?? asText(p.payload.mode)}`,
   undo: {
     label: () => "Set it back",
     window: "ten_minutes",
@@ -128,7 +129,7 @@ export const dealSpec: ProposalSpec = {
   },
   // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
   receipt: ({ payload: pl }, _data, then) => {
-    const receipt = `${asText(pl.who)} · ${DEAL_STAGE_WORDS[asText(pl.stage) as keyof typeof DEAL_STAGE_WORDS] ?? asText(pl.stage)}`;
+    const receipt = `${asText(pl.who)} · ${entryOf(DEAL_STAGE_WORDS, pl.stage) ?? asText(pl.stage)}`;
     if (!then) return receipt;
     return then.ok
       ? `${receipt} · ${NOTE_WORDS.stepAdded}`

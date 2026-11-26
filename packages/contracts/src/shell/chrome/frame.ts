@@ -23,7 +23,7 @@ export type Crumb = string | { label: string; to?: string | null };
  */
 export function pageTitle(crumbs: readonly Crumb[] | null | undefined, needs?: number | null): string {
   const words = (crumbs ?? [])
-    .map((c) => (typeof c === "string" ? c : (c?.label ?? "")).trim())
+    .map((c) => (typeof c === "string" ? c : c.label).trim())
     .filter(Boolean)
     .reverse();
   const where = [...words, "Chanlytics"].join(" · ");
@@ -138,7 +138,7 @@ export function shellStatusLine(shellStatus: ShellStatus | null | undefined): Sh
       tone: WORKSPACE_PAUSED.tone,
       text: "AI is paused",
       detail:
-        "It sends a holding reply and hands each new message to you in the Inbox. Write to support and we'll sort it out.",
+        "It sends a holding reply and hands each new message to you in the Inbox. Write to support, and Chanlytics sorts it out.",
       action: null,
       cta: null,
       busy: null,
@@ -149,7 +149,7 @@ export function shellStatusLine(shellStatus: ShellStatus | null | undefined): Sh
       tone: "warn",
       text: "AI is limited",
       detail:
-        "It may send a holding reply and hand some messages to you in the Inbox. Write to support and we'll sort it out.",
+        "It may send a holding reply and hand some messages to you in the Inbox. Write to support, and Chanlytics sorts it out.",
       action: null,
       cta: null,
       busy: null,
