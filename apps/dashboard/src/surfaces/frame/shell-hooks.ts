@@ -87,7 +87,8 @@ export function useRouteGate({ page, param, routeKey }: RouteAt) {
   const [timedOutKey, setTimedOutKey] = useState<string | null>(null);
   const [waitedOutKey, setWaitedOutKey] = useState<string | null>(null);
   const [readyTick, setReadyTick] = useState(0);
-  const arm = () => {
+  // One per route: the frame's route effect runs it again exactly when the route changes (app-shell.tsx).
+  const arm = useCallback(() => {
     if (routeReady(page, param)) return undefined;
     // The wait for a band beside the page counts from the page's own surface landing, not from arriving.
     let w: ReturnType<typeof setTimeout> | null = null;
@@ -116,7 +117,7 @@ export function useRouteGate({ page, param, routeKey }: RouteAt) {
       clearTimeout(t);
       if (w !== null) clearTimeout(w);
     };
-  };
+  }, [page, param, routeKey]);
   // Derived every render, so a navigation can never commit the previous route's answer. readyTick is read so the
   // subscription re-evaluates it.
   void readyTick;

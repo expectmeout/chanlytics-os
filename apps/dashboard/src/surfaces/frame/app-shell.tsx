@@ -127,7 +127,7 @@ export function ChanlyticsApp({
   const useSurface = frameSurfaceHook() ?? useSurfaceStill;
   useSurface({ page, param });
   const gate = useRouteGate(at);
-  const { demoGated } = gate;
+  const { demoGated, arm } = gate;
   const { navigate, backToPeople, backFrom } = useShellNavigate(setRoute);
   const openAsk = useCallback(() => setAskOpen(true), []);
 
@@ -159,11 +159,11 @@ export function ChanlyticsApp({
   useRouteMoves(at);
   useTabTitle(drawn.crumbs, inboxNeeds);
   useCrumbsShown({ crumbs: drawn.crumbs, ownHead: !!drawn.ownHead, head: drawn.head ?? null }, look, at);
-  // A route change: the drawer closes, and the gate's clocks start for the new route.
+  // A route change: the drawer closes, and the gate's clocks start for the new route (`arm` is one per route).
   useEffect(() => {
     setNavOpen(false);
-    return gate.arm();
-  }, [at.routeKey]);
+    return arm();
+  }, [arm, setNavOpen]);
   // When the tab bar last asked for a place (PhoneTabs `onPlace`): the view that arrives for it is cut in.
   const placed = useRef<number | null>(null);
   const onPlace = useCallback(() => {

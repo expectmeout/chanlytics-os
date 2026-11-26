@@ -14,6 +14,7 @@ import {
   type ReachOutAddDto,
   type ReachOutChainPeopleDto,
   type ReachOutSourceDto,
+  entryOf,
 } from "@chanlytics/contracts";
 import {
   aimSearchAt,
@@ -132,7 +133,8 @@ export async function leaveOut(
   const answer = answerOf(data);
   const words = REACH_OUT_ADD_WORDS;
   const own = { list_gone: words.listGone, fed_by_search: words.fedBySearch, not_on_it: words.notOnIt } as const;
-  if (answer.error && answer.error in own) throw new AppError("conflict", own[answer.error as keyof typeof own], 409);
+  const ownWords = entryOf(own, answer.error);
+  if (ownWords) throw new AppError("conflict", ownWords, 409);
   const refused = refusalOf(answer);
   if (refused) throw refused;
   return {

@@ -145,7 +145,7 @@ export interface PostWords {
   line: string;
   over: string;
   under: string;
-  /** The presses that open a line above and below, where the editor folds the empty ones away (post-edit.tsx `fold`). */
+  /** The presses that open a line above and below, where the editor folds the empty ones away (files/post/edit.tsx `fold`). */
   addOver: string;
   addUnder: string;
   needsLine: string;

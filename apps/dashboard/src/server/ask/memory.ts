@@ -12,6 +12,8 @@ import {
   MIN_MS,
   isEffortMessage,
   isWordsMessage,
+  listOrEmpty,
+  recordOrEmpty,
   wordsMessage,
   type AskAnswer,
   type AskMessageVM,
@@ -388,7 +390,7 @@ const messagesOf = (v: unknown): Msg[] | null => (Array.isArray(v) && v.every(is
 
 /** A raw turn as the row keeps it (storedRaw), read back whole, or null for anything else: a replay takes no doubt. */
 function memoryKeptOf(value: unknown): Kept | null {
-  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const raw = recordOrEmpty(value);
   const { at, model, prefix, blocks, after } = raw;
   if (typeof at !== "number" || typeof model !== "string" || typeof prefix !== "string" || typeof blocks !== "string")
     return null;
@@ -397,7 +399,7 @@ function memoryKeptOf(value: unknown): Kept | null {
   let record: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(blocks);
-    record = (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    record = recordOrEmpty(parsed);
   } catch {
     // Not JSON: nothing to read.
     return null;
@@ -569,7 +571,8 @@ export function tellNext(messages: Msg[], words: string): void {
   if (last)
     messages[messages.length - 1] = {
       role: "user",
-      content: [...(last.content as unknown[]), { type: "text", text: words }],
+      // The newest message is the round's tool results, a list of blocks: the words go after them.
+      content: [...listOrEmpty(last.content), { type: "text", text: words }],
     };
 }
 

@@ -18,6 +18,7 @@ import {
   type FileShelf,
   type FileSound,
   type FootageDto,
+  entryOf,
 } from "@chanlytics/contracts";
 
 /** A file as Ask reads it: what the page reads, and the rest of what the look saw. Never its provider's id. */
@@ -75,7 +76,8 @@ export function filesLineOf(
   for (const f of kept) counts.set(shelfOf(f), (counts.get(shelfOf(f)) ?? 0) + (f.n ?? 1));
   const shelves = FILE_SHELVES.flatMap((s) => {
     const n = counts.get(s);
-    return n && s in SHELF_SAID ? [`${SHELF_SAID[s as keyof typeof SHELF_SAID]} ${n}`] : [];
+    const shelfWords = entryOf(SHELF_SAID, s);
+    return n && shelfWords ? [`${shelfWords} ${n}`] : [];
   });
   const waiting = filesCountedOf(files.filter((f) => f.status === "inbox"));
   const newest = files.reduce((at, f) => (f.created_at > at ? f.created_at : at), "");
