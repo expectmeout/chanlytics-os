@@ -815,12 +815,12 @@ export const RULE_TESTS_DIR = "repo/";
 /**
  * The rule tests that live beside the domain they hold, not under `tests/repo/`: each a repo-wide lint of its kind,
  * named here with the change that argued it. The list is the part that rots, so it stays a handful
- * (repo/source-scan-ratchet.test.mjs holds it to four), and a file added to it is a line of this module in review.
+ * (repo/source-scan-ratchet.test.mjs holds it to three), and a file added to it is a line of this module in review.
+ * edge/runtime-freshness.test.mjs left it on 26 Nov 2026: what it read is run now, so it is a behaviour test.
  */
 export const RULE_TESTS_ELSEWHERE = [
   "ai/flag-registry.test.mjs",
   "e2e/e2e-shape.test.mjs",
-  "edge/runtime-freshness.test.mjs",
   "routes/workspace-scoping.test.mjs",
 ];
 
