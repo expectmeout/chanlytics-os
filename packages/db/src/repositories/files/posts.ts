@@ -112,6 +112,24 @@ export async function movePost(
   return data === true;
 }
 
+/**
+ * The owner's word on a post its place took and never confirmed (post_seen_say, 00720), as the member signed in: there
+ * (up from now), or not there (failed, in `words`). The door asks who is calling and moves it through post_moved, with
+ * its event; false when the post no longer stands so (seen meanwhile, taken down, let go).
+ */
+export async function sayPostSeen(
+  db: Db,
+  seen: { postId: string; there: boolean; words: string | null },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("post_seen_say", {
+    p_post_id: seen.postId,
+    p_there: seen.there,
+    ...(seen.words === null ? {} : { p_words: seen.words }),
+  });
+  if (error) throw new DbFailure(error, "post seen said");
+  return data === true;
+}
+
 /** A send with no answer: Checking, and its reconcile two minutes on, written together. False when it was not being sent. */
 export async function markPostUnanswered(db: Db, postId: string, attempt: 1 | 2): Promise<boolean> {
   const { data, error } = await db.rpc("post_unanswered", { p_post_id: postId, p_attempt: String(attempt) });

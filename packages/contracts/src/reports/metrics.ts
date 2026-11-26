@@ -12,6 +12,7 @@ import { DELIVERY_RECEIPTS_WORDS, REPLY_DAYS, REPLY_WINDOW_WORDS, STUCK_DAYS } f
 import { MISSED_CALL_TOUCH_WORDS } from "./receptionist/record";
 import type { ReportMetric } from "./tiles";
 
+// screen-word: how each figure is counted, which docs/words.md puts behind Why at the length it needs ("The shape of each thing")
 const METRIC_WORDS: Record<ReportMetric, string> = {
   customer_messages:
     "Messages your customers sent you, on every channel. A call, a message sent to them, and history brought in from before Chanlytics are not counted.",

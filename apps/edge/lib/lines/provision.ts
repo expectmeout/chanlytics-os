@@ -29,6 +29,7 @@ import type { ResumedBy } from "./resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
+import { logAndGoOn } from "@chanlytics/log";
 
 /**
  * A line stopped: tell the workspace's bell and the platform's mailbox. The ledger's line.failed is the row's own move
@@ -89,7 +90,12 @@ export async function provisionLine(
   deadline?: number,
 ) {
   const timeLeft = deadline === undefined ? undefined : () => deadline - Date.now();
-  const result = await runLineSaga(line, { ...linePorts(db, cfg, secrets, tenant, line, choice), timeLeft });
+  // Who started this run rides on the line's facts, so the row's move to answering or failed says so on the ledger
+  // (00721 lines_tell_their_moves). A fact that could not be kept leaves the event without it, never the run undone.
+  const started: LineRow = { ...line, facts: { ...line.facts, started_by: by } };
+  const ports = linePorts(db, cfg, secrets, tenant, started, choice);
+  await ports.store.save({ facts: started.facts }).catch(logAndGoOn("keeping who started the line's run"));
+  const result = await runLineSaga(started, { ...ports, timeLeft });
   const shown = formatPhoneDisplay(result.line.e164) ?? result.line.e164 ?? "your number";
   if (result.ok && result.later) {
     // Nobody is told anything: the line is still setting up, and the next run goes on from its step.

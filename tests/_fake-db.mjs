@@ -1438,12 +1438,14 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         e164: now.e164 ?? null,
         provider: now.provider ?? null,
         agent_id: now.retell_agent_id ?? null,
+        by: now.facts?.started_by ?? null,
       });
     if (now.voice_state !== was.voice_state && now.voice_state === "failed")
       told("line.failed", {
         step: now.step ?? null,
         error: typeof now.last_error === "string" ? now.last_error.slice(0, 300) : null,
         provider: now.provider ?? null,
+        by: now.facts?.started_by ?? null,
       });
     if (now.forwarding_state !== was.forwarding_state && now.forwarding_state === "verified") {
       const facts = now.facts ?? {};

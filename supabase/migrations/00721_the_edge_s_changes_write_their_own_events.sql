@@ -279,9 +279,8 @@ comment on function public.billing_apply(uuid, jsonb, jsonb, text, jsonb) is
 
 -- A line that started answering, one whose setting up stopped, and a forwarded number whose test call came through:
 -- each is a state its row takes, so the row's own move writes the event, in the transaction of whichever write moved
--- it (the saga's save, the sweep's hand-off to a person, the forwarding check), where the edge wrote it after. What the
--- edge wrote beside the row (who started the run) is not the row's; the line's step, error, provider, number and agent
--- are.
+-- it (the saga's save, the sweep's hand-off to a person, the forwarding check), where the edge wrote it after: the line's
+-- step, error, provider, number and agent, and who started its run (facts.started_by, which the run keeps first).
 create or replace function public.lines_tell_their_moves() returns trigger
 language plpgsql
 security definer
@@ -291,12 +290,14 @@ begin
   if new.voice_state is distinct from old.voice_state and new.voice_state = 'answering' then
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (new.tenant_id, 'line.answering', 'setup', 'line', new.id,
-            jsonb_build_object('e164', new.e164, 'provider', new.provider, 'agent_id', new.retell_agent_id));
+            jsonb_build_object('e164', new.e164, 'provider', new.provider, 'agent_id', new.retell_agent_id,
+                               'by', new.facts ->> 'started_by'));
   end if;
   if new.voice_state is distinct from old.voice_state and new.voice_state = 'failed' then
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (new.tenant_id, 'line.failed', 'setup', 'line', new.id,
-            jsonb_build_object('step', new.step, 'error', left(new.last_error, 300), 'provider', new.provider));
+            jsonb_build_object('step', new.step, 'error', left(new.last_error, 300), 'provider', new.provider,
+                               'by', new.facts ->> 'started_by'));
   end if;
   if new.forwarding_state is distinct from old.forwarding_state and new.forwarding_state = 'verified' then
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
@@ -310,7 +311,7 @@ end $$;
 revoke all on function public.lines_tell_their_moves() from public, anon, authenticated;
 
 comment on function public.lines_tell_their_moves() is
-  'A line''s moves on its own row, each with its event in the write''s transaction (00721): voice_state to answering (line.answering: number, provider, agent) or failed (line.failed: step, error, provider), forwarding_state to verified (line.forwarding_verified: the call that proved it, and how). The trigger lines_tell_their_moves.';
+  'A line''s moves on its own row, each with its event in the write''s transaction (00721): voice_state to answering (line.answering: number, provider, agent, who started the run) or failed (line.failed: step, error, provider, who), forwarding_state to verified (line.forwarding_verified: the call that proved it, and how). The trigger lines_tell_their_moves.';
 
 drop trigger if exists lines_tell_their_moves on public.lines;
 create trigger lines_tell_their_moves after update of voice_state, forwarding_state on public.lines

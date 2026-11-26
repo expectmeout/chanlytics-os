@@ -86,10 +86,10 @@ test("the line lookup (R11), read as the step says it: a mobile and whose codes 
   assert.equal(lineLookupOf({ type: "tollFree", carrier: null }).type, "unknown");
   assert.equal(lineLookupOf(null), null);
   const said = (raw) => CW.calls.lookup(lineLookupOf(raw));
-  assert.equal(said({ type: "mobile", carrier: "Verizon Wireless" }), "a Verizon mobile, we checked");
-  assert.equal(said({ type: "mobile", carrier: "Visible" }), "a mobile, we checked");
-  assert.equal(said({ type: "landline", carrier: "Lumen" }), "a landline, we checked");
-  assert.equal(said({ type: "fixedVoip", carrier: "RingCentral" }), "an office phone system (RingCentral), we checked");
+  assert.equal(said({ type: "mobile", carrier: "Verizon Wireless" }), "a Verizon mobile, checked");
+  assert.equal(said({ type: "mobile", carrier: "Visible" }), "a mobile, checked");
+  assert.equal(said({ type: "landline", carrier: "Lumen" }), "a landline, checked");
+  assert.equal(said({ type: "fixedVoip", carrier: "RingCentral" }), "an office phone system (RingCentral), checked");
   assert.equal(said({ type: "unknown", carrier: null }), null);
 });
 

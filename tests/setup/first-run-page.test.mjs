@@ -478,7 +478,7 @@ test("Connect it to Google (canvas 1B·g): what one sign-in brings, said before 
     byTestId(tree, `fr-building-${id}`)?.props["data-state"],
   ];
   assert.deepEqual(lines("made"), ["Workspace made · Harbor Moving", "done"]);
-  assert.deepEqual(lines("confirm"), ["Your listing, confirmed", "done"]);
+  assert.deepEqual(lines("confirm"), ["Listing confirmed", "done"]);
   assert.deepEqual(lines("connect"), ["Connect your Business Profile", "ahead"]);
   assert.deepEqual(lines("write"), ["AI, set up", "done"]);
   assert.equal(byTestId(tree, "fr-building-found"), null, "linked: nothing left to search");
@@ -601,7 +601,7 @@ test("back from Google with an account that manages no such place: who can add t
   assert.equal(textOf(flashes.at(-1).msg), "Google did not connect. Try again.", "a refusal with no words of its own");
 });
 
-test("Your workspace, building, beside Find: searching while Google is asked, then what it found and what waits on the owner", async () => {
+test("The workspace, building, beside Find: searching while Google is asked, then what it found and what waits on the owner", async () => {
   googleSays([found([HARBOR, WAREHOUSE])]);
   setSetup(surface(findable));
   open();
