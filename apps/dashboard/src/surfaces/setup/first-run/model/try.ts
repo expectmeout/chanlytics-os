@@ -156,7 +156,7 @@ export const FIRST_RUN_TRY_WORDS = {
   anyway: "Skip anyway",
 } as const;
 
-export interface FirstRunTryInput {
+interface FirstRunTryInput {
   dto: SetupDto;
   /** The Live page's calls (now and recent); empty before that read lands. */
   calls: readonly LiveCallVM[];

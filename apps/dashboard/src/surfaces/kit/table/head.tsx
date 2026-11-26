@@ -89,7 +89,7 @@ function headingDrag(key: string, acts: HeadActs | null, keys: readonly string[]
   };
 }
 
-export interface HeadProps {
+interface HeadProps {
   words: TableNouns;
   columns: readonly AnyDataColumn[];
   selectable: boolean;
