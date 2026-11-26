@@ -664,6 +664,12 @@ function attrMatches(el, a) {
   }
 }
 
+/**
+ * The element a selector inside `:is()`, `:where()` or `:not()` asks of: itself, not its pseudo-element, and still
+ * itself to a `:has()` in there, whose parts' parent is the element and never a copy of it.
+ */
+const asItself = (el) => ({ ...el, pseudo: null, self: el.self ?? el });
+
 function compoundMatches(el, c) {
   if (c.tag && c.tag !== "*" && c.tag !== el.tag) return false;
   if ((c.element ?? null) !== (el.pseudo ?? null)) return false;
@@ -674,17 +680,18 @@ function compoundMatches(el, c) {
     if (p.name === "root") {
       if (el.parent) return false;
     } else if (p.name === "not") {
-      if (p.list.some((sel) => complexMatches({ ...el, pseudo: null }, sel))) return false;
+      if (p.list.some((sel) => complexMatches(asItself(el), sel))) return false;
     } else if (p.name === "is" || p.name === "where" || p.name === "matches") {
-      if (!p.list.some((sel) => complexMatches({ ...el, pseudo: null }, sel))) return false;
+      if (!p.list.some((sel) => complexMatches(asItself(el), sel))) return false;
     } else if (p.name === "has") {
-      const held = el.holds ?? [];
+      const self = el.self ?? el;
+      const held = self.holds ?? [];
       const relative = (sel) =>
         held.some((h) => {
           const first = sel[0];
           // `:has(> x)` asks a child; plain `:has(x)` any descendant, which is what a part's holds are.
-          if (first.combinator === ">" && h.parent !== el) return false;
-          return complexMatches(h, sel, el);
+          if (first.combinator === ">" && h.parent !== self) return false;
+          return complexMatches(h, sel, self);
         });
       if (!p.list.some(relative)) return false;
     } else {
@@ -886,7 +893,7 @@ function rulesIn(rules, file, into, outer = { media: [], supports: [], apart: nu
               ...frames[keyOf(s)],
               ...Object.fromEntries(declarationsIn(k.declarations).map((d) => [d.prop, d.value])),
             };
-        into.keyframes.push({ name: v.name.value, frames, ...outer, order: into.keyframes.length });
+        into.keyframes.push({ file, name: v.name.value, frames, ...outer, order: into.keyframes.length });
         break;
       }
       case "layer-block":
@@ -990,6 +997,42 @@ function substitute(value, get, seen = new Set()) {
   throw new Error(`a var() that never settles: ${value}`);
 }
 
+/** The words of an `animation` shorthand that are never its name: its timing, its count, its direction, its fill, its state. */
+const ANIMATION_WORDS = new Set(
+  "ease ease-in ease-out ease-in-out linear step-start step-end infinite normal reverse alternate alternate-reverse forwards backwards both running paused".split(
+    " ",
+  ),
+);
+
+/**
+ * The names an `animation` value plays, one per animation it lists (`none` where one plays nothing), whichever place the
+ * build prints each name in: what is left of each once its times, numbers, functions and keywords are taken away.
+ */
+export function animationNamesOf(value) {
+  if (!value) return [];
+  const out = [];
+  let depth = 0;
+  let from = 0;
+  const parts = [];
+  for (let i = 0; i <= value.length; i++) {
+    const c = value[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if ((c === "," && depth === 0) || i === value.length) {
+      parts.push(value.slice(from, i));
+      from = i + 1;
+    }
+  }
+  for (const part of parts) {
+    const words = part
+      .replace(/[\w-]+\([^()]*(?:\([^()]*\)[^()]*)*\)/g, " ")
+      .split(/\s+/)
+      .filter((w) => w && !ANIMATION_WORDS.has(w) && !/^-?\d*\.?\d+(m?s)?$/.test(w));
+    out.push(words.at(-1) ?? "none");
+  }
+  return out;
+}
+
 /**
  * The cascade over `files` (repo-relative stylesheets, in the order a page links them, or `{ css }`), where a page is drawn (`ctx`,
  * over a desk: `{ ...PHONE, displayMode: "standalone" }`). `style(el)` answers each property the element is drawn with,
@@ -1090,6 +1133,8 @@ export function cascadeOf(files, ctx = {}) {
       const found = sheet.keyframes.filter((k) => k.name === name && drawn(k));
       return found.at(-1)?.frames ?? null;
     },
+    // Every @keyframes the sheets declare, drawn here or not: what a check over every animation of a kind asks.
+    allKeyframes: () => sheet.keyframes.map((k) => ({ file: k.file ?? null, name: k.name, frames: k.frames })),
     // Every rule the sheets hold, drawn here or not: what a sheet sets anywhere (a property of a family it never sets).
     every: () =>
       sheet.rules.map((r) => ({

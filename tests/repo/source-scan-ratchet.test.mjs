@@ -49,8 +49,10 @@ test("every test file that reads source is counted once: a behaviour test's read
   const { counts } = sourceScan();
   const behaviour = SOURCE_SCAN.measure();
   const rules = RULE_SCAN.measure();
-  assert.ok(Object.keys(counts).length > 50, "the suite's files that read source are found");
-  assert.ok(Object.keys(rules).length > 5, "and the rule tests among them");
+  // The behaviour tests' reads fall toward none (lane 4's rounds took them from 556 to a few dozen); the rule tests read
+  // source by design, so they are what shows the scan still sees the suite.
+  assert.ok(Object.keys(rules).length > 5, "the rule tests, which read source by design, are found");
+  assert.ok(Object.keys(counts).length >= Object.keys(rules).length, "and every one is among the files that read");
   for (const [f, n] of Object.entries(counts)) {
     const held = isRuleTest(f) ? rules : behaviour;
     const other = isRuleTest(f) ? behaviour : rules;

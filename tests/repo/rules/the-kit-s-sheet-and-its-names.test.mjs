@@ -16,6 +16,10 @@
  *   entry and globals.css are held below to their imports: the tokens, then the kit; and the tokens alone.
  *
  * Each check also runs on fixtures, where it must find what it looks for.
+ *
+ * A rule of the repository, held over the kit's sheet, its registry and the entries that link them: what is checked is
+ * how the sheet is written (what it declares, the widths it names, what imports it), which no element drawn shows.
+ * Moved here from tests/styles/kit-css.test.mjs on 26 Nov 2026 (lane 4, area c).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -23,9 +27,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { transform } from "lightningcss";
 import ts from "typescript";
-import { cssOf, isPrimitiveClassFor, KIT_REGISTRY } from "../_css.mjs";
-import { parse, repoFiles } from "../_ast.mjs";
-import { ROOT } from "../_source.mjs";
+import { cssOf, isPrimitiveClassFor, KIT_REGISTRY } from "../../_css.mjs";
+import { parse, repoFiles } from "../../_ast.mjs";
+import { ROOT } from "../../_source.mjs";
 
 const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
 const registry = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8"));
