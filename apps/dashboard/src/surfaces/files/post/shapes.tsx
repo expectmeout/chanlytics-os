@@ -1,14 +1,14 @@
 /**
  * A kept post's way out (decision 0099, step 3): what to do with the shape on show, which Ask's card draws under the picture it
  * already holds (PostActs). On a phone that is the phone's own sheet, which is also how a picture reaches Photos: a download lands in
- * Files there. How it gets there is post-share.ts's. The shapes are the kit's Button and not its Segmented, which brings Base UI: Ask
+ * Files there. How it gets there is share.ts's. The shapes are the kit's Button and not its Segmented, which brings Base UI: Ask
  * rides on every page.
  */
 import { useEffect, useState } from "react";
 import { fileViewOf, type PostShapeName, type PostWords } from "@chanlytics/contracts";
-import { Button } from "../kit/button/button";
-import { mediaSays } from "../frame-verbs";
-import { postFileOf, sharePostFile, sharesPictures } from "./post-share";
+import { Button } from "../../kit/button/button";
+import { mediaSays } from "../../frame-verbs";
+import { openShareSheet, readPostFile, sharesPictures } from "./share";
 
 /** Where a kept post's shape is read from. */
 export const postShapeAddress = (id: string, shape: PostShapeName): string => `${fileViewOf(id)}?shape=${shape}`;
@@ -33,7 +33,7 @@ export function PostActs({
   useEffect(() => {
     if (!canShare) return undefined;
     let live = true;
-    void postFileOf(id, name, shape).then((file) => {
+    void readPostFile(id, name, shape).then((file) => {
       if (live) setReady({ shape, file });
     });
     return () => {
@@ -45,7 +45,7 @@ export function PostActs({
   const onTouch = mediaSays("(pointer: coarse)");
   const share = () => {
     if (!file) return;
-    void sharePostFile(file).then((went) => setSaid(went === "failed" ? says.shareFailed : null));
+    void openShareSheet(file).then((outcome) => setSaid(outcome === "failed" ? says.shareFailed : null));
   };
   const shareIt =
     canShare && file !== null ? (
