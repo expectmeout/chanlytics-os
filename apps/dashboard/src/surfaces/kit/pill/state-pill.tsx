@@ -27,7 +27,8 @@ interface StatePillProps {
   /** A glyph where the dot would be (a reply's clock, a tick): the Icon, at 11px. */
   glyph?: ReactNode;
   className?: string;
-  title?: string | null;
+  /** What it says on hover, focus and a tap: the house's tip (frame/tip.ts). It had a `title` too, a browser's tooltip a
+   * phone never shows; the three that passed one pass their words here. */
   tip?: string | null;
   testid?: string | null;
 }
@@ -40,7 +41,6 @@ export function StatePill({
   lit = false,
   glyph = null,
   className = "",
-  title = null,
   tip = null,
   testid = null,
 }: StatePillProps) {
@@ -51,7 +51,6 @@ export function StatePill({
       className={`pill${tone === "plain" ? "" : ` pill-${tone}`}${fit ? " pill-fit" : ""}${lit ? " pill-lit" : ""}${className ? ` ${className}` : ""}`}
       data-state={value}
       data-tone={tone}
-      title={title || undefined}
       data-tip={tip || undefined}
       data-testid={testid || undefined}
     >
