@@ -127,6 +127,33 @@ export function holdFrameParts() {
 }
 
 /**
+ * The frame's own parts, as it imports them (it draws each by import since decision 0151, never by a name a test can
+ * stand in): what a test finds in a tree the frame drew (`n.type === frameParts().Topbar`) or draws alone, and the
+ * strip's own place, slide and swipe. Required when asked, like drawsInPlace: they are TSX, which a test loads once its
+ * stub React is in place.
+ */
+export function frameParts() {
+  const top = requireFromDashboard("../surfaces/frame/topbar/topbar.tsx");
+  const bars = requireFromDashboard("../surfaces/frame/topbar/status-bars.tsx");
+  const strip = requireFromDashboard("../surfaces/frame/surface-tabs.tsx");
+  const sheet = requireFromDashboard("../surfaces/frame/shortcuts.tsx");
+  return {
+    Topbar: top.Topbar,
+    LiveCallBar: bars.LiveCallBar,
+    ShellStatusBar: bars.ShellStatusBar,
+    Sidebar: requireFromDashboard("../surfaces/frame/sidebar/sidebar.tsx").Sidebar,
+    SurfaceTabs: strip.SurfaceTabs,
+    stripPlace: strip.stripPlace,
+    stripSlide: strip.stripSlide,
+    stripSwipe: strip.stripSwipe,
+    ShortcutsSheet: sheet.ShortcutsSheet,
+    openShortcuts: sheet.openShortcuts,
+    AskBar: requireFromDashboard("./ask/line.tsx").AskLine,
+    Icon: requireFromDashboard("../surfaces/kit/icon/icon.tsx").Icon,
+  };
+}
+
+/**
  * What react-dom does at once in a browser, here: a portal's node drawn where it stands, and a change drawn before it
  * returns (`flushSync`). This runner's react-server condition gives react-dom neither, so a test that draws a toast, a
  * menu or a held switch with no stub React of its own calls this, where it stood `ReactDOM` in on the window until

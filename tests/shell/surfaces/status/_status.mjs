@@ -27,7 +27,7 @@
 import { importSrc } from "../../../_source.mjs";
 import { hookFrames } from "../../../_hook-frames.mjs";
 import { historyOf, legacyAddress } from "../../address/_address.mjs";
-import { bridgeHolds } from "../../_bridge-holds.mjs";
+import { bridgeHolds, frameParts } from "../../_bridge-holds.mjs";
 
 export const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -286,18 +286,10 @@ export const textOf = (n) => {
 };
 
 /**
- * The frame's own parts, as it imports them (surfaces/frame/shell-chrome.tsx): what a test finds in the tree a mount
- * draws, which draws them shallow (`deep` is off while it mounts), by the part itself: `n.type === PART.Topbar`.
+ * The frame's own parts, as it imports them (the shared world's, tests/shell/_bridge-holds.mjs frameParts): what a test
+ * finds in the tree a mount draws, which draws them shallow (`deep` is off while it mounts): `n.type === PART.Topbar`.
  */
-export const PART = {
-  Topbar: topbarParts.Topbar,
-  LiveCallBar: topbarParts.LiveCallBar,
-  ShellStatusBar: topbarParts.ShellStatusBar,
-  Sidebar: (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar,
-  SurfaceTabs: (await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx")).SurfaceTabs,
-  ShortcutsSheet: (await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx")).ShortcutsSheet,
-  AskBar: (await importSrc("apps/dashboard/src/bridge/ask/line.tsx")).AskLine,
-};
+export const PART = frameParts();
 
 /** The window at an address (`#/inbox`, as the pages name one), placed at its path, where the frame leaves a route. */
 export const placeAt = (hash) => {

@@ -393,14 +393,14 @@ export function doorsWithoutEventsIn(sql) {
 }
 
 /**
- * The two places the dashboard writes on the window for code that is not the app's, each with why. Every other write
+ * The places the dashboard writes on the window for code that is not the app's, each with why. Every other write
  * is a part the bridge holds (bridge/provided.ts) or a module's own value (decision 0151).
  */
 export const WINDOW_CONTRACTS = {
   "apps/dashboard/src/bridge/app-bridge.ts":
     "the phone app's door: its native shell calls `window.__appBridge` by that name, from outside the page",
   "apps/dashboard/src/bridge/ask.ts":
-    "the nightly's specs: they ask `window.__ask` what the page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts), from outside the bundle, and nothing of the app reads it",
+    "the nightly e2e's specs, in its own build alone (NEXT_PUBLIC_E2E=1): they ask `window.__ask` what the page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts) from outside the bundle; no customer's page has it, and nothing of the app reads it",
   "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts":
     "Meta's SDK: it calls `window.fbAsyncInit` once loaded, and its sign-in opens through `window.open`, which the page wraps for that press alone",
 };
