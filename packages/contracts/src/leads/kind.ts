@@ -224,7 +224,7 @@ export interface LeadCompanyVM {
 
 export const LEAD_COMPANY_WORDS = {
   head: (n: number) => (n === 1 ? "Named at this company" : `Named at this company · ${n}`),
-  writesTo: "Your campaign writes to them",
+  writesTo: "A campaign writes to them",
   size: (s: string) => `${s} people`,
   profile: "Profile",
 } as const;
