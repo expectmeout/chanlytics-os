@@ -70,7 +70,7 @@ export function askNotices(win: Window, language: () => string = () => "en") {
     if (was && Date.now() - was.at < READ_AGAIN_MS) return Promise.resolve();
     const out = asking.get(lang);
     if (out) return out;
-    const go = apiFor(win)("GET ask/notice", { query: { language: lang } as never })
+    const go = apiFor(win)("GET ask/notice", { query: { language: lang } })
       .then(async (r) => {
         if (!r.ok) return;
         const { notices, rested, day } = r.data;

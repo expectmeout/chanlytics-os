@@ -17,6 +17,7 @@ import {
   roleAtLeast,
   type Role,
   ROLE_PERMS,
+  entryOf,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
@@ -214,8 +215,7 @@ interface SessionStore extends RoleStore {
 }
 
 /** What each role may do: the table the SERVER enforces (contracts ROLE_PERMS). */
-const permsOf = (role: string): Record<string, boolean> =>
-  (ROLE_PERMS as Record<string, Record<string, boolean>>)[role] ?? {};
+const permsOf = (role: string): Record<string, boolean> => entryOf(ROLE_PERMS, role) ?? {};
 
 /** Who is signed in, read when a gate asks. */
 const signedIn = (): { role?: string | null } | null => whoIsLooking().me;

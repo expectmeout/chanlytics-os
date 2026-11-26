@@ -6,9 +6,10 @@
  */
 import type { DealDto } from "@chanlytics/contracts";
 import { placeDeal } from "@/surfaces/people/surface";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 /** A door's answer as a record to read fields from. */
-const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {});
+const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? recordOrEmpty(v) : {});
 /** A deal as the door answered it: an object with its id; the door's own shape (DealDto) past that. */
 const isDeal = (v: unknown): v is DealDto => !!v && typeof v === "object" && typeof rec(v).id === "string";
 const dealIn = (v: unknown): DealDto | null => (isDeal(v) ? v : null);
