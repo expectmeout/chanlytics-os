@@ -89,8 +89,8 @@ function readingLeftOf(r: Reading): string | null {
   const R = NEW_WORDS.reach;
   const why = [
     { n: r.stopped, say: R.saidStop },
-    { n: r.noYes, say: R.neverYes },
-    { n: r.noNumber, say: R.noNumber },
+    { n: r.no_yes, say: R.neverYes },
+    { n: r.no_number, say: R.noNumber },
   ].sort((x, y) => y.n - x.n)[0];
   return why && why.n > 0 ? why.say(why.n) : null;
 }
@@ -101,9 +101,9 @@ function readingLeftOf(r: Reading): string | null {
  */
 function nobodyOf(r: Reading): { nobody: NewNobody; said_yes?: number } {
   if (r.held > 0) return { nobody: "breath" };
-  const said = r.saidYes > 0 ? { said_yes: r.saidYes } : {};
+  const said = r.said_yes > 0 ? { said_yes: r.said_yes } : {};
   if ((r.no_channel ?? 0) > 0) return { nobody: "no_channel", ...said };
-  return r.saidYes > 0 ? { nobody: "no_reach", ...said } : { nobody: "no_yes" };
+  return r.said_yes > 0 ? { nobody: "no_reach", ...said } : { nobody: "no_yes" };
 }
 
 /** How a draft goes, as its reach is counted for: what it is, its channels, and its first message's yes. */

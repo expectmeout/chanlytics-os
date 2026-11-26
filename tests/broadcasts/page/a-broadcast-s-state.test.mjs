@@ -533,13 +533,13 @@ test("REGRESSION: a run waiting on you says the words on the channel its reader 
     pool: 2,
     will: 2,
     by_channel: { whatsapp: 1, sms: 0, email: 1 },
-    noNumber: 0,
+    no_number: 0,
     stopped: 0,
-    noYes: 0,
-    heardThis: 0,
-    heardAny: 0,
-    overCap: 0,
-    overLimit: 0,
+    no_yes: 0,
+    heard_this: 0,
+    heard_any: 0,
+    over_cap: 0,
+    over_limit: 0,
   });
   assert.equal(textOf(byTestId(split, "bc-sheet-reader")), "as Rosa Díaz reads it · on WhatsApp");
   // The reader's version is not in hand (the page holds none for it): WhatsApp's words stand under no channel's name, and
@@ -570,13 +570,13 @@ test("a run that kept who it left out opens as the board's card: of how many, th
   const reach = {
     pool: 312,
     will: 186,
-    noNumber: 0,
+    no_number: 0,
     stopped: 0,
-    noYes: 94,
-    heardThis: 0,
-    heardAny: 32,
-    overCap: 0,
-    overLimit: 0,
+    no_yes: 94,
+    heard_this: 0,
+    heard_any: 32,
+    over_cap: 0,
+    over_limit: 0,
   };
   const waiting = dto({
     id: "b-kept",

@@ -101,7 +101,7 @@ const wire = (team) => {
         ? json(team, { ok: false, error: { code: "internal", message: "down" } })
         : json(200, { ok: true, data: team });
     if (u.pathname === "/api/v1/policies") return json(200, { ok: true, data: { policies: [] } });
-    if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [], usedBy: {} } });
+    if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [], used_by: {} } });
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
   };
 };

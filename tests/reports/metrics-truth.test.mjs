@@ -12,7 +12,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toReportVM, pointsDelta, toTodayVM } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
 
 // One definition of who answered, shared by both functions and timed from the send, and metrics_summary's guards and
 // DST-safe window: first_replies (redefined since 00035 through 00464) and metrics_summary (through 00379) are run on
@@ -76,18 +75,10 @@ test("the share tile compares in points: a share that fell is never a green delt
   assert.equal(pointsDelta(null, 60, "7 days"), null);
 });
 
-test("Reports: the chart's hit targets are not keyboard stops; the zone is a tooltip; a failed period says so", () => {
-  const page = readRaw("apps/dashboard/src/surfaces/reports/reports-page.tsx");
-  assert.ok(!page.includes('className="rp2-hit" tabIndex={0}'), "up to 270 unnamed stops at 90 days");
-  // The zone is the kit's tooltip over the dates (executed: reports/page/), never a native title.
-  assert.ok(!page.includes("title={"), "a native title reaches nobody on a keyboard or a phone");
-  assert.ok(!page.includes("{vm.until} · {vm.timezone}</div>"), "no raw IANA id in the subtitle");
-  // "every message was answered without you" only when true: executed in reports/page/.
-  assert.ok(page.includes("Couldn't load"), "a failed period switch says so");
-  const verbs = readCode("apps/dashboard/src/surfaces/reports/period.ts");
-  assert.ok(verbs.includes("export async function setReportRange(range: ReportRange): Promise<boolean>"));
-  assert.ok(verbs.includes("keepReportPeriod(prev);"), "the preferred period goes back on failure");
-});
+// Reports: the chart's points are no keyboard stops, the zone is a tooltip, never a raw id or a native title: drawn in
+// reports/page/periods-reviews-and-every-state.test.mjs ("the page asks no keyboard to stop on a chart point"). A failed
+// period says so and the period picked goes back to what the page shows: the same file ("a period that fails to load says
+// so"), through setReportRange. Pinned as reports-page.tsx's and period.ts's text until 26 Nov 2026.
 
 /* -------------------------------- Today ----------------------------------- */
 

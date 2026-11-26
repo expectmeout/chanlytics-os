@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { windowFor } from "@chanlytics/contracts";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { until } from "../shared/_until.mjs";
 
 const asked = [];
 /** Every read as it was spelled: the path and its own query, the workspace aside. */
@@ -99,4 +100,98 @@ test("the weeks around today are asked for by that word, before anyone knows the
   assert.equal(paintHeldCalendar(), true, "the window the route answered is the one held");
   setCalendarSpan("2027-06-07", 63);
   assert.equal(paintHeldCalendar(), false, "and weeks nobody read are not");
+});
+
+test("a span asked for is held to the board's 63 days, and its days are spelled on the read", async () => {
+  // Pinned as surface.ts's text in calendar.test.mjs until 26 Nov 2026.
+  const spanOf = (days) => (setCalendarSpan("2026-09-07", days), getCalendarSpan());
+  assert.deepEqual(spanOf(500), { from: "2026-09-07", days: 63 }, "never more than the board's nine weeks");
+  assert.deepEqual(spanOf(0), { from: "2026-09-07", days: 63 }, "no length is the whole window");
+  assert.deepEqual(spanOf(-4), { from: "2026-09-07", days: 1 }, "at least a day");
+  assert.deepEqual(spanOf(7.4), { from: "2026-09-07", days: 7 }, "whole days");
+  setCalendarSpan("not a day", 7);
+  assert.equal(getCalendarSpan().from, null, "a from that is no day is the weeks around today");
+  spelled.length = 0;
+  setCalendarSpan("2026-09-07", 7);
+  await calendarOverride.apply();
+  assert.deepEqual(spelled, ["calendar?from=2026-09-07&days=7"]);
+});
+
+test("two moves in a row: a read for a span the page has since left is dropped, never painted", async () => {
+  const { surfaceValue, setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+  const answer = globalThis.window.fetch;
+  const held = [];
+  globalThis.window.fetch = (url, init) => new Promise((resolve) => held.push(() => resolve(answer(url, init))));
+  try {
+    setSurfaceValue("calendar", undefined);
+    setCalendarSpan("2026-09-07", 7);
+    const first = calendarOverride.apply();
+    await until(() => held.length === 1);
+    setCalendarSpan("2026-10-05", 7);
+    const second = calendarOverride.apply();
+    await until(() => held.length === 2);
+    held[1]();
+    await second;
+    assert.equal(surfaceValue("calendar").vm.days[0].key, "2026-10-05", "the later move's weeks are on the board");
+    held[0]();
+    await first;
+    assert.equal(surfaceValue("calendar").vm.days[0].key, "2026-10-05", "and the earlier answer, landing late, is not");
+  } finally {
+    globalThis.window.fetch = answer;
+  }
+});
+
+test("the page keeps a view and a day, and reads only when the window does not cover the view: then the weeks around the day", async () => {
+  // Pinned as verbs.ts's text in calendar.test.mjs until 26 Nov 2026.
+  const { surfaceValue, setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
+  const { calendar } = await import("../../apps/dashboard/src/surfaces/calendar/verbs.ts");
+  const c = await import("@chanlytics/contracts");
+  const { shiftKey } = c;
+  // The arithmetic reaches the page, all of it, as contracts has it: each verb answers as its contracts function does.
+  const asked = [
+    ["spanFor", "spanForView", ["month", "2026-09-10"]],
+    ["windowFor", "windowFor", ["2026-09-10"]],
+    ["covers", "coversSpan", [[{ key: "2026-09-07" }], "2026-09-07", 1]],
+    ["frameOf", "frameOf", ["2026-09-08", "2026-09-10"]],
+    ["shiftKey", "shiftKey", ["2026-09-30", 2]],
+    ["shiftMonth", "shiftMonth", ["2026-01-05", -1]],
+    ["monthLabel", "monthLabelOf", ["2026-10-01"]],
+    ["clockLabel", "clockLabel", [Date.parse("2026-09-08T18:30:00.000Z"), "America/New_York"]],
+  ];
+  for (const [verb, fn, args] of asked) assert.deepEqual(calendar[verb](...args), c[fn](...args), verb);
+  const held = windowFor("2026-09-10");
+  const days = Array.from({ length: held.days }, (_, i) => ({ key: shiftKey(held.from, i), items: [], windows: [] }));
+  setCalendarSpan(held.from, held.days);
+  setSurfaceValue("calendar", { ...surfaceValue("calendar"), vm: { ...surfaceValue("calendar")?.vm, days } });
+  // The frame's runner, which reads what a page asks for; it wants a live feed to join, which none of this exercises.
+  const { startSurfaces } = await import("../../apps/dashboard/src/bridge/surface-runner.ts");
+  spelled.length = 0;
+  const stop = startSurfaces([calendarOverride], () => () => {});
+  try {
+    await until(() => spelled.length > 0 && surfaceValue("calendar")?.vm, "the runner's first read landed");
+    setCalendarSpan(held.from, held.days);
+    setSurfaceValue("calendar", { ...surfaceValue("calendar"), vm: { ...surfaceValue("calendar").vm, days } });
+    spelled.length = 0;
+    for (const [view, day] of [
+      ["week", "2026-09-10"],
+      ["day", "2026-09-03"],
+      ["month", "2026-09-30"],
+      ["agenda", "2026-10-01"],
+    ]) {
+      assert.equal(await calendar.ensure(view, day), true, `${view} of ${day}`);
+      assert.deepEqual(getCalendarSpan(), held, `${view} of ${day}: a slice of the weeks it holds, so the page stays`);
+    }
+    assert.deepEqual(spelled, [], "and nothing is read");
+    const far = windowFor("2027-03-15");
+    assert.equal(await calendar.ensure("month", "2027-03-15"), true, "a read that landed");
+    assert.deepEqual(
+      spelled.filter((s) => s.startsWith("calendar?")),
+      [`calendar?from=${far.from}&days=63`],
+      "a month the weeks do not cover: the weeks around it, read once",
+    );
+    assert.deepEqual(getCalendarSpan(), far, "and the page stands there");
+  } finally {
+    stop();
+    setSurfaceValue("calendar", undefined);
+  }
 });

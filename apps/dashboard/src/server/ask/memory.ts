@@ -16,7 +16,7 @@ import {
   recordOrEmpty,
   wordsMessage,
   type AskAnswer,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskProposal,
   type AskRowRef,
   type AskScope,
@@ -96,11 +96,11 @@ export interface Chain {
 }
 
 /**
- * An outcome as a live turn keeps what it told: the card, what became of it, and when that was recorded -- `atMs` as
+ * An outcome as a live turn keeps what it told: the card, what became of it, and when that was recorded -- `at_ms` as
  * the record's identity only, never compared as a clock, so a card approved again after its undo is told again. A
  * record of the same state written twice is told twice, which is harmless.
  */
-const toldOf = (o: { id: string; state: string; atMs: number }): string => `${o.id}:${o.state}:${o.atMs}`;
+const toldOf = (o: { id: string; state: string; at_ms: number }): string => `${o.id}:${o.state}:${o.at_ms}`;
 /** What a live turn keeps of the chain it replayed (RawTurn): where it ended, and what the turn told. */
 export const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(toldOf) });
 /**
@@ -108,9 +108,11 @@ export const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.sin
  * of the rows the turn read, as a live turn keeps what it told. Every row read, not only those the lines kept: a card
  * older than the lines, its outcome recorded before this turn, is no news to a turn after it.
  */
-const toldIn = (rows: AskMessageVM[]): string[] =>
+const toldIn = (rows: AskMessageDto[]): string[] =>
   rows.flatMap((r) =>
-    r.proposals.flatMap((p) => (p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [])),
+    r.proposals.flatMap((p) =>
+      p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, at_ms: p.outcome.at_ms })] : [],
+    ),
   );
 
 /**
@@ -119,7 +121,7 @@ const toldIn = (rows: AskMessageVM[]): string[] =>
  * nowhere. The turn's read set starts with them, so a row an earlier answer named is cited and opened without a read;
  * every row the read holds is a superset of what the model was shown, and it cites a row only by the exact id it saw.
  */
-function citedIn(rows: AskMessageVM[]): AskRowRef[] {
+function citedIn(rows: AskMessageDto[]): AskRowRef[] {
   const refs = new Map<string, AskRowRef>();
   for (const m of rows)
     for (const s of [...(m.answer?.show.items.map((i) => i.source) ?? []), ...m.citations])
@@ -207,7 +209,7 @@ const questionsOf = (history: TurnInput["history"]): number[] =>
  * turn keeps what it sent as its base (rawTurn), and a live turn after it replays that base as it was sent, so a line
  * is frozen on the turn that made it.
  */
-function rebuiltHistory(messages: AskMessageVM[], turns: TurnInput["history"]): TurnInput["history"] {
+function rebuiltHistory(messages: AskMessageDto[], turns: TurnInput["history"]): TurnInput["history"] {
   const history = messages.flatMap((m, i) => {
     const line = m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i];
     return line ? [line] : [];
@@ -255,7 +257,7 @@ export async function findThreadForTurn(
   /** The thread's cards no one has pressed yet: a call that would make one of them again makes nothing (turn-end.ts notAgain). */
   waiting: AskProposal[];
   /** The thread's turns' cards, by turn: a new search card sets aside the one still waiting (contracts searchCardsReplaced). */
-  cards: Array<Pick<AskMessageVM, "id" | "proposals">>;
+  cards: Array<Pick<AskMessageDto, "id" | "proposals">>;
   /** What the thread already asked and offered to ask next: a next question that says one again goes (turn.ts). */
   offered: string[];
 }> {
@@ -268,7 +270,7 @@ export async function findThreadForTurn(
   let notices: string[] | null = null;
   let cited: AskRowRef[] = [];
   let waiting: AskProposal[] = [];
-  let cards: Array<Pick<AskMessageVM, "id" | "proposals">> = [];
+  let cards: Array<Pick<AskMessageDto, "id" | "proposals">> = [];
   let offered: string[] = [];
   if (threadId) {
     const found = await readThread(ctx, threadId);
@@ -295,7 +297,7 @@ export async function findThreadForTurn(
       );
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
-      const lastAt = found.messages.at(-1)?.atMs;
+      const lastAt = found.messages.at(-1)?.at_ms;
       sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
       if (scope === undefined) scope = found.thread.scope;
       chain = await chainFor(ctx, tenantId, found.messages, found.replays);
@@ -321,7 +323,7 @@ export async function findThreadForTurn(
 async function chainFor(
   ctx: RouteContext,
   tenant: string,
-  rows: AskMessageVM[],
+  rows: AskMessageDto[],
   replays: Array<AskTurnShape["replay"] | null>,
 ): Promise<Chain | null> {
   const now = Date.now();
@@ -347,10 +349,10 @@ async function chainFor(
  * after went live, down to the nearest base -- a turn whose history went as words, none, or one stored before this
  * kept the kind -- twelve at most, the base's included (D3). Null, the turn cold, when any of it does not hold.
  */
-function chainIds(rows: AskMessageVM[], replays: Array<AskTurnShape["replay"] | null>, now: number): string[] | null {
+function chainIds(rows: AskMessageDto[], replays: Array<AskTurnShape["replay"] | null>, now: number): string[] | null {
   const last = rows.at(-1);
   if (!last || last.role !== "assistant" || last.failed || rows.at(-2)?.role !== "user") return null;
-  if (now - last.atMs >= LIVE_WINDOW_MS) return null;
+  if (now - last.at_ms >= LIVE_WINDOW_MS) return null;
   const ids: string[] = [];
   for (let i = rows.length - 1; i >= 0 && ids.length < LIVE_TURNS; i--) {
     const row = rows[i];
@@ -423,7 +425,7 @@ function memoryKeptOf(value: unknown): Kept | null {
  * is a rebuild that kept what its lines said of them (`told`, PR 5.5), else the chain's own -- a words base from before
  * kept nothing, and every old outcome would be news.
  */
-function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: AskMessageVM[]): Chain | null {
+function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: AskMessageDto[]): Chain | null {
   const turns = kept.filter((k): k is Kept => !!k);
   const [newest] = turns;
   const oldest = turns.at(-1);
@@ -444,7 +446,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
   const since = cards
     .flatMap(({ id, title, outcome }) =>
-      outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, atMs: outcome.atMs }] : [],
+      outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, at_ms: outcome.at_ms }] : [],
     )
     .filter((o) => !notice.has(toldOf(o)));
   const { results, model, prefix } = newest;
@@ -546,7 +548,7 @@ export interface RawTurn {
   /** The API's id for the last round's message (Chain.lastId); none when the stream never said it. */
   id?: string;
   /**
-   * What the turn told of the thread's cards (`<card id>:<state>:<atMs>`), which no later turn of its chain tells again:
+   * What the turn told of the thread's cards (`<card id>:<state>:<at_ms>`), which no later turn of its chain tells again:
    * a live turn's, the outcomes it said happened since (Chain.since); a rebuilt turn's, every outcome its history's
    * lines said (findThreadForTurn's `told`). A thread's first turn keeps none.
    */
@@ -643,7 +645,7 @@ export function rawTurn(
  */
 export function toldWithArrived(raw: RawTurn | null, cards: readonly AskProposal[]): RawTurn | null {
   const arrived = cards.flatMap((p) =>
-    p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [],
+    p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, at_ms: p.outcome.at_ms })] : [],
   );
   if (!raw || arrived.length === 0) return raw;
   return { ...raw, told: [...(raw.told ?? []), ...arrived] };

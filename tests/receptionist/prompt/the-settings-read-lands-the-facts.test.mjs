@@ -80,7 +80,7 @@ const wire = (settings) => {
     if (u.pathname === "/api/v1/settings") return json(200, { ok: true, data: settings });
     if (u.pathname === "/api/v1/team") return json(200, { ok: true, data: { members: [], invites: [] } });
     if (u.pathname === "/api/v1/policies") return json(200, { ok: true, data: { policies: [] } });
-    if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [], usedBy: {} } });
+    if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [], used_by: {} } });
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
   };
 };

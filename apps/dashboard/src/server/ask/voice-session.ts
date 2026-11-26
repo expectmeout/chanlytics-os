@@ -5,7 +5,7 @@ import {
   PageContextSchema,
   type AskLanguage,
   type AskScope,
-  type PageContext,
+  type PageContextDto,
   valueAt,
 } from "@chanlytics/contracts";
 import { scopeIn } from "./store";
@@ -112,12 +112,12 @@ interface VoiceSessionStart {
   tokenExpiresAt: string;
   surface: string | null;
   scope: AskScope | null;
-  context: PageContext | null;
+  context: PageContextDto | null;
   language: AskLanguage;
 }
 
 /** A page's context as the column holds it: the schema's own fields, as JSON (an absent field is absent, not undefined). */
-const contextColumn = (c: PageContext | null): Json => (c ? jsonCopyOf(c) : null);
+const contextColumn = (c: PageContextDto | null): Json => (c ? jsonCopyOf(c) : null);
 /** A scope as the column holds it: its three fields, or none (store.ts holds the thread's the same way). */
 const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id, label: s.label } : null);
 
@@ -153,7 +153,7 @@ export const readVoiceSession = (service: Db, hash: string): Promise<VoiceSessio
 /** The scope the row holds, as the turn takes it. */
 export const scopeOf = (row: VoiceSessionRow): AskScope | null => scopeIn(row.scope);
 /** The page the row holds, as the turn takes it: read as the page route reads one, since the member writes the column. */
-export const contextOf = (row: VoiceSessionRow): PageContext | null => {
+export const contextOf = (row: VoiceSessionRow): PageContextDto | null => {
   if (row.context === null) return null;
   const parsed = PageContextSchema.safeParse(row.context);
   return parsed.success ? parsed.data : null;
@@ -183,6 +183,6 @@ export const endVoiceSession = (
 export const moveVoiceContext = (
   db: Db,
   hash: string,
-  context: PageContext | null,
+  context: PageContextDto | null,
   surface: string | null,
 ): Promise<boolean> => moveVoiceSessionContext(db, hash, { context: contextColumn(context), surface });

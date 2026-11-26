@@ -199,7 +199,7 @@ test("Setup does not offer a button the server will refuse", async () => {
       name: "Northside Movers",
       hours: true,
       services: 3,
-      bookingLink: true,
+      booking_link: true,
       address: true,
       handoff: null,
       broken: false,

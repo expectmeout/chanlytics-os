@@ -101,7 +101,7 @@ export function firstRunLiveOf({ dto, emails, business, owner, assistant }: Firs
     result.hours ? "your hours" : null,
     result.address ? "your address" : null,
     result.services ? `${result.services} ${result.services === 1 ? "service" : "services"}` : null,
-    result.bookingLink ? "your booking link" : null,
+    result.booking_link ? "your booking link" : null,
   ].filter((x): x is string => !!x);
   const knowsWords = listWords(knows);
   return {

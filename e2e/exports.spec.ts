@@ -33,7 +33,7 @@ test.describe("Exports on a real workspace", () => {
     const ws = await page.request.get("/api/v1/workspaces");
     expect(ws.status()).toBe(200);
     const { data } = await ws.json();
-    const id = data.activeWorkspaceId ?? data.workspaces[0]?.id;
+    const id = data.active_workspace_id ?? data.workspaces[0]?.id;
     expect(id).toBeTruthy();
 
     const res = await page.request.get(`/api/v1/contacts/export?workspace=${id}`);

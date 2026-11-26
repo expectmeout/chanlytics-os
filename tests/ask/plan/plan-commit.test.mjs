@@ -298,9 +298,9 @@ test("a silent step may name what an earlier silent step made: its token is fill
 });
 
 /** A card as the Line holds it once approved: its outcome recorded, with what it made (null: nothing a token names). */
-const approvedAs = (p, made = null) => ({ ...p, outcome: { state: "done", receipt: "Done", atMs: 1, made } });
+const approvedAs = (p, made = null) => ({ ...p, outcome: { state: "done", receipt: "Done", at_ms: 1, made } });
 /** A card the owner undid, as the Line holds it. */
-const undoneAs = (p) => ({ ...p, outcome: { state: "undone", receipt: "Undone", atMs: 2 } });
+const undoneAs = (p) => ({ ...p, outcome: { state: "undone", receipt: "Undone", at_ms: 2 } });
 
 test("a step already made is never sent again: a press after a note was approved on its own sends only the rest, and a press after every step's outcome was recorded sends nothing and says they were done, through what the cards became (planMadeOf)", async () => {
   const t = tab();
@@ -352,7 +352,7 @@ test("what a step made survives a reload: the outcome a commit records keeps it 
     C.AskProposalOutcomeSchema.parse({
       state: "done",
       receipt: r.result.receipt,
-      atMs: 1,
+      at_ms: 1,
       undo: r.result.undo,
       made: r.result.made,
     }),
@@ -360,7 +360,7 @@ test("what a step made survives a reload: the outcome a commit records keeps it 
   assert.deepEqual(recorded[0].made, { kind: "message", id: V(1) }, "kept, not stripped");
   assert.equal(recorded[1].made, null);
   // An outcome saved before outcomes kept what was made reads as having made nothing.
-  const older = C.AskProposalOutcomeSchema.parse({ state: "done", receipt: "Paused", atMs: 1 });
+  const older = C.AskProposalOutcomeSchema.parse({ state: "done", receipt: "Paused", at_ms: 1 });
   assert.equal(older.made, null);
 
   const reloaded = [
@@ -372,20 +372,20 @@ test("what a step made survives a reload: the outcome a commit records keeps it 
     stamped("message", 1, message.payload, {
       id: "p-other",
       plan: { id: "plan-other", step: 1, of: 1, silent: true, after: [] },
-      outcome: { state: "undone", receipt: "x", atMs: 1 },
+      outcome: { state: "undone", receipt: "x", at_ms: 1 },
     }),
   ];
   assert.deepEqual(C.planMadeOf(PLAN, reloaded), run.made, "the same made the press handed back");
   // An undone card is undone in it.
   assert.deepEqual(
-    C.planMadeOf(PLAN, [{ ...note, outcome: { state: "undone", receipt: "Previous settings are back", atMs: 2 } }]),
+    C.planMadeOf(PLAN, [{ ...note, outcome: { state: "undone", receipt: "Previous settings are back", at_ms: 2 } }]),
     { 2: { undone: true } },
   );
   // A card dismissed or failed made nothing: it is not in made, and may be pressed again.
   assert.deepEqual(
     C.planMadeOf(PLAN, [
-      { ...note, outcome: { state: "failed", receipt: "x", atMs: 2 } },
-      { ...pause, outcome: { state: "dismissed", receipt: "Not now", atMs: 2 } },
+      { ...note, outcome: { state: "failed", receipt: "x", at_ms: 2 } },
+      { ...pause, outcome: { state: "dismissed", receipt: "Not now", at_ms: 2 } },
     ]),
     {},
   );
@@ -556,7 +556,7 @@ test("a press reads what its cards became (planMadeOf), the one way it learns wh
   const t = tab();
   const approved = {
     ...message,
-    outcome: { state: "done", receipt: "Filed", atMs: 1, made: { kind: "message", id: V(1) } },
+    outcome: { state: "done", receipt: "Filed", at_ms: 1, made: { kind: "message", id: V(1) } },
   };
   const run = await commit.commitPlan(t.win, [approved, note, pause, send], { client: t.client, nowMs: NOW });
   assert.deepEqual(
@@ -568,7 +568,7 @@ test("a press reads what its cards became (planMadeOf), the one way it learns wh
 });
 
 test("REGRESSION: a send pressed on its own on the Line is judged by what its plan's other cards became (commitCard): with the turn's cards it goes, with none it waits", async () => {
-  const done = (p, made) => ({ ...p, outcome: { state: "done", receipt: "x", atMs: 1, made } });
+  const done = (p, made) => ({ ...p, outcome: { state: "done", receipt: "x", at_ms: 1, made } });
   const turn = [done(message, { kind: "message", id: V(1) }), done(note, null), done(pause, null), send];
   const alone = tab();
   assert.deepEqual(await commit.commitCard(alone.win, send, [], { client: alone.client, nowMs: NOW }), {

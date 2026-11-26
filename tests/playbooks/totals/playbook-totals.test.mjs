@@ -102,7 +102,7 @@ test("runCountsOf reads run_counts' answer in the order Sent has always written 
       winback_offer: { count: 3, last_at: "2026-09-17T14:00:00+00:00" },
       never_timed: { count: 1, last_at: null },
     }),
-    { winback_offer: { count: 3, lastAt: "2026-09-17T14:00:00+00:00" }, never_timed: { count: 1, lastAt: null } },
+    { winback_offer: { count: 3, last_at: "2026-09-17T14:00:00+00:00" }, never_timed: { count: 1, last_at: null } },
   );
   assert.deepEqual(templateSendsOf({}), {});
   for (const bad of [null, [], { x: { count: "3", last_at: null } }, { x: { count: 3 } }])
@@ -374,13 +374,13 @@ test("GET playbooks' rows: the database's count read in one call, the same bytes
     delivered: 0,
     replied: 0,
     held: 0,
-    lastRun: null,
+    last_run: null,
     waiting: null,
     history: [],
   });
   const t = rows[1].totals;
   assert.deepEqual([t.runs, t.sent, t.delivered, t.replied, t.held], [4, 4, 4, 2, 3]);
-  assert.deepEqual(t.lastRun, { id: "b3", state: "pending_approval", run_for: "2026-09-04", recipient_count: 3 });
+  assert.deepEqual(t.last_run, { id: "b3", state: "pending_approval", run_for: "2026-09-04", recipient_count: 3 });
   const bare = fakeDb(harbor());
   const plain = await P.listPlaybookRows({ supabase: bare }, T);
   assert.deepEqual(
@@ -406,7 +406,7 @@ const turn = (db) =>
 test("Settings' templates: how many of each went out is template_sends', one call where every sent person and every templated message was paged, and the same the fold says on a database before it", async () => {
   const sql = fakeDb(harbor());
   const read = (await kernel.load(turn(sql), templatesReader, { all: true })).data;
-  assert.deepEqual(read.sends, { winback_offer: { count: 7, lastAt: iso(T0 + 200 * H) } });
+  assert.deepEqual(read.sends, { winback_offer: { count: 7, last_at: iso(T0 + 200 * H) } });
   assert.ok(
     sql.seen.some((q) => q.rpc === "template_sends"),
     "the database's count",
@@ -423,7 +423,7 @@ test("Settings' templates: how many of each went out is template_sends', one cal
   );
   const folded = (await kernel.load(turn(before00362(harbor())), templatesReader, { all: true })).data;
   assert.deepEqual(folded.sends, read.sends);
-  assert.deepEqual(folded.usedBy, read.usedBy, "what sends each is read the same way");
+  assert.deepEqual(folded.used_by, read.used_by, "what sends each is read the same way");
   const composers = fakeDb(harbor());
   await kernel.load(turn(composers), templatesReader, { all: false });
   assert.equal(

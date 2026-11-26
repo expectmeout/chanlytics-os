@@ -173,7 +173,7 @@ const base = () => ({
     name: "Northside Movers",
     hours: true,
     services: 4,
-    bookingLink: true,
+    booking_link: true,
     address: true,
     handoff: "+13055550100",
     broken: false,

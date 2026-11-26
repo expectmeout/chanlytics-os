@@ -306,7 +306,7 @@ export const page = (surface, rows, over = {}) => ({
   view: null,
   focus: null,
   rows,
-  askedAt: 1,
+  asked_at: 1,
   ...over,
 });
 

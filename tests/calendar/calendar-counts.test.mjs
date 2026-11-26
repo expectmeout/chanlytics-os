@@ -22,7 +22,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { forgetFeeds, getOpenings } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
-const { readBookingReport, listLinksBooked } = await import(at("apps/dashboard/src/server/calendar/people-visits.ts"));
+const { readBookingReport, listLinksBooked, withVisits } = await import(
+  at("apps/dashboard/src/server/calendar/people-visits.ts")
+);
 const { triggerPools } = await import(at("apps/dashboard/src/server/campaigns/playbook-pools.ts"));
 const { playbookPoolKey, channelsReady } = await import("@chanlytics/contracts");
 // everyone() lives beside listPeople now: every read that means the whole
@@ -178,6 +180,29 @@ test("everyone: the people come page after page, never one page of them", async 
   assert.deepEqual(calls[1], { p_tenant_id: T, p_offset: PEOPLE_PAGE }, "the second names its offset");
 });
 
+test("a broadcast's send enrols from the pool the page counts from: every page of people, read once for the whole send", async () => {
+  // Pinned as campaigns/ports.ts's text in calendar/people/asked-then-booked-and-bulk-actions.test.mjs until 26 Nov 2026.
+  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaigns/ports.ts"));
+  const all = Array.from({ length: PEOPLE_PAGE + 3 }, (_, i) => person(i + 1));
+  const calls = [];
+  const ctx = ctxFor(tables(null), {
+    people_list: (a) => {
+      calls.push(a);
+      return pagedList(all)(a);
+    },
+  });
+  const ports = createBroadcastPorts(ctx, T, { fresh: false });
+  const rows = await ports.people(NOW);
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    all.map((p) => p.id),
+    "everyone, past the first page",
+  );
+  await ports.people(NOW);
+  await ports.list({ kind: "builtin", id: "lapsed" }, NOW);
+  assert.equal(calls.length, 2, "one read of the pool, its two pages, for the count, the list and the enrol alike");
+});
+
 test("the pools: counted over everyone by the runner's predicate; the week's touches hold, never hide; the chip's number is the route's", async () => {
   const all = Array.from({ length: PEOPLE_PAGE + 3 }, (_, i) => person(i + 1));
   all[0].marketing_consent = "unknown"; // one who never said yes
@@ -232,11 +257,11 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   // never did and the one who asked to stop were in no number on the page.
   assert.equal(pools.everyone_monthly.pool, PEOPLE_PAGE + 3, "everyone in People, past the first page");
   assert.deepEqual(
-    [pools.everyone_monthly.noYes, pools.everyone_monthly.stopped, pools.everyone_monthly.noNumber],
+    [pools.everyone_monthly.no_yes, pools.everyone_monthly.stopped, pools.everyone_monthly.no_number],
     [1, 1, 0],
   );
   const e = pools.everyone_monthly;
-  assert.equal(e.candidates + e.held + e.noYes + e.stopped + e.noNumber, e.pool, "every person on it, once");
+  assert.equal(e.candidates + e.held + e.no_yes + e.stopped + e.no_number, e.pool, "every person on it, once");
 
   // The route hands the same numbers to the page. It reads the WALL CLOCK for
   // "this week", not the NOW pinned above, so its fixture must be relative to
@@ -269,8 +294,8 @@ test("REGRESSION: the pools say how many each moment names said the yes it needs
   const all = [person(1, { phone_e164: null }), person(2), person(3, { marketing_consent: "unknown" })];
   const { pools } = await triggerPools(ctxFor(tables(null), { people_list: pagedList(all) }), T, {}, TZ, NOW, NO_DEALS);
   const e = pools.everyone_monthly;
-  assert.deepEqual([e.pool, e.candidates, e.noNumber, e.noYes], [3, 1, 1, 1]);
-  assert.equal(e.saidYes, 2, "REGRESSION: the card could not tell the yes with no number from nobody's yes");
+  assert.deepEqual([e.pool, e.candidates, e.no_number, e.no_yes], [3, 1, 1, 1]);
+  assert.equal(e.said_yes, 2, "REGRESSION: the card could not tell the yes with no number from nobody's yes");
 });
 
 test("REGRESSION: a moment that could not be counted is not a zero -- a People read that failed answered empty pools, and the page drew '0 of 0' and 'nobody to send to'", async () => {
@@ -395,13 +420,13 @@ test("a playbook whose message is stricter than its moment's class is counted by
     { playbooks },
   );
   assert.deepEqual(
-    [pools.visited.pool, pools.visited.candidates, pools.visited.saidYes],
+    [pools.visited.pool, pools.visited.candidates, pools.visited.said_yes],
     [2, 2, 2],
     "the moment alone: their own visit needs the yes to messages, and both said it",
   );
   const own = pools[playbookPoolKey("pb-offer")];
   assert.deepEqual(
-    [own.pool, own.candidates, own.saidYes, own.noYes],
+    [own.pool, own.candidates, own.said_yes, own.no_yes],
     [2, 1, 1, 1],
     "the playbook that sends the offer: only who said yes to offers",
   );
@@ -515,7 +540,7 @@ test("a playbook whose message has no WhatsApp row is counted by the category it
   );
   const own = pools[playbookPoolKey("pb-offer")];
   assert.deepEqual(
-    [own.pool, own.candidates, own.saidYes, own.noYes],
+    [own.pool, own.candidates, own.said_yes, own.no_yes],
     [2, 1, 1, 1],
     "an email filed as an offer, with no WhatsApp row: only who said yes to offers",
   );
@@ -526,7 +551,7 @@ test("a playbook whose message has no WhatsApp row is counted by the category it
   );
   const unfiled = pools[playbookPoolKey("pb-unfiled")];
   assert.deepEqual(
-    [unfiled.candidates, unfiled.noYes],
+    [unfiled.candidates, unfiled.no_yes],
     [1, 1],
     "a row that names no category is an offer, as a send reads it",
   );
@@ -868,6 +893,32 @@ test("the booking report: asked, then booked, over the rows given and the feed's
   ];
   const report = await readBookingReport(ctxFor(tables(url)), T, rows, 30, NOW);
   assert.deepEqual(report, { calendar: "ok", days: 30, asked: 2, booked: 1, people_on_calendar: 1 });
+  // Asked means they reached out: the call they placed counts, as the People row counts it (toPersonRowVM askedMs); a
+  // call the owner made does not (pinned as people-visits.ts's text in calendar/people/ until 26 Nov 2026).
+  const CALLED = iso(NOW.getTime() - 3 * DAY);
+  const calls = [
+    person(1, { last_inbound_at: null, last_call_at: CALLED, last_inbound_call_at: CALLED }), // they called; booked Thursday
+    person(2, { last_inbound_at: null, last_call_at: CALLED, last_inbound_call_at: null }), // the owner called them
+  ];
+  assert.deepEqual(
+    await readBookingReport(ctxFor(tables(url)), T, calls, 30, NOW),
+    { calendar: "ok", days: 30, asked: 1, booked: 1, people_on_calendar: 1 },
+    "the call they placed is asking; the owner's call is not",
+  );
+});
+
+test("People's list carries the workspace's own booking link beside its visits: from its settings, trimmed, and a blank one is none", async () => {
+  // Pinned as calendar/settings.ts's and people-visits.ts's text in calendar/people/ until 26 Nov 2026.
+  const url = "https://cal.example/link.ics";
+  answers.set(url, { body: ["BEGIN:VCALENDAR", "END:VCALENDAR"].join("\r\n") });
+  const linkOf = async (bookingLink) => {
+    forgetFeeds();
+    const t = tables(url);
+    t.tenant_config[0].config.brain.booking_link = bookingLink;
+    return (await withVisits(ctxFor(t), T, [person(1)], NOW)).booking_link;
+  };
+  assert.equal(await linkOf(" https://book.example/harbor "), "https://book.example/harbor");
+  assert.equal(await linkOf("   "), null, "a blank link is no link to send");
 });
 
 test("the people sent the booking link, counted by asked-then-booked's own rule: a visit still to come, or one that began no more than a day before the link, is a booking; an earlier one, none and a person the list no longer holds are not", async () => {
@@ -1080,7 +1131,7 @@ test("each moment is counted for every set of channels a playbook on it may tick
     [2, 1, { whatsapp: 0, sms: 0, email: 2 }],
   );
   // Text alone: a yes given by their own message to WhatsApp covers WhatsApp alone, so nobody's yes covers a text.
-  assert.deepEqual([set("sms").candidates, set("sms").noYes], [0, 3]);
+  assert.deepEqual([set("sms").candidates, set("sms").no_yes], [0, 3]);
   // Either: each person once, on WhatsApp first; email catches nobody the WhatsApp reach had left.
   assert.deepEqual(set("whatsapp", "email").by_channel, { whatsapp: 3, sms: 0, email: 0 });
   // An offer carries no text and no email yet: it has nothing but WhatsApp to be counted for.

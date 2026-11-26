@@ -11,7 +11,7 @@ import {
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
 } from "@chanlytics/contracts";
-import { readCode } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { toldFor } from "../_live-feed.mjs";
 import { listedTogether } from "../shell/boot/_frame-boot.mjs";
 
@@ -95,7 +95,7 @@ test("a search's rows say Leads: a finished one opens Leads, and one that asks k
   assert.ok(ALERT_KINDS.includes("leads_question"), "a question that waits a day wakes the device");
 });
 
-test("the wiring: the table and its doors, the route, the surface, the bell reading both, and every edge alert kept with a kind and a route", () => {
+test("the wiring: the table and its doors, the route, the surface, the bell reading both, and every edge alert kept with a kind and a route", async () => {
   // The table, its RPCs, its RLS and the purge run on Postgres: notifications.db.test.mjs.
   // The route reaches the doors by name through its server module; the calls themselves are packages/db's (decision 0111).
   // The route marks the bell seen and one row read or dismissed through the two doors, counted in its own bucket: run
@@ -103,10 +103,11 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   // text until 25 Nov 2026.
   // This person's marks ride on each row -- their read and their dismissal, never another person's -- RUN through the
   // route in reads-routes.test.mjs ("reading notifications") and through its reader in ask/readers/.
-  const sd = readCode("apps/dashboard/src/bridge/surfaces/notifications.ts");
-  assert.ok(
-    sd.includes('key: "notifications",') &&
-      sd.includes('declareReads("notifications", { reads: ["notification"], fresh: "live" })'),
+  // The surface repaints as the edge writes a row: one override, heard on the notifications it declares it reads.
+  const { notificationsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/notifications.ts");
+  assert.deepEqual(
+    [notificationsOverride.key, notificationsOverride.reads, notificationsOverride.fresh],
+    ["notifications", ["notification"], "live"],
     "repaints as the edge writes a row",
   );
   assert.ok(
@@ -118,43 +119,17 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     ["INSERT", "UPDATE"],
     "the live feed is told of a note kept, and of one closed when what it asked for ended (00421)",
   );
-  const bell = readCode("apps/dashboard/src/bridge/notifications.ts");
-  assert.ok(
-    /bellFeed\(\{\s*derived: derivedFeedNow\(Date\.now\(\)\),\s*device: deviceState\(\),\s*kept: through\.kept\(\),\s*waits,?\s*\}\);\s*return withNeedYou\(named\(feed\.sort\(\(a, b\) => b\.at - a\.at\)\), waits\)/.test(
-      bell,
-    ),
-    "derived beside kept (read through a press this tab just made, where one is held), once, newest first",
-  );
-  assert.ok(
-    bell.includes('"surface:notifications"') &&
-      bell.includes("void mark({ seen: true })") &&
-      bell.includes("dismissed: false }"),
-    "seen, read, dismiss and restore reach the server for kept rows",
-  );
-  const notify = readCode("apps/edge/lib/shared/alerts/notify.ts");
-  assert.ok(
-    notify.includes("export async function recordNotification(") &&
-      /const kept = await recordNotification\(\s*target\.tenantId,\s*\{\s*kind: msg\.kind,\s*title: msg\.subject,\s*body: msg\.body,\s*route: msg\.route,\s*about: msg\.about,\s*sourceEvent: msg\.sourceEvent,?\s*\},\s*db,?\s*\);/.test(
-        notify,
-      ),
-    "the row first, addressed or not",
-  );
-  assert.ok(notify.includes('log.error("notification_record_failed"'), "losing the row never loses the email");
-  const wa = readCode("packages/core/src/inbound/ingest.ts");
-  assert.ok(
-    readCode("apps/edge/lib/inbound/alerts.ts").includes('kind: "handoff",') &&
-      wa.includes("route: `inbox/th-${ing.conversation_id}`,") &&
-      wa.includes('about: { type: "conversation", id: ing.conversation_id },'),
-    "a handoff points at its thread",
-  );
-  // The call and deadman bells run: voice/calls/retell-door/ and cron-deadman-door.test.mjs.
-  // Moved out of fire.ts when a second place could fail a job: the stale-jobs
-  // sweep alerts too, and two copies of who-may-be-told is how a business's
-  // delivery failure once reached a different business's owner.
-  assert.ok(
-    /\{\s*kind: news\.kind,\s*route: news\.route,/.test(readCode("apps/edge/lib/ops/job-alert.ts")),
-    "the job that raises the alert decides what it is; this file only decides who may be told",
-  );
+  // Run, not read (pinned as the modules' text until 26 Nov 2026): the bell reads the derived rows beside the kept ones,
+  // a hold once, newest first (notifications.test.mjs, "the feed"; record/one-row-for-one-hold.test.mjs), heard again on
+  // surface:notifications (notifications.test.mjs); a look written as seen, a read, a dismissal and a restore reaching the
+  // server for a kept row (record/a-note-is-unread-until-it-is-read.test.mjs, "closing the bell is a look";
+  // record/one-row-for-one-hold.test.mjs, "dismissing and restoring a hold"). On the edge, the row is kept before the mail
+  // leaves, addressed or not, and losing it never loses the mail (ops/notify-transport.test.mjs, "the row is kept BEFORE
+  // the mail leaves", "losing the row never loses the mail"); a job's alert is kept as what the job said it is
+  // (notify-transport, "a job's alert is kept as what the job said it is"); a handoff points at its thread, by its kind,
+  // its route and what it is about (conversations/escalations/a-hold-is-told-in-the-owner-s-words.test.mjs, "the notice";
+  // inbound/phases/every-way-out-says-what-the-message-became.test.mjs); a playbook run that waits is told where it is
+  // approved (cron/cron-playbooks-door.test.mjs); and WhatsApp's news keeps the kind and the door its words name (below).
   // The look and the door of a broadcast that finished: good news, on Sequences, where its run is a day of its History.
   const done = serverNotificationRows({
     seen_at: null,
@@ -172,11 +147,61 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     [stopped[0].icon, stopped[0].tone, stopped[0].action, stopped[0].to],
     ["alert", "warn", "Open Campaigns", "broadcasts"],
   );
-  assert.ok(
-    readCode("apps/edge/lib/campaigns/playbooks/playbooks.ts").includes('kind: "playbook",') &&
-      /await notify\(target, \{\s*kind: described\.kind,\s*route: described\.route,/.test(
-        readCode("apps/edge/lib/whatsapp/waba-events.ts"),
-      ),
+  const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
+  const { describeWabaChange, handleWabaChange } = await importSrc("apps/edge/lib/whatsapp/waba-events.ts");
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const T = "aaaaaaaa-0000-4000-8000-0000000000c1";
+  const WABA = "207650000000977";
+  const channel = {
+    id: "ch-1",
+    tenant_id: T,
+    kind: "whatsapp",
+    external_id: "106540000000971",
+    waba_id: WABA,
+    status: "active",
+    number_e164: "+13055550971",
+    config: {},
+    created_at: "2026-09-01T09:00:00.000Z",
+  };
+  const tables = {
+    tenant_channels: [channel],
+    templates: [
+      {
+        id: "tpl-1",
+        tenant_id: T,
+        channel: "whatsapp",
+        name: "winback_offer",
+        language: "en_US",
+        meta_status: "pending",
+        rejected_reason: null,
+        source: "chanlytics",
+        created_at: "2026-10-14T09:00:00.000Z",
+        updated_at: "2026-10-14T09:00:00.000Z",
+      },
+    ],
+    events: [],
+    notifications: [],
+  };
+  const change = {
+    field: "message_template_status_update",
+    value: {
+      event: "REJECTED",
+      message_template_name: "winback_offer",
+      message_template_language: "en_US",
+      reason: "NONE",
+    },
+  };
+  const db = fakeDb(tables);
+  setPg(db);
+  try {
+    assert.equal(await handleWabaChange(db, WABA, change, async () => null), "alerted");
+  } finally {
+    setPg(null);
+  }
+  const said = describeWabaChange(change, channel.number_e164);
+  assert.deepEqual(
+    tables.notifications.map((n) => [n.kind, n.route]),
+    [[said.kind, said.route]],
     "the change decides its kind and its door (describeWabaChange); the sender never re-derives them",
   );
 });

@@ -6,6 +6,7 @@
  */
 import { FIRST_RUN_ROUTE, MIN_MS, SIGNUP_WORDS, appLink } from "@chanlytics/contracts";
 import { rememberWorkspace } from "@/bridge/workspace";
+import { askOwnRoute } from "@/client/own-route";
 
 /**
  * A preview's link as sign-up reads it (server/previews/claim.ts): whose receptionist, the address it was sent to, and
@@ -68,23 +69,19 @@ type ClaimAnswer = { ok: true; workspace: ClaimedWorkspace } | { ok: false; mess
 
 /** The claim, as the person signed in: the workspace made theirs, or the door's own words for why not. */
 export async function claimPreviewNow(token: string): Promise<ClaimAnswer> {
-  try {
-    const res = await window.fetch("/api/v1/preview-claims", {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ token }),
-    });
-    const j = (await res.json().catch(() => null)) as {
-      ok?: boolean;
-      data?: { workspace?: ClaimedWorkspace };
-      error?: { message?: string };
-    } | null;
-    const workspace = j?.ok ? j.data?.workspace : undefined;
-    if (res.ok && workspace?.slug) return { ok: true, workspace };
-    return { ok: false, message: j?.error?.message ?? SIGNUP_WORDS.unreachable };
-  } catch {
-    return { ok: false, message: SIGNUP_WORDS.unreachable };
-  }
+  // Through the page's own-route client: no answer at all is status 0, which says the same as a refusal with no words.
+  const claim = await askOwnRoute<{
+    ok?: boolean;
+    data?: { workspace?: ClaimedWorkspace };
+    error?: { message?: string };
+  }>("/api/v1/preview-claims", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const workspace = claim.json?.ok ? claim.json.data?.workspace : undefined;
+  if (claim.ok && workspace?.slug) return { ok: true, workspace };
+  return { ok: false, message: claim.json?.error?.message ?? SIGNUP_WORDS.unreachable };
 }
 
 /** Where a workspace made theirs opens from sign-up: its first run, and the one this browser opens next. */

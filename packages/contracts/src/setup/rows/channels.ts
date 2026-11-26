@@ -95,7 +95,7 @@ const SETUP_STATE_OF: Record<CalendarSourceState, SetupRowDraft["state"]> = {
  */
 function calendarRow(setupInputs: SetupInputs): SetupRowDraft {
   const calendarSource = calendarSourceOf(
-    calendarSourceFacts({ booking_link: setupInputs.business.bookingLink, ...setupInputs.calendar }),
+    calendarSourceFacts({ booking_link: setupInputs.business.booking_link, ...setupInputs.calendar }),
   );
   return {
     id: "calendar",

@@ -57,10 +57,10 @@ export interface PoolRead {
   candidates: number;
   held: number;
   pool: number;
-  noYes: number;
+  no_yes: number;
   stopped: number;
-  noNumber: number;
-  saidYes: number;
+  no_number: number;
+  said_yes: number;
   no_address?: number;
   address_stopped?: number;
   no_channel?: number;
@@ -91,10 +91,10 @@ export function readingFor(
     candidates: 0,
     held: 0,
     pool: pool.pool,
-    noYes: 0,
+    no_yes: 0,
     stopped: 0,
-    noNumber: 0,
-    saidYes: pool.saidYes,
+    no_number: 0,
+    said_yes: pool.said_yes,
     no_address: 0,
     address_stopped: 0,
     no_channel: pool.pool,

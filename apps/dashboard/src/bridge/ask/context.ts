@@ -1,5 +1,5 @@
 /**
- * The page a person is on, as Ask is sent it (contracts PageContext; the Phase 2 plan, PR 2.1): one provider a
+ * The page a person is on, as Ask is sent it (contracts PageContextDto; the Phase 2 plan, PR 2.1): one provider a
  * surface, and Ask reads two things only (OW6, R2 C): the typed store, which a surface publishes its value to
  * (`surfaceValue`: Today's queue, Conversations' rows, Live's calls, Leads' rows, the playbooks, the broadcasts, the
  * messages), and, where the rows on screen are the page's own state (the Inbox's bucket, People's list and search, the
@@ -28,7 +28,7 @@ import {
   type AskContextRowKind,
   type AskScope,
   type AskSurface,
-  type PageContext,
+  type PageContextDto,
   isOneOf,
 } from "@chanlytics/contracts";
 import { cvRoute, inChannel } from "@/surfaces/inbox/cv-rules";
@@ -363,7 +363,7 @@ export function pageContext(
   route: Route,
   words?: string,
   thread?: ReadonlyArray<ThreadMessage> | null,
-): PageContext {
+): PageContextDto {
   const surface = surfaceFor(route.page, route.param);
   let got: Provided;
   try {
@@ -390,6 +390,6 @@ export function pageContext(
     focus: focus ? { kind: focus.kind, id: focus.id.slice(0, 120), label: focus.label.slice(0, 80) } : null,
     // The labels stay in the tab.
     rows: rows.map(({ kind, id }) => ({ kind, id })),
-    askedAt: Date.now(),
+    asked_at: Date.now(),
   };
 }

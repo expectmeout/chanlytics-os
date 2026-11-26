@@ -359,7 +359,7 @@ test("before the press the card holds its picture's shape while it comes, and sa
 });
 
 const keptCard = () =>
-  drawnCard(postCard({ outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } } }));
+  drawnCard(postCard({ outcome: { state: "done", receipt: "", at_ms: 1, made: { kind: "post", id: FILE(2) } } }));
 
 /** Runs with this device: whether it takes files in its sheet, and whether it is held by a finger. */
 function onDevice({ canShare, touch = false }, run) {
@@ -513,7 +513,7 @@ test("a Spanish post says its own words, on the card and its presses", () => {
   const html = drawnCard(
     postCard({
       payload: { file_id: FILE(1), line: "Ya abrimos", language: "es" },
-      outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "post", id: FILE(2) } },
+      outcome: { state: "done", receipt: "", at_ms: 1, made: { kind: "post", id: FILE(2) } },
     }),
   );
   for (const word of ["Descargar", "Abrir en Contenido"]) assert.ok(html.includes(word), word);
@@ -587,8 +587,8 @@ test("a tab keeps a few dozen pictures, and lets the oldest go: memory is not a 
 
 test("a card undone or set aside goes back to asking for its picture, never to a file that went", () => {
   for (const outcome of [
-    { state: "undone", receipt: "", atMs: 1 },
-    { state: "dismissed", receipt: "", atMs: 1 },
+    { state: "undone", receipt: "", at_ms: 1 },
+    { state: "dismissed", receipt: "", at_ms: 1 },
   ]) {
     const html = drawnCard(postCard({ outcome }));
     assert.ok(!html.includes("/view?"), outcome.state);

@@ -27,7 +27,6 @@ import {
   visitDateKey,
   visitStartTime,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 /**
@@ -560,33 +559,47 @@ test("two starters written for the two moments: a utility reminder with the visi
   assert.deepEqual(draft.examples, ["Dani", "Luna Studio", "tomorrow at 2:00 PM", "a consultation"]);
 });
 
-test("the wiring: the CHECKs, the facts column, the runner attaching the calendar and keeping the words, the send reading them, the page and the assistant", () => {
-  const mig = readRaw("supabase/migrations/00063_visit_playbooks.sql");
-  assert.ok(
-    mig.includes("'visit_tomorrow', 'visited'") &&
-      mig.includes("('reengage', 'campaign', 'booking')") &&
-      mig.includes("add column if not exists facts jsonb"),
+test("the wiring: the CHECKs, the facts column, the runner attaching the calendar and keeping the words, the send reading them, the page and the assistant", async () => {
+  // 00063's CHECKs and column, as the database holds them now: a step on a visit moment under Bookings, and the words a
+  // send keeps for a person, written into the database in memory, which refuses what the database refuses (pinned as
+  // 00063's text until 26 Nov 2026).
+  const db = fakeDb({ sequence_steps: [], sequence_sends: [] });
+  let sequences = 0;
+  // Each its own sequence's first step: a sequence holds one step a place.
+  const step = (over) =>
+    db
+      .from("sequence_steps")
+      .insert({
+        tenant_id: "t1",
+        sequence_id: `dddddddd-dddd-4ddd-8ddd-${String((sequences += 1)).padStart(12, "0")}`,
+        place: 1,
+        name: "Reminder",
+        template_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        template_name: "visit_reminder",
+        template_language: "en_US",
+        ...over,
+      })
+      .select("id")
+      .single();
+  for (const trigger of ["visit_tomorrow", "visited"])
+    for (const policy_class of ["reengage", "campaign", "booking"])
+      assert.equal((await step({ trigger, policy_class })).error, null, `${trigger} under ${policy_class}`);
+  assert.equal((await step({ trigger: "visit_today", policy_class: "booking" })).error?.code, "23514");
+  const kept = await db
+    .from("sequence_sends")
+    .insert({ tenant_id: "t1", state: "queued", facts: { visit_when: "tomorrow at 2:00 PM" } })
+    .select("facts")
+    .single();
+  assert.deepEqual(
+    [kept.error, kept.data?.facts],
+    [null, { visit_when: "tomorrow at 2:00 PM" }],
+    "the words a send keeps",
   );
-  const runner = readCode("apps/edge/lib/campaigns/playbooks/playbooks.ts");
-  for (const s of [
-    /listFeedItems\(tenantId, url, tz, now, daysAhead\)/,
-    // The pool's one reading (contracts audience-pool.ts): the visits, marked, and the rows over them.
-    /visits = peopleVisitsOf\(\s*items,\s*rows,/,
-    /poolRowsOf\(withVisitsOf\(rows, visits, \{ state: calendar,/,
-  ])
-    assert.ok(s.test(runner), String(s));
-  const handler = readCode("packages/jobs/src/handlers/broadcast-send.ts");
-  assert.ok(
-    // The batch's read is packages/db listQueuedRecipients (step 3): the words and the channel their run picked for them,
-    // read again without the channel on a database 00298 has not reached, run in before-the-channel-columns.test.mjs.
-    handler.includes("listQueuedRecipients(db,"),
-    "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)",
-  );
-  const sd = readCode("apps/dashboard/src/surfaces/campaigns/playbooks/surface.ts");
-  assert.ok(
-    sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'),
-    "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools",
-  );
+  // Run, not read (pinned as the modules' text until 26 Nov 2026): the runner attaches the calendar's visits to the pool by
+  // its one reading, from the feed read through the edge's cache ("a run reads the record with the feed", below); the row's
+  // own words ride the batch and fill its slots (broadcasts/core-broadcast/each-wire-and-what-it-holds.test.mjs); the page
+  // knows which moments need the calendar and whether there is one, from the route that counts the pools
+  // (playbooks/home/moments-offered.test.mjs, "the surface says which moments a new playbook may start from").
   // The assistant counts with the calendar too: campaigns.playbooks runs over a feed in ask/turn/, and the pool
   // it counts from is read once a turn there. A visit moment's sequence is made in New sequence (the closed-loop audit of
   // 17 Oct 2026, G: the playbook composer went), whose steps say what the calendar holds.
