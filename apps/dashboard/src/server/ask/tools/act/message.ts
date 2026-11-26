@@ -232,6 +232,7 @@ export const messageAction = actAction({
   ],
   label: "Writing a message",
   words:
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     "Action message writes a new message for the Library and proposes it as a card: name (what they call it, in plain words: Autumn offer; its WhatsApp name is made from it), language (en or es, as the rule for a message's language says; another language is another card under the same name), category marketing (an offer or news) or utility (about their own appointment or proposal, which needs a whatsapp version), versions, each optional and at least one (whatsapp {body}, email {subject, body}, sms {body}, never sms for marketing), and slots naming the values {{1}}, {{2}} in order (position, label, kind: text, first_name, business_name, booking_link or review_link). Read sequences with action messages first: a name the Library holds in that language is refused. A whatsapp version needs a connected number and WhatsApp's review; an email version is kept even before email is set up, and goes once it is. Your versions are a first draft the message writer rewrites before the card is shown: put the facts in (the offer in their words and figures, its days), never a price they did not give. The card quotes every version; Approve files it, and nothing is sent.",
   build: proposeMessage,
 });
