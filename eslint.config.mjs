@@ -456,6 +456,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/consent",
   "packages/contracts/src/console",
   "packages/contracts/src/content",
+  "packages/contracts/src/conversations",
   "packages/contracts/src/email",
   "packages/contracts/src/events",
   "packages/contracts/src/files",
@@ -472,6 +473,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
   "packages/contracts/src/people/person-page",
+  "packages/contracts/src/people/person-row",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/previews",
   "packages/contracts/src/campaigns/reach-out",
@@ -503,7 +505,9 @@ export const LIMITED_TREES = [
  * wire, the zone, the day, the Autonomy rows and who reads it). Ask's two trees joined on 1 November 2026, the day they
  * were held: 17 functions there take five or six (the act tools' card builders, the tools' context, the voice door).
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
- * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert).
+ * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). Contracts'
+ * conversations and people's person-row joined on 25 November 2026, the day the call's and a person's rows were split:
+ * a thread's view model takes five, a person's row six.
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -544,6 +548,8 @@ export const WIDE_PARAMS = [
   "packages/channels/src/email",
   "packages/channels/src/google",
   "packages/channels/src/shared",
+  "packages/contracts/src/conversations",
+  "packages/contracts/src/people/person-row",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);

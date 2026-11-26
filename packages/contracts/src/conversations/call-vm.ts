@@ -106,13 +106,13 @@ export function callOutcomeFor(
   return reachedVoicemail(dto) ? "voicemail" : "handled";
 }
 
+type CallTurns = NonNullable<CallDto["transcript_object"]>;
+
 /**
- * A call's turns as the card draws them. Each line's moment in the call, in seconds: the provider's own start, or halfway
- * between its neighbours for a line it gave none (two of the salon's 244 real lines, short replies with no words); its end,
- * or where the next line begins. A whisper -- an injected turn, the owner's own words to the receptionist -- is not a sound
- * in the recording, so it has no moment.
+ * Each turn's moment as the provider gave it, and as the card places it: a line it gave none sits halfway between its
+ * neighbours, and a whisper has none.
  */
-function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM["transcript"] {
+function turnStartsOf(turns: CallTurns) {
   const given = turns.map((turn) => (turn.role === "injected" ? null : (turn.start ?? turn.words?.[0]?.start ?? null)));
   const starts = given.map((s, i) => {
     if (s != null || turns[i]?.role === "injected") return s;
@@ -124,23 +124,42 @@ function transcriptOf(turns: NonNullable<CallDto["transcript_object"]>): CallVM[
     const after = given.slice(i + 1).find((x) => x != null) ?? null;
     return before != null && after != null ? (before + after) / 2 : (before ?? after);
   });
-  return turns.map((turn, turnIndex) => {
+  return { given, starts };
+}
+
+/** A spoken turn as the card's line: its moment, who said it, its words, and where it starts and ends in the call. */
+function transcriptLineOf(
+  turn: CallTurns[number],
+  turnIndex: number,
+  { given, starts }: ReturnType<typeof turnStartsOf>,
+): CallVM["transcript"][number] {
+  const own = given[turnIndex];
+  const start = starts[turnIndex] ?? null;
+  const next = start == null ? null : (starts.slice(turnIndex + 1).find((x) => x != null && x > start) ?? null);
+  const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
+  return {
+    t: typeof own === "number" ? mmss(own * 1000) : "—",
+    speaker: (turn.role === "agent" ? "agent" : "client") satisfies "agent" | "client",
+    text: turn.content ?? "",
+    start,
+    end,
+  };
+}
+
+/**
+ * A call's turns as the card draws them. Each line's moment in the call, in seconds: the provider's own start, or halfway
+ * between its neighbours for a line it gave none (two of the salon's 244 real lines, short replies with no words); its end,
+ * or where the next line begins. A whisper -- an injected turn, the owner's own words to the receptionist -- is not a sound
+ * in the recording, so it has no moment.
+ */
+function transcriptOf(turns: CallTurns): CallVM["transcript"] {
+  const moments = turnStartsOf(turns);
+  return turns.map((turn, turnIndex) =>
     // An injected turn is a whisper: the owner's own words, shown as theirs.
-    if (turn.role === "injected") {
-      return { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null };
-    }
-    const own = given[turnIndex];
-    const start = starts[turnIndex] ?? null;
-    const next = start == null ? null : (starts.slice(turnIndex + 1).find((x) => x != null && x > start) ?? null);
-    const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
-    return {
-      t: typeof own === "number" ? mmss(own * 1000) : "—",
-      speaker: (turn.role === "agent" ? "agent" : "client") satisfies "agent" | "client",
-      text: turn.content ?? "",
-      start,
-      end,
-    };
-  });
+    turn.role === "injected"
+      ? { t: "—", speaker: "whisper" as const, text: whisperText(turn.content), start: null, end: null }
+      : transcriptLineOf(turn, turnIndex, moments),
+  );
 }
 
 /** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
@@ -202,6 +221,74 @@ function linesOf(
   return !transcript.length && dto.turns ? { transcript, turnsToRead: dto.turns } : { transcript };
 }
 
+/**
+ * What became of the recording, as the summary says it. "purged": the audio was removed on the schedule the privacy page
+ * states (retention.ts); the row keeps the transcript. Said so, rather than left to read as "still processing" for ever.
+ */
+function recordingWords(state: ReturnType<typeof recordingStateOf>): string {
+  if (state === "ready") return "Recording saved";
+  if (state === "pending") return "Recording still processing";
+  if (state === "failed") return "Recording couldn't be saved from the voice provider";
+  if (state === "purged") return RECORDING_PURGED_WORDS;
+  return "No recording for this call";
+}
+
+/**
+ * The summary's bullets: which way and how long, how it ended, how they sounded, its outcome, its notes, the recording
+ * (for a call that connected), and where it is noted for a caller who can be linked.
+ */
+function callBulletsOf(
+  dto: CallDto,
+  call: {
+    missed: boolean;
+    withheld: boolean;
+    whoShort: string;
+    ending: ReturnType<typeof endedHowOf>;
+    notes: ReturnType<typeof callNotesOf>;
+    recState: ReturnType<typeof recordingStateOf>;
+  },
+): string[] {
+  const bullets: string[] = [
+    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${call.missed ? "never connected" : spokenDuration(dto.duration_ms)}`,
+  ];
+  if (call.ending) bullets.push(`Ended: ${call.ending}`);
+  if (dto.sentiment) bullets.push(`Sounded ${dto.sentiment.toLowerCase()}`);
+  const outcomeWords = callOutcomeWords(dto.outcome);
+  if (outcomeWords) bullets.push(outcomeWords);
+  if (call.notes.todo) bullets.push(call.notes.todo);
+  bullets.push(...call.notes.gave);
+  if (!call.missed) bullets.push(recordingWords(call.recState));
+  if (dto.message_id && !call.withheld) bullets.push(`Noted in ${call.whoShort}'s conversation in the Inbox`);
+  return bullets;
+}
+
+/** The call in one line: which way and how long, then what it was about, or, for a withheld caller, that it is linked to no one. */
+function callSnippetOf(dto: CallDto, dur: string | undefined, about: string | null): string {
+  const way = `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}`;
+  return about === null ? `${way}. Caller ID withheld, so it isn't linked to anyone.` : `${way} · ${about}`;
+}
+
+/**
+ * What the caller wanted, in the analysis's plain words, leads; the provider's own summary is the fallback, its opening
+ * folded, and its first sentence is what a short line says.
+ */
+function callHeadOf(dto: CallDto): { wanted: string; firstSentence: string } {
+  const wanted = (dto.wanted || "").trim();
+  const headSummary = tidyCallSummary(dto.summary) ?? "";
+  const firstSentence = headSummary ? (headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary) : "";
+  return { wanted, firstSentence };
+}
+
+/**
+ * Where the call's recording, its thread and its message are, each where the call has one. The call's facts as facts,
+ * for the thread's call card: they were only inside the bullets' sentences.
+ */
+const callPlacesOf = (dto: CallDto, recState: ReturnType<typeof recordingStateOf>) => ({
+  ...(recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {}),
+  ...(dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}),
+  ...(dto.message_id ? { messageId: dto.message_id } : {}),
+});
+
 export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
@@ -212,43 +299,12 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   // and this viewmodel is what the Live surface would render from.
   const live = isLiveCall(dto, now);
   const missed = neverConnected(dto);
-  // What the caller wanted, in the analysis's plain words, leads; the
-  // provider's own summary is the fallback, its opening folded.
-  const wanted = (dto.wanted || "").trim();
-  const headSummary = tidyCallSummary(dto.summary) ?? "";
-  const firstSentence = headSummary ? (headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary) : "";
+  const { wanted, firstSentence } = callHeadOf(dto);
 
-  const bullets: string[] = [
-    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} · ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`,
-  ];
   const ending = endedHowOf(dto);
-  if (ending) bullets.push(`Ended: ${ending}`);
-  if (dto.sentiment) {
-    bullets.push(`Sounded ${dto.sentiment.toLowerCase()}`);
-  }
-  const outcomeWords = callOutcomeWords(dto.outcome);
-  if (outcomeWords) bullets.push(outcomeWords);
   const notes = callNotesOf(dto);
-  if (notes.todo) bullets.push(notes.todo);
-  bullets.push(...notes.gave);
-  // "purged": the audio was removed on the schedule the privacy page states
-  // (retention.ts); the row keeps the transcript. Said so, rather than left to
-  // read as "still processing" for ever.
   const recState = recordingStateOf(dto);
-  if (!missed) {
-    bullets.push(
-      recState === "ready"
-        ? "Recording saved"
-        : recState === "pending"
-          ? "Recording still processing"
-          : recState === "failed"
-            ? "Recording couldn't be saved from the voice provider"
-            : recState === "purged"
-              ? RECORDING_PURGED_WORDS
-              : "No recording for this call",
-    );
-  }
-  if (dto.message_id && !withheld) bullets.push(`Noted in ${whoShort}'s conversation in the Inbox`);
+  const bullets = callBulletsOf(dto, { missed, withheld, whoShort, ending, notes, recState });
 
   const transcript = transcriptOf(dto.transcript_object ?? []);
 
@@ -271,17 +327,12 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
     ...(dur ? { duration: dur } : {}),
     outcome: callOutcomeFor(dto, live),
     ...(live ? { live: true } : {}),
-    snippet: withheld
-      ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""}. Caller ID withheld, so it isn't linked to anyone.`
-      : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} · ${snippetBody}`,
+    snippet: callSnippetOf(dto, dur, withheld ? null : snippetBody),
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
     ...linesOf(transcript, dto),
     durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1000) : null,
     recordingState: recState,
-    ...(recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {}),
-    ...(dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {}),
-    // The call's facts as facts, for the thread's call card: they were only inside the bullets' sentences.
-    ...(dto.message_id ? { messageId: dto.message_id } : {}),
+    ...callPlacesOf(dto, recState),
     direction: dto.direction === "outbound" ? "outbound" : "inbound",
     missed,
     // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
