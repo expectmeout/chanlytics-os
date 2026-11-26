@@ -18,12 +18,27 @@
 --                             .sending_resumed, and what it holds), AI set to work alone (ask.alone_set) and the stop's ads
 --                             pause, each as the member who pressed it, where the dashboard wrote them on the all-access
 --                             key; the kinds are kept from Activity's rows.
+--   ask_morning_write         Re-made with p_bell: a morning's cards counted once, and the member's own bell line where
+--                             any wait, in the count's transaction, where the dashboard wrote the line on the all-access key.
+--   google_connect_finish, google_connection_remove, google_listing_link, google_listing_unlink, google_reviews_keep,
+--   google_profile_synced, google_review_replied
+--                             New: Google's connect once its token stands in Vault, the disconnect, a listing linked and
+--                             unlinked, a read's reviews kept, a profile's sync stamped, a review answered, each with its
+--                             google.* kind, where the edge wrote each from TypeScript after its write.
+--   playbook_run_record       New: a campaign's run (playbook.run) with its step's day stamped, or with the system's
+--                             decision for a batch the sweep scheduled.
+--   playbook_edit, reach_out_edit
+--                             New: a playbook edited by the member (its columns alone) and a chain edited through its
+--                             save, each with playbook.changed, which the dashboard wrote on the all-access key after.
+--   tenant_config_write       Re-made with p_told: a settings save with settings.changed in its transaction.
 --
--- Nothing a customer sees changes: the same kinds, with the same words, in the same places.
+-- Nothing a customer sees changes: the same kinds, with the same words, in the same places (google.linked no longer
+-- says whether the listing's first read worked, which nothing reads).
 --
--- Deploy order: either. An old dashboard keeps writing its rows and its events as before: nothing here changes what it
--- calls. The new dashboard calls the new doors, which a database from before this does not have: it deploys after this
--- is applied, as the house applies a migration before its merge.
+-- Deploy order: either. An old dashboard and an old edge keep writing their rows and their events as before: the two
+-- re-made doors keep their old arguments, and nothing old calls a new one. The new code calls the new doors, which a
+-- database from before this does not have: it deploys after this is applied, as the house applies a migration before
+-- its merge.
 set local lock_timeout = '3s';
 
 /* -- invitation_accept: the seat, its news and the stamp, in one transaction -- */

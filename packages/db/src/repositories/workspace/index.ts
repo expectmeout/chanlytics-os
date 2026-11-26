@@ -72,11 +72,11 @@ export {
   findWorkspaceZoneRow,
   findWorkspaceZoneStatus,
   isSendingStopped,
+  keepWhatTheStopHolds,
   listWorkspaceRules,
   listWorkspaceStandings,
   listWorkspaceZones,
   patchConfigRow,
-  keepWhatTheStopHolds,
   setAskAlone,
   setSendingStopped,
 } from "./rows";
