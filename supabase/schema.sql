@@ -18181,6 +18181,11 @@ begin
     on conflict (search_id, lead_id) do nothing;
     v_made := v_made + 1;
   end loop;
+  if v_made > 0 or v_held > 0 or v_left > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_round.tenant_id, 'lead.found', 'lead', 'lead_round', p_round_id,
+            jsonb_build_object('made', v_made, 'held', v_held, 'left_out', v_left));
+  end if;
   return jsonb_build_object('ok', true, 'made', v_made, 'held', v_held, 'left_out', v_left);
 end $_$;
 
@@ -32922,6 +32927,11 @@ begin
             v_piece.id, v_n, v_approval, nullif(v_place ->> 'capability_edition', '')::integer,
             nullif(v_place ->> 'good_until', '')::timestamptz)
     returning id into v_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+            jsonb_strip_nulls(jsonb_build_object(
+              'to', case when v_place ->> 'place' = 'google' and not v_later then 'publishing' else 'queued' end,
+              'place', v_place ->> 'place', 'approved', true, 'by', v_actor)));
     if v_place ->> 'place' in ('instagram', 'facebook') then
       -- Ten minutes ahead of its time, so the place has made it ready by then (a Page as Instagram, pass 5); as text, as a job's key is made of strings.
       insert into public.jobs (tenant_id, kind, due_at, payload)

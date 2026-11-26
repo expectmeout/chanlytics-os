@@ -4214,3 +4214,343 @@ begin
           jsonb_build_object('removed', v_removed, 'credited', v_credited, 'by', v_user));
   return jsonb_build_object('removed', v_removed, 'credited', v_credited, 'op_id', v_op, 'version', 1);
 end $$;
+/* -- a post approved to go, and the companies a round found: each with its event -- */
+
+-- Each post an approval puts on its way (queued for its place, or going now) writes post.moved, with its place and who
+-- approved it; the companies a finder's round found and kept write lead.found, with how many were made, held and left
+-- out, each in its own transaction. Both are kept from Activity's rows: Files and Leads say each as it stands.
+
+-- post_approve
+CREATE OR REPLACE FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor      uuid := auth.uid();
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  v_file       public.files;
+  v_piece      public.pieces;
+  v_rev        public.piece_revisions;
+  v_n          integer;
+  v_captions   jsonb := '{}'::jsonb;
+  v_place      jsonb;
+  v_rendition  jsonb;
+  v_kept       public.piece_renditions;
+  v_busy       uuid;
+  v_approval   uuid;
+  v_id         uuid;
+  v_when       timestamptz;
+  v_later      boolean;
+  v_posts      jsonb := '[]'::jsonb;
+  v_snapshot   jsonb;
+  v_places     jsonb := coalesce(p_approval -> 'placements', '[]'::jsonb);
+  -- An older version's own file approved again (00708: "Post this one instead"): the version its shape was kept at.
+  v_older      integer;
+begin
+  if v_actor is null and not v_service then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null
+     or (not v_service and not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_service <> (coalesce(p_approval ->> 'via', '') = 'rung') then
+    raise exception 'A placement goes via rung when AI approves it under the owner''s rung, and only then.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(v_places) <> 'array' or jsonb_array_length(v_places) not between 1 and 4 then
+    raise exception 'An approval names one to four placements.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_approval -> 'snapshot') is distinct from 'object' then
+    raise exception 'An approval carries its snapshot.' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'posts', '[]'::jsonb);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
+  end if;
+  -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google', 'facebook']) then
+      raise exception 'No such place: %.', v_place ->> 'place' using errcode = '22023';
+    end if;
+    if (case when v_file.kind = 'video'
+             then not (v_place ->> 'place' in ('instagram', 'facebook') and v_place ->> 'kind' = 'reel')
+             else (v_place ->> 'kind') is null or (v_place ->> 'kind') <> all (array['picture', 'story'])
+                  or (v_place ->> 'place' = 'google' and v_place ->> 'kind' <> 'picture') end) then
+      return jsonb_build_object('fate', 'wrong_kind', 'posts', '[]'::jsonb);
+    end if;
+    if char_length(coalesce(v_place ->> 'caption', '')) > (case when v_place ->> 'place' = 'google' then 1500 else 2200 end) then
+      raise exception 'Those words are longer than the place takes.' using errcode = '22023';
+    end if;
+    v_when := greatest(coalesce((v_place ->> 'at')::timestamptz, now()), now());
+    if v_when > now() + interval '30 days' then
+      raise exception 'A post goes within thirty days.' using errcode = '22023';
+    end if;
+    if (v_place ->> 'good_until') is not null and (v_place ->> 'good_until')::timestamptz < v_when then
+      return jsonb_build_object('fate', 'late', 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+  -- A Google press that died between its placement and its answer stops holding the next one after ten minutes (00616).
+  update public.posts p
+     set status = 'failed', updated_at = now(),
+         error = jsonb_build_object('code', null, 'subcode', null, 'words',
+                                    'Google did not say whether this went up. Look on your profile before posting it again.')
+   where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
+     and p.updated_at < now() - interval '10 minutes';
+  -- One of each kind on its way at a place (00620).
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    select p.id into v_busy from public.posts p
+     where p.file_id = p_file_id and p.place = v_place ->> 'place' and p.kind = v_place ->> 'kind'
+       and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
+    if found then
+      return jsonb_build_object('fate', 'busy', 'post_id', v_busy, 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+
+  -- Its own statement: a row it writes is seen only by the next one.
+  v_id := public.piece_of_made_file(p_tenant_id, p_file_id, v_actor);
+  select * into v_piece from public.pieces p where p.id = v_id;
+  if not found then
+    return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
+  end if;
+  -- A video's file that is no longer its piece's own is an older version's (00708): it is approved at that version.
+  if v_file.kind = 'video' and v_piece.file_id is distinct from p_file_id then
+    select r.revision into v_older from public.piece_renditions r
+     where r.piece_id = v_piece.id and r.file_id = p_file_id order by r.revision desc limit 1;
+  end if;
+  -- A shape already kept with other bytes is not what the owner saw: nothing is written past here.
+  for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
+    select * into v_kept from public.piece_renditions r
+     where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= coalesce(v_older, v_piece.revision)
+     order by r.revision desc limit 1;
+    if found and (v_kept.checksum <> v_rendition ->> 'checksum' or v_kept.path <> v_rendition ->> 'path') then
+      return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+  if p_approval ? 'intent' then
+    update public.pieces p set intent = nullif(p_approval -> 'intent', 'null'::jsonb), updated_at = now()
+     where p.id = v_piece.id and p.intent is distinct from nullif(p_approval -> 'intent', 'null'::jsonb);
+  end if;
+
+  -- The version it stands at, written the first time; words that differ from it are a new version (no new shapes).
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    if v_place ->> 'kind' <> 'story' then
+      v_captions := v_captions || jsonb_build_object(v_place ->> 'place', coalesce(v_place ->> 'caption', ''));
+    end if;
+  end loop;
+  v_n := coalesce(v_older, v_piece.revision);
+  select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_n;
+  if not found then
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (p_tenant_id, v_piece.id, v_n, v_piece.plan, v_captions, array['first'], case when v_service then 'ai' else 'owner' end, v_actor)
+    returning * into v_rev;
+  -- An older version keeps its own words: the placements carry what goes, and a later version is never written over.
+  elsif v_older is null and exists (select 1 from jsonb_each_text(v_captions) c
+                 where v_rev.captions ? c.key and (v_rev.captions ->> c.key) <> c.value) then
+    v_n := v_n + 1;
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (p_tenant_id, v_piece.id, v_n, v_rev.plan, v_rev.captions || v_captions, array['caption'], case when v_service then 'ai' else 'owner' end, v_actor)
+    returning * into v_rev;
+    update public.pieces p set revision = v_n, updated_at = now() where p.id = v_piece.id;
+  end if;
+
+  -- Its shapes as they are sent: kept the first time (checked above to be the same bytes every time after).
+  for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
+    if not exists (select 1 from public.piece_renditions r
+                    where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= v_n) then
+      insert into public.piece_renditions (tenant_id, piece_id, revision, shape, file_id, path, checksum, bytes)
+      values (p_tenant_id, v_piece.id, v_n, v_rendition ->> 'shape', p_file_id, v_rendition ->> 'path',
+              v_rendition ->> 'checksum', nullif(v_rendition ->> 'bytes', '')::bigint);
+    end if;
+  end loop;
+
+  -- The snapshot names the version it is of, and its hash is taken here, of its own text, as post_as_approved takes it.
+  v_snapshot := jsonb_set(p_approval -> 'snapshot', '{revision}', jsonb_build_object('piece_id', v_piece.id, 'n', v_n));
+  insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by, policy_edition)
+  values (p_tenant_id, 'piece_revision', v_rev.id, v_snapshot, public.approval_hash(v_snapshot), v_actor,
+          coalesce((p_approval ->> 'policy_edition')::integer, 1))
+  returning id into v_approval;
+
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    v_when := greatest(coalesce((v_place ->> 'at')::timestamptz, now()), now());
+    v_later := v_place ->> 'place' = 'google' and v_when > now() + interval '2 minutes';
+    insert into public.posts (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via, status,
+                              piece_id, revision, approval_id, capability_edition, good_until)
+    values (p_tenant_id, p_file_id, v_place ->> 'place', v_place ->> 'kind',
+            case when v_place ->> 'kind' = 'story' then null else nullif(btrim(v_place ->> 'caption'), '') end,
+            v_when, v_actor, now(), coalesce(p_approval ->> 'via', 'press'),
+            case when v_place ->> 'place' = 'google' and not v_later then 'publishing' else 'queued' end,
+            v_piece.id, v_n, v_approval, nullif(v_place ->> 'capability_edition', '')::integer,
+            nullif(v_place ->> 'good_until', '')::timestamptz)
+    returning id into v_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+            jsonb_strip_nulls(jsonb_build_object(
+              'to', case when v_place ->> 'place' = 'google' and not v_later then 'publishing' else 'queued' end,
+              'place', v_place ->> 'place', 'approved', true, 'by', v_actor)));
+    if v_place ->> 'place' in ('instagram', 'facebook') then
+      -- Ten minutes ahead of its time, so the place has made it ready by then (a Page as Instagram, pass 5); as text, as a job's key is made of strings.
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
+              jsonb_build_object('post_id', v_id, 'attempt', '1'));
+    elsif v_later then
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (p_tenant_id, 'post_google', v_when, jsonb_build_object('post_id', v_id, 'attempt', '1'));
+    end if;
+    v_posts := v_posts || jsonb_build_object('place', v_place ->> 'place', 'kind', v_place ->> 'kind', 'post_id', v_id);
+  end loop;
+  return jsonb_build_object('fate', 'approved', 'approval_id', v_approval, 'piece_id', v_piece.id, 'revision', v_n,
+                            'posts', v_posts);
+end $$;
+
+-- lead_company_upsert
+CREATE OR REPLACE FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_round  public.lead_rounds%rowtype;
+  v_c      jsonb;
+  v_key    text;
+  v_want   text;
+  v_email  text;
+  v_addr   integer;
+  v_host   text;
+  v_lead   uuid;
+  v_people jsonb;
+  v_shares jsonb;
+  v_fit    text;
+  v_reasons jsonb;
+  v_judgment jsonb;
+  v_made   integer := 0;
+  v_held   integer := 0;
+  v_left   integer := 0;
+begin
+  select * into v_round from public.lead_rounds where id = p_round_id;
+  if not found or v_round.state = 'ended' then
+    return jsonb_build_object('ok', false, 'why', 'round');
+  end if;
+  if jsonb_typeof(p_companies) is distinct from 'array' or jsonb_array_length(p_companies) > 200 then
+    raise exception 'companies: an array of at most 200' using errcode = '22023';
+  end if;
+  for v_c in select value from jsonb_array_elements(p_companies) loop
+    v_key  := lower(btrim(coalesce(v_c->>'source_key', '')));
+    v_want := lower(btrim(coalesce(v_c->>'email', '')));
+    if char_length(v_key) not between 1 and 200 or char_length(btrim(coalesce(v_c->>'name', ''))) = 0
+       or jsonb_typeof(v_c->'facts') is distinct from 'object' or octet_length((v_c->'facts')::text) > 8000
+       or octet_length(coalesce(v_c->'judgment', 'null'::jsonb)::text) > 4000
+       or exists (select 1 from public.lead_suppressions x
+                   where x.tenant_id = v_round.tenant_id and x.kind = 'domain'
+                     and x.hash = public.lead_suppression_hash(v_round.tenant_id, v_key)) then
+      v_left := v_left + 1;
+      continue;
+    end if;
+    select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb) into v_people
+      from (select a.p, a.n
+              from jsonb_array_elements(case when jsonb_typeof(v_c->'facts'->'people') = 'array'
+                                             then v_c->'facts'->'people' else '[]'::jsonb end) with ordinality as a(p, n)
+             where jsonb_typeof(a.p) = 'object' and nullif(btrim(coalesce(a.p->>'name', '')), '') is not null
+               and (nullif(btrim(coalesce(a.p->>'email', '')), '') is null
+                    or not (public.lead_address_suppressed(v_round.tenant_id, lower(btrim(a.p->>'email')))
+                            or public.lead_address_in_people(v_round.tenant_id, a.p->>'email')))
+             order by a.n
+             limit 5) x;
+    v_addr := null;
+    v_email := null;
+    select (x.n - 1)::integer, lower(btrim(x.p->>'email')) into v_addr, v_email
+      from jsonb_array_elements(v_people) with ordinality as x(p, n)
+     where nullif(btrim(coalesce(x.p->>'email', '')), '') is not null
+     order by (lower(btrim(x.p->>'email')) = v_want) desc, x.n
+     limit 1;
+    if v_email is null or char_length(v_email) > 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+      v_left := v_left + 1;
+      continue;
+    end if;
+
+    -- Held already: the same company (its key), or its address on another lead (a place, a file's row).
+    v_lead := null;
+    select l.id into v_lead from public.leads l
+     where l.tenant_id = v_round.tenant_id and l.source = 'people_at_companies' and l.source_key = v_key;
+    if v_lead is null then
+      select l.id into v_lead from public.leads l
+       where l.tenant_id = v_round.tenant_id and l.email = v_email
+       order by l.found_at
+       limit 1;
+    end if;
+    if v_lead is not null then
+      -- A company keeps the people it lacked, five at most, by their address (one with none never joins: who was erased is
+      -- known by their address alone); its addressee stays who it was.
+      update public.leads l
+         set facts = jsonb_set(l.facts, '{people}', (
+               select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
+                 from (select p, n from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) with ordinality as a(p, n)
+                       union all
+                       select p, 100 + n from jsonb_array_elements(v_people) with ordinality as b(p, n)
+                        where nullif(btrim(coalesce(b.p->>'email', '')), '') is not null
+                          and not exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) o
+                                           where lower(o->>'email') = lower(b.p->>'email')
+                                              or (o->>'email' is null and lower(o->>'name') = lower(b.p->>'name')))
+                       order by n
+                       limit 5) x)),
+             version = version + 1
+       where l.id = v_lead and l.kind = 'company' and l.erased_at is null and l.blanked_at is null;
+      v_held := v_held + 1;
+      continue;
+    end if;
+
+    v_host := case when v_key ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$' then v_key end;
+    insert into public.leads (tenant_id, kind, source, source_key, business_name, category, city, region, country,
+                              website_host, website_root, linkedin_url, about, email, email_state, facts)
+    values (v_round.tenant_id, 'company', 'people_at_companies', v_key, left(btrim(v_c->>'name'), 200),
+            nullif(left(btrim(coalesce(v_c->>'category', '')), 120), ''),
+            nullif(left(btrim(coalesce(v_c->>'city', '')), 120), ''),
+            case when v_c->>'region' ~ '^[A-Z]{2}$' then v_c->>'region' end,
+            case when v_c->>'country' ~ '^[A-Z]{2}$' then v_c->>'country' else 'US' end,
+            v_host, case when v_host is not null then true end,
+            nullif(left(btrim(coalesce(v_c->>'linkedin_url', '')), 300), ''),
+            nullif(left(btrim(coalesce(v_c->>'about', '')), 600), ''),
+            v_email, 'checking',
+            jsonb_build_object('people', v_people, 'addressee', v_addr, 'size', v_c->'facts'->'size'))
+    on conflict (tenant_id, source, source_key) where source_key is not null do nothing
+    returning id into v_lead;
+    if v_lead is null then
+      v_held := v_held + 1;
+      continue;
+    end if;
+    -- The leads it shares a website or an address's domain with (a place Maps found, a file's row), as a list's row is
+    -- marked (00364): one business is written to once.
+    select coalesce(jsonb_agg(jsonb_build_object('kind', 'host', 'lead_id', x.id)), '[]'::jsonb) into v_shares
+      from (select l.id from public.leads l
+             where v_host is not null and l.tenant_id = v_round.tenant_id and l.id <> v_lead
+               and l.erased_at is null and l.blanked_at is null
+               and (public.lead_site_key(l.website_host) = public.lead_site_key(v_host)
+                    or lower(split_part(coalesce(l.email, ''), '@', 2)) = v_host)
+             limit 5) x;
+    -- What its judge made of it (00474): its fit, the reasons that hold it in Needs review beyond its address (a kind its
+    -- facts did not settle, a batch the judge refused), and its answer, kept as a place's are. One with none is as it was:
+    -- it waits on its address alone, and the check promotes it (00272: only `email:` reasons are the check's to clear).
+    v_fit := case when v_c->>'fit' in ('strong', 'look', 'long') then v_c->>'fit' end;
+    select coalesce(jsonb_agg(x.r), '[]'::jsonb) into v_reasons
+      from jsonb_array_elements_text(case when jsonb_typeof(v_c->'reasons') = 'array' then v_c->'reasons'
+                                          else '[]'::jsonb end) as x(r)
+     where x.r ~ '^[a-z_]+:[a-z_]+$' and x.r not like 'email:%';
+    v_judgment := case when jsonb_typeof(v_c->'judgment') = 'object'
+                       then (v_c->'judgment') - 'reasons' - 'shares' else '{}'::jsonb end;
+    insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, judgment, class, fit, reason)
+    values (v_round.search_id, v_lead, v_round.id, v_round.tenant_id,
+            v_judgment || jsonb_build_object('reasons', v_reasons || jsonb_build_array('email:checking'), 'shares', v_shares),
+            'review', v_fit, left(coalesce(v_c->>'reason', ''), 120))
+    on conflict (search_id, lead_id) do nothing;
+    v_made := v_made + 1;
+  end loop;
+  if v_made > 0 or v_held > 0 or v_left > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_round.tenant_id, 'lead.found', 'lead', 'lead_round', p_round_id,
+            jsonb_build_object('made', v_made, 'held', v_held, 'left_out', v_left));
+  end if;
+  return jsonb_build_object('ok', true, 'made', v_made, 'held', v_held, 'left_out', v_left);
+end $_$;
