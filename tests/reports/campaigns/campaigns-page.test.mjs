@@ -398,7 +398,7 @@ test("a ledger the database lacks draws the strip at three figures, the sends' c
   assert.deepEqual(present(tree, FAILED_IDS), no(FAILED_IDS), "a function a database lacks is not a failed read");
   assert.equal(
     standingSaid().sentence,
-    "240 messages over 14 runs; people wrote back to 50 of them.",
+    "240 messages over 14 runs, and people wrote back to 50 of them.",
     "the head without the people",
   );
   assert.deepEqual(rowsOfSpans(tree), [[5, 7], [12], [12]], "the channels take the row they have to themselves");

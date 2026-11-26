@@ -158,7 +158,7 @@ export const FIRST_RUN_PHONE_WORDS = {
       ? `${days} days free, then ${price || "your plan"}`
       : price
         ? `${price}, starting today`
-        : "Your plan, starting today",
+        : "The plan, starting today",
   planNoteNoCalls: (days: number) =>
     days
       ? "Every channel you chose is included. Nothing is charged until the trial ends, and you can cancel anytime from Billing."
@@ -174,7 +174,7 @@ export const FIRST_RUN_PHONE_WORDS = {
   usually: "Usually a minute or two · this page updates by itself",
   /** What the page says when a buy or a search is refused, over the door's own sentence. */
   notBought: "No number yet",
-  moveAsked: "We'll move your number with you and reach you by email. Until then, it forwards.",
+  moveAsked: "Chanlytics moves your number with you and emails you. Until then, it forwards.",
   moveNotAsked: "The move wasn't asked for. Ask again from Settings later · your number forwards meanwhile.",
   cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
   /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
@@ -240,6 +240,6 @@ export const FIRST_RUN_PHONE_WORDS = {
   helpOffice: "It didn't work",
   withMeAsked: (ago: string) => `Asked ${ago}: a person at Chanlytics will email you to find a time.`,
   withMeFailed: "Not asked",
-  withMeSent: "We'll email you to find a time for a call.",
+  withMeSent: "Chanlytics emails you to find a time for a call.",
   notForwarded: "Forwarding not saved",
 } as const;

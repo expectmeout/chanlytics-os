@@ -276,7 +276,7 @@ export function PeopleLens({
   const shown = own.state === "current" ? fold : null;
   return (
     <>
-      <RptSection title="Your customers" bare>
+      <RptSection title="Customers" bare>
         {own.state === "failed" && (
           <div className="rpt-grid">
             <FailedRead

@@ -27,7 +27,6 @@ import {
   LINE_COSTS,
 } from "@chanlytics/channels/lines";
 import { EVENT_KINDS } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { linePorts, releaseRoutingRows } from "../../apps/edge/lib/lines/lines.ts";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
@@ -532,58 +531,22 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   // then tell everybody" would be a second answer to what a customer is told about
   // their own phone number -- and the half it would most likely get wrong is the
   // failure half, which is the half that matters.
-  const prov = readCode("apps/edge/lib/lines/provision.ts");
-  assert.ok(prov.includes("runLineSaga(line, { ...linePorts(db, cfg, secrets, tenant, line, choice), timeLeft })"));
-  assert.ok(
-    prov.includes('kind: "number",') && prov.includes("title: `Your phone line is ready: ${shown}`"),
-    "the bell on success",
-  );
-  assert.ok(prov.includes("Setting up your phone line stopped · Chanlytics is on it"), "the bell on failure");
-  assert.ok(prov.includes("{ tenantId: null, notifications: null }"), "the platform hears a failure");
+  //
+  // Run, not read, since 26 Nov 2026: a-line-is-provisioned-and-told.test.mjs provisions a line through provisionLine
+  // over the dry carrier, with Retell at the network -- the receptionist made once (its LLM, the agent, published)
+  // and kept, or the one the workspace's voice row names read first and reused; the routing row naming its line
+  // (`twilio-sip`); the SIP secrets through the vault's doors and not on the row; the bell on success and on failure,
+  // and the ledger's event. The platform's mail for a stopped line is run in cron/doors-b/. Which provider a
+  // deployment chooses from its environment is run in lines-twilio.test.mjs and the door's cases (lines/door/).
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
-  const lib = readCode("apps/edge/lib/lines/lines.ts");
-  assert.ok(lib.includes("chooseLineProvider({ sid, token, dryRun: env.LINES_DRY_RUN, vercelEnv: env.VERCEL_ENV })"));
-  assert.ok(
-    lib.includes("await getLineCredentials(db, line.id)") && lib.includes("await putLineCredentials(db, line.id, "),
-    "secrets through the vault doors (packages/db/src/repositories/lines/credentials.ts)",
-  );
-  assert.ok(lib.includes("ensure: () => ensureVoiceAgent(db, cfg, secrets, tenant)"));
-  assert.ok(/provider: "twilio-sip",\s*line_id: lineId/.test(lib), "the routing row names its line");
   // That no provider SID reaches the page is run in forwarding.test.mjs, on a row holding every one.
-  const agent = readCode("apps/edge/lib/lines/voice-agent.ts");
-  for (const pin of [
-    "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",
-    "voiceAgentCreateBody({ llmId, llmVersion, agentName: options.agentName }, secrets, fnUrl)",
-    'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")',
-    "await getAgentRaw(cfg, options.agentId)",
-    "await getRetellLlm(cfg, llmId)",
-  ])
-    assert.ok(agent.includes(pin), pin);
-  assert.ok(
-    agent.indexOf('.eq("kind", "voice")') <
-      agent.indexOf("createVoiceAgent(cfg, secrets, { agentName: `${tenant.name} front desk` })"),
-    "ensure reads the active voice row before creating",
-  );
   // voice-provision making the receptionist through the same lib is run in voice-doors.test.mjs.
-  const adapter = ["packages/channels/src/voice/retell/calls.ts", "packages/channels/src/voice/retell/agents.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(adapter.includes('"/import-phone-number"'));
-  const env = readRaw("apps/edge/.env.example");
-  for (const k of ["TWILIO_ACCOUNT_SID=", "TWILIO_AUTH_TOKEN=", "LINES_DRY_RUN="]) assert.ok(env.includes(k), k);
-  assert.ok(readRaw("apps/edge/vercel.json").includes('"api/admin/lines.ts"'));
-  const mig = readRaw("supabase/migrations/00066_lines.sql");
-  for (const pin of [
-    "create table public.lines (",
-    "check (voice_state in ('none', 'provisioning', 'answering', 'failed'))",
-    "check (provider in ('twilio', 'dry'))",
-    "create policy lines_member_select on public.lines",
-    "alter publication supabase_realtime add table public.lines;",
-    "create or replace function public.put_line_credentials(p_line_id uuid, p_secret jsonb)",
-    "revoke execute on function public.put_line_credentials(uuid, jsonb) from public, anon, authenticated;",
-    "revoke execute on function public.get_line_credentials(uuid) from public, anon, authenticated;",
-  ])
-    assert.ok(mig.includes(pin), pin);
+  // The edge's variables are declared where it reads them (repo/env-manifest.test.mjs); the door's time limit is in
+  // vercel.json, held for every door by repo/ops-hygiene.test.mjs. The table 00066 made is a member's to read
+  // (database/tenancy/), its rows told to the open tabs (database/realtime-publication.db.test.mjs), and no
+  // logged-out or signed-in key may run a definer function such as the vault's two doors
+  // (database/privileges.db.test.mjs): each on the replayed stack, where they were pinned as 00066's text until
+  // 26 Nov 2026.
   assert.deepEqual(toldFor("lines"), EVERY_EVENT, "a callback repaints Setup");
   // The package hands the edge every value the saga's four modules export: its barrel names each one.
 

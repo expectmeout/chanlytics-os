@@ -362,3 +362,33 @@ test(
     assert.equal(await of(), at);
   },
 );
+
+test(
+  "a line's credentials are the service's alone: neither of the vault's doors, nor the drift report, opens to anyone signed in, the line's own owner included (00066, 00087)",
+  { skip },
+  async () => {
+    // Pinned as 00066's revokes in lines/lines-saga.test.mjs until 26 Nov 2026; the catalog's rules
+    // (database/privileges.db.test.mjs) hold a definer function from the logged-out key, and this holds these two from
+    // every signed-in one too.
+    const line = await db.from("lines").select("id").eq("tenant_id", A).eq("e164", "+15550002001").single();
+    assert.equal(line.error, null, line.error?.message);
+    for (const [who, session] of [
+      ["the owner", owner],
+      ["the partner", partner],
+      ["a viewer", viewer],
+    ]) {
+      const read = await session.client.rpc("get_line_credentials", { p_line_id: line.data.id });
+      assert.ok(read.error, `${who} may not read the line's secrets`);
+      assert.equal(read.data, null);
+      const write = await session.client.rpc("put_line_credentials", {
+        p_line_id: line.data.id,
+        p_secret: { auth_token: "a-token-of-their-own" },
+      });
+      assert.ok(write.error, `${who} may not write them`);
+      // Nor read the platform's drift report, which names every workspace's numbers (00087).
+      assert.ok((await session.client.rpc("number_drift")).error, `${who} may not read the drift report`);
+    }
+    const service = await db.rpc("get_line_credentials", { p_line_id: line.data.id });
+    assert.equal(service.error, null, "the service's own key opens the door the edge reads through");
+  },
+);

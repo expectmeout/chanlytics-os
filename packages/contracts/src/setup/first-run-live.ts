@@ -45,7 +45,7 @@ export const FIRST_RUN_LIVE_WORDS = {
   knowsNothing: "Only your name so far",
   change: "Change",
   greeting: (words: string) => `Every caller hears “${words}”`,
-  finishNote: "We'll email you a copy of this.",
+  finishNote: "Chanlytics emails you a copy of this.",
   /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
   emailSubject: (business: string | null, calls = true) =>
     business
@@ -65,7 +65,7 @@ export const FIRST_RUN_LIVE_WORDS = {
         : "From now on, AI answers your calls.",
   emailThrough: (to: string | null) =>
     to ? `A caller who asks for a person is put through to ${to}.` : "A caller who asks for a person leaves a message.",
-  emailAlerts: "We'll email you here when someone needs you.",
+  emailAlerts: "Chanlytics emails you here when someone needs you.",
   emailOpen: (url: string) => `Open Today: ${url}`,
 } as const;
 
