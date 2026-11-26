@@ -405,16 +405,12 @@ const queryHolds = (query, screen, where) =>
     return q.qualifier === "not" ? !holds : holds;
   });
 
-const trees = new Map();
-
-/** One stylesheet's syntax tree, as the build's parser reads it, once per process; a sheet it cannot read whole throws. */
-function treeOf(file) {
-  const hit = trees.get(file);
-  if (hit) return hit;
+/** CSS as the build's parser reads it: its syntax tree, and what it could not read (errors recovered, not thrown). */
+function parsed(code, filename) {
   let tree = null;
   const { warnings } = transform({
-    filename: file,
-    code: fs.readFileSync(path.join(ROOT, file)),
+    filename,
+    code: Buffer.from(code),
     errorRecovery: true,
     visitor: {
       StyleSheet(s) {
@@ -422,6 +418,16 @@ function treeOf(file) {
       },
     },
   });
+  return { tree, warnings };
+}
+
+const trees = new Map();
+
+/** One stylesheet's syntax tree, as the build's parser reads it, once per process; a sheet it cannot read whole throws. */
+function treeOf(file) {
+  const hit = trees.get(file);
+  if (hit) return hit;
+  const { tree, warnings } = parsed(fs.readFileSync(path.join(ROOT, file)), file);
   if (!tree || warnings.length > 0) {
     throw new Error(`the cascade cannot read ${file} whole:\n${warnings.map((w) => w.message).join("\n")}`);
   }
@@ -503,18 +509,9 @@ function giveInto(given, important, block) {
 
 /** One rule's body, read as a sheet's is (`animation: none; opacity: 1`), and printed as givenOn prints what it says. */
 export function declared(text) {
-  let tree = null;
-  transform({
-    filename: "declared.css",
-    code: Buffer.from(`.given { ${text} }`),
-    visitor: {
-      StyleSheet(s) {
-        tree = s;
-      },
-    },
-  });
+  const { tree, warnings } = parsed(`.given { ${text} }`, "declared.css");
   const rule = tree?.rules[0];
-  if (rule?.type !== "style") throw new Error(`not a rule's body: ${text}`);
+  if (rule?.type !== "style" || warnings.length > 0) throw new Error(`not a rule's body: ${text}`);
   const given = {};
   giveInto(given, new Set(), rule.value.declarations);
   return given;
@@ -522,18 +519,11 @@ export function declared(text) {
 
 /** A selector as the parser reads it: `.a>.b` and `.a > .b` are one selector. */
 function selectorOf(text) {
-  let tree = null;
-  transform({
-    filename: "selector.css",
-    code: Buffer.from(`${text} {}`),
-    visitor: {
-      StyleSheet(s) {
-        tree = s;
-      },
-    },
-  });
+  const { tree, warnings } = parsed(`${text} {}`, "selector.css");
   const rule = tree?.rules[0];
-  if (rule?.type !== "style" || rule.value.selectors.length !== 1) throw new Error(`not one selector: ${text}`);
+  if (rule?.type !== "style" || rule.value.selectors.length !== 1 || warnings.length > 0) {
+    throw new Error(`not one selector: ${text}`);
+  }
   return JSON.stringify(rule.value.selectors[0]);
 }
 
