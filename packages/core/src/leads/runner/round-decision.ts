@@ -16,7 +16,7 @@ import { nearbyFor } from "./places";
 import { LEAD_RUN_RETRY_SECONDS, retryOf } from "./retries";
 import { type Phase, outOfTime, targetOf, wasJudged } from "./rules";
 import { logAndGoOn } from "@chanlytics/log";
-import { reachOf, type LeadArea } from "@chanlytics/contracts";
+import { reachOf, type LeadArea, valueAt } from "@chanlytics/contracts";
 
 /** The round's first batch of mailbox checks, written with the page that sends the round to them. */
 const FIRST_CHECK = { kind: "lead_check", batch: 0, run_after_seconds: 0 } as const;
@@ -141,11 +141,9 @@ async function requestsOf(leadPorts: LeadPorts, runs: readonly LeadRunRow[]): Pr
   const requests = new Map<string, number | null>();
   for (const r of runs) {
     if (outOfTime(leadPorts) || !r.apify_run_id) continue;
-    const input = (await leadPorts.apify.runInput(r.apify_run_id).catch(logAndGoOn("runInput", null))) as Record<
-      string,
-      unknown
-    > | null;
-    requests.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
+    const input = await leadPorts.apify.runInput(r.apify_run_id).catch(logAndGoOn("runInput", null));
+    const most = valueAt(input, "maxCrawledPlacesPerSearch");
+    requests.set(r.id, typeof most === "number" ? most : null);
   }
   return requests;
 }

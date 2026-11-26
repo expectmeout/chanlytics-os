@@ -10,7 +10,7 @@
  */
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 import type { Tone } from "../shell/tone";
-import { recordOrEmpty } from "../shared/unknown";
+import { recordOrEmpty, keysOf } from "../shared/unknown";
 
 /** How many days the back office reads: a week, newest first. */
 export const PLATFORM_DAYS_READ = { days: 7 } as const;
@@ -329,10 +329,11 @@ function breachesOf(name: PlatformNumberName, platformTarget: PlatformTarget, va
  * (null, or a key absent) is past nothing.
  */
 export function pastTarget(row: object, { all = false } = {}): PlatformBreach[] {
-  const values = row as Readonly<Record<string, unknown>>;
-  return (Object.entries(PLATFORM_NUMBERS) as Array<[PlatformNumberName, PlatformNumber]>).flatMap(([name, n]) =>
-    n.promise && (all || n.alarm) ? breachesOf(name, n, values[name]) : [],
-  );
+  const values = recordOrEmpty(row);
+  return keysOf(PLATFORM_NUMBERS).flatMap((name) => {
+    const n = PLATFORM_NUMBERS[name];
+    return n.promise && (all || n.alarm) ? breachesOf(name, n, values[name]) : [];
+  });
 }
 
 /** A figure in its unit's words: seconds for a time, the count for a count. */

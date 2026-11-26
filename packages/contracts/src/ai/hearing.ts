@@ -8,6 +8,7 @@
  * change of code.
  */
 import { MODEL_PORTS, MODEL_PURPOSES, SMALL_JSON_PURPOSES } from "./models/routes";
+import { isOneOf } from "../shared/unknown";
 
 /** Why a hearing model's key is spent: what a clip says, and how it sounds (at its digest, or on a question of Ask's). */
 const HEARING_PURPOSES = ["file_words", "file_hear"] as const;
@@ -62,10 +63,10 @@ const VIDEO_WORDS_SHAPES = ["gemini", "scribe"] as const;
 export type VideoWordsShape = (typeof VIDEO_WORDS_SHAPES)[number];
 
 /** The words' shape a setting names; unset or unknown is the one-call shape, the cheapest. */
-export const videoWordsShapeOf = (value: unknown): VideoWordsShape =>
-  typeof value === "string" && (VIDEO_WORDS_SHAPES as readonly string[]).includes(value.trim().toLowerCase())
-    ? (value.trim().toLowerCase() as VideoWordsShape)
-    : "gemini";
+export const videoWordsShapeOf = (value: unknown): VideoWordsShape => {
+  const shape = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return isOneOf(VIDEO_WORDS_SHAPES, shape) ? shape : "gemini";
+};
 
 /** The ear's model a setting names: anything that reads as a Gemini model's id, else Flash-Lite. */
 export const videoEarModelOf = (value: unknown): string =>

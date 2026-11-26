@@ -19,6 +19,7 @@ import { namesMoney, violatesNoPrices } from "../config/policy/prices";
 import { DAY_MS } from "../shared/time";
 import { MODEL_ROUTES } from "../ai/models/routes";
 import { CONTROL_CHARS } from "../shared/words";
+import { valueAt } from "../shared/unknown";
 
 /** The smallest model: a yes-or-nothing read of one conversation (the registry's, ai/models/routes.ts). */
 export const NOTE_SUGGEST_MODEL = MODEL_ROUTES.note_suggest.model;
@@ -215,7 +216,12 @@ export type NoteCheck = { ok: true; body: string; kind: NoteSuggestKind } | { ok
  * aimed at the receptionist and nothing sensitive, and may not say what the notes already say.
  */
 export function checkNoteSuggestion(answer: unknown, turns: readonly NoteTurn[], known: readonly string[]): NoteCheck {
-  const first = (answer ?? {}) as { worth?: unknown; kind?: unknown; text?: unknown; quote?: unknown };
+  const first = {
+    worth: valueAt(answer, "worth"),
+    kind: valueAt(answer, "kind"),
+    text: valueAt(answer, "text"),
+    quote: valueAt(answer, "quote"),
+  };
   if (first.worth !== true) return { ok: false, why: "nothing" };
   const kind = NOTE_SUGGEST_KINDS.find((k) => k === first.kind);
   if (!kind) return { ok: false, why: "kind" };

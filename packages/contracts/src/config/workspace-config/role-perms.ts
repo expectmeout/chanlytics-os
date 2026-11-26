@@ -198,9 +198,15 @@ export function roleTable(has: { ads: boolean }): RoleTableRow[] {
   return ROLE_TABLE_LINES.filter((line) => line.part !== "ads" || has.ads).map((line) => ({
     says: line.says,
     note: line.note ?? null,
-    can: Object.fromEntries(ROLES.map((r) => [r, line.perm === null ? true : ROLE_PERMS[r][line.perm]])) as Record<
-      Role,
-      boolean
-    >,
+    can: {
+      owner: roleCan(line.perm, "owner"),
+      operator: roleCan(line.perm, "operator"),
+      partner: roleCan(line.perm, "partner"),
+      viewer: roleCan(line.perm, "viewer"),
+    },
   }));
 }
+
+/** Whether a role may do what a line of the table names: every role, where it names no permission. */
+const roleCan = (perm: keyof (typeof ROLE_PERMS)[Role] | null, role: Role): boolean =>
+  perm === null ? true : ROLE_PERMS[role][perm];

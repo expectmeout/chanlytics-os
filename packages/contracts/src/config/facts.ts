@@ -35,6 +35,7 @@
  * person decides. Detect and expose; never guess.
  */
 import { formatPhoneDisplay, samePhone } from "../shared/phone";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** Where an answer came from, strongest claim first. */
 export type FactSource =
@@ -371,15 +372,8 @@ export const SOURCE_WORDS: Record<FactSource, string> = {
  */
 export function changedConfigFields(before: unknown, after: unknown): string[] {
   const top = (value: unknown): Record<string, unknown> => {
-    const cfg = (value ?? {}) as {
-      brain?: Record<string, unknown>;
-      calendar?: unknown;
-      bookings?: unknown;
-      notifications?: unknown;
-      features?: unknown;
-    };
-    const brain: Record<string, unknown> & { profile?: Record<string, unknown> } = cfg.brain ?? {};
-    const { profile, ...rest } = brain;
+    const cfg = recordOrEmpty(value);
+    const { profile, ...rest } = recordOrEmpty(cfg.brain);
     // The profile is where most edits land, so its keys are named individually
     // — "profile" changed is true of nearly every save and tells nobody
     // anything. The other sections are one key each: swapping the calendar
@@ -387,7 +381,7 @@ export function changedConfigFields(before: unknown, after: unknown): string[] {
     // were here it left none.
     return {
       ...rest,
-      ...(profile ?? {}),
+      ...recordOrEmpty(profile),
       calendar: cfg.calendar ?? null,
       bookings: cfg.bookings ?? null,
       notifications: cfg.notifications ?? null,

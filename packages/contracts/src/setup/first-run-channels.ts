@@ -6,7 +6,7 @@
  * here: Go live spends. Every sentence is here; the page composes.
  */
 import { formatPhoneDisplay } from "../shared/phone";
-import { bookingToolName, type BookingTool } from "../calendar/booking-notice";
+import { BOOKING_TOOL_IDS, bookingToolName, type BookingTool } from "../calendar/booking-notice";
 import { bookingToolOfLink } from "../google/booking-page";
 import { googleAudienceWords } from "../google/audience";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
@@ -16,6 +16,7 @@ import { importLinesOf, type ImportRowDto } from "../imports/ledger";
 import type { FirstRunPhoneVM } from "./first-run-phone/vm";
 import type { SetupDto } from "./lines";
 import type { SetupVM, WhatsappChoice } from "./setup";
+import { isOneOf } from "../shared/unknown";
 
 /** What a number's line is, by the carrier's own records (decision 0073, R11: Twilio Lookup's line type intelligence). */
 export interface LineLookupDto {
@@ -297,7 +298,7 @@ const siteHostOf = (raw: string | null): string | null => {
 function bookingsOf(channelsInput: ChannelsInput): FirstRunChannelsVM["bookings"] {
   const bookings = FIRST_RUN_CHANNELS_WORDS.bookings;
   const cal = channelsInput.dto.calendar;
-  const tool = (cal.tool as BookingTool | null | undefined) ?? bookingToolOfLink(channelsInput.bookingLink);
+  const tool = isOneOf(BOOKING_TOOL_IDS, cal.tool) ? cal.tool : bookingToolOfLink(channelsInput.bookingLink);
   const toolName = bookingToolName(tool);
   const calRow = (channelsInput.dto.imports ?? []).find((r) => r.source === "calendar") ?? null;
   const clientsRow = (channelsInput.dto.imports ?? []).find((r) => r.source === "clients_file") ?? null;
