@@ -97,7 +97,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
         "WhatsApp: no customer can write to you there, and no WhatsApp campaign can send (Settings › Connections).",
       );
     if (!setup.channels.voice.active) missing.push("A phone line: no call reaches AI (Setup › Your phone).");
-    if (setup.email && !setup.email.sending?.mailboxes.length)
+    if (setup.email && !setup.email.sending?.mailboxes?.length)
       missing.push("A mailbox to send from: no cold email can go from your own address (Settings › Cold email).");
     if (setup.calendar.state === "unavailable")
       missing.push(
