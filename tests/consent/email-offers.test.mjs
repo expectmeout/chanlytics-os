@@ -958,7 +958,7 @@ test("Setup's yes row counts offers by email as their own arm, only where they c
       name: "Harbor Moving",
       hours: true,
       services: 0,
-      bookingLink: false,
+      booking_link: false,
       address: true,
       handoff: null,
       broken: false,

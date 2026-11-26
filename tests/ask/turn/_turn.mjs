@@ -383,8 +383,8 @@ export const BUILT = {
   warm: "hit",
 };
 
-/** A page context as the tab sends it (contracts PageContext). */
-export const PAGE = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], askedAt: 1 };
+/** A page context as the tab sends it (contracts PageContextDto). */
+export const PAGE = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], asked_at: 1 };
 
 export const ports = (round, extra = {}) => ({
   round,
@@ -1093,7 +1093,7 @@ export const answered = (over = {}) => ({
   role: "assistant",
   text: "",
   at: "",
-  atMs: 0,
+  at_ms: 0,
   citations: [],
   followups: [],
   navigate: null,
@@ -1101,7 +1101,7 @@ export const answered = (over = {}) => ({
   language: "en",
   ungrounded: false,
   tools: [],
-  latencyMs: null,
+  latency_ms: null,
   rounds: null,
   failed: false,
   ...over,

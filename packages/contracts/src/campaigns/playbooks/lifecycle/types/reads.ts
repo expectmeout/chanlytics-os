@@ -15,7 +15,7 @@ export interface LifecyclePool {
   /** Everyone the moment names. */
   pool: number;
   /** How many of them said the yes its message needs, a number to send to or not. */
-  saidYes: number;
+  said_yes: number;
 }
 
 /** Everyone a moment names and who of them said the yes it needs (`PlaybookNamed`). */

@@ -610,7 +610,10 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
     ],
   };
   await refused(
-    proposals.POST.run(send("POST", { state: "done", receipt: "Sent", atMs: 0 }), ctxFor(tables, { id: M1, pid: "x" })),
+    proposals.POST.run(
+      send("POST", { state: "done", receipt: "Sent", at_ms: 0 }),
+      ctxFor(tables, { id: M1, pid: "x" }),
+    ),
     "validation",
     400,
     "Which card?",
@@ -623,7 +626,7 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
   );
   await refused(
     proposals.POST.run(
-      send("POST", { state: "done", receipt: "Sent", atMs: 0 }),
+      send("POST", { state: "done", receipt: "Sent", at_ms: 0 }),
       ctxFor(tables, { id: T2, pid: "p-1" }),
     ),
     "not_found",
@@ -632,7 +635,7 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
   );
   await refused(
     proposals.POST.run(
-      send("POST", { state: "done", receipt: "Sent", atMs: 0 }),
+      send("POST", { state: "done", receipt: "Sent", at_ms: 0 }),
       ctxFor(tables, { id: M1, pid: "p-2" }),
     ),
     "not_found",
@@ -640,11 +643,11 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
     "No such card on that turn.",
   );
   const done = await proposals.POST.run(
-    send("POST", { state: "done", receipt: "Sent", atMs: 0 }),
+    send("POST", { state: "done", receipt: "Sent", at_ms: 0 }),
     ctxFor(tables, { id: M1, pid: "p-1" }),
   );
   assert.equal(done.proposal.outcome.state, "done");
-  assert.ok(done.proposal.outcome.atMs > 0, "an outcome with no clock gets this one");
+  assert.ok(done.proposal.outcome.at_ms > 0, "an outcome with no clock gets this one");
   assert.equal(
     tables.ask_messages[0].content.proposals[0].outcome.receipt,
     "Sent",
@@ -652,7 +655,7 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
   );
   await refused(
     proposals.POST.run(
-      send("POST", { state: "done", receipt: "Sent again", atMs: 0 }),
+      send("POST", { state: "done", receipt: "Sent again", at_ms: 0 }),
       ctxFor(tables, { id: M1, pid: "p-1" }),
     ),
     "conflict",
@@ -663,14 +666,14 @@ test("a card's outcome is the person's own turn: which card, an outcome in its s
   // morning read a while ago) would hide what was sent and lose its Undo (decision 0070).
   for (const state of ["dismissed", "failed"])
     await refused(
-      proposals.POST.run(send("POST", { state, receipt: "Not now", atMs: 0 }), ctxFor(tables, { id: M1, pid: "p-1" })),
+      proposals.POST.run(send("POST", { state, receipt: "Not now", at_ms: 0 }), ctxFor(tables, { id: M1, pid: "p-1" })),
       "conflict",
       409,
       "That card was already approved.",
     );
   assert.equal(tables.ask_messages[0].content.proposals[0].outcome.state, "done", "still what was done");
   const undone = await proposals.POST.run(
-    send("POST", { state: "undone", receipt: "Undone", atMs: 0 }),
+    send("POST", { state: "undone", receipt: "Undone", at_ms: 0 }),
     ctxFor(tables, { id: M1, pid: "p-1" }),
   );
   assert.equal(undone.proposal.outcome.state, "undone", "and its Undo is kept");
@@ -691,11 +694,11 @@ test("a card's outcome keeps what its commit made, so a plan's made is read back
   };
   const made = { kind: "message", id: "77777777-7777-4777-8777-000000000001" };
   await proposals.POST.run(
-    send("POST", { state: "done", receipt: "“offer” is in the Library", atMs: 1, made }),
+    send("POST", { state: "done", receipt: "“offer” is in the Library", at_ms: 1, made }),
     ctxFor(tables, { id: M1, pid: "p-1" }),
   );
   await proposals.POST.run(
-    send("POST", { state: "done", receipt: "Noted", atMs: 1 }),
+    send("POST", { state: "done", receipt: "Noted", at_ms: 1 }),
     ctxFor(tables, { id: M1, pid: "p-2" }),
   );
   const [first, second] = tables.ask_messages[0].content.proposals;
@@ -703,7 +706,7 @@ test("a card's outcome keeps what its commit made, so a plan's made is read back
   assert.equal(second.outcome.made, null);
   await refused(
     proposals.POST.run(
-      send("POST", { state: "sent", receipt: "x", atMs: 1, made }),
+      send("POST", { state: "sent", receipt: "x", at_ms: 1, made }),
       ctxFor(tables, { id: M1, pid: "p-2" }),
     ),
     "validation",
@@ -998,7 +1001,7 @@ test("the warm (D6): a viewer may warm; it answers the build's stamp and nothing
     view: "all",
     focus: null,
     rows: [{ kind: "thread", id: C1 }],
-    askedAt: 1,
+    asked_at: 1,
   };
   const before = Date.now();
   const warmed = ctxFor(tables);
@@ -1013,7 +1016,7 @@ test("the warm (D6): a viewer may warm; it answers the build's stamp and nothing
   const asked = ctxFor(tables);
   const built = await buildContext(readerContext(asked, { tenantId: A, role: "viewer" }, undefined, { keep: true }), {
     ...context,
-    askedAt: 2,
+    asked_at: 2,
     focus: { kind: "thread", id: C1, label: "Rosa" },
   });
   assert.equal(built.warm, "hit");

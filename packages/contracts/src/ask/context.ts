@@ -5,7 +5,7 @@
  * a miss, and nothing the tab says about a row is believed.
  */
 import { ASK_SCOPE_KINDS, type AskScope, type AskScopeKind, type AskSurface } from "./ask";
-import type { AskMessageVM } from "./thread-words";
+import type { AskMessageDto } from "./thread-words";
 import { answerFromV1 } from "./answer/shape";
 import { isOneOf } from "../shared/unknown";
 
@@ -33,7 +33,7 @@ export const ASK_CONTEXT_ROW_KINDS = [
 export type AskContextRowKind = (typeof ASK_CONTEXT_ROW_KINDS)[number];
 
 /**
- * What the Ads page says it shows (PageContext.view): what is true of the workspace today, or an example it was asked for. A word
+ * What the Ads page says it shows (PageContextDto.view): what is true of the workspace today, or an example it was asked for. A word
  * and no fact: what is true is the server's to read (server/ask/context/pages.ts). No row, since no ad is a record yet (0049).
  */
 export const ASK_ADS_VIEW = { today: "ads", example: "ads:example" } as const;
@@ -47,7 +47,7 @@ export interface PageContextRow {
   id: string;
 }
 
-export interface PageContext {
+export interface PageContextDto {
   v: 1;
   surface: AskSurface;
   /** The hash route as the palette reads it: the page, then the rest joined. */
@@ -59,7 +59,7 @@ export interface PageContext {
   /** What is on screen, in the order shown. */
   rows: PageContextRow[];
   /** When the tab built it, in its own clock: a measure, never a fact the server believes. */
-  askedAt: number;
+  asked_at: number;
 }
 
 /** A kind of row a focus may be: a scope's, the page aside. */
@@ -74,7 +74,7 @@ const isRowFocus = (k: string): k is AskScopeKind => k !== "page" && isOneOf(ASK
  * fewer items: then the page's rows are asked. The tab's context and the eval's both read the words by it.
  */
 export function itemFocus(
-  askMessage: Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups" | "language" | "answer">,
+  askMessage: Pick<AskMessageDto, "text" | "citations" | "navigate" | "followups" | "language" | "answer">,
   count: number,
 ): AskScope | null | undefined {
   const item = (askMessage.answer ?? answerFromV1(askMessage)).show.items[count - 1];

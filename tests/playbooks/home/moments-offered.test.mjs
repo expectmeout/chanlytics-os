@@ -188,7 +188,7 @@ const row = (id, trigger, over = {}) => ({
   last_run_for: null,
   last_run_at: null,
   created_at: "2026-08-01T00:00:00Z",
-  totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
+  totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, last_run: null, waiting: null, history: [] },
   ...over,
 });
 const answer = (data) =>

@@ -24,7 +24,7 @@ test("the platform's own health: every clock running AND nothing waiting, or it 
   const well = platformHealthOf(all, 0, now);
   assert.equal(well.ok, true);
   assert.deepEqual(well.unhealthy, []);
-  assert.equal(well.checkedAt, now.toISOString());
+  assert.equal(well.checked_at, now.toISOString());
   assert.equal(platformHealthWords(well), "Every clock is running and nothing is waiting.");
 
   // A clock that stopped, with the reason the function gave.

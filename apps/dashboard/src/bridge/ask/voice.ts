@@ -39,7 +39,7 @@ import {
   ASK_VOICE_UP_WAIT_MS,
   type AskScope,
   type AskSurface,
-  type PageContext,
+  type PageContextDto,
   type VoiceEndReason,
 } from "@chanlytics/contracts";
 import type { Callbacks } from "@elevenlabs/client";
@@ -59,7 +59,7 @@ export interface VoiceStart {
   threadId: string | null;
   scope: AskScope | null;
   surface: AskSurface | null;
-  context: PageContext | null;
+  context: PageContextDto | null;
 }
 
 /** The thread a session runs on, as the mint answered: the Line's own when it had one, else a new one. */
@@ -542,7 +542,7 @@ export function installVoice(win: Window, deps: VoiceDeps) {
       };
     },
     /** The page under the Line changed: the next spoken turn reads this one. */
-    pageMoved(context: PageContext): void {
+    pageMoved(context: PageContextDto): void {
       if (line.session) void deps.api.voicePage(line.session, context);
     },
     /** How loud the agent is right now, 0 to 1: the three move to it while it speaks. */

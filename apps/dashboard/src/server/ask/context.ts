@@ -1,5 +1,5 @@
 import "server-only";
-import { MIN_MS, UUID, fenced, promptSafeName, type AskSurface, type PageContext } from "@chanlytics/contracts";
+import { MIN_MS, UUID, fenced, promptSafeName, type AskSurface, type PageContextDto } from "@chanlytics/contracts";
 import { stableJson, type ReaderContext, type RowRef } from "../shared/reader";
 import type { WorkspaceShape } from "../readers/shape";
 import {
@@ -19,7 +19,7 @@ import { log } from "@/server/shared/log";
 /**
  * The page a question is asked on, as the model will read it (the spec, 5.2; the Phase 2 plan, PR 2.2): one
  * `search_result` block for the page's aggregate, then one for each row on screen, in the page's order. The tab sends
- * identities only (contracts PageContext); the surface's provider (context/day.ts, people.ts, pages.ts) reads every id
+ * identities only (contracts PageContextDto); the surface's provider (context/day.ts, people.ts, pages.ts) reads every id
  * again through the page's own readers under the person's RLS, keeps the rows a reader returned -- a row another
  * workspace holds is simply absent, and no block or log names it -- and writes each with the page's own view model.
  *
@@ -108,13 +108,13 @@ const size = (b: SearchResultBlock): number => b.source.length + b.title.length 
 const blockTitle = (title: string): string => promptSafeName(title) ?? "";
 
 /** The page as a citation names it: its route, where the route names no row; else the page the route is on. */
-function pageRef(ctx: PageContext, label: string): RowRef {
+function pageRef(ctx: PageContextDto, label: string): RowRef {
   const route = ctx.route && !UUID_IN_ROUTE.test(ctx.route) ? ctx.route : ctx.route.split("/")[0] || ctx.surface;
   return { kind: "page", id: route, route, label };
 }
 
 /** The provider's rows and aggregate, cut to the caps (D11) in the page's order, the cut said. */
-function assemble(ctx: PageContext, result: Provided): Built {
+function assemble(ctx: PageContextDto, result: Provided): Built {
   const title = PAGE_TITLES[ctx.surface] ?? PAGE_TITLES.other;
   const seen = new Set<string>();
   const rows = result.rows.filter((r) => !seen.has(r.source) && !!seen.add(r.source));
@@ -143,7 +143,7 @@ function assemble(ctx: PageContext, result: Provided): Built {
 }
 
 /** One build: the surface's provider, its failure caught and said in the aggregate, then the caps. */
-async function build(rc: ReaderContext, ctx: PageContext): Promise<Built> {
+async function build(rc: ReaderContext, ctx: PageContextDto): Promise<Built> {
   const provider = PROVIDERS[ctx.surface] ?? readOther;
   try {
     return assemble(ctx, await provider(rc, ctx));
@@ -160,7 +160,7 @@ async function build(rc: ReaderContext, ctx: PageContext): Promise<Built> {
 }
 
 /** The context's blocks for this person on this page: a build kept within the minute, or a new one. */
-export async function buildContext(rc: ReaderContext, context: PageContext): Promise<BuiltContext> {
+export async function buildContext(rc: ReaderContext, context: PageContextDto): Promise<BuiltContext> {
   const key = `${rc.tenantId}|${rc.userId}|${stableJson({
     surface: context.surface,
     route: context.route,

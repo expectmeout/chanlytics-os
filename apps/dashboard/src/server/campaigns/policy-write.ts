@@ -18,6 +18,7 @@ import {
   REPLY_DELAY_MAX_MS,
   policyModeRefusal,
   causedBy,
+  withOldNames,
 } from "@chanlytics/contracts";
 import { listPolicies, savePolicyChange } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -48,24 +49,13 @@ const OLD_NAMES = {
   pauseHours: "pause_hours",
 } as const;
 
-function withOldNames(body: unknown): unknown {
-  if (typeof body !== "object" || body === null || Array.isArray(body)) return body;
-  const named: Record<string, unknown> = { ...body };
-  for (const [old, name] of Object.entries(OLD_NAMES)) {
-    if (!(old in named)) continue;
-    if (!(name in named)) named[name] = named[old];
-    delete named[old];
-  }
-  return named;
-}
-
 /**
  * A change to one class's row: its class, a mode or none (the row keeps its own), and the reply row's dials, by the
  * names the row keeps them under and GET answers them with (`policy.limits`). A dial that is not a number is refused
  * in its own words; its range, and which class may carry it, are the handler's to judge.
  */
 export const PolicyChange = z.preprocess(
-  withOldNames,
+  withOldNames(OLD_NAMES),
   z.object({
     class: z.string({ error: "Unknown policy class." }),
     mode: z.string({ error: "Unknown mode." }).optional(),
