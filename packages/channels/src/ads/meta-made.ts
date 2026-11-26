@@ -12,9 +12,17 @@
  * Read on Meta's own pages on 19 November 2026 (docs/plans/2026-11-18-ads-meta-checks.md). Not yet seen on an account.
  */
 import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
-import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import {
+  isMetaId,
+  metaErrorOf,
+  metaGraphUrl,
+  metaObject,
+  metaProofQuery,
+  metaRemoveRequest,
+  metaText,
+} from "../meta/client";
 import type { MetaRequest } from "../meta/client";
-import { isMetaId, metaAccountPath, metaUnitsToMinor } from "./meta-account";
+import { metaAccountPath, metaUnitsToMinor } from "./meta-account";
 import { metaAreaWord } from "./meta-place";
 import { instantOf } from "./meta-read";
 
@@ -312,7 +320,7 @@ export function parseMetaCampaignHeld(json: unknown, currency: string): MetaCamp
  */
 export function metaCampaignRemoveRequest(token: string, appSecret: string, campaignId: string): MetaRequest {
   if (!isMetaId(campaignId)) throw new Error("Meta's id for the campaign is not one");
-  return { url: metaGraphUrl(campaignId, metaProofQuery(token, appSecret)), method: "DELETE" };
+  return metaRemoveRequest(campaignId, token, appSecret);
 }
 
 /**
@@ -334,7 +342,7 @@ export function parseMetaAdHeld(json: unknown): MetaAdHeld {
 /** A creative removed: Meta's DELETE on it, which answers `success` (its creative reference, read on 20 November). */
 export function metaCreativeRemoveRequest(token: string, appSecret: string, creativeId: string): MetaRequest {
   if (!isMetaId(creativeId)) throw new Error("Meta's id for the creative is not one");
-  return { url: metaGraphUrl(creativeId, metaProofQuery(token, appSecret)), method: "DELETE" };
+  return metaRemoveRequest(creativeId, token, appSecret);
 }
 
 /** Whether Meta says a removal took: its answer's `success`, and nothing else. */

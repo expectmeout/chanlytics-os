@@ -11,12 +11,9 @@
  * total for the whole run. Money is converted here from Meta's own units, as an account's is (meta-account.ts).
  */
 import { isDayKey, recordOrEmpty, valueAt, type AdEngaged } from "@chanlytics/contracts";
-import { META_GRAPH, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { META_GRAPH, isMetaId, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
-import { metaAccountId, metaDecimalToMinor, metaUnitsToMinor } from "./meta-account";
-
-const ID = /^\d{5,32}$/;
-const account = (id: string): string => `act_${encodeURIComponent(metaAccountId(id))}`;
+import { metaAccountId, metaAccountPath, metaDecimalToMinor, metaUnitsToMinor } from "./meta-account";
 
 /* ------------------------------------------------------------------ the ads */
 
@@ -65,12 +62,12 @@ const AD_FIELDS = [
 ].join(",");
 
 /** The most ads one page of the list holds. */
-export const META_ADS_PAGE = 100;
+const META_ADS_PAGE = 100;
 
 /** One page of an account's ads that are not gone, each with the ad set and the campaign it sits under. */
 export function metaAdsRequest(token: string, appSecret: string, accountId: string, after?: string): MetaRequest {
   return {
-    url: metaGraphUrl(`${account(accountId)}/ads`, {
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/ads`, {
       fields: AD_FIELDS,
       effective_status: JSON.stringify(META_LISTED_STATES),
       limit: String(META_ADS_PAGE),
@@ -92,7 +89,7 @@ export const META_IDS_MAX = 50;
  * an ad object's status). A batch holds up to fifty, and each request in it counts against the account's allowance.
  */
 export function metaAdsByIdRequest(token: string, appSecret: string, adIds: readonly string[]): MetaRequest {
-  const ids = adIds.filter((id) => ID.test(id)).slice(0, META_IDS_MAX);
+  const ids = adIds.filter((id) => isMetaId(id)).slice(0, META_IDS_MAX);
   const batch = ids.map((id) => ({ method: "GET", relative_url: `${id}?fields=${encodeURIComponent(AD_FIELDS)}` }));
   return {
     url: META_GRAPH,
@@ -164,7 +161,7 @@ function creativeSaidOf(creative: Record<string, unknown> | null): MetaAd["said"
     ...(body ? { body } : {}),
     ...(thumbnail ? { thumbnail } : {}),
     ...(image ? { image } : {}),
-    ...(ID.test(post) ? { post } : {}),
+    ...(isMetaId(post) ? { post } : {}),
     ...(permalink ? { permalink } : {}),
   };
 }
@@ -186,7 +183,7 @@ function budgetOf(
   currency: string,
 ): MetaAdBudget | null {
   const holderId = metaText(valueAt(holder, "id"));
-  if (!holder || !ID.test(holderId)) return null;
+  if (!holder || !isMetaId(holderId)) return null;
   const total = metaUnitsToMinor(valueAt(holder, "lifetime_budget"), currency) ?? 0;
   const daily = metaUnitsToMinor(valueAt(holder, "daily_budget"), currency) ?? 0;
   if (total > 0)
@@ -217,7 +214,7 @@ function issueOf(ad: Record<string, unknown>): string | null {
 function adOf(row: unknown, currency: string): MetaAd | null {
   const ad = metaObject(row);
   const id = metaText(valueAt(ad, "id"));
-  if (!ad || !ID.test(id)) return null;
+  if (!ad || !isMetaId(id)) return null;
   const set = metaObject(valueAt(ad, "adset"));
   const campaign = metaObject(valueAt(ad, "campaign"));
   const creative = metaObject(valueAt(ad, "creative"));
@@ -287,7 +284,7 @@ export function parseMetaAdsById(json: unknown, currency: string): MetaAd[] {
 /* --------------------------------------------------------------- their days */
 
 /** The most rows one page of days holds. */
-export const META_DAYS_PAGE = 500;
+const META_DAYS_PAGE = 500;
 
 /**
  * One page of Meta's days for an account's ads: a row for each ad and day it was shown, from `since` to `until`, both
@@ -300,7 +297,7 @@ export function metaAdDaysRequest(
   range: { since: string; until: string; after?: string | undefined },
 ): MetaRequest {
   return {
-    url: metaGraphUrl(`${account(accountId)}/insights`, {
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/insights`, {
       level: "ad",
       time_increment: "1",
       time_range: JSON.stringify({ since: range.since, until: range.until }),
@@ -365,7 +362,7 @@ function dayOf(row: unknown, currency: string): MetaAdDay | null {
   const o = metaObject(row);
   const adId = metaText(valueAt(o, "ad_id"));
   const day = metaText(valueAt(o, "date_start"));
-  if (!o || !ID.test(adId) || !isDayKey(day)) return null;
+  if (!o || !isMetaId(adId) || !isDayKey(day)) return null;
   const actions = valueAt(o, "actions");
   const counted = new Map<string, number>(
     (Array.isArray(actions) ? actions : []).map((action) => {
@@ -407,7 +404,10 @@ export function metaSubscribeNoticesRequest(
   appId: string,
 ): MetaRequest {
   return {
-    url: metaGraphUrl(`${account(accountId)}/subscribed_apps`, { app_id: appId, ...metaProofQuery(token, appSecret) }),
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/subscribed_apps`, {
+      app_id: appId,
+      ...metaProofQuery(token, appSecret),
+    }),
     method: "POST",
   };
 }
@@ -430,7 +430,7 @@ export function parseMetaAdsNotice(json: unknown): MetaAdsNotice {
     const one = metaObject(entry);
     const id = metaAccountId(metaText(valueAt(one, "id")));
     const changed = valueAt(one, "changes");
-    if (!ID.test(id)) continue;
+    if (!isMetaId(id)) continue;
     ids.add(id);
     changes += Array.isArray(changed) ? changed.length : 0;
   }

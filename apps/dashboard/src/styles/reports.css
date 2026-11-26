@@ -9,38 +9,6 @@
   min-width: 0;
   overflow: hidden;
 }
-.rp-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px 28px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-/* Cards must never be shrunk to fit the viewport — the pane scrolls instead */
-.rp-body > * { flex-shrink: 0; }
-
-/* Tasks ↔ decide-engine */
-.tk-decided {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  padding: 7px 10px;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-md);
-}
-.tk-decided > .icon { color: var(--ok); }
-.tk-decided .cl-bucket-link { margin-left: auto; white-space: nowrap; }
-
-/* Agent table */
-.rp-agents .tbl th, .rp-agents .tbl td { padding-left: 16px; padding-right: 16px; }
-.rp-agents { padding: 0; overflow: hidden; }
-.rp-agents .fl-card-head { padding: 14px 16px 10px; margin-bottom: 0; }
 
 
 
@@ -54,7 +22,7 @@
 /* The review a link names (reports/reviews:<id>) is marked where it is listed, with its reply box open under it. */
 .rp2-review.is-named { border-color: var(--line-strong); box-shadow: var(--focus-ring); }
 .rp2-review-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.rp2-review-stars { color: var(--warn); letter-spacing: 1px; font-size: 12px; white-space: nowrap; }
+.rp2-review-stars { color: var(--warn); letter-spacing: 1px; font-size: var(--text-label); white-space: nowrap; }
 .rp2-review-who { font-size: var(--text-sm); font-weight: 500; color: var(--ink); }
 .rp2-review-when { font-size: var(--text-xs); color: var(--ink-dim); margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rp2-review-text { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
@@ -64,10 +32,10 @@
 .rp2-reviews-more { margin: 0; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 .rp2-reviews-more .cl-bucket-link { display: inline-flex; align-items: center; gap: 6px; }
 .rp2-review-reply { display: grid; gap: 6px; }
-.rp2-review-replytext { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink-dim); border-left: 2px solid var(--line); padding-left: 8px; }
+.rp2-review-replytext { margin: 0; font-size: var(--text-label); line-height: 1.45; color: var(--ink-dim); border-left: 2px solid var(--line); padding-left: 8px; }
 .rp2-review-replytext b { color: var(--ink-muted); font-weight: 500; }
 .rp2-review-composer { display: grid; gap: 6px; }
-.rp2-review-drafted { font-size: 11.5px; line-height: 1.4; color: var(--ink-muted); }
+.rp2-review-drafted { font-size: var(--text-xs); line-height: 1.4; color: var(--ink-muted); }
 .rp2-review-drafted.dim { color: var(--ink-dim); }
 
 /* ====================================================================
@@ -87,7 +55,7 @@
 .rpt-head { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
 .rpt-fact-row:focus-visible, .rpt-src:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .rpt-dates { font-size: var(--text-sm); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-.rpt-failed { font-size: 12px; color: var(--warn-ink); }
+.rpt-failed { font-size: var(--text-label); color: var(--warn-ink); }
 /* The period: the page's act at the right of the strip of lenses (period-picker.tsx), a capsule that opens it, with the
    days it covers before it on a desk. */
 .rpt-period { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; }
@@ -174,12 +142,12 @@
 .rpt-hero { grid-column: span 5; flex-direction: row; align-items: center; gap: 20px; padding: 16px 20px; }
 /* An empty period has no Worth knowing: the headline takes the row. */
 .rpt-top > .rpt-hero:only-child { grid-column: 1 / -1; }
-.rpt-hero-number { font-size: 29px; font-weight: 500; letter-spacing: -0.035em; line-height: 1; color: var(--ink); }
+.rpt-hero-number { font-size: var(--text-3xl); font-weight: 500; letter-spacing: -0.035em; line-height: 1; color: var(--ink); }
 .rpt-hero-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .rpt-hero-lead { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--ink); letter-spacing: -0.015em; }
-.rpt-hero-line { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-muted); max-width: 48ch; }
+.rpt-hero-line { margin: 0; font-size: var(--text-aside); line-height: 1.5; color: var(--ink-muted); max-width: 48ch; }
 .rpt-hero-compare { margin: 2px 0 0; display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink-dim); }
-.rpt-tick { width: 2px; height: 11px; border-radius: 1px; background: var(--ink-muted); display: inline-block; }
+.rpt-tick { width: 2px; height: 11px; border-radius: var(--radius-stem); background: var(--ink-muted); display: inline-block; }
 
 .rpt-facts { grid-column: span 7; gap: 4px; padding: 14px 20px 10px; }
 .rpt-facts .rpt-facts-title { margin: 0; }
@@ -192,12 +160,12 @@ a.rpt-fact-row { text-decoration: none; }
 @media (hover: hover) { a.rpt-fact-row:hover .rpt-fact-door { background: var(--bg-hover); color: var(--ink); } }
 /* The fact's kind is the one mark (.mark), neutral; a fact that asks for a look says so in its words. */
 .rpt-fact.is-warn .rpt-fact-text { color: var(--warn-ink); }
-.rpt-fact-copy { min-width: 0; font-size: 13px; line-height: 1.45; }
+.rpt-fact-copy { min-width: 0; font-size: var(--text-aside); line-height: 1.45; }
 .rpt-fact-text { color: var(--ink); }
 .rpt-fact-sub { color: var(--ink-dim); }
 .rpt-fact-sub::before { content: ", "; }
 .rpt-fact-door { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-muted); white-space: nowrap; transition: background var(--duration-fast), color var(--duration-fast); }
-.rpt-fact-quiet { margin: 4px 0 6px; font-size: 13px; color: var(--ink-dim); }
+.rpt-fact-quiet { margin: 4px 0 6px; font-size: var(--text-aside); color: var(--ink-dim); }
 
 /* The strip: five figures (the kit's Figure) in one frame with hairline dividers, a list of terms and their values. --cells is how many
    stand in a row; a strip of fewer figures says what it is, not how many it holds: the listing's own figures (Google, before a Business
@@ -233,7 +201,7 @@ a.rpt-fact-row { text-decoration: none; }
 /* Deals: the headline, the cohort's bars in the kit's card with the lines beside it (under it below 1180px), and the
    stock under the one hairline (.rpt-booked-rest). The kit's own type and ink; figures keep their width. */
 .rpt-deals { display: flex; flex-direction: column; gap: 12px; font-variant-numeric: tabular-nums; }
-.rpt-deals-headline { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
+.rpt-deals-headline { margin: 0; font-size: var(--text-aside); line-height: 1.5; color: var(--ink); }
 .rpt-deals-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-muted); }
 /* In the grid the lines are a pane (every child of a report grid wears one, the Glass block below), so they take a card's
    insides and its row's height: drawn as a pane with no padding, centred, their words touched its edge and it stood
@@ -241,7 +209,7 @@ a.rpt-fact-row { text-decoration: none; }
 .rpt-grid > .rpt-deals-lines { align-self: stretch; justify-content: center; padding: 14px 18px 16px; }
 .rpt-sources { max-height: none; }
 .rpt-sources .rpt-src { text-align: left; border-radius: var(--radius-xs); }
-.rpt-src-meta { display: block; font-size: 11.5px; color: var(--ink-dim); }
+.rpt-src-meta { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
 .rpt-dim { color: var(--ink-dim); }
 /* Reports › Campaigns: which campaign (every one, or one sequence) with the days it covers beside it, and one campaign's door
    to its own pages at the row's end; Ads' row has the same shape (results.css .rpt-ads-scope). */
@@ -299,7 +267,7 @@ a.rpt-cmp-send { text-decoration: none; color: inherit; }
   .rpt-hero-copy { display: contents; }
   .rpt-hero-lead { grid-column: 2; grid-row: 1; }
   .rpt-hero-line, .rpt-hero-compare { grid-column: 1 / -1; }
-  .rpt-hero-number { font-size: 25px; }
+  .rpt-hero-number { font-size: var(--text-hero); }
   .rpt-fact-sub::before { content: ""; }
   .rpt-fact-sub { display: block; }
   .rpt-figures { --cells: 2; }
