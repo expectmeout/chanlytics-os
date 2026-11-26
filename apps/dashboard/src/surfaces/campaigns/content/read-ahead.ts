@@ -4,7 +4,7 @@
  * visit (model/piece-open.ts piecesToReadAhead says which). A video's film is asked for only when it is played.
  */
 import { fileViewOf, type ContentMadeDto } from "@chanlytics/contracts";
-import { postShapeAddress } from "../../files/post-shapes";
+import { postShapeAddress } from "../../files/post/shapes";
 import { piecesToReadAhead } from "./model/piece-open";
 
 const readAlready = new Set<string>();

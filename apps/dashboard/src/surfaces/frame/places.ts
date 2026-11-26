@@ -12,8 +12,6 @@ export interface NavItem {
   hint?: string;
   urgent?: boolean;
   badge?: string | number | null;
-  expandable?: boolean;
-  children?: ReadonlyArray<{ id: string; label: string; badge?: string | number | null }>;
 }
 
 export const NAV_PRIMARY: readonly NavItem[] = [

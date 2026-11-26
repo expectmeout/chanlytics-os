@@ -71,8 +71,6 @@ async function undoableByMessage(ctx: RouteContext, rows: ReplyListRow[]): Promi
   return new Set(answers.filter(([, why]) => why === null).map(([id]) => id));
 }
 
-const DRAFT_STATES = new Set(["none", "waiting", "written", "not_written"]);
-
 /** What the reading's plan (contracts ReadingPlan, kept as JSON) says the page needs: what a no stopped, the step's day. */
 function planFacts(plan: Json): Pick<ReachOutReplyDto, "said_no" | "step_day"> {
   const p = plan && typeof plan === "object" && !Array.isArray(plan) ? plan : {};
@@ -119,8 +117,8 @@ export async function listReplies(
       message_id: row.message_id,
       conversation_id: row.conversation_id,
       read_at: row.read_at,
-      intent: row.intent as ReachOutReplyDto["intent"], // the table's check holds it to REPLY_INTENTS
-      claim: row.claim as ReachOutReplyDto["claim"], // and this to the three claims
+      intent: row.intent,
+      claim: row.claim,
       summary: row.summary,
       named_day: row.named_day,
       refer_to: row.refer_to,
@@ -130,7 +128,7 @@ export async function listReplies(
       undone: row.undone_at !== null,
       can_undo: undoable.has(row.message_id),
       draft: row.draft,
-      draft_state: DRAFT_STATES.has(row.draft_state) ? (row.draft_state as ReachOutReplyDto["draft_state"]) : "none",
+      draft_state: row.draft_state,
       draft_why: isDraftWhy(row.draft_why) ? row.draft_why : null,
       business: row.business,
       chain,

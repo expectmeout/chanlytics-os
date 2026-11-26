@@ -11,9 +11,10 @@ import "server-only";
 import {
   REWRITE_STEPS,
   SECOND_MS,
+  isOneOf,
+  recordOrEmpty,
   type ReachOutCheckLine,
   type ReachOutOpeningDto,
-  type RewriteStep,
 } from "@chanlytics/contracts";
 import { sendOpeningsOf, undoSendRewrite } from "@chanlytics/db/campaigns";
 import { deployment } from "@/server/shared/env";
@@ -28,8 +29,6 @@ const CHECK_NOW_MS = 20 * SECOND_MS;
 
 /** The edge's door for a pressed check. */
 const CHECK_DOOR = "/api/admin/reach-out/check";
-
-const STEPS = new Set<string>(REWRITE_STEPS);
 
 /** How the emails stand now, as the page reads them. */
 const openingsOf = (ctx: RouteContext, tenantId: TenantId, ids: string[]): Promise<ReachOutOpeningDto[]> =>
@@ -78,16 +77,15 @@ async function relaySteps(
     const decoder = new TextDecoder();
     let carry = "";
     const take = (raw: string) => {
-      let line: { t?: unknown; send_id?: unknown; step?: unknown };
+      let line: Record<string, unknown>;
       try {
-        line = JSON.parse(raw) as typeof line;
+        line = recordOrEmpty(JSON.parse(raw));
       } catch {
         // Not JSON: nothing to read.
         return;
       }
       if (line.t !== "step" || typeof line.send_id !== "string" || !seen.has(line.send_id)) return;
-      if (typeof line.step === "string" && STEPS.has(line.step))
-        send({ t: "step", send_id: line.send_id, step: line.step as RewriteStep });
+      if (isOneOf(REWRITE_STEPS, line.step)) send({ t: "step", send_id: line.send_id, step: line.step });
     };
     for (;;) {
       const { value, done } = await reader.read();

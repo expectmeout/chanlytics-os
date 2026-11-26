@@ -107,16 +107,16 @@ function lineSizeOf(line: string, voice: PostVoice): number {
 
 /** A colour's share of light, by WCAG's reckoning. */
 function luminanceOf(color: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => {
-    const v = parseInt(color.slice(i, i + 2), 16) / 255;
+  const share = (at: number) => {
+    const v = parseInt(color.slice(at, at + 2), 16) / 255;
     return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  }) as [number, number, number];
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  return 0.2126 * share(1) + 0.7152 * share(3) + 0.0722 * share(5);
 }
 
 const contrastOf = (a: string, b: string): number => {
-  const [hi, lo] = [luminanceOf(a), luminanceOf(b)].sort((x, y) => y - x) as [number, number];
-  return (hi + 0.05) / (lo + 0.05);
+  const [one, two] = [luminanceOf(a), luminanceOf(b)];
+  return (Math.max(one, two) + 0.05) / (Math.min(one, two) + 0.05);
 };
 
 /** The ink that reads on a colour: black or white, whichever stands further from it. */

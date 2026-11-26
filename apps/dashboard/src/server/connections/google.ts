@@ -18,6 +18,7 @@ import {
   type GoogleListingFacts,
   DAY_MS,
   DbFailure,
+  isObjectRecord,
 } from "@chanlytics/contracts";
 
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
@@ -183,5 +184,8 @@ export function afterGoogle(
 type ReadOutcome = { ok: true; fresh: number; counted: number } | { ok: false; error: string };
 
 export function readOutcome(value: unknown): ReadOutcome | null {
-  return value && typeof value === "object" ? (value as ReadOutcome) : null;
+  return isReadOutcome(value) ? value : null;
 }
+
+/** The edge's word as it says it, whichever it is: an answer with its `ok` said. */
+const isReadOutcome = (value: unknown): value is ReadOutcome => isObjectRecord(value) && typeof value.ok === "boolean";
