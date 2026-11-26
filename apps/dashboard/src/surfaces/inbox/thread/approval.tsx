@@ -10,7 +10,7 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { confTone, fmtDelta, ROUTES } from "../constants";
-import { gate, ixKeyPress, navigate } from "../shell";
+import { gate, keyPress, navigate } from "../shell";
 import type { Approval, Evidence, NextStep, Thread, Verdict, VerdictOption } from "../types";
 import { Button } from "../../kit/button/button";
 
@@ -185,7 +185,7 @@ function evidenceRow(e: Evidence, i: number) {
       key={i}
       className={`ix-evid ${e.to ? "linked" : ""}`}
       onClick={to ? () => navigate(to) : undefined}
-      onKeyDown={to ? ixKeyPress(() => navigate(to)) : undefined}
+      onKeyDown={to ? keyPress(() => navigate(to)) : undefined}
       role={e.to ? "button" : undefined}
       tabIndex={e.to ? 0 : undefined}
     >

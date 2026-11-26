@@ -25,7 +25,7 @@ import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { holderName } from "../../holder-names";
 import { ixMoveOf, ixMoveWaited, ixWaitSaid } from "../rules";
-import { hasRouteDoor, ixRouteDoor } from "../shell";
+import { hasRouteDoor, routeDoor } from "../shell";
 import type { RealThread, Thread } from "../types";
 import { channelIconOf } from "./timeline";
 import { visitWordHere } from "../../workspace-word";
@@ -84,7 +84,7 @@ export const IxWho = (p: IxWhoProps) => {
       </div>
     );
   return (
-    <a className="ix-th-who" {...ixRouteDoor(to, go)} data-tip={`Open ${who} in People`} data-testid="ix-th-person">
+    <a className="ix-th-who" {...routeDoor(to, go)} data-tip={`Open ${who} in People`} data-testid="ix-th-person">
       {face}
       <div className="ix-th-id">{children}</div>
     </a>
