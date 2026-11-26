@@ -6617,6 +6617,9 @@ begin
          control_ref   = p_ref,
          control_until = now() + make_interval(secs => p_seconds)
    where id = p_conversation_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_live and v_same then 'renewed' else 'claimed' end, 'holder', p_kind, 'by', p_by, 'seconds', p_seconds)));
   -- Renewed is the same holder going on; taking one from somebody else is a
   -- claim, and the caller is owed the difference -- it is the line in the log
   -- that says a person stepped into a call.
@@ -8337,6 +8340,12 @@ begin
   -- Opened, never touched: last_message_at is the message's to stamp, when one lands.
   insert into public.conversations (tenant_id, contact_id) values (p_tenant_id, p_contact_id)
   on conflict (tenant_id, contact_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select c.tenant_id, 'conversation.opened', 'message', 'conversation', c.id,
+           jsonb_build_object('contact_id', p_contact_id, 'by', auth.uid())
+      from public.conversations c where c.tenant_id = p_tenant_id and c.contact_id = p_contact_id;
+  end if;
   select id into v_conversation from public.conversations
    where tenant_id = p_tenant_id and contact_id = p_contact_id;
   return v_conversation;
@@ -8521,6 +8530,9 @@ begin
   if v_id is null then
     return false;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.set_aside', 'message', 'conversation', v_id,
+          jsonb_strip_nulls(jsonb_build_object('why', p_why, 'by', auth.uid())));
   -- The platform's own close, as a reading's is: no member is named as resolving it, and no decision is recorded.
   update public.escalations
      set state = 'resolved'
@@ -39953,6 +39965,11 @@ begin
      and control_by is not distinct from p_by
      and control_ref is not distinct from p_ref;
   get diagnostics v_released = row_count;
+  if v_released > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'released', 'holder', p_kind, 'by', p_by)));
+  end if;
   return v_released > 0;
 end $$;
 

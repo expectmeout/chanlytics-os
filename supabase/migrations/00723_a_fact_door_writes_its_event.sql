@@ -2546,3 +2546,185 @@ begin
           jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'reach_out', true, 'steps', cardinality(v_steps), 'by', auth.uid())));
   return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
 end $$;
+/* -- a thread: who holds it, opened, set aside, its handovers closed by an echo: each with its event -- */
+
+-- A thread's control claimed and released (a person, a call; take over and hand back ride them), a thread opened for
+-- a person, one set aside now write
+-- conversation.control_moved, conversation.opened or conversation.set_aside in their own transaction (a handover
+-- closed by the owner's echo is told by the escalation's own trigger, escalation.changed). All are kept from Activity's rows: the Inbox says each thread as it stands.
+
+-- claim_conversation_control
+CREATE OR REPLACE FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+  v_kind  text;
+  v_by    uuid;
+  v_ref   text;
+  v_until timestamptz;
+  v_same  boolean;
+  v_live  boolean;
+begin
+  if v_member then
+    if p_kind is distinct from 'person' or p_by is distinct from auth.uid()
+       or p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_kind not in ('person', 'call') then
+    raise exception 'control kind must be person or call' using errcode = '22023';
+  end if;
+  if p_seconds is null or p_seconds < 1 or p_seconds > 86400 then
+    raise exception 'a hold lasts between a second and a day' using errcode = '22023';
+  end if;
+  -- FOR UPDATE, so two claimants in the same instant are decided by the
+  -- database and not by whichever of them read first. That is the whole point
+  -- of the function: the same question asked as a select and then an update
+  -- lets both callers believe the thread was free.
+  select c.control_kind, c.control_by, c.control_ref, c.control_until
+    into v_kind, v_by, v_ref, v_until
+    from conversations c
+   where c.id = p_conversation_id and c.tenant_id = p_tenant_id
+     for update;
+  if not found then
+    return 'gone';
+  end if;
+  -- A live hold, and whose it is decides what happens next.
+  --
+  --   the same holder    renewing, not competing. A call sends an event every
+  --                      few turns, and that is what keeps a long call from
+  --                      lapsing mid-sentence.
+  --   a person claiming  takes it, always. A person stepping in outranks the
+  --                      machine -- that is what stepping in MEANS -- and a
+  --                      colleague is not locked out of a thread by another
+  --                      colleague. Coordinating between people is theirs to
+  --                      do; this fact exists to keep the machine off.
+  --   a call claiming    never takes a hold somebody else has. The call still
+  --                      happens; it simply does not get to say the thread is
+  --                      its own while a person is on it.
+  v_live := v_until is not null and v_until >= now();
+  v_same := v_kind = p_kind and v_by is not distinct from p_by and v_ref is not distinct from p_ref;
+  if v_live and not v_same and p_kind <> 'person' then
+    return 'held';
+  end if;
+  update conversations
+     set control_kind  = p_kind,
+         control_by    = p_by,
+         control_ref   = p_ref,
+         control_until = now() + make_interval(secs => p_seconds)
+   where id = p_conversation_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_live and v_same then 'renewed' else 'claimed' end, 'holder', p_kind, 'by', p_by, 'seconds', p_seconds)));
+  -- Renewed is the same holder going on; taking one from somebody else is a
+  -- claim, and the caller is owed the difference -- it is the line in the log
+  -- that says a person stepped into a call.
+  return case when v_live and v_same then 'renewed' else 'claimed' end;
+end $$;
+
+-- release_conversation_control
+CREATE OR REPLACE FUNCTION public.release_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_released integer;
+begin
+  update conversations
+     set control_kind = null, control_by = null, control_ref = null, control_until = null
+   where id = p_conversation_id
+     and tenant_id = p_tenant_id
+     and control_kind = p_kind
+     and control_by is not distinct from p_by
+     and control_ref is not distinct from p_ref;
+  get diagnostics v_released = row_count;
+  if v_released > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'released', 'holder', p_kind, 'by', p_by)));
+  end if;
+  return v_released > 0;
+end $$;
+
+-- conversation_open
+CREATE OR REPLACE FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_conversation uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- This workspace's person, still here: not forgotten, not being forgotten, not folded into another.
+  if not exists (
+    select 1 from public.contacts c
+     where c.id = p_contact_id and c.tenant_id = p_tenant_id
+       and c.erased_at is null and c.erasing_since is null and c.merged_into_contact_id is null
+  ) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  -- Opened, never touched: last_message_at is the message's to stamp, when one lands.
+  insert into public.conversations (tenant_id, contact_id) values (p_tenant_id, p_contact_id)
+  on conflict (tenant_id, contact_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select c.tenant_id, 'conversation.opened', 'message', 'conversation', c.id,
+           jsonb_build_object('contact_id', p_contact_id, 'by', auth.uid())
+      from public.conversations c where c.tenant_id = p_tenant_id and c.contact_id = p_contact_id;
+  end if;
+  select id into v_conversation from public.conversations
+   where tenant_id = p_tenant_id and contact_id = p_contact_id;
+  return v_conversation;
+end $$;
+
+-- conversation_set_aside
+CREATE OR REPLACE FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+  v_id uuid;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_why is null or p_why not in ('pitch', 'notice') then
+    raise exception 'conversation_set_aside: a thread is set aside as a pitch or a notice' using errcode = '22023';
+  end if;
+  -- contracts' archive move, whole, and what it was set aside as. A thread someone already has is theirs, and is left alone.
+  update public.conversations
+     set state = 'archived', paused_until = null, snooze_until = null, assignee_user_id = null,
+         set_aside_at = now(), set_aside_why = p_why
+   where id = p_conversation_id and tenant_id = p_tenant_id and assignee_user_id is null
+  returning id into v_id;
+  if v_id is null then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.set_aside', 'message', 'conversation', v_id,
+          jsonb_strip_nulls(jsonb_build_object('why', p_why, 'by', auth.uid())));
+  -- The platform's own close, as a reading's is: no member is named as resolving it, and no decision is recorded.
+  update public.escalations
+     set state = 'resolved'
+   where conversation_id = p_conversation_id and tenant_id = p_tenant_id and state = 'open';
+  return true;
+end $$;
