@@ -99,7 +99,7 @@ test("back from Meta's window the card checks, line by line, and has no press", 
   assert.equal(checking.whatsapp, null, "nothing is said of WhatsApp before an account is read");
 });
 
-test("connected and ready: who Meta charges, the Page, Meta's own limit, and nothing missing", () => {
+test("connected and ready: the ad account, its Page, Meta's limit, where people reach you, and nothing missing", () => {
   const ready = card(account());
   assert.deepEqual(
     [ready.state, ready.word, ready.ready, ready.need, ready.button],
@@ -108,11 +108,16 @@ test("connected and ready: who Meta charges, the Page, Meta's own limit, and not
   assert.deepEqual(
     ready.facts.map((fact) => [fact.label, fact.value, fact.door?.words ?? null]),
     [
-      ["Meta charges", "Harbor · US dollars", null],
-      ["Runs as", "Harbor Nails", null],
-      ["Meta's limit", "None", "Set one in Meta"],
+      ["Ad account", "Harbor · US dollars", null],
+      ["Page", "Harbor Nails", null],
+      ["Spending limit", "None", "Set in Meta"],
     ],
   );
+  // Where the people an ad brings reach the business: the number AI answers, and what is known of the Page's link to it.
+  assert.deepEqual(ready.reach, [
+    { label: "WhatsApp", value: "+1 (555) 010-0142", note: "Meta checks it's linked when an ad is made", door: null },
+    { label: "Instagram", value: "None linked", door: null },
+  ]);
   assert.match(ready.facts.at(2).door.href, /^https:\/\/business\.facebook\.com\//);
   assert.equal(ready.connectedOn, "Connected Wed 18 Nov");
   assert.equal(
@@ -121,6 +126,7 @@ test("connected and ready: who Meta charges, the Page, Meta's own limit, and not
   );
   const limited = card(account({ spend_limit_minor: 50000, instagram_handle: "harbor.nails" }));
   assert.deepEqual([limited.facts.at(2).value, limited.facts.at(2).door], ["$500", null]);
+  assert.deepEqual(limited.reach.at(-1), { label: "Instagram", value: "@harbor.nails", door: null });
   assert.match(limited.quiet, /Your Page is linked to @harbor\.nails on Instagram\.$/);
 });
 

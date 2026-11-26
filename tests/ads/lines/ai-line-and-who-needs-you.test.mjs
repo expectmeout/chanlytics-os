@@ -282,7 +282,7 @@ test("no ads at all, on a ready account: AI proposes the first, opening New ad, 
   const vm = liveModel(page(), SAID);
   assert.deepEqual(vm.ai, {
     kind: "first",
-    text: "Make your first ad? AI writes it, and nothing runs until you turn it on.",
+    text: "Make your first ad with AI",
     route: "campaigns/ads:new",
   });
   assert.equal(vm.empty, "Meta shows no ads in this ad account yet.");
@@ -292,7 +292,7 @@ test("no ads at all, on a ready account: AI proposes the first, opening New ad, 
 test("ads made in Meta and none made here: AI proposes the first one here", () => {
   const vm = liveModel(page({ ads: [ad("spring"), ad("old", { state: "paused" })] }), SAID);
   assert.equal(vm.ai.kind, "first");
-  assert.equal(vm.ai.text, "Make your first ad here? AI writes it, and nothing runs until you turn it on.");
+  assert.equal(vm.ai.text, "Make your first ad here with AI");
 });
 
 test("AI says nothing of a first ad once one was made here, where the card is not ready, or before the account is read", () => {

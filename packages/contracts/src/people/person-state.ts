@@ -45,7 +45,7 @@ export const PEOPLE_TABS: readonly { id: "all" | PersonState; label: string }[] 
   { id: "active", label: "Active" },
 ];
 /** First contact this many of the workspace's days ago or fewer, on a real date, is "new" (New this week's rule). */
-export const NEW_WINDOW_DAYS = 7;
+const NEW_WINDOW_DAYS = 7;
 /** Heard from, then nothing from them for more than this many days, is "quiet" (Quiet 30+ days' rule). */
 export const QUIET_AFTER_DAYS = 30;
 
@@ -86,7 +86,7 @@ export function personStanding(standing: StandingRow, nowMs: number, viewerId: s
  * working is no claim: the receptionist answers it. With no one looking a claim reads as yours (standing.ts reads an
  * unknown so). People's Needs you and You have it lists, and the row's pill, are this.
  */
-export function attentionOf(
+function attentionOf(
   person: PersonRowDto,
   nowMs: number,
   viewerId: string | null = null,

@@ -59,8 +59,7 @@ export function siteReachOf(answers: Record<string, unknown>): {
  * Where a site stands, from what came from it: waiting for its first entry, a test received and nothing real yet,
  * receiving, or nothing lately (no real entry for SITE_QUIET_DAYS, which is no fault: a quiet site is a quiet site).
  */
-export const FORM_SITE_STANDINGS = ["waiting", "test", "receiving", "quiet"] as const;
-export type FormSiteStanding = (typeof FORM_SITE_STANDINGS)[number];
+export type FormSiteStanding = "waiting" | "test" | "receiving" | "quiet";
 
 /** How long a site may send nothing before it stands at "nothing lately". */
 export const SITE_QUIET_DAYS = 30;

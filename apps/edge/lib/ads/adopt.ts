@@ -149,6 +149,8 @@ export function dayRowsOf(days: readonly MetaAdDay[], doors: ReadonlyMap<string,
       impressions: day.impressions,
       clicks: day.clicks,
       platform_results: chats ? day.conversations : door === "form" ? day.leads : null,
+      // What the day did, as Meta counts it (00719): kept for every ad, a post's ad above all; left out where it counted none.
+      ...(day.engaged ? { engaged: { ...day.engaged } } : {}),
     };
   });
 }

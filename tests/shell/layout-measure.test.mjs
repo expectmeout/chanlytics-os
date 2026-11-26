@@ -267,7 +267,7 @@ test("digits in a column line up without being asked", () => {
   const components = COMPONENTS;
   assert.match(
     components,
-    /\.tbl th, \.tbl td, \.cl-table th, \.cl-table td \{ font-variant-numeric: tabular-nums; \}/,
+    /\.cl-table th, \.cl-table td \{ font-variant-numeric: tabular-nums; \}/,
     "the cell decides, not the call site",
   );
   assert.ok(

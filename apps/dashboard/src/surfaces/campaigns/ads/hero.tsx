@@ -4,7 +4,6 @@
  * card (connect/card.tsx). Nothing here draws a figure, a cost or a per-ad count Chanlytics cannot support.
  */
 import type { ReactNode } from "react";
-import { CARD } from "./connect/words";
 import { V0 } from "./model/words-page";
 import type { V0VM } from "./model/page-v0";
 import { BarList } from "../../kit/charts/bar";
@@ -60,7 +59,7 @@ function V0Lead({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
 
 /**
  * Today, before any ad is read: the hero and its rows at the left; at the right the ad account's card (connect/card.tsx),
- * which says where the connection stands, and the quiet line for the platforms that come later.
+ * which says where the connection stands.
  */
 export function V0Page({ v0, touch, card }: { v0: V0VM; touch: FirstTouchHere; card: ReactNode }) {
   return (
@@ -91,12 +90,7 @@ export function V0Page({ v0, touch, card }: { v0: V0VM; touch: FirstTouchHere; c
           {v0.door.words} <Icon name="chevron" size={12} />
         </LinkButton>
       </section>
-      <section className="ads-hero-side">
-        {card}
-        <p className="ads-conn-later" data-testid="ads-later">
-          {CARD.later}
-        </p>
-      </section>
+      <section className="ads-hero-side">{card}</section>
     </div>
   );
 }

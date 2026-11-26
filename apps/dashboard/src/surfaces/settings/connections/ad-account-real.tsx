@@ -74,7 +74,7 @@ function AdsBelow({ vm, acts, stop }: { vm: ConnectCardVM; acts: AdCardActs; sto
   if (!vm.need && !vm.question && !stop && vm.state !== "checking" && !stale) return null;
   return (
     <div className="set-int-open conn-ads-below" data-testid="conn-ads-below">
-      {vm.state === "checking" ? <CardChecks checks={vm.checks} neededFor={false} /> : null}
+      {vm.state === "checking" ? <CardChecks checks={vm.checks} /> : null}
       {stale}
       {stop ? <StopNotice stop={stop} className="ads-conn-need" /> : null}
       {vm.need ? <CardNeed need={vm.need} onConnect={acts.connect} /> : null}

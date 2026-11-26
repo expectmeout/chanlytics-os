@@ -37,11 +37,8 @@ export { PROPOSAL_SPECS, proposalBelowNeeds } from "./proposals";
 export type { ProposalKindAboveOperator } from "./proposals";
 export {
   ASK_ALONE_MANY_MAX,
-  ASK_CARD_SHAPES,
   ASK_KIND_TRAITS,
-  ASK_PRESS_WORDS,
   ASK_PUBLIC_HOLD_MS,
-  ASK_REACHES,
   askCardHasWords,
   askPressCount,
   askPressOf,
