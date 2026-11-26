@@ -65,3 +65,41 @@ page), `tests/shell/own-route.test.mjs` (a page's own-route call), and each move
   "The operation was aborted due to timeout"; an unreachable edge's carries the network's cause beside its message. Each
   caller words the code itself.
 - A failed note of the cap is said and gone past; the line is written first.
+
+## What the rule reads, 26 November 2026 (round three of the code refinement)
+
+Written against main at `9131fdef1b`. The rule's check (`fetchesIn`) counted a bare `fetch(…)` and `globalThis.fetch(…)`
+only, so it read none past the door while 21 modules of `apps` and `packages` wrote `fetch(`. Read one by one:
+
+- **Ten made no call out.** Two were comments: `apps/dashboard/proxy.ts`, and the edge's alert mail, which already leaves
+  through `fetchFromProvider("resend")`. Four were a port's method named `fetch`: jobs' `booking-read.ts`,
+  `incoming-email.ts` and `handlers.ts`, and core's `messages/email-ingest.ts`. One was a fetch handed in: contracts'
+  `calendar/feed-url.ts` `fetchPublic`, which every caller hands channels' `publicFetcher`. Two were the browser's own
+  script inside a string: a website form's post (`server/public/form-draw.ts`) and the document head's first reads
+  (`shell/route-prefetch.ts`). The tenth was relay's second proof script.
+- **Six were named already:** relay, the phone app and the Google button.
+- **The browser's own calls went unseen:** `window.fetch` in the API client's transport (`bridge/api.ts`), the preview
+  claim and the files' byte transfers, and `globalThis.fetch` handed on in `client/own-route.ts`.
+
+So the check now counts **every reach for the global fetch**: a call of it, the function handed on (`deps.fetch ?? fetch`,
+`client(fetch, token)`, a default `fetchImpl = fetch`), and `window.fetch`, `self.fetch` or `globalThis.fetch` in any
+place. A key, a method signature, `typeof fetch` and a module's own `fetch` binding are names, and are not counted.
+Read that way, five server modules handed the global fetch on:
+
+- The edge's Apify clients (`leads/wires.ts`, `leads/sources.ts`) and Expo's push client (`ops/push.ts`) handed it to
+  clients that already leave through `fetchFromProvider`, whose own default is that same fetch. They hand it nothing now:
+  a test's stand-in is still taken, and nothing else changes.
+- db's transport (`shared/observe.ts` `namedFetch`, `shared/service-client.ts` `boundedFetch`) is supabase-js's way to
+  PostgREST and auth. It is bounded and timed under `db`. db leans on contracts alone (decision 0110), so it cannot reach
+  channels' door, and a read of our own database is no call out. **Named, with that reason.**
+
+In the browser, the two pages that wrote their own fetch for a route of ours, the preview claim (`auth/preview-claim.ts`)
+and the waitlist (`bridge/waitlist.ts`), now ask through `askOwnRoute`. The page's two clients (`bridge/api.ts`,
+`client/own-route.ts`) are named as what they are. So are the two byte transfers that go from the browser to a store at
+an address their route gave: a photo's PUT to the bucket with a kept file read as a blob (`surfaces/files/verbs.ts`), and
+a clip's resumable upload to Cloudflare Stream (`surfaces/files/video/send.ts`). No JSON client carries bytes, and the
+bytes never pass a server of ours. Twelve exceptions in all, each with its why; none past the door.
+
+`console` past the logger: the server's are 0 and the browser's go through its report seam (decision 0151). The three left
+are the phone app's (`app/_layout.tsx`, `shell/files.ts`, `shell/notifications.ts`). They are counted, and they wait for
+the phone app, which is paused.

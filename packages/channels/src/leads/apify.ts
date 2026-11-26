@@ -134,7 +134,7 @@ const latestBuildOf = (body: unknown): string | null =>
 
 /** One round trip: JSON out on 2xx; retryable on 429, 5xx or no answer; refused on any other 4xx, unless `allow` says that status is an answer. */
 async function apifyCall(
-  fetchImpl: typeof fetch,
+  fetchImpl: typeof fetch | undefined,
   url: string,
   init: RequestInit,
   allow: (status: number) => boolean = () => false,
@@ -160,7 +160,8 @@ async function apifyCall(
   throw new ApifyRefused(res.status, `the provider refused: ${type}${said ? ` (${said})` : ""}`);
 }
 
-export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient {
+/** Apify's client over channels' door: `fetchImpl` stands in for the network in a test, and is the door's own fetch unset. */
+export function apifyClient(fetchImpl: typeof fetch | undefined, token: string): ApifyClient {
   const headers = (json: boolean): Record<string, string> => ({
     Authorization: `Bearer ${token}`,
     ...(json ? { "content-type": "application/json" } : {}),
