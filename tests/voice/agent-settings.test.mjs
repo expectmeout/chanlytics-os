@@ -16,6 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   planAgentSettings,
+  getAgent,
   agentSettingsDrift,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
@@ -32,7 +33,6 @@ import {
   CALL_LIMITS,
 } from "@chanlytics/channels/voice";
 import { RETELL_MODELS } from "@chanlytics/contracts";
-import { readCode } from "../_source.mjs";
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
@@ -172,22 +172,22 @@ test("retention is the product's week unless the converger is told a number, and
   assert.ok(bad.drift[0].includes("1 to 730"));
 });
 
-test("the converger, the diagnostic and the provisioning script all read the same plan", () => {
+test("the converger, the diagnostic and the provisioning script all read the same plan", async () => {
   // The laptop converger is a thin client of the edge's door (decision 0092): the provider key lives on the edge alone,
   // and the plan is the door's (planAgentSettings and planVoiceConvergence, in apps/edge/lib/voice/voice-converge.ts).
-  const converge = readCode("tooling/scripts/ops/voice/voice-converge.mjs");
-  assert.ok(!converge.includes("RETELL_API_KEY"), "no provider key on a laptop");
-  assert.ok(converge.includes('const DOOR = "/api/admin/voice-converge";'));
-  assert.ok(
-    converge.includes("signEdgeToken(SECRET, DOOR, { body })"),
-    "a token for this door that names no workspace",
-  );
-  // The door's plan, its shell beside it and the draft made before any patch lands are run in voice-doors.test.mjs.
-  // The diagnostic's agent-settings drift is run in diag-door.test.mjs.
-  const adapter = ["packages/channels/src/voice/retell/calls.ts", "packages/channels/src/voice/retell/agents.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(adapter.includes('data_storage_retention_days: num("data_storage_retention_days")'));
+  // The laptop script asks the door with a token for its body that names no workspace, and holds no provider key: run
+  // against a local door in voice-pipeline.test.mjs (pinned as the script's text until 26 Nov 2026). The door's plan,
+  // its shell beside it and the draft made before any patch lands are run in voice-doors.test.mjs; the diagnostic's
+  // agent-settings drift in diag-door.test.mjs.
+  // The adapter reads the retention the converger keeps (pinned as agents.ts's text until 26 Nov 2026).
+  const real = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ agent_id: "agent_x", data_storage_retention_days: 30 }), { status: 200 });
+  try {
+    assert.equal((await getAgent({ apiKey: "k" }, "agent_x")).data_storage_retention_days, 30);
+  } finally {
+    globalThis.fetch = real;
+  }
   // Provisioning creates the agent with the same settings the converger keeps.
   const created = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);
   assert.deepEqual(created.webhook_events, ["call_started", "call_ended", "call_analyzed", "transcript_updated"]);
