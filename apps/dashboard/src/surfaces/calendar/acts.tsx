@@ -10,6 +10,7 @@ import { OWN_TOUCH } from "../kit/view-tabs/own-touch";
 import type { ViewPage } from "../kit/view-tabs/pager";
 import { flushChange } from "./shell-verbs";
 import { calendar } from "./verbs";
+import { answersClosest } from "../dom-reads";
 
 type Flash = ReturnType<typeof useFrameToast>[1];
 
@@ -62,8 +63,7 @@ export function refreshAct(p: { refreshing: boolean; setRefreshing: (on: boolean
  */
 export function swipePagesOf(move: (n: number) => void) {
   return (el: Element, from: EventTarget | null): ViewPage | null => {
-    const near = from as { closest?: (selector: string) => unknown } | null;
-    const owner = near && near.closest ? near.closest(OWN_TOUCH) : null;
+    const owner = answersClosest(from) ? from.closest(OWN_TOUCH) : null;
     return owner && owner !== el
       ? null
       : { prev: true, next: true, drag: stayPut, settle: stayPut, go: (step) => flushChange(() => move(step)) };

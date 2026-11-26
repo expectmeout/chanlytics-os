@@ -12,6 +12,8 @@ import {
   overLimitRefusal,
   reachAfterBreath,
   readyForMessage,
+  listOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { AskedPurpose, AudiencePreview, ConsentChannel, ParamSourceKind } from "@chanlytics/contracts";
 import { sameChannels } from "@/lib/campaign-channels";
@@ -192,6 +194,18 @@ export function bcReachOf({
 }
 
 // What each slot of the message may take, and what it takes now.
+/** A template's variable as a slot reads it: its place, its label and its example, each where it is of its kind. */
+function bcSlotVarOf(variable: unknown): BcSlotVar {
+  const position = valueAt(variable, "position");
+  const label = valueAt(variable, "label");
+  const example = valueAt(variable, "example");
+  return {
+    ...(typeof position === "number" ? { position } : {}),
+    ...(typeof label === "string" ? { label } : {}),
+    ...(typeof example === "string" || typeof example === "number" ? { example } : {}),
+  };
+}
+
 export function bcSlotChoicesOf({
   tpl,
   link,
@@ -200,7 +214,7 @@ export function bcSlotChoicesOf({
   tplId,
   data,
 }: Pick<BcBase, "link" | "review" | "sources" | "tplId" | "data"> & Pick<BcReach, "tpl">): BcSlotChoices {
-  const vars = tpl && Array.isArray(tpl.variables) ? (tpl.variables as BcSlotVar[]) : [];
+  const vars = tpl ? listOrEmpty(tpl.variables).map(bcSlotVarOf) : [];
   const SRC = starters.sources;
   const HINTS = starters.sourceHints;
   // What each slot may take, its default first: a starter's slots come filled in,
@@ -343,7 +357,10 @@ export function bcSlotWordsOf({
   const previewValues = vars.map((v, i) =>
     srcOf(i) === "text" ? typed[i]?.trim() || `[${labels[i] ?? ""}]` : exampleOf(srcOf(i)),
   );
-  const specs = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i] ?? "").trim() : { kind: srcOf(i) }));
+  const specs = vars.map((v, i) => {
+    const source = srcOf(i);
+    return source === "text" ? (typed[i] ?? "").trim() : { kind: source };
+  });
   // Nothing stops it, and it is not already on its way. What is said while something does is the same call's answer: one
   // reading, of who it sends to at the time it goes (the time picked, else now), for the one act the foot draws.
   const say = bcStopOf({

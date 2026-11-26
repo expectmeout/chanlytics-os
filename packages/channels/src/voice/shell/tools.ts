@@ -8,6 +8,7 @@ import {
   MIN_MS,
   POLICY_COVERS,
   SECOND_MS,
+  isObjectRecord,
   recordOrEmpty,
 } from "@chanlytics/contracts";
 
@@ -147,6 +148,14 @@ function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, string> 
   ];
 }
 
+/** A provider's table of words (a tool's headers, an agent's variables): its entries that are words, or null for no table. */
+export function wordsTableOf(value: unknown): Record<string, string> | null {
+  if (!isObjectRecord(value)) return null;
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
+}
+
 /** The whole target: what a converged agent's LLM holds. */
 export function desiredVoiceShell(fnUrl: string, bookingHeaders?: Record<string, string> | null): VoiceShellTarget {
   return {
@@ -225,9 +234,7 @@ export function subsetEqual(live: unknown, desired: unknown): boolean {
   if (Array.isArray(desired)) return stableJson(live) === stableJson(desired);
   if (desired && typeof desired === "object") {
     if (!live || typeof live !== "object" || Array.isArray(live)) return false;
-    return Object.entries(recordOrEmpty(desired)).every(([k, v]) =>
-      subsetEqual((live as Record<string, unknown>)[k], v),
-    );
+    return Object.entries(recordOrEmpty(desired)).every(([k, v]) => subsetEqual(recordOrEmpty(live)[k], v));
   }
   return stableJson(live) === stableJson(desired);
 }

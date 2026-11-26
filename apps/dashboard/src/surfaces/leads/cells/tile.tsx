@@ -24,7 +24,7 @@ export const LeadTile = ({
   const cls = "ld-tile";
   // Its size as the caller asks it, said as a property the stylesheet reads (leads.css .ld-tile), so a table at its
   // compact height can set its own over it: a width written here outranks every rule.
-  const sized = { "--tile": `${size}px` } as CSSProperties;
+  const sized: CSSProperties = { "--tile": `${size}px` };
   const layers = (
     <>
       {l.tile.image ? (

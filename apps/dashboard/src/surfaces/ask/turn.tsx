@@ -399,8 +399,8 @@ export const AskTurn = ({
   }
   const drawn: DrawnAnswer = quick
     ? { answer: quick, cardOpen: {} }
-    : A && A.answer
-      ? A.answer(m as AskMessageDto)
+    : A && m
+      ? A.answer(m)
       : { answer: atProse(m, lang), cardOpen: {} };
   const failed = !!(m && m.failed);
   return (

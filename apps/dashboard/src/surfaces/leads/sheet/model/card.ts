@@ -9,7 +9,7 @@
  *   leadSheetWhyOf          Fit's checks: the exceptions with why, then the passed ones, and the legend
  */
 import type { LeadCheckKey, LeadPeekVM } from "@chanlytics/contracts";
-import { LEAD_READ_SOURCES } from "@chanlytics/contracts";
+import { LEAD_READ_SOURCES, entryOf } from "@chanlytics/contracts";
 
 /** What the sheet says of its checks. */
 export const LEAD_SHEET_CARD_WORDS = {
@@ -38,13 +38,13 @@ const UNSURE_WORDS: Partial<Record<LeadCheckKey, string>> = {
 
 /** What couldn't be told, said in a word beside others ("area, phone"), where its short words have one. */
 const unsureWordOf = (key: string): string | null => {
-  const short = UNSURE_WORDS[key as LeadCheckKey];
+  const short = entryOf(UNSURE_WORDS, key);
   return short ? (short.replace(/ (not confirmed|unclear)$/, "") ?? null) : null;
 };
 
 /** A check that did not pass, as Fit's row says it first: what is not so, in its short words, capitalized. */
 export const leadSheetExceptionWords = (key: string, label: string): string => {
-  const short = UNSURE_WORDS[key as LeadCheckKey];
+  const short = entryOf(UNSURE_WORDS, key);
   return short ? short.charAt(0).toUpperCase() + short.slice(1) : label;
 };
 
@@ -103,7 +103,7 @@ function exceptionOf(checks: LeadSheetCheckVM[]): string | null {
   if (!unsure.length && !failed.length) return null;
   if ([...unsure, ...failed].every((c) => REACH_CHECKS.has(c.key))) return null;
   const [only] = unsure;
-  const one = only && unsure.length === 1 && !failed.length ? UNSURE_WORDS[only.key as LeadCheckKey] : undefined;
+  const one = only && unsure.length === 1 && !failed.length ? entryOf(UNSURE_WORDS, only.key) : undefined;
   if (one) return one;
   const unsureWords = unsure.flatMap((c) => unsureWordOf(c.key) ?? []);
   return [

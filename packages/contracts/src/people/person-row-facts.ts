@@ -59,36 +59,40 @@ export function heardAt(person: PersonRowDto): number | null {
   return at.length ? Math.max(...at) : null;
 }
 
+/** A row with no message and no call on record. */
+const NO_CONTACT: PersonLastContact = {
+  ts: null,
+  at: null,
+  kind: null,
+  who: null,
+  by: "No contact recorded",
+  when: "",
+  label: "No contact recorded",
+};
+
+/** The row's last contact where it is a call, at its moment. */
+function callContactOf(person: PersonRowDto, lastCallMs: number, tz: string, nowMs: number): PersonLastContact {
+  // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
+  // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (above) already reads it this way.
+  const theirs = ts(person.last_inbound_call_at) === lastCallMs;
+  const by = theirs ? "Phoned" : "Called them";
+  const when = ago(lastCallMs, tz, nowMs);
+  return {
+    ts: lastCallMs,
+    at: person.last_call_at,
+    kind: "call",
+    who: theirs ? "they" : "system",
+    by,
+    when,
+    label: `${by} · ${when}`,
+  };
+}
+
 export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
   const result = ts(person.last_message_at);
   const lastCallMs = ts(person.last_call_at);
-  if (result === null && lastCallMs === null) {
-    return {
-      ts: null,
-      at: null,
-      kind: null,
-      who: null,
-      by: "No contact recorded",
-      when: "",
-      label: "No contact recorded",
-    };
-  }
-  if (lastCallMs !== null && (result === null || lastCallMs > result)) {
-    // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
-    // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (above) already reads it this way.
-    const theirs = ts(person.last_inbound_call_at) === lastCallMs;
-    const by = theirs ? "Phoned" : "Called them";
-    const when = ago(lastCallMs, tz, nowMs);
-    return {
-      ts: lastCallMs,
-      at: person.last_call_at,
-      kind: "call",
-      who: theirs ? "they" : "system",
-      by,
-      when,
-      label: `${by} · ${when}`,
-    };
-  }
+  if (result === null) return lastCallMs === null ? NO_CONTACT : callContactOf(person, lastCallMs, tz, nowMs);
+  if (lastCallMs !== null && lastCallMs > result) return callContactOf(person, lastCallMs, tz, nowMs);
   const lastContact: PersonLastContact["who"] =
     person.last_message_direction === "inbound"
       ? "they"
@@ -113,7 +117,7 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
             ? "AI replied"
             : "AI wrote"
           : "Chanlytics sent";
-  const when = ago(result as number, tz, nowMs);
+  const when = ago(result, tz, nowMs);
   return {
     ts: result,
     at: person.last_message_at,

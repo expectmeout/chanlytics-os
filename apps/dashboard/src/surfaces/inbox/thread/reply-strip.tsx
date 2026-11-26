@@ -10,7 +10,7 @@
  */
 import { useEffect, useReducer, useRef, useState } from "react";
 import { gate, refusalToast, useToast } from "../shell";
-import { detailField, repliesDoor, type StripThread } from "./shell-thread";
+import { detailField, repliesDoor } from "./shell-thread";
 import type { Thread } from "../types";
 import { Button } from "../../kit/button/button";
 import { StatePill } from "../../kit/pill/state-pill";
@@ -55,7 +55,7 @@ export const ReplyStrip = ({ thread }: { thread: Thread }) => {
   const [toastNode, flash] = useToast();
   const [busy, setBusy] = useState(false);
   const R = repliesDoor();
-  const shown = R && thread && thread.real ? R.stripFor(thread as StripThread) : null;
+  const shown = R && thread && thread.real ? R.stripFor(thread) : null;
   if (!R || !shown) return toastNode;
   const { reading, strip, fromLine } = shown;
   const putDraft = () =>

@@ -15,8 +15,12 @@ import type { Armed, DraftData, DraftState, LeadCourier, PeekActs, PeekPage, Sta
 const surfaceCourier: LeadCourier = {
   __leadStage: setLeadStage,
   __leadUndo: undoLeadOperation,
-  // The wire's own type wants a draft's words; the pane hands it what the page holds, and the route refuses what is not one.
-  __leadDraft: (id, input) => draftForLead(id, input as Parameters<typeof draftForLead>[1]),
+  // The wire's own type wants a draft's words; the pane hands it what the page holds, a part it has none of as no words.
+  __leadDraft: (id, { tone, previous }) =>
+    draftForLead(id, {
+      tone,
+      ...(previous ? { previous: { subject: previous.subject ?? "", body: previous.body ?? "" } } : {}),
+    }),
   __leadErase: eraseLead,
   __leadSend: sendLeadEmail,
   __leadCallBack: callBackLeadEmail,
@@ -27,6 +31,11 @@ type Refuse = (r: { message?: string | null } | null | undefined, what: string) 
 
 /** The leads an Erase is out for (PR 9): the page draws "Erasing…" a draw later, and a press lands before that. */
 const pkErasing = new Set<string>();
+
+/** The call being logged, with what was just said of it: nothing where no call is being logged. */
+const armedWith = (p: PeekPage, change: Partial<Armed>): void => {
+  if (p.armed) p.setArmed({ ...p.armed, ...change });
+};
 
 /**
  * The ⋯ and Erase (PR 9), for LeadPeekActions: who may erase is contracts' rule over the member's role (View-as
@@ -227,9 +236,9 @@ export const LeadPeekActions = (p: PeekPage): PeekActs => {
     },
     // A call made from a desk phone: the same question, and nobody rung.
     onLogCall: () => armFor("call"),
-    onOutcome: (outcome) => p.setArmed({ ...p.armed, outcome } as Armed),
-    onNote: (note) => p.setArmed({ ...p.armed, note: note.slice(0, W.noteMax) } as Armed),
-    onSpokeWith: (name) => p.setArmed({ ...p.armed, spokeWith: name.slice(0, 80) } as Armed),
+    onOutcome: (outcome) => armedWith(p, { outcome }),
+    onNote: (note) => armedWith(p, { note: note.slice(0, W.noteMax) }),
+    onSpokeWith: (name) => armedWith(p, { spokeWith: name.slice(0, 80) }),
     onCancelCall: () => p.setArmed(null),
     onSaveCall: async () => {
       const a = p.armed;

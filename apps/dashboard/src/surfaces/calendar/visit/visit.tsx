@@ -339,6 +339,13 @@ function withQuietLead(visitCtx: VisitCtx): VisitCtx {
   return { ...visitCtx, vm: { ...vm, primary: { ...vm.primary, quiet: true } } };
 }
 
+/** The deal sheet's ask, from the visit's proposal: its service only where it names one. */
+const dealAskOf = (ask: { personId: string; mode: string; service: string | null }): DealSheetAsk => ({
+  personId: ask.personId,
+  mode: ask.mode,
+  ...(ask.service ? { service: ask.service } : {}),
+});
+
 /** The lead act, by how the visit stands. */
 function PrimaryAct({ c }: { c: VisitCtx }) {
   const { vm, block } = c;
@@ -354,7 +361,7 @@ function PrimaryAct({ c }: { c: VisitCtx }) {
     if (pa.act === "add") return void adding.press();
     const ask = vm.proposal;
     if (!ask) return undefined;
-    handOff(c, () => openDealSheet(ask as DealSheetAsk));
+    handOff(c, () => openDealSheet(dealAskOf(ask)));
     return undefined;
   };
   const gated =

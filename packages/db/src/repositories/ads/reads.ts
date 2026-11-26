@@ -10,6 +10,7 @@ import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
 import type { Database, Json } from "../../types";
 import type { AdAccountReadKept } from "./accounts";
+import { jsonCopyOf } from "../../shared/json";
 
 type Db = SupabaseClient<Database>;
 
@@ -82,7 +83,7 @@ export async function keepAdsRead(
   const { data, error } = await db.rpc("ads_read_keep", {
     p_tenant_id: tenantId,
     p_account_id: accountId,
-    p_read: JSON.parse(JSON.stringify(read)) as Json,
+    p_read: jsonCopyOf(read),
   });
   if (error) {
     if (isMissingDoor(error)) return { outcome: "no_door", adopted: 0, moved: 0, days: 0 };
