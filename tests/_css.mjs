@@ -347,3 +347,238 @@ export function cssOf(file) {
   facts.set(file, found);
   return found;
 }
+
+/* ---- The cascade on a screen: what a selector is given, as the build's parser reads a stylesheet ---- */
+
+/**
+ * A screen a stylesheet is asked about: its width in CSS pixels, whether it can hover, its pointer, and whether its person
+ * asked for less motion. A phone and a desk, at the widths e2e/ opens the pages at; any other is asked as
+ * `{ ...DESK, width: 800 }`. Since 26 Nov 2026 (layer 14, round two), when the pages' tests stopped finding a rule's
+ * text in a sheet's and asked the sheet what a selector is given instead: written another way, or moved to another
+ * place in the sheet, a rule gives what it gave; under a query that no longer holds on a phone, it does not.
+ */
+export const PHONE = Object.freeze({ width: 390, hover: false, pointer: "coarse", reducedMotion: false });
+export const DESK = Object.freeze({ width: 1440, hover: true, pointer: "fine", reducedMotion: false });
+
+const RANGE = {
+  "less-than": (a, b) => a < b,
+  "less-than-equal": (a, b) => a <= b,
+  equal: (a, b) => a === b,
+  "greater-than": (a, b) => a > b,
+  "greater-than-equal": (a, b) => a >= b,
+};
+
+/** A media feature's width in px; any other unit throws, as a query the cascade cannot answer. */
+function pxOf(value, where) {
+  const v = value?.type === "length" ? value.value : null;
+  if (v?.type === "value" && v.value.unit === "px") return v.value.value;
+  throw new Error(`the cascade reads a width in px, not ${JSON.stringify(value)} (${where})`);
+}
+
+/** Whether one media feature holds on `screen`. One it cannot answer throws, so no check passes on a guess. */
+function featureHolds(f, screen, where) {
+  const ident = f.value?.type === "ident" ? f.value.value : null;
+  if (f.type === "range" && f.name === "width") return RANGE[f.operator](screen.width, pxOf(f.value, where));
+  if (f.type === "plain" && f.name === "hover") return ident === (screen.hover ? "hover" : "none");
+  if (f.type === "plain" && f.name === "pointer") return ident === screen.pointer;
+  if (f.type === "plain" && f.name === "prefers-reduced-motion") {
+    return ident === (screen.reducedMotion ? "reduce" : "no-preference");
+  }
+  throw new Error(`the cascade cannot say whether (${f.name}) holds on a screen (${where})`);
+}
+
+function conditionHolds(c, screen, where) {
+  if (!c) return true;
+  if (c.type === "feature") return featureHolds(c.value, screen, where);
+  if (c.type === "not") return !conditionHolds(c.value, screen, where);
+  if (c.type === "operation") {
+    const each = c.conditions.map((x) => conditionHolds(x, screen, where));
+    return c.operator === "and" ? each.every(Boolean) : each.some(Boolean);
+  }
+  throw new Error(`the cascade cannot read a media condition of type ${c.type} (${where})`);
+}
+
+/** Whether a media query list holds on `screen`: any one of its queries, by its type and its condition. */
+const queryHolds = (query, screen, where) =>
+  query.mediaQueries.some((q) => {
+    const holds = (q.mediaType === "all" || q.mediaType === "screen") && conditionHolds(q.condition, screen, where);
+    return q.qualifier === "not" ? !holds : holds;
+  });
+
+const trees = new Map();
+
+/** One stylesheet's syntax tree, as the build's parser reads it, once per process; a sheet it cannot read whole throws. */
+function treeOf(file) {
+  const hit = trees.get(file);
+  if (hit) return hit;
+  let tree = null;
+  const { warnings } = transform({
+    filename: file,
+    code: fs.readFileSync(path.join(ROOT, file)),
+    errorRecovery: true,
+    visitor: {
+      StyleSheet(s) {
+        tree = s;
+      },
+    },
+  });
+  if (!tree || warnings.length > 0) {
+    throw new Error(`the cascade cannot read ${file} whole:\n${warnings.map((w) => w.message).join("\n")}`);
+  }
+  trees.set(file, tree);
+  return tree;
+}
+
+/**
+ * Every rule of a sheet, in its order, each with whether it holds on `screen` (null: every rule, whatever the screen).
+ * A container query's rules hold by a box's size, not the screen's, and are left out; a rule nested in a style rule
+ * throws, since no sheet the pages link nests one yet and its selector is its parent's.
+ */
+function* rulesOf(file, screen) {
+  function* walk(rules) {
+    for (const r of rules) {
+      if (r.type === "media") {
+        if (screen === null || queryHolds(r.value.query, screen, `${file}:${r.value.loc.line}`))
+          yield* walk(r.value.rules);
+      } else if (r.type === "supports" || r.type === "layer-block") {
+        yield* walk(r.value.rules);
+      } else {
+        if (r.type === "style" && r.value.rules?.length > 0) {
+          throw new Error(`the cascade does not read a nested rule (${file}:${r.value.loc.line})`);
+        }
+        yield r;
+      }
+    }
+  }
+  yield* walk(treeOf(file).rules);
+}
+
+/**
+ * One declaration as the parser prints it alone, minified (`animation:none`), so two never merge into a shorthand. What
+ * the parser hands out as null (a `var()`'s `from`, its absent fallback) it refuses back as null, so a null is left out.
+ */
+function printOne(parsed, important) {
+  const d = JSON.parse(JSON.stringify(parsed, (_, v) => (v === null ? undefined : v)));
+  const { code } = transform({
+    filename: "given.css",
+    code: Buffer.from(""),
+    minify: true,
+    visitor: {
+      StyleSheet: (s) => ({
+        ...s,
+        rules: [
+          {
+            type: "style",
+            value: {
+              selectors: [[{ type: "class", name: "given" }]],
+              declarations: important
+                ? { declarations: [], importantDeclarations: [d] }
+                : { declarations: [d], importantDeclarations: [] },
+              rules: [],
+              loc: { source_index: 0, line: 1, column: 1 },
+            },
+          },
+        ],
+      }),
+    },
+  });
+  const text = code.toString();
+  const body = text.slice(text.indexOf("{") + 1, text.lastIndexOf("}"));
+  const colon = body.indexOf(":");
+  return [body.slice(0, colon), body.slice(colon + 1)];
+}
+
+/** What a block of declarations gives, by property, a later one winning and an important one beating any other. */
+function giveInto(given, important, block) {
+  for (const d of block?.declarations ?? []) {
+    const [property, value] = printOne(d, false);
+    if (!important.has(property)) given[property] = value;
+  }
+  for (const d of block?.importantDeclarations ?? []) {
+    const [property, value] = printOne(d, true);
+    given[property] = value;
+    important.add(property);
+  }
+}
+
+/** One rule's body, read as a sheet's is (`animation: none; opacity: 1`), and printed as givenOn prints what it says. */
+export function declared(text) {
+  let tree = null;
+  transform({
+    filename: "declared.css",
+    code: Buffer.from(`.given { ${text} }`),
+    visitor: {
+      StyleSheet(s) {
+        tree = s;
+      },
+    },
+  });
+  const rule = tree?.rules[0];
+  if (rule?.type !== "style") throw new Error(`not a rule's body: ${text}`);
+  const given = {};
+  giveInto(given, new Set(), rule.value.declarations);
+  return given;
+}
+
+/** A selector as the parser reads it: `.a>.b` and `.a > .b` are one selector. */
+function selectorOf(text) {
+  let tree = null;
+  transform({
+    filename: "selector.css",
+    code: Buffer.from(`${text} {}`),
+    visitor: {
+      StyleSheet(s) {
+        tree = s;
+      },
+    },
+  });
+  const rule = tree?.rules[0];
+  if (rule?.type !== "style" || rule.value.selectors.length !== 1) throw new Error(`not one selector: ${text}`);
+  return JSON.stringify(rule.value.selectors[0]);
+}
+
+/**
+ * What `selector` is given by one repo-relative stylesheet on `screen`: each declaration of every style rule that lists
+ * the selector, under media queries that hold there, by property as the parser prints it (`{ animation: "none" }`), a
+ * later rule winning and an important declaration beating the rest. The rules that list it have its specificity, so
+ * their order decides; a rule naming another selector the same element matches is not weighed.
+ */
+export function givenOn(file, selector, screen) {
+  const want = selectorOf(selector);
+  const given = {};
+  const important = new Set();
+  for (const r of rulesOf(file, screen)) {
+    if (r.type === "style" && r.value.selectors.some((s) => JSON.stringify(s) === want)) {
+      giveInto(given, important, r.value.declarations);
+    }
+  }
+  return given;
+}
+
+/** Every property one stylesheet sets, in any rule under any query: what a check that it sets none asks. */
+export function propertiesIn(file) {
+  const out = new Set();
+  for (const r of rulesOf(file, null)) {
+    if (r.type !== "style") continue;
+    const block = r.value.declarations;
+    for (const d of [...(block?.declarations ?? []), ...(block?.importantDeclarations ?? [])]) out.add(propertyOf(d));
+  }
+  return out;
+}
+
+/** One stylesheet's `@keyframes <name>`, each step (`from`, `50%`, `to`) with what it gives, or null where none is. */
+export function keyframesOf(file, name) {
+  const found = [...rulesOf(file, null)].filter((r) => r.type === "keyframes" && r.value.name.value === name);
+  if (found.length > 1) throw new Error(`${file} declares @keyframes ${name} ${found.length} times`);
+  if (found.length === 0) return null;
+  const steps = {};
+  for (const k of found[0].value.keyframes) {
+    for (const s of k.selectors) {
+      const at = s.type === "percentage" ? `${Math.round(s.value * 1000) / 10}%` : s.type;
+      const given = {};
+      giveInto(given, new Set(), k.declarations);
+      steps[at] = given;
+    }
+  }
+  return steps;
+}

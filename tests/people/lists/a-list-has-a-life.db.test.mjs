@@ -177,3 +177,85 @@ test(
     }
   },
 );
+
+/** A member of `tenantId` in `role`, signed in on their own session, as the routes reach the database. */
+const member = async (tenantId, role) => {
+  const email = `list-life-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`;
+  const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
+  const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.equal(made.error, null, made.error?.message);
+  users.push(made.data.user.id);
+  ok(await db.from("memberships").insert({ tenant_id: tenantId, user_id: made.data.user.id, role }));
+  const session = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  ok(await session.auth.signInWithPassword({ email, password }));
+  return { id: made.data.user.id, session };
+};
+const person = async (tenantId, phone) =>
+  ok(await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: phone }).select("id").single()).id;
+
+test(
+  "a list is the workspace's: members read it, an acting member makes one in their own name and renames it, and nothing else of it",
+  { skip },
+  async () => {
+    // Pinned as 00044's text in people/lists/saved-lists.test.mjs until 26 Nov 2026.
+    const tenantId = await workspace("Own lists");
+    const operator = await member(tenantId, "operator");
+    const viewer = await member(tenantId, "viewer");
+    const mine = await operator.session
+      .from("segments")
+      .insert({ tenant_id: tenantId, name: "Regulars", created_by: operator.id })
+      .select("id")
+      .single();
+    assert.equal(mine.error, null, `an operator makes a list in their own name: ${mine.error?.message}`);
+    const theirs = await operator.session
+      .from("segments")
+      .insert({ tenant_id: tenantId, name: "Someone else's", created_by: viewer.id });
+    assert.equal(theirs.error?.code, "42501", "never in another member's");
+    const byViewer = await viewer.session
+      .from("segments")
+      .insert({ tenant_id: tenantId, name: "Mine", created_by: viewer.id });
+    assert.equal(byViewer.error?.code, "42501", "a viewer makes none");
+    assert.deepEqual(
+      ok(await viewer.session.from("segments").select("id, name").eq("tenant_id", tenantId)),
+      [{ id: mine.data.id, name: "Regulars" }],
+      "every member reads the workspace's lists",
+    );
+    const renamed = await operator.session
+      .from("segments")
+      .update({ name: "Best" })
+      .eq("id", mine.data.id)
+      .select("name");
+    assert.deepEqual([renamed.error, renamed.data], [null, [{ name: "Best" }]], "a rename");
+    const moved = await operator.session.from("segments").update({ created_by: viewer.id }).eq("id", mine.data.id);
+    assert.equal(moved.error?.code, "42501", "and nothing else about it: who made it is kept");
+  },
+);
+
+test(
+  "a list holds the workspace's own people, never another's, never one erased; an erased person leaves every list",
+  { skip },
+  async () => {
+    // Pinned as 00044's text in people/lists/saved-lists.test.mjs until 26 Nov 2026.
+    const tenantId = await workspace("Members");
+    const elsewhere = await workspace("Members elsewhere");
+    const operator = await member(tenantId, "operator");
+    const listId = await makeList(tenantId, "Regulars");
+    const ours = await person(tenantId, "+13055550161");
+    const stranger = await person(elsewhere, "+13055550162");
+    const add = (contact_id) =>
+      operator.session
+        .from("segment_members")
+        .insert({ segment_id: listId, contact_id, tenant_id: tenantId, added_by: operator.id });
+    assert.equal((await add(ours)).error, null, "the workspace's own person");
+    assert.equal((await add(stranger)).error?.code, "42501", "another workspace's is refused");
+    const leaving = await person(tenantId, "+13055550163");
+    ok(await db.from("segment_members").insert({ segment_id: listId, contact_id: leaving, tenant_id: tenantId }));
+    ok(await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", leaving));
+    assert.deepEqual(
+      ok(await db.from("segment_members").select("contact_id").eq("segment_id", listId)).map((r) => r.contact_id),
+      [ours],
+      "an erased person leaves every list",
+    );
+    assert.equal((await add(leaving)).error?.code, "42501", "and is never put back on one");
+  },
+);

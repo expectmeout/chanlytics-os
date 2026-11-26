@@ -11,6 +11,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { query } from "./_db-stack.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -100,4 +101,83 @@ test("the door is the service role's alone", { skip }, async () => {
     p_if_refresh_token: "rt-x",
   });
   assert.equal(r.error?.code, "42501", JSON.stringify(r));
+  // Its read and its drop too, and for a signed-in member as for nobody (pinned as 00070's text in
+  // google/profile/connecting-reviews-and-the-mirror.test.mjs until 26 Nov 2026).
+  for (const door of ["get_google_credentials", "drop_google_credentials"]) {
+    const asked = await anon.rpc(door, { p_tenant_id: A });
+    assert.equal(asked.error?.code, "42501", `${door}: ${JSON.stringify(asked)}`);
+  }
+  for (const fn of [
+    "put_google_credentials(uuid, jsonb, text)",
+    "get_google_credentials(uuid)",
+    "drop_google_credentials(uuid)",
+  ])
+    for (const role of ["anon", "authenticated"])
+      assert.deepEqual(
+        query(`select has_function_privilege('${role}', 'public.${fn}', 'execute') as may`),
+        [{ may: false }],
+        `${role} may not call ${fn}`,
+      );
 });
+
+test(
+  "a disconnect forgets the token: the Vault secret named for the workspace is gone, and its read answers nothing",
+  { skip },
+  async () => {
+    ok(await db.rpc("put_google_credentials", { p_tenant_id: A, p_secret: token("rt-9", "at-9") }), "connect");
+    const named = () => query(`select count(*)::int as n from vault.secrets where name = 'google-creds-${A}'`);
+    assert.deepEqual(named(), [{ n: 1 }], "kept under the workspace's own name");
+    ok(await db.rpc("drop_google_credentials", { p_tenant_id: A }), "disconnect");
+    assert.deepEqual(named(), [{ n: 0 }], "the secret itself is deleted, not emptied");
+    assert.equal(await stored(), null);
+  },
+);
+
+test(
+  "a connection is the workspace's one row: it may wait for its location, which is Google's own name, and goes with the workspace",
+  { skip },
+  async () => {
+    const set = (location_name) => db.from("google_connections").update({ location_name }).eq("tenant_id", A);
+    assert.equal((await set(null)).error, null, "a connection may wait for its location");
+    assert.equal((await set("locations/222")).error, null);
+    assert.equal((await set("places/222")).error?.code, "23514", "a location is Google's name for one");
+    const second = await db.from("google_connections").insert({ tenant_id: A, account_name: "accounts/2" });
+    assert.equal(second.error?.code, "23505", "one connection a workspace");
+    const B = ok(
+      await db
+        .from("tenants")
+        .insert({ slug: `google-creds-b-${stamp}`, name: "Gone Co", timezone: "America/Chicago" })
+        .select("id")
+        .single(),
+      "tenant",
+    ).id;
+    ok(await db.from("google_connections").insert({ tenant_id: B, account_name: "accounts/3" }), "its connection");
+    await db.from("events").delete().eq("tenant_id", B);
+    ok(await db.from("tenants").delete().eq("id", B), "the workspace goes");
+    assert.deepEqual(
+      ok(await db.from("google_connections").select("tenant_id").eq("tenant_id", B)),
+      [],
+      "and it with it",
+    );
+  },
+);
+
+test(
+  "members read a connection and nobody writes one but the service role; the frame hears it change",
+  { skip },
+  () => {
+    assert.deepEqual(
+      query(
+        "select cmd, roles::text as roles from pg_policies where schemaname = 'public' and tablename = 'google_connections'",
+      ),
+      [{ cmd: "SELECT", roles: "{authenticated}" }],
+      "one policy, a member's read: the edge writes with the service role",
+    );
+    assert.deepEqual(
+      query(
+        "select count(*)::int as n from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'google_connections'",
+      ),
+      [{ n: 1 }],
+    );
+  },
+);

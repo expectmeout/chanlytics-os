@@ -8,7 +8,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toPersonRowVM } from "@chanlytics/contracts";
 import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
-import { importSrc, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { DESK, declared, givenOn } from "../_css.mjs";
 
 // The name cell a People row draws its words in (surfaces/people/cells/columns.tsx), run rather than read.
 const { plNameCell } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
@@ -290,11 +291,19 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     else globalThis.React = hadReact;
   }
   // Today's queue, Setup and the back office still draw AttnRow, so the row's
-  // own rules stay; only the strip's container, footer and empty state went.
-  const css = readRaw("apps/dashboard/src/styles/clients.css");
-  assert.ok(
-    css.includes(".cl-attn-cta.primary { background: var(--accent); color: var(--accent-fg); }"),
+  // own rules stay; only the strip's container, footer and empty state went. Asked of People's sheet as the build's parser
+  // reads it (tests/_css.mjs givenOn; pinned as clients.css's text until 26 Nov 2026).
+  const CLIENTS = "apps/dashboard/src/styles/clients.css";
+  const primary = givenOn(CLIENTS, ".cl-attn-cta.primary", DESK);
+  assert.deepEqual(
+    { background: primary.background, color: primary.color },
+    declared("background: var(--accent); color: var(--accent-fg)"),
     "the one primary button is the mockup's coral",
   );
-  assert.ok(css.includes("@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }"));
+  assert.match(givenOn(CLIENTS, ".cl-attn-list", DESK).animation ?? "", /\bcl-attn-in\b/, "the list arrives");
+  assert.equal(
+    givenOn(CLIENTS, ".cl-attn-list", { ...DESK, reducedMotion: true }).animation,
+    "none",
+    "and stands still for a person who asked for less motion",
+  );
 });
