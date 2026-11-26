@@ -365,10 +365,10 @@ function draftedEmailOf(v: unknown): NewEmail | null {
 /** What a make decision kept, read back from its payload's `as_drafted`, or null where it kept none. */
 export function asDraftedFrom(value: unknown): AsDrafted | null {
   if (!value || typeof value !== "object") return null;
-  const asked = valueAt(value, "asked");
+  const request = valueAt(value, "asked");
   const steps = valueAt(value, "steps");
-  if (typeof asked !== "string" || !Array.isArray(steps)) return null;
-  return { asked, steps: steps.map(draftedEmailOf) };
+  if (typeof request !== "string" || !Array.isArray(steps)) return null;
+  return { asked: request, steps: steps.map(draftedEmailOf) };
 }
 
 /** Whether an email went as Ask drafted it: the same subject and words, the spacing between them aside. */

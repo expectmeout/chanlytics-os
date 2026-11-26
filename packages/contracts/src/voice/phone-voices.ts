@@ -31,7 +31,7 @@ const voice = (id: string, name: string, says: string, file: string): PhoneVoice
   sample: `${PHONE_VOICE_SAMPLES_ORIGIN}/${file}`,
 });
 
-export const PHONE_VOICES: readonly PhoneVoice[] = [
+export const PHONE_VOICES: readonly [PhoneVoice, ...PhoneVoice[]] = [
   voice("minimax-Tamsin", "Tamsin", "Woman · American", "minimax-Tamsin.mp3"),
   voice("minimax-Grace", "Grace", "Woman · American", "minimax_grace.mp3"),
   voice("minimax-Nia", "Nia", "Woman · American, younger", "minimax_nia.mp3"),
@@ -60,7 +60,7 @@ export function phoneVoiceOf(id: unknown): PhoneVoice | null {
 
 /** The voice the line speaks in, as the page says it: the one chosen, else the product's. */
 export function phoneVoiceShown(id: unknown): PhoneVoice {
-  return phoneVoiceOf(id) ?? (phoneVoiceOf(PHONE_VOICE_DEFAULT) as PhoneVoice);
+  return phoneVoiceOf(id) ?? phoneVoiceOf(PHONE_VOICE_DEFAULT) ?? PHONE_VOICES[0];
 }
 
 export const PHONE_VOICE_WORDS = {

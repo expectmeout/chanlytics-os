@@ -27,13 +27,13 @@ export const policySpec: ProposalSpec = {
     // The events ledger keeps policy changes and hands back no row id, so this undo names none.
     // The row as the route found it when it wrote (its answer's `was`), the card's own reading where an older route
     // answers none.
-    record: (p, data) => {
+    record: (proposal, data) => {
       const found = rec(data).was;
-      const prev = found && typeof found === "object" ? found : p.payload.previous;
+      const prev = found && typeof found === "object" ? found : proposal.payload.previous;
       const mode = valueAt(prev, "mode");
       const confidence = valueAt(prev, "min_confidence");
       return {
-        class: p.payload.class,
+        class: proposal.payload.class,
         mode: typeof mode === "string" ? mode : null,
         min_confidence: typeof confidence === "number" ? confidence : null,
       };

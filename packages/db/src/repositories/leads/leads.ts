@@ -10,8 +10,8 @@ import type { LeadViewCountsDto, TenantId, ContactId } from "@chanlytics/contrac
 import { readAllRows } from "../../shared/paged";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
 import { z } from "zod";
-import { readAnswer, readColumn } from "../../shared/read-json";
-import { DbFailure, isObjectRecord, shaped } from "@chanlytics/contracts";
+import { readAnswer } from "../../shared/read-json";
+import { DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -284,7 +284,7 @@ export async function findLeadPricesSeen(db: Db): Promise<{ prices: LeadPricesSe
   if (error) throw new DbFailure(error, "cannot read the lead sources' prices");
   const prices = data?.prices;
   return {
-    prices: isObjectRecord(prices) ? readColumn("leads.prices", shaped<LeadPricesSeen>(), prices) : {},
+    prices: prices && typeof prices === "object" && !Array.isArray(prices) ? (prices as LeadPricesSeen) : {},
     checkedAt: data?.prices_checked_at ?? null,
   };
 }

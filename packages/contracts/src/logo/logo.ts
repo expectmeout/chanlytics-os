@@ -9,6 +9,7 @@
  * number here is said once, for the page that makes the picture and the server that judges it.
  */
 import { publicObjectSrc } from "../shared/link";
+import { recordOrEmpty, valueAt } from "../shared/unknown";
 
 /** 00407's public bucket. */
 export const WORKSPACE_LOGOS_BUCKET = "workspace-logos";
@@ -84,13 +85,13 @@ export type LogoLookupAnswer =
  */
 export function logoLookupAnswerOf(body: unknown): LogoLookupAnswer | null {
   if (!body || typeof body !== "object") return null;
-  const answer = body as { outcome?: unknown; host?: unknown; image?: { base64?: unknown; content_type?: unknown } };
+  const answer = recordOrEmpty(body);
   const outcome = LOGO_LOOKUP_OUTCOMES.find((o) => o === answer.outcome);
   const host = typeof answer.host === "string" && answer.host ? answer.host : null;
   if (!outcome) return null;
   if (outcome !== "found") return { outcome, host };
-  const base64 = answer.image?.base64;
-  const contentType = answer.image?.content_type;
+  const base64 = valueAt(answer, "image", "base64");
+  const contentType = valueAt(answer, "image", "content_type");
   if (!host || typeof base64 !== "string" || !base64 || typeof contentType !== "string" || !contentType) return null;
   return { outcome, host, image: { base64, content_type: contentType } };
 }

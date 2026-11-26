@@ -7,7 +7,7 @@
  * fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { RUN_GOING_STATES, versionWords, DbFailure, shaped } from "@chanlytics/contracts";
+import { RUN_GOING_STATES, versionWords, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import type { JsonObject } from "../../events/events";
 import { readAllRows } from "../../../shared/paged";
@@ -227,7 +227,7 @@ export async function saveReachOutChain(
   });
   if (error) return { data: null, error: { code: error.code, message: error.message } };
   // A door's jsonb answer, as the DTO its function builds (00211): the SQL is its shape, and its tests hold it.
-  const saved = readAnswer("reach_out_save", shaped<ReachOutSaved>().nullable(), data ?? null);
+  const saved = data as ReachOutSaved | null;
   if (!saved || typeof saved.root_id !== "string")
     return { data: null, error: { message: "reach_out_save: no chain" } };
   if (params.decision && typeof saved.decision_id !== "string")

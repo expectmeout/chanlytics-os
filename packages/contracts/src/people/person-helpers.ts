@@ -8,7 +8,7 @@ import { DAY_MS } from "../shared/time";
 import type { PersonCampaignVM, PersonDetailDto, PersonSequenceVM } from "./person-dto";
 import type { PersonProposalVM } from "./person-reach";
 import { adRoute } from "../ads/address";
-import { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
+import { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./person-words";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { WrittenChannel } from "../conversations/thread-channel";
 import {

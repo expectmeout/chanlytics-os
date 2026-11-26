@@ -148,6 +148,12 @@ const adOfWire = (ad: AdNamedDto): { id: string | null; name: string | null } =>
 const headAdOf = (dto: ConversationDto): Pick<InboxThreadVM, "fromAd"> =>
   dto.from_ad ? { fromAd: adOfWire(dto.from_ad) } : {};
 
+/** Why a held draft says what it says, where its meta says. */
+const heldWhyOf = (meta: Parameters<typeof replyWhy>[0]) => {
+  const reason = replyWhy(meta);
+  return reason ? { why: reason } : {};
+};
+
 /**
  * One message as the thread's timeline draws it. A note the platform wrote on the thread is a line between the words,
  * not a bubble: drawn as a bubble it read "by WhatsApp Receptionist · Delivered", a reply the customer never got (the 2
@@ -296,7 +302,7 @@ export function toInboxThreadVM(
             draft: heldDraft.body,
             endsAtMs: heldDraft.sendsAtMs,
             messageId: heldDraft.messageId,
-            ...((reason) => (reason ? { why: reason } : {}))(replyWhy(draftMsg.meta)),
+            ...heldWhyOf(draftMsg.meta),
           },
         }
       : {}),

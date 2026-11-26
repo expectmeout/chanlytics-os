@@ -401,13 +401,11 @@ export function cannotRows(input: {
       "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books.",
     );
   }
-  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && input.smsLive)).map((r) =>
-    r.id === "book" && input.takesRequests === true
-      ? { ...r, detail: CANNOT_REQUESTS_BOOK }
-      : !input.hasBookingLink && CANNOT_NO_LINK[r.id]
-        ? { ...r, detail: CANNOT_NO_LINK[r.id] as string }
-        : r,
-  );
+  return CANNOT_ROWS.filter((r) => !(r.id === "sms" && input.smsLive)).map((r) => {
+    if (r.id === "book" && input.takesRequests === true) return { ...r, detail: CANNOT_REQUESTS_BOOK };
+    const noLink = input.hasBookingLink ? undefined : CANNOT_NO_LINK[r.id];
+    return noLink ? { ...r, detail: noLink } : r;
+  });
 }
 
 /** The counts the fold below says in words: there are three things at most, and never a figure on the glass for them. */

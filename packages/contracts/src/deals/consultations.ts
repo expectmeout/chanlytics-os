@@ -131,7 +131,7 @@ export function consultationsWithoutProposal<
     nextVisitMs: number | null;
   },
 >(rows: readonly T[], nowMs: number): T[] {
-  const endOf = (r: T): number => r.consultedMs as number;
+  const endOf = (r: T): number => r.consultedMs ?? 0;
   return rows
     .filter((r) => consultationHeld(r, nowMs))
     .sort(

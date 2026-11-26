@@ -10,6 +10,7 @@ import {
   planReadsSites,
   type JudgePlaceAnswer,
   type LeadSearchPlan,
+  valueAt,
 } from "@chanlytics/contracts";
 import { CARDS, areaCenter } from "../cards";
 import { cleanPlace, type CleanPlace } from "../clean";
@@ -34,9 +35,13 @@ import { readSitesBeforeJudge, settleSiteReads, findSiteFact, siteReadsOf, type 
 
 /* ------------------------------------------------- an answer re-judges -- */
 
+/** A member's place as the listing found it: none for a member with no place id. */
+const listedPlaceOf = <V>(listed: ReadonlyMap<string, V>, placeId: string | null): V | undefined =>
+  placeId === null ? undefined : listed.get(placeId);
+
 /** The version of the plan a member's class was decided under: 1 until an answer changed the plan. */
 const versionOf = (m: LeadMemberRow): number => {
-  const v = (m.judgment as Partial<MemberJudgment> | null)?.plan_version;
+  const v = valueAt(m.judgment, "plan_version");
   return typeof v === "number" ? v : 1;
 };
 
@@ -111,7 +116,7 @@ async function rejudged(leadPorts: LeadPorts, round: LeadRoundRow, sites: SiteRe
     }
   }
   const found = pending.flatMap((m) => {
-    const x = listed.get(m.place_id as string);
+    const x = listedPlaceOf(listed, m.place_id);
     if (!x) out.unread += 1;
     // The term that found it is the one it was judged under.
     return x ? [{ m, clean: x.clean, term: m.term ?? x.term }] : [];
