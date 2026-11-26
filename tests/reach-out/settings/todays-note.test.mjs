@@ -61,7 +61,8 @@ installStubReact({
 });
 
 const { GET } = await import("../../../apps/dashboard/app/api/v1/settings/reach-out/note/route.ts");
-const { coldEmailNoteFactsOf } = await import("../../../apps/dashboard/src/server/readers/cold-email-note.ts");
+const { coldEmailNoteFactsOf } =
+  await import("../../../apps/dashboard/src/server/readers/reach-out/cold-email-note.ts");
 const { ColdEmailLine, useColdEmailNote } =
   await import("../../../apps/dashboard/src/surfaces/today/zones/cold-email-note.tsx");
 /** The note as Today draws it where setting up has no line for it to join (zones/page.tsx): the tab's hold, then its read. */

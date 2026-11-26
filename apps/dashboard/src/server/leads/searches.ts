@@ -156,7 +156,7 @@ export function morePlanOf(search: Pick<SearchViewRow, "plan">, plan: LeadSearch
 export async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<SearchViewRow[]> {
   const { data, error } = await listSearchCards(ctx.supabase, tenantId, 200);
   if (error) throw new DbFailure(error);
-  return (data ?? []) as SearchViewRow[];
+  return data as SearchViewRow[];
 }
 
 /* ------------------------------------------------------ the two row scopes */

@@ -11,5 +11,5 @@ import { listReplies } from "@/server/campaigns/reach-out-replies";
 export const GET = read({
   scope: workspace,
   query: ReachOutRepliesQuerySchema,
-  handle: ({ ctx, member, input }) => listReplies(ctx, member.tenantId, input ?? {}),
+  handle: ({ ctx, member, input }) => listReplies(ctx, member.tenantId, input),
 });

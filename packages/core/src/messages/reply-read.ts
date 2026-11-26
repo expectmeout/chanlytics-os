@@ -485,6 +485,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     const signer = reading?.signer ?? null;
     const plan: ReadingPlan = {
       ...planned,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a switch kept off on purpose (contracts signer.ts): read here, so turning it on is one word
       adoptSigner: AUTOMATIC_NAMING && !!signer && signerAgrees(signer, { address: facts.from, name: facts.fromName }),
     };
     applied = await ports.apply(tenantId, messageId, {

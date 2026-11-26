@@ -64,6 +64,7 @@ function alertLine(a: {
     event.currentTarget.querySelector("a")?.click();
   };
   return (
+    // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events -- a pointer's press anywhere on the alert follows its link, which a keyboard reaches itself
     <div
       key={a.key}
       className="tz-alert"

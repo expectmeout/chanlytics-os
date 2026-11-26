@@ -124,12 +124,13 @@ export function followUpCovers(deal: Pick<DealVM, "id" | "sinceMs" | "proposal">
  * its own link, never covered by the first's.
  */
 export function followUpDealOf(
-  person: Pick<PersonRowVM, "deal" | "openDeals" | "askedMs">,
+  // A row from before its open deals (0029) carries its one deal alone.
+  person: Pick<PersonRowVM, "deal" | "askedMs"> & Partial<Pick<PersonRowVM, "openDeals">>,
   nowMs: number,
   pace: Pick<DealPaceVM, "waitDays"> | null,
   had: FollowUpsHad,
 ): DealVM | null {
-  const open = person.openDeals && person.openDeals.length ? person.openDeals : person.deal ? [person.deal] : [];
+  const open = person.openDeals?.length ? person.openDeals : person.deal ? [person.deal] : [];
   const named = open
     .filter((d) => d.stage === "proposed" && followUpNames({ deal: d, askedMs: person.askedMs }, nowMs, pace))
     .sort((a, b) => (a.sinceMs ?? 0) - (b.sinceMs ?? 0));

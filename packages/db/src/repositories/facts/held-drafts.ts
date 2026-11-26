@@ -23,12 +23,5 @@ interface HeldDraftsRow {
 export async function listHeldDraftsByIntent(db: Db, tenantId: TenantId, days: number): Promise<HeldDraftsRow[]> {
   const { data, error } = await db.rpc("held_drafts_by_intent", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new DbFailure(error, "held_drafts_by_intent");
-  return (data ?? []).map((r) => ({
-    intent: r.intent ?? "other",
-    held: r.held ?? 0,
-    sent: r.sent ?? 0,
-    steered: r.steered ?? 0,
-    canceled: r.canceled ?? 0,
-    person_first: r.person_first ?? 0,
-  }));
+  return data;
 }

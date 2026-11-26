@@ -296,12 +296,14 @@ export function withWorkspaceChoices(setupInputs: SetupInputs): SetupInputs {
   const workspaceChoices = setupInputs.workspace_choices;
   if (!workspaceChoices) return setupInputs;
   const marks = workspaceChoices.marks.filter((m) => isOneOf(WORKSPACE_MARKS, m));
+  // A fixture written before the put-offs carries none.
+  const kept: Partial<Pick<SetupInputs, "later">> = setupInputs;
   return {
     ...setupInputs,
     want: setupPhoneWantOf({ phone: workspaceChoices.phone }),
     noCalls: callsNotByPhone({ phone: workspaceChoices.phone }),
     choices: setupChoicesOf({ whatsapp: workspaceChoices.whatsapp }),
-    later: [...new Set([...(setupInputs.later ?? []), ...marks])],
+    later: [...new Set([...(kept.later ?? []), ...marks])],
   };
 }
 

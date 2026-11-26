@@ -112,7 +112,7 @@ export async function findSignupAskFacts(
           emailOffers: data.email_marketing,
           fromWebsite: data.acquired_via === "website" || !!last.data,
         },
-    open: (open.data ?? []).length > 0,
+    open: open.data.length > 0,
     addressAsks,
     workspaceToday,
     failedToday,

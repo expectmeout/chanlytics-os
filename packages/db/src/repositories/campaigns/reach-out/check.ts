@@ -94,11 +94,11 @@ export async function listUncheckedSends(
     ...(params.sendIds ? { p_send_ids: params.sendIds } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the sends to check");
-  return (data ?? []).map((item) => {
+  return data.map((item) => {
     const send = item.send as ReachOutSendRow;
     return {
       send,
-      check_gen: Number(item.check_gen ?? send.check_gen ?? 0),
+      check_gen: item.check_gen,
       template_id: String(item.template_id),
       template_language: text(item.template_language) ?? "en",
       signed_by: text(item.signed_by),
@@ -123,7 +123,7 @@ export async function getUncheckedWaiting(db: Db, tenantId?: TenantId): Promise<
   if (tenantId) query = query.eq("tenant_id", tenantId);
   const { data, error } = await query.limit(1);
   if (error) throw new DbFailure(error, "cannot read the sends to check");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** One business's record for a search, whether or not a send exists for it yet (the sheet's preview). */
@@ -137,7 +137,7 @@ export async function readReachOutRecord(
     p_lead_id: params.leadId,
   });
   if (error) throw new DbFailure(error, "cannot read the business's record");
-  const row = (data ?? [])[0];
+  const row = data[0];
   return row ? recordOf(row) : null;
 }
 

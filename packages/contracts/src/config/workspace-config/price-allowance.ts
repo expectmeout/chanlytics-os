@@ -161,7 +161,7 @@ export function allowedPrices(
   for (const w of writtenToSay(profile, tz, now))
     if (w.text) add(w.priceBox ? amountsInPriceBox(w.text) : amountsIn(w.text), w.from);
   const greeting = profile.phone_greeting;
-  const heard = greeting ? greetingOf({ name: brain?.business_name, stored: greeting, paused: false }).source : null;
+  const heard = greeting ? greetingOf({ name: brain.business_name, stored: greeting, paused: false }).source : null;
   if (greeting && (heard === "owner" || heard === "owner_disclosed")) add(amountsIn(greeting), "Greeting");
   return out;
 }

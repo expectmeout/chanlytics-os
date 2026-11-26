@@ -3,9 +3,9 @@
  * and G14): which gates stop it, what it is told about whom it is answering, and how long a job must have left to try.
  * The draft is text kept on the reading (reach_out_replies.draft), never a message row: nothing sends it but a person.
  */
-import { fencedInline, promptSafeName } from "../../ai/fence";
-import { clipAtWord } from "../../conversations/message-words";
-import { isOneOf } from "../../shared/unknown";
+import { fencedInline, promptSafeName } from "../../../ai/fence";
+import { clipAtWord } from "../../../conversations/message-words";
+import { isOneOf } from "../../../shared/unknown";
 
 /**
  * Why a reading has no draft (reach_out_replies.draft_why, at most 60 characters):

@@ -37,7 +37,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { putTheWeekUp } = await import(at("apps/edge/lib/content/week-go.ts"));
 const { approveWeekFor } = await import(at("apps/dashboard/src/server/content/plan.ts"));
-const { readWeekToday } = await import(at("apps/dashboard/src/server/readers/week-today.ts"));
+const { readWeekToday } = await import(at("apps/dashboard/src/server/readers/content/week-today.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 after(() => {
   setPg(null);

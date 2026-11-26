@@ -40,18 +40,18 @@ import { countHeldForAddress, countSentByStep, findReviewLink, findWorkspaceWord
 import { countLeadSuppressions, findNewestSearchName } from "@chanlytics/db/leads";
 import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
-import type { RouteContext } from "../shared/with-route";
-import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
-import { readAdsShown } from "../connections/ads-ready";
-import { listLines } from "../connections/lines";
-import { listMailboxConnectionsWithDays } from "../connections/mailbox-connections";
-import { readReachOutMonthOrNull } from "../campaigns/month-sent";
-import { getChainReport } from "../campaigns/reach-outs/chain-acts";
-import { listChains } from "../campaigns/reach-outs/reach-outs";
+import type { RouteContext } from "../../shared/with-route";
+import { findPromptPreview, type PromptPreviewDto } from "../../receptionist/prompt-preview";
+import { readAdsShown } from "../../connections/ads-ready";
+import { listLines } from "../../connections/lines";
+import { listMailboxConnectionsWithDays } from "../../connections/mailbox-connections";
+import { readReachOutMonthOrNull } from "../../campaigns/month-sent";
+import { getChainReport } from "../../campaigns/reach-outs/chain-acts";
+import { listChains } from "../../campaigns/reach-outs/reach-outs";
 import { logAndGoOn } from "@chanlytics/log";
-import { log } from "../shared/log";
-import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
-import * as readers from "./facts";
+import { log } from "../../shared/log";
+import { load, readerStamp, type Reader, type ReaderContext } from "../../shared/reader";
+import * as readers from "../facts";
 import { findWorkspaceFacts } from "@chanlytics/db/workspace";
 import { listWorkspaceChannels } from "@chanlytics/db/channels";
 import { findGoogleListingAddress } from "@chanlytics/db/google";
@@ -111,7 +111,7 @@ export async function getKnownFacts(ctx: RouteContext, tenantId: TenantId): Prom
   return {
     workspace: ws.error || !ws.data ? null : { name: ws.data.name, timezone: ws.data.timezone },
     ours: !ws.error && ws.data?.ours === true,
-    channels: ch.error ? [] : (ch.data ?? []),
+    channels: ch.error ? [] : ch.data,
     listing: gl.error ? null : gl.data,
     forwarding: knownForwarding(lines),
   };
@@ -386,17 +386,17 @@ export function standingFactsOf(input: {
     othersWaiting: waitingId
       ? running.filter((c) => c.next.waiting_run_id && c.root_id !== subject?.root_id).length
       : 0,
-    running: running.map((c) => {
-      const own = c.root_id === subject?.root_id;
+    running: running.map((chain) => {
+      const own = chain.root_id === subject?.root_id;
       return {
-        root_id: c.root_id,
-        name: c.name,
-        fed_by: c.fed_by ?? null,
-        search_id: c.search?.id ?? null,
+        root_id: chain.root_id,
+        name: chain.name,
+        fed_by: chain.fed_by ?? null,
+        search_id: chain.search?.id ?? null,
         sent: own ? sent : null,
         wroteBack: own ? total((s) => s.wrote_back) : null,
         interested: own ? total((s) => s.interested) : null,
-        waitingLeads: c.people?.waiting ?? null,
+        waitingLeads: chain.people?.waiting ?? null,
       };
     }),
   };
@@ -448,6 +448,19 @@ const claimSendsOrUnread = (
 /** What a new sequence to leads starts as (Autonomy's outreach row, contracts newSequenceMode): held, or asked for. */
 const coldStartMode = (policies: readonly { class: string; mode: string }[]): "veto" | "ask" =>
   newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads", null) === "veto" ? "veto" : "ask";
+
+/** Who the owner says their cold emails are for, as they wrote it; none where they said nothing. */
+const whoForOf = (parsed: ReturnType<typeof parseTenantConfig>): string | null =>
+  parsed?.reach_out?.who_for?.trim() || null;
+
+/** The foot every cold email carries: the business by its name, and its address where the profile says one. */
+const coldEmailFootOf = (
+  name: string,
+  parsed: ReturnType<typeof parseTenantConfig>,
+): NonNullable<ReachOutSettingsDto["foot"]> => ({
+  business: name.trim() || null,
+  address: parsed?.brain?.profile?.address?.trim() || null,
+});
 
 /**
  * GET settings/reach-out: what Cold email shows beyond the config. The mailbox as Connections says it, the month's
@@ -506,7 +519,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
                 month,
                 hasSearch: newestSearch !== null,
                 hasPitch: reachOutPitchSaid(parsed, ownWords),
-                whoFor: parsed?.reach_out?.who_for?.trim() || null,
+                whoFor: whoForOf(parsed),
                 nowMs: rc.now.getTime(),
                 tz,
               }),
@@ -515,10 +528,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         sending: mailboxes ? coldEmailSendingOf(mailboxes, month, rc.now.getTime()) : null,
         batch_mode: coldStartMode(policies),
         never,
-        foot:
-          row && facts
-            ? { business: facts.data.name.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null }
-            : null,
+        foot: row && facts ? coldEmailFootOf(facts.data.name, parsed) : null,
         mailbox: mailboxShown(mailboxes ?? [], rc.now.getTime(), tz),
         month,
         claims: claimCounts(claims, chainList, counted),

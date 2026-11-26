@@ -29,7 +29,7 @@ export async function takeOver(
 ): Promise<TakeOverResult> {
   const { conv } = cmd;
   // How long is decided here, from the workspace's reply policy; the door takes the moment.
-  const paused_until = new Date(ports.now() + (await ports.pauseMs(conv.tenant_id))).toISOString();
+  const pausedUntil = new Date(ports.now() + (await ports.pauseMs(conv.tenant_id))).toISOString();
   // One call, one transaction (00386): the claim IS the pause; the hold on who is
   // speaking is taken with it, before the drafts are withdrawn, so a draft that
   // reaches the wire meanwhile meets the hold; the drafts written before it are
@@ -38,9 +38,14 @@ export async function takeOver(
   // receptionist off a thread the Inbox showed open for up to a day. A door that
   // changed no row did nothing at all: the thread moved while the person looked.
   // No timer to set: expire_stale_pauses() ends the pause from paused_until (00098).
-  const done = await ports.takeOver(conv.tenant_id, conv.id, paused_until);
+  const done = await ports.takeOver(conv.tenant_id, conv.id, pausedUntil);
   if (!done) {
     throw new AppError("conflict", "Couldn't take this conversation over. Reload and try again.", 409);
   }
-  return { state: "needs_human", paused_until, decision_id: done.decision_id, withdrawn_drafts: done.withdrawn_drafts };
+  return {
+    state: "needs_human",
+    paused_until: pausedUntil,
+    decision_id: done.decision_id,
+    withdrawn_drafts: done.withdrawn_drafts,
+  };
 }

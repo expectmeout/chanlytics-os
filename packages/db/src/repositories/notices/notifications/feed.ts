@@ -20,6 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { oneOr, type Db } from "./kept";
 import type { TenantId } from "@chanlytics/contracts";
+import { identityAccountOf } from "../../../shared/answers";
 
 /** The sources a customer's booking comes by (contracts bookingArriving): a member's own entry (`person`) is not one. */
 const BOOKING_SOURCES = BOOKING_VIAS;
@@ -104,7 +105,7 @@ export async function listBookedVisits(
     .in("source", [...BOOKING_SOURCES])
     .gt("starts_at", new Date(nowMs).toISOString());
   if (error) throw new DbFailure(error, "cannot read the visits");
-  const visits = (data ?? []).filter(isCustomers);
+  const visits = data.filter(isCustomers);
   const personIds = [...new Set(visits.flatMap((v) => (v.contact_id ? [v.contact_id] : [])))];
   const people = new Map<string, VisitPerson>();
   if (personIds.length) {
@@ -114,7 +115,7 @@ export async function listBookedVisits(
       .eq("tenant_id", tenantId)
       .in("id", personIds);
     if (found.error) throw new DbFailure(found.error, "cannot read the people of the visits");
-    for (const c of found.data ?? []) people.set(c.id, c);
+    for (const c of found.data) people.set(c.id, c);
   }
   return visits.map((visit) => bookedVisitOf(visit, visit.contact_id ? people.get(visit.contact_id) : undefined));
 }
@@ -186,9 +187,7 @@ export async function listFeedAdditionsWith(
     .order("id")
     .limit(CATCH_UP_VISITS + 1);
   if (error) throw new DbFailure(error, "cannot read the calendar's additions");
-  return (data ?? []).flatMap((e) =>
-    e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id, data: e.data }] : [],
-  );
+  return data.flatMap((e) => (e.subject_id ? [{ eventId: e.id, appointmentId: e.subject_id, data: e.data }] : []));
 }
 
 /** The other sightings of a visit: a booking's row and the calendar's copy of it (contracts booking-notice.ts). */
@@ -229,7 +228,7 @@ export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: str
   if (sightings.error) throw new DbFailure(sightings.error, "cannot read the visit's other sightings");
   // Only a sighting that stands (contracts sightingStands): one cancelled or gone at that time, and booked again, is a
   // visit of its own, told as one.
-  const ids = (sightings.data ?? []).filter((c) => sightingStands(c) && sameVisitOnRecord(visit, c)).map((c) => c.id);
+  const ids = sightings.data.filter((c) => sightingStands(c) && sameVisitOnRecord(visit, c)).map((c) => c.id);
   if (!ids.length) return false;
   const arrived = await db
     .from("events")
@@ -238,7 +237,7 @@ export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: str
     .eq("kind", "appointment.changed")
     .in("subject_id", ids);
   if (arrived.error) throw new DbFailure(arrived.error, "cannot read how the visit arrived");
-  const events = (arrived.data ?? []).flatMap((e) => {
+  const events = arrived.data.flatMap((e) => {
     const change = recordOrEmpty(e.data).change;
     return change === "added" || change === "confirmed" ? [e.id] : [];
   });
@@ -250,7 +249,7 @@ export async function wasTwinTold(db: Db, tenantId: TenantId, appointmentId: str
     .in("source_event", events)
     .limit(1);
   if (notice.error) throw new DbFailure(notice.error, "cannot read what the workspace was told");
-  return (notice.data ?? []).length > 0;
+  return notice.data.length > 0;
 }
 
 /**
@@ -276,7 +275,7 @@ export async function findMemberEmail(db: Db, userId: string): Promise<string | 
     if (userById.error.status === 404) return null;
     throw new DbFailure(userById.error, "cannot read who left");
   }
-  return userById.data.user?.email ?? null;
+  return identityAccountOf(userById)?.email ?? null;
 }
 
 /** How many uuids one `in` list carries: measured, about two hundred is where the URL becomes too long. */
@@ -369,8 +368,8 @@ async function bellRowsOf(
     if (bellRange.throughIso) query = query.lte("created_at", bellRange.throughIso);
     const page = await query.order("created_at", { ascending: true }).range(from, from + BELL_READ_PAGE - 1);
     if (page.error) throw new DbFailure(page.error, "cannot read the bell");
-    rows.push(...(page.data ?? []).filter((r) => !bellRange.leaving?.has(r.id)));
-    if ((page.data ?? []).length < BELL_READ_PAGE) break;
+    rows.push(...page.data.filter((r) => !bellRange.leaving?.has(r.id)));
+    if (page.data.length < BELL_READ_PAGE) break;
   }
   const seen = await db
     .from("notification_reads")
@@ -392,9 +391,9 @@ async function bellRowsOf(
   const marks: BellMark[] = [];
   for (const r of reads) {
     if (r.error) throw new DbFailure(r.error, "cannot read the bell's marks");
-    marks.push(...(r.data ?? []));
+    marks.push(...r.data);
   }
-  return { rows, seen: seen.data ?? [], marks };
+  return { rows, seen: seen.data, marks };
 }
 
 /** The bell's window from a moment, as the edge and the page read it (contracts BELL_WINDOW_DAYS). */
@@ -431,7 +430,7 @@ export async function closeNoticesByTitle(
       query = query.eq("subject_type", params.subject.type).eq("subject_id", params.subject.id);
     const found = await query;
     if (found.error) throw new DbFailure(found.error, "cannot read the rows a rule closes");
-    const ids = (found.data ?? []).filter((r) => r.id !== params.keptId && rule.title.test(r.title)).map((r) => r.id);
+    const ids = found.data.filter((r) => r.id !== params.keptId && rule.title.test(r.title)).map((r) => r.id);
     if (!ids.length) continue;
     const up = await db
       .from("notifications")
@@ -441,7 +440,7 @@ export async function closeNoticesByTitle(
       .is("closed_at", null)
       .select("id");
     if (up.error) throw new DbFailure(up.error, "cannot close the rows a rule closes");
-    closed += (up.data ?? []).length;
+    closed += up.data.length;
   }
   return closed;
 }

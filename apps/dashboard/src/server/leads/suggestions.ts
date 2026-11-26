@@ -159,7 +159,7 @@ function keptIdeas(kept: SuggestionRow | null): LeadIdeaDto[] {
   const items = kept && Array.isArray(kept.items) ? (kept.items as Partial<LeadIdeaDto>[]) : [];
   return items
     .flatMap((i) =>
-      i && typeof i.words === "string" && typeof i.category_key === "string"
+      typeof i.words === "string" && typeof i.category_key === "string"
         ? [{ ...i, words: i.words, who_for: i.who_for ?? "", category_key: i.category_key, reach: null }]
         : [],
     )

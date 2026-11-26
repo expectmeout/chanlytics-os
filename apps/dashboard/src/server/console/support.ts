@@ -129,9 +129,9 @@ async function whoSent(office: BackOffice, userIds: readonly string[]): Promise<
   const { members, profiles } = await getSupportPeople(office.db, ids);
   if (members.error) throw new DbFailure(members.error);
   if (profiles.error) throw new DbFailure(profiles.error);
-  const nameOf = new Map((profiles.data ?? []).map((p) => [p.user_id, p.display_name.trim() || null]));
+  const nameOf = new Map(profiles.data.map((p) => [p.user_id, p.display_name.trim() || null]));
   return new Map(
-    (members.data ?? []).map((m) => [
+    members.data.map((m) => [
       `${m.user_id}:${m.tenant_id}`,
       { name: nameOf.get(m.user_id) ?? null, role: m.role, since: m.created_at },
     ]),
@@ -145,7 +145,7 @@ export async function listReportsSince(
 ): Promise<SupportReportDto[]> {
   const { data, error } = await listReports(office.db, { ...input, limit: input.limit ?? BOOK_ROWS });
   if (error) throw new DbFailure(error);
-  const rows = data ?? [];
+  const rows = data;
   if (rows.length >= (input.limit ?? BOOK_ROWS)) log.error("platform_console_read_failed", { read: "reports_capped" });
   const person = await whoSent(
     office,
@@ -177,11 +177,11 @@ export async function listAsksSince(
 ): Promise<SetupAskDto[]> {
   const { data, error } = await setupAsks(office.db, { ...input, limit: input.limit ?? BOOK_ROWS });
   if (error) throw new DbFailure(error);
-  const rows = (data ?? []).filter((e): e is typeof e & { tenant_id: TenantId } => !!e.tenant_id);
+  const rows = data.filter((e): e is typeof e & { tenant_id: TenantId } => !!e.tenant_id);
   const ids = [...new Set(rows.map((e) => e.tenant_id))];
   const names = ids.length ? await getTenantNames(office.db, ids) : { data: [], error: null };
   if (names.error) throw new DbFailure(names.error);
-  const byId = new Map((names.data ?? []).map((t) => [t.id, t]));
+  const byId = new Map(names.data.map((t) => [t.id, t]));
   const askers = [...new Set(rows.flatMap((e) => askerOf(e.data) ?? []))];
   const [who, emails] = await Promise.all([
     whoSent(office, askers).catch(() => new Map<string, SupportWhoDto>()),
@@ -217,7 +217,7 @@ export async function listAsksSince(
 async function marksSince(office: BackOffice, sinceIso: string): Promise<SupportActDto[]> {
   const { data, error } = await getSupportMarks(office.db, { sinceIso, limit: BOOK_ROWS });
   if (error) throw new DbFailure(error);
-  return (data ?? []).flatMap((act) =>
+  return data.flatMap((act) =>
     act.target_id && (act.target_kind === "report" || act.target_kind === "ask")
       ? [
           {
@@ -238,7 +238,7 @@ async function signalsOf(office: BackOffice, tenantIds: readonly TenantId[]): Pr
   const { data, error } = await isForwardingVerified(office.db, tenantIds);
   if (error) throw new DbFailure(error);
   const out: Record<string, AskSignalsDto> = {};
-  for (const l of data ?? []) {
+  for (const l of data) {
     const was = out[l.tenant_id]?.forwarding_verified_at;
     if (!was || l.state_since > was) out[l.tenant_id] = { forwarding_verified_at: l.state_since };
   }
@@ -248,7 +248,7 @@ async function signalsOf(office: BackOffice, tenantIds: readonly TenantId[]): Pr
 export async function claimsNow(office: BackOffice, nowIso: string): Promise<ClaimDto[]> {
   const { data, error } = await getLiveClaims(office.db, nowIso);
   if (error) throw new DbFailure(error);
-  return data ?? [];
+  return data;
 }
 
 /**

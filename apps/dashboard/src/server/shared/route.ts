@@ -332,10 +332,9 @@ async function onceForKey<O>(
     if (held?.response) return viaJson<O>(held.response);
     // Taken by the stamp it was read at, so of two requests that both read an abandoned claim exactly one takes it.
     const abandoned = held !== null && Date.now() - Date.parse(held.created_at) >= HOLD_MS;
-    const taken =
-      abandoned && held
-        ? await takeIdempotencyKey(ctx.supabase, { tenantId, key, requestHash, nowIso, from: held.created_at })
-        : false;
+    const taken = abandoned
+      ? await takeIdempotencyKey(ctx.supabase, { tenantId, key, requestHash, nowIso, from: held.created_at })
+      : false;
     if (!taken) {
       throw new AppError(
         "conflict",

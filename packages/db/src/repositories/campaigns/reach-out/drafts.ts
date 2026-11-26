@@ -65,7 +65,7 @@ export async function loadChainDraft(
   ]);
   if (runs.error) throw new DbFailure(runs.error, "cannot read the reach-out's runs of the day");
   if (open.error) throw new DbFailure(open.error, "cannot count the reach-out's emails waiting");
-  const ids = (runs.data ?? []).map((r) => r.id);
+  const ids = runs.data.map((r) => r.id);
   if (ids.length === 0) return { today: 0, open: open.count ?? 0 };
   const { count, error } = await db
     .from("sequence_sends")
@@ -118,7 +118,7 @@ export async function listDraftsWaiting(
     ...(params.after ? { p_after_at: params.after.drafted_at, p_after_id: params.after.id } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the drafts waiting");
-  return (data ?? []).map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));
+  return data.map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));
 }
 
 /** What a lead's story says of a send its owner sends (00429): the run a draft waits in, and whether it went on their word. */
@@ -140,7 +140,7 @@ export async function getOwnerSendFacts(
     .in("id", [...params.sendIds]);
   if (error) throw new DbFailure(error, "cannot read the owner's sends");
   return new Map(
-    (data ?? []).map((r) => [
+    data.map((r) => [
       r.id,
       { runId: r.state === "drafted" ? r.batch_id : null, said: r.state === "sent" && r.said_at !== null },
     ]),
@@ -225,5 +225,5 @@ export async function findLeadReplyFacts(
     .eq("id", params.leadId)
     .maybeSingle();
   if (error) throw new DbFailure(error, "cannot read the lead");
-  return data ? { ...data, business_name: data.business_name ?? "" } : null;
+  return data;
 }

@@ -162,6 +162,7 @@ export function SbMenu({
           menu.close();
         }}
       />
+      {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/interactive-supports-focus -- the menu's keys are its items' own; it waits for the kit's Menu (Base UI) to own them */}
       <div
         className="more-menu sb-menu"
         role="menu"

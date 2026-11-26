@@ -1,7 +1,7 @@
 /** Templates: params. */
 
 import { isIdentifierName } from "../../conversations/thread-contact";
-import { isOneOf, listOrEmpty, valueAt } from "../../shared/unknown";
+import { isOneOf, listOrEmpty, valueAt, entryOf } from "../../shared/unknown";
 
 /* ---- What fills a slot ---- */
 
@@ -252,7 +252,9 @@ export function testParamsOf(
     proposalLink: "[their proposal's link]",
   };
   const facts: Record<string, string> = {};
-  for (const s of specs)
-    if (s.kind in KEPT_ON_ROW) facts[s.kind] = fields[KEPT_ON_ROW[s.kind as keyof typeof KEPT_ON_ROW]];
+  for (const s of specs) {
+    const kept = entryOf(KEPT_ON_ROW, s.kind);
+    if (kept) facts[s.kind] = fields[kept];
+  }
   return { who: fields.firstName, values: resolveParams(specs, fields), facts };
 }

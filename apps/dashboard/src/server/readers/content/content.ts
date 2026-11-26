@@ -67,11 +67,11 @@ import {
   type MemberPostRow,
   type PieceStandingRow,
 } from "@chanlytics/db/files";
-import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
-import { cursorAsked, fileDtoOf } from "./files";
+import { readerStamp, type Reader, type ReaderContext } from "../../shared/reader";
+import { cursorAsked, fileDtoOf } from "../files/files";
 import { readWeekToday } from "./week-today";
-import { readContentSources } from "../files/found";
-import { readInstagramPostable } from "../connections/meta";
+import { readContentSources } from "../../files/found";
+import { readInstagramPostable } from "../../connections/meta";
 import { logAndGoOn } from "@chanlytics/log";
 
 /** A member's post with what a second read said of it: whether its place removed it itself (withRemovedThere). */

@@ -74,8 +74,8 @@ function hhmm(s: string): [number, number] | null {
  */
 export function dayIntervals(hours: Hours | undefined): Array<[string, string]> {
   const raw: Array<[string, string]> = [];
-  if (hours?.open && hours?.close) raw.push([hours.open, hours.close]);
-  for (const iv of hours?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  if (hours?.open && hours.close) raw.push([hours.open, hours.close]);
+  for (const iv of hours?.intervals ?? []) if (iv.open && iv.close) raw.push([iv.open, iv.close]);
   const usable = raw.filter(([o, c]) => c > o).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   const merged: Array<[string, string]> = [];
   for (const [o, c] of usable) {

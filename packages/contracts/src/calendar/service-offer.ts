@@ -28,8 +28,8 @@ export const foldName = (text: string): string =>
  * facts.ts sameName's, which lets punctuation go too.
  */
 export function sameListed(first: string, second: string): boolean {
-  const x = foldName(String(first ?? "").trim());
-  return x !== "" && x === foldName(String(second ?? "").trim());
+  const x = foldName(first.trim());
+  return x !== "" && x === foldName(second.trim());
 }
 
 const tokensOf = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
@@ -79,7 +79,7 @@ export function serviceNamedIn(
   if (!result) return null;
   let best: { name: string; folded: string } | null = null;
   for (const s of services ?? []) {
-    const name = String(s.name ?? "").trim();
+    const name = s.name.trim();
     const folded = foldName(name);
     if (!folded || !result.includes(folded) || (only && !only(name))) continue;
     if (!best || folded.length > best.folded.length) best = { name, folded };

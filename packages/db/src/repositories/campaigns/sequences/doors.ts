@@ -46,7 +46,7 @@ export async function listLeadRepliesOfBatches(
       .not("lead_id", "is", null)
       .in("batch_id", [...chunk]);
     if (sends.error) throw new DbFailure(sends.error, "cannot read the batches' emails");
-    const ids = (sends.data ?? []).map((s) => s.id);
+    const ids = sends.data.map((s) => s.id);
     for (let count = 0; count < ids.length; count += REPLIES_IN_CHUNK) {
       const replies = await db
         .from("sequence_replies")
@@ -56,7 +56,7 @@ export async function listLeadRepliesOfBatches(
         .in("claim", ["person", "owner"])
         .is("undone_at", null);
       if (replies.error) throw new DbFailure(replies.error, "cannot read the replies");
-      for (const r of replies.data ?? []) out.add(r.conversation_id);
+      for (const r of replies.data) out.add(r.conversation_id);
     }
   }
   return [...out];
@@ -91,7 +91,7 @@ export async function findSequencePlace(db: Db, tenantId: TenantId, leadId: stri
   const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new DbFailure(error, "cannot read where the lead stands");
   const result = data as SequencePlaceDto | null;
-  if (!result || !result.sequence || !result.place) return null;
+  if (!result) return null;
   const place = { ...result, sends: Array.isArray(result.sends) ? result.sends : [] };
   const [row] = await withOneLeadsOpening(db, tenantId, await withPlaceWhyNot(db, tenantId, leadId, place));
   return { ...place, place: row ?? place.place, put_back: await putBackOf(db, tenantId, place) };

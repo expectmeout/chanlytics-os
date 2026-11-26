@@ -82,9 +82,10 @@ export function verifyEdgeToken(secret: string, token: string, aud: string, nowM
   const given = Buffer.from(token.slice(dot + 1), "base64url");
   const expected = createHmac("sha256", secret).update(payload).digest();
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, reason: "signature" };
-  let claims: EdgeClaims;
+  // JSON, but perhaps no object at all (`null`, a number): checked below before anything is read from it.
+  let claims: EdgeClaims | null;
   try {
-    claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as EdgeClaims;
+    claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as EdgeClaims | null;
   } catch {
     // Not JSON: nothing to read.
     return { ok: false, reason: "malformed" };

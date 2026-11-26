@@ -5,12 +5,12 @@
  */
 import "server-only";
 import { parseTenantConfig, resolveFacts } from "@chanlytics/contracts";
-import { getKnownFacts } from "../readers/settings";
+import { getKnownFacts } from "../readers/settings/settings";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** The published number, or null where this business has none. */
 export async function postPhoneOf(ctx: RouteContext, tenantId: TenantId, config: unknown): Promise<string | null> {
   const brain = parseTenantConfig(config)?.brain ?? null;
-  return resolveFacts(brain, await getKnownFacts(ctx, tenantId)).phone_display?.value ?? null;
+  return resolveFacts(brain, await getKnownFacts(ctx, tenantId)).phone_display.value ?? null;
 }

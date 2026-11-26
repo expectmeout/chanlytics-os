@@ -12,7 +12,7 @@ import { fakeDb } from "../../_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { newestLeadSequence, stepsCarrying, claimCounts, mailboxShown, standingChainOf, standingFactsOf } =
-  await import("../../../apps/dashboard/src/server/readers/settings.ts");
+  await import("../../../apps/dashboard/src/server/readers/settings/settings.ts");
 const { readReachOutMonthOrNull } = await import("../../../apps/dashboard/src/server/campaigns/month-sent.ts");
 
 const step = (id, n, body, extra = {}) => ({
@@ -264,7 +264,7 @@ test("emails held for an address are counted by that reason alone, in this works
 
 test("a read that failed claims nothing: the one answer stands back, and never says to connect a mailbox", async () => {
   const { readFile } = await import("node:fs/promises");
-  const reader = await readFile("apps/dashboard/src/server/readers/settings.ts", "utf8");
+  const reader = await readFile("apps/dashboard/src/server/readers/settings/settings.ts", "utf8");
   assert.match(reader, /const decided = !!row && !!facts && !!mailboxes && !!chains;/);
   assert.match(reader, /standing: decided\n/);
   assert.match(reader, /sending: mailboxes \? coldEmailSendingOf/);

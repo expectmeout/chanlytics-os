@@ -69,7 +69,7 @@ export function gmailRestUntil(providerReply: Pick<ProviderReply, "json" | "text
 /** Gmail's words for a refusal: its error's message, else the body as it came. */
 function gmailWordsOf(r: Pick<ProviderReply, "json" | "text">): string {
   const message = valueAt(r.json, "error", "message");
-  return typeof message === "string" ? `${message} ${r.text ?? ""}` : (r.text ?? "");
+  return typeof message === "string" ? `${message} ${r.text}` : r.text;
 }
 
 /** Whether the grant is gone (revoked, expired for good, the account suspended): the owner connects it again. */

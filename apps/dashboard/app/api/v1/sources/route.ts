@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { footage } from "@/server/readers/footage";
+import { footage } from "@/server/readers/content/footage";
 
 /**
  * GET /api/v1/sources — where the workspace's watched folder stands: the Google account it is read through, the folder,

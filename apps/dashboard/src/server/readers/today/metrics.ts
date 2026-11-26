@@ -1,7 +1,7 @@
 import "server-only";
 import { AppError, type MetricsSummaryDto } from "@chanlytics/contracts";
-import { findMetricsSummary } from "../metrics/metrics";
-import { readerStamp, type Reader } from "../shared/reader";
+import { findMetricsSummary } from "../../metrics/metrics";
+import { readerStamp, type Reader } from "../../shared/reader";
 
 /**
  * GET metrics, as the route answers it: the numbers behind Today, counted on

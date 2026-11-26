@@ -87,7 +87,7 @@ export async function findFreedTimeFacts(
       tz: tenant.data?.timezone || DEFAULT_TIMEZONE,
       hours: profile?.hours,
       closures: profile?.closures,
-      standing: (standing.data ?? []).map((r) => ({
+      standing: standing.data.map((r) => ({
         id: r.id,
         contactId: r.contact_id,
         start: Date.parse(r.starts_at),
@@ -113,7 +113,7 @@ export async function findFreedTimeStep(
     .eq("trigger", FREED_MOMENT)
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the step that offers a freed time");
-  const steps = data ?? [];
+  const steps = data;
   const running = steps.find((s) => s.state === "running");
   if (!running) return { state: steps.length ? "paused" : "none" };
   const modes = await getSequenceModes(db, tenantId, [running.sequence_id]);
@@ -166,7 +166,7 @@ export async function getCancellationsSince(db: Db, tenantId: TenantId, sinceIso
   const said = (e: { data: unknown }, k: string): unknown => recordOrEmpty(e.data)[k];
   const ids = [
     ...new Set(
-      (data ?? [])
+      data
         .filter((e) => said(e, "by") === "service" || said(e, "source") === "calendar_feed")
         .flatMap((e) => (e.subject_id ? [e.subject_id] : [])),
     ),

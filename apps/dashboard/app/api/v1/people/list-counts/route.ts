@@ -22,7 +22,7 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const tokens = [
       ...new Set(
-        (input?.lists ?? "")
+        input.lists
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean),

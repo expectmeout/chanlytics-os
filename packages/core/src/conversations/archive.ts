@@ -15,7 +15,7 @@ export async function archive(
   if (!(await ports.archive(conv.id))) {
     throw new AppError("conflict", "Couldn't archive this conversation. Reload and try again.", 409);
   }
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "archive");
-  await ports.resolveEscalation(conv.id, decision_id);
-  return { state: "archived", decision_id };
+  const decisionId = await ports.record(conv.tenant_id, "conversation", conv.id, "archive");
+  await ports.resolveEscalation(conv.id, decisionId);
+  return { state: "archived", decision_id: decisionId };
 }

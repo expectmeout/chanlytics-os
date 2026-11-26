@@ -34,7 +34,7 @@ export const UNCHECKED = "unchecked" as const;
 const ANSWERS_A_THREAD = new Set<AskProposal["kind"]>(["reply", "steer"]);
 
 const proposalWhoOf = (p: AskProposal): string => {
-  const who = p.payload?.who;
+  const who = p.payload.who;
   return typeof who === "string" && who ? who : "They";
 };
 
@@ -49,7 +49,7 @@ export async function cardMoved(
     return decided ? { says: CARD_MOVED_WORDS.runDecided(decided.state), redraft: false } : null;
   }
   if (!ANSWERS_A_THREAD.has(p.kind)) return null;
-  const id = p.payload?.conversation_id;
+  const id = p.payload.conversation_id;
   if (typeof id !== "string" || !id) return null;
   const madeAt = typeof p.made_at === "string" ? p.made_at : null;
   const thread = await findThreadCard(ctx.supabase, tenantId, id)

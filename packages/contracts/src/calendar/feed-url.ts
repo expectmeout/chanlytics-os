@@ -249,7 +249,7 @@ export function calendarFeedKeyOf(
     | undefined,
 ): string | null {
   const granted = cfg?.calendar_grant?.mailbox_id;
-  if (granted) return `${MAILBOX_CALENDAR}${cfg?.calendar_grant?.provider ?? "google"}:${granted}`;
+  if (granted) return `${MAILBOX_CALENDAR}${cfg.calendar_grant?.provider ?? "google"}:${granted}`;
   return cfg?.calendar?.ical_url?.trim() || null;
 }
 

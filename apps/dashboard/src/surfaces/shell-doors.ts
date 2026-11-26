@@ -3,12 +3,10 @@
  * (frame-verbs.ts). Nothing is read off the window (decision 0151).
  */
 import type { ReactNode } from "react";
-import { gate as frameGate, useFrameToast } from "./frame-verbs";
+import { useFrameToast } from "./frame-verbs";
 
-/** A role gate's props, spread after a control's handlers: `{}` where the role may act (frame/gate.ts `gate`). */
-export function gate(perm: string, doing?: string): Record<string, unknown> {
-  return frameGate(perm, doing);
-}
+/* A role gate's props for a control: the frame's own (frame-verbs.ts gate, over frame/gate.ts). */
+export { gate } from "./frame-verbs";
 
 /** What the shell's one toast takes (frame/flash.tsx `usePPToast`): a message, its tone, and what pressing does. */
 export interface Flash {

@@ -122,7 +122,7 @@ export async function scheduleJob<K extends JobKind>(
   scheduleParams: ScheduleParams<K>,
 ): Promise<{ jobId: string }> {
   const { data, error } = await insertJob(db, rowToInsert(asKeptJob(scheduleParams)));
-  if (error || !data) throw new DbFailure(error ?? { message: "no row" }, "schedule_job");
+  if (error) throw new DbFailure(error, "schedule_job");
   return { jobId: data.id };
 }
 
@@ -170,7 +170,7 @@ export async function cancelJobsFor(
     logger().error("cancel_jobs_failed", { tenant_id: tenantId, kind, error: error.message });
     return 0;
   }
-  return data?.length ?? 0;
+  return data.length;
 }
 
 /** What a requeue came to (requeueFailedJob). */

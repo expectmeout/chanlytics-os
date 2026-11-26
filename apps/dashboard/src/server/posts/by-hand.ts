@@ -7,7 +7,7 @@
 import "server-only";
 import { AppError, CONTENT_WORDS, FILE_WORDS } from "@chanlytics/contracts";
 import { listFilePosts, pullPost, reportPost, type FileMemberRow } from "@chanlytics/db/files";
-import { handPostOf } from "@/server/readers/content";
+import { handPostOf } from "@/server/readers/content/content";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 

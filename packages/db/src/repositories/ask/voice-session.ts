@@ -119,7 +119,7 @@ export async function claimVoiceTurn(
     .or(`turn_key.is.null,turn_key.neq.${turnKey},turn_started_at.lt.${stale}`)
     .select("id");
   if (error) throw new DbFailure(error, "ask voice session claim");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -149,7 +149,7 @@ export async function endVoiceSession(
     .eq("id", id)
     .select("id");
   if (error) throw new DbFailure(error, "ask voice session end");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** The page under the Line changed: the next spoken turn reads this one (the member's own row). */
@@ -164,5 +164,5 @@ export async function moveVoiceSessionContext(
     .eq("id", id)
     .select("id");
   if (error) throw new DbFailure(error, "ask voice session context");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }

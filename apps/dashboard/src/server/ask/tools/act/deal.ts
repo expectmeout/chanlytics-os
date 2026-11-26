@@ -166,7 +166,7 @@ async function proposeDeal(toolContext: ToolContext, input: DealInput): Promise<
     typeof input.amount_cents === "number" && input.amount_cents >= 0 ? Math.round(input.amount_cents) : null;
   const per = isOneOf(DEAL_PERS, str(input.per, 10)) ? str(input.per, 10) : null;
   const note = str(input.note, 200);
-  const moved = dealRowOf(stage, named, rows ?? []);
+  const moved = dealRowOf(stage, named, rows);
   if ("result" in moved) return moved;
   const { sameRow, service } = moved;
   noteRow(toolContext, "person", id, contactName, `clients/${id}`);

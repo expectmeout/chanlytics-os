@@ -307,7 +307,7 @@ export function openingGuess(text: string): string | null {
   let start = 0;
   let end = plain.length;
   for (const m of plain.matchAll(CLAUSE_END)) {
-    const at = m.index ?? 0;
+    const at = m.index;
     if (at < hedge.index) start = at + m[0].length;
     else if (at >= hedge.index + hedge[0].length) {
       end = at;

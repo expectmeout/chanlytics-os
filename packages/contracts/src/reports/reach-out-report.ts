@@ -108,16 +108,16 @@ export interface ReachOutChainTotalsDto {
 export function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null {
   const roots = recordOrNull(answer);
   if (!roots) return null;
-  const by_root: ReachOutChainTotalsDto["by_root"] = {};
+  const byRoot: ReachOutChainTotalsDto["by_root"] = {};
   for (const [root, value] of Object.entries(roots)) {
     const v = recordOrNull(value);
     if (!v || !isCount(v.written) || !isCount(v.wrote_back)) return null;
-    if (v.businesses === undefined) by_root[root] = { written: v.written, wrote_back: v.wrote_back };
+    if (v.businesses === undefined) byRoot[root] = { written: v.written, wrote_back: v.wrote_back };
     else if (isCount(v.businesses))
-      by_root[root] = { written: v.written, businesses: v.businesses, wrote_back: v.wrote_back };
+      byRoot[root] = { written: v.written, businesses: v.businesses, wrote_back: v.wrote_back };
     else return null;
   }
-  return { complete: true, by_root };
+  return { complete: true, by_root: byRoot };
 }
 
 /**
@@ -126,17 +126,18 @@ export function chainTotalsOf(answer: unknown): ReachOutChainTotalsDto | null {
  * step carries it: a sum of some is not the chain's.
  */
 export function chainTotalsFromReport(report: Pick<ReachOutReportDto, "chains">): ReachOutChainTotalsDto {
-  const by_root: ReachOutChainTotalsDto["by_root"] = {};
+  const byRoot: ReachOutChainTotalsDto["by_root"] = {};
   for (const c of report.chains) {
     const written = c.steps.reduce((sum, s) => sum + s.written, 0);
-    const wrote_back = c.steps.reduce((sum, s) => sum + s.wrote_back, 0);
+    const wroteBack = c.steps.reduce((sum, s) => sum + s.wrote_back, 0);
     const businesses = c.steps.reduce<number | null>(
       (sum, s) => (sum === null || s.businesses === undefined ? null : sum + s.businesses),
       0,
     );
-    by_root[c.root_id] = businesses === null ? { written, wrote_back } : { written, businesses, wrote_back };
+    byRoot[c.root_id] =
+      businesses === null ? { written, wrote_back: wroteBack } : { written, businesses, wrote_back: wroteBack };
   }
-  return { complete: false, by_root };
+  return { complete: false, by_root: byRoot };
 }
 
 /** A mailbox's row in the Reach-outs part (H5): its state in words, and how its emails landed, as shares the lens words. */
