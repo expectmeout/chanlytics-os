@@ -4,12 +4,12 @@
 export { getLineCredentials, putLineCredentials } from "./credentials";
 export { testLineForwarding } from "./forwarding";
 export {
+  addVoiceChannel,
   dropLineCredentials,
   findBusinessOnRecord,
   findFiledNames,
   findLinesThatText,
   findOwnLine,
-  addVoiceChannel,
   keepBusinessOnRecord,
 } from "./lines";
 export {
@@ -33,6 +33,7 @@ export {
   findLineRow,
   findTextingLineOf,
   insertLineRow,
+  keepLineTexting,
   listLineFilingsOf,
   listLineNumbersOf,
   listLinesAwaitingCarriers,
@@ -41,7 +42,6 @@ export {
   listLinesOf,
   listLinesOfWorkspaces,
   listStuckLines,
-  keepLineTexting,
   releaseLineRow,
   saveForwardingVerified,
   saveLineFacts,
