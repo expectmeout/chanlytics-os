@@ -124,7 +124,7 @@ export const FIRST_RUN_TRY_WORDS = {
   }),
   showCode: "Show the code again",
   help: "Ask Chanlytics for help",
-  helpSent: "We'll email you to find a time for a call.",
+  helpSent: "Chanlytics emails you to find a time for a call.",
   helpFailed: "Not asked",
   pickedUp: "It picked up.",
   proofForwarded: "Forwarding works",

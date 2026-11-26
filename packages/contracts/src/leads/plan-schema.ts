@@ -258,7 +258,7 @@ const US_NAMES = new Set([
   "united states of america",
   "the united states",
   "america",
-  "the us",
+  "the us", // screen-word: a way a person writes the country, read and never shown
   "the usa",
 ]);
 

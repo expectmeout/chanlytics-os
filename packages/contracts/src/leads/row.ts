@@ -411,6 +411,7 @@ function subLineOf(lead: LeadRowDto, distanceM: number | null): string {
 /** Where a lead's facts came from, as foundLine says it: a directory, its Maps listing, else the owner's own list. */
 export function leadSourceWord(lead: Pick<LeadRowDto, "kind" | "place_id">): string {
   if (lead.kind === "company") return LEAD_DIRECTORY_WORDS.source;
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   return lead.place_id ? LEAD_SOURCE_WORD : "Your list";
 }
 

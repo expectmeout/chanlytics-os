@@ -153,7 +153,7 @@ function ReviewReply({
       ) : (
         <div className="rp2-review-composer" data-testid="google-reply-composer">
           <Field
-            aria-label="Your reply to this review"
+            aria-label="Reply to this review"
             rows={3}
             value={text}
             maxLength={4096}
@@ -444,7 +444,7 @@ function notLinked(report: ReviewsReportVM, range: LensRange, may: boolean) {
   return (
     <RptSection title="Google reviews">
       <div className="rpt-grid">
-        <ChartCard className="rpt-span-12" title="Your listing on Google" testid="google-none">
+        <ChartCard className="rpt-span-12" title="Listing on Google" testid="google-none">
           <EmptyState
             kind="line"
             title={report.lines.empty}

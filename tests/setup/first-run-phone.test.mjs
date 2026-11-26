@@ -211,7 +211,7 @@ test("back from checkout before the plan lands: starting, until Stripe confirms 
   assert.equal(vm.stage, "starting");
   assert.deepEqual(vm.status, {
     state: "waiting_them",
-    words: "Waiting on us",
+    words: "Waiting on Chanlytics",
     sentence: "Starting your plan…",
     detail: "Your card is on file. This page updates as Stripe confirms it.",
   });
@@ -223,7 +223,7 @@ test("pressed and allowed to spend: buying, in the area code of the number kept,
   assert.equal(keep.stage, "buying");
   assert.deepEqual(keep.status, {
     state: "waiting_them",
-    words: "Waiting on us",
+    words: "Waiting on Chanlytics",
     sentence: "Getting AI's number in 305…",
     detail: "Usually a minute or two · this page updates by itself",
   });

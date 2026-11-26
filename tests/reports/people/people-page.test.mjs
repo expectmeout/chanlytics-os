@@ -137,7 +137,7 @@ test("the five parts, in order, for a workspace that has everything", () => {
   assert.equal(byTestId(tree, "reports-empty"), null, "the lens never says that nothing came in");
   assert.deepEqual(dimmed(tree), [], "nothing is on its way");
   // A section that names what the tab says draws no heading, and keeps its label for a screen reader.
-  assert.deepEqual(sectionsOf(tree), ["Your customers", "Time between steps", "Stuck now"]);
+  assert.deepEqual(sectionsOf(tree), ["Customers", "Time between steps", "Stuck now"]);
   assert.equal(all(tree, (n) => n.type === "h2").length, 0);
   // The time between steps is the window's two cards, side by side in one grid; what is stuck is two strips, three and four across.
   const time = byTestId(tree, "people-time");
@@ -369,7 +369,7 @@ test("a quiet period hides nothing: the strip says 0, each window card says why 
     yes([...WINDOW_IDS, ...BOOK_IDS]),
     "and every part of the page stands: the time between steps, what is stuck now and where they stand say so in numbers and words",
   );
-  assert.deepEqual(sectionsOf(tree), ["Your customers", "Time between steps", "Stuck now"]);
+  assert.deepEqual(sectionsOf(tree), ["Customers", "Time between steps", "Stuck now"]);
   const text = [...WINDOW_IDS, ...BOOK_IDS, ...KEPT_IDS].map((id) => textOf(byTestId(tree, id))).join(" | ");
   assert.doesNotMatch(text, /\b0%|NaN|Infinity/, text);
 });
@@ -419,11 +419,7 @@ test("its own read failed: one failed read with its Retry stands in place of the
     assert.ok(read, "its Retry reads the lens's own surface again");
     assert.equal(read.props.kind, "card");
     assert.deepEqual(present(tree, [...WINDOW_IDS, ...BOOK_IDS]), no([...WINDOW_IDS, ...BOOK_IDS]));
-    assert.deepEqual(
-      sectionsOf(tree),
-      ["Your customers"],
-      "the failed read stands in the one section; there are no others",
-    );
+    assert.deepEqual(sectionsOf(tree), ["Customers"], "the failed read stands in the one section; there are no others");
     assert.equal(byTestId(tree, "people-now-failed"), null, "the book's own failure is a different thing");
     assert.deepEqual(present(tree, KEPT_IDS), yes(KEPT_IDS), "the frame's read is current and stands");
     assert.deepEqual(dimmed(tree), [], "nothing is dimmed: a dimmed card takes no press, and the Retry is on it");
@@ -465,7 +461,7 @@ test("a database without 00395 draws the book and the kept cards, nothing of the
     "the book is counted without it: its cards, what is stuck, where they stand",
   );
   assert.deepEqual(present(tree, KEPT_IDS), yes(KEPT_IDS));
-  assert.deepEqual(sectionsOf(tree), ["Your customers", "Stuck now"], "the section of the window is not drawn empty");
+  assert.deepEqual(sectionsOf(tree), ["Customers", "Stuck now"], "the section of the window is not drawn empty");
   assert.equal(byTestId(tree, "people-failed"), null, "a missing function is not a failed read");
   assert.equal(byTestId(tree, "people-now-failed"), null);
   assert.deepEqual(dimmed(tree), []);
@@ -484,7 +480,7 @@ test("a pool that could not be counted draws the window and one failed read wher
     "no bar, no stuck count and no standing of a book nobody counted",
   );
   assert.deepEqual(present(tree, KEPT_IDS), yes(KEPT_IDS));
-  assert.deepEqual(sectionsOf(tree), ["Your customers", "Time between steps"], "and no Stuck now to say 0 of it");
+  assert.deepEqual(sectionsOf(tree), ["Customers", "Time between steps"], "and no Stuck now to say 0 of it");
   const failed = all(tree, (n) => n.props?.["data-testid"] === "people-now-failed");
   assert.equal(failed.length, 1, "one, not one a card");
   assert.ok(textOf(failed[0]).includes("Couldn't read who you can reach now"), textOf(failed[0]));
