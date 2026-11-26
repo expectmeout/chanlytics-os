@@ -44,11 +44,10 @@ import {
   type ProposalTab,
   textOrEmpty,
   UUID,
-  isOneOf,
-  ROUTE_KEYS,
 } from "@chanlytics/contracts";
 import { refreshAfter } from "../refresh-map";
-import type { Api } from "../../client/api";
+import type { Api, RouteKey } from "../../client/api";
+import { ROUTES } from "../../client/routes.generated";
 import { apiFor } from "../api";
 import { isRefusal, saidHere, specOf, tabOf, undoVerb, walkVerb } from "../verbs/commit";
 import { provided } from "../provided";
@@ -145,9 +144,12 @@ function tellDoorCalls(win: Window, answer: AskActAnswer): void {
     for (const e of c.events)
       win.dispatchEvent(e.detail ? new CustomEvent(e.type, { detail: e.detail }) : new CustomEvent(e.type));
     // A re-read that fails behind a write is the surface's own to say; a route this build does not know has none to read.
-    if (isOneOf(ROUTE_KEYS, c.route)) void refreshAfter(c.route).catch(() => undefined);
+    if (isRouteKey(c.route)) void refreshAfter(c.route).catch(() => undefined);
   }
 }
+
+/** A route this build's client knows: a key its own table holds, which the bundle already carries. */
+const isRouteKey = (route: string): route is RouteKey => Object.hasOwn(ROUTES, route);
 
 /** The door could not act, and nothing was sent: the press goes the way it went from a browser (AskActAnswer.walkHere). */
 const WALK_HERE = Symbol("walk here");
