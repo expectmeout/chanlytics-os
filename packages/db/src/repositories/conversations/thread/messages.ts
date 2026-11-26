@@ -25,7 +25,7 @@ const NOTES_BUDGET = 1200;
  * The team's notes as the receptionist hears them (0007): newest first, each dated, as many as fit the budget -- the
  * newest always, however long. Where the notes could not be read, the field they moved from (00054), as it was said.
  */
-export function notesForReceptionist(lead: LeadContext, now = new Date(), tz = "UTC"): string | null {
+function notesForReceptionist(lead: LeadContext, now = new Date(), tz = "UTC"): string | null {
   if (Array.isArray(lead.noteList)) {
     const parts: string[] = [];
     let used = 0;

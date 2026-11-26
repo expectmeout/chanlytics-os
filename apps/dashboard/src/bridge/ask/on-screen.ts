@@ -1,3 +1,4 @@
+import { recordOrEmpty } from "@chanlytics/contracts";
 /**
  * What the page says it drew, to Ask (OW6: Ask is told what is on screen one way). A page that holds the rows it draws in
  * state of its own (the Inbox's bucket, People's list and search, the Pipeline's box, the Calendar's span) says them as
@@ -34,7 +35,7 @@ export function setAskOnScreen(on: OnScreen | null): void {
 export function askOnScreenOf(win: object): { key: string; ids: unknown; view: unknown; labels: unknown } | null {
   const v: unknown = Reflect.get(win, LEDGER);
   if (typeof v !== "object" || v === null || !("key" in v) || typeof v.key !== "string") return null;
-  const s = v as Record<string, unknown>;
+  const s = recordOrEmpty(v);
   return { key: v.key, ids: s.ids, view: s.view, labels: s.labels };
 }
 

@@ -73,6 +73,7 @@ import {
   sameListed,
   SERVICES_ON_PUBLIC_PAGE,
   type PromptBlockVM,
+  valueAt,
 } from "@chanlytics/contracts";
 import {
   ABILITY_CHANNEL_WORDS,
@@ -285,7 +286,7 @@ export function profileCrossing(
   if (!stored || typeof stored !== "object") return null;
   const parsed = saveRules?.safeParse({ brain: next });
   if (!parsed?.success || !parsed.data.brain) return null;
-  const was = hasProfile((stored as { profile?: unknown }).profile ?? null);
+  const was = hasProfile(valueAt(stored, "profile") ?? null);
   const now = hasProfile(parsed.data.brain.profile ?? null);
   if (was === now) return null;
   const crossing: ProfileCrossing = was ? "stops" : "starts";

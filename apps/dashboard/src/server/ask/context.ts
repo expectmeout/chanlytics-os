@@ -1,5 +1,5 @@
 import "server-only";
-import { MIN_MS, fenced, promptSafeName, type AskSurface, type PageContext } from "@chanlytics/contracts";
+import { MIN_MS, UUID, fenced, promptSafeName, type AskSurface, type PageContext } from "@chanlytics/contracts";
 import { stableJson, type ReaderContext, type RowRef } from "../shared/reader";
 import type { WorkspaceShape } from "../readers/shape";
 import {
@@ -80,7 +80,8 @@ export const CONTEXT_TTL_MS = MIN_MS;
 const CONTEXT_CACHE_CAP = 200;
 /** Room kept in the aggregate for the sentence that says the cut. */
 const CUT_ROOM = 64;
-const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+/** A uuid anywhere in a route: contracts' one UUID, its anchors taken off. */
+const UUID_IN_ROUTE = new RegExp(UUID.source.slice(1, -1), "i");
 
 type Built = Omit<BuiltContext, "warm">;
 const kept = new Map<string, { at: number; built: Promise<Built> }>();
@@ -108,7 +109,7 @@ const blockTitle = (title: string): string => promptSafeName(title) ?? "";
 
 /** The page as a citation names it: its route, where the route names no row; else the page the route is on. */
 function pageRef(ctx: PageContext, label: string): RowRef {
-  const route = ctx.route && !UUID.test(ctx.route) ? ctx.route : ctx.route.split("/")[0] || ctx.surface;
+  const route = ctx.route && !UUID_IN_ROUTE.test(ctx.route) ? ctx.route : ctx.route.split("/")[0] || ctx.surface;
   return { kind: "page", id: route, route, label };
 }
 

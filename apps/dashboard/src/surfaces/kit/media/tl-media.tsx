@@ -16,7 +16,7 @@ export function TlMedia({ media }: { media?: MediaVM | null }) {
   const src = hrefOf("GET messages/[id]/media", { id: media.messageId }) ?? undefined;
   if (media.kind === "image") {
     return (
-      <a className="tl-media" href={src} target="_blank" rel="noopener noreferrer" title="Open the photo">
+      <a className="tl-media" href={src} target="_blank" rel="noopener noreferrer" data-tip="Open the photo">
         <img src={src} alt={media.caption || "Photo the customer sent"} loading="lazy" />
       </a>
     );

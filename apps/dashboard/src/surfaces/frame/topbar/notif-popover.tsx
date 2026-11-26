@@ -139,7 +139,7 @@ function bellCheck(title: string, onPress: () => void) {
   return (
     <button
       className="tbn-read"
-      title={BELL_READ_WORDS.readOne}
+      data-tip={BELL_READ_WORDS.readOne}
       aria-label={BELL_READ_WORDS.readOneOf(title)}
       onClick={(e) => {
         // The check goes with the dot: the keyboard's focus is handed to the line it stood on, not dropped.
@@ -210,7 +210,7 @@ function bellNote(d: BellDraw, n0: BellNote, inGroup: boolean) {
             </span>
           </button>
           {n.unread && d.onRead && bellCheck(n.title, () => d.read(n.id))}
-          <button className="tbn-x" title="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => d.fold(n.id)}>
+          <button className="tbn-x" data-tip="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => d.fold(n.id)}>
             <Glyph name="x" size={10} />
           </button>
         </div>

@@ -16,7 +16,7 @@ export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
 
 /** What a thread's own messages are read with: a message's columns, with its error. */
-export const THREAD_MESSAGE_COLUMNS =
+const THREAD_MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel, error";
 
 /** A thread's newest messages, `limit` of them, with `before` only those before it. */

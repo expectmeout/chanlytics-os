@@ -1,7 +1,6 @@
 export {
   areaCenter,
   CARDS,
-  CHECKER_FIELDS,
   CHECKER_RUN_TIMEOUT_SECS,
   leadPins,
   MAPS_CAP_FLOOR_USD,
@@ -12,23 +11,13 @@ export type { LeadCardRunner, MapsPlace } from "./cards";
 export { cleanPlace } from "./clean";
 export type { CleanPlace } from "./clean";
 export { discoveryEnding, FINAL_RUN_STATES, runStateOf, termsShortOf } from "./endings";
-export {
-  haversineM,
-  inArea,
-  medianCenter,
-  nearestAreas,
-  RADIUS_MAX_M,
-  RADIUS_MIN_M,
-  radiusFromSpread,
-  zctaCenter,
-} from "./geo";
+export { haversineM, inArea, medianCenter, nearestAreas, radiusFromSpread, zctaCenter } from "./geo";
 export type { LatLng } from "./geo";
 export { foldDuplicates, identityOf, isFreeMail, shareKeysOf, sharesWithin } from "./identity";
 export type { Identity } from "./identity";
 export { hashSha256Hex, runIdFor } from "./ids";
 export {
   fact,
-  FACT_MAX,
   factsOf,
   JUDGE_REFUSED_REASON,
   JUDGE_TIMEOUT_MS,
@@ -38,7 +27,7 @@ export {
 } from "./judge";
 export type { JudgedBatch } from "./judge";
 export { leadMarksFrom } from "./mark";
-export { imageHeaderOf, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, markImageFrom } from "./mark-image";
+export { imageHeaderOf, MARK_MAX_BYTES, MARK_MIN_SIDE, markImageFrom } from "./mark-image";
 export type { MarkImage, MarkKind } from "./mark-image";
 export type {
   CollectCommitResult,
@@ -63,7 +52,7 @@ export { check, checkable, isAgainRun } from "./runner/check";
 export type { CheckAgain, CheckOutcome } from "./runner/check";
 export type { CollectOutcome } from "./runner/collect/batches";
 export { collect } from "./runner/collect/collect";
-export { MARK_TRIES, markPlaces } from "./runner/mark-places";
+export { markPlaces } from "./runner/mark-places";
 export type { MarkPlace } from "./runner/mark-places";
 export { MAX_CARRY_ONS, nextStepOf, REDRIVE_AFTER_MS } from "./runner/next-step";
 export type { RoundStep, StepJobs, StepRound, StepRun } from "./runner/next-step";
@@ -96,4 +85,4 @@ export { startRound } from "./runner/start";
 export type { StartOutcome, TermOutcome } from "./runner/start";
 export { giveUpRun, reconcileUnknownRuns } from "./runner/sweep";
 export type { GiveUpOutcome, ReconcileOutcome } from "./runner/sweep";
-export { hasContact, mainAsk, probeAsk, probeYield, runCaps, yieldOf } from "./sizing";
+export { mainAsk, probeAsk, probeYield, runCaps, yieldOf } from "./sizing";

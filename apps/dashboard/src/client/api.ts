@@ -18,6 +18,8 @@ import {
   sessionEnded,
   textOrEmpty,
   type Refusal,
+  recordOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { InputOf, OutputOf } from "../server/shared/route";
 import { ROUTES, type Routes } from "./routes.generated";
@@ -232,7 +234,7 @@ const failedWhole = (e: unknown): boolean => e instanceof Error && e.message ===
 
 /** A request that was rejected, as a page reads it: it never arrived, or was given up on. */
 function unanswered(e: unknown, write: boolean): ApiRefusal {
-  const name = (e as { name?: unknown } | null)?.name;
+  const name = valueAt(e, "name");
   const timedOut = name === "TimeoutError" || name === "AbortError";
   return { ok: false, ...refusalOf({ code: timedOut ? "timeout" : "network", status: 0, write }) };
 }
@@ -522,7 +524,7 @@ export function createApi(deps: ApiDeps) {
     const params = (opts.params ?? {}) as Record<string, string>;
     const url = ROUTES[key].path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
     const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries((opts.query ?? {}) as Record<string, unknown>))
+    for (const [k, v] of Object.entries(recordOrEmpty(opts.query)))
       if (v !== undefined && v !== null) qs.set(k, queryText(v));
     const ws = deps.workspace();
     if (ws && !qs.has("workspace")) qs.set("workspace", ws);

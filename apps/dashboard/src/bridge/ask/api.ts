@@ -26,6 +26,7 @@ import {
   type AskOpeningsView,
   type SpeechPurpose,
   UUID,
+  valueAt,
 } from "@chanlytics/contracts";
 import { api } from "../api";
 import { readLines, unwrap, type Api } from "../../client/api";
@@ -63,7 +64,7 @@ const TURN_MS = 5 * MIN_MS;
  */
 function brokenWords(e: unknown, question: string): string {
   const es = detectLanguage(question) === "es";
-  if ((e as { name?: unknown } | null)?.name === "TimeoutError")
+  if (valueAt(e, "name") === "TimeoutError")
     return es
       ? "La respuesta tardó demasiado en llegar. Inténtalo de nuevo."
       : "The answer took too long to arrive. Try again.";
@@ -360,7 +361,7 @@ function turnCall(client: Api, head: { sent(): void }) {
     } catch (e) {
       if (stopped()) return;
       // A question that never left asked nothing; one that timed out may still be answered.
-      const name = (e as { name?: unknown } | null)?.name;
+      const name = valueAt(e, "name");
       on({
         t: "error",
         text:

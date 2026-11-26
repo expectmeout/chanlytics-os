@@ -448,7 +448,7 @@ test("an unread note carries a check that reads it without opening it; a read no
   const tree = again(() => checked(items, acts));
   const [unread, read] = all(tree, (n) => classes(n).includes("tbn-item"));
   assert.deepEqual(
-    checksOf(unread).map((b) => [b.props.title, b.props["aria-label"]]),
+    checksOf(unread).map((b) => [b.props["data-tip"], b.props["aria-label"]]),
     [["Mark read", "Mark read: Note a"]],
     "REGRESSION: on a desk a note could only be read by opening it",
   );
