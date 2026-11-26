@@ -233,7 +233,7 @@ export const personMessageSpec: ProposalSpec = {
   },
   receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} · sends in 15 seconds unless you cancel`,
   undo: {
-    label: () => "Sends 15 seconds after you approve; cancel within them",
+    label: () => "Sends 15 seconds after you approve · cancel before then",
     window: "cancelable",
     record: (_p, data) => ({
       message_id: rec(data).message_id,

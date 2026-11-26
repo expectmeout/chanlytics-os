@@ -76,8 +76,8 @@ export const EXPORT_OF = {
   rules: { section: "rules" },
   channel: {
     not_exported: {
-      what: "The business's numbers, mailboxes and connections",
-      why: "They hold the keys to your connected services, and each service keeps its own record of them. Settings › Connections lists them.",
+      what: "The business's connections",
+      why: "They hold the keys to your services, and each service keeps its own record. Settings › Connections lists them.",
     },
   },
   team: { section: "team" },
@@ -91,18 +91,18 @@ export const EXPORT_OF = {
   billing: {
     not_exported: {
       what: "The subscription and its invoices",
-      why: "The payment provider holds them; Settings › Billing opens them.",
+      why: "The payment provider holds them. Settings › Billing opens them.",
     },
   },
   brought: {
     not_exported: {
-      what: "How far bringing your history in has come, and what your Business Profile and website said",
-      why: "What was brought is in the file's people, conversations and bookings, and what you kept of the profile and the website is in its business section · the rest is a progress record and a copy of what is public.",
+      what: "The import's progress and its copy of your Business Profile and website",
+      why: "What came in is in the file's people, conversations, bookings and business. The rest is progress and a public copy.",
     },
   },
   file: {
     not_exported: {
-      what: "Your photos",
+      what: "Photos",
       why: "They are files, not rows: each one downloads from Settings › Files.",
     },
   },
@@ -114,13 +114,13 @@ export const EXPORT_OF = {
   },
   ad_account: {
     not_exported: {
-      what: "Your ad account's connection",
+      what: "The ad account's connection",
       why: "The ad platform holds the account and its bill · Settings › Connections shows what is connected.",
     },
   },
   ad: {
     not_exported: {
-      what: "Your ads and what they spent",
+      what: "Ads and what they spent",
       why: "They are a copy of what the ad platform holds, and its own export gives them whole.",
     },
   },
@@ -128,7 +128,7 @@ export const EXPORT_OF = {
   request: { section: "form_entries" },
   rehearsal: {
     not_exported: {
-      what: "Your rehearsals with AI",
+      what: "Rehearsals with AI",
       why: "They are you playing a customer, not a customer's record · what you kept from them is in the file's business section.",
     },
   },
@@ -147,17 +147,17 @@ const LEFT_OUT_BESIDE_THE_KINDS: readonly ExportLeftOut[] = [
 ];
 
 /**
- * What the owner's copy holds, as the card beside its link says it (Settings › Business, "Your data"): a section for each
- * kind of record EXPORT_OF exports, in the file's order.
+ * What the owner's copy holds, as the card beside its link says it (Settings › Business, "Your data"): its main sections,
+ * of the kinds EXPORT_OF exports.
  */
 export const EXPORT_HOLDS_WORDS =
-  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, saved messages, holds, AI's rules, Google reviews, leads, and how each reply from a lead was read.";
+  "People, conversations with a link to each file a customer sent, calls, consent, deals, bookings, campaigns and leads.";
 
 /** What the owner's copy leaves out, as the card says it: each `what` of exportLeftOut, the why at the file's end. */
 export function exportLeftOutWords(): string {
-  // Semicolons between them: a thing left out may itself be a list ("its numbers, mailboxes and connections").
+  // Commas between them, so no `what` is itself a list with a comma in it (docs/words.md: no semicolons).
   const subject = exportLeftOut().map((l) => l.what.charAt(0).toLowerCase() + l.what.slice(1));
-  return `Not in it: ${subject.slice(0, -1).join("; ")}; and ${subject.at(-1) ?? ""}. The end of the file says why for each.`;
+  return `Not in it: ${subject.slice(0, -1).join(", ")} and ${subject.at(-1) ?? ""}. The end of the file says why for each.`;
 }
 
 /** Everything the owner's copy does not hold, each with why: the file's `not_included`, in the order the kinds are named. */
@@ -216,11 +216,11 @@ const PERSON_LEAVES_OUT = {
   },
   team: {
     what: "The team",
-    why: "Each member is the workspace's · who did something to their record is said on it, as `author_user_id`, `created_by` or `added_by`.",
+    why: "Each member is the workspace's. Who acted on their record is said on it: `author_user_id`, `created_by` or `added_by`.",
   },
   campaigns: {
     what: "The campaigns",
-    why: "A campaign is the workspace's · what each of its runs sent them is in sends, and each message as they received it is in conversations.",
+    why: "A campaign is the workspace's. What it sent them is in sends, and each message as they got it is in conversations.",
   },
   templates: {
     what: "Saved messages",
@@ -228,7 +228,7 @@ const PERSON_LEAVES_OUT = {
   },
   reviews: {
     what: "Google reviews",
-    why: "A review is tied to no one in the record: Google names its author as they chose to be shown. The workspace's own copy holds them.",
+    why: "A review is tied to no one in the record: Google names its author as they chose. The workspace's copy holds them.",
   },
 } as const satisfies Record<Exclude<ExportSection, PersonExportSection>, ExportLeftOut>;
 
@@ -236,7 +236,7 @@ const PERSON_LEAVES_OUT = {
 const PERSON_LEFT_OUT_BESIDE: readonly ExportLeftOut[] = [
   {
     what: "Which lists made by a rule they are on",
-    why: "A list made by a rule holds whoever its rule matches as the record stands · lists holds the lists they were put on by hand, and the workspace's own copy holds each rule.",
+    why: "A rule's list holds whoever matches it as the record stands. Lists they were put on by hand are in lists.",
   },
 ];
 

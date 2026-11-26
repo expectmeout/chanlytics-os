@@ -22,6 +22,7 @@ export const SignupSchema = z
       .string()
       .trim()
       .min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.")
+      // screen-word: the database raises the same sentence (supabase/schema.sql), so it changes with a migration
       .max(SIGNUP_NAME_MAX, "That name is too long — 120 characters at most."),
     email: z.string().trim().toLowerCase().regex(z.regexes.email, "Enter a work email address.").max(254),
     /**

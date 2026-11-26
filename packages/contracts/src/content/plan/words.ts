@@ -29,7 +29,7 @@ export const WEEK_WORDS = {
     `${size}, ${days}. AI is paused, so nothing goes up until you approve them.`,
   /** And for a week AI sends as soon as it is ready (00714). */
   readyBodySent: (size: string, days: string) =>
-    `${size}, ${days}. AI approves them, as you set it. Each goes up at its time.`,
+    `${size}, ${days}. AI approves them, as you set it, and each goes up at its time.`,
   /** The notice of what to film (footage_ask). */
   askSubject: (count: number) => (count === 1 ? "A clip to film for the week" : `${count} clips to film for the week`),
   /** A week with nothing to post: its head. */
@@ -83,7 +83,7 @@ export const WEEK_WORDS = {
       line: "AI plans each week from what you film and what the business needs, and posts each one where you approve it.",
     },
     unplanned: {
-      title: "Your first week",
+      title: "The first week",
       line: "AI plans each week on Sunday evening, ready by Monday 8:00 AM. Or plan this one now.",
     },
   },
