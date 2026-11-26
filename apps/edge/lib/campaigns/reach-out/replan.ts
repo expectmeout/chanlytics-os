@@ -139,7 +139,7 @@ function heldTimesOf(sends: readonly ReachOutSendRow[]): Map<string, number[]> {
 /** What one tick's replan holds for every step: its clock, the sends a door wrote for, the move, the counts, the zones read. */
 interface ReplanTick {
   now: Date;
-  wrote: ReadonlySet<string>;
+  writtenFor: ReadonlySet<string>;
   move: Move;
   out: ReplanCounts;
   zones: Map<string, string>;
@@ -156,7 +156,7 @@ async function placeAgain(
   tick: ReplanTick & { keeps: boolean },
 ): Promise<void> {
   const { now, move, out } = tick;
-  const attempts = row.attempts + (tick.wrote.has(row.id) ? 1 : 0);
+  const attempts = row.attempts + (tick.writtenFor.has(row.id) ? 1 : 0);
   const tooLong = now.getTime() - Date.parse(row.created_at) > REPLAN_GIVE_UP_MS;
   // Two weeks is the end whether or not a moment was found: a send that fails every time it is written (its claim left,
   // planned again, claimed again) would otherwise circle for good, holding its mailbox's day.
@@ -194,7 +194,7 @@ async function replanStep(
   const { now, move, out, zones } = tick;
   const tenantId = group[0].tenant_id;
   const { step, ownerSends } = await stepAndRootOf(db, tenantId, stepId, group[0].sequence_id);
-  const mine = await keepTheirs(group, { ownerSends, step, now, wrote: tick.wrote, move, out });
+  const mine = await keepTheirs(group, { ownerSends, step, now, wrote: tick.writtenFor, move, out });
   if (mine.length === 0) return;
   const leadOf = await leadClocksOf(db, tenantId, mine);
   if (!zones.has(tenantId)) zones.set(tenantId, await zoneOrDefault(db, tenantId));
@@ -230,7 +230,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
   const wrote = new Set(items.filter((i) => i.wrote).map((i) => i.send.id));
   // A send moves from wherever it stands (planned, claimed, queued), and only as it was read.
   const move: Move = (s, patch) => moveSend(db, { tenantId: s.tenant_id, id: s.id, from: s.state, patch });
-  const tick: ReplanTick = { now, wrote, move, out, zones: new Map() };
+  const tick: ReplanTick = { now, writtenFor: wrote, move, out, zones: new Map() };
   for (const [stepId, group] of sendsByStep(items.map((i) => i.send))) {
     // A step removed since (its sends' step_id set null): nothing to pace or place them by, so they go no further.
     if (!stepId) {

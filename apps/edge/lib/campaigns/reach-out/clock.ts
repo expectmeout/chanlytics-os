@@ -237,30 +237,30 @@ async function unstick(tick: ClockTick): Promise<void> {
 }
 
 /** A closed run's claimed send whose email was written and not withdrawn: it goes on as that email's (true). */
-async function adoptsItsEmail(tick: ClockTick, s: ReachOutSendRow): Promise<boolean> {
+async function adoptsItsEmail(tick: ClockTick, send: ReachOutSendRow): Promise<boolean> {
   const { db, out } = tick;
-  const id = await sendMessageId(s.id, s.attempts);
-  const withdrawn = await withdrawEmail(db, { tenantId: s.tenant_id, id, reason: "run_canceled" });
-  const was = withdrawn ? null : await findWrittenEmail(db, { tenantId: s.tenant_id, id });
+  const id = await sendMessageId(send.id, send.attempts);
+  const withdrawn = await withdrawEmail(db, { tenantId: send.tenant_id, id, reason: "run_canceled" });
+  const was = withdrawn ? null : await findWrittenEmail(db, { tenantId: send.tenant_id, id });
   if (!was || was.status === "canceled") return false;
-  if (await move(db, s, { state: "queued", message_id: id })) out.adopted += 1;
+  if (await move(db, send, { state: "queued", message_id: id })) out.adopted += 1;
   return true;
 }
 
 /** One open send of a canceled or failed run, by where it stands (closeRuns). */
-async function closeOne(tick: ClockTick, s: ReachOutSendRow, emailStatus: string | null): Promise<void> {
+async function closeOne(tick: ClockTick, send: ReachOutSendRow, emailStatus: string | null): Promise<void> {
   const { db, out } = tick;
-  if (s.state === "queued") {
-    if (s.message_id && emailStatus === "queued") {
-      if (await withdrawEmail(db, { tenantId: s.tenant_id, id: s.message_id, reason: "run_canceled" }))
+  if (send.state === "queued") {
+    if (send.message_id && emailStatus === "queued") {
+      if (await withdrawEmail(db, { tenantId: send.tenant_id, id: send.message_id, reason: "run_canceled" }))
         out.withdrawn += 1;
     }
     return;
   }
-  if (s.state === "claimed" && (await adoptsItsEmail(tick, s))) return;
+  if (send.state === "claimed" && (await adoptsItsEmail(tick, send))) return;
   // A draft handed to its owner may have left their inbox: withdrawn, never "never happened" (00427's one-first rule).
-  const reason = s.state === "drafted" ? "draft_withdrawn" : "run_canceled";
-  if (await move(db, s, { state: "skipped", reason })) out.closed += 1;
+  const reason = send.state === "drafted" ? "draft_withdrawn" : "run_canceled";
+  if (await move(db, send, { state: "skipped", reason })) out.closed += 1;
 }
 
 /**
