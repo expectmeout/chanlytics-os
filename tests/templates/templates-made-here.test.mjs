@@ -29,7 +29,7 @@ import {
   MODEL_ROUTES,
   MODELS,
 } from "@chanlytics/contracts";
-import { ROOT, readCode, readRaw } from "../_source.mjs";
+import { ROOT, readCode } from "../_source.mjs";
 
 // The drafter is run below over an edge stubbed with the provider guard open, which is read as its module loads.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -220,97 +220,56 @@ test("what fills a slot: typed text once, or the person's first name, the busine
   assert.equal(paramLabel({ kind: "text", value: "20%" }), "20%");
 });
 
-test("the migration says where a template came from; the graph module lets Meta recategorise, hands back Meta's own words, and deletes one language by its id", () => {
-  // The create and delete doors themselves -- the number's own credentials,
-  // the row made here and by whom, Meta's words back on a refusal, no call to
-  // Meta for a row with no id and the row still removed -- are run in
-  // templates-doors.test.mjs.
-  const m = readRaw("supabase/migrations/00047_templates_made_here.sql");
-  assert.ok(m.includes("add column source     text not null default 'meta' check (source in ('meta', 'chanlytics'))"));
-  const g = readCode("apps/edge/lib/whatsapp/meta-templates.ts");
-  assert.ok(g.includes("allow_category_change: true"), "Meta may recategorise instead of rejecting");
-  assert.ok(g.includes("body?.error?.error_user_msg ?? body?.error?.message"), "Meta's own words");
-  // The id is REQUIRED, not conditional: `?name=` alone is every language of
-  // that name, gone, with the name locked for thirty days.
-  assert.ok(
-    g.includes("const qs = new URLSearchParams({ name, hsm_id: hsmId });"),
-    "one language goes, not every language of that name",
-  );
-  assert.ok(g.includes("  hsmId: string,\n"), "and no caller can omit it");
+test("the table says where a template came from: Meta or written here, and nothing else", async () => {
+  // The database in memory refuses what Postgres refuses (_schema.mjs, held to the replayed migrations by the Database
+  // workflow). Pinned as 00047's text until 26 Nov 2026.
+  const db = fakeDb({ templates: [] });
+  const put = (source, name) =>
+    db
+      .from("templates")
+      .insert({
+        tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        channel: "whatsapp",
+        name,
+        language: "en_US",
+        source,
+      })
+      .select("id")
+      .single();
+  assert.equal((await put("meta", "a")).error, null);
+  assert.equal((await put("chanlytics", "b")).error, null);
+  assert.equal((await put("ask", "c")).error?.code, "23514", "a third origin is refused");
 });
 
-test("the routes: what Meta refuses is refused first; a duplicate name is a conflict; a template a broadcast still uses cannot go; the draft is a draft", () => {
-  const r = readCode(
-    "apps/dashboard/app/api/v1/templates/route.ts",
-    "apps/dashboard/src/server/campaigns/template-submit.ts",
-  );
-  assert.ok(
-    r.includes("const check = validateTemplateDraft({") &&
-      r.includes('if (!check.ok) throw new AppError("validation", check.error);'),
-  );
-  // The duplicate's sentence is contracts' since Ask's message card says it too (TEMPLATE_SAME_NAME_WORDS).
-  assert.ok(r.includes('throw new AppError("conflict", TEMPLATE_SAME_NAME_WORDS, 409);'));
+// The graph module's three promises -- Meta may recategorise instead of rejecting (allow_category_change), Meta's own
+// words come back (error_user_msg over the generic message), and one language goes by name AND its own id, never every
+// language of that name -- are run through the edge's doors in templates-doors.test.mjs; that no caller can omit the id
+// is the typecheck's (`hsmId: string`). The create and delete doors themselves -- the number's own credentials, the row
+// made here and by whom, Meta's words back on a refusal, no call to Meta for a row with no id and the row still
+// removed -- are run there too. Pinned as meta-templates.ts's and 00047's text until 26 Nov 2026.
+
+// The routes: what Meta refuses is refused first, in the person's words, and a duplicate name is a conflict
+// (TEMPLATE_SAME_NAME_WORDS) -- run through POST templates in playbooks/routes/ and, with the guard open, in
+// what-meta-holds-is-asked-of-the-edge.test.mjs, where Meta's own reason reaches the person and the create door is asked
+// with the words; a template a send or a running playbook still uses cannot go (playbooks/routes/), and one nothing uses
+// goes through the edge's delete door by its own id (what-meta-holds-is-asked-of-the-edge.test.mjs); the draft is a
+// draft, counted against the assistant's bucket (its policy, playbooks/routes/), its words and their check run below.
+// Pinned as the routes' and the services' text until 26 Nov 2026.
+test("the duplicate's sentence is contracts', since Ask's message card says it too", () => {
   assert.equal(TEMPLATE_SAME_NAME_WORDS, "A message with that name and language already exists. Pick another name.");
-  assert.ok(r.includes("WhatsApp did not accept it: ${r.detail"), "Meta's words reach the person");
-  const del = readCode(
-    "apps/dashboard/app/api/v1/templates/[id]/route.ts",
-    "apps/dashboard/src/server/campaigns/template-row.ts",
-    // The count itself, packages/db's (decision 0111).
-    "packages/db/src/repositories/campaigns/templates/doors.ts",
-  );
-  assert.ok(
-    del.includes('.in("state", ["scheduled", "sending"]);') &&
-      del.includes('"A send is still using this message. Cancel it first."'),
-  );
-  const dr = readCode("apps/dashboard/app/api/v1/templates/draft/route.ts");
-  assert.ok(dr.includes('rate: "ask",'), "a draft costs an assistant turn");
-  const svc = [
-    "apps/dashboard/src/server/drafts/template/draft.ts",
-    "apps/dashboard/src/server/drafts/template/translate.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
   assert.equal(MODEL_ROUTES.template_draft.model, MODELS.SONNET_5_5, "the draft asks the registry's model for it");
-  assert.ok(svc.includes("Answer with one JSON object and nothing else"));
-  assert.ok(svc.includes("The footer must say how to opt out"), "a marketing draft carries the opt-out line");
-  assert.ok(
-    /const check = validateTemplateDraft\(\{\s*name: parsed\.data\.name/.test(svc),
-    "the draft passes the same check a submission does",
-  );
-  assert.ok(svc.includes("do not use a booking_link slot"), "no slot the workspace cannot fill");
-  assert.ok(
-    readCode("apps/dashboard/src/server/campaigns/meta-templates.ts").includes(
-      '"/api/admin/whatsapp/templates-create"',
-    ) &&
-      readCode("apps/dashboard/src/server/campaigns/meta-templates.ts").includes(
-        '"/api/admin/whatsapp/templates-delete"',
-      ),
-  );
 });
 
 test("the job fills the slots per person and holds anyone a slot cannot be filled for; the send route takes specs and refuses a booking-link slot with no link on file", () => {
   const h = readCode("packages/jobs/src/handlers/broadcast-send.ts");
   // The slots per person and the hold on an unfillable one are run: broadcasts/core-broadcast/.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
-  // The specs and the booking-link refusal are run: broadcasts/core-campaigns/.
-  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
-  // Delete is an item of the pane's kit Menu: its test id rides the item's `gate` (the question it asks is `testid=`).
-  assert.ok(s.includes('"data-testid": "template-delete"'));
-  const tc = readCode("apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx");
-  for (const id of [
-    "tpl-composer",
-    "tpl-brief",
-    "tpl-draft",
-    "tpl-name",
-    "tpl-body",
-    "tpl-examples",
-    "tpl-preview",
-    "tpl-submit",
-  ])
-    assert.ok(tc.includes(`data-testid="${id}"`), id);
-  // The composer is a module of the Templates page and the verbs it presses are imported, not published: the page draws
-  // it (the Templates page test), and `templates` is the verbs' export (surfaces/campaigns/templates/verbs.ts).
-  assert.ok(readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts").includes("export const templates"));
+  // The specs and the booking-link refusal are run: broadcasts/core-campaigns/. Delete is the last item of a message's
+  // name menu, drawn whole in templates/sheet/message-versions-page.test.mjs; the composer is drawn and typed into, its
+  // brief drafted, its name, body and examples set and submitted, in broadcasts/page/a-broadcast-s-state.test.mjs; the
+  // verbs it presses are imported, not published, and ask their routes (the-library-s-verbs-ask-their-routes.test.mjs).
+  // The business name a slot is filled with falls back to the workspace's name: the one read left here, since only a
+  // whole run of the job reaches it (workspaceFacts is the handler's own).
   // An approval is news the owner waits for, told with what it was approved as: run, by value, in
   // whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
 });
@@ -364,4 +323,68 @@ test("a template draft asks the registry's model with its thinking off, and what
   assert.equal(sent.length, 1);
   assert.equal(sent[0].request.model, MODEL_ROUTES.template_draft.model);
   assert.deepEqual(sent[0].request.thinking, { type: "between_tools" }, "Sonnet 5.5's least thinking");
+});
+
+test("a draft is told the rules its kind and its workspace hold it to, and what it writes passes the check a submission does", async () => {
+  // (draft.ts's text was pinned for these until 26 Nov 2026.)
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const { draftTemplate } = await import(at("apps/dashboard/src/server/drafts/template/draft.ts"));
+  const real = globalThis.fetch;
+  const draftOf = async (written, input) => {
+    const frames = [
+      { type: "message_start", message: { id: "msg_1", model: MODELS.SONNET_5_5, usage: { input_tokens: 900 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: JSON.stringify(written) } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 60 } },
+      { type: "message_stop" },
+    ]
+      .map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`)
+      .join("");
+    const sent = [];
+    globalThis.fetch = async (url, init) => {
+      if (!String(url).endsWith("/api/admin/llm")) throw new Error(`nothing else is reachable: ${url}`);
+      sent.push(JSON.parse(String(init?.body ?? "{}")));
+      return new Response(frames, { status: 200, headers: { "content-type": "text/event-stream" } });
+    };
+    try {
+      const ctx = {
+        userId: "u1",
+        supabase: fakeDb({
+          tenants: [{ id: T, name: "Harbor Studio", timezone: "America/New_York" }],
+          tenant_config: [],
+        }),
+      };
+      const out = await draftTemplate(ctx, T, {
+        brief: "Twenty percent off colour this week",
+        language: "en",
+        ...input,
+      });
+      return { out, system: JSON.stringify(sent[0]?.request?.system ?? "") };
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+  const offer = {
+    name: "colour_offer",
+    body: "Hi {{1}}, twenty percent off any colour at Harbor Studio this week.",
+    footer: "Reply STOP to opt out",
+    examples: ["Ana"],
+    variables: [{ position: 1, label: "First name", source: "first_name" }],
+  };
+  const marketing = await draftOf(offer, { category: "marketing" });
+  assert.equal(marketing.out.ok, true, marketing.out.message);
+  assert.match(marketing.system, /Answer with one JSON object and nothing else/);
+  assert.match(marketing.system, /The footer must say how to opt out/, "a marketing draft carries the opt-out line");
+  assert.match(marketing.system, /do not use a booking_link slot/, "no slot the workspace cannot fill");
+  const utility = await draftOf({ ...offer, footer: null }, { category: "utility" });
+  assert.doesNotMatch(utility.system, /The footer must say how to opt out/, "a notice needs no opt-out line");
+  // What the model writes is held to the same check a submission is: a body that opens on a value is refused.
+  const broken = await draftOf(
+    { ...offer, body: "{{1}}, twenty percent off any colour this week." },
+    { category: "marketing" },
+  );
+  assert.equal(broken.out.ok, false);
+  assert.equal(broken.out.reason, "invalid");
+  assert.match(broken.out.message, /^The draft broke a WhatsApp rule/);
 });

@@ -13,19 +13,40 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LIBRARY_WORDS, TEMPLATE_STATUSES } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { readCode, importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TENANT = "00000000-0000-0000-0000-000000000000";
 
-test("the migration: category, the two after-approval statuses, why rejected, when synced; the contract agrees", () => {
-  const m = readRaw("supabase/migrations/00045_templates_truth.sql");
-  assert.ok(
-    m.includes("add column category        text check (category in ('marketing', 'utility', 'authentication'))"),
-  );
-  assert.ok(m.includes("check (meta_status in ('approved', 'pending', 'rejected', 'paused', 'disabled'))"));
-  assert.ok(m.includes("add column synced_at       timestamptz"));
+test("the table holds category, the two after-approval statuses, why rejected and when synced; the contract agrees", async () => {
+  // The database in memory refuses what Postgres refuses, from the closed sets and columns the Database workflow holds
+  // to the replayed migrations (_schema.mjs): a row of every status the contract names lands, and one it does not name
+  // is refused, as 00045's checks refuse it. (Pinned as 00045's text until 26 Nov 2026.)
   assert.deepEqual([...TEMPLATE_STATUSES], ["approved", "pending", "rejected", "paused", "disabled"]);
+  const db = fakeDb({ templates: [] });
+  const put = (over) =>
+    db
+      .from("templates")
+      .insert({
+        tenant_id: TENANT,
+        channel: "whatsapp",
+        name: `t_${JSON.stringify(over).length}_${Math.random()}`,
+        language: "en_US",
+        ...over,
+      })
+      .select("id")
+      .single();
+  for (const meta_status of TEMPLATE_STATUSES) assert.equal((await put({ meta_status })).error, null, meta_status);
+  for (const category of ["marketing", "utility", "authentication"])
+    assert.equal((await put({ category })).error, null, category);
+  assert.equal((await put({ meta_status: "in_appeal" })).error?.code, "23514", "Meta's own words are mapped first");
+  assert.equal((await put({ category: "promotional" })).error?.code, "23514");
+  assert.equal(
+    (await put({ rejected_reason: "INVALID_FORMAT", synced_at: "2026-09-05T12:00:00Z", quality: "GREEN" })).error,
+    null,
+    "why rejected, and when the row last matched Meta",
+  );
 });
 
 test("Meta's words into the table's: status, category, the body, the numbered variables with examples, labels kept", async () => {
@@ -86,47 +107,29 @@ test("Meta's words into the table's: status, category, the body, the numbered va
 // upsert what Meta returns, leave the rest exactly as it was, labels kept --
 // is run in templates-doors.test.mjs.
 
-test("the dashboard: the route proves the operator, the service reaches the edge in production only, the composer still sees approved only", () => {
-  const r = readCode("apps/dashboard/app/api/v1/templates/sync/route.ts");
-  assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
-  assert.ok(r.includes("no_waba:") && r.includes("meta_failed:"));
-  const svc = readCode("apps/dashboard/src/server/campaigns/meta-templates.ts");
-  assert.ok(svc.includes('"/api/admin/whatsapp/templates-sync"'));
-  // `?all=1` is Settings' read and the composer still sees approved only: RUN through the route in
-  // playbooks/routes/ ("templates: the composers see the approved and unhidden") and its reader in
-  // ask/readers/. The columns moved with the body, to the reader.
-  // With the read it names, packages/db's (decision 0111).
-  const g = readCode(
-    "apps/dashboard/src/server/readers/templates.ts",
-    "packages/db/src/repositories/campaigns/templates/page.ts",
-  );
-  assert.ok(
-    g.includes("category, meta_status, quality, rejected_reason, synced_at"),
-    "the picker can tell marketing from utility",
-  );
-});
+// The dashboard: the sync route is an operator's, counted with the other settings changes (its policy, run in
+// playbooks/routes/); it asks the edge's sync door for this workspace in production alone, and says a missing account
+// or a silent Meta in the owner's words; Settings' read carries the category, Meta's verdict and why, and when it last
+// matched (what-meta-holds-is-asked-of-the-edge.test.mjs). `?all=1` is Settings' read and the composer still sees
+// approved only: RUN through the route in playbooks/routes/ ("templates: the composers see the approved and unhidden")
+// and its reader in ask/readers/. Pinned as the route's, the service's and the reader's text until 26 Nov 2026.
 
 test("the webhook writes the row Meta changed; Settings shows every template with its status and one verb", async () => {
-  const w = readCode("apps/edge/lib/whatsapp/waba-events.ts");
-  assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
-  // Meta's verdict and its reason are written on the row, its kind moved by name and language, and a quality flag leaves
+  // A recategorised template changes who may receive it (template_category_update), Meta's verdict and its reason are written on the row, its kind moved by name and language, and a quality flag leaves
   // an approved template approved: all three run in whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
   // A message's sheet (message-row-parts.tsx): the list that stood beside it went as Messages folded into Campaigns.
-  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
-  // No sync button (the Messages redesign's step 5): WhatsApp is asked quietly as Campaigns opens, whichever view is on
-  // screen (parts/whatsapp-list.ts; Campaigns, one tab, call C11: it was the Messages page's own).
-  assert.ok(!s.includes('data-testid="sync-templates"'), "no press to ask WhatsApp");
+  // No sync button (the Messages redesign's step 5): a message's name menu is Rename, Put away, Add a language and
+  // Delete, drawn whole in templates/sheet/message-versions-page.test.mjs. WhatsApp is asked quietly as Campaigns opens,
+  // whichever view is on screen (parts/whatsapp-list.ts; Campaigns, one tab, call C11: it was the Messages page's own) --
+  // the one read left here: no test draws Campaigns' route yet.
   assert.ok(
     readCode("apps/dashboard/src/surfaces/campaigns/home/route.tsx").includes("useWhatsAppListAsked()"),
     "Campaigns asks it as it opens",
   );
   // The head's hover is contracts' (the page draws it: message-versions-page.test.mjs): it says who a marketing message reaches.
   assert.ok(LIBRARY_WORDS.headTip.includes("A marketing message can only go to people who said yes to offers."));
-  assert.ok(
-    readCode("apps/dashboard/src/bridge/surfaces/settings.ts").includes(
-      'read("GET templates", { query: { all: "1" } })',
-    ),
-  );
+  // Settings' read asks every template with its status, once: run over a wire that records it in
+  // shell/hearing/templates-are-read-once.test.mjs ("the settings read is the one read of them").
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/bridge/refresh-map.ts")).AFTER["POST templates/sync"]().map((o) => o.key),
     ["settings"],

@@ -40,7 +40,16 @@ import {
   validateTemplateDraft,
 } from "@chanlytics/contracts";
 import { starterPreview } from "../../apps/dashboard/src/surfaces/campaigns/templates/preview.ts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { readCode, importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { installStubReact } from "../_stub-react.mjs";
+
+// The Library's listing and the broadcast's slot choices, as the pages draw them (surfaces/campaigns).
+installStubReact({});
+const { listingOf } = await importSrc("apps/dashboard/src/surfaces/campaigns/templates/group.ts");
+const { starters: library } = await importSrc("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
+const { bcSlotChoicesOf } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/page/reach.ts");
+const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 /** The set a workspace with deals on and a review link on its Google listing is offered, in the order a composer opens on. */
 const OFFERED = [
@@ -437,44 +446,13 @@ test("a slot's value as a card quotes it, the one rule every card says it by: ty
 });
 
 test("the door: idempotent, one language at a time, synced in when the number's account already holds it, Meta's own words when it refuses", async () => {
-  const r = readCode(
-    "apps/dashboard/app/api/v1/templates/starter/route.ts",
-    "apps/dashboard/src/server/campaigns/starter-templates.ts",
-  );
-  assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
-  assert.ok(
-    /status: "exists",\s*meta_status: have\.meta_status,\s*versions: await versionsOf\(s, l\)/.test(r),
-    "already on file is left alone, and its email and text versions are filed beside it (run in template-versions.test.mjs)",
-  );
-  assert.ok(
-    r.includes("const check = validateTemplateDraft(starterDraft(s, l));"),
-    "the same check a hand-written template passes",
-  );
-  assert.ok(
-    r.includes('if (template.reason === "meta_refused" && ALREADY_AT_META.test(template.detail ?? "")) {') &&
-      r.includes("await syncTemplates(tenantId, ctx.userId);"),
-    "a shared account's copy is synced in, not refused",
-  );
-  assert.ok(
-    /status: "submitted",\s*meta_status: template\.metaStatus,\s*versions: await versionsOf\(s, l\)/.test(r),
-    "a submission is followed by its versions",
-  );
-  assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
-  const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
-  // The door's one caller is the bridge's verb, which Campaigns' verbs and Settings › Business (the call's text) both press.
-  const door = readCode("apps/dashboard/src/bridge/verbs/templates.ts");
-  assert.ok(
-    door.includes('export const fileStarters = (body: StarterBody) => api()("POST templates/starter", { body });') &&
-      b.includes('import { fileStarters, syncWhatsAppList } from "@/bridge/verbs/templates";') &&
-      /\n {2}fileStarters,\n/.test(b),
-    "the verb goes through the client (a step editor files the starter it picked); the map refreshes every surface that shows templates",
-  );
-  assert.ok(
-    b.includes("export const starters: StarterLibrary = {") &&
-      b.includes("title: titleOf") &&
-      b.includes("slotKinds: defaultSlotKinds"),
-    "the library reaches the pages (imported by them since decision 0015, no longer published on window)",
-  );
+  // Run, not read (pinned as the route's, the service's and the two verbs modules' text until 26 Nov 2026): the door is an
+  // operator's, counted with the settings changes, and refuses nothing to add in its words (playbooks/routes/); one
+  // already on file is left alone and its email and text versions are filed beside it (template-versions.test.mjs); a
+  // new one is held to the check a hand-written template passes, submitted through the create door, and one the
+  // number's account already holds is synced in, not refused (what-meta-holds-is-asked-of-the-edge.test.mjs). The verb is
+  // the bridge's, through the client, which Campaigns' verbs hand on and Settings › Business presses, and the library
+  // reaches the pages by import (the-library-s-verbs-ask-their-routes.test.mjs).
   const refreshMap = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   assert.deepEqual(
     refreshMap.AFTER["POST templates/starter"]().map((o) => o.key),
@@ -487,20 +465,34 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 test("the pages: titles not names, the starter set in Settings, the message as the customer sees it", () => {
   // A message's sheet is a folder of modules (moved from messages.jsx, decision 0015): its source is read as one. The list
   // that stood beside it (page-parts, message-row) went as Messages folded into Campaigns (17 Nov 2026).
-  const s = ["message-row-parts", "group", "words"]
-    .map((f) =>
-      readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.ts${f === "group" || f === "words" ? "" : "x"}`),
-    )
-    .join(" ");
-  // No banner and no press adds the set (the clean list, 14 Nov 2026): a starter is filed the first time something uses it,
-  // and a language the set wrote is added to one already in use (`starter-add`).
-  for (const id of ["starter-add", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
-  for (const id of ["starters", "starter-add-all"]) assert.ok(!s.includes(`data-testid="${id}"`), `no ${id}`);
-  assert.ok(s.includes('testid="template-lang"'), "one language control per message, the picker's");
-  assert.ok(
-    isLibrarySample("hello_world") && s.includes("!isLibrarySample(t.name)"),
-    "Meta's sample is never shown, nor counted (contracts library-count.ts: the one list)",
+  // No banner and no press adds the set (the clean list, 14 Nov 2026): a starter is filed the first time something uses
+  // it, and a language the set wrote is added to one already in use (`starter-add`), on a message's one menu and its one
+  // language control, the picker's: drawn and pressed in templates/sheet/ (message-versions-page, message-sheet-review).
+  // Meta's sample is never shown, nor counted (contracts library-count.ts: the one list).
+  assert.ok(isLibrarySample("hello_world"));
+  const listing = listingOf(
+    [
+      {
+        id: "s1",
+        channel: "whatsapp",
+        name: "hello_world",
+        language: "en_US",
+        category: "utility",
+        meta_status: "approved",
+        source: "meta",
+        hidden_at: null,
+      },
+    ],
+    [],
+    library,
   );
+  assert.ok(
+    !JSON.stringify([listing.list, listing.customGroups, listing.hiddenGroups]).includes("hello_world"),
+    "Meta's sample is listed nowhere",
+  );
+  // The card is the WHOLE message as the customer sees it, its heading and its buttons too; a title, and nothing an
+  // owner does not act on. Read until the card is drawn with a heading and buttons.
+  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   assert.ok(
     s.includes("<MessagePreview") &&
       s.includes("header={row ? row.header : null}") &&
@@ -519,17 +511,42 @@ test("the pages: titles not names, the starter set in Settings, the message as t
   assert.ok(s.includes("tplTitle(") && !s.includes('"Made here"'), "a title, and nothing an owner does not act on");
   // Broadcasts' slot choices (moved from broadcasts.jsx), which the run's hook still works out. The send screen that drew
   // them, with its starter set's button and its preview, went with decision 0065's step 7: New writes a first message.
-  const b = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/page/reach.ts");
-  assert.ok(
-    b.includes("const c = choices[i] || BC_TEXT;") &&
-      b.includes("const s = (sources[tplId] || BC_NONE)[i];") &&
-      b.includes('return s && c.includes(s) ? s : (c[0] ?? "text");'),
-    "a starter's slots come filled in, each with what it may take",
+  // A starter's slots come filled in, each with what it may take: a source kept from before that a slot may not take
+  // (a link since removed) is not kept. Run, where reach.ts's text was pinned until 26 Nov 2026.
+  const offer = {
+    name: "monthly_offer",
+    language: "en_US",
+    variables: [{ position: 1 }, { position: 2 }, { position: 3 }, { position: 4 }],
+  };
+  const slotsOf = (sources, link) =>
+    bcSlotChoicesOf({
+      tpl: offer,
+      link,
+      review: false,
+      sources: { t1: sources },
+      tplId: "t1",
+      data: { businessName: "Harbor" },
+    });
+  const fresh = slotsOf([], false);
+  assert.deepEqual(
+    offer.variables.map((_, i) => fresh.srcOf(i)),
+    ["first_name", "business_name", "text", "text"],
+    "each slot its first choice: a booking link with none on file can only be typed",
   );
-  // The Templates composer (moved from templates-real.jsx): its form and its module, read as one.
-  const t = ["composer-forms.tsx", "composer.tsx"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}`))
-    .join(" ");
+  const kept = slotsOf(["text", "text", "text", "booking_link"], false);
+  assert.deepEqual(
+    [kept.srcOf(0), kept.srcOf(1)],
+    ["first_name", "text"],
+    "a source the slot may take is kept, one it may not is not",
+  );
+  assert.equal(kept.srcOf(3), "text", "a booking link the workspace has not set is not kept");
+  assert.equal(slotsOf(["text", "text", "text", "booking_link"], true).srcOf(3), "booking_link", "and is, once set");
+  // The Templates composer (moved from templates-real.jsx): its form and its module, read as one until its start-from
+  // row is drawn.
+  const t = readCode(
+    "apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx",
+    "apps/dashboard/src/surfaces/campaigns/templates/composer.tsx",
+  );
   assert.ok(t.includes('data-testid="tpl-start-from"') && !t.includes("starterWords") && !t.includes("WaBubble"));
   // Campaigns' rules live in their own sheet; the starter list's own rows (.tpl-starter-*) went with the list.
   const css = readCode("apps/dashboard/src/surfaces/campaigns/campaigns.css");
@@ -621,18 +638,23 @@ test("the library's order, what a composer opens on, and each slot's words", () 
   );
 });
 
-test("hidden from the composers: the door, the routes, the sync's first sight, the card", () => {
-  const m = readRaw("supabase/migrations/00049_template_hidden.sql");
-  assert.ok(m.includes("alter table public.templates add column if not exists hidden_at timestamptz;"));
-  assert.ok(
-    m.includes("update public.templates set hidden_at = now() where name = 'hello_world' and hidden_at is null;"),
-    "Meta's sample is hidden on the day",
+test("hidden from the composers: the door, the routes, the sync's first sight, the card", async () => {
+  // The column a row is put away by (00049): the database in memory takes it as Postgres does; the door that sets it is
+  // an owner's or an operator's, never a viewer's, and a stranger reads not found (template-versions.db.test.mjs, on the
+  // replayed stack). Meta's sample was hidden on the day by 00049's one update, history now. Pinned as 00049's text
+  // until 26 Nov 2026.
+  assert.equal(
+    (
+      await fakeDb({ templates: [] }).from("templates").insert({
+        tenant_id: TENANT,
+        channel: "whatsapp",
+        name: "x",
+        language: "en_US",
+        hidden_at: "2026-09-01T00:00:00Z",
+      })
+    ).error,
+    null,
   );
-  assert.ok(
-    m.includes("if v_tenant is null or not public.is_acting_member(v_tenant) then"),
-    "owner or operator, never a viewer, and a stranger reads not found",
-  );
-  assert.ok(m.includes("grant execute on function public.set_template_hidden(uuid, boolean) to authenticated;"));
   // The composers never see a hidden template and Settings sees everything: RUN through the route in
   // playbooks/routes/ ("templates: the composers see the approved and unhidden") and its reader in ask/readers/.
   // Hidden through the definer door, an operator's: run through the route in playbooks/routes/
@@ -640,21 +662,11 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   // Nov 2026.
   // The sync hiding Meta's sample on first sight only, and the create door
   // keeping the words a person gave each slot, are run in templates-doors.test.mjs.
-  const s = ["message-row-parts"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
-    .join(" ");
-  // Hide is an item of the pane's kit Menu, which takes no test id of its own: it is among the props its `gate` hands the item's button.
-  // What was put away says so in Campaigns' "Not in a campaign" (Messages' own fold of it went, 17 Nov 2026).
-  assert.ok(s.includes('"data-testid": "template-hide"'));
-  const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
-  assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
-  // A run under the veto window is a row of Today's day, at its time, with its Stop (decision 0064): runs-honest.test.mjs
-  // presses it.
-  const top = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
-  assert.ok(
-    top.includes('className="btn btn-ghost btn-icon btn-sm tb-theme"'),
-    "presence, the bell and the theme are one group",
-  );
+  // Put away is an item of the message's one menu (drawn in templates/sheet/), and its verb asks PUT templates/[id] with
+  // { hidden: true }, back with { hidden: false } (the-library-s-verbs-ask-their-routes.test.mjs). A run under the veto
+  // window is a row of Today's day, at its time, with its Stop (decision 0064): runs-honest.test.mjs presses it.
+  // Presence, the bell and the theme are one group: the theme's button is drawn in the frame's top bar in
+  // shell/surfaces/status/the-page-and-the-shell-s-doors.test.mjs. The group's rule is the stylesheet's, read here.
   assert.ok(
     readCode("apps/dashboard/src/styles/components.css").includes(
       ".tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }",
@@ -662,23 +674,22 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   );
 });
 
-test("a template's title: the workspace's own words, set through its door, shown everywhere a template is named", () => {
-  const m = readRaw("supabase/migrations/00050_template_title.sql");
-  assert.ok(m.includes("alter table public.templates add column if not exists title text;"));
-  assert.ok(m.includes("check (title is null or char_length(title) between 1 and 60);"));
-  assert.ok(
-    m.includes("if v_tenant is null or not public.is_acting_member(v_tenant) then"),
-    "owner or operator, never a viewer",
+test("a template's title: the workspace's own words, set through its door, shown everywhere a template is named", async () => {
+  // The column a title is kept in (00050): taken as Postgres takes it; a title past sixty is refused on the stack
+  // (template-versions.db.test.mjs), and so is a viewer's or a stranger's rename. Pinned as 00050's text until 26 Nov 2026.
+  assert.equal(
+    (
+      await fakeDb({ templates: [] })
+        .from("templates")
+        .insert({ tenant_id: TENANT, channel: "whatsapp", name: "x", language: "en_US", title: "Monthly offer" })
+    ).error,
+    null,
   );
-  assert.ok(m.includes("grant execute on function public.set_template_title(uuid, text) to authenticated;"));
   // Titled through its definer door, empty clearing it, and a change that names nothing refused in its words: run
   // through the route in playbooks/routes/ ("one template: hidden or titled through the definer doors"); a title past
   // sixty refused on the stack (templates/template-versions.db.test.mjs). Pinned as the route's text until 25 Nov 2026.
-  const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
-  assert.ok(
-    b.includes("body: { title } })") && b.includes("return templateTitle(t, row?.title ?? null);"),
-    "a name is looked up among the workspace's rows",
-  );
+  // The rename asks PUT templates/[id] with { title }, and a name is looked up among the workspace's rows
+  // (the-library-s-verbs-ask-their-routes.test.mjs). The rename's own field and its Save, read until they are drawn:
   const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   for (const id of ["template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   // Rename, like Hide, is an item of the pane's kit Menu: its test id rides the item's `gate`.
