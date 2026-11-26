@@ -283,6 +283,15 @@ test("a number the database answers is not ours: dead-lettered under the platfor
             { phone_number_id: w.stranger, messages: 1 },
           ],
         );
+        // The routing's own line, said before the plan's: the number's id, never who wrote. Its name is the contract
+        // (edge/log-envelope.test.mjs), read there from the intake's text until 26 Nov 2026.
+        assert.deepEqual(
+          log.said("wa_unroutable").map((l) => [l.stream, l.fields]),
+          [
+            ["error", { phone_number_id: w.PHONE_ID }],
+            ["error", { phone_number_id: w.stranger }],
+          ],
+        );
 
         // More traffic inside the window: kept again, and nobody is mailed again.
         assert.equal(

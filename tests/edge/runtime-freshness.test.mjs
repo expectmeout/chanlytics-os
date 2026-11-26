@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode } from "../_source.mjs";
+import { MIN_MS } from "@chanlytics/contracts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(here, "../..");
@@ -92,24 +92,34 @@ test("served from the cache while the stamp agrees, reloaded the moment it chang
   assert.deepEqual(db.reads, ["rpc:runtime_stamp"]);
 });
 
-test("the wiring: the stamp door, its grant, and the ten-minute backstop", () => {
-  const mig = readCode("supabase/migrations/00059_shared_limits_runtime_stamp.sql");
-  assert.ok(mig.includes("create or replace function public.runtime_stamp(p_tenant_id uuid)"));
-  for (const s of [
-    "from public.tenant_config c where c.tenant_id = p_tenant_id",
-    "max(p.updated_at)::text from public.policies p where p.tenant_id = p_tenant_id",
-    "from public.tenants t where t.id = p_tenant_id",
-  ])
-    assert.ok(mig.includes(s), s);
-  assert.ok(mig.includes("grant execute on function public.runtime_stamp(uuid) to service_role;"));
-  const src = readCode("apps/edge/lib/shared/tenant-runtime.ts");
-  assert.ok(src.includes("const TTL_MS = 10 * MIN_MS;"), "the backstop for what the stamp does not see");
-  assert.ok(
-    src.includes("if (stamp === null || stamp === hit.stamp) return hit.v;"),
-    "a warm cache is checked, not trusted",
-  );
-  assert.ok(
-    src.includes("cache.set(cacheKey(routed), { v: rt, exp: Date.now() + TTL_MS, stamp });"),
-    "the stamp is stored with the load",
-  );
+test("ten minutes on, a warm runtime is read again though its stamp agrees: the backstop for what the stamp does not see", async (t) => {
+  // The stamp door's own answers, what it reads and who may call it, run on a real database in
+  // receptionist/the-runtime-stamp-covers-what-the-runtime-reads.db.test.mjs. Until 26 Nov 2026 this test read 00059's
+  // text and tenant-runtime.ts's; 00330 has made the function again since.
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-11-26T12:00:00Z") });
+  const state = {
+    config: {},
+    policies: [{ class: "reply", mode: "auto", limits: {} }],
+    timezone: "America/New_York",
+    stamp: "1|a|b",
+  };
+  const db = fakeDb(state);
+  const routed = {
+    tenantId: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
+    channelId: "ch2",
+    kind: "whatsapp",
+    credentialsRef: null,
+  };
+  const first = await loadTenantRuntime(db, routed);
+
+  t.mock.timers.tick(10 * MIN_MS - 1);
+  db.reads.length = 0;
+  assert.equal(await loadTenantRuntime(db, routed), first, "a moment short of ten minutes: served, the stamp agreeing");
+  assert.deepEqual(db.reads, ["rpc:runtime_stamp"]);
+
+  t.mock.timers.tick(1);
+  db.reads.length = 0;
+  const again = await loadTenantRuntime(db, routed);
+  assert.notEqual(again, first, "at ten minutes: read again, though nothing the stamp sees changed");
+  assert.ok(db.reads.includes("tenant_config") && db.reads.includes("policies"), "the whole runtime, read again");
 });

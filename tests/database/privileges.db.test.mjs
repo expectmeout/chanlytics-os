@@ -264,6 +264,30 @@ test("anon holds nothing in public: no table, view or sequence privilege", { ski
   assert.deepEqual(rules.anon_holds_relation, [], "revoke all from anon: the logged-out key reads through no table");
 });
 
+test(
+  "the session role updates a thread, a message and an escalation in the columns the dashboard's verbs set, and in no other (00037)",
+  { skip },
+  () => {
+    // A member's own client sets these and nothing else (repo/hygiene.test.mjs holds the verbs to the same lists): a
+    // column outside them is the service role's, or no one's. Held as 00037's text until 26 Nov 2026; asked of the
+    // catalog since, with a table-wide grant counted as every column, as Postgres counts it.
+    const rows = query(`
+    select c.relname as table_name, a.attname as column_name
+      from pg_attribute a join pg_class c on c.oid = a.attrelid
+     where c.relnamespace = 'public'::regnamespace and c.relname in ('conversations', 'messages', 'escalations')
+       and a.attnum > 0 and not a.attisdropped
+       and has_column_privilege('authenticated', c.oid, a.attnum, 'UPDATE')
+     order by 1, 2`);
+    const updatable = {};
+    for (const r of rows) (updatable[r.table_name] ??= []).push(r.column_name);
+    assert.deepEqual(updatable, {
+      conversations: ["assignee_user_id", "last_message_at", "paused_until", "snooze_until", "state"],
+      escalations: ["decision_id", "resolved_by_user_id", "state"],
+      messages: ["error", "status"],
+    });
+  },
+);
+
 test("every role a request runs as has a statement bound, the service role's too (00283)", { skip }, () => {
   // A member's statements end at 8 s and a stranger's at 3 (Supabase's own settings); the service role, which the edge,
   // the sweeps and the scripts use through PostgREST, had none, and a statement one of them ran could hold a pooled

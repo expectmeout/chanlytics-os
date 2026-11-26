@@ -41,6 +41,7 @@ import {
 } from "@chanlytics/contracts";
 import { starterPreview } from "../../apps/dashboard/src/surfaces/campaigns/templates/preview.ts";
 import { readCode, importSrc } from "../_source.mjs";
+import { cssOf, givenOn } from "../_css.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { installStubReact } from "../_stub-react.mjs";
 
@@ -499,14 +500,10 @@ test("the pages: titles not names, the starter set in Settings, the message as t
       s.includes("buttons={row ? row.buttons : null}"),
     "the card is the WHOLE message as the customer sees it: its heading and its buttons too",
   );
-  // Integrations is Settings › Connections' TSX now (moved from integrations-real.jsx): the pane and its row.
-  const integrations = ["pane", "row"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`))
-    .join(" ");
-  assert.ok(
-    integrations.includes('messages: "channel-messages"') && !integrations.includes("TemplatesCard"),
-    "Integrations points at where the messages are (the WhatsApp row's verb) and lists no template",
-  );
+  // Integrations is Settings › Connections' TSX now (moved from integrations-real.jsx): that a connected number's
+  // Settings point at Campaigns and the pane lists no template is drawn in
+  // whatsapp/connect/a-connected-number-points-at-campaigns-and-lists-no-message.test.mjs (pane.tsx's and row.tsx's text
+  // until 26 Nov 2026).
   // Where it was made ("Made here", "From WhatsApp Manager") went from the open message (Messages, the canvas of 10 Nov 2026).
   assert.ok(s.includes("tplTitle(") && !s.includes('"Made here"'), "a title, and nothing an owner does not act on");
   // Broadcasts' slot choices (moved from broadcasts.jsx), which the run's hook still works out. The send screen that drew
@@ -549,8 +546,11 @@ test("the pages: titles not names, the starter set in Settings, the message as t
   );
   assert.ok(t.includes('data-testid="tpl-start-from"') && !t.includes("starterWords") && !t.includes("WaBubble"));
   // Campaigns' rules live in their own sheet; the starter list's own rows (.tpl-starter-*) went with the list.
-  const css = readCode("apps/dashboard/src/surfaces/campaigns/campaigns.css");
-  assert.ok(css.includes(".mp-bubble {") && !css.includes(".tpl-starter-row"));
+  // Asked of the parsed sheet under any query (read as its text until 26 Nov 2026): the bubble's own rule gives it its
+  // look there, and no selector names the starter list's rows.
+  const CAMPAIGNS_CSS = "apps/dashboard/src/surfaces/campaigns/campaigns.css";
+  assert.ok(Object.keys(givenOn(CAMPAIGNS_CSS, ".mp-bubble", null)).length > 0, "the bubble's rule is Campaigns'");
+  assert.ok(!("tpl-starter-row" in cssOf(CAMPAIGNS_CSS).classes));
 });
 
 test("the library's order, what a composer opens on, and each slot's words", () => {
@@ -666,12 +666,15 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   // { hidden: true }, back with { hidden: false } (routes/the-library-s-verbs-ask-their-routes.test.mjs). A run under the veto
   // window is a row of Today's day, at its time, with its Stop (decision 0064): runs-honest.test.mjs presses it.
   // Presence, the bell and the theme are one group: the theme's button is drawn in the frame's top bar in
-  // shell/surfaces/status/the-page-and-the-shell-s-doors.test.mjs. The group's rule is the stylesheet's, read here.
-  assert.ok(
-    readCode("apps/dashboard/src/styles/components.css").includes(
-      ".tbn-wrap { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }",
-    ),
-  );
+  // shell/surfaces/status/the-page-and-the-shell-s-doors.test.mjs. The group's rule is the stylesheet's, asked of it
+  // parsed, under any query.
+  assert.deepEqual(givenOn("apps/dashboard/src/styles/components.css", ".tbn-wrap", null), {
+    position: "relative",
+    display: "inline-flex",
+    "align-items": "center",
+    gap: "2px",
+    "flex-shrink": "0",
+  });
 });
 
 test("a template's title: the workspace's own words, set through its door, shown everywhere a template is named", async () => {
