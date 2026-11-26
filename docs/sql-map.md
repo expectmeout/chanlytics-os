@@ -606,7 +606,7 @@ being read is dropped by a migration.
 | `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613, 00657): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
 | `piece_version_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/versions.ts` | A member's press, with the settings permission (00708): |
-| `piece_version_kept` | the server's | the server | code `apps/edge/lib/files/piece-make.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | When a new version's drawn bytes are kept (00708; |
+| `piece_version_kept` | the server's | the server | code `apps/edge/lib/files/piece-make.ts`, `packages/db/src/repositories/files/versions.ts` | When a new version's drawn bytes are kept (00708; |
 | `piece_version_ready` | the server's | the server | code `packages/db/src/repositories/files/versions.ts` | When a new version's file plays (00708; |
 | `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts`; SQL `post_approve_whole` | A member's door, with the settings permission (00681; |
 | `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00706; |
@@ -661,7 +661,7 @@ being read is dropped by a migration.
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
 | `posts_read_due` | the server's | the server | code `packages/db/src/repositories/content/posts-held.ts` | The workspaces due their daily read of what their places hold (the content status review of 24 November 2026, piece 4): |
 | `posts_take_down_start` | the server's | the server | SQL `post_take_down_begin` | The walk a take-down starts on posts, the service's (00682, 00716; |
-| `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
+| `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts` | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |
 | `preview_claim` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | Make it mine (0079): the signed-in caller claims a ready preview by its token. |
 | `preview_end` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A preview past its thirty days (0079): |
