@@ -432,7 +432,7 @@
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
   /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
-  :root[data-bell-open][data-bell-open] { --toast-foot: calc(14px + env(safe-area-inset-bottom)); }
+  :root[data-bell-open][data-bell-open] .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
 
   /* The thread on a phone shows the conversation first (I6). The header is one row -- Back, avatar, name and the
      menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner

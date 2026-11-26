@@ -1742,7 +1742,7 @@
   .pl-table tbody tr.pl-card-row > td:first-child:has(> input:focus-visible) ~ td > .pl-card > span:first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
      to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). Said as where the stack rests
-     (--toast-foot, kit.css), under an open sheet's lift and the open bell's, as it stood. */
+     (--toast-foot, kit.css), so an open sheet's lift and the open bell's, which place the stack itself, still win. */
   :where(:root)[data-bulk-docked][data-bulk-docked] { --toast-foot: calc(78px + env(safe-area-inset-bottom, 0px)); }
 }
 
