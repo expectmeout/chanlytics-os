@@ -369,7 +369,9 @@ test("GET google answers the Google DTO whole, from one read of each: what the d
     memberships: both("viewer", "viewer"),
     policies: [policy(mode)],
     google_listings: [{ tenant_id: A, ...listing }],
-    google_connections: [{ tenant_id: A, ...account }],
+    // Where its token is kept rides on the row, and never on the answer (pinned as connection.ts's select in
+    // google/profile/ until 26 Nov 2026).
+    google_connections: [{ tenant_id: A, ...account, credentials_ref: `google-creds-${A}` }],
     // Another workspace's review, the newest of all: never in Harbor's read.
     google_reviews: [
       ...reviews.map((r) => ({ tenant_id: A, ...r })),

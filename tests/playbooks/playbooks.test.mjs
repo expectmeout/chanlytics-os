@@ -49,7 +49,8 @@ import {
   NO_CHANNEL_REACH,
   GET_YES_ROUTE,
 } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
 import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
 import { listedTogether } from "../shell/boot/_frame-boot.mjs";
 
@@ -373,13 +374,9 @@ test("a run that waits for a person is open, never sent by the job, approved thr
   );
   assert.equal(vm.open, true);
   assert.equal(vm.stateLabel, "Waiting for your approval");
-  const h = ["packages/core/src/messages/broadcast/stops.ts", "packages/core/src/messages/broadcast/batch.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    h.includes('if (broadcast.state !== "scheduled" && broadcast.state !== "sending") return;'),
-    "only a scheduled or sending broadcast goes out",
-  );
+  // Only a scheduled or sending broadcast goes out: a run waiting for a person, sent, canceled or failed sends nothing and
+  // touches nothing, run in broadcasts/core-broadcast/a-run-claims-sends-and-stops.test.mjs (pinned as stops.ts's and
+  // batch.ts's text here until 26 Nov 2026).
   // Approve and skip are run: broadcasts/core-campaigns/; the button is drawn by broadcasts-honest and confirm.
   assert.ok(
     DECISION_VERBS.includes("start_playbook") &&
@@ -388,20 +385,64 @@ test("a run that waits for a person is open, never sent by the job, approved thr
   );
 });
 
-test("the migration and the sweep: one run per playbook per local day, touches never stored twice, the same door the other sweeps use, every run recorded", () => {
-  const m = readRaw("supabase/migrations/00048_playbooks.sql");
-  assert.ok(
-    m.includes(
-      "create unique index broadcasts_playbook_run on public.broadcasts (playbook_id, run_for) where playbook_id is not null;",
-    ),
-  );
-  assert.ok(m.includes("check (state in ('pending_approval', 'scheduled', 'sending', 'sent', 'canceled', 'failed'))"));
-  assert.ok(
-    m.includes("url     := v_url || '/api/cron/playbooks',") &&
-      m.includes("select cron.schedule('playbooks-sweep', '5 * * * *'"),
-  );
-  assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
-  assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
+test("the migration and the sweep: one run per playbook per local day, in the states a run may be in, touches never stored twice, every run recorded", async () => {
+  // Pinned as 00048's text until 26 Nov 2026. A playbook's runs are its sequence's batches now, written into the database
+  // in memory, which refuses what the database refuses; the sweep is the one clock every sweep is told by
+  // (ops/sweep-registry.db.test.mjs runs it, where 00048's own schedule gave way to the sequences' clock).
+  const db = fakeDb({ sequence_batches: [], decisions: [] });
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const batch = (over) =>
+    db
+      .from("sequence_batches")
+      .insert({
+        tenant_id: T,
+        sequence_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        step_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        name: "Win-back · 2026-09-06",
+        template_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        template_name: "winback_offer",
+        template_language: "en_US",
+        scheduled_for: "2026-09-06T14:00:00Z",
+        run_for: "2026-09-06",
+        ...over,
+      })
+      .select("id")
+      .single();
+  assert.equal((await batch({})).error, null, "a playbook's run for its day");
+  assert.equal((await batch({})).error?.code, "23505", "one run per playbook per local day");
+  assert.equal((await batch({ run_for: "2026-09-07" })).error, null, "the next day's is its own");
+  for (const state of BROADCAST_STATES)
+    assert.equal(
+      (await batch({ run_for: `2026-10-${10 + BROADCAST_STATES.indexOf(state)}`, state })).error,
+      null,
+      state,
+    );
+  assert.equal((await batch({ run_for: "2026-11-01", state: "queued" })).error?.code, "23514", "no state but a run's");
+  // Touches are derived from the runs' recipient rows, never kept in a table of their own.
+  assert.equal((await db.from("playbook_touches").insert({ tenant_id: T })).error?.code, "PGRST205");
+  // Every run is on the ledger: a start and a pause of a playbook, about a broadcast or a playbook.
+  for (const [verb, subject_type] of [
+    ["start_playbook", "playbook"],
+    ["pause_playbook", "playbook"],
+    ["start_playbook", "broadcast"],
+  ])
+    assert.equal(
+      (
+        await db
+          .from("decisions")
+          .insert({
+            tenant_id: T,
+            actor_type: "user",
+            subject_type,
+            subject_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            verb,
+          })
+          .select("id")
+          .single()
+      ).error,
+      null,
+      `${verb} on a ${subject_type}`,
+    );
   // The run's branches are run: playbooks/run/. The touches the loader and the Playbooks page read
   // (packages/db listTouchesSince) are run in send-rails.test.mjs.
   // Run now -- a person's run through the same implementation, sent now under
@@ -414,8 +455,11 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.match(POLICY_CLASS_WORDS.campaign.note, /^how a new offer or welcome campaign starts · /);
   assert.match(POLICY_CLASS_WORDS.follow_up.note, /^how the proposal follow-up and filling a cancellation start · /);
   assert.equal(POLICY_CLASS_WORDS.follow_up.name, "Follow-ups", "the row names both moments under it (0082)");
-  assert.ok(
-    readCode("apps/dashboard/src/bridge/policy-store.ts").includes('...W("reengage")'),
+  const { UI_ROWS } = await importSrc("apps/dashboard/src/bridge/policy-store.ts");
+  const row = UI_ROWS.find((x) => x.id === "reengage");
+  assert.deepEqual(
+    [row.cls, row.label, row.note, row.chip],
+    ["reengage", POLICY_CLASS_WORDS.reengage.name, POLICY_CLASS_WORDS.reengage.note, POLICY_CLASS_WORDS.reengage.short],
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
   );
 });
@@ -426,38 +470,12 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
   // The gate waits on what each draws first: Campaigns is Sequences' list; the old Outbound, a door, its playbooks.
   assert.equal(ROUTE_SURFACE.campaigns, "sequences", "campaigns: the gate waits on Campaigns' list");
   assert.equal(ROUTE_SURFACE.outbound, "playbooks", "outbound: the gate waits on its surface");
-  const routes = readCode("apps/dashboard/app/api/v1/playbooks/route.ts");
-  assert.ok(
-    routes.includes('role: "operator",') && routes.includes('rate: "playbook",'),
-    "who may start a playbook and how often; that a start is on the ledger is run in outbound-routes.test.mjs",
-  );
-  const one = readCode(
-    "apps/dashboard/app/api/v1/playbooks/[id]/route.ts",
-    "apps/dashboard/src/server/campaigns/playbook-row.ts",
-  );
-  assert.ok(
-    one.includes('state === "running" ? "start_playbook" : "pause_playbook"') &&
-      /"pause_playbook", \{\s*name: playbook\.name,\s*deleted: true,?\s*\}/.test(one),
-    "pause, resume and delete are recorded",
-  );
-  const run = readCode("apps/dashboard/app/api/v1/playbooks/[id]/run/route.ts");
-  assert.ok(
-    run.includes("runPlaybookNow(p.tenant_id, id, ctx.userId)") && run.includes("never: "),
-    "run now says why nothing ran",
-  );
-  const svc = readCode("apps/dashboard/src/server/campaigns/playbook-run.ts");
-  assert.ok(
-    svc.includes("/api/admin/playbooks-run") && svc.includes("export async function runPlaybookNow("),
-    "through the edge, production only",
-  );
-  // The check is run: broadcasts/core-campaigns/.
-  // Today's queue and the Inbox's Needs you draw the runs that wait through one builder (the Campaigns wiring review's
-  // rule D): today/page/ and inbox-counts.test.mjs run it.
-  const rows = readCode("apps/dashboard/src/surfaces/waits/wait-rows.tsx");
-  assert.ok(
-    rows.includes('testid: "brief-run-row"') && rows.includes("runsPending()"),
-    "Today's queue shows a run that waits, from the surface it already has",
-  );
+  // Run, not read (pinned as the routes' and their server modules' text until 26 Nov 2026): who may start a playbook and how
+  // often (playbooks/routes/broadcasts-templates-and-playbooks.test.mjs, "the seventeen declare their policy"); pause,
+  // resume and a delete each on the ledger, a delete as a pause ("one playbook: pause and resume on the ledger"); Run
+  // now through the edge, saying why nothing ran (playbooks/run-now-receipt.test.mjs). Today's queue and the Inbox's Needs
+  // you draw the runs that wait through one builder, from the surface the page already has (the Campaigns wiring review's
+  // rule D): today/today-queue.test.mjs ("brief-run-row", over the broadcasts surface) and inbox-counts.test.mjs.
   const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   for (const k of [
     "POST playbooks",
@@ -486,15 +504,9 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
       ],
       `${k}: every write re-fetches the playbooks, and Sent's runs where it moves one`,
     );
-  const pools = readCode("apps/dashboard/src/server/campaigns/playbook-pools.ts");
-  assert.ok(
-    // 2 Oct 2026: the pool is counted with the message in view (null for a moment), as the run's enrolment reads it; 3 Oct:
-    // for the channels it goes by and what the workspace can send on (poolCounter, over the turn's breath, clock and pace).
-    /cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0, message, channels, ready \},\s*breath,\s*nowMs,\s*pace,\s*listIds,?\s*\);/.test(
-      pools,
-    ),
-    "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)",
-  );
+  // The chip counts the pool with the runner's own predicate, with the week's touches, on the server over everyone: run in
+  // calendar/calendar-counts.test.mjs ("the pools: counted over everyone by the runner's predicate"), pinned as
+  // playbook-pools.ts's text here until 26 Nov 2026.
   // (The Playbooks tab of the Campaigns strip is gone with the strip: the old route is a door now, run in
   // campaigns-routes.test.mjs.)
   assert.ok(listedTogether("broadcasts", "playbooks"), "booted with the rest");
@@ -629,35 +641,22 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   // Today's day says what went out today, a playbook's run as one that ran (contracts TODAY_PHONE_WORDS, the day's words).
   assert.equal(TODAY_PHONE_WORDS.wentOut("9:00 AM"), "went out at 9:00 AM");
   assert.equal(TODAY_PHONE_WORDS.wentOut("9:00 AM", true), "ran at 9:00 AM");
-  // The message each channel puts on its wire is broadcast-channels.ts's since step 3; its meta is the one place a run says so.
-  const h = readCode("packages/core/src/messages/broadcast-channels.ts");
-  assert.ok(
-    h.includes('playbook_name: typeof label === "string" ? label : b.name'),
-    "a run's message names its playbook",
+  // A run's message names its playbook on its meta, the one place a run says so (broadcast-channels.ts): run in
+  // broadcasts/core-broadcast/each-wire-and-what-it-holds.test.mjs (meta.playbook_name, the run's label). The thread reads
+  // it as the playbook's own words, "the Win-back campaign": run in conversations/inbox/conversations-doors.test.mjs.
+  // Both pinned as their modules' text here until 26 Nov 2026; who wrote it is contracts', asked here:
+  const { messageVia } = await import("@chanlytics/contracts");
+  assert.deepEqual(
+    messageVia({ meta: { source: "broadcast", broadcast_name: "Win-back · 2026-09-06", playbook_name: "Win-back" } }),
+    {
+      kind: "playbook",
+      name: "Win-back",
+    },
   );
-  assert.ok(
-    readCode("packages/contracts/src/conversations/message-author.ts").includes(
-      '{ kind: "playbook", name: textOrEmpty(message.meta.playbook_name) }',
-    ),
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes("`the ${entry.via.name} campaign`"),
-  );
-  // Broadcasts' page (broadcasts.jsx once) is the page, its `when` words and its run's screens, in
-  // surfaces/campaigns/broadcasts (the send screen went with decision 0065's step 7).
-  const broadcastsTsx = [
-    "broadcasts-page.tsx",
-    "when.tsx",
-    ...["acts", "runs", "state"].map((f) => `page/${f}.tsx`),
-    ...["reach", "types", "words"].map((f) => `page/${f}.ts`),
-  ];
-  assert.ok(
-    !broadcastsTsx
-      .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/broadcasts/${f}`))
-      .join("\n")
-      .includes("Not available yet"),
-    "no disabled channel chips until a second channel is real",
-  );
+  assert.equal(messageVia({ meta: { source: "broadcast", broadcast_name: "Spring offer" } })?.kind, "broadcast");
+  // No channel chip is drawn disabled for want of a second channel: SMS and email are real, and a run goes by the
+  // channels the workspace can send on (playbooks/routes/the-channels-a-route-takes.test.mjs). Pinned as the Broadcasts
+  // page's text until 26 Nov 2026.
 });
 
 test("a proposal follow-up (0006): the proposal waiting past the pace, with its link and a yes, once per proposal", () => {
