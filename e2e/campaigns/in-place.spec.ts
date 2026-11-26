@@ -89,7 +89,9 @@ test.describe("Campaigns opens in place on a real workspace", () => {
       ["/#/today", /^today$/],
     ] as const) {
       await page.goto(at);
-      await expect(page).toHaveURL(atRoute(route));
+      // At the workspace's own address, not the home's: `/#/today` says the route already, and the home sends the tab
+      // on once its code has run, after its own load, so a read of the page before then is a read of a page that goes.
+      await expect(page).toHaveURL((url) => url.pathname.startsWith("/w/") && atRoute(route)(url));
       const onToday = route.test("today");
       const row = onToday ? todayRun(page) : runRow(page);
       const before = await entries(page);

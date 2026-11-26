@@ -16,7 +16,8 @@
  *   whose files are not there yet, React waits for them and never draws the page bare.
  * - `SheetsAlone` draws a page's links and not the page: the workspace's layout draws its children so beside the
  *   frame, because the frame itself is drawn only in a browser (bridge/FrameHost.tsx), and a page's links inside it
- *   would be in no prerendered document.
+ *   would be in no prerendered document. It stands in an element of its own, so nothing React does to it reaches
+ *   the frame beside it.
  * - `warmSheets` brings a page's files in ahead of a move, as its page is warmed (bridge/FrameHost.tsx), all but those
  *   the tab holds already, and a page waits for one of those that has not arrived by the press, which React does not
  *   do (sheet-arrival.ts).
@@ -47,9 +48,22 @@ export function SheetSlots() {
 /** Whether a page's links are drawn without the page (SheetsAlone). */
 const Alone = createContext(false);
 
-/** A page's links and not the page: for whoever draws the page itself somewhere a prerender does not reach. */
+/**
+ * A page's links and not the page: for whoever draws the page itself somewhere a prerender does not reach.
+ *
+ * In an element of its own, which holds nothing a person sees: its links are the head's (React puts a stylesheet with
+ * a precedence there from wherever it is drawn), and what stays is the marks of the `<Activity>` Next draws each part
+ * of the address in. React wakes those last. A move that hides one before it is woken (an old address moved on load)
+ * hides what follows its mark up to the end of a Suspense, never of an Activity (react-dom 19.3
+ * hideOrUnhideDehydratedBoundary), and beside the frame that was the frame and everything after it, blank for good
+ * (26 Nov 2026). In here it is nothing. tests/styles/sheets/page-layouts.test.mjs holds the marks inside.
+ */
 export function SheetsAlone({ children }: { children: ReactNode }) {
-  return <Alone.Provider value>{children}</Alone.Provider>;
+  return (
+    <div hidden>
+      <Alone.Provider value>{children}</Alone.Provider>
+    </div>
+  );
 }
 
 /** A page with its own stylesheets linked around it. */
