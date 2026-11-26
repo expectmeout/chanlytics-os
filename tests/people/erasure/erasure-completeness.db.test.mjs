@@ -203,6 +203,7 @@ async function seed() {
     type: "text",
     body: WORDS,
     template_name: WORDS,
+    template_vars: [WORDS],
     media: { caption: WORDS },
     external_id: `ext-${DIGITS}-${RUN}`,
     content_hash: `hash-${DIGITS}`,
@@ -287,6 +288,21 @@ async function seed() {
   );
   // And a turn about someone else, whose notes named them: found by the needles and deleted (model_turns_scrub).
   made.othersThread = await insert("conversations", { tenant_id: T, contact_id: B });
+  // Their words in someone else's thread: a message is kept as it was sent (00326; Ruben, 6 Oct 2026), so its body and
+  // its template's values stay when they go. Left out of the needles' search, and read back after the erasure.
+  made.othersMessage = await insert("messages", {
+    tenant_id: T,
+    conversation_id: made.othersThread,
+    contact_id: B,
+    channel: "sms",
+    direction: "inbound",
+    sender: "customer",
+    status: "received",
+    type: "text",
+    body: WORDS,
+    template_vars: [WORDS],
+    external_id: `ext-other-${DIGITS}-${RUN}`,
+  });
   ok(
     await db.rpc("model_turn_keep", {
       p_tenant_id: T,
@@ -685,7 +701,12 @@ async function seed() {
 function needlesLeft(digits = DIGITS, email = EMAIL) {
   const cols = columnsToProve();
   const unions = cols.map(({ table, column }) => {
-    const scope = table === "provider_events" ? `(tenant_id = '${T}' or tenant_id is null)` : `tenant_id = '${T}'`;
+    const scope =
+      table === "provider_events"
+        ? `(tenant_id = '${T}' or tenant_id is null)`
+        : table === "messages" && made.othersMessage
+          ? `tenant_id = '${T}' and id <> '${made.othersMessage}'`
+          : `tenant_id = '${T}'`;
     return `select '${table}.${column}' as col, count(*)::int as n from public.${table}
              where ${scope} and (${column}::text ilike '%${digits}%' or ${column}::text ilike '%${email}%')`;
   });
@@ -876,6 +897,15 @@ test(
     );
     const [kept] = query(`select display_name, phone_e164 from public.contacts where id = '${B}'`);
     assert.deepEqual(kept, { display_name: "Bo Kept", phone_e164: "+16465550198" });
+    // Their words in someone else's thread stay as they were sent: a message is immutable (00326; Ruben, 6 Oct 2026).
+    const [theirs] = query(
+      `select body, template_vars ->> 0 as template_var from public.messages where id = '${made.othersMessage}'`,
+    );
+    assert.deepEqual(
+      theirs,
+      { body: WORDS, template_var: WORDS },
+      "a message in someone else's thread keeps their words: only their own threads go with them",
+    );
   },
 );
 
