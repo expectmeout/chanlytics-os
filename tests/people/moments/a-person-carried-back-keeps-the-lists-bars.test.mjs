@@ -16,12 +16,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { transform } from "lightningcss";
-import { ROOT } from "../../_source.mjs";
+import { styleRulesIn } from "../../_css.mjs";
 import { again, fresh, installStubReact } from "../../_stub-react.mjs";
 
 installStubReact();
@@ -116,32 +114,13 @@ test("the dock comes up only once the head's acts have scrolled away up, never a
   assert.deepEqual(told, [false, true, false], "across: no dock; up: the dock; back on screen: none");
 });
 
-/** Each style rule of a sheet, its selectors as the parser reads them. */
-const rulesOf = (sheet) => {
-  const rules = [];
-  const { warnings } = transform({
-    filename: sheet,
-    code: fs.readFileSync(path.join(ROOT, sheet)),
-    errorRecovery: true,
-    visitor: {
-      Rule: {
-        style(rule) {
-          rules.push(rule.value);
-        },
-      },
-    },
-  });
-  assert.deepEqual(warnings, [], `${sheet} is read whole`);
-  return rules;
-};
-
 test("no dock takes the tab bar or Ask's circle down under a page carried back to its list", () => {
   for (const [sheet, bar] of [
     ["apps/dashboard/src/styles/mobile.css", "phone-places"],
     ["apps/dashboard/src/surfaces/ask/ask.css", "phone-ask"],
   ]) {
     let hides = 0;
-    for (const rule of rulesOf(sheet)) {
+    for (const rule of styleRulesIn(sheet)) {
       const takesDown = (rule.declarations.declarations ?? []).some((d) => /^(visibility|opacity)$/.test(d.property));
       if (!takesDown) continue;
       for (const selector of rule.selectors) {

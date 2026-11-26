@@ -28,7 +28,6 @@ import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlyt
 
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
-import { readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf } from "../_log-lines.mjs";
 
@@ -333,16 +332,9 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
     availabilityUrl("https://preview.example/api/retell-fn"),
     "https://preview.example/api/retell-availability",
   );
-  const edge = readCode("apps/edge/lib/voice/availability-tool.ts");
-  assert.ok(
-    edge.includes('voiceDoorAuth("availability", request, raw)'),
-    "the door is guarded as the other two Retell doors are (voice-door-auth.test.mjs runs it)",
-  );
-  assert.ok(edge.includes("filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null })"));
-  assert.ok(
-    edge.includes("return json(200, { result: CANNOT_SEE_NO_LINK })"),
-    "a refusal is a sentence the agent speaks, never an error status",
-  );
+  // The door is guarded as the other two Retell doors are, and a knock it turns away is a sentence at 200: run door by
+  // door in voice/voice-door-auth.test.mjs. What it says for a day, and for a call it cannot place, is run below ("the
+  // door speaks every answer"). Both pinned here as the door's text until 26 Nov 2026.
   const brain = {
     business_name: "S",
     phone_display: "(212) 555-0142",
@@ -682,6 +674,25 @@ test("a call whose booking-link message Meta has not approved yet: the times end
   assert.ok(!/send the booking link/i.test(said), `nothing it cannot send yet is offered: ${said}`);
   const approved = await askedHeld(heldWorkspace());
   assert.match(approved, /then send the booking link to lock one in\./, "approved: the link follows the times");
+});
+
+test("the door speaks every answer at 200: a call it cannot place is a call back, and the day the caller named is the one day read out", async () => {
+  heldWorkspace();
+  assert.equal(
+    await askedHeld("agent_no_line_holds"),
+    "I can't see the calendar right now. Offer to have someone call back, without saying when.",
+    "whose business it is is unknown, so nothing it could send is offered",
+  );
+  const DAY_MS = 86_400_000;
+  const ahead = Date.now() + 3 * DAY_MS;
+  const key = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(ahead);
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(ahead);
+  const ranges = (said) => said.match(/\d{1,2}:\d{2} [AP]M – \d{1,2}:\d{2} [AP]M/g) ?? [];
+  const week = await askedHeld(heldWorkspace());
+  assert.ok(ranges(week).length > 1, `asked no day, the days ahead: ${week}`);
+  const day = await askedHeld(heldWorkspace(), { day: key });
+  assert.deepEqual(ranges(day), ["9:00 AM – 5:00 PM"], `asked ${key}, that day alone: ${day}`);
+  assert.ok(day.includes(weekday), `and named: ${day}`);
 });
 
 test("under a hold, a fortnight with nothing open is said without the link", async () => {

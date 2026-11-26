@@ -814,6 +814,57 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
   }
 });
 
+test("the top bar shows the bell's own feed, read again whenever the bell says it changed; with no bell, none", () => {
+  // Pinned as topbar.tsx's text in notifications.test.mjs until 26 Nov 2026.
+  bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
+  const note = (id) => ({
+    id,
+    kind: "review",
+    title: "A review",
+    message: "Five stars",
+    at: 0,
+    unread: true,
+    actions: [],
+  });
+  let rows = [note("n-1")];
+  const heard = [];
+  const bell = {
+    feed: () => rows,
+    alerts: () => null,
+    onChange: (fn) => {
+      heard.push(fn);
+      return () => undefined;
+    },
+    older: () => 0,
+    unread: () => 0,
+    seenAll() {},
+  };
+  const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
+  const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  try {
+    bridgeHolds({ parts: { bell } });
+    fresh();
+    assert.equal(bellOf(draw()).props["aria-label"], "Notifications, 1 unread", "the bell's own rows");
+    rows = [note("n-1"), note("n-2")];
+    assert.ok(heard.length > 0, "the bar listens to the bell");
+    for (const fn of heard) fn();
+    assert.equal(bellOf(again(draw)).props["aria-label"], "Notifications, 2 unread", "read again as the bell changes");
+    unmount();
+    bridgeHolds({ parts: { bell: undefined } });
+    fresh();
+    const none = draw();
+    assert.doesNotMatch(String(bellOf(none).props["aria-label"]), /unread|new/, "no bell yet: no count");
+    assert.equal(
+      find(none, (n) => classes(n).includes("tb-bell-unread")),
+      null,
+    );
+  } finally {
+    unmount();
+    bridgeHolds({ parts: { bell: undefined } });
+    bridgeHolds({ parts: { toast: undefined } });
+  }
+});
+
 test("looked at but not read: the closed bell says so quietly, by a sign and by its name, until the notes are read", () => {
   bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
   const notes = [

@@ -12,7 +12,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode, readRaw, importSrc } from "../../_source.mjs";
+import { importSrc } from "../../_source.mjs";
+import { DESK, givenOn } from "../../_css.mjs";
 import { installStubReact, fresh, again, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
@@ -31,79 +32,18 @@ const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells
 const { plViewRows } = await importSrc("apps/dashboard/src/surfaces/people/page/shown.ts");
 const { plListRoute } = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
 
-test("the tables: the workspace's, members read, acting members write, a person of another workspace or an erased one cannot be put on a list", () => {
-  const m = readRaw("supabase/migrations/00044_saved_lists.sql");
-  assert.ok(m.includes("create table public.segments (") && m.includes("create table public.segment_members ("));
-  assert.ok(m.includes("unique (tenant_id, name)"), "one name per workspace");
-  assert.ok(
-    m.includes("alter table public.segments        enable row level security;") &&
-      m.includes("alter table public.segment_members enable row level security;"),
-  );
-  assert.ok(
-    m.includes("with check (public.is_acting_member(tenant_id) and created_by = (select auth.uid()));"),
-    "a list is made by an acting member, in their own name",
-  );
-  assert.ok(
-    m.includes(
-      "and exists (select 1 from public.contacts c where c.id = contact_id and c.tenant_id = segment_members.tenant_id and c.erased_at is null)",
-    ),
-    "the person must be of the workspace and still exist",
-  );
-  assert.ok(
-    m.includes("grant update (name) on public.segments to authenticated;"),
-    "a session client may rename a list and nothing else about it",
-  );
-  assert.ok(m.includes("after update of erased_at on public.contacts"), "an erased person leaves every list");
-  assert.ok(!/insert into public\.decisions|'create_list'|'delete_list'/.test(m), "no ledger rows for a grouping");
-});
+// The tables: the workspace's, members read, acting members write, a person of another workspace or an erased one cannot
+// be put on a list, an erased person leaves every list, one name a workspace. Run on the stack in
+// people/lists/a-list-has-a-life.db.test.mjs (pinned as 00044's text here until 26 Nov 2026). That a list changed no ledger
+// at first is history: every change to a list is the ledger's since (the same suite).
 
-test("the routes: one workspace's lists with their ids, owner or operator to change them, the same refusals in the same words", () => {
-  // Scoped by tenant, not by RLS alone, and every member read: people/routes/ runs the GET over two
-  // workspaces and over a list past PostgREST's max_rows.
-  const list = readCode(
-    "apps/dashboard/app/api/v1/segments/route.ts",
-    "apps/dashboard/src/server/people/list-write.ts",
-  );
-  assert.ok(list.includes('role: "operator",') && list.includes('rate: "lists",'));
-  // A taken name is the route's 409 in one sentence, which Ask's list card refuses in too (server/people/lists.ts).
-  assert.ok(list.includes('if (error?.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);'));
-  const one = readCode(
-    "apps/dashboard/app/api/v1/segments/[id]/route.ts",
-    "apps/dashboard/src/server/people/list-write.ts",
-  );
-  assert.ok(
-    one.includes('const add = cleanIdList(body?.add, "add");') &&
-      one.includes('const remove = cleanIdList(body?.remove, "remove");'),
-  );
-  assert.ok(one.includes('throw new AppError("validation", "Nothing to change.");'));
-  // Adding someone twice is not an error: people/routes/ runs the PUT twice over the same person.
-  assert.ok(
-    /if \(error\.code === "42501"\)\s*throw new AppError\("validation", "One of those people is not in this workspace any more\."\);/.test(
-      one,
-    ),
-    "RLS's refusal gets words",
-  );
-  // The delete counts what it removed (packages/db deleteList); people/routes/ deletes a list twice.
-  assert.ok(
-    one.includes('if (!count) throw new AppError("not_found", "List not found.", 404);'),
-    "a delete that removed nothing is not a success",
-  );
-  const helper = readCode("apps/dashboard/src/server/people/lists.ts");
-  assert.ok(
-    helper.includes("export const LIST_NAME_MAX = 60;") &&
-      helper.includes("export const LIST_BATCH_MAX = 500;") &&
-      helper.includes('export const LIST_NAME_TAKEN = "A list with that name already exists.";'),
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes(
-      'lists: { limit: 60, windowMs: MIN_MS, noun: "list changes" }',
-    ),
-  );
-});
+// The routes: one workspace's lists with their ids, owner or operator to change them, the same refusals in the same words.
+// Run through the routes in people/routes/a-person-a-list-and-everyone.test.mjs ("lists: one workspace's", "one list",
+// "a list's refusals are said in the helper's words"); pinned as the routes' and lists.ts's text here until 26 Nov 2026.
 
 test("the surface: lists ride People, counted over the rows on the page; the verbs re-fetch it", async () => {
-  const s = readCode("apps/dashboard/src/surfaces/people/surface.ts");
-  assert.ok(s.includes('read("GET segments")'));
+  // The lists ride People's own read, from GET segments: run over the surface in people/lists/list-names.test.mjs ("People's
+  // rail says a rule's lists by the one namer"), pinned as surface.ts's text here until 26 Nov 2026.
   // Run, not read: the mapping (surface-map.ts) over two people and a list that names one of them and somebody who is
   // not among the rows (an erased person leaves every list, 00044).
   const loaded = {
@@ -129,8 +69,38 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
     "campaigns/sequences/new:once:to:s1",
     "and the list carries its one step: a broadcast to those who said yes",
   );
-  const v = readCode("apps/dashboard/src/surfaces/people/people-lists.ts");
-  for (const verb of ["create:", "rename:", "remove:", "add:", "drop:"]) assert.ok(v.includes(verb), verb);
+  // The verbs, each over the wire to its route (pinned as people-lists.ts's text until 26 Nov 2026).
+  const { lists: verbs } = await importSrc("apps/dashboard/src/surfaces/people/people-lists.ts");
+  const asked = [];
+  const realFetch = globalThis.window.fetch;
+  globalThis.window.fetch = async (url, init = {}) => {
+    asked.push([init.method ?? "GET", new URL(String(url), "https://app.chanlytics.com").pathname]);
+    const data = { id: "s1", name: "Regulars", ids: ["p1"], rule: null, archived_at: null, deleted: true };
+    return new Response(JSON.stringify({ ok: true, data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    await verbs.create("Regulars");
+    await verbs.rename("s1", "Best");
+    await verbs.add("s1", ["p1"]);
+    await verbs.drop("s1", ["p1"]);
+    await verbs.remove("s1");
+  } finally {
+    globalThis.window.fetch = realFetch;
+  }
+  assert.deepEqual(
+    asked.filter(([method]) => method !== "GET"),
+    [
+      ["POST", "/api/v1/segments"],
+      ["PUT", "/api/v1/segments/s1"],
+      ["PUT", "/api/v1/segments/s1"],
+      ["PUT", "/api/v1/segments/s1"],
+      ["DELETE", "/api/v1/segments/s1"],
+    ],
+    "make, rename, add, drop and delete, each its route",
+  );
   const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   for (const k of ["POST segments", "PUT segments/[id]", "DELETE segments/[id]"])
     assert.deepEqual(
@@ -140,7 +110,7 @@ test("the surface: lists ride People, counted over the rows on the page; the ver
       `${k}: the chips are the server's, and a list is an audience and a playbook's moment too, where they are drawn`,
     );
   // The verbs are imported by what presses them: nothing publishes them on the window (the loadability review, 19 Oct 2026).
-  assert.ok(!v.includes("window.__lists"), "the lists' verbs are not on the window");
+  assert.equal(globalThis.window.__lists, undefined, "the lists' verbs are not on the window");
 });
 
 /** A list kept by hand, as the surface holds it (surface-map.ts): the one a title, a bar and a row's drop are drawn over. */
@@ -197,13 +167,12 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   assert.equal(ask.props.detail, "The people stay.");
   // The profile's section is the person page's rail (surfaces/people/person/person-real.tsx), and what it draws is the
   // person's lists (lists.tsx), run here on the stub React the page tests share, over the People the seam holds.
-  assert.ok(readCode("apps/dashboard/src/surfaces/people/person/lists.tsx").includes('data-testid="person-lists"'));
   const LR = await import("../../_stub-react.mjs");
   LR.installStubReact();
   const went = [];
   bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
-  const { PersonLists } = await importSrc("apps/dashboard/src/surfaces/people/person/lists.tsx");
+  const { PersonLists, ListsGroup } = await importSrc("apps/dashboard/src/surfaces/people/person/lists.tsx");
   const picked = [];
   const section = (saved, smart = []) => {
     // Only what the section reads of People: the lists, and whether they could be read.
@@ -221,8 +190,22 @@ test("the page: the rail's Saved section is real, a name typed there is the only
     );
   };
   const kept = { id: "s1", name: "Regulars", ids: ["p1"], byHand: true };
+  const onOne = section([kept]);
+  LR.fresh();
+  const group = LR.again(() =>
+    globalThis.React.createElement(ListsGroup, {
+      personId: "p1",
+      canEdit: true,
+      first: "Person",
+      flash() {},
+      smart: [],
+      row: false,
+      onPick() {},
+    }),
+  );
+  assert.ok(LR.byTestId(group, "person-lists"), "the profile's own section, on the person's rail");
   assert.equal(
-    LR.all(section([kept]), (n) => n.props?.["data-testid"] === "person-list-chip").length,
+    LR.all(onOne, (n) => n.props?.["data-testid"] === "person-list-chip").length,
     1,
     "a list they are on is a chip",
   );
@@ -236,7 +219,14 @@ test("the page: the rail's Saved section is real, a name typed there is the only
     "the empty section opens the lists sheet, where a list is made with them on it; 'the People rail' is not a place a phone has",
   );
   setSurfaceValue("people", undefined);
-  assert.ok(readRaw("apps/dashboard/src/styles/clients.css").includes(".cl-rail-newlist input {"));
+  // The rail's new list (rail/new-list.tsx, lists/rule-editor.tsx) is named in a row beside its press: the field takes the
+  // row's width and gives it back to the press, as People's sheet gives it (pinned as clients.css's text until 26 Nov 2026).
+  const field = givenOn("apps/dashboard/src/styles/clients.css", ".cl-rail-newlist input", DESK);
+  assert.deepEqual(
+    [field.flex, field["min-width"]],
+    ["1", "0"],
+    "the new list's name takes the row, and shrinks for its press",
+  );
 });
 
 test("Lists is a view of People: a kept list is the page's title with its rename, its delete and its one door; the old route lands there; the seeded page keeps the demo", async () => {
@@ -245,6 +235,10 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   );
   assert.equal(reg.SURFACE_STATES.segments, "real", "the route is real: it lands on People");
   assert.equal(reg.ROUTE_SURFACE.segments, "people", "the same facts as People, never a second fetch");
+  // REGRESSION: a second page of the same people. The address is People's (above), and no page of its own is loaded
+  // (the manifest that loaded the shell's pages went with decision 0151).
+  assert.equal(reg.surfaceStateFor("segments"), "real");
+  assert.equal(reg.routeSurfaceFor("segments"), "people");
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are
   // behind the bar's list button"), not a testid read here.
   // The kept list's title, drawn: the title, its rename, and the name as the box it is typed in, from the first draw.
