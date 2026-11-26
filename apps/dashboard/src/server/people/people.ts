@@ -64,7 +64,9 @@ export function peopleCursorParam(param: string): PeopleCursor | null {
   const [at, added, id] = parts;
   const moment = (x: unknown): x is string =>
     typeof x === "string" && (x === "-infinity" || Number.isFinite(Date.parse(x)));
-  return moment(at) && moment(added) && added !== "-infinity" && isUuid(id) ? { at, added, id: id as string } : null;
+  return moment(at) && moment(added) && added !== "-infinity" && typeof id === "string" && isUuid(id)
+    ? { at, added, id }
+    : null;
 }
 
 /**

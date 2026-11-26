@@ -135,10 +135,7 @@ function notAlready(
 const QUESTIONS = { messages: "conversational", offers: "marketing" } as const;
 const ANSWERS = { yes: "opted_in", no: "opted_out", not_asked: "unknown" } as const;
 // A selection is never "in their own message": one message is not every person's (OWN_MESSAGE_REFUSALS.batch).
-const MANY_SOURCES = CONSENT_SOURCES.map((x) => x.id).filter((id) => id !== "customer_message") as [
-  string,
-  ...string[],
-];
+const MANY_SOURCES = CONSENT_SOURCES.map((x) => x.id).filter((id) => id !== "customer_message");
 
 async function proposeAnswers(
   toolContext: ToolContext,

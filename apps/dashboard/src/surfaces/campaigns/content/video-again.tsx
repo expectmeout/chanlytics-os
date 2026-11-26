@@ -10,7 +10,7 @@ import { useState } from "react";
 import { CONTENT_SHEET_WORDS, CONTENT_WORDS, PIECE_LIMITS, type PiecePlan } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
-import { PostSay } from "../../files/post-edit";
+import { PostSay } from "../../files/post/edit";
 import { fileVerbs } from "../../files/verbs";
 import { cmFootAsk } from "../parts/split";
 

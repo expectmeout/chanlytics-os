@@ -8,6 +8,7 @@ import {
   PLAN_WORDS,
   STEP_TOKEN,
   channelChoices,
+  isObjectRecord,
   listToken,
   messageLanguageOf,
   messageLanguagesOf,
@@ -335,9 +336,16 @@ async function proposePlan(toolContext: ToolContext, planAsked: PlanAsked): Prom
  * The message a plan's one card draws, as the person reached reads it: each version the plan writes (its message step's
  * rows), else the words its send quotes of the one it reuses (the send's sheet, whose Message row is that quote).
  */
+/** One version of the message as the plan's message step writes it: a channel, its label and its words. */
+const isVersionWritten = (value: unknown): value is AskPlanHead["says"][number] =>
+  isObjectRecord(value) &&
+  typeof value.channel === "string" &&
+  typeof value.label === "string" &&
+  typeof value.words === "string";
+
 function messageSaidOf(cards: readonly AskProposal[]): AskPlanHead["says"] {
   const written = cards.find((c) => c.kind === "message")?.payload.said;
-  if (Array.isArray(written)) return written as AskPlanHead["says"];
+  if (Array.isArray(written)) return written.filter(isVersionWritten);
   const send = cards.find((c) => c.kind === "broadcast" || c.kind === "playbook");
   const quoted = send?.sheet?.rows.find((r) => r.label === "Message")?.value;
   return quoted ? [{ channel: "message", label: "", words: quoted }] : [];

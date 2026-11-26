@@ -62,7 +62,7 @@
   gap: 8px;
   padding: 5px 8px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--ink-muted);
   cursor: pointer;
   transition: background 100ms;
@@ -84,7 +84,7 @@
 /* A count is read, so it takes the dim ink: --ink-faint is 2.1 to 2.7:1 in both themes (Leads' counts were dim,
    People's faint, in one rail). */
 .cl-rail-row .count {
-  font-size: 10.5px;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -141,7 +141,7 @@
   padding: 7px;
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-sm);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   cursor: pointer;
   transition: all 120ms;
@@ -173,556 +173,13 @@
 }
 
 /* === Page header === */
-.cl-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 24px;
-  padding: 22px 28px 18px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-}
-.cl-head-titles {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.cl-page-title {
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  line-height: 1.15;
-}
-.cl-page-sub {
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  line-height: 1.5;
-  max-width: 520px;
-}
-
-.cl-head-stats {
-  display: flex;
-  gap: 0;
-  margin-left: auto;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-.cl-head-stat {
-  padding: 10px 18px;
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 110px;
-}
-.cl-head-stat:last-child { border-right: none; }
-.cl-head-stat-label {
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.cl-head-stat-value {
-  font-size: var(--text-xl);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-  letter-spacing: -0.02em;
-}
-.cl-head-stat-meta {
-  font-size: 10.5px;
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-}
-.cl-head-stat-meta.pos { color: var(--ok); }
-.cl-head-stat-meta.neg { color: var(--accent); }
-
-.cl-head-actions {
-  display: flex;
-  gap: 6px;
-  margin-left: 12px;
-}
 
 /* The file acts (Import, Export; Leads' map and Values too) stand beside Columns as words. */
 .pl-file-acts { display: flex; align-items: center; gap: 8px; }
 
 /* === Buckets section wrapper === */
-.cl-buckets {
-  padding: 16px 28px 4px;
-}
-.cl-buckets-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.cl-buckets-title {
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 500;
-  letter-spacing: -0.005em;
-}
-.cl-buckets-sub {
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
-.cl-buckets-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 3px 8px;
-  cursor: pointer;
-}
-@media (hover: hover) { .cl-buckets-toggle:hover { background: var(--bg-hover); color: var(--ink); } }
 
 /* ==== TRIAGE CONSOLE — unified tabbed hero ==== */
-.cl-triage {
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-/* tab strip */
-.cl-triage-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  background: var(--bg-sunken);
-  border-bottom: 1px solid var(--line);
-}
-.cl-triage-tab {
-  position: relative;
-  border: none;
-  background: transparent;
-  padding: 11px 14px 10px;
-  text-align: left;
-  cursor: pointer;
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  transition: background 100ms;
-}
-.cl-triage-tab:last-child { border-right: none; }
-@media (hover: hover) { .cl-triage-tab:hover { background: var(--bg-hover); } }
-.cl-triage-tab.active {
-  background: var(--bg-raised);
-}
-.cl-triage-tab.active::after {
-  animation: grow-x 0.24s var(--ease-out);
-  transform-origin: left center;
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: -1px;
-  height: 2px;
-  background: var(--ink);
-}
-.cl-triage-tab.accent.active::after { background: var(--accent); }
-
-.cl-triage-tab-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.cl-triage-tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  color: var(--ink-muted);
-  font-weight: 500;
-  letter-spacing: -0.005em;
-}
-.cl-triage-tab-label .icon { color: var(--ink-faint); }
-.cl-triage-tab.active .cl-triage-tab-label { color: var(--ink); }
-.cl-triage-tab.accent .cl-triage-tab-label .icon { color: var(--accent); }
-.cl-triage-tab.active.accent .cl-triage-tab-label { color: var(--ink); }
-
-.cl-triage-tab-count {
-  font-size: var(--text-lg);
-  font-weight: 500;
-  color: var(--ink-muted);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-.cl-triage-tab.active .cl-triage-tab-count { color: var(--ink); }
-.cl-triage-tab.accent.active .cl-triage-tab-count { color: var(--accent); }
-
-.cl-triage-tab-strip {
-  display: flex;
-  gap: 2px;
-  height: 5px;
-}
-.cl-triage-cell {
-  flex: 1;
-  border-radius: 1px;
-  opacity: 0.45;
-  transition: opacity 120ms;
-}
-.cl-triage-tab.active .cl-triage-cell { opacity: 0.95; }
-.cl-triage-tab:hover .cl-triage-cell { opacity: 0.75; }
-
-/* body */
-.cl-triage-body {
-  padding: 14px 16px 16px;
-}
-.cl-triage-body-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.cl-triage-body-titles {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.cl-triage-body-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
-  letter-spacing: -0.005em;
-}
-.cl-triage-body-sub {
-  font-size: 11.5px;
-  color: var(--ink-dim);
-}
-.cl-triage-body-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
-.cl-triage-body-meta .dot { width: 2px; height: 2px; background: var(--ink-faint); border-radius: 50%; }
-.cl-triage-seeall {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: transparent;
-  border: none;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 3px;
-}
-@media (hover: hover) { .cl-triage-seeall:hover { color: var(--ink); background: var(--bg-hover); } }
-
-/* decision rows */
-.cl-decision-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-.cl-decision-empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 20px;
-  color: var(--ink-faint);
-  font-size: 12px;
-}
-
-.cl-decision {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 10px 10px 10px 12px;
-  cursor: pointer;
-  transition: all 120ms;
-  align-items: stretch;
-  min-width: 0;
-}
-@media (hover: hover) {
-  .cl-decision:hover {
-    border-color: var(--ink-faint);
-    background: var(--bg-hover);
-  }
-}
-
-.cl-decision-l {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding-top: 1px;
-}
-
-.cl-decision-body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.cl-decision-name {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-  line-height: 1.3;
-}
-.cl-decision-meta {
-  font-size: 10.5px;
-  color: var(--ink-muted);
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  margin-left: 2px;
-}
-.cl-decision-meta .dim { color: var(--ink-dim); }
-.cl-decision-narr {
-  font-size: 11.5px;
-  color: var(--ink-muted);
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.cl-decision-agent {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10.5px;
-  color: var(--ink-muted);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  padding: 2px 7px 2px 3px;
-  width: fit-content;
-  max-width: 100%;
-  margin-top: 2px;
-}
-.cl-decision-agent .agent-avatar {
-  width: 16px; height: 16px;
-  font-size: 9px;
-  border-radius: 3px;
-}
-.cl-decision-agent .live-dot { width: 5px; height: 5px; }
-.cl-decision-agent.approval {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: transparent;
-}
-.cl-decision-agent.escalated {
-  color: var(--warn);
-  background: var(--warn-soft);
-  border-color: transparent;
-}
-.cl-decision-agent-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.cl-decision-cta {
-  align-self: center;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 100ms;
-}
-.cl-decision-cta.primary {
-  background: var(--ink);
-  color: var(--bg);
-}
-@media (hover: hover) {
-  .cl-decision-cta.primary:hover {
-    background: var(--ink-muted);
-  }
-}
-.cl-decision-cta.ghost {
-  background: transparent;
-  color: var(--ink-muted);
-  border-color: var(--line);
-}
-@media (hover: hover) {
-  .cl-decision-cta.ghost:hover {
-    color: var(--ink);
-    border-color: var(--ink-faint);
-    background: var(--bg);
-  }
-}
-
-/* compact temp pill (used in decision rows) */
-.cl-temp-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  color: var(--ink-dim);
-}
-.cl-temp-pill-bar {
-  width: 22px;
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(to right, oklch(0.62 0.13 235), oklch(0.7 0.13 80), oklch(0.62 0.18 25));
-  position: relative;
-}
-.cl-temp-pill-pin {
-  position: absolute;
-  top: -2px;
-  width: 2px;
-  height: 8px;
-  background: var(--ink);
-  border-radius: 1px;
-  box-shadow: 0 0 0 1px var(--bg-raised);
-  transform: translateX(-1px);
-}
-.cl-temp-pill-num {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  color: var(--ink-muted);
-}
-
-/* Mini-cards inside a bucket */
-.cl-mini {
-  display: grid;
-  grid-template-columns: 26px 1fr auto;
-  gap: 8px;
-  padding: 8px 9px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 120ms;
-  align-items: flex-start;
-  position: relative;
-}
-@media (hover: hover) {
-  .cl-mini:hover {
-    border-color: var(--ink-faint);
-    background: var(--bg-hover);
-  }
-}
-.cl-mini-avatar {
-  width: 26px; height: 26px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 500;
-  color: var(--ink-muted);
-  letter-spacing: 0.02em;
-  margin-top: 1px;
-}
-.cl-mini-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--ink); }
-.cl-mini-body { min-width: 0; }
-.cl-mini-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink);
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cl-mini-narr {
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin-top: 2px;
-}
-.cl-mini-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 10px;
-  color: var(--ink-dim);
-}
-.cl-mini-money {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  color: var(--ink-muted);
-}
-.cl-mini-temp {
-  flex-shrink: 0;
-  width: 28px;
-  margin-top: 6px;
-}
-.cl-temp-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(to right, oklch(0.6 0.12 235), oklch(0.65 0.13 80), oklch(0.62 0.19 25));
-  position: relative;
-}
-.cl-temp-pin {
-  position: absolute;
-  top: -2px;
-  width: 2px;
-  height: 8px;
-  background: var(--ink);
-  border-radius: 1px;
-  box-shadow: 0 0 0 1px var(--bg);
-  transform: translateX(-1px);
-}
-
-.cl-mini-agent {
-  margin-top: 5px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  color: var(--ink-muted);
-  background: var(--bg-sunken);
-  border-radius: var(--radius-xs);
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-}
-.cl-mini-agent .live-dot { width: 5px; height: 5px; }
-.cl-mini-agent.approval {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: transparent;
-}
-.cl-mini-agent.escalated {
-  color: var(--warn);
-  background: var(--warn-soft);
-  border-color: transparent;
-}
-
-.cl-bucket-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 6px;
-  border-top: 1px solid var(--line);
-  margin-top: 4px;
-}
-.cl-bucket-foot-meta {
-  font-size: 10.5px;
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-}
 
 /* === Section heading inside main === */
 .cl-section {
@@ -735,7 +192,7 @@
   margin-bottom: 10px;
 }
 .cl-section-title {
-  font-size: 14px;
+  font-size: var(--text-title);
   font-weight: 500;
   color: var(--ink);
   display: inline-flex;
@@ -743,7 +200,7 @@
   gap: 8px;
 }
 .cl-section-sub {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 .cl-tabs {
@@ -786,7 +243,7 @@
 }
 .cl-table td.shrink { width: 1%; white-space: nowrap; }
 .cl-table td.muted { color: var(--ink-muted); }
-.cl-table td.dim { color: var(--ink-dim); font-size: 11.5px; }
+.cl-table td.dim { color: var(--ink-dim); font-size: var(--text-xs); }
 
 .cl-row-name {
   display: flex;
@@ -804,161 +261,19 @@
   text-overflow: ellipsis;
 }
 .cl-row-meta {
-  font-size: 10.5px;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.cl-row-meta .dot { width: 2px; height: 2px; background: var(--ink-faint); border-radius: 50%; }
-
-.cl-row-tags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-
-.cl-temp-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 80px;
-}
-.cl-temp-bar.bar-md { width: 60px; height: 5px; }
-.cl-temp-pin.bar-md { height: 9px; top: -2px; }
-.cl-temp-num {
-  font-size: 10.5px;
-  color: var(--ink-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* A strip of channel glyphs (people/cells/channel-glyph.tsx): the demo's Lists page draws it; People's rows say the
-   wire in words (8 Oct 2026). */
-.cl-row-channels {
-  display: inline-flex;
-  gap: 2px;
-  color: var(--ink-faint);
-}
-.cl-row-channel-primary {
-  color: var(--ink-muted);
-}
-
-.cl-row-pkg {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-  font-size: var(--text-xs);
-}
-.cl-row-pkg .num { font-weight: 500; color: var(--ink); }
-.cl-row-pkg .lbl { color: var(--ink-dim); }
-.cl-row-pkg.empty .num { color: var(--ink-faint); }
-
-.cl-row-checkbox {
-  width: 13px; height: 13px;
-  accent-color: var(--ink);
-  opacity: 0;
-  transition: opacity 100ms;
-}
-.cl-table tbody tr:hover .cl-row-checkbox,
-.cl-table tbody tr.checked .cl-row-checkbox { opacity: 1; }
+.cl-row-meta .dot { width: 2px; height: 2px; background: var(--ink-faint); border-radius: var(--radius-circle); }
 
 
 /* ====================================================================
    Direction B: Segments-first
    ==================================================================== */
-
-.cl-segments-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  padding: 20px 28px;
-}
-.cl-seg-card {
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 14px 14px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  cursor: pointer;
-  transition: all 140ms;
-}
-.cl-seg-card:hover {
-  border-color: var(--ink-faint);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
-.cl-seg-card.smart::before {
-  /* mark via accent dot in head instead */
-}
-.cl-seg-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-.cl-seg-titles { min-width: 0; flex: 1; }
-.cl-seg-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.cl-seg-kind {
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  color: var(--ink-faint);
-}
-.cl-seg-kind.smart { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-.cl-seg-query {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--ink-dim);
-  margin-top: 4px;
-}
-.cl-seg-count {
-  font-size: var(--text-2xl);
-  font-weight: 500;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1;
-}
-.cl-seg-strip {
-  display: flex;
-  margin: 0 -2px;
-}
-.cl-seg-strip-cell {
-  flex: 1;
-  height: 20px;
-  margin: 0 1px;
-  border-radius: 2px;
-  background: var(--line);
-}
-.cl-seg-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-  font-size: 10.5px;
-  color: var(--ink-dim);
-}
-.cl-seg-foot-agent {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.cl-seg-foot-agent .agent-avatar {
-  width: 16px; height: 16px;
-  font-size: 9px;
-  border-radius: 3px;
-}
 
 /* ====================================================================
    PROFILE PAGE
@@ -1192,7 +507,7 @@
    also takes back the 36px touch floor frame.css puts on every pill. */
 /* The head's state (canvas A, `.a-state .pill`): its dot and its word at the base step, in the medium weight. */
 .cl-prof-now .pill { padding: 0; background: transparent; gap: 6px; font-size: var(--text-base); font-weight: var(--weight-medium); }
-.cl-prof-now .pill::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cl-prof-now .pill::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: var(--radius-circle); background: currentColor; }
 .cl-prof-now .pill .live-dot { display: none; }
 /* Its sentence, said once, always (canvas A). */
 .cl-prof-now-why { line-height: 1.45; text-wrap: pretty; }
@@ -1215,8 +530,6 @@
 .cl-prof-combine-row + .cl-prof-combine-row { border-top: 1px solid var(--line); }
 .cl-prof-combine-row > svg { flex: none; margin-top: 3px; color: var(--ink-dim); }
 .cl-prof-combine-why { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); }
-.cl-prof-combine-foot { display: flex; align-items: center; gap: var(--space-2); width: 100%; }
-.cl-prof-combine-role { margin-right: auto; font-size: var(--text-xs); color: var(--ink-dim); }
 
 /* The card's rows that change something about them: the record kit's rows and folds, one line each at rest. */
 .cl-prof-rec { padding: 2px var(--rec-gutter) 6px; border-bottom: 1px solid var(--line); }
@@ -1253,7 +566,6 @@
    hairline, the middle radius, no shadow -- held to the prose measure, so its three steps read as steps rather than a
    rule across a wide window. With none open, one slim line and its act. */
 .cl-prof-deal { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.cl-prof-deal-list { display: flex; flex-direction: column; gap: 8px; }
 /* The person page's deals (canvas A, `.inset.a-list` of `.a-deal`): one inset, a deal to a row with a hairline between.
    On a desk its name, its steps (230 wide), its value (84, at the right) and the fold's chevron on one 52px line; on a
    phone the name and the value over the steps. Opened, the card's other lines under it (D2). The lit step's name and its
@@ -1324,14 +636,8 @@
   .cl-prof-deal-foot { padding-top: 6px; }
   .cl-prof-deal-foot > :is(button, a) { min-height: 44px; }
 }
-.cl-prof-deal-card {
-  box-sizing: border-box; max-width: var(--measure-prose); min-width: 0;
-  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
-  
-}
-.cl-prof-deal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
-.cl-prof-deal-title { min-width: 0; font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-prof-deal-value { flex: none; font-size: 13px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cl-prof-deal-title { min-width: 0; font-size: var(--text-aside); font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-deal-value { flex: none; font-size: var(--text-aside); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
 /* Three quiet steps, a 3px bar each with its word and its day: behind is a dim ink, where it stands the stage's own
    tone (contracts tone.ts, deal), ahead the hairline. */
 .cl-prof-deal-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
@@ -1343,11 +649,11 @@
 /* A proposal that waits on the owner (contracts deals/waits.ts proposalTone, the Pipeline row's own rule). */
 .cl-prof-deal-step[data-tone="warn"] .cl-prof-deal-bar { background: var(--warn); }
 .cl-prof-deal-step[data-tone="ok"] .cl-prof-deal-bar { background: var(--ok); }
-.cl-prof-deal-step-label { font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-prof-deal-step-label { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-prof-deal-step[aria-current="step"] .cl-prof-deal-step-label { color: var(--ink); font-weight: 500; }
 .cl-prof-deal-step-day { font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 /* The link, whether it went and the day it stands until: one line that breaks between its facts, after the dot. */
-.cl-prof-deal-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
+.cl-prof-deal-line { margin: 0; font-size: var(--text-label); line-height: 1.5; color: var(--ink-muted); }
 .cl-prof-deal-link { color: var(--ink); font-weight: 500; text-decoration: none; white-space: nowrap; border-radius: var(--radius-xs); }
 .cl-prof-deal-link .icon { margin-right: 4px; vertical-align: -1px; color: var(--ink-dim); }
 @media (hover: hover) { .cl-prof-deal-link:hover .cl-prof-deal-host { text-decoration: underline; text-underline-offset: 2px; } }
@@ -1361,7 +667,7 @@
 .cl-prof-deal-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 2px; }
 .cl-prof-deal-act {
   display: inline-flex; align-items: center; height: 26px; padding: 0; border: 0; border-radius: var(--radius-xs);
-  background: none; font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer; white-space: nowrap;
+  background: none; font: inherit; font-size: var(--text-label); font-weight: 500; color: var(--ink-muted); cursor: pointer; white-space: nowrap;
   transition: color var(--duration-fast) var(--ease-out);
 }
 @media (hover: hover) { .cl-prof-deal-act:hover { color: var(--ink); } }
@@ -1369,7 +675,7 @@
 /* The deal's next step (0007, amended): one quiet line under its acts, the day in the warn ink once it is due, and
    its Done and Change as the card's own quiet words; with none, "Set a next step" in a dashed outline. */
 .cl-prof-deal-nextstep { display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); min-width: 0; }
-.cl-prof-deal-next-line { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
+.cl-prof-deal-next-line { margin: 0; font-size: var(--text-label); line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
 .cl-prof-deal-next-label { margin-right: 6px; font-size: var(--text-xs); font-weight: 500; letter-spacing: .02em; color: var(--ink-dim); }
 .cl-prof-deal-next-words { color: var(--ink); }
 .cl-prof-deal-next-day { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1379,7 +685,7 @@
 .cl-prof-deal-setnext {
   align-self: flex-start; display: inline-flex; align-items: center; height: 26px; padding: 0 10px;
   border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); background: none;
-  font: inherit; font-size: 12px; font-weight: 500; color: var(--ink-muted); cursor: pointer;
+  font: inherit; font-size: var(--text-label); font-weight: 500; color: var(--ink-muted); cursor: pointer;
   transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
 }
 @media (hover: hover) { .cl-prof-deal-setnext:hover { color: var(--ink); border-color: var(--ink-dim); } }
@@ -1429,7 +735,7 @@
   margin-top: var(--space-1);
   padding: 2px 10px 2px 0;
   background: var(--bg);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1451,11 +757,11 @@
 /* A row with somewhere to go is the door -- the whole row; the arrow says so on hover, and always under a thumb. */
 .cl-tl-row-door { cursor: pointer; }
 .cl-tl-row-door:focus-visible { background: var(--bg-sunken); outline: none; } @media (hover: hover) { .cl-tl-row-door:hover { background: var(--bg-sunken); outline: none; } }
-.cl-tl-row-door:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.cl-tl-row-door:focus-visible { box-shadow: var(--focus-ring); }
 .cl-tl-older { margin: var(--space-1) 0 0 40px; align-self: flex-start; }
 .cl-tl-mark {
   width: 28px; height: 28px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: var(--bg);
   border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;
@@ -1483,12 +789,6 @@
 /* A visit that asks "Did they come?" (surfaces/visit-line.tsx): the question and its presses, and the door beside them. */
 .cl-tl-ask { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 .cl-tl-who { font-weight: 500; color: var(--ink); }
-.cl-tl-channel {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--ink-faint);
-}
 .cl-tl-text {
   font-size: var(--text-sm);
   color: var(--ink);
@@ -1509,7 +809,7 @@
 .cl-prof-rail-note {
   padding: 10px 18px;
   border-bottom: 1px solid var(--line);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   line-height: 1.4;
   color: var(--ink-dim);
 }
@@ -1549,7 +849,7 @@
 }
 .cl-prof-aut-seg {
   padding: 7px 6px;
-  font-size: 10.5px;
+  font-size: var(--text-2xs);
   background: transparent;
   border: none;
   border-radius: var(--radius-xs);
@@ -1576,7 +876,7 @@
 .cl-prof-how-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .cl-prof-how-chip {
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   padding: 5px 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-full);
@@ -1606,8 +906,8 @@
 @media (hover: hover) { .cl-prof-msg:hover { border-color: var(--ink-faint); } }
 .cl-prof-msg:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .cl-prof-msg:disabled { opacity: 0.5; cursor: default; }
-.cl-prof-msg-words { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
-.cl-prof-msg-meta { font-size: 10.5px; color: var(--ink-dim); }
+.cl-prof-msg-words { font-size: var(--text-label); line-height: 1.35; overflow-wrap: anywhere; }
+.cl-prof-msg-meta { font-size: var(--text-2xs); color: var(--ink-dim); }
 /* A sign-up form's note: which form, or where they wrote. */
 .cl-prof-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 /* A deal's how-row (0004) holds two choices beside its fields: they take the fields' look, not the browser's. */
@@ -1615,7 +915,7 @@
   flex: 1 1 160px;
   min-width: 0;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--ink);
   background: var(--bg);
   border: 1px solid var(--line-strong);
@@ -1642,20 +942,6 @@
   line-height: 1.4;
 }
 
-/* Table empty state */
-.cl-table-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 36px 16px;
-  color: var(--ink-dim);
-  font-size: 12px;
-}
-.cl-table-empty .icon { color: var(--ink-faint); }
-
-@media (hover: hover) { .cl-prof-next:hover .stat-cell-label { color: var(--info); } }
-
 /* Saved lists on the rail: the empty line and the name box. */
 .cl-rail-hint { font-size: var(--text-xs); line-height: 1.45; color: var(--ink-faint); padding: 2px 10px 8px; }
 /* A field error sits where the rail's hint does, and on a naming row it takes its own line. */
@@ -1664,28 +950,28 @@
 .cl-rail-newlist { display: flex; gap: 6px; align-items: center; }
 /* A smart list drafted from the owner's words: its rule as chips, who it holds for, and what it left out, over the
    name it is saved under; the switch between kinds is a quiet link under the box. */
-.cl-list-rule { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--ink-dim); }
+.cl-list-rule { margin-left: 8px; font-size: var(--text-label); font-weight: 400; color: var(--ink-dim); }
 /* A smart list's rule, changed under its title (decision 0009): the New list box's parts, at the width of a thought. */
-.cl-list-rule-edit { margin-left: 8px; font-size: 12px; font-weight: 400; }
+.cl-list-rule-edit { margin-left: 8px; font-size: var(--text-label); font-weight: 400; }
 /* Pinned to Today: said in the link's own words, and in ink once it is. */
 .cl-list-pin { margin-left: 8px; }
 .cl-list-pin.is-on { color: var(--ink); }
 .cl-rule-edit { display: flex; flex-direction: column; gap: 8px; max-width: 520px; padding: 4px 0 12px; }
 .cl-rule-edit-acts { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 /* What "Save these" keeps: the rule, or the people shown. The one chosen reads as chosen, quietly. */
-.cl-save-mode { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.cl-save-mode { font-size: var(--text-label); color: var(--ink-dim); white-space: nowrap; }
 /* With the choice, the box takes two lines -- the choice over the name -- so the list's title keeps its one line. */
 .cl-bulk-naming.has-modes { flex-wrap: wrap; justify-content: flex-end; max-width: 380px; }
 .cl-bulk-naming.has-modes .cl-save-mode { flex-basis: 100%; text-align: right; }
 .cl-save-mode .cl-bucket-link { color: var(--ink-dim); }
 .cl-save-mode .cl-bucket-link.is-on { color: var(--ink); font-weight: 500; }
 .cl-rail-draft { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-.cl-rail-newlist-mode { display: block; margin-top: 6px; font-size: 11.5px; }
+.cl-rail-newlist-mode { display: block; margin-top: 6px; font-size: var(--text-xs); }
 .cl-rail-newlist input {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-label);
   padding: 6px 8px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
@@ -1695,7 +981,6 @@
 .cl-rail-newlist input:focus { outline: none; border-color: var(--ink-faint); }
 
 /* ---- Booked: a fact from the calendar beside the state pill ---- */
-.cl-row-booked { display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 7px; border-radius: var(--radius-full); font-size: 10.5px; font-weight: 500; letter-spacing: .01em; color: var(--ok); background: var(--ok-soft); white-space: nowrap; }
 
 /* ---- A value typed where it is shown; notes the receptionist reads ---- */
 /* The person's name, their email address and a list's name are each the box they are typed in (kit/record/in-place.tsx):
@@ -1805,7 +1090,7 @@
 .cl-prof-note-row > .cl-prof-note-day { flex: 1 1 0; min-width: 0; }
 .cl-prof-note-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; padding-top: 8px; border-top: 1px solid var(--line); }
 .cl-prof-note-foot > .cl-prof-name-acts { margin-left: auto; }
-.cl-prof-note-for { font: inherit; font-size: 12px; color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 6px; max-width: 150px; }
+.cl-prof-note-for { font: inherit; font-size: var(--text-label); color: var(--ink-muted); background: transparent; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 2px 6px; max-width: 150px; }
 .cl-prof-note-team { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink-muted); }
 .cl-prof-note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .cl-pnote { padding: 8px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
@@ -1939,7 +1224,7 @@
 .cl-list-action-text { font-size: var(--text-sm); color: var(--ink-dim); }
 /* A visit on the calendar is good news at rest: the calendar icon says it, in the quiet ink (the raw green read 3.28:1). */
 .cl-row-next { color: var(--ink-muted); font-weight: 500; }
-.cl-row-recept-mark { margin-left: 6px; font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
+.cl-row-recept-mark { margin-left: 6px; font-size: var(--text-2xs); color: var(--ink-faint); white-space: nowrap; }
 /* The receptionist's word beside the state is said once. While its column shows (is-in-column), a desktop leaves the word
    to that column. A card draws the column's cell whatever the member chose, and Visits takes its place, so a card leaves
    the word to the cell wherever there is no Visits. */
@@ -1948,7 +1233,7 @@
 
 /* ---- Selecting people: a quiet checkbox, a bar that says what they can become ---- */
 .cl-main { position: relative; }
-.cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
+.cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: var(--surface-float-depth); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
 @keyframes cl-bulk-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .cl-bulk { animation: none; } }
 .cl-bulk-count { font-size: var(--text-sm); color: var(--ink-dim); margin-right: 4px; }
@@ -2049,7 +1334,7 @@
 .cl-row-fullname > .cl-row-trail { flex: 0 100000 auto; white-space: nowrap; font-weight: var(--weight-regular); color: var(--ink-dim); }
 .cl-row-trail { color: var(--ink-dim); font-weight: var(--weight-regular); }
 .cl-state-cell > .cl-row-stopped { margin-left: 6px; }
-.cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: 10.5px; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-row-name-them { display: inline-flex; align-items: center; gap: 3px; border: none; background: transparent; padding: 0; font: inherit; font-size: var(--text-2xs); color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-table tbody tr:hover .cl-row-name-them, .cl-table tbody tr.focused .cl-row-name-them, .cl-row-name-them:focus-visible { opacity: 1; }
 @media (hover: hover) { .cl-row-name-them:hover { color: var(--accent); } }
 /* On a desk it takes no room until it shows: unseen, its 72px still stood between a number's name and their words, so
@@ -2059,12 +1344,10 @@
   .cl-table .cl-row-name-them { max-width: 0; margin-left: -8px; overflow: hidden; white-space: nowrap; flex: none; }
   .cl-table tbody tr:is(:hover, .focused) .cl-row-name-them, .cl-table .cl-row-name-them:focus-visible { max-width: none; margin-left: 0; }
 }
-.cl-row-last-visit { font-size: 11.5px; color: var(--ink-faint); }
+.cl-row-last-visit { font-size: var(--text-xs); color: var(--ink-faint); }
 .cl-table td.cl-actions-cell { width: 1%; white-space: nowrap; }
 .cl-row-actions { display: inline-flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
 .cl-table tbody tr:hover .cl-row-actions, .cl-table tbody tr.focused .cl-row-actions, .cl-row-actions:focus-within { opacity: 1; }
-.cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
-.cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--ink-dim); background: var(--bg-raised); }
 @media (max-width: 900px) {
   /* Cards: the table and its body become blocks so each row's grid takes the full width; the shrink columns give up their 1%. */
   .cl-table, .cl-table tbody { display: block; width: 100%; }
@@ -2081,7 +1364,6 @@
   .cl-table td.cl-visits-cell, .cl-table td.cl-recept-cell { grid-area: visits; justify-self: end; }
   .cl-table td.cl-offers-cell { grid-area: offers; }
   .cl-table td.cl-actions-cell { display: none; }
-  .cl-table-keys { display: none; }
   /* A card keeps its own few facts: where they came from, their address and their lists are the desktop's columns. */
   .cl-table td.cl-came-cell, .cl-table td.cl-email-cell, .cl-table td.cl-lists-cell { display: none; }
   /* Visits and the receptionist share one place on a card; with both columns chosen, the visit keeps it. */
@@ -2190,7 +1472,7 @@
   .pl-table tbody tr > td { padding: 0 10px; min-width: 0; }
   /* Everything in the name cell is a flex row built for a 572px column; without
      a zero floor its parts refuse to shrink and run under the state beside them. */
-  .pl-table .cl-row-name, .pl-table .cl-row-name-block, .pl-table .cl-row-name-line { min-width: 0; }
+  .pl-table .cl-row-name, .pl-table .cl-row-name-block { min-width: 0; }
   .pl-table .cl-row-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* The number, the WhatsApp name, the thread count and the first contact are
      the profile's, one tap away; the row keeps the name, the words and when. */
@@ -2243,7 +1525,6 @@
   .clients .cl-section-head { margin-bottom: 8px; }
 }
 /* Under the phone's bar (PeoplePhoneBar): the bar keeps its own space above, the line its own below. */
-@media (max-width: 900px) { }
 /* And one under it while more people follow, "N of M loaded" and Show more: in the table's gutter, as the line above. */
 .pl-more { padding: 8px 28px 16px; }
 @media (max-width: 900px) { .pl-more { padding: 8px 16px 16px; } }
@@ -2267,11 +1548,11 @@
 .cl-attn-row:focus-visible { background: var(--bg-hover); outline: none; } .cl-attn-row:hover { background: var(--bg-hover); outline: none; }
 .cl-attn-avatar {
   width: 30px; height: 30px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
   display: flex; align-items: center; justify-content: center;
-  font-size: 10.5px; font-weight: 500;
+  font-size: var(--text-2xs); font-weight: 500;
   color: var(--ink-muted);
   letter-spacing: 0.02em;
 }
@@ -2283,7 +1564,7 @@
 .cl-attn-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The business they work at (0052), dim after the name inside its line, so a short line cuts it before the name. */
 .cl-attn-trail { font-weight: var(--weight-regular); color: var(--ink-dim); }
-.cl-attn-meta { flex: none; font-size: 10.5px; font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.cl-attn-meta { flex: none; font-size: var(--text-2xs); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 /* TWO lines, not one. This line is the thing a person decides from -- the
    customer's own words, or what the receptionist could not finish -- and one
    line of it is not enough: on Today's queue at 1440 a call-back summary lost
@@ -2291,14 +1572,14 @@
    ceiling, not a target: a short sentence still draws a short row, and past two
    the row opens. */
 .cl-attn-sentence {
-  font-size: 12px; color: var(--ink-muted); line-height: 1.35;
+  font-size: var(--text-label); color: var(--ink-muted); line-height: 1.35;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; overflow-wrap: anywhere;
 }
 .cl-attn-sentence.quoted { font-style: italic; color: var(--ink); }
 /* The wire a row came by, as a glyph before the sentence (AttnRow `via`): the dim ink, on the words' line. */
 .cl-attn-via { display: inline-flex; align-items: center; margin-right: 6px; vertical-align: -1px; color: var(--ink-dim); font-style: normal; }
-.cl-attn-status { font-size: 10.5px; color: var(--ink-dim); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-attn-status { font-size: var(--text-2xs); color: var(--ink-dim); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-attn-status .lead { color: var(--ink-muted); }
 /* What the row offers to do in place (Today's Need you, decision 0071): under its words, across the row, its own presses. */
 .cl-attn-work { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding-top: var(--space-2); cursor: default; }
@@ -2339,11 +1620,6 @@
    you, a quiet second (attention-bits.jsx draws them for People and Today). */
 .cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }
 
-/* The People header keeps its numbers whole. As a flex item with overflow hidden the strip shrank
-   below its cells, and the last tile was cut off at the right edge. Scoped: fifteen page headers
-   share the strip class. */
-.clients .cl-head-stats { flex-shrink: 0; }
-
 /* A People row's reason and words (B9), its visit door (B26), and a list chip that opens its list (B18). */
 /* Reach (8 Oct 2026): the wire they last wrote on over the one way to reach them there, in words (contracts
    rowReachWords). Two quiet lines, as the name's and the State's are, and a third only for an address that stopped
@@ -2363,7 +1639,7 @@
    in the ink, and its day in the warn ink once it has come. */
 .cl-row-step-words { color: var(--ink); }
 .cl-step-cell[data-due]:not([data-due="ahead"]) .cl-row-step-when { color: var(--warn-ink); font-weight: var(--weight-medium); }
-.cl-row-words { margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-row-words { margin-top: 2px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-state-detail { display: block; margin-top: 3px; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 @media (hover: hover) { .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; } }
@@ -2427,9 +1703,8 @@
    button, a list of rows. */
 .pp-field { display: flex; flex-direction: column; gap: 6px; }
 .pp-field-label { font-size: var(--text-sm); color: var(--ink-muted); }
-.pp-field-opt { color: var(--ink-dim); }
 .pp-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--field-text-touch); }
-.pp-input:focus { outline: none; border-color: var(--ink-muted); box-shadow: 0 0 0 3px var(--bg-active); }
+.pp-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-field); }
 .pp-input[aria-invalid="true"] { border-color: var(--danger); }
 .pp-sheet-hint { margin: -6px 0 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 .pp-sheet-go { width: 100%; height: 48px; justify-content: center; font-size: var(--text-md); }
@@ -2468,9 +1743,6 @@
      page puts on the facts' line: the next visit and when you last spoke, a lead's reach and rating. */
   .pl-card-visit { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-muted); font-weight: var(--weight-medium); }
   .pl-card-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  /* A lead's facts: whether a phone and a mailbox reach it (the reach shapes, leads.css's tones), then its rating. */
-  .pl-card-reach { flex: none; display: inline-flex; align-items: center; gap: 4px; }
-  .pl-card-reach .ld-slot-shape svg { width: 12px; height: 12px; }
   .pl-card-rated { flex: none; display: inline-flex; align-items: center; gap: 3px; color: var(--ink-muted); }
   /* A table with nobody in it is one row of one cell across the card's whole width. It was placed in the grid's first
      track -- the checkbox's, 28px -- and its sentence stood in a column a word wide. */
@@ -2611,11 +1883,11 @@
 .pipe-card[draggable="true"] { cursor: grab; }
 .pipe-card.is-dragging { opacity: .4; }
 .pipe-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.pipe-card-face { flex: none; width: 24px; height: 24px; font-size: 9px; }
+.pipe-card-face { flex: none; width: 24px; height: 24px; font-size: var(--text-2xs); }
 .pipe-stopped { flex: none; }
 .pipe-card-name { min-width: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pipe-card-service { font-size: 12px; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pipe-card-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pipe-card-service { font-size: var(--text-label); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipe-card-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: var(--text-label); font-variant-numeric: tabular-nums; }
 .pipe-card-value { color: var(--ink); }
 .pipe-card-stage { color: var(--ink-dim); }
 .pipe-card > .pill { align-self: flex-start; }
@@ -2646,8 +1918,8 @@
 /* Their next step (0007, amended): what, then when in the dim small type the table keeps for dates, the day in the
    warn ink once it has come. The list's cell, the phone card's fact and the board card's line say it alike. */
 .pipe-next-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.pipe-next-when { flex: none; font-size: 11.5px; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pipe-card-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; }
+.pipe-next-when { flex: none; font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pipe-card-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: var(--text-label); }
 .pipe-row-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 :is(.pipe-next, .pipe-card-next, .pipe-row-next)[data-due]:not([data-due="ahead"]) .pipe-next-when { color: var(--warn-ink); font-weight: 500; }
 .pipe-card .pipe-track { margin-top: 2px; }
@@ -2656,8 +1928,6 @@
   /* With a peek open the table makes room for it (leads.css .pk, 408px, and a 16px gap), so the columns kept beside it
      are seen; the line and the controls above it stay where they are, and nothing over the rows moves. */
   :is(.pipe-scope, .pp-scope) .cl-main.has-peek .cl-table-wrap { margin-right: calc(408px + 16px); }
-  /* The keys' hints are the peek's own to say while it is open (J and K walk it); the count stays. */
-  :is(.pipe-scope, .pp-scope) .cl-main.has-peek .cl-table-keys { display: none; }
   /* A selection's bar sits in the room the table has, never under the peek; there it may take two lines. */
   :is(.pipe-scope, .pp-scope) .cl-main.has-peek .cl-bulk { left: calc((100% - 424px) / 2); max-width: calc(100% - 424px - 32px); flex-wrap: wrap; white-space: normal; border-radius: var(--radius-lg); }
 }
@@ -2671,7 +1941,7 @@
 .pipe-col-more { align-self: flex-start; margin-top: 2px; }
 .pipe-pass { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pipe-pass-ask { font-size: var(--text-sm); color: var(--ink); }
-.pipe-pass-rest { font-size: 12px; color: var(--ink-dim); }
+.pipe-pass-rest { font-size: var(--text-label); color: var(--ink-dim); }
 
 /* ---- The deal sheet (surfaces/people/pipeline/: peek.tsx, peek-parts.tsx, peek-foot.tsx; the canvas "Pipeline deal
    sheet", 20 Oct 2026) ------------------------------------------------------------------------------------------------
@@ -3346,31 +2616,6 @@
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-/* The notes rail at a wide window (canvas A, D7; person-real.tsx): one pane of their notes (the newest, the suggestion
-   with its acts under its words, the composer), then their lists. */
-.cl-prof-notes-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  padding: 18px;
-  border-radius: var(--surface-pane-radius);
-  background: var(--surface-pane-fill);
-  box-shadow: var(--surface-pane-depth);
-}
-.cl-prof-notes-rail > .cl-prof-section {
-  padding: 0;
-  background: none;
-  box-shadow: none;
-}
-.cl-prof-notes-rail .cl-prof-sug {
-  grid-template-columns: minmax(0, 1fr);
-}
-.cl-prof-notes-rail > .cl-prof-rail-section {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid var(--line);
-}
 /* What the receptionist knows (canvas A, P9.4; settings-card.tsx knowsPanel): an inset under the Messages rows, its title,
    one line of facts, and how it uses the notes. */
 .cl-prof-knows {
@@ -3434,17 +2679,6 @@
   display: grid;
   flex: 1 1 auto;
   min-width: 0;
-}
-/* A "not asked" in Messages and receptionist's summary (canvas A): dotted under, in the muted ink; the first is the press
-   that asks it. */
-.cl-prof-not-asked {
-  display: inline;
-  min-height: 0;
-  padding: 0;
-  color: var(--ink-muted);
-  text-decoration: underline dotted;
-  text-decoration-color: var(--ink-faint);
-  text-underline-offset: 3px;
 }
 /* Reach them (canvas A): a way to reach them is a whole-row press, its value over what it is in the dim ink, the door's
    chevron at its end; 52px under a thumb. The lines under it say what is not a press. */
@@ -3688,15 +2922,6 @@ a.cl-prof-vrow:focus-visible {
     width: 100%;
     min-height: var(--control-h-touch);
   }
-}
-/* The deal card is an inset of the pane. */
-.cl-prof-deal-card {
-  border: 0;
-  border-radius: var(--surface-inset-radius);
-  background: var(--surface-inset-fill);
-  box-shadow:
-    var(--surface-inset-ring),
-    var(--surface-inset-depth);
 }
 /* What has happened: the filters as words on a hairline, the picked one underlined in ink; a day's name in the mono
    face over its rows, with no line down the column; a row its 26px mark (the face, an inset square for a thing that
@@ -3971,38 +3196,8 @@ a.cl-prof-vrow:focus-visible {
    tint, the Works at row, the business record in the kit's sheet, Up next's rungs, and their last words as two bubbles
    that are doors. The kit draws every control; these rules place them, and read every value from tokens.css.
    ==================================================================== */
-/* The figures: four to a line on a desk, two on a phone, in one pane. */
-.cl-prof-figures {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin: 0;
-}
 /* On a desk (canvas A, `.pane.a-figs`): the pane 16px over and under, each figure a share of the line with a hairline
    before it but the first, the number a step up. The kit's figure is reached by its place. */
-@media (width > 900px) {
-  .main-scroll .cl-prof-work > .cl-prof-figures {
-    grid-template-columns: none;
-    grid-auto-columns: minmax(0, 1fr);
-    grid-auto-flow: column;
-    gap: 0;
-    padding: 16px 18px;
-  }
-  .cl-prof-figures > div {
-    min-width: 0;
-    padding: 2px 18px;
-    border-left: 1px solid var(--line);
-  }
-  .cl-prof-figures > div:first-child {
-    padding-left: 2px;
-    border-left: 0;
-  }
-}
-/* The strip of tabs stands on the page, between the figures and the tab's panes, at the panes' own sides. */
-.cl-prof-strip {
-  --subtabs-side: 4px;
-  --subtabs-gap: 26px;
-}
 /* It sticks under the top bar as the tab's panes scroll, and wears the control layer's glass only once it is stuck
    (data-stuck, work.tsx). A pixel above the scroller's edge once stuck, so the stand alone says whether it is (useStuck):
    no mark above it, whose own place in the column's gap doubled the gap between the figures and the strip. */
@@ -4026,8 +3221,7 @@ a.cl-prof-vrow:focus-visible {
 /* The identity rail, and the notes rail at a wide window, hold still beside the work column: as tall as the page's
    scroller at most (--record-h, person-real.tsx), scrolling inside themselves where they are taller. */
 @container record (width > 880px) {
-  .cl-prof-side,
-  .cl-prof-notes-rail {
+  .cl-prof-side {
     position: sticky;
     top: 0;
     max-height: var(--record-h, none);
@@ -4551,29 +3745,6 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
   box-shadow: var(--focus-ring);
 }
 @media (max-width: 900px) {
-  /* On a phone the figures are one line of the kit's compact figures on the page itself, no pane round them, at the
-     words' 16px edge: each as wide as what it says, a hairline between two, three at most, the most telling first
-     (contracts personFiguresOf). A tile each stood 96px tall for a number and its line (Ruben, 17 Nov 2026). */
-  .main-scroll .cl-prof-work > .cl-prof-figures {
-    display: flex;
-    gap: 0;
-    padding: 0 4px;
-    border-radius: 0;
-    background: none;
-    box-shadow: none;
-  }
-  .cl-prof-figures > div {
-    flex: 0 1 auto;
-    padding: 2px 14px;
-    border-left: 1px solid var(--line);
-  }
-  .cl-prof-figures > div:first-child {
-    padding-left: 0;
-    border-left: 0;
-  }
-  .main-scroll .cl-prof-work > .cl-prof-figures > :nth-child(n + 4) {
-    display: none;
-  }
   /* The head's acts on a phone (hero.tsx): the thread and its caret in one pill, as the Pipeline's foot draws its act and
      caret, the caret holding Call, Note and the rest (the phone pass, 3 Nov 2026). */
   /* A box stands 12 from the screen where words stand at 16 (the phone pass's edges, A3): the pill on the tiles' edge
@@ -4604,9 +3775,6 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
      Google Workspace / Team ✎"; the phone pass, 3 Nov 2026). */
   .cl-prof-name {
     text-wrap: balance;
-  }
-  .main-scroll .cl-prof-work > .cl-prof-figures::after {
-    content: none;
   }
   /* The foot dock (canvas A): the head's acts again once they scroll away, a 52px capsule over the page's foot, which
      keeps the room for it under its last pane. */

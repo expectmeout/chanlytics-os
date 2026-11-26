@@ -40,6 +40,8 @@ import {
   type ListRef,
   type CampaignMessage,
   lifecycleStateOf,
+  listOrEmpty,
+  recordOrEmpty,
   SEQUENCES_ROUTE,
 } from "@chanlytics/contracts";
 import { pickableMessages } from "@/lib/pickable-messages";
@@ -72,13 +74,14 @@ function offeredMessages(messages: readonly CampaignMessage[], tpls: TemplatesRe
       category: m.category,
       channels: messageHolds(m),
       ...(checking ? { whatsapp: "being checked: it goes by WhatsApp once WhatsApp approves the words" } : {}),
-      values: Array.isArray(row.variables)
-        ? (row.variables as { position?: number; label?: string; example?: string | null }[]).map((v) => ({
-            position: v.position,
-            label: v.label,
-            example: v.example ?? null,
-          }))
-        : [],
+      values: listOrEmpty(row.variables).map((v) => {
+        const { position, label, example } = recordOrEmpty(v);
+        return {
+          position: typeof position === "number" ? position : undefined,
+          label: typeof label === "string" ? label : undefined,
+          example: typeof example === "string" ? example : null,
+        };
+      }),
       body: row.body_preview,
     }));
 }

@@ -7,11 +7,11 @@ import {
   reasonLabelOf,
   PERSON_CHANNEL_WORDS,
   clockStamp,
+  entryOf,
   messageText,
   messageWhy,
   noteRows,
   toInboxThreadVM,
-  type PersonChannel,
   UUID,
 } from "@chanlytics/contracts";
 import { load } from "../../../shared/reader";
@@ -205,10 +205,7 @@ async function getThread(
 const SEARCH_HITS = 20;
 
 /** A message's wire in the pages' words (contracts PERSON_CHANNEL_WORDS: a call's note is Phone); none it does not name. */
-const wireOf = (channel: string | null): string | null =>
-  channel !== null && Object.hasOwn(PERSON_CHANNEL_WORDS, channel)
-    ? PERSON_CHANNEL_WORDS[channel as PersonChannel]
-    : null;
+const wireOf = (channel: string | null): string | null => entryOf(PERSON_CHANNEL_WORDS, channel) ?? null;
 
 /**
  * Whether the words hold something to look for, as websearch_to_tsquery reads them (00219): in every group between

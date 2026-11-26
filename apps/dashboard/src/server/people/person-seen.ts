@@ -7,7 +7,7 @@
  * their own: the doors (contact_seen, contact_mark; packages/db markContactSeen, markContact) read and write only the
  * caller's rows.
  */
-import { seenBy, type SeenOf } from "@chanlytics/contracts";
+import { seenBy, valueAt, type SeenOf } from "@chanlytics/contracts";
 import { markContactSeen, markContact } from "@chanlytics/db/people";
 import { log } from "@/server/shared/log";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
@@ -30,8 +30,8 @@ export async function getSeenOfPeople(
   try {
     return seenBy(await markContactSeen(ctx.supabase, tenantId, contactIds));
   } catch (e) {
-    const code = (e as { code?: string | null }).code;
-    if (!code || !NO_READING.has(code)) throw e;
+    const code = valueAt(e, "code");
+    if (typeof code !== "string" || !NO_READING.has(code)) throw e;
     // Said once a read, so a door that has gone missing or changed its shape is not a list that quietly never lights.
     log.warn("people_seen_unavailable", { tenant_id: tenantId, code });
     return seenBy(null);

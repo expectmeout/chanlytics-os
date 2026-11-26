@@ -93,10 +93,7 @@ export const UNNAMED_GOES_BY = NEW_PLAYBOOK_TICKS_EVERY_CHANNEL ? "every one" : 
  * occasion starts (decision 0119) are among them since each has its starter (Ruben, 10 Nov 2026): a calendar's too, and
  * no count of who they reach now, since each person comes to one when something happens to them.
  */
-export const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter((t) => !(t.id in MOMENTS_RETIRED)).map((t) => t.id) as [
-  string,
-  ...string[],
-];
+export const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter((t) => !(t.id in MOMENTS_RETIRED)).map((t) => t.id);
 
 /**
  * The starters a proposal may name by its key (`starter`): each such moment's own (contracts startersForTrigger), not one
@@ -105,7 +102,7 @@ export const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter((t) => !(t.id in MOMEN
  */
 export const PROPOSABLE_STARTERS = [
   ...new Set(PROPOSABLE_TRIGGERS.flatMap((t) => startersForTrigger(t).flatMap((s) => (s.retired ? [] : [s.key])))),
-] as [string, ...string[]];
+];
 
 /**
  * The appointment moments' ids, as the action's words name them for the model to call with: ids, held to the set's own,

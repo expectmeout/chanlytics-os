@@ -5,7 +5,7 @@
  * client is what is handed in. A refusal the door raises is carried back in its own sentence, at the status its code
  * says (dbRefusal); an answer that did nothing says why in the page's words (PERSON_NAME_WORDS.refused).
  */
-import { AppError, PERSON_NAME_WORDS, type PersonNameAct } from "@chanlytics/contracts";
+import { AppError, PERSON_NAME_WORDS, entryOf, type PersonNameAct } from "@chanlytics/contracts";
 import {
   adoptPersonName,
   declinePersonName,
@@ -27,8 +27,8 @@ async function asDoor<T>(run: () => Promise<T>): Promise<T> {
 
 function done(a: PersonNameAnswer): { name: string | null } {
   if (!a.done) {
-    const reason = (a.why ?? "settled") as keyof typeof PERSON_NAME_WORDS.refused;
-    throw new AppError("conflict", PERSON_NAME_WORDS.refused[reason] ?? PERSON_NAME_WORDS.refused.settled, 409);
+    const words = entryOf(PERSON_NAME_WORDS.refused, a.why ?? "settled") ?? PERSON_NAME_WORDS.refused.settled;
+    throw new AppError("conflict", words, 409);
   }
   return { name: a.name };
 }
