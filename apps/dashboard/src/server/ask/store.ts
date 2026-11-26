@@ -107,7 +107,8 @@ const isStoredCard = (value: unknown): value is AskProposal =>
 
 /**
  * A kept card with its outcome's time under the wire's name: a card kept before 26 November 2026 holds it as `atMs`
- * (contracts schemas.ts withOldName), read here as `at_ms`, so every reader of a kept card reads one name.
+ * (contracts schemas.ts), read here as `at_ms`, so every reader of a kept card reads one name: for as long as such a card
+ * is kept, after the schemas stop reading the old name (decision 0022, step 3).
  */
 function keptOutcome(card: AskProposal): AskProposal {
   const old = valueAt(card.outcome, "atMs");

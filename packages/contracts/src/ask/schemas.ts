@@ -23,7 +23,8 @@ const Id = z.string().min(1).max(120);
 /**
  * The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. Its
  * `asked_at` is read by its old name too for one release from 26 November 2026 (decision 0022, rule 3): a tab opened
- * before that deploy sends `askedAt`, and a voice session kept before it holds it.
+ * before that deploy sends `askedAt`, and a voice session kept before it holds it. The old name goes in the first change
+ * merged after #2672 is live on both hosts (decision 0022, step 3).
  */
 export const PageContextSchema = z.preprocess(
   withOldNames({ askedAt: "asked_at" }),
@@ -65,7 +66,7 @@ const AskProposalOutcomeFields = z.object({
     .catch(undefined),
 });
 
-/** A card's outcome as the page sends it: its time read by its old name too (shared withOldNames). */
+/** A card's outcome as the page sends it: its time read by its old name too, until the same change (decision 0022, step 3). */
 export const AskProposalOutcomeSchema = z.preprocess(withOldNames({ atMs: "at_ms" }), AskProposalOutcomeFields);
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */

@@ -1000,6 +1000,24 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
   assert.deepEqual(write.values.content.raw, raw, "written back whole");
 });
 
+test("a card kept before 26 Nov 2026 holds its outcome's time as atMs, and the Line reads it as at_ms, as a card kept since says it (store.ts keptOutcome)", async () => {
+  const { toMessageVM } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const kept = (id, outcome) => ({
+    id,
+    kind: "note",
+    outcome: { state: "done", receipt: "Noted on Priya.", ...outcome },
+  });
+  const row = {
+    id: "m-kept",
+    role: "assistant",
+    created_at: "2026-11-20T10:00:00Z",
+    content: { text: "Noted.", proposals: [kept("p-old", { atMs: 1_700 }), kept("p-new", { at_ms: 2_000 })] },
+  };
+  const [old, fresh] = toMessageVM(row).proposals;
+  assert.deepEqual(old.outcome, { state: "done", receipt: "Noted on Priya.", at_ms: 1_700 }, "the old name, gone");
+  assert.equal(fresh.outcome.at_ms, 2_000, "the new one as it was kept");
+});
+
 test("the database in memory answers a select as PostgREST does: the columns it names and no other, each path under its name, null where the row holds no such key, ->> as text; a column or an embed the table does not have is refused", async () => {
   const db = fakeDb({
     ask_messages: [
