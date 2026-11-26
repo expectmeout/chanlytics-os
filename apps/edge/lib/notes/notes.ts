@@ -51,7 +51,6 @@ import {
   type ActivityRowDto,
   type NoteTurn,
   valueAt,
-  shaped,
 } from "@chanlytics/contracts";
 import { JOURNAL_SCHEMA, checkJournal, journalSystemPrompt, journalUserContent, type JournalLine } from "./ask-journal";
 import { getActivitySubjects } from "@chanlytics/db/events";
@@ -69,7 +68,6 @@ import { listNoteCandidates, suggestNoteOnPerson } from "@chanlytics/db/people";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
-import { readAnswer } from "@chanlytics/db/shared";
 
 /** One look, as note_candidates hands it over. */
 interface NoteCandidate {
@@ -144,7 +142,8 @@ export async function suggestNotes(deps: {
   }
   // The day's count per workspace, carried across this run's own suggestions so a busy batch keeps to the cap.
   const today = new Map<string, number>();
-  for (const row of readAnswer("listNoteCandidates", shaped<NoteCandidate[]>(), data ?? [])) {
+  const candidates: unknown[] = data ?? [];
+  for (const row of candidates as NoteCandidate[]) {
     out.looked += 1;
     const turns = (Array.isArray(row.turns) ? row.turns : []).filter(
       (t): t is NoteTurn => !!t && (t.who === "customer" || t.who === "business") && typeof t.text === "string",

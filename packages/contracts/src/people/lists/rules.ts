@@ -35,6 +35,7 @@ import {
   type ListFieldKind as FieldKind,
 } from "./fields";
 import { factHolds } from "./match";
+import { isList, recordOrEmpty, recordOrNull, valueAt } from "../../shared/unknown";
 
 const FIELD_IDS = LIST_RULE_FIELDS.map((f) => f.id);
 
@@ -133,8 +134,8 @@ export type ListRule = { v?: 2; all: ListCondition[] };
  * said_yes to offers, the answer they gave (reach-any.ts answeredYes). Nothing is written in version 1 again.
  */
 function upgradeFact(raw: unknown): unknown {
-  if (!raw || typeof raw !== "object") return raw;
-  const f = raw as Record<string, unknown>;
+  const f = recordOrNull(raw);
+  if (!f) return raw;
   if (f.field === "offers_yes") return { field: "said_yes", op: "is", to: "offers", yes: f.yes };
   return f;
 }
@@ -145,18 +146,24 @@ function upgradeFact(raw: unknown): unknown {
  * fact and an "any" group, or a rule with a part this build does not know, is refused rather than narrowed.
  */
 function upgrade(raw: unknown): unknown {
-  if (!raw || typeof raw !== "object" || !Array.isArray((raw as { all?: unknown }).all)) return raw;
-  const item = raw as { v?: unknown; all: unknown[] };
+  const item = recordOrNull(raw);
+  const all = item ? item.all : undefined;
+  if (!item || !isList(all)) return raw;
   if (item.v !== undefined && item.v !== 2) return raw;
   return {
     ...item,
     v: 2,
-    all: item.all.map((c) =>
-      c && typeof c === "object" && Array.isArray((c as { any?: unknown }).any)
-        ? { ...c, any: (c as { any: unknown[] }).any.map(upgradeFact) }
-        : upgradeFact(c),
-    ),
+    all: all.map((c) => {
+      const any = anyGroupOf(c);
+      return any ? { ...recordOrEmpty(c), any: any.map(upgradeFact) } : upgradeFact(c);
+    }),
   };
+}
+
+/** The facts of an "any" group, or null for a condition that is no group. */
+function anyGroupOf(c: unknown): readonly unknown[] | null {
+  const any = valueAt(c, "any");
+  return isList(any) ? any : null;
 }
 
 /** A stored rule in version 2, or null when it is not one this build reads: such a list cannot be counted (lists.ts). */
@@ -186,19 +193,18 @@ const KIND_KEYS: Record<FieldKind, readonly string[]> = {
  */
 export function draftListRule(all: readonly unknown[]): ListRule | null {
   const cut = (raw: unknown): unknown => {
-    if (!raw || typeof raw !== "object") return raw;
-    const f = raw as Record<string, unknown>;
+    const f = recordOrNull(raw);
+    if (!f) return raw;
     const field = LIST_RULE_FIELDS.find((x) => x.id === f.field);
     if (!field) return raw;
     const keep = ["field", "op", ...KIND_KEYS[field.kind]];
     return Object.fromEntries(Object.entries(f).filter(([k, v]) => keep.includes(k) && v !== null));
   };
   return asListRule({
-    all: all.map((c) =>
-      c && typeof c === "object" && Array.isArray((c as { any?: unknown }).any)
-        ? { any: (c as { any: unknown[] }).any.map(cut) }
-        : cut(c),
-    ),
+    all: all.map((c) => {
+      const any = anyGroupOf(c);
+      return any ? { any: any.map(cut) } : cut(c);
+    }),
   });
 }
 
