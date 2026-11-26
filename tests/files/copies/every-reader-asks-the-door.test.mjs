@@ -38,7 +38,7 @@ const NAMES_IT = {
     2,
     "an upload's start: the reservation its own door answered with, compared to the one just made; no row is read",
   ],
-  "packages/db/src/repositories/erasure/registry.ts": [1, "says the column names nobody"],
+  "packages/db/src/repositories/erasure/registry/content.ts": [1, "says the column names nobody"],
   "packages/db/src/repositories/files/copies.ts": [
     6,
     "the copies' doors: the id a return was given, the one a failed attempt is named by, and the sweep's read",
