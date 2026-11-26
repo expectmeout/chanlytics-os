@@ -127,7 +127,7 @@ const LeadRowActions = ({ l, x }: { l: LeadRowVM; x: LeadCellCtx }) => {
             e.stopPropagation();
             x.onCopy(l.id);
           }}
-          title="Copy the email"
+          data-tip="Copy the email"
           aria-label={`Copy the email for ${l.name}`}
           data-testid="lead-copy"
         >
@@ -291,7 +291,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
     width: { base: 100, min: 84 },
     on: false,
     cell: (l) => (
-      <td key="fit" className={`ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">
+      <td key="fit" className={`ld-fit-cell ${l.cls}`} data-tip={l.fitTitle} data-testid="lead-fit">
         {l.fitLabel}
       </td>
     ),
@@ -303,7 +303,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
     width: { base: 280, min: 160, max: 520 },
     on: false,
     cell: (l) => (
-      <td key="why" className="dim cl-cut ld-why-cell" title={l.why}>
+      <td key="why" className="dim cl-cut ld-why-cell" data-tip={l.why}>
         {l.why}
       </td>
     ),

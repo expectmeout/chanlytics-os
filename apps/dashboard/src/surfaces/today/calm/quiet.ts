@@ -38,7 +38,7 @@ export type TodayQuiet =
   | { kind: "unread"; line: boolean };
 
 /** How one read stands: read in this visit, only kept from an earlier one, read and since failed, not yet, or never. */
-export type ReadStanding = "live" | "kept" | "behind" | "checking" | "failed";
+type ReadStanding = "live" | "kept" | "behind" | "checking" | "failed";
 
 /**
  * The reads each part's quiet stands on: the head's count is made from Today's own read (which counts the runs waiting

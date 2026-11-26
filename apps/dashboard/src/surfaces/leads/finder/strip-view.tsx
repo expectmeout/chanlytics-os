@@ -102,7 +102,7 @@ export const LeadStrip = ({
         </span>
       ) : (
         // The title holds; what follows it gives way first, and says itself whole on hover.
-        <span className="lf-strip-said" title={`${vm.title}${parts}`}>
+        <span className="lf-strip-said" data-tip={`${vm.title}${parts}`}>
           <span className="lf-strip-title" data-testid="strip-title">
             {vm.title}
           </span>
@@ -129,7 +129,7 @@ export const LeadStrip = ({
               }
               data-testid={`strip-${a.id}`}
               data-act={a.id}
-              title={a.where || undefined}
+              data-tip={a.where || undefined}
               onClick={() => onAction(a.id, a.arg)}
             >
               {a.label}
