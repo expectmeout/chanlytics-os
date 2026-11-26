@@ -26,14 +26,14 @@ export function alertEmails(config: WorkspaceSettings | null | undefined): strin
 
 // What the card reads beyond Setup: the brain and the resolved numbers from the settings read, once it has landed,
 // and the workspace's name and clock from the list the shell already holds.
-export function cardInputs(S: SetupSurface, read: SettingsSurface | undefined): ReceptionistCardInputs {
+export function cardInputs(setup: SetupSurface, read: SettingsSurface | undefined): ReceptionistCardInputs {
   const cfg = read && read.settings ? read.settings.config : null;
   const facts = read && read.facts ? read.facts.facts : null;
   const ws = workspaceNow();
   const value = (f: { value: string | null } | null | undefined): string | null => (f && f.value) || null;
   return {
-    setup: S.dto,
-    answering: S.vm.readiness.answering,
+    setup: setup.dto,
+    answering: setup.vm.readiness.answering,
     brain: brainOf(cfg),
     numbers: facts
       ? { voiceLine: value(facts.voice_line), keptLine: value(facts.kept_line), handoff: value(facts.handoff_number) }

@@ -44,7 +44,7 @@ interface WeakerMode {
   closes: string;
 }
 
-export interface Flag {
+interface Flag {
   /** The variable's name, the feature's key, the secret's name, or the rollout's own name. */
   name: string;
   mechanism: FlagMechanism;

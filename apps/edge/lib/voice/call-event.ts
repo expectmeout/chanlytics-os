@@ -538,7 +538,7 @@ export function callNotice(
   callId: string | null,
 ): NotifyMessage {
   const summary = normalizedCall.summary || "(no summary)";
-  const wanted = trimmedWords(normalizedCall.analysis?.caller_wanted)?.replace(/[.\s]+$/u, "");
+  const wanted = trimmedWords(normalizedCall.analysis?.caller_wanted).replace(/[.\s]+$/u, "");
   const outcomeWords = callOutcomeWords(normalizedCall.analysis?.outcome);
   const followUp = trimmedWords(normalizedCall.analysis?.follow_up);
   const callback = normalizedCall.analysis?.outcome === "callback_needed";

@@ -155,21 +155,24 @@ export const useAskFocus = (
 /** A refusal's own words, or none. */
 const errorWordsOf = (e: unknown): string => (e instanceof Error && e.message) || "";
 
-export const useAskSpeech = (A: AskApi | undefined) => {
+export const useAskSpeech = (askApi: AskApi | undefined) => {
   const [, setTick] = useState(0);
-  useEffect(() => (A && A.watchSpeech ? A.watchSpeech(() => setTick((n) => n + 1)) : undefined), [A, setTick]);
-  const state = A && A.state ? A.state() : "idle";
+  useEffect(
+    () => (askApi && askApi.watchSpeech ? askApi.watchSpeech(() => setTick((n) => n + 1)) : undefined),
+    [askApi, setTick],
+  );
+  const state = askApi && askApi.state ? askApi.state() : "idle";
   const stop = () => {
-    if (A && A.stopSpeaking) A.stopSpeaking();
+    if (askApi && askApi.stopSpeaking) askApi.stopSpeaking();
   };
   const toggle = async (text: string, purpose: SpeechPurpose = "answer") => {
-    if (!A || !A.speak) return null;
-    if (A.state && A.state() !== "idle") {
+    if (!askApi || !askApi.speak) return null;
+    if (askApi.state && askApi.state() !== "idle") {
       stop();
       return null;
     }
     try {
-      await A.speak(text, purpose);
+      await askApi.speak(text, purpose);
       return null;
     } catch (e) {
       return errorWordsOf(e);
@@ -178,22 +181,22 @@ export const useAskSpeech = (A: AskApi | undefined) => {
   // A held question (bridge/ask/aloud.ts): the element readied inside the press, the one line said while Ask
   // works, and the answer read as it lands, after that line; `answer` says why it could not, as `toggle` does.
   const ready = () => {
-    if (A && A.readySpeech) A.readySpeech();
+    if (askApi && askApi.readySpeech) askApi.readySpeech();
   };
   const wait = (lang: Parameters<AskApi["waitAloud"]>[0], answered: () => boolean) => {
-    if (A && A.waitAloud) A.waitAloud(lang, answered);
+    if (askApi && askApi.waitAloud) askApi.waitAloud(lang, answered);
   };
   const answer = async (text: string) => {
-    if (!A || !A.answerAloud) return null;
+    if (!askApi || !askApi.answerAloud) return null;
     try {
-      await A.answerAloud(text);
+      await askApi.answerAloud(text);
       return null;
     } catch (e) {
       return errorWordsOf(e);
     }
   };
   return {
-    canSpeak: !!(A && A.canSpeak && A.canSpeak()),
+    canSpeak: !!(askApi && askApi.canSpeak && askApi.canSpeak()),
     speakingId: state === "speaking" ? "line" : null,
     loading: state === "loading" ? "line" : null,
     toggle,

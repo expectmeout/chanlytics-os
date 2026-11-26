@@ -35,7 +35,7 @@ test("the draft shows the signature it will leave with, under its words, its lin
   assert.ok(line, "REGRESSION: the card never said the reply would leave unsigned, or signed");
   assert.equal(textOf(wordsOf(line)), signature, "every line, as the email carries it, never cut to one");
   assert.doesNotMatch(textOf(line), /^Signed:/, "the signature itself, not a summary of it");
-  const change = all(line, (n) => n.props?.title === NEED_YOU_WORDS.changeSignatureTip)[0];
+  const change = all(line, (n) => n.props?.["data-tip"] === NEED_YOU_WORDS.changeSignatureTip)[0];
   assert.equal(textOf(change).trim(), "Change");
   press(change);
   assert.equal(changed, 1, "it opens where the mailbox's signature is chosen");

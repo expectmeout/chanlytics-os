@@ -107,9 +107,9 @@ interface Stays {
  * Who is looking: whoever may set the workspace up (an owner, or the partner who brought it), by the role gate (View-as
  * included), what the business goes by, and the receptionist's own name.
  */
-const lookerOf = (S: SetupSurface, brain: CardBrain | null): FirstRunWho => ({
+const lookerOf = (setup: SetupSurface, brain: CardBrain | null): FirstRunWho => ({
   owner: canDo("settings"),
-  receptionistName: S.dto.business.name,
+  receptionistName: setup.dto.business.name,
   workspaceName: (workspaceNow() || { name: null }).name || null,
   assistantName: brain?.profile?.assistant_name ?? null,
 });
@@ -119,11 +119,11 @@ const lookerOf = (S: SetupSurface, brain: CardBrain | null): FirstRunWho => ({
  * lands, and the first run, which opens where the workspace is, would go on under them while they read it and fix what
  * it got wrong; they go on with Looks good instead.
  */
-function stepOn(S: SetupSurface, param: string | null, stays: Stays, who: FirstRunWho): FirstRunVM {
-  const asked = FIRST_RUN_HELPERS.of(S.vm, param, who);
+function stepOn(setup: SetupSurface, param: string | null, stays: Stays, who: FirstRunWho): FirstRunVM {
+  const asked = FIRST_RUN_HELPERS.of(setup.vm, param, who);
   const fr =
     !param && stays.onRehearse.current && asked.shown.key !== "rehearse"
-      ? FIRST_RUN_HELPERS.of(S.vm, "rehearse", who)
+      ? FIRST_RUN_HELPERS.of(setup.vm, "rehearse", who)
       : asked;
   stays.onRehearse.current = fr.shown.key === "rehearse";
   return fr;
@@ -131,23 +131,23 @@ function stepOn(S: SetupSurface, param: string | null, stays: Stays, who: FirstR
 
 /** Where it answers' tiles, as contracts say them over Setup, the phone's choosing and the settings read. */
 function channelsVmOf(
-  S: SetupSurface,
+  setup: SetupSurface,
   ph: FirstRunPhoneVM,
   brain: CardBrain | null,
   keepApp: boolean,
 ): FirstRunChannelsVM {
-  const wa = S.vm.choices.whatsapp;
+  const wa = setup.vm.choices.whatsapp;
   return FIRST_RUN_HELPERS.channels({
     tz: pageClock().zone(),
-    dto: S.dto,
-    vm: S.vm,
+    dto: setup.dto,
+    vm: setup.vm,
     phone: ph,
     whatsapp: wa,
     onWhatsapp: wa === "same" ? true : null,
     coexistence: keepApp,
     bookingLink: brain?.booking_link ?? null,
     website: brain?.profile?.website ?? null,
-    people: S.dto.people ?? null,
+    people: setup.dto.people ?? null,
   });
 }
 
@@ -353,8 +353,8 @@ function tops(o: {
 }
 
 /** Setup's read failed, or is on its way: the page says so, with a retry and a way to Today. */
-function notRead(S: SetupSurface | null | undefined, leave: (to: string) => void): ReactNode {
-  if (S === null) {
+function notRead(setup: SetupSurface | null | undefined, leave: (to: string) => void): ReactNode {
+  if (setup === null) {
     return (
       <div className="fr-root fr-waiting" data-testid="first-run">
         <FailedRead
@@ -607,12 +607,12 @@ function stepBody(o: {
 }
 
 /** Setup's own rows, by id, drawn as the first run draws rows: Go live's for what its list cannot do. */
-function setupRowsOf(S: SetupSurface, ids: readonly string[]): ReactNode {
-  const rows = S.vm.rows.filter((r) => ids.includes(r.id));
+function setupRowsOf(setup: SetupSurface, ids: readonly string[]): ReactNode {
+  const rows = setup.vm.rows.filter((r) => ids.includes(r.id));
   const first = rows[0];
   return first ? (
     <section className="tq fr-rows">
-      <SetupRows S={S} rows={rows} look="row" primary={first.id} later={W.putOff} testid="fr-rows" />
+      <SetupRows S={setup} rows={rows} look="row" primary={first.id} later={W.putOff} testid="fr-rows" />
     </section>
   ) : null;
 }

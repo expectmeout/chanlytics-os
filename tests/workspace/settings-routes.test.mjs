@@ -1094,7 +1094,7 @@ test("lines: searching, retrying and forwarding are the owner's; each body is ju
     ),
     "validation",
     400,
-    "Pick your carrier.",
+    "Pick your phone company.",
   );
   await refused(
     forwarding.POST.run(

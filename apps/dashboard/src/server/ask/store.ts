@@ -70,7 +70,7 @@ const MESSAGES_CAP = 60;
 type NamedFiles = ReadonlyMap<string, AttachedFile>;
 const NONE_NAMED: NamedFiles = new Map();
 
-export function toThreadVM(thread: ThreadRow): AskThreadVM {
+function toThreadVM(thread: ThreadRow): AskThreadVM {
   return {
     id: thread.id,
     title: thread.title || "Untitled",

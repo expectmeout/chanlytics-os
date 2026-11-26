@@ -7,7 +7,7 @@ import { readerContext } from "@/server/shared/reader";
 import { buildContext } from "@/server/ask/context";
 import { createThread, readThread } from "@/server/ask/store";
 import { createVoiceSession, tokenExpiry, VOICE_THREAD_TITLE } from "@/server/ask/voice-session";
-import { asked, DOOR, MINT_TIMEOUT_MS, refusalOf } from "@/server/ask/doors/voice-request";
+import { asked, DOOR, MINT_TIMEOUT_MS, VOICE_UNREACHED, voiceRefusalOf } from "@/server/ask/doors/voice-request";
 
 export const POST = write({
   scope: workspace,
@@ -58,7 +58,7 @@ export const POST = write({
         reason: edgeReasonOf(answer),
         status: answer.status,
       });
-      throw refusalOf(answer);
+      throw voiceRefusalOf(answer, VOICE_UNREACHED);
     }
     const token = typeof answer.body?.token === "string" ? answer.body.token : "";
     const conversationId = typeof answer.body?.conversation_id === "string" ? answer.body.conversation_id : null;

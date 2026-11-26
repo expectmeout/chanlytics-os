@@ -63,7 +63,7 @@ export function Notice({
               iconOnly
               className="notice-x"
               aria-label={dismiss.label}
-              title={dismiss.label}
+              data-tip={dismiss.label}
               aria-busy={dismiss.busy || undefined}
               onClick={dismiss.onDismiss}
               data-testid={dismiss.testid}
