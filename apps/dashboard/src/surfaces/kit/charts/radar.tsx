@@ -9,6 +9,7 @@ import { ckNice, ckPolar } from "./geometry";
 import type { ChartConfig, ChartWords } from "./geometry";
 import { ckPointer, useChartNav, useChartWidth } from "./hooks";
 import { ChartLive, ChartTooltip, ChartTooltipContent } from "./parts";
+import { customProperties } from "../variants";
 
 const RINGS = 4;
 
@@ -94,7 +95,7 @@ export function RadarChart({
       aria-label={ariaLabel}
       {...nav}
       {...ckPointer(setActive, pick)}
-      style={{ height }}
+      style={customProperties({ "--plot-h": `${height}px` })}
     >
       {width > 0 && (
         <svg key={animKey} width={width} height={height} className="ck-svg" aria-hidden="true">

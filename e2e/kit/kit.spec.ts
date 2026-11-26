@@ -216,27 +216,28 @@ const tokensQ = (width: Width, pressed: boolean, reduced = false): KitAsk => ({
 // medium height until Classic retired (#1367): kit.css's own `footer.rec-sheet-foot .btn` outranks it there now.
 const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegExp }[] = [
   {
-    by: "frame.css, `@media (pointer: coarse) { html.frame-on .chip { min-height: 0 } }`: the shell's touch floor, undone for a chip",
-    until:
-      "Phase 4's step for the frame (0015 step 13), where frame.css leaves with the shell and the kit keeps its own floor",
+    by:
+      "kit.css, `@media (pointer: coarse) { html.frame-on .chip { min-height: 0 } }`: the touch floor, undone for a chip " +
+      "(moved from frame.css with the kit's own floor, 26 Nov 2026)",
+    until: "the chip's floor reads its token (--chip-h) instead of undoing the shell's",
     runs: /^phone /,
     failure: /^chip-wrap: .* span\.chip\.chip-wrap min-height: planting --chip-h changed nothing/,
   },
   {
     by:
-      "record.css, `@media (max-width: 900px)`: the record kit's phone form (a fold's label and fields, the inline " +
-      "editor, the sheet's edge), at the kit's one breakpoint since 25 Nov 2026 (#2605) but still in record.css",
-    until: "Phase 4's People step (0015 step 5), where record.css's phone form moves into kit.css",
+      "kit.css, `@media (max-width: 900px)`: the record kit's phone form (a fold's label and fields, the inline " +
+      "editor, the sheet's edge), moved from record.css on 26 Nov 2026, whose lengths are written, not read",
+    until: "the record kit's phone form reads its lengths from tokens (--rec-key's phone value)",
     runs: /^phone /,
     failure:
       /^rec-[a-z-]+: .* (?:[a-z-]+: planting --rec-key changed nothing|border-left: planting --line-strong changed nothing)/,
   },
   {
     by:
-      "frame.css, `@media (pointer: coarse) { html.frame-on button, html.frame-on .btn { min-height: 44px } }`: the " +
-      "shell's touch floor, which outranks the kit's own thumb's size (.btn-touch, a notice's acts) at the same 44px",
-    until:
-      "Phase 4's step for the frame (0015 step 13), where frame.css leaves with the shell and the kit keeps its own floor",
+      "kit.css, `@media (pointer: coarse) { html.frame-on .btn { min-height: 44px } }` (moved from frame.css, 26 Nov " +
+      "2026) and frame.css's `html.frame-on button`: the touch floor, which outranks the kit's own thumb's size " +
+      "(.btn-touch, a notice's acts) at the same 44px",
+    until: "the floor reads --control-h-touch, the thumb's size it already is",
     runs: /^phone /,
     failure:
       /^(?:btn-touch|btn-thread|notice)[a-z-]*: .* min-height: planting --control-h-touch changed nothing \(min-height at 44px\)/,

@@ -103,7 +103,7 @@ const metricsOf = (strip) =>
   all(strip, (n) => n.type === "div" && n.props["data-figure"]).map((n) => n.props["data-figure"]);
 const valueOf = (figure) => textOf(find(figure, (n) => classes(n).includes("figure-value")));
 const rowsOf = (tree, id) => find(byTestId(tree, id), (n) => n.type === BarList).props.rows;
-const lineOf = (tree, id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
+const lineOf = (tree, id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-chart-takeaway")));
 const cardOf = (tree, id) => find(tree, (n) => n.type === ChartCard && n.props.testid === id);
 const dimmed = (tree) => all(tree, (n) => n.props?.["data-loading"] === "");
 const foldOf = (dto = dtoWith()) => toPeopleReportVM(dto);
@@ -237,8 +237,8 @@ test("the channels wear the channel colours and say a person may be in each; the
       rowsOf(tree, id).every((r) => r.color === undefined),
       `${id}: no colour of its own`,
     );
-  // The walk reaches what the kit's parts rendered (a card wears ck-card), so a pie's class would be found where it drew one.
-  assert.ok(all(tree, (n) => classes(n).includes("ck-card")).length > 0, "the kit's own output is in the walk");
+  // The walk reaches what the kit's parts rendered (a card wears ck-chart), so a pie's class would be found where it drew one.
+  assert.ok(all(tree, (n) => classes(n).includes("ck-chart")).length > 0, "the kit's own output is in the walk");
   assert.deepEqual(
     all(tree, (n) => classes(n).some((c) => /^ck-(pie|slice)/.test(c))),
     [],
@@ -303,7 +303,7 @@ test("the fresh book's quiet door: the fold's line, and a link to the list it co
   assert.equal(textOf(door), v.fresh.quiet.label);
   press(door);
   assert.deepEqual(navigated, ["clients/seg:quiet"], "and a plain press goes there by the app's own way");
-  const body = find(byTestId(tree, "chart-people-fresh"), (n) => classes(n).includes("ck-card-body"));
+  const body = find(byTestId(tree, "chart-people-fresh"), (n) => classes(n).includes("ck-chart-body"));
   assert.equal(body.props.children.flat().at(-1), line, "the last thing in the card: its foot");
   // Nobody has been quiet: no line and no door.
   const none = draw({ own: held(dtoWith({}, { ...POOL, lists: { ...POOL.lists, quiet: 0 } }), "7d") });

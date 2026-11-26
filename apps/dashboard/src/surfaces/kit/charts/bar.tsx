@@ -11,6 +11,7 @@ import { ckDescribe, ckEvery, ckFrame, ckHeight, ckNice, ckTip, ckTopRound } fro
 import type { ChartConfig, ChartRow, ChartWords } from "./geometry";
 import { ckPointer, useChartNav, useChartWidth } from "./hooks";
 import { ChartLive, ChartTooltip, ChartTooltipContent, CkXLabels, CkYAxis } from "./parts";
+import { customProperties } from "../variants";
 
 const CK_BAR_GAP = 2;
 
@@ -89,7 +90,6 @@ export function BarChart<D extends ChartRow>({
   const d = active === null ? null : (data[active] ?? null);
   const said =
     d && active !== null && (tip ? tip(d, active) : ckTip(d, keys, config, { note: tipNote ? tipNote(d) : null }));
-  const plot: CSSProperties = fill ? { minHeight: floor } : { height: H };
   return (
     <div
       className={`ck-plot${fill ? " fill" : ""}`}
@@ -99,7 +99,7 @@ export function BarChart<D extends ChartRow>({
       aria-label={ariaLabel}
       {...nav}
       {...ckPointer(setActive, at)}
-      style={plot}
+      style={customProperties({ "--plot-h": `${fill ? floor : H}px` })}
     >
       {width > 0 && (
         <svg key={animKey} width={width} height={H} className="ck-svg" aria-hidden="true">
@@ -191,7 +191,7 @@ export function BarList({
               <span className="ck-barlist-track">
                 <i
                   className="ck-barlist-bar"
-                  style={{ width: `${Math.round(pct * 10) / 10}%`, background: r.color || color }}
+                  style={customProperties({ "--w": `${Math.round(pct * 10) / 10}%`, "--k": r.color || color })}
                 />
               </span>
             </Row>

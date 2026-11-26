@@ -277,10 +277,7 @@
      The stack spans the screen inside the tab bar's 14px sides (the toast as wide as the bar and Ask's circle, kit.css):
      centred by `left: 50%`, it had half the screen to grow into, and words that wrap stood in a toast 201px wide.
      Above the home bar. */
-  .pp-toast { flex-wrap: nowrap; gap: 10px; padding: 8px 10px 8px 14px; max-width: none; }
-  .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); left: 14px; right: 14px; transform: none; }
-  .pp-toast .pp-toast-msg { flex: 1 1 auto; min-width: 0; overflow: hidden; max-height: 3lh; }
-  html.frame-on .pp-toast-cta { min-height: 28px; padding: 4px 12px; }
+  :root { --toast-foot: calc(14px + env(safe-area-inset-bottom)); }
 
   /* ---------- Modals ---------- */
   .ask-overlay { padding: 12px; padding-top: 10vh; align-items: flex-start; }
@@ -435,7 +432,7 @@
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
   /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
-  :root[data-bell-open][data-bell-open] .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
+  :root[data-bell-open][data-bell-open] { --toast-foot: calc(14px + env(safe-area-inset-bottom)); }
 
   /* The thread on a phone shows the conversation first (I6). The header is one row -- Back, avatar, name and the
      menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner
@@ -619,7 +616,7 @@
    ==================================================================== */
 html.in-app .phone-places { display: none; }
 html.in-app .main-scroll { --page-foot: var(--app-inset-bottom, 0px); padding-bottom: var(--app-inset-bottom, 0px); }
-html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }
+html.in-app { --toast-foot: calc(14px + var(--app-inset-bottom, 0px)); }
 /* The ✦ lifts by the same inset; its rule lives with the palette's, in ask.css. */
 
 /* ====================================================================
@@ -807,8 +804,8 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   .main-scroll.pane .set-pane {
     padding-bottom: max(var(--page-foot), 48px);
   }
-  .pp-toast-stack {
-    bottom: calc(var(--bar-foot) + 76px);
+  :root {
+    --toast-foot: calc(var(--bar-foot) + 76px);
   }
 }
 

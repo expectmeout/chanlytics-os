@@ -6,11 +6,12 @@
  * on a 2px line.
  */
 import { useRef } from "react";
-import type { CSSProperties, PointerEvent } from "react";
+import type { PointerEvent } from "react";
 import { ckDescribe, ckEvery, ckFrame, ckHeight, ckMonotone, ckNice, ckNiceSeconds, ckRuns, ckTip } from "./geometry";
 import type { ChartConfig, ChartRow, ChartWords, Frame } from "./geometry";
 import { ckPointer, useChartNav, useChartWidth } from "./hooks";
 import { ChartLive, ChartTooltip, ChartTooltipContent, CkXLabels, CkYAxis } from "./parts";
+import { customProperties } from "../variants";
 
 let ckWashSeq = 0;
 
@@ -240,7 +241,6 @@ export function LineChart<D extends ChartRow>(props: LineChartProps<D>) {
   const { d, said, spoken } = lineWords(props, active, was);
   const wash = keys.find((k) => k.fill);
   const lastWash = wash && n > 1 ? data[n - 1]?.[wash.key] : null;
-  const plot: CSSProperties = fill ? { minHeight: floor } : { height: H };
   return (
     <div
       className={`ck-plot${fill ? " fill" : ""}`}
@@ -250,7 +250,7 @@ export function LineChart<D extends ChartRow>(props: LineChartProps<D>) {
       aria-label={ariaLabel}
       {...nav}
       {...ckPointer(setActive, at)}
-      style={plot}
+      style={customProperties({ "--plot-h": `${fill ? floor : H}px` })}
     >
       {width > 0 && (
         <svg key={animKey} width={width} height={H} className="ck-svg" aria-hidden="true">

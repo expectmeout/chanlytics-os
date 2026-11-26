@@ -56,7 +56,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
       for (const row of await rows.all()) {
         // The row reads across: its glyph, then its words, then its verbs. Today's queue hides its own disc, and while
         // that rule named only .tq -- the card these rows sit in too -- it hid Setup's glyphs as well.
-        await expect(row.locator(".cl-attn-avatar")).toBeVisible();
+        await expect(row.locator(".cl-attn-pic")).toBeVisible();
         expect(
           await row.locator(".cl-attn-who").evaluate((el) => el.scrollWidth <= el.clientWidth),
           "the title is whole",
