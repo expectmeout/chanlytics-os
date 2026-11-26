@@ -20,8 +20,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
-import { useStubHooks } from "../../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 
@@ -178,7 +178,10 @@ globalThis.React = {
   isValidElement: (n) => !!n && typeof n === "object" && "type" in n && "props" in n,
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
+drawsInPlace();
 holdFrameParts();
+// The record kit's folds answer the rail's question too, and the kit is published before any page, as it is in the app.
+Object.assign(globalThis.window, kitPages);
 useStubHooks();
 const kitUnsaved = globalThis.window.__settingsUnsaved;
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];

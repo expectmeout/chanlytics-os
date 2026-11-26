@@ -16,8 +16,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
-import { useStubHooks } from "../../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 
@@ -187,7 +187,9 @@ globalThis.React = {
     cell.cleanup = fn();
   },
 };
+drawsInPlace();
 holdFrameParts();
+Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 bridgeHolds({

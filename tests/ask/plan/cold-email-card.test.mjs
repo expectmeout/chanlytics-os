@@ -211,6 +211,7 @@ test("the Line draws it as it draws a campaign's: the rows, with every email who
   const { installStubReact, fresh, all, textOf } = await import("../../_stub-react.mjs");
   bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
   installStubReact({});
+  Object.assign(globalThis.window, kitPages);
   const { AskCards } = await import(at("apps/dashboard/src/surfaces/ask/card.tsx"));
   const { askText } = await import(at("apps/dashboard/src/surfaces/ask/words.ts"));
   const { holdAsk } = await import(at("apps/dashboard/src/surfaces/frame-verbs.ts"));

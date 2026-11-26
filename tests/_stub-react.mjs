@@ -138,9 +138,9 @@ export const kitParts = {
 };
 
 /**
- * The kit's components the pages still draw by name, for a page test that builds its own window: what seed-globals
- * published in the app (decision 0151 took them down), less `Icon`, which is the host element "Icon" in these trees, and
- * `kitParts` beside them. `Object.assign(globalThis.window, kitPages)` after the page's stub React is in place, and
+ * The kit's components a test draws by name, for a page test that builds its own window: what the app published until
+ * decision 0151 took the names down (every page imports them now), less `Icon`, which is the host element "Icon" in
+ * these trees, and `kitParts` beside them. `Object.assign(globalThis.window, kitPages)` after the page's stub React is in place, and
  * `useStubHooks()` when the test keeps a stub React of its own (the kit's components take their hooks from the react
  * module, which has none here).
  */

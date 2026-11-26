@@ -69,7 +69,7 @@ installStubReact({ setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
 // The end is confirmed through the shared Confirm, and a control asks the role gate: the shell's JSX (surfaces/frame), drawn for real.
 holdFrameParts();
-// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
+// The shell's toast is the bridge's `toast` part; this harness keeps its own flash.
 bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push(m)] } });
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);

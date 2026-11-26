@@ -13,7 +13,7 @@
  */
 import { stateOf } from "@chanlytics/contracts";
 import { installStubReact, again, unmount, all, find, classes } from "../../_stub-react.mjs";
-import { KIT_GLOBALS } from "../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
+import { Icon } from "../../../apps/dashboard/src/surfaces/kit/icon/icon.tsx";
 import { bridgeHolds, holdFrameParts } from "../_bridge-holds.mjs";
 
 // The app's chrome bridge provides contracts' stateOf as chrome.state (bridge/shell.ts). Without it every
@@ -30,7 +30,7 @@ holdFrameParts();
 export const W = globalThis.window;
 
 /** A glyph: the kit's Icon, which the record kit draws itself (the shell's pages draw the host element "Icon"). */
-export const isIcon = (n) => n.type === KIT_GLOBALS.Icon;
+export const isIcon = (n) => n.type === Icon;
 
 /** A component the tree draws that is not a glyph: what asks React for a hook or a name. */
 export const components = (tree) => all(tree, (n) => typeof n.type === "function" && !isIcon(n));

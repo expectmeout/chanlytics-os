@@ -245,10 +245,6 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   );
   assert.equal(reg.SURFACE_STATES.segments, "real", "the route is real: it lands on People");
   assert.equal(reg.ROUTE_SURFACE.segments, "people", "the same facts as People, never a second fetch");
-  assert.ok(
-    !readCode("apps/dashboard/src/bridge/manifest.ts").includes("segments-real"),
-    "REGRESSION: a second page of the same people",
-  );
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are
   // behind the bar's list button"), not a testid read here.
   // The kept list's title, drawn: the title, its rename, and the name as the box it is typed in, from the first draw.

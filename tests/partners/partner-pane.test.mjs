@@ -1,6 +1,6 @@
 /**
- * Settings › Partner (decision 0012), drawn: the TSX pane (surfaces/settings/partner) on the stub React, over frame-globals
- * and the real verbs (settings/partner/surface.ts), the account as the seam holds it. Reading, a failed read, the offer and its one press, and a partner's link, share,
+ * Settings › Partner (decision 0012), drawn: the TSX pane (surfaces/settings/partner) on the stub React, over the frame's
+ * parts and the real verbs (settings/partner/surface.ts), the account as the seam holds it. Reading, a failed read, the offer and its one press, and a partner's link, share,
  * earnings and count, every sentence contracts'. And the rail: the tab is on the account, beside Profile.
  */
 import { test } from "node:test";

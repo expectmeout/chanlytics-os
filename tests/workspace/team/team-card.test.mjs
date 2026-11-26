@@ -22,7 +22,7 @@ bridgeHolds({
   parts: { chrome: { state: stateOf } },
 });
 installStubReact({
-  // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
+  // As the bridge holds them (bridge/boot/installs.ts): the role table and the gate's sentence are contracts'.
   ROLE_PERMS,
 });
 globalThis.window.location.assign = (to) => calls.assign.push(to);

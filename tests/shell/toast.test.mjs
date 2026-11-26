@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { toastShape, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks } from "../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts, provided } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "./_bridge-holds.mjs";
 
 /* ---------------------------- the shape ------------------------------- */
 
@@ -146,6 +146,7 @@ globalThis.React = {
     }
   },
 };
+drawsInPlace();
 // The document's listeners, by type: the toast's press besides is heard here.
 const heard = {};
 // Every listener of each type, in the order they were added: the tip's are the last the file adds as it loads.

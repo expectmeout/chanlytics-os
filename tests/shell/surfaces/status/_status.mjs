@@ -105,7 +105,7 @@ export const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/r
 
 export const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 
-// What needs you (decision 0048): the one count the tab's title reads, as seed-globals publishes it (`window.useNeedsYou`), here
+// What needs you (decision 0048): the one count the tab's title reads, as the frame imports it (surfaces/needs-you.ts), here
 // asked on every draw, since this stub React holds no external store.
 export const { needsYouNow } = await importSrc("apps/dashboard/src/surfaces/needs-you.ts");
 
@@ -233,7 +233,7 @@ globalThis.React = {
   },
 };
 
-// The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by: TypeScript, so their
+// The top bar, its bell and its two lines (surfaces/frame), as the frame imports them: TypeScript, so their
 // hooks are this file's stub's (the "react" module's, set from it).
 (await import("../../../_stub-react.mjs")).useStubHooks(globalThis.React);
 
@@ -247,8 +247,8 @@ Object.assign(win, {
   NotifPopover: topbarParts.NotifPopover,
 });
 
-// The route table the shell reads (SHELL_ROUTES, drawRoute: surfaces/frame/route-table.tsx), under the names the frame
-// reads it by, as frame-globals.ts publishes it: just before the shell.
+// The route table the shell reads (SHELL_ROUTES, drawRoute: surfaces/frame/route-table.tsx), as the frame imports it: just
+// before the shell.
 export const routeTable = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 
 Object.assign(win, {

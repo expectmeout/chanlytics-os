@@ -24,7 +24,7 @@ import {
   settle,
 } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
@@ -505,11 +505,11 @@ test("Check the held again, for the holds the check could not answer: one press 
 });
 
 test("D1-lead-person-door: a held and a ready business on the sheet each open their lead over the page (?lead=), so the owner stays on the run; one with no lead named is its name alone", async () => {
-  // A page move goes through the bridge's door, which without a frame is the shell's own (CHANLY.nav): none is made. The
+  // A page move goes through the bridge's door, caught here (frame-doors.ts navigate): none is made. The
   // lead opens over the page as its own entry in the history (leads/sheet/lead-over.ts), here a record of it.
   const went = [];
-  const nav = W.CHANLY.nav;
-  W.CHANLY.nav = (to) => went.push(to);
+  const nav = heldDoors().navigate;
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const history = W.history;
   const pushed = [];
   W.history = { state: null, pushState: (_s, _t, url) => pushed.push(url), replaceState() {}, back() {} };
@@ -549,7 +549,7 @@ test("D1-lead-person-door: a held and a ready business on the sheet each open th
     assert.equal(leadOf(pushed[1]), LEAD_READY);
     assert.deepEqual(went, [], "the page stays where it is");
   } finally {
-    W.CHANLY.nav = nav;
+    bridgeHolds({ doors: { navigate: nav } });
     W.history = history;
   }
 });

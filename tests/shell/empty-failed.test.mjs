@@ -17,8 +17,8 @@ import assert from "node:assert/strict";
 import { stateOf, toTodayVM, toLiveVM } from "@chanlytics/contracts";
 import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { useStubHooks } from "../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts } from "./_bridge-holds.mjs";
+import { kitPages, useStubHooks } from "../_stub-react.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -91,6 +91,7 @@ globalThis.React = {
     }
   },
 };
+drawsInPlace();
 globalThis.document = {
   body: {},
   addEventListener() {},
@@ -136,6 +137,8 @@ bridgeHolds(
   { fresh: true },
 );
 holdFrameParts();
+// EmptyState and FailedRead are the kit's (surfaces/kit/empty), drawn by name from the stub's parts (kitPages).
+Object.assign(globalThis.window, kitPages);
 const { EmptyState, FailedRead } = globalThis.window;
 Object.assign(globalThis, { EmptyState });
 bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });

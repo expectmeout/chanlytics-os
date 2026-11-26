@@ -40,7 +40,7 @@ import { shiftKey, stateOf, toCalendarVM } from "@chanlytics/contracts";
 import { createRequire } from "node:module";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { kitHooks } from "../../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 export const TZ = "America/New_York";
 
@@ -217,6 +217,8 @@ for (const hook of [
   "useSyncExternalStore",
 ])
   reactModule[hook] = globalThis.React[hook];
+
+drawsInPlace();
 
 globalThis.document = {
   body: {},

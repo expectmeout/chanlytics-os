@@ -17,7 +17,7 @@ import { hookFrames } from "../_hook-frames.mjs";
 import { installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds, holdFrameParts, surfaceValue } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, surfaceValue } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 let cells = [];
@@ -77,7 +77,8 @@ globalThis.React = {
   },
   // A store outside React, read as it stands (this test draws once): all Today's queue asks of it.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
-}; // the bridge's hook: this test draws once
+};
+drawsInPlace(); // the bridge's hook: this test draws once
 globalThis.document = {
   body: {},
   addEventListener() {},
@@ -94,6 +95,8 @@ globalThis.window = {
 };
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 holdFrameParts();
+
+Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"])
   globalThis[k] = globalThis.window[k];
@@ -710,6 +713,7 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
     ...doors,
   });
   bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  Object.assign(globalThis.window, kitPages);
   const SRC = "../../apps/dashboard/src";
   const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
   const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);

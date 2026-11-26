@@ -40,6 +40,9 @@ bridgeHolds({
 });
 installStubReact({});
 
+// The kit's parts the pages here draw by name or the tests reach (kitParts: the attention row, the record kit ...).
+Object.assign(globalThis.window, kitPages);
+
 export const { TodayAlertBand } = await import("../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 
 export const { TodaySetup } = await import("../../../apps/dashboard/src/surfaces/today/zones/setup-card.tsx");

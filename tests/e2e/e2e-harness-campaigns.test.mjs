@@ -65,6 +65,7 @@ installStubReact({
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 holdFrameParts();
+Object.assign(globalThis.window, kitPages);
 bridgeHolds({
   who: { me: { role: "owner" } },
   parts: { chrome: { state: contracts.stateOf }, surfaceState: () => "live" },

@@ -31,6 +31,7 @@ import {
   typed,
   until,
 } from "./_palette.mjs";
+import { bridgeHolds, heldDoors } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ Ask's face ------------------------------ */
 
@@ -262,8 +263,8 @@ test("on a phone a preset question answered without a model offers New in the he
 test("on a phone a place AI goes to takes the takeover's entry: Back from there is the page AI was opened over", async () => {
   const ph = phoneWindow();
   const went = [];
-  const nav = globalThis.window.CHANLY.nav;
-  globalThis.window.CHANLY.nav = (to, o) => went.push([to, o]);
+  const nav = heldDoors().navigate;
+  bridgeHolds({ doors: { navigate: (to, o) => went.push([to, o]) } });
   try {
     ask([]);
     render(Palette, OPEN);
@@ -280,14 +281,14 @@ test("on a phone a place AI goes to takes the takeover's entry: Back from there 
     );
   } finally {
     await closes();
-    globalThis.window.CHANLY.nav = nav;
+    bridgeHolds({ doors: { navigate: nav } });
     ph.restore();
   }
 });
 
 test("on a desktop Ask pushes no entry of its own and focuses the field; a place it goes to is the shell's own push", async () => {
   const hist = globalThis.window.history;
-  const nav = globalThis.window.CHANLY.nav;
+  const nav = heldDoors().navigate;
   const log = [];
   const went = [];
   globalThis.window.history = {
@@ -295,8 +296,8 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
     pushState: (s, t, u) => log.push(["push", s, u]),
     back: () => log.push(["back"]),
   };
-  // As constants.ts has it: CHANLY.nav is the shell's navigate, which pushes.
-  globalThis.window.CHANLY.nav = (to, o) => went.push([to, o]);
+  // The frame's navigate door (frame-doors.ts), caught: a push.
+  bridgeHolds({ doors: { navigate: (to, o) => went.push([to, o]) } });
   try {
     ask([]);
     // The field and the dialog are given something to focus on the first draw, before anything awaits: the focus
@@ -336,7 +337,7 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
   } finally {
     await closes();
     globalThis.window.history = hist;
-    globalThis.window.CHANLY.nav = nav;
+    bridgeHolds({ doors: { navigate: nav } });
   }
 });
 

@@ -164,7 +164,7 @@ test("the media route: member of the named workspace, stored only, a redirect th
 });
 
 test("the thread draws the attachment from one component, wherever it opens", () => {
-  // The component is the kit's (surfaces/kit/media), which seed-globals publishes as window.TlMedia for the pages that
+  // The component is the kit's (surfaces/kit/media), which the pages import for the pages that
   // still draw it by name (the harness bundle's test holds that publish).
   const bits = readRaw("apps/dashboard/src/surfaces/kit/media/tl-media.tsx");
   assert.ok(bits.includes("if (!media || !hasHref()) return null;"), "nothing without the bridge");

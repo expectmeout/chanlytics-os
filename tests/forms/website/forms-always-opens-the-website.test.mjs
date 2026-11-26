@@ -71,7 +71,7 @@ fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
 fs.rmSync(file, { force: true });
 
-/** The member acting, as the shell seeds it (bridge/seed-globals.ts): the role store and the gate's own sentence. */
+/** The member acting, as the boot installs it (bridge/boot/installs.ts): the role store and the gate's own sentence. */
 function actAs(role) {
   bridgeHolds({ parts: { roles: { can: (perm) => ROLE_PERMS[role]?.[perm] === true, myRole: () => role } } });
 }

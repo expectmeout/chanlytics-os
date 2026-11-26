@@ -127,6 +127,19 @@ export function holdFrameParts() {
 }
 
 /**
+ * What react-dom does at once in a browser, here: a portal's node drawn where it stands, and a change drawn before it
+ * returns (`flushSync`). This runner's react-server condition gives react-dom neither, so a test that draws a toast, a
+ * menu or a held switch with no stub React of its own calls this, where it stood `ReactDOM` in on the window until
+ * 26 Nov 2026. Required when called, never as this module loads: react-dom loaded before a suite's own stub React is in
+ * place leaves People's rows undrawn (_stub-react.mjs).
+ */
+export function drawsInPlace() {
+  const reactDom = requireFromDashboard("react-dom");
+  reactDom.createPortal = (node) => node;
+  reactDom.flushSync = (change) => change();
+}
+
+/**
  * A role store that lets the member act where `can` says (bridge/identity.ts's shape, provided as `roles`): what a test
  * hands in to draw a gate that refuses, where it stood `canDo` in on the window until 26 Nov 2026. `role` is who they act
  * as, for the words a refusal says (contracts roleGate); `atLeast` answers the rungs (`mayAtLeast`), by default contracts' own

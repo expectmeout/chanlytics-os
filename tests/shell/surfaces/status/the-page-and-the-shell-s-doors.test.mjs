@@ -1028,7 +1028,7 @@ test("the first run keeps AI: the palette is drawn over the step, closed, and th
   }
 });
 
-test("the frame fills the bridge's doors as it renders (a move, AI, a person's Back, a page's Back to its opener) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
+test("the frame fills the bridge's doors as it renders (a move, AI, a person's Back, a page's Back to its opener), and publishes no door name on the window, with a filler handed in or with its own (surfaces/frame-doors.ts, decision 0151)", () => {
   shell.installShell(win);
   const keptState = provided("surfaceState");
   bridgeHolds({ parts: { surfaceState: undefined } });
@@ -1056,10 +1056,11 @@ test("the frame fills the bridge's doors as it renders (a move, AI, a person's B
     assert.equal(filled.length, 1, "filled once, as the frame renders");
     assert.deepEqual(Object.keys(filled[0]).sort(), ["backFrom", "backToPeople", "navigate", "openAsk"]);
     for (const k of Object.keys(filled[0])) assert.equal(typeof filled[0][k], "function", `${k} is a door`);
-    for (const k of NAMES) assert.equal(win[k], undefined, `the frame does not publish ${k}: the bridge does`);
-    // No bridge (the standalone mockup, a test): the frame publishes the names itself.
+    for (const k of NAMES) assert.equal(win[k], undefined, `the frame does not publish ${k}`);
+    // With none handed in, the frame fills the registry itself (frame-doors.ts fillDoors), and still publishes no name.
     draw();
-    for (const k of NAMES) assert.equal(typeof win[k], "function", `${k} is published by the frame without a filler`);
+    for (const k of NAMES) assert.equal(win[k], undefined, `nor ${k} with the frame's own filler`);
+    assert.deepEqual([...frameDoors.filledDoors()].sort(), ["backFrom", "backToPeople", "navigate", "openAsk"]);
   } finally {
     setDeep(true);
     for (const k of NAMES) {
@@ -1075,7 +1076,7 @@ test("People has no tab strip -- its one real tab is People, and Lists and Leads
   // publishes it; its hooks are this file's stub's.
   const { useStubHooks } = await import("../../../_stub-react.mjs");
   useStubHooks(globalThis.React);
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
   await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   const tabsAt = (param) => {
     setDeep(true);

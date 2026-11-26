@@ -115,7 +115,7 @@ test("the switch between the scopes is the frame's strip of views: the page draw
 // A phone's page swipes across its strip, and a tap slides the same way (frame/surface-tabs.tsx stripPlace): People's strip
 // is its scopes, in plScopes' order, and a person's page is on none.
 test("People's scopes are its strip's order: People, Leads, the Pipeline; a person's page is on no strip", async () => {
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   assert.deepEqual(surfaceTabs.stripPlace("clients", null), { strip: "people", at: 0 });
   assert.deepEqual(surfaceTabs.stripPlace("clients", "seg:needs-you"), { strip: "people", at: 0 });

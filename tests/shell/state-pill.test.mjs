@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -280,6 +280,7 @@ globalThis.React = {
   },
   useSyncExternalStore: (subscribe, snapshot) => snapshot(),
 };
+drawsInPlace();
 globalThis.document = {
   body: {},
   addEventListener() {},
@@ -293,7 +294,7 @@ globalThis.window = {
 };
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
 holdFrameParts();
-// The pill is the kit's (surfaces/kit/pill), which seed-globals publishes as window.StatePill: contracts' stateOf, always.
+// The pill is the kit's (surfaces/kit/pill), which the pages import: contracts' stateOf, always.
 const { StatePill } = kitPages;
 
 const walk = (n, fn) => {

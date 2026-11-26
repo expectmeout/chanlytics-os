@@ -49,7 +49,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode } from "../../../_source.mjs";
 import { kitPages, useStubHooks } from "../../../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
 
 export const clock = (sweep, healthy, detail = null) => ({
   sweep,
@@ -304,9 +304,11 @@ globalThis.document ??= {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 
-globalThis.ReactDOM ??= { createPortal: (node) => node };
+drawsInPlace();
 
 holdFrameParts();
+
+Object.assign(globalThis.window, kitPages);
 
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState });
 

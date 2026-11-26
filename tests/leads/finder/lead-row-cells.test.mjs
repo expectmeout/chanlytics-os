@@ -62,7 +62,7 @@ const drawn = (l, ctx) => {
   fresh();
   return again(() => acts.cell(l, ctx));
 };
-const press = (node) => node.props.onClick({ stopPropagation() {} });
+const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {}, currentTarget: null });
 
 test("a row not contacted offers its Add in words, to the search's pick, and to the picker where none is chosen", () => {
   const picked = ctxOf();

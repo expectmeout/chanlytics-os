@@ -15,7 +15,7 @@ import { FIRST_RUN_WORDS } from "../../apps/dashboard/src/surfaces/setup/first-r
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -135,11 +135,11 @@ globalThis.document ??= {
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
-globalThis.ReactDOM ??= { createPortal: (node) => node };
+drawsInPlace();
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
 holdFrameParts();
-// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
+// The shell's toast is the bridge's `toast` part; this harness keeps its own flash.
 bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */

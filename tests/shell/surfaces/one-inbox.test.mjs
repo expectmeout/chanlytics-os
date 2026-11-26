@@ -88,12 +88,12 @@ globalThis.window = {
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: { appendChild() {} } };
 
-// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), as the frame imports it.
 const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
-// publishes it (seed-globals.ts); its hooks are this file's stub's.
+// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs imports; its hooks are this
+// file's stub's.
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
-// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+// The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
 
 const walk = (n, fn) => {

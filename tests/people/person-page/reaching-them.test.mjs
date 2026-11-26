@@ -35,7 +35,7 @@ import {
   way,
   withMessages,
 } from "./_person-page.mjs";
-import { bridgeHolds, whoIsLooking, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, provided, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 test("a person's email address is said once, in Reach them, and added there: the row is its own control, and what is wrong with a typed address is said under the field before anything is sent", async () => {
   const vm = toPersonVM(detail({ row: row({ visits: VISITS, email: null }) }), ZONE, new Date(NOW));
@@ -226,12 +226,12 @@ test("a person opened from a People view steps to the one before and after (‹ 
   const { keepWalk, leaveWalk, takeStep } = await importSrc("apps/dashboard/src/surfaces/people/walk.ts");
   const keep = {
     memory: provided("tabMemory"),
-    nav: globalThis.window.CHANLY.nav,
+    nav: heldDoors().navigate,
     mq: globalThis.window.matchMedia,
   };
   const steps = [];
   bridgeHolds({ parts: { tabMemory: tabMemoryFor(globalThis.window) } });
-  globalThis.window.CHANLY.nav = (to, opts) => steps.push([to, opts]);
+  bridgeHolds({ doors: { navigate: (to, opts) => steps.push([to, opts]) } });
   try {
     const vm = toPersonVM(detail(), ZONE, new Date(NOW));
     // The list on screen as they are opened (its clean-up comes after the page is drawn).
@@ -278,7 +278,7 @@ test("a person opened from a People view steps to the one before and after (‹ 
     await settle();
   } finally {
     bridgeHolds({ parts: { tabMemory: keep.memory } });
-    globalThis.window.CHANLY.nav = keep.nav;
+    bridgeHolds({ doors: { navigate: keep.nav } });
     globalThis.window.matchMedia = keep.mq;
   }
 });

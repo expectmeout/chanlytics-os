@@ -18,7 +18,7 @@ installStubReact();
 // createContext: the stub gives it one that holds its value, which nothing here draws.
 const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/bridge/_.js", import.meta.url))("react");
 reactOfDashboard.createContext ??= (value) => ({ Provider: "Provider", Consumer: "Consumer", _currentValue: value });
-// The shell's link to a route (frame-globals routeDoor), which a day's door spreads.
+// The shell's link to a route (frame-doors.ts routeDoor), which a day's door spreads.
 holdFrameParts();
 
 const S = "../../apps/dashboard/src";

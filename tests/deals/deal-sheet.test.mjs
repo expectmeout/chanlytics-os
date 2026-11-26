@@ -17,7 +17,7 @@ import * as contracts from "@chanlytics/contracts";
 import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
 import { dealSheetBody, dealSheetRefusal } from "../../apps/dashboard/src/surfaces/people/deal-sheet/body.ts";
 import { pipelinePeekOf, pipelineSheetOf } from "../../apps/dashboard/src/surfaces/people/pipeline/peek-view.ts";
-import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 const {
   DEAL_ACT_HINTS,
@@ -1013,7 +1013,7 @@ bridgeHolds({
   },
 });
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";
-// The Inbox's reply courier (window.threadVerbs) is asked for through the shell's verbs (person-verbs.ts); everything
+// The Inbox's reply courier (thread-verbs.tsx) is asked for through the shell's verbs (person-verbs.ts), by import; everything
 // else the sheet reads is imported, as the sheet imports it.
 holdFrameParts();
 const quietly = async (fn) => {
@@ -1334,22 +1334,6 @@ test("a send refused after a good record says both and closes; where it cannot g
   assert.deepEqual(recorded, [{ personId: "p1", dealId: null }]);
   assert.equal(calls.filter((c) => c.path === "/api/v1/contacts/p1/deal").length, 1);
 
-  // No reply courier where the sheet is drawn: recorded, and it says nothing went. REGRESSION: it said only the
-  // stage's word, "Proposal out", as though the proposal were on its way.
-  const bare = wire(R.detail());
-  tree = open();
-  openDealSheet({ personId: "p1", mode: "propose" });
-  tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
-  type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/bare");
-  assert.equal(textOf(saveOf(redraw())), "Record and send");
-  press(saveOf(redraw()));
-  tree = await until("recorded", () => recorded.length > 0);
-  assert.deepEqual(
-    toasts.map((t) => [t.tone, textOf(t.msg)]),
-    [["danger", "Recorded. It did not send."]],
-  );
-  assert.equal(bare.calls.filter((c) => c.path.endsWith("/reply")).length, 0);
-
   // Their window shut: the switch is off, a press cannot turn it on, it says why, and Save says Record.
   const shut = fixtures(Date.now());
   wire(
@@ -1423,11 +1407,11 @@ test("a person the sheet cannot work out is said in the sheet as a read that fai
   }
 });
 
-test("the frame publishes the sheet's doors under the names the Inbox's thread, the Calendar and the Pipeline open the sheet by: the published host draws the sheet once its code is in, and the published verb asks it once it listens, however early", async () => {
-  const { PEOPLE_GLOBALS } = await import(`${PEOPLE}/people-globals.ts`);
+test("People's courier hands the frame the sheet's doors (the bridge's `sheets`) the Inbox's thread, the Calendar and the Pipeline open the sheet by: its host draws the sheet once its code is in, and its verb asks it once it listens, however early", async () => {
+  (await import(`${PEOPLE}/people-detail.ts`)).installPeopleCourier();
   const doors = await import(`${PEOPLE}/sheets/doors.tsx`);
-  assert.equal(PEOPLE_GLOBALS.DealSheetHost, doors.DealSheetHost);
-  assert.equal(PEOPLE_GLOBALS.openDealSheet, doors.askDealSheet);
+  assert.equal(provided("sheets").DealHost, doors.DealSheetHost);
+  assert.equal(provided("sheets").openDeal, doors.askDealSheet);
   const R = fixtures(Date.now());
   wire(R.detail());
   // The frame's host, as the frame draws it (surfaces/frame/shell-chrome.tsx), asked for the sheet before it has drawn one.
@@ -1436,10 +1420,10 @@ test("the frame publishes the sheet's doors under the names the Inbox's thread, 
   clearReadCaches();
   toasts.length = 0;
   recorded.length = 0;
-  drawn = () => W.React.createElement(PEOPLE_GLOBALS.DealSheetHost, {});
+  drawn = () => W.React.createElement(provided("sheets").DealHost, {});
   drawn();
-  assert.equal(PEOPLE_GLOBALS.openDealSheet({ personId: "p1", mode: "propose" }), true);
-  assert.equal(PEOPLE_GLOBALS.openDealSheet({ personId: "p1" }), false, "an ask that names no move is refused at once");
+  assert.equal(provided("sheets").openDeal({ personId: "p1", mode: "propose" }), true);
+  assert.equal(provided("sheets").openDeal({ personId: "p1" }), false, "an ask that names no move is refused at once");
   await until("the sheet the ask waited for", (t) => title(t) === "New proposal");
   const tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
   assert.equal(sub(tree), "Daniela Reyes");

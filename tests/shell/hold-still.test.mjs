@@ -1,5 +1,5 @@
 /**
- * A switch holds still, and a door is a link (frame-globals holdStill, routeDoor).
+ * A switch holds still, and a door is a link (kit/motion/hold-still.ts holdStill, routeDoor).
  *
  * On a phone the person's History tabs jumped out from under the thumb: Consent put them 328px further down the screen
  * and Visits 439px, because a shorter list made the page shorter and the browser pulled the scroll back to fit (measured
@@ -11,11 +11,11 @@
  * A thread's person was reachable only through its Actions menu; the name, the face and the line under them are a link
  * now, built by routeDoor: the address in the href, the app's own way there on a plain press.
  *
- * Run against frame-globals itself, on a scroller that clamps as a browser's does.
+ * Run against the real helpers, on a scroller that clamps as a browser's does.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bridgeHolds, holdFrameParts, provided } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "./_bridge-holds.mjs";
 
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", paddingBottom: "0px", ...over });
 globalThis.window = {
@@ -27,6 +27,7 @@ globalThis.window = {
     return true;
   },
 };
+drawsInPlace();
 globalThis.document = {
   addEventListener() {},
   removeEventListener() {},

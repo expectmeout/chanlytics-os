@@ -976,16 +976,21 @@ globalThis.React = {
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     cells[k] = { deps, cleanup: fn() };
   },
+  // As React's: a store's notice redraws only when what it says has changed (the needs-you count the frame reads
+  // beside the route's own surfaces is the same number after most reads).
   useSyncExternalStore: (subscribe, snapshot) => {
     const k = frames.key();
     const prev = cells[k];
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = {
-      cleanup: subscribe(() => {
-        redraws += 1;
-      }),
-    };
-    return snapshot();
+    const cell = { said: snapshot() };
+    cell.cleanup = subscribe(() => {
+      const now = snapshot();
+      if (Object.is(now, cell.said)) return;
+      cell.said = now;
+      redraws += 1;
+    });
+    cells[k] = cell;
+    return cell.said;
   },
 };
 registry.installRouteGate();

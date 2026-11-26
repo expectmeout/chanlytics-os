@@ -32,9 +32,9 @@ bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const W = globalThis.window;
 const { installShell } = await importSrc("apps/dashboard/src/bridge/shell.ts");
 installShell(W);
-// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), as the frame imports it.
 const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-// The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
+// The shortcuts sheet (surfaces/frame/shortcuts.tsx), as the frame imports it.
 const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
 
 /** The sidebar and the sheet, as the shell draws them (surfaces/frame/shell-chrome.tsx). */

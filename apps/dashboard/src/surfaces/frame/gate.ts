@@ -43,10 +43,11 @@ export const gateTitle = (a: string, doing?: string): string => {
  * the reason at the control, which is how a finger gets to read it.
  */
 export const gatedProps = (reason: string): GateProps => {
-  const refuse = (e: { preventDefault: () => void; stopPropagation: () => void; currentTarget: Element }) => {
+  const refuse = (e: { preventDefault: () => void; stopPropagation: () => void; currentTarget: Element | null }) => {
     e.preventDefault();
     e.stopPropagation();
-    provided("tip")?.show(e.currentTarget);
+    // The reason at the control pressed; a press with no element to show it at (a key's, a script's) shows none.
+    if (e.currentTarget) provided("tip")?.show(e.currentTarget);
   };
   return {
     disabled: false,

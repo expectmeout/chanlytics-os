@@ -29,7 +29,7 @@ import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 // A namespace, not named imports: a word or a filter this slice adds is missing from the module until it
 // lands, and a named import of it would fail the whole file rather than the test that needs it.
@@ -428,8 +428,12 @@ globalThis.React = {
   // ask, so a notice to redraw has no one to tell; the redraw on the store moving is proved in shell/surfaces.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
+
+drawsInPlace();
 // the bridge's hook the shell's pages call: these tests draw once, and the redraw is proved in shell/surfaces
 holdFrameParts();
+
+Object.assign(globalThis.window, kitPages);
 
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];

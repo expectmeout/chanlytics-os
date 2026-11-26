@@ -124,6 +124,8 @@ installStubReact({
 });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 holdFrameParts();
+// The record kit, on the stub's window, where these tests draw it by name (the pages import it).
+Object.assign(globalThis.window, kitPages);
 for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStrip", "StatCell"])
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
 bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });

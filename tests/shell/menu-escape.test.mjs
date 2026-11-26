@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../_stub-react.mjs";
+import { drawsInPlace } from "./_bridge-holds.mjs";
 
 const listeners = [];
 globalThis.window = {
@@ -81,6 +82,7 @@ globalThis.React = {
   },
   useCallback: (fn) => fn,
 };
+drawsInPlace();
 // MoreMenu is the kit's (surfaces/kit/more-menu), which imports its hooks from "react": the stub's are set on it.
 kitHooks();
 const { MoreMenu } = kitPages;

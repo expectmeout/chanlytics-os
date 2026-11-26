@@ -76,10 +76,10 @@ bridgeHolds({
 const { peopleChrome } = await import("../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { headNow, headUnder } = await import("../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
-// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
-// publishes it (seed-globals.ts); its hooks are this file's stub's.
+// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs imports; its hooks are this
+// file's stub's.
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
-// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+// The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
 
 const people = () => ({ rows: [], lists: [], saved: [] });
@@ -166,7 +166,7 @@ test("the strip draws the page's views as the Inbox's: the picked one active and
       ["scope-pipeline", false, undefined],
     ],
   );
-  // A tab is a link (a door is a link, frame-globals routeDoor): its address is the route's, so a middle click, a long press
+  // A tab is a link (a door is a link, frame-doors.ts routeDoor): its address is the route's, so a middle click, a long press
   // or a new tab opens that view, and a plain press is the app's own move, which the browser is kept from making.
   assert.deepEqual(
     tabs.map((b) => b.props.href),

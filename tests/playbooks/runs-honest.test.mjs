@@ -255,7 +255,7 @@ bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const S = "../../apps/dashboard/src";
 const { installClock } = await import(`${S}/bridge/zone.ts`);
 installClock();
-// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work rule (record-fold).
+// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (the kit's), the unsaved-work rule (record-fold).
 holdFrameParts();
 const { installPolicyStore } = await import(`${S}/bridge/policy-store.ts`);
 const { policiesNow } = await import(`${S}/surfaces/settings/business/shell.ts`);

@@ -1,12 +1,11 @@
 /**
  * The address, for the worlds the page tests draw in.
  *
- * A shell page cannot import, so it reads the address through `CHANLY.address` (surfaces/frame/constants.ts): the bridge's
- * verbs where `window.__shell` has them, and the standalone mockup's own, over the hash, where it has not. The tests
- * make up a window and a `CHANLY` of their own, and a page that reads the address needs the one from constants.ts in
- * it; a copy written here would be tested against itself, so this imports the module's own.
+ * A page reads the address through `CHANLY.address` (surfaces/frame/constants.ts): the bridge's shell where one is held
+ * (provided as `shell`), and the standalone mockup's own, over the hash, where it is not. A test that reads the address
+ * the page reads takes the module's own here; a copy written here would be tested against itself.
  *
- *   window.CHANLY = { nav: () => {}, address: await legacyAddress() };
+ *   const address = await legacyAddress();
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */

@@ -1,5 +1,5 @@
 /**
- * A modal dialog holds focus while it is open, with one helper (frame-globals trapFocus and dialogRef): focus goes in, Tab
+ * A modal dialog holds focus while it is open, with one helper (kit/focus/trap.ts trapFocus and dialogRef): focus goes in, Tab
  * and Shift+Tab stay inside and count only what Tab stops at, and focus goes back to what opened it. Run on the real
  * helper over a document that keeps focus the way a browser does; the pages that use it (the notifications panel, the
  * shortcuts sheet, People's phone sheet, the Calendar's appointment and the Ask Line) name it. The record kit's sheet and

@@ -107,7 +107,7 @@ bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const S = "../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (surfaces/frame).
 holdFrameParts();
-// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
+// The shell's toast is the bridge's `toast` part; this harness keeps its own flash.
 bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
 const { StatePill } = globalThis;
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);

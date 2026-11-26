@@ -637,11 +637,11 @@ test("refused because a teammate changed the step since, the sheet reads it agai
   );
 });
 
-test("the frame publishes the sheet's doors under the names the deal card and the Inbox's thread open the sheet by: the published host draws the sheet once its code is in, and the published verb asks it once it listens, however early", async () => {
-  const { PEOPLE_GLOBALS } = await import(`${PEOPLE}/people-globals.ts`);
+test("People's courier hands the frame the sheet's doors (the bridge's `sheets`) the deal card and the Inbox's thread open the sheet by: its host draws the sheet once its code is in, and its verb asks it once it listens, however early", async () => {
+  (await import(`${PEOPLE}/people-detail.ts`)).installPeopleCourier();
   const doors = await import(`${PEOPLE}/sheets/doors.tsx`);
-  assert.equal(PEOPLE_GLOBALS.StepSheetHost, doors.StepSheetHost);
-  assert.equal(PEOPLE_GLOBALS.openStepSheet, doors.askStepSheet);
+  assert.equal(provided("sheets").StepHost, doors.StepSheetHost);
+  assert.equal(provided("sheets").openStep, doors.askStepSheet);
   wire(() => personDto(Date.now()));
   // The frame's host, as the frame draws it (surfaces/frame/shell-chrome.tsx), asked for the sheet before it has drawn one.
   unmount();
@@ -649,10 +649,10 @@ test("the frame publishes the sheet's doors under the names the deal card and th
   clearReadCaches();
   toasts.length = 0;
   said.length = 0;
-  drawn = () => W.React.createElement(PEOPLE_GLOBALS.StepSheetHost, {});
+  drawn = () => W.React.createElement(provided("sheets").StepHost, {});
   drawn();
-  assert.equal(PEOPLE_GLOBALS.openStepSheet({ personId: "p1", dealId: "d1" }), true);
-  assert.equal(PEOPLE_GLOBALS.openStepSheet({}), false, "an ask that names nobody is refused at once");
+  assert.equal(provided("sheets").openStep({ personId: "p1", dealId: "d1" }), true);
+  assert.equal(provided("sheets").openStep({}), false, "an ask that names nobody is refused at once");
   await until("the sheet the ask waited for", (t) => title(t) === "Set a next step");
   const tree = await until("the person is read", (t) => input(t, "step-sheet-what-input"));
   assert.equal(sub(tree), "Tove Lind · Website");

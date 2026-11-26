@@ -204,7 +204,7 @@ test("the strip is the kit's, wearing whose views it holds, and says nothing of 
   bridgeHolds({
     parts: { shell: { route: () => "reports", href: (r) => `/w/harbor/${r}`, warm() {}, warmSoon() {} } },
   });
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   const views = chromeAt(null).views;
   assert.equal("stays" in views, false);

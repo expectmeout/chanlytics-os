@@ -1,12 +1,12 @@
 /**
- * It moves as one: a thumb's gestures and an overlay's leaving (frame-globals touchSwipe, leaving).
+ * It moves as one: a thumb's gestures and an overlay's leaving (kit/motion/swipe.ts touchSwipe, leaving).
  *
  * On a phone a sheet, the lead's peek and Ask's palette were closed only by their buttons, or at best by a flick read at
  * the touch's end, and an open thread only by its arrow. Every overlay also went in one frame. Now a let-go follows the
  * finger (the wash behind fading with it), leaves the way it was pulled or settles back, and an overlay React takes
  * away leaves by a still copy of itself.
  *
- * Run against frame-globals itself, on elements that answer what the helpers ask of them.
+ * Run against the real helpers, on elements that answer what the helpers ask of them.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -1105,7 +1105,7 @@ test("a strip is walked only where the shell is narrow, and there only where the
   // People's to 900px in components.css): the strip's pager asks the deck whether a finger walks the page on screen.
   await import("../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
   const { viewDeck } = await import("../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   const keep = globalThis.window.matchMedia;
   let width = 800;

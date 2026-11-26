@@ -15,6 +15,7 @@ import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
 installStubReact({});
+Object.assign(globalThis.window, kitPages);
 const { AskCards } = await import("../../../apps/dashboard/src/surfaces/ask/card.tsx");
 const { AskAnswer } = await import("../../../apps/dashboard/src/surfaces/ask/turn.tsx");
 const { askText } = await import("../../../apps/dashboard/src/surfaces/ask/words.ts");

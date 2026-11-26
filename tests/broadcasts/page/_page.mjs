@@ -215,9 +215,11 @@ export const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 
 installClock();
 
-// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work
+// What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (the kit's), the unsaved-work
 // rule (record-fold) and the record sheet. The pages themselves are TSX (decision 0015) and imported below.
 holdFrameParts();
+
+Object.assign(globalThis.window, kitPages);
 
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });

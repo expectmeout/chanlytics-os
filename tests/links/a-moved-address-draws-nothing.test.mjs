@@ -16,7 +16,7 @@ import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "demo" } });
 installStubReact({});
-// The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
+// The route table (surfaces/frame/route-table.tsx), as the frame imports it.
 const { drawRoute } = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 
 const route = (over) => ({

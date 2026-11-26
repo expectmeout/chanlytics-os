@@ -16,6 +16,7 @@ export const asked = [];
 
 bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false, refreshSurface: () => {} } });
 installStubReact({});
+Object.assign(globalThis.window, kitPages);
 bridgeHolds({
   who: {
     workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],

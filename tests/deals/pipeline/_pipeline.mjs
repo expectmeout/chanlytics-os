@@ -29,7 +29,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 export const TZ = "America/New_York";
 
@@ -520,8 +520,14 @@ globalThis.React = {
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
   useId: () => ":r0:",
 };
+
+drawsInPlace();
 // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 holdFrameParts();
+
+// The record kit's sheet, which New proposal is drawn in on a desk.
+// The record kit's toggle group, which a selection's pass asks why with, as the deal sheet does.
+Object.assign(globalThis.window, kitPages);
 
 useStubHooks();
 
@@ -548,11 +554,7 @@ bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 // People's TSX, which the Pipeline draws by import (decision 0015), and the kit's table and Columns menu it draws with
-// (decision 0083): the types the tree is found by below, and the page is the module itself; the parts the shell still
-// draws by name are published as it does.
-export const { PEOPLE_GLOBALS } = await import("../../../apps/dashboard/src/surfaces/people/people-globals.ts");
-
-Object.assign(globalThis.window, PEOPLE_GLOBALS);
+// (decision 0083): the types the tree is found by below, and the page is the module itself.
 
 export const { DataTable } = await import("../../../apps/dashboard/src/surfaces/kit/table/data-table.tsx");
 

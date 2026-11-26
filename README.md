@@ -109,19 +109,20 @@ up across a move. Every page reads its data through one seam, in `src/bridge/`: 
 reads `/api/v1`, maps the rows through a contracts view model and publishes what the page draws),
 `surface-registry.ts` (the table that says which routes are real and which are demo, drawing the "Not in this release"
 card for a demo one) and `surface-runner.ts` (when each surface is read). The mockup was a
-single-page shell of hand-written JSX, imported in a fixed order by `src/bridge/manifest.ts` and talking through
-`window` globals; its surfaces were made real one at a time by _branching inside the existing components_, never by
+single-page shell of hand-written JSX, imported in a fixed order by a manifest and talking through `window`
+globals; its surfaces were made real one at a time by _branching inside the existing components_, never by
 redesigning them, and then each left for TSX in the order decision 0015 gives, the frame after them. The
 stylesheets are in `src/styles`; the standalone mockup that drew the shell without Next went with demo mode (15 Nov
-2026). The `window-globals` and `window-publishers` measures count what remains and may only fall (`docs/debt.md`). The unbuilt surfaces (agent
+2026). No page reads or writes `window` now (decision 0151), and the `window-globals` and `window-publishers`
+measures hold it there (`docs/debt.md`). The unbuilt surfaces (agent
 fleet, store, studio, tasks) are parked by decision, with the mockup's own `content` page: each address draws that card,
 the shared report viewer too, and the retired deal board's address lands on People. Content itself is live under
 Campaigns (`campaigns/content`: what was made, the Library and the Week). Demo mode, the session flag that once drew the mockup's
 invented data, went on 16 November 2026. The mockup's
 own prose (its audits and demo scripts) lives in `docs/mockup/`, not in the app.
 
-**The shell never runs on the server.** `src/bridge/seed-globals.ts` and the shell's files read `window` at
-module scope and would throw during prerender, so `FrameHost` imports the shell as `#frame-shell`
+**The shell never runs on the server.** The shell's files read the browser as they load and would throw during
+prerender, so `FrameHost` imports the shell as `#frame-shell`
 (`apps/dashboard/package.json` "imports"): a browser's build resolves it to `FrameApp`, the server's to
 `src/frame-shell.ts`, an empty component, and `dynamic(ssr: false)` keeps the server from drawing even that. Until the
 frame is placed, a visitor sees the outline (`src/surfaces/frame/outline.tsx`): the frame's own chrome, in its own

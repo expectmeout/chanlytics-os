@@ -492,7 +492,7 @@ test("the tab holds the follow-ups that came due: read once the boot is in, said
 });
 
 test("a follow-up of AI's come due lights AI's door: the top bar's capsule draws the kit's dot after its words while one is due, heard as each read lands", async () => {
-  // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
+  // The top bar, its bell and its two lines (surfaces/frame), as the frame imports them.
   const topbarParts = {
     ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
     ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx")),

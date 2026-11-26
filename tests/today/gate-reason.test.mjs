@@ -80,6 +80,8 @@ bridgeHolds({
   },
 });
 holdFrameParts();
+// The record kit, on the stub's window, where these tests draw it by name (the pages import it).
+Object.assign(globalThis.window, kitPages);
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 /** Where a pressed gate shows its reason: the tip, anchored to the control. */

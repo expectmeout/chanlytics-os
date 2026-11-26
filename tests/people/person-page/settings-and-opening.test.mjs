@@ -3,6 +3,7 @@
  * can make it: read ahead from People, never the name first and the rest after, a kept copy said for what it is.
  */
 import { test } from "node:test";
+import { createRequire } from "node:module";
 import assert from "node:assert/strict";
 import { all, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import {
@@ -148,6 +149,11 @@ test("REGRESSION: a History filter holds still -- on a phone a shorter list made
   const tab = { isConnected: true, parentElement: null, getBoundingClientRect: () => (held.push(tab), { top: 120 }) };
   const query = globalThis.document.querySelector;
   globalThis.document.querySelector = () => tab;
+  // A change drawn at once (react-dom's flushSync, which holdStill runs), missing under this runner's react-server
+  // condition: run where it stands, as the shared stub has it (_stub-react.mjs).
+  const reactDom = createRequire(new URL("../../../apps/dashboard/package.json", import.meta.url))("react-dom");
+  const sync = reactDom.flushSync;
+  reactDom.flushSync = (change) => change();
   try {
     // History's filters, not the page's tabs beside them (0052).
     find(
@@ -159,6 +165,7 @@ test("REGRESSION: a History filter holds still -- on a phone a shorter list made
     assert.equal(timeline.props.filter, "visits", "and History shows the visits");
   } finally {
     globalThis.document.querySelector = query;
+    reactDom.flushSync = sync;
   }
 });
 

@@ -28,7 +28,7 @@ const verbs = await import("../../../apps/dashboard/src/surfaces/frame-verbs.ts"
 after(() => unmount());
 
 const went = [];
-W.CHANLY.nav = (to) => went.push(to);
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 /** The sheet over a record, as the host draws it once a door has asked: the tab's page gone first, as on another page. */
 const drawSheet = (record, closed) => {

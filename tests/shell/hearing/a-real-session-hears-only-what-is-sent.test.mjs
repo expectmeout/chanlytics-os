@@ -19,7 +19,7 @@ import { bridgeHolds } from "../_bridge-holds.mjs";
 installStubReact({});
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const W = globalThis.window;
-// The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
+// The top bar, its bell and its two lines (surfaces/frame), as the frame imports them.
 const topbarParts = {
   ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
   ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx")),
@@ -28,13 +28,13 @@ const topbarParts = {
 Object.assign(W, {
   NotifPopover: topbarParts.NotifPopover,
 });
-// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), as the frame imports it.
 const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+// The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-// The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
+// The shortcuts sheet (surfaces/frame/shortcuts.tsx), as the frame imports it.
 const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
-// The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
+// The route table (surfaces/frame/route-table.tsx), as the frame imports it.
 const routeTable = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 Object.assign(W, {
   SHELL_ROUTES: routeTable.SHELL_ROUTES,

@@ -453,8 +453,8 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   // move, and draws at once. A person's page is People's view since it is drawn over the list (people-route.tsx, 20 Oct
   // 2026): the frame's view stays on screen, and the person comes in over the list by an entrance of the page's own.
   shell.installShell(win);
-  // Where a view stands on a strip is the strip's (surface-tabs.tsx stripPlace), over People's scope words (people-globals.ts).
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  // Where a view stands on a strip is the strip's (surface-tabs.tsx stripPlace), over People's scope words (people/words.ts).
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
   await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   await importSrc("apps/dashboard/src/surfaces/people/words.ts");
   const view = (t) =>

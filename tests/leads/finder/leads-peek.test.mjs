@@ -25,7 +25,7 @@ import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
@@ -84,6 +84,7 @@ globalThis.React = {
   // A surface the sheet reads (use-surface.ts, the record's reads): what it holds now, as a store answers it.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
+drawsInPlace();
 const on = (bag) => (name, fn) => {
   (bag[name] = bag[name] || []).push(fn);
 };
@@ -162,6 +163,11 @@ bridgeHolds({ parts: { chrome: { state: stateOf } } }, { fresh: true });
 // The shell's helpers the sheet still asks of the window by way of frame-verbs: the role gate (`gate`), a thumb's swipe
 // (`touchSwipe`), the refusal toast. The role store is each test's own (roleIs).
 holdFrameParts();
+// The fit's pill and the Erase question are the kit's (surfaces/kit), which the sheet imports through frame-parts.
+// The ⋯ and the ways of calling are the kit's Menu, found by its type and
+// read by what the sheet hands it (kitItem); the tabs are the kit's capsule (SubTabs, look "capsule"), chosen as its
+// onSelect is called.
+Object.assign(globalThis.window, kitPages);
 useStubHooks();
 const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const { SubTabs } = await import("../../../apps/dashboard/src/surfaces/kit/sub-tabs/sub-tabs.tsx");

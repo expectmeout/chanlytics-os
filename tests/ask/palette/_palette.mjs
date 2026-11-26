@@ -33,7 +33,7 @@ import {
   LeadSearchPlanSchema,
   planSentence,
 } from "@chanlytics/contracts";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 export const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -219,9 +219,11 @@ globalThis.React = {
   cloneElement: (n, p) => ({ ...n, props: { ...n.props, ...p } }),
 };
 
+drawsInPlace();
+
 holdFrameParts();
 
-// Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, over this file's own React.
+// Confirm is the kit's (surfaces/kit/confirm), which the pages import, over this file's own React.
 useStubHooks(globalThis.React);
 
 // The Line and its parts (surfaces/ask/), by their modules. Ask's face in the line (kit/face/ask-face.tsx) is drawn in every

@@ -27,7 +27,7 @@ import {
   find,
 } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds, holdFrameParts, holdRoles, whoIsLooking } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, holdRoles, whoIsLooking } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -272,7 +272,8 @@ globalThis.React = {
     frames.key();
     return snapshot();
   },
-}; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+};
+drawsInPlace(); // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 globalThis.document = {
   body: {},
   addEventListener() {},
@@ -289,7 +290,11 @@ bridgeHolds(
   { fresh: true },
 );
 holdFrameParts();
+// The record kit, published as the app publishes it before any page loads.
+Object.assign(globalThis.window, kitPages);
 useStubHooks();
+// The kit's components (Confirm, StatePill, ...), on the stub's window, where these tests draw them by name.
+Object.assign(globalThis.window, kitPages);
 // The shell's doors the TSX Campaigns pages reach (by name, through the bridge's verbs), kept for the tests that draw them at the foot.
 const shellDoors = {};
 for (const k of [
@@ -1035,6 +1040,7 @@ const campaignsWorld = async () => {
   bridgeHolds({
     parts: { policy: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" } },
   });
+  Object.assign(globalThis.window, kitPages);
   const { MessageInPlace } = await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
   const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
   campaigns = { toasts, MessageInPlace, setSurfaceValue };

@@ -39,7 +39,7 @@ import { importSrc } from "../../../_source.mjs";
 import { ROLE_PERMS, stateOf, toLeadRowVM } from "@chanlytics/contracts";
 import { hookFrames } from "../../../_hook-frames.mjs";
 import { lineBox } from "../../../shared/_line.mjs";
-import { askDoor, bridgeHolds, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
+import { askDoor, bridgeHolds, drawsInPlace, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
 
 export const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -546,6 +546,8 @@ export const drawsFrom = (key) => {
   return redraws > before;
 };
 
+drawsInPlace();
+
 globalThis.window.React = globalThis.React;
 
 // The tab's one store for what pages keep (the place in a view: the words in the box, the cursor), which People's hooks read
@@ -553,6 +555,8 @@ globalThis.window.React = globalThis.React;
 export const { clearTabMemory, tabMemoryFor } = await import("../../../../apps/dashboard/src/bridge/tab-memory.ts");
 
 holdFrameParts();
+
+Object.assign(globalThis.window, kitPages);
 
 installRoleStore();
 
