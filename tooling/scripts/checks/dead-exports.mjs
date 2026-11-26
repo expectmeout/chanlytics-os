@@ -5,7 +5,8 @@
  * knip (knip.json declares the doors, the routes, the manifest and the tests as
  * entries) lists every export, type and module nothing imports, and every dependency
  * a package.json names that nothing imports (counted under that package.json, its
- * dependency rules on since 25 Nov 2026). This counts that
+ * dependency rules on since 25 Nov 2026), and every package a module imports or binary a
+ * script runs that no package.json names (its unlisted and binaries rules, 26 Nov 2026). This counts that
  * list per file, and since 28 October 2026 (decision 0074) a pull request is held to
  * what it adds: CI's debt job counts it on the change's base and on its head
  * (tooling/scripts/checks/debt.mjs, its `knip` part), and a count that rose fails the
@@ -26,7 +27,9 @@
  *
  * knip.json's `ignoreDependencies` are the dependencies it cannot see a use of: lint-staged runs from the commit hook
  * (.husky/pre-commit), esbuild is loaded as the root's by the tooling's scripts, and the phone app's expo-font and
- * expo-symbols are its SDK's native modules, which wait for the phone app (removing one changes its build).
+ * expo-symbols are its SDK's native modules, which wait for the phone app (removing one changes its build). The tests'
+ * expo is the phone app's own: github-config.test.mjs reads the SDK's list of what it pins, resolved from apps/mobile, which
+ * names it (a second line in tests would be a second declaration of the phone's SDK).
  *
  * A finding is a bug report, not an instruction: an export knip cannot see a
  * use of may be read through a string, a dynamic import or a test double. Look
@@ -115,6 +118,10 @@ export function deadExports() {
     const unused =
       (issue.dependencies?.length ?? 0) + (issue.devDependencies?.length ?? 0) + (issue.catalog?.length ?? 0);
     if (unused > 0) now[`${issue.file} (unused dependencies)`] = unused;
+    // A package a module imports, or a binary a script runs, that its package.json does not name (knip's unlisted and
+    // binaries rules, on since 26 Nov 2026): it installs only because another package brought it, and goes when that does.
+    const unlisted = (issue.unlisted?.length ?? 0) + (issue.binaries?.length ?? 0);
+    if (unlisted > 0) now[`${issue.file} (unlisted dependencies)`] = unlisted;
   }
   for (const [file, n] of Object.entries(packagePass())) now[file] = (now[file] ?? 0) + n;
   return Object.fromEntries(

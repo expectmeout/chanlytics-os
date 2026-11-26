@@ -120,7 +120,7 @@ const no = (ids) => ids.map(() => false);
 const metricsOf = (strip) =>
   all(strip, (n) => n.type === "div" && n.props["data-figure"]).map((n) => n.props["data-figure"]);
 const rowsOf = (tree, id) => find(byTestId(tree, id), (n) => n.type === BarList).props.rows;
-const lineOf = (tree, id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
+const lineOf = (tree, id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-chart-takeaway")));
 const titleOf = (tree, id) => textOf(find(byTestId(tree, id), (n) => n.type === "h3"));
 const cardOf = (tree, id) => find(tree, (n) => n.type === ChartCard && n.props.testid === id);
 /** What is on its way, by the one rule every page uses: the test ids of the nodes that wear data-loading (a tree is far too large to print). */

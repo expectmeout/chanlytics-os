@@ -366,8 +366,8 @@ export const onAPhone = (run) => {
   }
 };
 
-/** The period control: the kit's segmented control, and the option a person presses, by its words. */
-export const control = (tree) => find(seen(tree), (n) => n.type === Segmented);
+/** The period control: the kit's segmented control named Period (a chart card's Chart/Table switch is one too). */
+export const control = (tree) => find(seen(tree), (n) => n.type === Segmented && n.props.label === "Period");
 
 /** What is said of a period that failed to load, beside the control. */
 export const failedLine = (tree) => cls(seen(tree), "rpt-failed");
@@ -382,7 +382,7 @@ export const chosen = (tree) => {
   return c.props.options.find((o) => o.value === c.props.value)?.label;
 };
 
-export const takeaway = (tree, id) => textOf(find(card(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
+export const takeaway = (tree, id) => textOf(find(card(tree, id), (n) => classes(n).includes("ck-chart-takeaway")));
 
 /** The date range's button, as what it opens holds it. */
 export const rangeButton = (tree) => find(seen(tree), (n) => n.type === Popover).props.trigger;

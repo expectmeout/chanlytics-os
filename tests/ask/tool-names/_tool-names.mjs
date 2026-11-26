@@ -143,7 +143,7 @@ export const conversation = (id, over = {}) => ({
   snooze_until: null,
   assignee_user_id: null,
   // Something has come to the thread from their side, and the row says when, as ingest_inbound stamps it: a thread
-  // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply-window.test.mjs).
+  // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply/reply-window.test.mjs).
   last_inbound_at: ago(3600_000),
   last_inbound_on_whatsapp: ago(3600_000),
   last_message_at: ago(3600_000),
@@ -1120,7 +1120,7 @@ export function withTheYesItself(frozen) {
   const { note, ...said } = JSON.parse(frozen);
   if (typeof note !== "string") return frozen;
   const offersGoBy =
-    "Offers and news go by WhatsApp only. Texting is approved for replies and appointment messages, so no offer goes by text · someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
+    "Offers and news go by WhatsApp only. Texting is approved for replies and appointment messages, so no offer goes by text: someone who only texts you hears of them once they say yes on WhatsApp.";
   const yes =
     "said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now. Where some said yes and WhatsApp reaches none of them, why_none_offers or why_none_messages says what they lack, in People's words: a number to send to, or a channel that can carry it, and offers_go_by says which channels carry offers now (Meta's pause on offers to US numbers among them). Say how many said yes and what they lack, and never send the owner to get a yes they already have.";
   return JSON.stringify({

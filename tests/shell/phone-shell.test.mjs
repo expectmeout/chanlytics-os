@@ -99,7 +99,10 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
     ),
     "the room under every surface is the shell's tab bar, not the web's",
   );
-  assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
+  assert.ok(
+    css.includes("html.in-app { --toast-foot: calc(14px + var(--app-inset-bottom, 0px)); }"),
+    "a toast rests over the shell's tab bar, where the kit's stack reads it (kit.css .pp-toast-stack)",
+  );
   // The in-app rule for the web's Google door is in globals.css, which the sign-in page loads (consent-page.test.mjs).
   assert.ok(!css.includes(".auth-google"), "the sign-in page never loads this sheet, so its rule cannot live here");
   // The ✦'s own lift lives in ask.css with the palette's rules (ask/line/ holds it there).

@@ -84,7 +84,7 @@ function SurfaceUnavailable({ onNavigate }: { onNavigate: (to: string) => void }
     <Failed
       kind="page"
       title="Can't reach your workspace"
-      body="This isn't a quiet day. Chanlytics couldn't connect, so nothing is shown rather than the wrong numbers. Your messages are still being received and answered."
+      body="This isn't a quiet day: Chanlytics couldn't connect, so nothing is shown. Messages are still received and answered."
       onRetry={() => window.location.reload()}
       also={{ label: "Back to Today", onClick: () => onNavigate("today") }}
       testid="surface-unavailable"

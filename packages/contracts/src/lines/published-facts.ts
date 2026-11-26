@@ -134,7 +134,7 @@ export const LINE_FILED_NAMES = { brand: "a2p_filed_name", campaign: "a2p_campai
 export const RENAME_WORDS = {
   pages: (name: string) => `Your sign-up page, its paper form and your desk sign say “${name}” now.`,
   held: (filed: string) =>
-    `The phone networks still hold “${filed}” as you filed it, and the text confirming a START says it until it is changed with them.`,
+    `The phone networks still hold “${filed}”, and the START confirmation says it until it's changed with them.`,
   ask: "Request a name change",
   kept: "Saved. The workspace couldn't be renamed, so your sign-up page and your sign still say its old name.",
   requested: "Requested: a person at Chanlytics changes the name with the phone networks and writes to you.",
@@ -184,11 +184,11 @@ export function recordSavedWords(recordSaved: RecordSavedDto | null): string {
         : "Saved. The phone networks see it when you file.";
     case "in_review":
       return published
-        ? `Saved. ${page}; the phone networks are still reviewing ${filed}.`
+        ? `Saved. ${page}, and the phone networks are still reviewing ${filed}.`
         : `Saved. The phone networks are still reviewing ${filed}.`;
     case "on_file":
       return published
-        ? `Saved. ${page}; the phone networks still hold ${filed}.`
+        ? `Saved. ${page}, but the phone networks still hold ${filed}.`
         : `Saved. The phone networks still hold ${filed}.`;
     case "sent_back":
       return published
@@ -206,8 +206,7 @@ export function recordSavedWords(recordSaved: RecordSavedDto | null): string {
  */
 export const RECORD_REVIEW_CONFIRM = {
   question: "Change what the phone networks are reviewing?",
-  detail:
-    "They check your registration against your public page, which changes as soon as you save, and a campaign still waiting on them is sent with the record as you save it. A page that no longer matches what you filed can send the registration back.",
+  detail: "Your public page changes as you save, and a page that no longer matches the filing can send it back.",
   yes: "Save it anyway",
   no: "Not yet",
 } as const;
@@ -218,11 +217,11 @@ export const PUBLIC_FIELD_MARK = "public";
 /** What the form says of the page, before it publishes and once it does, and the link to it. */
 export const BUSINESS_PAGE_NOTE = {
   before:
-    "Boxes marked public go on your business's own page once the name and the address are saved, beside the number customers reach you on and the services you list under Settings › Details. Anyone can open the page, and search engines list it.",
-  live: "Boxes marked public are on your business's own page, beside the number customers reach you on and the services you list under Settings › Details. Anyone can open the page, and search engines list it.",
+    "Boxes marked public go on the business's own page once its name and address are saved. Anyone can find it in a search.",
+  live: "Boxes marked public are on the business's own page. Anyone can find it in a search.",
   open: "Open your page",
 } as const;
 
 /** Said under the services a business lists: they are on its public page too. */
 export const SERVICES_ON_PUBLIC_PAGE =
-  "The business's own page lists these, with how long each takes and its price, once the business is on record under Settings › Connections. Anyone can open it.";
+  "The business's public page lists these with their times and prices, once it's on record under Settings › Connections.";

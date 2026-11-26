@@ -16,16 +16,30 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contracts";
 import { updateLiveCall } from "@chanlytics/channels/voice";
-import { readRaw } from "../../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 import { installStubReact, fresh, again, find, byTestId } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
-test("the ledger knows a whisper on a call, and the database agrees", () => {
+test("the ledger knows a whisper on a call, and the database agrees", async () => {
   assert.ok(DECISION_VERBS.includes("whisper"));
   assert.ok(DECISION_SUBJECTS.includes("call"));
-  const sql = readRaw("supabase/migrations/00036_whisper_verb.sql");
-  assert.match(sql, /decisions_verb_check[\s\S]*'erase', 'whisper'/);
-  assert.match(sql, /decisions_subject_type_check[\s\S]*'contact', 'call'/);
+  // 00036's two checks, as the database in memory holds them (pinned as its text until 26 Nov 2026).
+  const db = fakeDb({ decisions: [] });
+  const decide = (verb, subject_type) =>
+    db
+      .from("decisions")
+      .insert({
+        tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        verb,
+        subject_type,
+        subject_id: "k1",
+        actor_type: "user",
+      })
+      .select("id")
+      .single();
+  assert.equal((await decide("whisper", "call")).error, null, "a whisper on a call is a decision the ledger keeps");
+  assert.equal((await decide("murmur", "call")).error?.code, "23514");
+  assert.equal((await decide("whisper", "voicemail")).error?.code, "23514");
 });
 
 test("the adapter speaks update-live-call exactly, and returns the status instead of throwing", async () => {

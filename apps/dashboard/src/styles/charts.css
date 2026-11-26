@@ -50,7 +50,10 @@
 .ck-plot { position: relative; width: 100%; outline: none; border-radius: var(--radius-sm); touch-action: pan-y; }
 /* A plot told to fill takes the height its card has left. Its svg is painted over that box rather than sitting in
    it, so the box is never as tall as what it holds and the measure cannot chase itself. */
-.ck-plot.fill { flex: 1 1 0; }
+/* Its height is the chart's own, as the page runs (--plot-h, the chart's code): a plot that fills its card holds at least
+   that much. */
+.ck-plot { height: var(--plot-h, auto); }
+.ck-plot.fill { flex: 1 1 0; height: auto; min-height: var(--plot-h, 0); }
 .ck-plot.fill > .ck-svg { position: absolute; inset: 0; }
 .ck-plot:focus-visible { box-shadow: var(--focus-ring); }
 .ck-svg { display: block; overflow: visible; }
@@ -80,7 +83,7 @@
 .ck-legend-value { color: var(--ink); font-weight: 600; }
 /* Above the plot, beside the point: .start to its right, .end to its left, .pin across the plot when neither side
    holds 260px (chart-core.jsx decides in pixels). */
-.ck-tip {
+.ck-readout {
   position: absolute; z-index: 6; top: 0; pointer-events: none;
   width: max-content; min-width: 164px; max-width: 260px; padding: 9px 11px;
   /* A period's figures, read as a card: the kit's pop panel (parts.tsx), the glass every menu and list wears. */
@@ -88,44 +91,36 @@
   transform: translate(14px, calc(-100% - 6px));
   animation: ck-fade var(--duration-fast) var(--ease-out);
 }
-.ck-tip.end { transform: translate(calc(-100% - 14px), calc(-100% - 6px)); }
-.ck-tip.pin { left: 0; right: 0; width: auto; min-width: 0; max-width: none; transform: translateY(calc(-100% - 6px)); }
-.ck-tip-title { font-size: var(--text-xs); color: var(--ink-dim); margin-bottom: 5px; }
-.ck-tip-row { display: flex; align-items: center; gap: 7px; }
-.ck-tip-row + .ck-tip-row { margin-top: 3px; }
-.ck-tip-value { min-width: 24px; text-align: right; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.ck-tip-label { color: var(--ink-muted); }
-.ck-tip-note { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: var(--text-xs); }
+.ck-readout { left: var(--x, auto); }
+.ck-readout.end { transform: translate(calc(-100% - 14px), calc(-100% - 6px)); }
+.ck-readout.pin { left: 0; right: 0; width: auto; min-width: 0; max-width: none; transform: translateY(calc(-100% - 6px)); }
+.ck-readout-title { font-size: var(--text-xs); color: var(--ink-dim); margin-bottom: 5px; }
+.ck-readout-row { display: flex; align-items: center; gap: 7px; }
+.ck-readout-row + .ck-readout-row { margin-top: 3px; }
+.ck-readout-value { min-width: 24px; text-align: right; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ck-readout-label { color: var(--ink-muted); }
+.ck-readout-note { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: var(--text-xs); }
 
 /* ---------- card ---------- */
-.ck-card {
-  display: flex; flex-direction: column; gap: 12px; min-width: 0;
-  padding: 14px 18px 16px; background: var(--bg-raised);
-  border: 1px solid var(--line); border-radius: var(--radius-lg);
-}
+/* The card is the kit's panel (card.tsx, kit.css .panel): its ground, its edge, its corner and its padding are the
+   panel's; how it lays out its head, its legend and its body is the chart's. */
+.ck-chart { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 /* The switch and the CSV stand beside the title where the card has the room, and under it where it has not (a phone's
    card, half a narrow grid): the title keeps its line rather than wrap beside them (7 Oct 2026). */
-.ck-card-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; }
-.ck-card-titles { flex: 1 1 14em; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.ck-card-title { margin: 0; font-size: var(--text-base); font-weight: 500; color: var(--ink); letter-spacing: -0.005em; line-height: 1.35; }
-.ck-card-takeaway { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); line-height: 1.45; }
-.ck-card-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.ck-chart-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; }
+.ck-chart-titles { flex: 1 1 14em; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ck-chart-title { margin: 0; font-size: var(--text-base); font-weight: 500; color: var(--ink); letter-spacing: -0.005em; line-height: 1.35; }
+.ck-chart-takeaway { margin: 0; font-size: var(--text-sm); color: var(--ink-dim); line-height: 1.45; }
+.ck-chart-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 /* The switch and the CSV wait for the pointer or the keyboard; a touch screen shows them always. */
 @media (hover: hover) {
-  .ck-card-actions { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
-  .ck-card:hover .ck-card-actions, .ck-card:focus-within .ck-card-actions, .ck-card.is-table .ck-card-actions { opacity: 1; }
+  .ck-chart-actions { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
+  .ck-chart:hover .ck-chart-actions, .ck-chart:focus-within .ck-chart-actions, .ck-chart.is-table .ck-chart-actions { opacity: 1; }
 }
-.ck-card-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-/* The switch is the kit's segmented capsule in a pane (kit.css .rec-seg): an inset track, the one picked the lozenge. */
-.ck-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-full); background: var(--surface-inset-fill); box-shadow: var(--surface-inset-depth); }
-.ck-seg button { font-size: var(--text-xs); line-height: 1; padding: 5px 10px; border-radius: var(--radius-full); color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
-@media (hover: hover) { .ck-seg button:hover { color: var(--ink); } }
-.ck-seg button.on { background: var(--selected-fill); color: var(--ink); box-shadow: var(--selected-depth); }
-.ck-icon-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--radius-full); color: var(--ink-dim); }
-@media (hover: hover) { .ck-icon-btn:hover { background: var(--bg-hover); color: var(--ink); } }
-.ck-seg button:focus-visible, .ck-icon-btn:focus-visible { box-shadow: var(--focus-ring); outline: none; }
-/* On a touch screen frame.css gives every control 44px of height; the icon button gets the width to match. */
-@media (pointer: coarse) { .ck-icon-btn { min-width: 44px; } }
+.ck-chart-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+/* The switch is the kit's Segmented and the CSV the kit's quiet icon Button (card.tsx). On a touch screen the shell's
+   floor gives every control 44px of height; the CSV gets the width to match. */
+@media (pointer: coarse) { .ck-csv { min-width: 44px; } }
 
 /* ---------- table twin ---------- */
 .ck-table-wrap { overflow: auto; max-height: 300px; border-radius: var(--radius-md); }
@@ -134,7 +129,7 @@
 .ck-table td { padding: 5px 10px; color: var(--ink-muted); white-space: nowrap; }
 @media (hover: hover) { .ck-table tbody tr:hover td { background: var(--bg-hover); color: var(--ink); } }
 .ck-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-.ck-table-empty { color: var(--ink-dim); text-align: center; padding: 18px; }
+.ck-table-none { color: var(--ink-dim); text-align: center; padding: 18px; }
 
 /* ---------- bar list: a label and its value on one line, the bar under them ---------- */
 .ck-barlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -146,7 +141,7 @@
 .ck-barlist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ck-barlist-value { flex: none; font-weight: 600; color: var(--ink); white-space: pre; font-variant-numeric: tabular-nums; }
 .ck-barlist-track { display: block; height: 6px; }
-.ck-barlist-bar { display: block; height: 6px; border-radius: 0 var(--radius-full) var(--radius-full) 0; transform-origin: left center; }
+.ck-barlist-bar { display: block; width: var(--w); height: 6px; background: var(--k); border-radius: 0 var(--radius-full) var(--radius-full) 0; transform-origin: left center; }
 
 /* ---------- dot plot: a dot per event, painted with the card's --color-dot; the held dot stays, the others step back ---------- */
 .ck-dotplot-dot { fill-opacity: 0.7; }
@@ -162,7 +157,7 @@
 .ck-segbar-title { font-size: var(--text-xs); color: var(--ink-dim); }
 .ck-segbar-bar { display: flex; gap: 2px; height: 10px; }
 .ck-segbar-bar.small { height: 8px; }
-.ck-segbar-bar i { display: block; min-width: 3px; }
+.ck-segbar-bar i { display: block; flex-grow: var(--share, 0); min-width: 3px; background: var(--part-color); }
 .ck-segbar-bar i:first-child { border-radius: var(--radius-xs) 0 0 var(--radius-xs); }
 .ck-segbar-bar i:last-child { border-radius: 0 var(--radius-xs) var(--radius-xs) 0; }
 .ck-segbar-bar i:only-child { border-radius: var(--radius-xs); }
@@ -179,7 +174,7 @@
 /* ---------- radial ----------
    A share that is a good outcome (what AI answered, who booked), so the ok tone's green, as Today's chart draws what AI
    answered: in the series blue, "answered" was green on one page and blue on the next (the 60-30-10 read, 17 Nov 2026). */
-.ck-radial { position: relative; flex: none; }
+.ck-radial { position: relative; flex: none; width: var(--size); height: var(--size); }
 .ck-radial-track { fill: none; stroke: var(--chart-track); stroke-linecap: round; }
 .ck-radial-value { fill: none; stroke: var(--ok); stroke-linecap: round; }
 .ck-radial-marker { stroke: var(--ink-muted); stroke-width: 2; stroke-linecap: round; }
@@ -202,4 +197,4 @@
   .ck-barlist-bar { animation: ck-grow-x 560ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 50ms); }
   .ck-radial-value { stroke-dasharray: calc(var(--len) * 1px) 99999; animation: ck-sweep 1000ms var(--ease-out) both; }
 }
-@media (prefers-reduced-motion: reduce) { .ck-tip { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ck-readout { animation: none; } }

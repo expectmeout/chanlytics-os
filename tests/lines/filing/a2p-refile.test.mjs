@@ -226,7 +226,7 @@ test("one sentence for a rehearsal, wherever an owner meets it", () => {
   // about what had happened.
   assert.match(MOCK_TEXTING_SENTENCE, /test registry/);
   assert.match(MOCK_TEXTING_SENTENCE, /nothing is delivered/);
-  assert.match(MOCK_TEXTING_SENTENCE, /a person at Chanlytics/);
+  assert.match(MOCK_TEXTING_SENTENCE, /A person at Chanlytics/);
   // Setup's row and Integrations' row say it from one function, whatever state the rehearsal reports underneath, so
   // the two pages cannot describe one state two ways even by accident. The route says it too (run beside the route).
   for (const sms_state of ["approved", "registering", "active"]) {

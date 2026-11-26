@@ -7,8 +7,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fakeDb } from "../_fake-db.mjs";
-import { importBundle } from "../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { importBundle } from "../../_source.mjs";
 
 const { readThreadState } = await importBundle("db");
 

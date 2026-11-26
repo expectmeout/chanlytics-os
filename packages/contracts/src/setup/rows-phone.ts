@@ -43,9 +43,7 @@ export function lineRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRo
       required: !answering,
       sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`,
       details: [
-        ownLine?.voice_state === "answering" // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
-          ? "Your own number through Chanlytics"
-          : "",
+        ownLine?.voice_state === "answering" ? "The number you have, through Chanlytics" : "",
         ownLine || texting.done
           ? ""
           : "Texting arrives with lines that register with the phone networks · this page will say when",

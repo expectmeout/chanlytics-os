@@ -29,7 +29,7 @@ test("the goal's words are contracts', its toast is Ask's card's own line, and i
     askGoalSaved("Twenty new clients a month"),
     describeSettingsChange({ op: "set_goal", goal: "Twenty new clients a month" }),
   );
-  assert.equal(askGoalSaved("  "), "Your goal, taken away");
+  assert.equal(askGoalSaved("  "), "Goal, taken away");
   assert.equal(askGoalRefusal("x".repeat(ASK_GOAL_MAX)), null, "the limit itself is kept");
   assert.equal(askGoalRefusal(`  ${"x".repeat(ASK_GOAL_MAX)}  `), null, "space around it is not counted");
   assert.match(askGoalRefusal("x".repeat(ASK_GOAL_MAX + 1)), new RegExp(String(ASK_GOAL_MAX)));

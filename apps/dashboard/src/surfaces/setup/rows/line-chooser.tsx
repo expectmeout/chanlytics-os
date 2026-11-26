@@ -111,8 +111,8 @@ function paths(path: string, setPath: (p: string) => void) {
       >
         <b>Keep my number</b>
         <span>
-          Keep the number your customers know: forward the calls you don&rsquo;t answer to AI. You keep your phone, your
-          phone company and your texts.
+          Keep the number customers know: forward the calls you don&rsquo;t answer to AI. Your phone, phone company and
+          texts stay.
         </span>
       </button>
       <button

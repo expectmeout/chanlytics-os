@@ -28,7 +28,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
-import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 export const TID = "t-studio";
 
@@ -454,7 +454,7 @@ export const workspace = (
     team,
     invites,
   });
-  globalThis.window.ST_STORE.viewAsRole = null;
+  provided("roles").viewAsRole = null;
 };
 
 /** The activity bridge, answering when told to: each read waits for `answer`. */

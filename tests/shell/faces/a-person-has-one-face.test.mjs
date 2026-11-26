@@ -225,8 +225,9 @@ test("Today's attention row draws a person with the Face, and what is not one as
   assert.equal(glyphIn(phoned), "phone");
   assert.ok(faceIn(phoned), "the kit's Face");
   assert.ok(classes(faceIn(phoned).rendered).includes("cl-attn-pic"), "placed by the row's own class");
+  // The row's own face for what is not a person is a <div> in the kit's face classes; the kit's Face draws a <span>.
   assert.equal(
-    find(phoned, (n) => classes(n).includes("cl-attn-avatar")),
+    find(phoned, (n) => n.type === "div" && classes(n).includes("cl-attn-pic")),
     null,
     "no avatar of its own",
   );
@@ -235,7 +236,7 @@ test("Today's attention row draws a person with the Face, and what is not one as
   // A step's count, a setup row or a run keep the avatar they always drew.
   const run = draw({ initials: "+3" });
   assert.equal(faceIn(run), null);
-  assert.equal(textOf(find(run, (n) => classes(n).includes("cl-attn-avatar"))), "+3");
+  assert.equal(textOf(find(run, (n) => n.type === "div" && classes(n).includes("cl-attn-pic"))), "+3");
 });
 
 /* ---------------------------------- the pages that draw it ---------------------------------- */

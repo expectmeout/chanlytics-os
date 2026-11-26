@@ -53,7 +53,7 @@ import {
 } from "@chanlytics/channels/lines";
 import { registerLine } from "../../apps/edge/lib/lines/a2p-register.ts";
 import { installStubReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_stub-react.mjs";
-import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, holdRoles, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -156,7 +156,7 @@ test("each path asks exactly what its own filing sends", () => {
   }
   assert.match(
     businessFieldsFor("standard").find((f) => f.name === "website_url").hint,
-    /the phone networks are given your public page instead/,
+    /they're given your public page instead/,
   );
 
   // SOLE PROPRIETOR: two end users and an address, and between them they send
@@ -243,7 +243,7 @@ test("the mobile the carriers text cannot be the number we answer for them", () 
   // exactly this. Checkable, so checked — before the fee, not after.
   const ours = ["+1 917 555 0123"];
   const p = businessRecordProblems(soleProp(), "sole_proprietor", { ourNumbers: ours });
-  assert.match(p.contact_phone, /YOUR handset/, "however it is punctuated");
+  assert.match(p.contact_phone, /your own handset, not the number Chanlytics answers/, "however it is punctuated");
   assert.deepEqual(
     businessRecordProblems(soleProp(), "sole_proprietor", { ourNumbers: ["+13055550100"] }),
     {},
@@ -335,10 +335,9 @@ test("what the narrow path gives up is said before the button, with the real num
  * -------------------------------------------------------------------------- */
 installStubReact();
 bridgeHolds({ who: { me: { email: "ada@example.com" }, workspaces: [{ slug: "harbor" }] } });
-Object.assign(globalThis.window, {});
 // Filing is confirmed through the kit's Confirm and a role is gated by the shell's `gate` (surfaces/frame, which also
 // answers `canDo`): the stub draws the Confirm, and the walker below finds the Yes inside.
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 // The form talks to the record through the module's one object (record.ts), as the pane does, so the network is
 // stubbed by giving that object the answers of `api()` below: no window door stands between them any more.
 const { businessRecord } = await importSrc("apps/dashboard/src/surfaces/settings/connections/record.ts");
@@ -443,7 +442,7 @@ test("answering picks the fields, and they are the contract's", async () => {
   );
   assert.equal(byId(page.tree, "biz-business_type"), null);
   const mobile = textOf(byId(page.tree, "biz-contact_phone"));
-  assert.ok(mobile.includes("Your mobile"), "and the mobile is described as what it is on this path");
+  assert.ok(mobile.includes("Personal mobile"), "and the mobile is described as what it is on this path");
   assert.ok(mobile.includes("reply from that phone"));
   assert.ok(
     textOf(byId(page.tree, "biz-answer")).includes(REGISTRATION_PATH_WORDS.sole_proprietor.filed),
@@ -572,7 +571,7 @@ test("a filing already with the carriers says so, because it cannot be withdrawn
 });
 
 test("only an owner answers it", async () => {
-  globalThis.window.canDo = () => false;
+  holdRoles({ can: () => false });
   try {
     theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
     const page = mount({ line: null, flash: () => {} });
@@ -583,7 +582,7 @@ test("only an owner answers it", async () => {
     // workspace is choosing between, even where they cannot choose it.
     assert.ok(byId(page.tree, "biz-limits"));
   } finally {
-    globalThis.window.canDo = () => true;
+    holdRoles({ can: () => true });
   }
 });
 
@@ -649,7 +648,7 @@ test("an incomplete sole-proprietor record spends nothing", async () => {
     assert.deepEqual(fetched, [], "nothing left for the provider");
     const row = rows[0];
     assert.equal(row.sms_state, "needs_record");
-    assert.match(row.last_error, /Your mobile is needed/, "in the owner's words, on the row the page reads");
+    assert.match(row.last_error, /Personal mobile is needed/, "in the owner's words, on the row the page reads");
 
     // Our own number is not a sole proprietor's handset: the filing asks the record what the route asked it, with the
     // workspace's numbers, before a single call is made.
@@ -665,7 +664,7 @@ test("an incomplete sole-proprietor record spends nothing", async () => {
     });
     assert.equal(refused.ok, false);
     assert.deepEqual(fetched, [], "nothing left for the provider");
-    assert.match(ours[0].last_error, /This is the number Chanlytics answers for you/);
+    assert.match(ours[0].last_error, /Use your own handset, not the number Chanlytics answers/);
   } finally {
     globalThis.fetch = realFetch;
     process.env = env;
@@ -903,7 +902,7 @@ test("the save says what it moved and what the carriers hold, in the words contr
     assert.equal(onFile.ok, true);
     assert.equal(
       onFile.message,
-      "Saved. Your public page shows it now; the phone networks still hold “Harbor Moving LLC” as you filed it.",
+      "Saved. Your public page shows it now, but the phone networks still hold “Harbor Moving LLC” as you filed it.",
     );
     assert.match(answers[0][1], /\/api\/v1\/business-record/);
     assert.equal(answers[0][0], "PUT");

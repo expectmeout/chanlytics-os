@@ -10,7 +10,7 @@ import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 import { toSlotParts } from "../../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
@@ -144,8 +144,8 @@ export const page = ({
   channels = [{ kind: "whatsapp" }],
   reviewLink = false,
 } = {}) => {
-  W.ST_STORE.can = (a) => !!contracts.ROLE_PERMS[role][a];
-  W.ST_STORE.myRole = () => role;
+  provided("roles").can = (a) => !!contracts.ROLE_PERMS[role][a];
+  provided("roles").myRole = () => role;
   setSurfaceValue("settings", {
     settings: { config: { brain: { business_name: BIZ } }, reviewLink },
     facts: null,

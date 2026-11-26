@@ -151,7 +151,7 @@ const seen = (tree) => ({ type: "Fragment", props: { children: [tree, standingSa
 const cls = (tree, c) => find(seen(tree), (n) => classes(n).includes(c));
 /** What the page says of its range: the word on the date range's button, the period chosen of the four, whether the body is dimmed, and the row over it. */
 const says = (tree) => {
-  const control = find(seen(tree), (n) => n.type === Segmented);
+  const control = find(seen(tree), (n) => n.type === Segmented && n.props.label === "Period");
   const button = find(seen(tree), (n) => n.type === Popover).props.trigger;
   const failed = cls(tree, "rpt-failed");
   return {

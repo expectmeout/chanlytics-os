@@ -12,10 +12,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { toLiveCallVM, toLiveVM } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../../_source.mjs";
+import { ANALYSIS_GRACE_MS, liveStillUp, stateOf, toLiveCallVM, toLiveVM } from "@chanlytics/contracts";
+import { claimCallNotification, ingestCall } from "@chanlytics/db/voice";
+import { todayCallRows } from "../../../packages/contracts/src/today/rows.ts";
+import { fakeDb } from "../../_fake-db.mjs";
 import { changesOf } from "../../_live-feed.mjs";
-import { installStubReact, fresh, again, byTestId, textOf } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, textOf } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -29,45 +31,77 @@ const { wantsRefresh, subscribesToRealtime, DEFAULT_REFRESH_TABLES } = await imp
 // Live's surface, where it lives since decision 0015 (surfaces/live/surface.ts).
 const { liveOverride } = await import("../../../apps/dashboard/src/surfaces/live/surface.ts");
 
-const sql = readRaw("supabase/migrations/00034_call_pipeline_hardening.sql");
+// What 00034 hardened, run rather than read (pinned as its text until 26 Nov 2026):
+// - the calls clock asks the edge for a call still ongoing half an hour on, and for one that ended without its thread's
+//   line once the grace is up, never before (ops/sweep-registry.db.test.mjs);
+// - usage is metered once under concurrency, the call-level lock taken first, and the payload keeps its analysis and only
+//   the allowlist, no provider URL (voice/rows/a-call-is-one-row-in-every-order.db.test.mjs);
+// - the call's thread is written only when its times move, and a delivery that moves nothing still yields the thread
+//   (the same suite).
 
-test("the trigger wakes the edge for calls never analysed", () => {
-  // Message bodies are immutable (P3): a note written on call_ended stayed
-  // "No summary available." forever. The webhook's half -- the note waits for
-  // the summary -- runs in voice/calls/retell-door/; the sweep's -- the
-  // line written after the grace period for a call the provider never
-  // analysed -- runs in cron/doors-b/. This is the trigger's.
-  assert.ok(sql.includes("and message_id is null"), "the trigger wakes the edge for them");
+test("the post-call email and memory note happen once: a claim on the row, counted", async () => {
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const calls = [{ id: "k1", tenant_id: T, retell_call_id: "call_1", status: "ended", notified_at: null }];
+  const db = fakeDb({ calls });
+  assert.equal(await claimCallNotification(db, T, "k1"), true, "the first delivery claims it");
+  assert.ok(calls[0].notified_at, "and the row says when");
+  assert.equal(await claimCallNotification(db, T, "k1"), false, "a redelivery finds it claimed");
+  assert.equal(
+    await claimCallNotification(fakeDb({ calls }), "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "k1"),
+    false,
+    "nor another workspace",
+  );
 });
 
-test("the post-call email and memory note happen once: a claim on the row", () => {
-  assert.ok(sql.includes("add column if not exists notified_at timestamptz"));
-  const claim = readCode("packages/db/src/repositories/voice/calls.ts");
-  assert.ok(claim.includes('.is("notified_at", null)'));
-  assert.ok(claim.includes('.select("id")'), "the claim counts rows — RLS is silent on a forbidden UPDATE");
-});
-
-test("usage is metered once under concurrency, and the audit copy keeps its analysis", () => {
-  // The call-level lock is taken BEFORE the prior-state read.
-  const lock = sql.indexOf("'|call|' || p_retell_call_id");
-  const read = sql.indexOf("select true, duration_ms into v_had_row, v_prev_duration");
-  assert.ok(lock > 0 && read > lock, "REGRESSION: the read preceded the lock");
-  assert.ok(sql.includes("e.kind = 'usage.voice_seconds'"), "and a second usage row is refused outright");
-  assert.ok(sql.includes("when (calls.raw ? 'call_analysis') and not (excluded.raw ? 'call_analysis') then calls.raw"));
-});
-
-test("no provider URL reaches a row the browser can read", () => {
-  assert.ok(sql.includes("- 'recording_url' - 'recording_multi_channel_url' - 'public_log_url'"));
-  assert.ok(sql.includes("recording = recording - 'provider_url'"), "existing rows are scrubbed");
-  const repo = readCode("packages/db/src/repositories/voice/calls.ts");
-  assert.ok(!repo.includes("provider_url: n.recordingUrl"), "ingest no longer writes it");
-  // The copy's own row, stored with no provider URL on it, and a retry that
-  // asks the provider for a fresh URL by call id both run in cron/doors-b/.
-});
-
-test("a conversation row moves only when its timestamps move", () => {
-  assert.ok(sql.includes("where conversations.last_message_at is distinct from greatest("));
-  assert.ok(sql.includes("if v_conversation_id is null then"), "a skipped upsert still yields the id");
+test("no provider URL reaches a row the browser can read: the ingest hands the door a pending copy, never the URL", async () => {
+  const asked = [];
+  const db = fakeDb(
+    {},
+    {},
+    {
+      ingest_call: (a) => (
+        asked.push(a),
+        { call_id: "k1", is_new: true, recording_state: "pending", contact_id: null, conversation_id: null }
+      ),
+    },
+  );
+  const none = Object.fromEntries(
+    [
+      "agentId",
+      "callType",
+      "fromE164",
+      "fromRaw",
+      "toE164",
+      "startedAtIso",
+      "endedAtIso",
+      "durationMs",
+      "disconnectionReason",
+      "sentiment",
+      "callSuccessful",
+      "inVoicemail",
+      "summary",
+      "transcript",
+      "transcriptObject",
+      "publicLogUrl",
+      "cost",
+      "latency",
+      "analysis",
+    ].map((k) => [k, null]),
+  );
+  await ingestCall(db, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", {
+    ...none,
+    retellCallId: "call_1",
+    direction: "inbound",
+    status: "ended",
+    recordingUrl: "https://provider.example/recording.wav?token=SECRET",
+  });
+  assert.deepEqual(asked[0].p_recording, { fetch_state: "pending" });
+  assert.ok(
+    !JSON.stringify(asked[0]).includes("provider.example/recording"),
+    "the URL is nowhere in what the door is handed",
+  );
+  // The copy's own row, stored with no provider URL on it, and a retry that asks the provider for a fresh URL by call id,
+  // both run in cron/doors-b/.
 });
 
 test("realtime events are routed by table: a transcript turn repaints Live, not five surfaces", async () => {
@@ -98,19 +132,10 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.deepEqual([wantsRefresh(live, turn.table, turn), wantsRefresh(legacy, turn.table, turn)], [true, false]);
 });
 
-test("the trigger wakes the edge for calls that have simply run too long", () => {
-  // The sweep's half -- a call still producing turns but forty minutes old is
-  // asked about, and the Live page's "being checked" is made true -- runs in
-  // cron/doors-b/. This is the trigger's.
-  assert.ok(sql.includes("or started_at < now() - interval '30 minutes'"), "the trigger wakes the edge for them");
-});
-
-test("the storage upload is bounded too", () => {
-  // A CDN's 401, 403 or 410 as final, and its 404 as a try to repeat, run in
-  // cron/doors-b/, where the wire answers each.
-  const lib = readCode("apps/edge/lib/voice/call-recording.ts");
-  assert.ok(lib.includes('"storage upload"'), "the upload is bounded too");
-});
+// The trigger wakes the edge for calls that have simply run too long (ops/sweep-registry.db.test.mjs); the sweep's half
+// -- a call still producing turns but forty minutes old is asked about, and the Live page's "being checked" is made true
+// -- runs in cron/doors-b/. The storage upload is bounded too: a slow bucket ends the copy "storage upload timed out", run
+// in cron/doors-b/the-door-and-call-recordings.test.mjs, where the wire answers each CDN refusal as well.
 
 test("Live says only what is true about a silent 'ongoing' row", async () => {
   const NOW = new Date("2026-09-04T18:14:00.000Z");
@@ -182,11 +207,53 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
   ].map(textOf);
   for (const words of seen)
     assert.ok(!words.includes("The transcript arrives when the call ends"), "REGRESSION: turns stream now");
-  const tabs = readRaw("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  assert.ok(
-    tabs.includes("chrome.liveStillUp(c, live.heartbeatMs, Date.now())"),
-    "the tab applies the heartbeat rule too",
+  // The tab applies the heartbeat rule too: the Live tab pulses for a call on the line, and not for a phantom the page
+  // has dropped (drawn, where surface-tabs.tsx's text was read until 26 Nov 2026).
+  const { SurfaceTabs } = await import(`${S}/surfaces/frame/surface-tabs.tsx`);
+  bridgeHolds({ parts: { chrome: { stateOf, liveStillUp } } });
+  const pulses = (over, readAt = at) => {
+    setSurfaceValue("live", toLiveVM([{ ...base, ...over }], [], ZONE, readAt));
+    fresh();
+    const tree = again(() => SurfaceTabs({ page: "live", param: null, views: null, onNavigate() {} }));
+    return find(tree, (n) => Array.isArray(n.props?.tabs)).props.tabs.find((t) => t.id === "live").live;
+  };
+  assert.equal(pulses({ ...onTheLine, transcript_object: turns }), true, "a call on the line");
+  assert.equal(
+    pulses({ started_at: before(3_600_000), updated_at: before(20 * 60_000) }),
+    false,
+    "and not a phantom nobody has heard from",
   );
-  const today = readCode("packages/contracts/src/today/rows.ts");
-  assert.ok(today.includes('import { ANALYSIS_GRACE_MS } from "../voice/live"'), "one grace constant");
+  // Between refreshes: a call the last read had on the line, unheard from since for longer than the heartbeat.
+  const lastRead = new Date(at.getTime() - 30 * 60_000);
+  const then = (ms) => new Date(lastRead.getTime() - ms).toISOString();
+  assert.equal(
+    pulses({ started_at: then(120_000), updated_at: then(2_000), transcript_object: turns }, lastRead),
+    false,
+    "nor a call the last read had on the line that has gone quiet since",
+  );
+});
+
+test("one grace for an analysis: Live and Today wait the same ten minutes", () => {
+  // Today's call row says a write-up is on its way exactly while Live does (pinned as rows.ts's import until 26 Nov 2026).
+  const NOW = new Date("2026-09-04T18:14:00.000Z");
+  const endedAgo = (ms) => ({
+    id: "k",
+    retell_call_id: "r-k",
+    direction: "inbound",
+    status: "ended",
+    started_at: new Date(NOW.getTime() - ms - 60_000).toISOString(),
+    ended_at: new Date(NOW.getTime() - ms).toISOString(),
+    updated_at: new Date(NOW.getTime() - ms).toISOString(),
+    duration_ms: 60_000,
+    summary: null,
+    from_e164: "+17865550181",
+    contact: null,
+  });
+  const note = (ms) => todayCallRows({ callsInWindow: [endedAgo(ms)], tz: ZONE, now: NOW })[0]?.note;
+  assert.equal(
+    note(ANALYSIS_GRACE_MS - 1000),
+    "Summary on its way",
+    "while Live waits for the write-up, so does Today",
+  );
+  assert.equal(note(ANALYSIS_GRACE_MS + 1000), "No summary", "and a second after Live gives up, Today does too");
 });

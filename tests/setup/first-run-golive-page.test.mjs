@@ -84,7 +84,7 @@ test("Go live, pay (canvas 5A): what starts and what it asks after, the plan at 
   assert.equal(
     textOf(byTestId(tree, "fr-pay-plan")),
     "$49.00 a month 14 days free" +
-      "Its number, calls and WhatsApp included. First charge on day 15. Cancel anytime from Billing." +
+      "Its number, calls and WhatsApp included. First charge on day 15, and cancel anytime from Billing." +
       "After you press" +
       "Its number is bought for youThen on your phone: dial one code, call your number once",
   );
@@ -778,7 +778,7 @@ test("Switch it on (canvas 5B·g): WhatsApp on the number customers call keeps t
   const steps = textOf(byTestId(tree, "fr-wa-steps"));
   assert.match(steps, /^Connect WhatsApp, keep the app/);
   assert.match(steps, /In Meta's window, \+1 \(305\) 555-0100 is filled in\. Copy the code it shows\./);
-  assert.match(steps, /your one-to-one chats of the last 6 months come into Inbox/);
+  assert.match(steps, /6 months of one-to-one chats come in/);
   assert.equal(byTestId(tree, "fr-wa-not-shared"), null);
   let toggle = null;
   walk(byTestId(tree, "fr-wa-steps"), (n) => {
@@ -786,7 +786,7 @@ test("Switch it on (canvas 5B·g): WhatsApp on the number customers call keeps t
   });
   toggle.props.onClick();
   tree = mount();
-  assert.match(textOf(byTestId(tree, "fr-wa-not-shared")), /Meta offers the history once, while the number connects/);
+  assert.match(textOf(byTestId(tree, "fr-wa-not-shared")), /Meta offers them once, as the number connects/);
   assert.equal(textOf(byTestId(tree, "fr-wa-open")), "Open Meta's window");
   await byTestId(tree, "fr-wa-open").props.onClick();
   assert.deepEqual(meta.start, [{ keepApp: true }], "Meta's own flow for business app users");

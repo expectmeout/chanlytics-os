@@ -185,7 +185,7 @@ test("a move between lenses asks for nothing, and the body is never blank: every
   for (const lens of ["people", "receptionist", "overview", "campaigns", "people"]) {
     const tree = draw(lens);
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, `${lens}: nothing on its way`);
-    assert.ok(all(tree, (n) => classes(n).includes("ck-card")).length > 0, `${lens}: a body, not a blank`);
+    assert.ok(all(tree, (n) => classes(n).includes("ck-chart")).length > 0, `${lens}: a body, not a blank`);
   }
   assert.deepEqual(reads, [], "no read was made");
 });

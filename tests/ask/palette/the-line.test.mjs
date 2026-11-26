@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { PROPOSAL_GATE, ROLE_PERMS } from "@chanlytics/contracts";
+import { ROLE_PERMS } from "@chanlytics/contracts";
 import {
   AskHooks,
   CLOSED,
@@ -47,7 +47,7 @@ import {
   typed,
   until,
 } from "./_palette.mjs";
-import { bridgeHolds, heldDoors } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ N3 ------------------------------ */
 
@@ -901,10 +901,9 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
   const calls = ask([]);
   const committed = [];
   const MSG = "cccccccc-cccc-4ccc-8ccc-000000000002";
-  const was = { store: globalThis.window.ST_STORE, gate: globalThis.window.PROPOSAL_GATE };
+  const was = { store: provided("roles") };
   let role = "operator";
-  // As the shell's are: the gate each kind checks (the bridge publishes contracts' PROPOSAL_GATE) and the member's role.
-  globalThis.window.PROPOSAL_GATE = PROPOSAL_GATE;
+  // As the shell's is: the member's role, which the gate each kind checks asks (contracts' PROPOSAL_GATE, imported).
   bridgeHolds({ parts: { roles: { can: (a) => !!(ROLE_PERMS[role] || {})[a], myRole: () => role } } });
   // An invitation made before an operator was refused one (a thread read back): its gate is `team`, an owner's.
   const card = {
@@ -958,7 +957,6 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
     assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Invited ada@example.com as viewer"));
   } finally {
     bridgeHolds({ parts: { roles: was.store } });
-    globalThis.window.PROPOSAL_GATE = was.gate;
   }
   await closes();
 });

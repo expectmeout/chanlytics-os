@@ -100,7 +100,7 @@ export const LOGO_WORDS = {
   label: "Logo",
   add: "Add",
   change: "Change",
-  menuLabel: "Your logo",
+  menuLabel: "Logo options",
   choose: "Choose a picture",
   fromWebsite: "Use the one on your website",
   remove: "Remove",
@@ -113,8 +113,8 @@ export const LOGO_WORDS = {
   saved: "Saved",
   removed: "Removed",
   notSaved: "Not saved · it didn't go through. Try again.",
-  lookFailed: "We couldn't look on your website just now. Try again, or choose a picture.",
-  unusable: "We couldn't use that picture. Try another.",
+  lookFailed: "Couldn't look on your website just now. Try again, or choose a picture.",
+  unusable: "Couldn't use that picture. Try another.",
   wide: "This one is wide, so it will look small in the circle. A square version fits best.",
   small: "This picture is small, so it may look soft.",
 } as const;
@@ -125,9 +125,9 @@ export function logoLookupWords(outcome: LogoLookupOutcome): string | null {
     case "found":
       return null;
     case "none":
-      return "We couldn't find a logo on your website. Choose a picture instead.";
+      return "No logo found on your website. Choose a picture instead.";
     case "unreachable":
-      return "We couldn't reach your website just now. Try again, or choose a picture.";
+      return "Couldn't reach your website just now. Try again, or choose a picture.";
     case "not_its_own":
       return "Your website is a page on another service, so its logo would be theirs. Choose a picture instead.";
     case "no_website":

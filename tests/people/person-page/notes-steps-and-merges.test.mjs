@@ -149,13 +149,13 @@ test("who may do what to a note: its author changes it, an owner or its author d
     // REGRESSION: an owner previewing a viewer (View-as) is shown what a viewer is. The page read the signed-in role,
     // blind to the preview, and offered the owner's controls to the viewer they were previewing.
     bridgeHolds({ who: { me: { role: "owner" } } });
-    globalThis.window.ST_STORE.viewAsRole = "viewer";
+    provided("roles").viewAsRole = "viewer";
     draw = await notesTab(vm);
     const previewed = draw();
     assert.equal(byTestId(previewed, "person-notes-input"), null, "an owner previewing a viewer writes nothing");
     assert.deepEqual(actsOf(previewed), [[], [], []], "and deletes nothing");
   } finally {
-    globalThis.window.ST_STORE.viewAsRole = null;
+    provided("roles").viewAsRole = null;
     bridgeHolds({ who: { me: me } });
   }
 });

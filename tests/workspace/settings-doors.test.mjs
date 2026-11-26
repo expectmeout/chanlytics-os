@@ -1492,7 +1492,7 @@ test("a sign-in a Microsoft 365 admin must approve: the note hands the owner the
   Object.assign(connectedMailboxes, {
     outcome: () => ({
       ok: false,
-      words: "Your organisation's Microsoft 365 admin approves Chanlytics once.",
+      words: "Your Microsoft 365 admin approves Chanlytics once.",
       code: "admin_consent",
     }),
     adminLink: async () => (

@@ -229,7 +229,7 @@ test("a folder that can't be opened mends itself: its row stays joined with a qu
   // An address opens the sentence as it is written, never capitalised.
   assert.equal(
     standing.say,
-    `${WHO} can no longer open “Salon clips”. Nothing was removed. Chanlytics keeps trying, and carries on by itself once it opens.`,
+    `${WHO} can no longer open “Salon clips”, and nothing was removed. Chanlytics carries on by itself once it opens.`,
   );
   const row = connectionRows(
     {

@@ -148,7 +148,7 @@ test("Need you holds each wait to the business's own target, and the card says w
   // Why AI did not finish it, in a sentence (Working for you, W20): what it could not do, as the card says first.
   assert.equal(textOf(find(card, (n) => classes(n).includes("calm-why"))), "AI held it: they asked for a person.");
   assert.equal(
-    find(card, (n) => classes(n).includes("set-mark")),
+    find(card, (n) => classes(n).includes("cl-attn-note")),
     null,
     "REGRESSION: an unexplained mark beside the name",
   );

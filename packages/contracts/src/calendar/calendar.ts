@@ -307,10 +307,6 @@ function assignLanes(timed: CalendarBlockVM[]): void {
   close();
 }
 
-/**
- * The span as the page draws it. `now` decides today, the now line, which
- * days are past, the next open time and the closures ahead.
- */
 /** The services the open times may fit, sized by the phone tool's and the assistant's rule: a consult-first one as a consultation (C5b). */
 function servicesOf(dto: CalendarWeekDto): CalendarServiceVM[] {
   const all = dto.services ?? [];
@@ -362,22 +358,11 @@ function dayBandsOf(params: {
   return bands;
 }
 
-export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM {
-  const tz = dto.timezone;
-  const todayKey = dayInZone(tz, now.getTime()).key;
-  const nowMs = now.getTime();
-  // How far ahead the receptionist offers: the days freeWindows walks, today and max_days_ahead - 1 after it.
-  // A day past the last of them has no open times however free it is, and says so rather than looking booked (C1).
-  const { max_days_ahead: offerDays, slot_min: offerSlot } = { ...BOOKING_DEFAULTS, ...(dto.rules ?? {}) };
-  const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
-  // Whether the business has said when it is open at all (availability.ts hasHours). Without hours no day is Closed: a
-  // workspace that never set them saw every day banded "Closed" over its bookings (CAL-2). A closure is still closed.
-  const hoursSet = hasHours(dto.hours ?? undefined);
-
-  // The grid's hours: the business's own, an hour of air on each side.
+/** The grid's hours: the business's own, an hour of air on each side, and 8 to 8 where it has said none. */
+function businessGridHours(hours: CalendarWeekDto["hours"]): { start: number; end: number } {
   let start = 24;
   let end = 0;
-  for (const h of Object.values(dto.hours ?? {})) {
+  for (const h of Object.values(hours ?? {})) {
     for (const [o, c] of dayIntervals(h)) {
       const oh = Number(o.split(":")[0]);
       const ch = Number(c.split(":")[0]) + (Number(c.split(":")[1]) > 0 ? 1 : 0);
@@ -385,14 +370,17 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       if (Number.isFinite(ch)) end = Math.max(end, ch);
     }
   }
-  if (start >= end) {
-    start = 8;
-    end = 20;
-  }
-  start = Math.max(0, start - 1);
-  end = Math.min(24, end + 1);
-  // A block outside the business's hours widens the grid rather than falling
-  // off it: an 8 PM appointment when the shop closes at 6 is still drawn.
+  if (start >= end) return { start: 7, end: 21 };
+  return { start: Math.max(0, start - 1), end: Math.min(24, end + 1) };
+}
+
+/**
+ * The grid's hours for the week: the business's, widened by a block outside them rather than letting it fall off the
+ * grid (an 8 PM appointment when the shop closes at 6 is still drawn).
+ */
+function gridHoursOf(dto: CalendarWeekDto, now: Date): { start: number; end: number } {
+  const tz = dto.timezone;
+  let { start, end } = businessGridHours(dto.hours);
   for (const day of dto.days) {
     const ds = zoneMidnight(tz, day.key);
     const de = zoneMidnight(tz, shiftKey(day.key, 1));
@@ -405,77 +393,148 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       end = Math.max(end, Math.min(24, Math.ceil(b.t + b.dur / 60)));
     }
   }
+  return { start, end };
+}
 
-  const days: CalendarDayVM[] = dto.days.map((day) => {
-    const { y, m, d: dd } = keyParts(day.key);
-    const weekday = (DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "").toLowerCase();
-    const closure =
-      dto.closures.find((c) => c.date <= day.key && day.key <= (c.until && c.until >= c.date ? c.until : c.date)) ??
-      null;
-    const intervals = dayIntervals(dto.hours?.[weekday]);
-    const closedDay = closedDayOf(dto.closures, day.key, hoursSet, intervals);
-    const bands = dayBandsOf({ closedDay, hoursSet, intervals, note: closure?.note ?? null, start, end });
-    const zoneDayStart = zoneMidnight(tz, day.key);
-    const zoneDayEnd = zoneMidnight(tz, shiftKey(day.key, 1));
-    const timed: CalendarBlockVM[] = [];
-    const allDay: CalendarBlockVM[] = [];
-    for (const item of day.items) {
-      const s = Date.parse(item.start);
-      const e = Date.parse(item.end);
-      if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
-      const block = toBlock(item, tz, zoneDayStart, zoneDayEnd, now);
-      if (item.all_day || (s <= zoneDayStart && e >= zoneDayEnd))
-        allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
-      else timed.push(block);
-    }
-    timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
-    assignLanes(timed);
-    const windows: CalendarWindowVM[] = day.windows.map((w) => {
-      const t = hoursOf(tz, Date.parse(w.start));
-      const tEnd = hoursOf(tz, Date.parse(w.end));
-      return { t, dur: Math.round((tEnd - t) * 60), label: calendarSpanLabel(t, tEnd) };
-    });
-    return {
-      key: day.key,
-      dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "",
-      date: shortDate(day.key),
-      long: longDate(day.key),
-      dayNum: String(dd),
-      today: day.key === todayKey,
-      past: day.key < todayKey,
-      closed: { yes: closedDay, note: closure?.note ?? null },
-      bands,
-      blocks: timed,
-      allDay,
-      windows,
-      beyondOffer: day.key > offerUntil,
-    };
+/** A day's blocks: the timed ones in their lanes, and those that take the day (all-day, or spanning it). */
+function dayBlocksOf(
+  day: CalendarWeekDto["days"][number],
+  tz: string,
+  now: Date,
+): { timed: CalendarBlockVM[]; allDay: CalendarBlockVM[] } {
+  const zoneDayStart = zoneMidnight(tz, day.key);
+  const zoneDayEnd = zoneMidnight(tz, shiftKey(day.key, 1));
+  const timed: CalendarBlockVM[] = [];
+  const allDay: CalendarBlockVM[] = [];
+  for (const item of day.items) {
+    const s = Date.parse(item.start);
+    const e = Date.parse(item.end);
+    if (!(e > zoneDayStart && s < zoneDayEnd)) continue;
+    const block = toBlock(item, tz, zoneDayStart, zoneDayEnd, now);
+    if (item.all_day || (s <= zoneDayStart && e >= zoneDayEnd))
+      allDay.push({ ...block, t: 0, dur: 24 * 60, time: "All day" });
+    else timed.push(block);
+  }
+  timed.sort((a, b) => a.t - b.t || b.dur - a.dur);
+  assignLanes(timed);
+  return { timed, allDay };
+}
+
+/** What every day of the week is read against: the zone, the clock, today, the last day offered, the hours and the grid. */
+interface CalendarWeekAt {
+  dto: CalendarWeekDto;
+  now: Date;
+  todayKey: string;
+  offerUntil: string;
+  hoursSet: boolean;
+  grid: { start: number; end: number };
+}
+
+/** One day of the board: its date, whether it is closed and why, its bands, its blocks and its open times. */
+function calendarDayOf(day: CalendarWeekDto["days"][number], at: CalendarWeekAt): CalendarDayVM {
+  const { dto, todayKey } = at;
+  const tz = dto.timezone;
+  const { y, m, d: dd } = keyParts(day.key);
+  const weekday = (DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "").toLowerCase();
+  const closure =
+    dto.closures.find((c) => c.date <= day.key && day.key <= (c.until && c.until >= c.date ? c.until : c.date)) ?? null;
+  const intervals = dayIntervals(dto.hours?.[weekday]);
+  const closedDay = closedDayOf(dto.closures, day.key, at.hoursSet, intervals);
+  const bands = dayBandsOf({ closedDay, hoursSet: at.hoursSet, intervals, note: closure?.note ?? null, ...at.grid });
+  const { timed, allDay } = dayBlocksOf(day, tz, at.now);
+  const windows: CalendarWindowVM[] = day.windows.map((w) => {
+    const t = hoursOf(tz, Date.parse(w.start));
+    const tEnd = hoursOf(tz, Date.parse(w.end));
+    return { t, dur: Math.round((tEnd - t) * 60), label: calendarSpanLabel(t, tEnd) };
   });
+  return {
+    key: day.key,
+    dow: DOW[new Date(Date.UTC(y, m - 1, dd)).getUTCDay()] ?? "",
+    date: shortDate(day.key),
+    long: longDate(day.key),
+    dayNum: String(dd),
+    today: day.key === todayKey,
+    past: day.key < todayKey,
+    closed: { yes: closedDay, note: closure?.note ?? null },
+    bands,
+    blocks: timed,
+    allDay,
+    windows,
+    beyondOffer: day.key > at.offerUntil,
+  };
+}
+
+/**
+ * What the pill beside the feed's line does not say (C3): where it came from, when it was read, that it could not be
+ * refreshed, and how many events; or, where it is unavailable, when it was tried and last read. What a read left out is
+ * said once, by feedNotes, in words the owner can act on; the line said it again as "2 repeating rules read once · 3 more
+ * not shown", unexplained (C1). When the calendar was last tried is the news only when that try failed (C2).
+ */
+function feedDetailOf(
+  feed: CalendarWeekDto["feed"],
+  read: { ago: string | null; tried: string | null; stale: boolean },
+): string {
+  const { ago, tried } = read;
+  if (feed.state === "ok")
+    return `From ${feed.source ?? "your calendar"} · read ${ago ?? "just now"}${read.stale ? ` · couldn't be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${feed.events} event${feed.events === 1 ? "" : "s"}`;
+  if (feed.state === "unavailable")
+    return [tried ? `tried ${tried}` : "", ago ? `updated ${ago}` : ""].filter(Boolean).join(" · ");
+  return "";
+}
+
+/** The feed as the board, Settings' row and Ask say it: its state and health, its line, when it was read, and its notes. */
+function calendarFeedOf(dto: CalendarWeekDto, now: Date): CalendarVM["feed"] {
+  const feed = dto.feed;
+  const ago = readAgoLabel(feed.read_at, now);
+  const stale = feed.state === "ok" && !!feed.stale;
+  const tried = readAgoLabel(feed.checked_at ?? null, now);
+  const feedDetail = feedDetailOf(feed, { ago, tried, stale });
+  // The bookings that arrived by email (00345): said whole once, for the board's card, Settings' row and Ask alike.
+  const notices = noticesVM(feed.notices, now);
+  return {
+    present: feed.present,
+    state: feed.state,
+    health: feed.state === "ok" ? (stale ? "stale" : "ok") : feed.state,
+    // The whole sentence, for whoever reads the line without the pill: Ask's calendar.week.
+    line: feedLineOf(feed.state, feedDetail, notices.line),
+    detail: feedDetail,
+    read: feedReadWords(feed.state, ago),
+    events: feed.events,
+    source: feed.source ?? "your calendar",
+    problem: feed.problem ?? null,
+    stale,
+    skippedRecurring: feed.skipped_recurring || 0,
+    dropped: feed.dropped || 0,
+    notes: feedNotes(feed),
+    notices,
+  };
+}
+
+/**
+ * The span as the page draws it. `now` decides today, the now line, which
+ * days are past, the next open time and the closures ahead.
+ */
+export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM {
+  const tz = dto.timezone;
+  const todayKey = dayInZone(tz, now.getTime()).key;
+  const nowMs = now.getTime();
+  // How far ahead the receptionist offers: the days freeWindows walks, today and max_days_ahead - 1 after it.
+  // A day past the last of them has no open times however free it is, and says so rather than looking booked (C1).
+  const { max_days_ahead: offerDays, slot_min: offerSlot } = { ...BOOKING_DEFAULTS, ...(dto.rules ?? {}) };
+  const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
+  // Whether the business has said when it is open at all (availability.ts hasHours). Without hours no day is Closed: a
+  // workspace that never set them saw every day banded "Closed" over its bookings (CAL-2). A closure is still closed.
+  const hoursSet = hasHours(dto.hours ?? undefined);
+  const grid = gridHoursOf(dto, now);
+  const days = dto.days.map((day) => calendarDayOf(day, { dto, now, todayKey, offerUntil, hoursSet, grid }));
 
   const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
   const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
   // The receptionist's next open time, as the route found it among every time it would offer -- never worked out
   // from the loaded weeks, which on a board looking at another month held none (C1).
   const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "—";
-  const ago = readAgoLabel(dto.feed.read_at, now);
-  const stale = dto.feed.state === "ok" && !!dto.feed.stale;
-  // When the calendar was last tried is the news only when that try failed (C2).
-  const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
-  // What the pill beside it does not say (C3). What a read left out is said once, by feedNotes, in words the owner can
-  // act on; the line said it again as "2 repeating rules read once · 3 more not shown", unexplained (C1).
-  const feedDetail =
-    dto.feed.state === "ok"
-      ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · couldn't be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
-      : dto.feed.state === "unavailable"
-        ? [tried ? `tried ${tried}` : "", ago ? `updated ${ago}` : ""].filter(Boolean).join(" · ")
-        : "";
-  // The bookings that arrived by email (00345): said whole once, for the board's card, Settings' row and Ask alike.
-  const notices = noticesVM(dto.feed.notices, now);
-  // The whole sentence, for whoever reads the line without the pill: Ask's calendar.week.
-  const feedLine = feedLineOf(dto.feed.state, feedDetail, notices.line);
-  const feedRead = feedReadWords(dto.feed.state, ago);
-  const feedHealth: CalendarFeedHealth = dto.feed.state === "ok" ? (stale ? "stale" : "ok") : dto.feed.state;
-  const source = sourceOfWeek(dto, feedHealth, !!notices.forwarding);
+  const feed = calendarFeedOf(dto, now);
+  const source = sourceOfWeek(dto, feed.health, !!feed.notices.forwarding);
 
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
@@ -493,26 +552,11 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     to: last,
     rangeLabel: `${shortDate(dto.from)} – ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
     monthLabel: monthLabelOf(dto.days.length >= 28 ? shiftKey(dto.from, 7) : dto.from),
-    hours: { start, end },
+    hours: grid,
     days,
     today: todayKey,
     now: nowIn,
-    feed: {
-      present: dto.feed.present,
-      state: dto.feed.state,
-      health: feedHealth,
-      line: feedLine,
-      detail: feedDetail,
-      read: feedRead,
-      events: dto.feed.events,
-      source: dto.feed.source ?? "your calendar",
-      problem: dto.feed.problem ?? null,
-      stale,
-      skippedRecurring: dto.feed.skipped_recurring || 0,
-      dropped: dto.feed.dropped || 0,
-      notes: feedNotes(dto.feed),
-      notices,
-    },
+    feed,
     source,
     stats: { events, windows: windowCount, next },
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil), slot: offerSlot },
