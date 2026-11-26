@@ -105,6 +105,7 @@ async function readBroadcasts(t: ToolContext): Promise<unknown> {
  */
 async function readBroadcast(toolContext: ToolContext, input: { broadcast_id: string }): Promise<unknown> {
   const id = str(input.broadcast_id, 40);
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!UUID.test(id)) return { error: "broadcast_id must be an id sequences with action sent returned" };
   const read = await readUnlessNotFound(load(toolContext.rc, broadcastReader, { id }));
   if (!read) return { error: "no such send in this workspace" };
@@ -318,6 +319,7 @@ export const sequencesTool = defineActions({
       examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Reading the campaign",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action sequence reads one as its record shows it: when it starts and stops; its sends' mode, with batches_did (what they did over 90 days: after an OK or on their own, stopped or skipped unanswered); its one notice; its steps with their ids (wait, message, channels, last 30 days); in_it, who is in it by where they stand (the first 25, each with its contact_id or lead_id); waiting_on_you, each held or handed-over email by its send_id (for propose_sequence with action decide or sent_by_hand); and its last five sends.",
       run: readSequence,
     }),
@@ -326,6 +328,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the moments",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action moments reads the campaigns that start at a moment, standing rules that each send one message to newly eligible people who said yes: each with its playbook_id, what starts it, its message (template), channels, clock and next_run (null where it runs nothing: runs_nothing says why, ended the day one ended), its last day (ends), its state in the page's words, its mode (how its sends are decided; mode_words says each, and next_batch_asks_first where the next waits for an OK because its words are new), its list when it runs on one, what it sent and how many replied over 30 days (null where unread), and a send waiting for a person; then every moment this workspace can use, with said_yes_now (who said the yes its message needs, a number or not), can_be_sent_now (who of them a run reaches) and its starter message.",
       run: listPlaybooksTool,
     }),
@@ -333,6 +336,7 @@ export const sequencesTool = defineActions({
       input: z.object({}),
       examples: [{}],
       label: "Reading the lists and messages",
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       words: `Action lists, read before any send, lists who a send may go to: everyone who said yes, every People list this workspace can count and every list of its own, each with its kind and audience_id (what propose_sequence with action once takes), its list token (what people with action search takes), and four counts, because there are two consents and a yes needs a number to send to and a channel to carry it: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, message reaches on WhatsApp), said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now), and why_none_offers or why_none_messages where some said yes and WhatsApp reaches none of them, saying what they lack in People's words. It says which channels carry offers now (offers_go_by) and lists, under saved messages, the messages a send may use: each with its template_id (any version's id names it), category, channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached), values and body, cannot_send (why a WhatsApp version this product cannot send whole is left out), and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
       run: listAudiences,
     }),
@@ -343,6 +347,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the messages",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action messages reads the Library whole: every message, a name in a language, with its title, category, away where put away, each version on its channel and its state (approved, pending while WhatsApp reviews it, rejected with its reason, paused or disabled) and words (cut to a line), the values it fills and the campaigns that send it (used_by). With name (its name or title), that message alone, words whole. Call it before a new message is written, so the Library never holds a twin; to pick a message a send can use now, action lists.",
       run: readMessages,
     }),
@@ -360,6 +365,7 @@ export const sequencesTool = defineActions({
       }),
       examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b" }],
       label: "Reading the send",
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       words: `Action batch reads one send as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop), the people it touched in the page's words, and what came back, quoted. It returns at most ${RUN_CAP.people} people and ${RUN_CAP.replies} replies, the figures counting everyone.`,
       run: readBroadcast,
     }),
@@ -394,6 +400,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the cold emails you edited",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action edited reads the cold emails to leads the person made in the last days whose first email is theirs: changed from what AI drafted (drafted beside sent), or written themself (drafted null); one sent as AI drafted it, or a teammate's, is not one. Their sent words are their own, so a line about how they write may quote them (remember).",
       run: readEdited,
     }),
