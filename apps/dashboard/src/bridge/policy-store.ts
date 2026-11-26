@@ -13,16 +13,13 @@ import {
   type PolicyLimits,
   type PolicyMode,
 } from "@chanlytics/contracts";
-import { provided } from "./provided";
+import { provide, provided } from "./provided";
 /**
  * The workspace policy matrix, on the mockup's own store interface.
  *
- * The mockup keeps its charter in `window.POLICY` — rows, modes, `modeOf(id)`,
- * `set(id, mode)` — and three surfaces read it: the Settings matrix, the
- * policy chip beside every approval in the Inbox and Today, and Fleet. Rather
- * than teach each reader about the API, this installs a store with the SAME
- * interface that answers from the settings surface's `policies` (the settings
- * read's, bridge/surfaces/settings.ts). One swap, every reader truthful.
+ * The charter keeps the mockup's store interface (rows, modes, `modeOf(id)`, `set(id, mode)`), and what reads it (the
+ * Settings matrix, the policy chip beside every approval in the Inbox and Today) asks the bridge for it, provided as
+ * `policy`. It answers from the settings surface's `policies` (the settings read's, bridge/surfaces/settings.ts).
  *
  * The rows the settings read holds have three states:
  *   undefined  not read yet: a cold tab before settings lands, or a settings read that failed twice -- no modes, as
@@ -198,123 +195,31 @@ export function uiRows(p: PoliciesSurface): UiRow[] {
   });
 }
 
-declare global {
-  interface Window {
-    /** The charter store: the seeded one (seedPolicyStore, published by the frame's installer), then the one installed here. */
-    POLICY?: SeedStore;
-  }
-}
-
-interface SeedStore {
-  MODES: readonly string[];
-  WORDS?: Record<string, { head: string; sub: string; chip: string; does: string }>;
-  ROWS: unknown[];
-  forPerm?: Record<string, string>;
-  row?: (id: string) => unknown;
-  modeOf: (id: string) => string | null;
-  set: (id: string, m: string) => void;
-}
-
 /**
- * The seeded store (moved from legacy/components/data-bits.jsx, the one-system plan's step 2): the charter matrix the
- * mockup keeps, which `installPolicyStore` wraps and answers from only in a session that declared itself a demo. Auto, Veto,
- * Ask and Never are how a mode is FILED; what anyone reads is contracts' POLICY_MODE_WORDS (UI_MODE_WORDS, above), which the
- * installed store speaks in every session. Published as `POLICY` before the store is installed, where none is (a test's
- * stand-in is kept).
- *
- * screen-word: Auto, Veto, Ask and Never are the modes' ids, never shown on a page
- */
-export function seedPolicyStore(): SeedStore {
-  type SeedRow = { id: string; label: string; note: string; def: string; chip: string; locked?: boolean };
-  const rows: SeedRow[] = [
-    { id: "faq", label: "Service & pricing FAQs", note: "list prices only", def: "Auto", chip: "FAQs" },
-    {
-      id: "book",
-      label: "Book · reschedule · remind",
-      note: "15-min pre-call reminders",
-      def: "Auto",
-      chip: "Booking",
-    },
-    { id: "reply", label: "Safe replies", note: "in scope · conf ≥ 0.8", def: "Veto", chip: "Replies" },
-    { id: "reengage", label: "Re-engage dormant leads", note: "offer-free", def: "Veto", chip: "Re-engage" },
-    { id: "campaign", label: "Standing offer campaigns", note: "e.g. birthday 20%", def: "Ask", chip: "Campaigns" },
-    {
-      id: "money",
-      label: "Refunds · rates · negotiation",
-      note: "books a call with you",
-      def: "Never",
-      locked: true,
-      chip: "Money",
-    },
-  ];
-  const settings = () => window.ST_STORE;
-  return {
-    MODES: ["Auto", "Veto", "Ask", "Never"],
-    WORDS: {
-      Auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
-      Veto: {
-        head: "Holds it",
-        sub: "you can stop it",
-        chip: "holds it",
-        does: "Writes it, holds it, and sends it unless you stop it.",
-      },
-      Ask: {
-        head: "Asks you",
-        sub: "nothing sent",
-        chip: "asks you",
-        does: "Waits for you. Nothing is sent until you say so.",
-      },
-      Never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." },
-    },
-    ROWS: rows,
-    forPerm: { booking: "book", money: "money", discount: "money", winback: "reengage", scope: "faq" },
-    row(id: string) {
-      return rows.find((r) => r.id === id) || null;
-    },
-    modeOf(id: string) {
-      const r = rows.find((x) => x.id === id);
-      if (!r) return null;
-      if (r.locked) return "Never";
-      const store = settings();
-      const kept = store && store.get ? store.get("policy." + id, r.def) : r.def;
-      return typeof kept === "string" ? kept : r.def;
-    },
-    set(id: string, m: string) {
-      const r = rows.find((x) => x.id === id);
-      if (!r || r.locked) return;
-      settings()?.set?.("policy." + id, m);
-      window.dispatchEvent(new CustomEvent("policy:changed", { detail: { id, mode: m } }));
-    },
-  };
-}
-
-interface PolicyWindow {
-  POLICY?: SeedStore;
-}
-
-/**
- * Replace the seeded store with one that answers from real data. Called once
- * at bridge boot, after the manifest has installed the seeds and before React
- * renders. `held` is where the rows are read, each time they are asked for: the settings surface's
+ * Hold the store that answers from real data. Called once at bridge boot, before React renders. `held` is where the rows are read, each time they are asked for: the settings surface's
  * (settings/business/shell.ts policiesNow), in their three states (the header above).
  */
-export function installPolicyStore(win: PolicyWindow, held: () => PoliciesSurface | null | undefined): void {
-  const seed = win.POLICY;
+export function installPolicyStore(held: () => PoliciesSurface | null | undefined): void {
+  provide("policy", policyStoreOver(held));
+}
+
+/** The store over the rows `held` reads, each time they are asked for. */
+function policyStoreOver(held: () => PoliciesSurface | null | undefined) {
   // Not read yet is no modes, as a failed read is (the header above).
   const surface = (): PoliciesSurface | null => held() ?? null;
-  const store = {
+  return {
     get MODES(): readonly string[] {
       return UI_MODES;
     },
     // Contracts' words: what a mode does is the same fact whatever rows are behind it.
     WORDS: UI_MODE_WORDS,
-    get ROWS(): unknown[] {
+    get ROWS(): UiRow[] {
       return uiRows(surface() ?? EMPTY);
     },
-    forPerm: seed?.forPerm ?? { booking: "book", money: "money", discount: "money", winback: "reengage", scope: "faq" },
+    forPerm: { booking: "book", money: "money", discount: "money", winback: "reengage", scope: "faq" },
     // By the row's id (book) or by its class (booking): a playbook's chip names the class it runs under.
-    row(id: string): unknown {
-      const rows = this.ROWS as { id: string; cls?: string }[];
+    row(id: string): UiRow | null {
+      const rows = this.ROWS;
       return rows.find((r) => r.id === id) ?? rows.find((r) => r.cls === id) ?? null;
     },
     modeOf(id: string): string | null {
@@ -338,5 +243,14 @@ export function installPolicyStore(win: PolicyWindow, held: () => PoliciesSurfac
       return !!surface();
     },
   };
-  win.POLICY = store;
+}
+
+/** The workspace's charter as the chips and the matrix read it. */
+export type PolicyStore = ReturnType<typeof policyStoreOver>;
+
+declare module "./provided" {
+  interface BridgeParts {
+    /** The workspace's charter (installPolicyStore), answered from the settings read's rows. */
+    policy: PolicyStore;
+  }
 }

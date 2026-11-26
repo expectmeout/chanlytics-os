@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
-import { provide } from "./provided";
+import { provide, provided } from "./provided";
 import { holdWhoIsLooking, whoIsLooking, type Workspace } from "./who";
 
 declare module "./provided" {
@@ -30,6 +30,8 @@ declare module "./provided" {
     workspace: WorkspaceApi;
     /** A zone's words and this device's zone, an environment's answer. */
     tz: TzApi;
+    /** Who is acting: the role every gate asks (installRoleStore, completed by installIdentity). */
+    roles: RoleStore;
   }
 }
 
@@ -91,13 +93,6 @@ export interface RoleStore {
   set?: (k: string, v: unknown) => void;
 }
 
-declare global {
-  interface Window {
-    /** The session stores settings.jsx makes (the role store is the one this module completes). */
-    ST_STORE?: RoleStore;
-  }
-}
-
 /**
  * The role the person is acting as. A workspace read that gave a member is the real role, and View-as previews a lower
  * one on top of it (owner-only, client-side, harmless: the server checks again with requireRole). Without one, anyone is a
@@ -116,8 +111,8 @@ export function roleOf(input: {
  * the store's own View-as. After the manifest (which makes the store), before React draws. Answers nothing where there is
  * no store (a test's window); the standalone mockup has no bridge, and keeps settings.jsx's own reading.
  */
-export function installRoles(win: Window = window): void {
-  const store = win.ST_STORE;
+export function installRoles(): void {
+  const store = provided("roles");
   if (!store) return;
   store.myRole = () =>
     roleOf({
@@ -151,7 +146,7 @@ export const meVerbs: MeApi = {
 };
 
 export function installIdentity(win: Window = window): void {
-  installRoles(win);
+  installRoles();
   // A zone's words, and this device's zone, an environment's answer a test stands in for.
   provide("tz", {
     words: timezoneWords,
@@ -196,12 +191,11 @@ export type { IdentityInput };
 /* ------------------------------------------------------------------ the role store ------------------------------------------------------------------ */
 
 /*
- * The role store (`window.ST_STORE`), moved here from legacy/pages/settings.jsx with Settings' frame (decision 0015 step
+ * The role store (provided as `roles`), moved here from legacy/pages/settings.jsx with Settings' frame (decision 0015 step
  * 11): which role the member acts as, an owner's preview of a lower one (View as), and the mockup's own member, whom a demo
  * session reads. (It carried the mockup's own team too, four invented people whose methods nothing called; the Team pane
  * reads the settings surface's roster.) Every gate in the app asks it (frame/gate.ts `gate` and `canDo`, frame-verbs `actingRole`), so the
- * app installs it at boot, before any page draws (seed-globals.ts), under the name the JSX made it by; installIdentity
- * above completes it.
+ * app installs it at boot, before any page draws (bridge/boot/installs.ts); installIdentity above completes it.
  */
 
 /** The session store: what the JSX made (FL_STORE's pattern -- survives a move, resets on a reload). */
@@ -255,7 +249,7 @@ function makeRoleStore(): SessionStore {
   };
 }
 
-/** The role store on the window, made once: a store already there (a test's, the mockup's) is kept, as the JSX kept it. */
-export function installRoleStore(win: Window = window): void {
-  win.ST_STORE = win.ST_STORE || makeRoleStore();
+/** The role store, made once: one already held (a test's stand-in) is kept. */
+export function installRoleStore(): void {
+  if (!provided("roles")) provide("roles", makeRoleStore());
 }

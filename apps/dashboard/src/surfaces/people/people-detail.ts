@@ -28,6 +28,8 @@ import { bootWaitsFor } from "@/bridge/hearing/page-waits";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { afterBoot, getActiveWorkspace, routeOnScreen } from "@/bridge/workspace";
 import { provide } from "@/bridge/provided";
+import { DealSheetHost, StepSheetHost, askDealSheet, askStepSheet } from "./sheets/doors";
+import { plScopeRoute, plScopes } from "./words";
 import { whoIsLooking } from "@/bridge/who";
 
 declare module "@/bridge/provided" {
@@ -36,7 +38,19 @@ declare module "@/bridge/provided" {
     personNotes: PersonNotesCourier;
     /** A deal's acts as a thread's Deal group offers them, and their words. */
     deal: DealMenuCourier;
+    /** The one deal sheet and the one step sheet, which the frame draws once, and the asks that open them. */
+    sheets: PeopleSheets;
+    /** People's scopes and the route of each, for where a route stands on the frame's strip of views. */
+    peopleScopes: { list: typeof plScopes; routeOf: typeof plScopeRoute };
   }
+}
+
+/** People's two sheets as the frame draws them, and what opens each from anywhere (sheets/doors.tsx). */
+interface PeopleSheets {
+  DealHost: typeof DealSheetHost;
+  StepHost: typeof StepSheetHost;
+  openDeal: typeof askDealSheet;
+  openStep: typeof askStepSheet;
 }
 
 /**
@@ -754,4 +768,11 @@ export function installPeopleCourier(): void {
   });
   provide("personNotes", { done: markStepDone, dueDay: dueStepDay });
   provide("deal", { menu: dealMenuActs, actWords: DEAL_ACT_WORDS });
+  provide("sheets", {
+    DealHost: DealSheetHost,
+    StepHost: StepSheetHost,
+    openDeal: askDealSheet,
+    openStep: askStepSheet,
+  });
+  provide("peopleScopes", { list: plScopes, routeOf: plScopeRoute });
 }

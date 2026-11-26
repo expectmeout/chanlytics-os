@@ -1,18 +1,21 @@
 /**
  * What a surface asks of the frame around it (decision 0015).
  *
- * A TSX surface reads no `window.*` name, so what the frame publishes reaches it through here: one function, which calls
- * the window's own where it is, and does the plain thing where it is not (the standalone mockup, a test's stand-in window).
- * The doors to a route and to Ask (`navigate`, `askAbout`, `openAsk`) are the bridge's own (surfaces/frame-doors.ts), named
- * here for the surfaces that import them from this file. A surface never reads the window itself; it imports this.
+ * What the frame's parts are, a surface imports from here: the frame's own (the role gate, the toast, a thumb's gestures,
+ * a link to a route) by their modules, and what the bridge installs (the role store, the charter, the address, a sheet of
+ * People's) from the bridge's store (bridge/provided.ts), where a test hands in its stand-in. Nothing is read off the
+ * window (decision 0151). The doors to a route and to Ask (`navigate`, `askAbout`, `openAsk`) are the bridge's own
+ * (surfaces/frame-doors.ts), named here for the surfaces that import them from this file.
  */
-import type { KeyboardEvent, MouseEvent, ReactNode, RefCallback } from "react";
+import type { MouseEvent, ReactNode, KeyboardEvent } from "react";
+import { flushSync } from "react-dom";
 import type { AskApi } from "../bridge/ask";
 import { policiesNow } from "./settings/business/shell";
-import { workspacePath } from "@chanlytics/contracts";
 import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
-import type { SwipeHandlers, SwipeOptions } from "./kit/motion/swipe";
 import { BACK_SETTLE_MS } from "./kit/sheet/back";
+import { usePPToast } from "./frame/flash";
+import { canDo } from "./frame/gate";
+import { CHANLY } from "./frame/constants";
 import { provided } from "@/bridge/provided";
 import { whoIsLooking, type Me } from "@/bridge/who";
 import type { Params, RouteKey } from "@/client/api";
@@ -33,33 +36,34 @@ export interface FrameFlash {
   once?: string;
 }
 
-declare global {
-  interface Window {
-    CHANLY?: {
-      nav?: (route: string, opts?: { replace?: boolean; quiet?: boolean }) => void;
-      /** The frame's address (surfaces/frame-doors.ts): `hear` follows the route on screen, and answers the stop. */
-      address?: { hear?: (fn: () => void) => () => void };
-    };
-    canDo?: (action: string) => boolean;
-    holdStill?: (el: Element | null | undefined, change: () => void) => void;
-    usePPToast?: () => [ReactNode, (flash: FrameFlash) => void];
-  }
-}
-
 /*
  * Go to a route, open Ask, open Ask about something: the doors every page uses are the bridge's (bridge/workspace.ts), which
  * the frame fills as it renders. They are named here too, with the verbs a surface already imports from this file.
  */
 export { askAbout, backFrom, navigate, openAsk };
 
+/*
+ * The frame's own parts a surface's controls take: the role gate (frame/gate.ts), a thumb's gestures and a change that
+ * holds the control still (kit/motion), an overlay played out as it goes, Enter and Space as a press (kit/focus), a link
+ * to a route (frame-doors.ts) and the toast a refusal raises (frame/flash.tsx). Imported, as every page loads them.
+ */
+export { canDo, gate, gatedProps, gateTitle, mayAtLeast } from "./frame/gate";
+export { touchSwipe } from "./kit/motion/swipe";
+export { holdStill } from "./kit/motion/hold-still";
+export { leaving } from "./kit/motion/leaving";
+export { keyPress } from "./kit/focus/keys";
+export { routeDoor } from "./frame-doors";
+export { refusalToast } from "./frame/flash";
+
 /** The role the member is acting as, View-as included (the role store's `myRole`); a role nobody can read is a viewer's. */
 export function actingRole(): string {
-  return window.ST_STORE && window.ST_STORE.myRole ? window.ST_STORE.myRole() : "viewer";
+  const store = provided("roles");
+  return store && store.myRole ? store.myRole() : "viewer";
 }
 
 /** The lower role an owner is previewing (the role store's View-as), or null to act as who they are. */
 export function viewAsRole(): string | null {
-  return (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
+  return provided("roles")?.viewAsRole || null;
 }
 
 /** Hear the role store change (View-as, the mockup's roster): what a page that draws by the acting role redraws on. */
@@ -76,11 +80,6 @@ export function shellSignOut(): boolean {
   return true;
 }
 
-/** Whether the person acting may do what a role gate names (frame/gate.ts `canDo`): with no role store, they may. */
-export function canDo(action: string): boolean {
-  return window.canDo ? window.canDo(action) : false;
-}
-
 /**
  * Whether a pointer that reaches a row or a door warms what it opens: a mouse or a pen resting on it, never a finger. A touch
  * starts a scroll, or a swipe across a strip, far more often than a tap, and each warm read a person or a view whole on the
@@ -90,34 +89,23 @@ export const warmsOnReach = (e: { pointerType?: string } | null | undefined): bo
   !e || e.pointerType !== "touch";
 
 /**
- * A change that moves what is drawn beside the control that made it, run so the control stays where it was (kit/motion
- * `holdStill`); where the page has no such verb, just the change.
- */
-export function holdStill(control: Element | null | undefined, change: () => void): void {
-  if (window.holdStill) window.holdStill(control, change);
-  else change();
-}
-
-/**
- * A change drawn at once (React's flushSync, which the shell publishes with its React), so what follows it in the same
- * press finds the page as it now stands: the folded reply box opened before its field takes the caret. Else just run.
+ * A change drawn at once (React's flushSync), so what follows it in the same press finds the page as it now stands: the
+ * folded reply box opened before its field takes the caret.
  */
 export function drawnNow(change: () => void): void {
-  const flush = window.ReactDOM?.flushSync;
-  if (flush) flush(change);
-  else change();
+  flushSync(change);
 }
 
 /**
  * Move the address (`move`: a sheet's close, which may be a Back), then run `then` once the route on screen has moved
- * (the frame's address, `CHANLY.address.hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
+ * (the bridge's address, the provided `shell`'s `hear`: a Back as its popstate lands, a page's move as it is made), once. A Back
  * lands a moment after it is asked for, so what follows it waits for it. A move that has not moved the route within that
  * moment moved nothing (a close of what the address does not name), and `then` runs there, since it is what the person
  * pressed for; nothing listens after, so no later move of theirs runs it. A move that throws leaves nothing listening,
  * and nothing follows it. Where the frame hears no address (the standalone mockup), `then` follows the move at once.
  */
 export function afterMove(move: () => void, then: () => void): void {
-  const hear = window.CHANLY?.address?.hear;
+  const hear = provided("shell")?.hear;
   if (!hear) {
     move();
     then();
@@ -148,11 +136,11 @@ export function afterMove(move: () => void, then: () => void): void {
 }
 
 /**
- * Hear the route on screen move (the frame's address, `CHANLY.address.hear`: a page's own move, which no popstate says,
+ * Hear the route on screen move (the bridge's address, the provided `shell`'s `hear`: a page's own move, which no popstate says,
  * and a Back): what a part over the page follows, the lead sheet's `?lead=` among them. Nothing where the frame hears none.
  */
 export function hearPageMoves(fn: () => void): () => void {
-  const hear = window.CHANLY?.address?.hear;
+  const hear = provided("shell")?.hear;
   return hear ? hear(fn) : () => undefined;
 }
 
@@ -205,50 +193,14 @@ export function canRefreshSurfaces(): boolean {
   return !!provided("refreshSurface");
 }
 
-/** The shell's toast: its node, to be drawn by the page, and the flash that raises one. Nothing to draw where the shell has none. */
+/** The shell's toast (frame/flash.tsx `usePPToast`): its node, to be drawn by the page, and the flash that raises one. */
 export function useFrameToast(): [ReactNode, (flash: FrameFlash) => void] {
-  return window.usePPToast ? window.usePPToast() : [null, () => undefined];
+  return usePPToast();
 }
 
 /* ------------------------------ what the kit's shared components ask of the shell ------------------------------ */
 
-/*
- * StatePill, Confirm, MoreMenu, PolicyChip and TlMedia moved from data-bits.jsx into the kit (decision 0015, "what is
- * shared moves once"): the pages that have not moved still draw them by name off `window`, and a surface that has moved
- * imports them, so there is one component. What each still asks of the shell goes through the accessors below, which
- * read the window when they are asked (never when this loads) and do what the JSX did where the shell has none. Each is
- * a line to delete with its owner: the honesty gate with the role store, the charter and the trust digest with the
- * policy store and the Reports data, the media link with the frame's client, the route with the frame.
- */
-
-/*
- * The three readers of a name off the window, the one set there is (OW6): every file that reads a name the shell published
- * reads it through these, and the surfaces' own `shell.ts` files name them as they use them (shell-doors.ts).
- */
-
-/** A name off the window, whatever it holds. */
-export const windowValue = (name: string): unknown => Reflect.get(window, name);
-
-/** A function the shell published, or nothing where it has not. */
-export function windowFn<A extends unknown[], R>(name: string): ((...args: A) => R) | undefined {
-  const v = windowValue(name);
-  return typeof v === "function" ? (v as (...args: A) => R) : undefined;
-}
-
-/** An object the shell published, or nothing where it has not. */
-export function windowObject<T extends object>(name: string): T | undefined {
-  const v = windowValue(name);
-  return typeof v === "object" && v !== null ? (v as T) : undefined;
-}
-
-/**
- * The props of a control that refuses, with the sentence that says why (frame/gate.ts `gatedProps`): focusable, described,
- * inert, and pressing it shows the reason at the control (the provided `tip`). None where the shell has no role gate.
- */
-export function gatedProps(reason: string): Record<string, unknown> {
-  const g = windowFn<[string], Record<string, unknown>>("gatedProps");
-  return g ? g(reason) : {};
-}
+/* ------------------------------ what the kit's shared components ask of the frame ------------------------------ */
 
 /** Whether the bridge can build a link to a route at all (the provided `href`): a page drawn alone cannot. */
 export function hasHref(): boolean {
@@ -268,7 +220,7 @@ export interface PolicyRow {
   locked?: boolean;
 }
 
-/** The workspace's policy store (`window.POLICY`), on the mockup's own interface: the app answers it from the workspace's rows. */
+/** The workspace's policy store (the provided `policy`), on the mockup's own interface: the app answers it from the workspace's rows. */
 interface PolicyStore {
   row(id: string): PolicyRow | null;
   modeOf(id: string): string | null;
@@ -277,23 +229,7 @@ interface PolicyStore {
 
 /** The policy store, or nothing where the shell has none. */
 export function policyStore(): PolicyStore | undefined {
-  return windowObject<PolicyStore>("POLICY");
-}
-
-/** One class's figures in the trust digest: what it sent on its own. */
-interface TrustRow {
-  sent: number;
-}
-
-/** The trust digest (`window.TRUST`), the mockup's seeded table. */
-interface TrustTable {
-  cls(id: string): TrustRow | null | undefined;
-  rate(t: TrustRow): number;
-}
-
-/** The trust digest, or nothing where the shell has none. */
-export function trustTable(): TrustTable | undefined {
-  return windowObject<TrustTable>("TRUST");
+  return provided("policy");
 }
 
 /**
@@ -304,10 +240,9 @@ export function policiesRead(): boolean {
   return policiesNow() !== undefined;
 }
 
-/** Go to Settings > Autonomy, as the policy chip does (`CHANLY.nav(CHANLY.R.admin("autonomy"))`); nowhere without the frame. */
+/** Go to Settings > Autonomy, as the policy chip does. */
 export function openAutonomy(): void {
-  const routes = windowObject<{ R?: { admin?: (pane: string) => string } }>("CHANLY")?.R;
-  if (routes?.admin) navigate(routes.admin("autonomy"));
+  navigate(CHANLY.R.admin("autonomy"));
 }
 
 /**
@@ -341,67 +276,12 @@ export type GateProps = {
   onPointerCancel?: undefined;
 };
 
-/** What a link to a route spreads (frame-doors.ts `routeDoor`): the address in its href, the app's own way there on a plain press. */
-interface RouteDoor {
-  href: string;
-  onClick: (e?: MouseEvent<HTMLElement>) => void;
-  onPointerEnter?: () => void;
-  onFocus?: () => void;
-}
-
-/** A refusal, as the toast raises it (contracts `refusalOf`): a title for the kind of no, and the sentence in the owner's words. */
-interface Refusal {
-  title?: string | null;
-  message?: string | null;
-}
-
-/** What the deal sheet is asked for, from anywhere (`window.openDealSheet`, components/deal-sheet.jsx). */
+/** What the deal sheet is asked for, from anywhere (`openDealSheet` below, People's sheet). */
 export interface DealSheetAsk {
   personId: string;
   mode: string;
   service?: string;
   dealId?: string | null;
-}
-
-declare global {
-  interface Window {
-    gate?: (action: string, doing?: string) => GateProps;
-    gateTitle?: (action: string, doing?: string) => string;
-    mayAtLeast?: (rung: string) => boolean;
-    touchSwipe?: (options: SwipeOptions) => SwipeHandlers;
-    leaving?: (key: string) => RefCallback<HTMLElement>;
-    trapFocus?: (box: HTMLElement | null) => () => void;
-    keyPress?: (fn: (e: KeyboardEvent<HTMLElement>) => void) => (e: KeyboardEvent<HTMLElement>) => void;
-    routeDoor?: (to: string, go?: ((to: string) => void) | null) => RouteDoor;
-    refusalToast?: (r: Refusal | null | undefined, what?: string | null) => FrameFlash;
-    useHotkey?: (matcher: (e: KeyboardEvent, typing: boolean) => boolean, handler: (e: KeyboardEvent) => void) => void;
-    openDealSheet?: (ask: DealSheetAsk) => void;
-  }
-}
-
-/** A role gate's props for a control (frame/gate.ts `gate`); where the shell has no role store, the control is not gated. */
-export function gate(action: string, doing?: string): GateProps {
-  return window.gate ? window.gate(action, doing) : {};
-}
-
-/** The sentence a role's refusal says (frame/gate.ts `gateTitle`), for a control that explains itself its own way. */
-export function gateTitle(action: string, doing?: string): string {
-  return window.gateTitle ? window.gateTitle(action, doing) : "Your role can't do this.";
-}
-
-/** Whether the member, as they are acting (View-as included), stands on this rung or above (frame/gate.ts `mayAtLeast`). */
-export function mayAtLeast(rung: string): boolean {
-  return window.mayAtLeast ? window.mayAtLeast(rung) : false;
-}
-
-/** A thumb's gestures for an element (kit/motion/swipe.ts `touchSwipe`); none where the shell has none. */
-export function touchSwipe(options: SwipeOptions): SwipeHandlers {
-  return window.touchSwipe ? window.touchSwipe(options) : {};
-}
-
-/** Whether the shell takes a thumb's gestures at all (kit/motion/swipe.ts `touchSwipe`): a row slides only where it does. */
-export function hasTouchSwipe(): boolean {
-  return !!window.touchSwipe;
 }
 
 /*
@@ -481,33 +361,6 @@ export function keepTouch<H extends object>(handlers: H): H {
   return kept as H;
 }
 
-/** The ref that plays an overlay out as React lets go of it (kit/motion/leaving.ts `leaving`), one per key. */
-export function leaving(key: string): RefCallback<HTMLElement> | undefined {
-  return window.leaving ? window.leaving(key) : undefined;
-}
-
-/** Enter and Space, pressed on the element itself, as a press (kit/focus/keys.ts `keyPress`). */
-export function keyPress(fn: (e: KeyboardEvent<HTMLElement>) => void): (e: KeyboardEvent<HTMLElement>) => void {
-  return window.keyPress ? window.keyPress(fn) : () => undefined;
-}
-
-/** A link to a route: its address in the href, and the app's own way there on a plain press (frame-doors.ts `routeDoor`). */
-export function routeDoor(to: string, go?: ((to: string) => void) | null): RouteDoor {
-  if (window.routeDoor) return window.routeDoor(to, go);
-  // The shell's own is not there: the address a workspace's route has (`/w/<slug>/<route>`, the one workspace.ts
-  // `hrefOfRoute` and the frame's `address.href` give), which a long press or a new tab opens, not the retired `#/` one;
-  // the hash only where there is no workspace page (the mockup).
-  const slug = /^\/w\/([^/?#]+)/.exec(window.location?.pathname ?? "")?.[1];
-  return { href: slug ? workspacePath(decodeURIComponent(slug), to) : `#/${to}`, onClick: () => navigate(to) };
-}
-
-/** A refusal as the toast raises it: always the danger tone, the page's words first (frame/flash.tsx `refusalToast`). */
-export function refusalToast(r: Refusal | null | undefined, what?: string | null): FrameFlash {
-  return window.refusalToast
-    ? window.refusalToast(r, what)
-    : { tone: "danger", msg: r?.message ?? "That didn't go through." };
-}
-
 /*
  * What Ask is told is on screen (what Ask reads when it opens) is one ledger with one writer and one reader
  * (bridge/ask/on-screen.ts): a page says what it drew as it draws, and takes it back, only if it is its own, as it
@@ -515,9 +368,9 @@ export function refusalToast(r: Refusal | null | undefined, what?: string | null
  */
 export { askOnScreenKey, setAskOnScreen } from "../bridge/ask/on-screen";
 
-/** Ask for the one deal sheet (components/deal-sheet.jsx); nothing where the shell has none. */
+/** Ask for the one deal sheet (People's, the provided `sheets`); nothing where People's courier is not installed. */
 export function openDealSheet(ask: DealSheetAsk): void {
-  window.openDealSheet?.(ask);
+  provided("sheets")?.openDeal(ask);
 }
 
 /**
@@ -525,7 +378,7 @@ export function openDealSheet(ask: DealSheetAsk): void {
  * replaced by the route, and Back leaves the page rather than replaying every item it opened.
  */
 export function replaceRoute(route: string): void {
-  window.appNavigate?.(route, { replace: true });
+  navigate(route, { replace: true });
 }
 
 /** Who is acting, as the workspace read said (bridge/who.ts); null before it lands. */
