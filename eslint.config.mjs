@@ -451,6 +451,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/ask/memory",
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/ask/skills",
+  "packages/contracts/src/calendar",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
   "packages/contracts/src/jobs",
@@ -518,7 +519,8 @@ export const LIMITED_TREES = [
  * class takes six. Contracts' conversations and people's person-row joined on 25 November 2026, the day the call's and
  * a person's rows were split: a thread's view model takes five, a person's row six. Contracts' deals joined on 25
  * November 2026, the day the deal sheet was split: six take five (the pipeline's three, the deal card's two, the
- * sheet's own).
+ * sheet's own). Contracts' calendar joined on 25 November 2026, the day its week and its feed's reader were split: five
+ * take five (a block, the rule's occurrences, a run's day, a person's visit facts, a freed time).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -528,6 +530,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
+  "packages/contracts/src/calendar",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
   "packages/contracts/src/deals",
