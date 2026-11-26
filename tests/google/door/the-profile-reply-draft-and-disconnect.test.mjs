@@ -362,6 +362,66 @@ test("refresh under Ask me (decision 0064): the reply is written and held for an
   assert.deepEqual([row.posts_at, row.draft_text], [null, "Thank you, Rosa."]);
 });
 
+test("refresh under Never: no reply is written, held or posted, and the model is never asked", async () => {
+  // Pinned as review-answers.ts's text in google/review-reply.test.mjs until 26 Nov 2026.
+  const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
+  const tables = autoModeWorld(unanswered, "never");
+  use(tables, new Map([[A, liveCreds()]]));
+  const model = scripted(said("Thank you, Rosa."));
+  setModelFetch(model.fetch);
+  const net = google({
+    reviews: [{ ...GBP_REVIEW, createTime: unanswered.published_at, updateTime: unanswered.published_at }],
+  });
+  const [status, body] = await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () =>
+    answer(await knock({ op: "refresh" })),
+  );
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(body.read.answered, 0);
+  assert.equal(model.calls.length, 0, "the model is not asked");
+  assert.deepEqual(
+    net.asked().filter(([method]) => method === "PUT"),
+    [],
+    "nothing posted",
+  );
+  const row = tables.google_reviews.find((r) => r.id === R1);
+  assert.deepEqual([row.draft_text, row.reply_text, row.posts_at], [null, null, null], "nor written, nor held");
+  assert.deepEqual(
+    tables.notifications.filter((n) => n.kind === "review"),
+    [],
+    "and nothing to tell",
+  );
+});
+
+test("a reply is written from the business's own facts: the receptionist's name for it and the number it gives, else the workspace's name", async () => {
+  // Pinned as review-answers.ts's text in google/review-reply.test.mjs until 26 Nov 2026.
+  const told = async (config) => {
+    const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
+    const tables = autoModeWorld(unanswered);
+    if (config) tables.tenant_config = [{ tenant_id: A, config }];
+    use(tables, new Map([[A, liveCreds()]]));
+    const model = scripted(said("Thank you, Rosa."));
+    setModelFetch(model.fetch);
+    google({ reviews: [{ ...GBP_REVIEW, createTime: unanswered.published_at, updateTime: unanswered.published_at }] });
+    await withEnv({ ANTHROPIC_API_KEY: "model-key-for-this-file" }, async () => answer(await knock({ op: "refresh" })));
+    assert.equal(model.calls.length, 1);
+    return JSON.stringify(model.calls[0].body);
+  };
+  const brain = {
+    business_name: "Harbor Moving & Storage",
+    phone_display: "(212) 555-0142",
+    system_prompt: "Answer as the front desk of Harbor Moving & Storage: brief and warm, and never guess a price.",
+    fallbacks: { greeting: "g", error: "e", non_text: "n" },
+  };
+  const own = await told({ brain });
+  assert.ok(own.includes("Harbor Moving & Storage"), "the receptionist's name for the business");
+  assert.ok(own.includes("(212) 555-0142"), "and the number it gives");
+  const bare = await told(null);
+  assert.ok(
+    bare.includes("Harbor Moving") && !bare.includes("555-0142"),
+    "no receptionist yet: the workspace's own name",
+  );
+});
+
 test("refresh under the auto mode: a reply that names a price is held, not posted: the review waits for its owner, with the reason filed under it that the Reviews report reads", async () => {
   const unanswered = reviewRow(R1, { published_at: ago(2 * HOUR), first_seen_at: ago(HOUR) });
   const tables = autoModeWorld(unanswered);

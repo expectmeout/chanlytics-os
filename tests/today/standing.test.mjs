@@ -5,7 +5,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { standingOf, personStateFor, threadStanding } from "@chanlytics/contracts";
-import { readCode } from "../_source.mjs";
 
 const NOW = Date.parse("2026-09-06T20:00:00Z");
 const H = 3_600_000;
@@ -112,53 +111,8 @@ test("the three surfaces agree on the filler's cases", () => {
   );
 });
 
-test("the wiring: every surface reads the one function, and Today's queue is named for what it holds", () => {
-  for (const [file, s] of [
-    // A thread's columns reach standingOf through standingOfThread (standing.ts), a People row's through personStanding.
-    ["packages/contracts/src/conversations/standing.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/conversations/inbox-thread/waits.ts", /standingOfThread\(/],
-    ["packages/contracts/src/people/person-state.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/today/facts.ts", /standingOfThread\(/],
-  ])
-    assert.ok(s.test(readCode(file)), `${file} reads standingOf`);
-  // Today's view model, in the modules today.ts was split into: contracts' own, and the period line and the leaks,
-  // which are Today's page's alone (layer 3).
-  const today = [
-    ...[
-      "metrics",
-      "vm",
-      "clock",
-      "facts",
-      "figures",
-      "rows",
-      "queue",
-      "brief",
-      "day/frame",
-      "day/zone",
-      "runs",
-      "away",
-      "to-do",
-    ].map((m) => `packages/contracts/src/today/${m}.ts`),
-    "apps/dashboard/src/surfaces/today/period.ts",
-    "apps/dashboard/src/surfaces/today/leaks.ts",
-  ]
-    .map((f) => readCode(f))
-    .join("\n");
-  assert.ok(
-    !today.includes("live.escalations_open"),
-    "Today no longer counts the SQL's open escalations — it counts the threads that need you",
-  );
-  const page = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-  // The queue is named for what it holds (Today in three zones, 2 Nov 2026): since Today, calm (19 Nov 2026) its lines are
-  // one list under the card, with no head drawn, so it is named to a reader, and what is past the lines it names is counted
-  // by kind in the one line under them.
-  assert.ok(
-    page.includes('<CalmList label={W.title} testid="today-queue">') && page.includes("<AlsoLine"),
-    "the queue says what it holds",
-  );
-  const band = readCode("apps/dashboard/src/surfaces/today/zones/alert.tsx");
-  assert.ok(
-    !band.includes('"Queue clear — nothing needs you"'),
-    "the queue says it once: the band above the work is for what cannot wait, never that nothing does",
-  );
-});
+// Every surface reads the one function: a rule of the repository (one predicate per rule), held in
+// tests/repo/standing-is-one-predicate.test.mjs since 26 Nov 2026. Today counts the threads that need you, never the
+// SQL's open escalations: run over its view model in today-vm.test.mjs. The queue is named for what it holds, a list
+// under the card with what is past its lines counted in one line: drawn in today/page/ ("today-queue", "today-also"),
+// and the band above the work says nothing while nothing cannot wait (today-day.test.mjs, "the hero says nothing").

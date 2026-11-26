@@ -47,6 +47,7 @@ const NOW = Date.parse("2026-09-08T16:00:00.000Z");
 const CALENDAR = { vm: { bookingLink: "https://book.example/luna" }, fetchedAt: 1 };
 
 test("the Calendar's read is one typed value in the seam, and nothing of it is on the window: Today and the Business tab read it there", () => {
+  assert.equal(calendarOverride.key, "calendar", "one override, under the Calendar's key");
   assert.equal(calendarOverride.value, "calendar", "the cache keeps the typed value beside the surface's snapshot");
   assert.equal(calendarOverride.globals, undefined, "and there is no window global the surface owns any more");
   assert.equal(values.surfaceValue("calendar"), undefined, "before the first read there is nothing");

@@ -385,6 +385,14 @@ test(
       for (let n = 1; n <= 6; n++) await found(s.search_id, leg.id, 900 + n);
       await ended(leg.id, "target_reached");
       assert.equal((await round(leg.id)).ending, "month_leads_used", "six of ten: the month's leads, never found");
+      // The bell says why it stopped short, in the month's words (00628; pinned as its text in leads/lists/lead-lists.db
+      // until 26 Nov 2026).
+      const [ring] = await rang(leg.id);
+      assert.match(
+        ring?.title ?? "",
+        /stopped: this month's leads are used$/,
+        "and the bell says the month's leads ran out",
+      );
     } finally {
       // The month as it was, so no case after this one is short of leads.
       ok(await db.from("lead_counters").update({ used: was.used }).eq("id", was.id), "the month put back");
