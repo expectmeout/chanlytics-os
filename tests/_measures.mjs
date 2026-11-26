@@ -609,6 +609,9 @@ export const MEASURES = [
     advice:
       "Name the length of time: a whole minute, hour or day from contracts' shared/time.ts (5 * MIN_MS, DAY_MS), anything else a constant in its module that says what it is (const RETRY_MS = 800; const LEASE_MS = 5 * MIN_MS). A value that is not a time says its unit in its name (RADIUS_MAX_M, TAB_TOTAL_CHARS).",
   },
+  // One is left, argued (26 Nov 2026): the phone app's widget (apps/mobile/src/shell/widget.ios.ts) says its "as of" in
+  // the phone's own clock, since the widget's runtime has no workspace zone. It is counted, and it waits for the phone
+  // app, paused since 7 Oct 2026, whose change nothing but a phone build could prove.
   {
     name: "dates said with no zone",
     key: "zoneless-dates",
