@@ -15,7 +15,7 @@
  */
 import { minorPerUnit, valueAt } from "@chanlytics/contracts";
 import type { AdAccountStanding } from "@chanlytics/contracts";
-import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { isMetaId, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 
 /* ------------------------------------------------------------------- money */
@@ -70,9 +70,8 @@ export function metaDecimalToMinor(amount: unknown, currency: string): number | 
 
 /** Meta's id for an ad account, bare: digits alone, whether it came with its `act_` or without. */
 export const metaAccountId = (id: string): string => id.replace(/^act_/, "");
-const account = (id: string): string => `act_${encodeURIComponent(metaAccountId(id))}`;
 /** An ad account's own address under the Graph, `act_<id>`: where its campaigns, ad sets, creatives and ads are made. */
-export const metaAccountPath = (id: string): string => account(id);
+export const metaAccountPath = (id: string): string => `act_${encodeURIComponent(metaAccountId(id))}`;
 
 /**
  * What an account is asked for: only what the saved sign-in's five permissions reach. The business that owns it is not
@@ -86,7 +85,7 @@ const ACCOUNT_FIELDS =
 /** One ad account as Meta describes it: its name, currency and zone, its standing, its payment method and its limit. */
 export function metaAdAccountRequest(token: string, appSecret: string, accountId: string): MetaRequest {
   return {
-    url: metaGraphUrl(account(accountId), { fields: ACCOUNT_FIELDS, ...metaProofQuery(token, appSecret) }),
+    url: metaGraphUrl(metaAccountPath(accountId), { fields: ACCOUNT_FIELDS, ...metaProofQuery(token, appSecret) }),
     method: "GET",
   };
 }
@@ -94,7 +93,7 @@ export function metaAdAccountRequest(token: string, appSecret: string, accountId
 /** The Pages whose ads have run from an ad account: what tells the account a Page's ads run from. */
 export function metaPromotedPagesRequest(token: string, appSecret: string, accountId: string): MetaRequest {
   return {
-    url: metaGraphUrl(`${account(accountId)}/promote_pages`, {
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/promote_pages`, {
       fields: "id",
       limit: "50",
       ...metaProofQuery(token, appSecret),
@@ -144,10 +143,6 @@ export function metaPageRequest(
 
 /* ----------------------------------------------------------------- answers */
 
-const ID = /^\d{5,32}$/;
-/** Whether a string is an id as Meta writes one: digits alone. */
-export const isMetaId = (id: string): boolean => ID.test(id);
-
 /**
  * Meta's number for where an account stands, in Chanlytics' words (the ad account's `account_status`, read on Meta's
  * page). Meta still shows an account's ads while a payment settles (8) or in its grace period (9), so both are `grace`.
@@ -186,7 +181,7 @@ export function parseMetaAdAccount(json: unknown): MetaAdAccount {
   const id = metaText(valueAt(o, "account_id"));
   const currency = metaText(valueAt(o, "currency")).toUpperCase();
   const timezone = metaText(valueAt(o, "timezone_name"));
-  if (!ID.test(id) || !/^[A-Z]{3}$/.test(currency) || !timezone)
+  if (!isMetaId(id) || !/^[A-Z]{3}$/.test(currency) || !timezone)
     throw new Error(metaErrorOf(json)?.message ?? "Meta did not describe the ad account");
   const status = valueAt(o, "account_status");
   const limit = metaUnitsToMinor(valueAt(o, "spend_cap"), currency);
@@ -206,7 +201,7 @@ export function parseMetaAdAccount(json: unknown): MetaAdAccount {
 function idsOf(json: unknown, key: string, what: string): string[] {
   const data = valueAt(metaObject(json), "data");
   if (!Array.isArray(data)) throw new Error(metaErrorOf(json)?.message ?? `Meta did not list ${what}`);
-  return data.map((row) => metaText(valueAt(metaObject(row), key))).filter((id) => ID.test(id));
+  return data.map((row) => metaText(valueAt(metaObject(row), key))).filter((id) => isMetaId(id));
 }
 
 /** The ad accounts a business shared, by Meta's bare id. */
@@ -228,7 +223,7 @@ export interface MetaPage {
 export function parseMetaPage(json: unknown): MetaPage {
   const o = metaObject(json);
   const id = metaText(valueAt(o, "id"));
-  if (!ID.test(id)) throw new Error(metaErrorOf(json)?.message ?? "Meta did not describe the Page");
+  if (!isMetaId(id)) throw new Error(metaErrorOf(json)?.message ?? "Meta did not describe the Page");
   const digits = metaText(valueAt(o, "whatsapp_number")).replace(/\D/g, "");
   return {
     id,
@@ -241,7 +236,7 @@ export function parseMetaPage(json: unknown): MetaPage {
 /** Meta's id for who a token is (`debug_token`'s `user_id`): what Meta names when a business removes the app. */
 export function parseMetaTokenUser(json: unknown): string | null {
   const id = metaText(valueAt(metaObject(valueAt(metaObject(json), "data")), "user_id"));
-  return ID.test(id) ? id : null;
+  return isMetaId(id) ? id : null;
 }
 
 /** The permissions that reach an ad account, and those that reach a Page: where a token's description names its assets. */
@@ -254,7 +249,7 @@ const PAGE_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_a
  */
 export function metaReachOf(accountsByScope: Record<string, string[]>): { accountIds: string[]; pageIds: string[] } {
   const under = (scopes: readonly string[]): string[] => [
-    ...new Set(scopes.flatMap((scope) => accountsByScope[scope] ?? []).filter((id) => ID.test(id))),
+    ...new Set(scopes.flatMap((scope) => accountsByScope[scope] ?? []).filter((id) => isMetaId(id))),
   ];
   return { accountIds: under(ACCOUNT_SCOPES), pageIds: under(PAGE_SCOPES) };
 }

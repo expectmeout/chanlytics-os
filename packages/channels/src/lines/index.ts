@@ -91,7 +91,7 @@ export {
   verifyTwilioSignature,
 } from "./sms";
 export type { CarrierConsent, SmsInbound, SmsStatus } from "./sms";
-export { fetchTwilio, requestTwilio, TWILIO_TIMEOUT_MS, TwilioError, twilioProvider, twilioUrls } from "./twilio";
+export { requestTwilio, TWILIO_TIMEOUT_MS, TwilioError, twilioProvider, twilioUrls } from "./twilio";
 export { lookupLineType } from "./twilio";
 export type { TwilioAnswer, TwilioHttp } from "./twilio";
 export type { LineTypeAnswer } from "./twilio";

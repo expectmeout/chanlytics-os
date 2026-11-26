@@ -44,6 +44,10 @@ export const trimmedOrNull = (value: unknown): string | null =>
 export const nonBlankOrNull = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value : null;
 
+/** A string with anything in it, exactly as it came, spaces alone included; null for anything else and for "". */
+export const nonEmptyOrNull = (value: unknown): string | null =>
+  typeof value === "string" && value !== "" ? value : null;
+
 /** A plain object (never an array), or an empty one, for a reader that goes on to read its fields. */
 export const recordOrEmpty = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
