@@ -23,8 +23,20 @@ import {
   verbalOptInScript,
   deskSignVM,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { PHONE, cascadeOf, element } from "../_css.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+
+/** The words a drawn page says, its function components called through, in the order it says them. */
+const wordsOf = (n) =>
+  n == null || typeof n === "boolean"
+    ? ""
+    : typeof n !== "object"
+      ? String(n)
+      : Array.isArray(n)
+        ? n.map(wordsOf).join("")
+        : typeof n.type === "function"
+          ? wordsOf(n.type(n.props))
+          : wordsOf(n.props?.children);
 
 const salon = { businessName: "Marisa's Beauty Salon", whatsappE164: "+13055550188", smsE164: null };
 
@@ -320,13 +332,9 @@ test("the sign's markup carries every word of its view model, the code as given,
 });
 
 test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", async () => {
-  const page = readCode("apps/dashboard/app/yes/[slug]/page.tsx");
-  assert.ok(page.includes("const facts = await findConsentPage(slug);") && page.includes("if (!facts) notFound();"));
-  assert.ok(
-    page.includes("return consentPageMetadata(await findConsentPage(slug));"),
-    "for the people given the link, not for a search result: contracts' rule, run in public-page-titles.test.mjs",
-  );
-  // What the reader reads (one load, every read thrown, only selects) and what the page draws (no field, no form) are run
+  // The page asks its reader for the slug, draws for a workspace that answers and is Not found for one that does not, and
+  // its tab is contracts' rule, for the people given the link and never for a search result: run by its slug in
+  // public/the-pages-answer-for-their-slug.test.mjs. What the reader reads (one load, every read thrown, only selects) and what the page draws (no field, no form) are run
   // in public/a-paused-workspace-asks-nobody-for-a-yes.test.mjs, over the real readers and the drawn pages.
   // The owner's Get their yes names that address, and says why it is there: drawn (its pane at broadcasts/get-yes,
   // surfaces/campaigns/broadcasts) over a surface that holds it, from this test's workspace.
@@ -379,31 +387,73 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     line.includes("app.chanlytics.com/yes/marisas") && line.includes("the wording the phone networks ask for"),
     line,
   );
-  const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
-  assert.ok(
-    sd.includes("const slug = currentWorkspace()?.slug ?? null;") &&
-      sd.includes("pageUrl: slug ? `${window.location.origin}/yes/${slug}` : null,"),
-    "the address is built from the workspace being viewed",
-  );
-  const css = readRaw("apps/dashboard/app/globals.css");
-  assert.ok(
-    css.includes(".yes-terms {") && css.includes(".yes-ask {"),
-    "the page has its own styles, and the two asks are visibly separate blocks",
-  );
-  assert.ok(
-    /\.yes a\.yes-btn \{\s*color: var\(--accent-fg\);/.test(css),
+  // The address is built from the workspace being VIEWED: Sent's read (surfaces/campaigns/broadcasts/surface.ts), run
+  // over a wire that answers as GET broadcasts does, once for each of two workspaces.
+  const { broadcastsOverride } = await import(`${SRC}/surfaces/campaigns/broadcasts/surface.ts`);
+  const { surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+  const wasFetch = globalThis.window.fetch;
+  globalThis.window.fetch = async (url) => {
+    const at = new URL(String(url), "https://app.chanlytics.com").pathname;
+    const body =
+      at === "/api/v1/broadcasts" ? { ok: true, data: { broadcasts: [], more: false } } : { ok: true, data: {} };
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    await broadcastsOverride.apply();
+    assert.equal(surfaceValue("broadcasts").optIn.pageUrl, "https://app.chanlytics.com/yes/marisas");
+    bridgeHolds({
+      who: {
+        workspaces: [
+          { id: "t-marisa", slug: "marisas", name: "Marisa's", status: "active", timezone: "America/New_York" },
+          { id: "t-harbor", slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" },
+        ],
+        activeWorkspaceId: "t-harbor",
+      },
+    });
+    await broadcastsOverride.apply();
+    assert.equal(
+      surfaceValue("broadcasts").optIn.pageUrl,
+      "https://app.chanlytics.com/yes/harbor",
+      "the address is built from the workspace being viewed",
+    );
+  } finally {
+    globalThis.window.fetch = wasFetch;
+  }
+  // The page's sheet (globals.css, the only one the public pages link), run for its elements as a browser runs it
+  // (tests/_css.mjs).
+  const yes = cascadeOf(["apps/dashboard/app/globals.css"]);
+  const DOC = 'html[data-theme="light"]';
+  for (const block of [".yes-ask", ".yes-terms"]) {
+    const drawn = yes.style(element(DOC, ".yes", block));
+    assert.ok(
+      drawn.padding && drawn.border,
+      `${block}: the page has its own styles, and the two asks are visibly separate blocks`,
+    );
+  }
+  const accentFg = yes.style(element(DOC))["--accent-fg"];
+  assert.equal(
+    yes.style(element(DOC, ".yes", "a.yes-btn")).color,
+    accentFg,
     "REGRESSION: .yes a outranks .yes-btn and painted the button's label teal on teal",
   );
-  // Folded in here because this test already reads the sheet: inside the native app the web's Google door and its
-  // "or" are not drawn (Google refuses OAuth in an embedded WebView). The rule was in mobile.css, which /login never
-  // loads, so the app's email door showed a Google button that could only fail.
-  assert.ok(
-    /html\.in-app \.auth-google,\s*html\.in-app \.auth-or \{\s*display: none;/.test(css),
+  assert.notEqual(yes.style(element(DOC, ".yes", "a")).color, accentFg, "a plain link keeps the accent");
+  // Inside the native app the web's Google door and its "or" are not drawn (Google refuses OAuth in an embedded
+  // WebView). The rule was in mobile.css, which /login never loads, so the app's email door showed a Google button that
+  // could only fail: the sign-in page's one sheet holds it.
+  const inApp = cascadeOf(["apps/dashboard/app/globals.css"], PHONE);
+  const APP = 'html.in-app[data-theme="light"]';
+  assert.deepEqual(
+    [
+      inApp.style(element(APP, ".auth-card", "button.auth-google")).display,
+      inApp.style(element(APP, ".auth-card", ".auth-or")).display,
+    ],
+    ["none", "none"],
     "in-app, the sign-in page hides the web's Google door",
   );
+  assert.notEqual(inApp.style(element(DOC, ".auth-card", "button.auth-google")).display, "none", "a browser keeps it");
 });
 
-test("the pages a carrier reviewer lands on say who the business is", () => {
+test("the pages a carrier reviewer lands on say who the business is", async () => {
   // A real rejection, on the first real campaign this product filed:
   //
   //   [30919] PRIVACY_POLICY_URL — "the campaign submission has been reviewed
@@ -415,7 +465,10 @@ test("the pages a carrier reviewer lands on say who the business is", () => {
   // never once said which company was behind it. A reviewer, a payment
   // processor and a customer all need the same four facts, and none of them
   // were there.
-  const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
+  // The policy as it is served (app/privacy/page.tsx), drawn: the words it says, on a server's React.
+  globalThis.React ??= (await import("react")).default;
+  const { default: PrivacyPage } = await import("../../apps/dashboard/app/privacy/page.tsx");
+  const privacy = wordsOf(PrivacyPage());
   for (const fact of [
     "RJ Capital LLC",
     "193 Jamaica Ave, Brooklyn, NY 11207",
@@ -428,7 +481,7 @@ test("the pages a carrier reviewer lands on say who the business is", () => {
   // rendered from ONE source, because every workspace's own page at /b/<slug>
   // publishes the same ones. Two copies of a compliance sentence is one copy
   // that will be edited and one that will not.
-  assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders the shared clauses");
+  assert.ok(privacy.includes(SMS_CLAUSES.join(" ")), "the policy renders the shared clauses");
   assert.ok(SMS_CLAUSES.some((c) => /Reply STOP to stop and HELP for help/.test(c)));
   assert.ok(SMS_CLAUSES.some((c) => /No mobile information will be shared with third parties/.test(c)));
   assert.ok(SMS_CLAUSES.some((c) => /Message and data rates may apply/.test(c)));

@@ -26,6 +26,7 @@ import {
   CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
+  MIN_MS,
   PEOPLE_LISTS,
   consentSourceLabel,
   OFFERS_YES_SOURCES,
@@ -34,7 +35,7 @@ import {
   STOP_ENDED_OFFERS_SOURCE,
   verbalOptInScript,
 } from "@chanlytics/contracts";
-import { importSrc, readCode } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { personRow } from "./_person-row.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
@@ -176,14 +177,25 @@ test("TWO lists, because there are two answers: one for messages, one for offers
   assert.equal(yes.td.props["data-tip"], yes.p.consent.marketingSub, "and its tip is that answer's own history");
 });
 
-test("the front desk's consent changes take one bucket: sixty a minute", () => {
+test("the front desk's consent changes take one bucket: sixty a minute", async () => {
   // What each consent route does (which door it reaches, whose workspace it names, what its history line says) is run
-  // in consent-paths.test.mjs; who may and how often is each route's declaration, pinned in route-policy.json.
-  assert.ok(
-    readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes(
-      'consent: { limit: 60, windowMs: MIN_MS, noun: "consent changes" }',
-    ),
-  );
+  // in consent-paths.test.mjs; who may and how often is each route's declaration, pinned in route-policy.json. The bucket
+  // itself, run: sixty changes by one person in a minute pass, the sixty-first waits, and the next minute is a new one.
+  const { memoryStore, setRateStore, takeRate } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  setRateStore(memoryStore());
+  try {
+    const at = Date.UTC(2026, 10, 26, 12, 0, 0);
+    for (let i = 0; i < 60; i++) await takeRate("u-front-desk", "consent", at + i * 500);
+    await assert.rejects(takeRate("u-front-desk", "consent", at + 30_000), (e) => {
+      assert.equal(e.code, "rate_limited");
+      assert.match(e.message, /^Too many consent changes in a short time/);
+      return true;
+    });
+    await takeRate("u-other", "consent", at + 30_000);
+    await takeRate("u-front-desk", "consent", at + MIN_MS + 1);
+  } finally {
+    setRateStore(null);
+  }
 });
 
 /* -------------------------------------------------------------------------- *
