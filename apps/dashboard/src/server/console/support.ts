@@ -1,4 +1,4 @@
-import { heldTenantId, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
+import { finiteOrZero, heldTenantId, recordOrEmpty, valueAt, DbFailure } from "@chanlytics/contracts";
 import "server-only";
 
 /**
@@ -373,7 +373,7 @@ export async function markSupport(
     throw new AppError("unavailable", "Couldn't load the requests waiting just now. Try again in a moment.");
   if (!found.data) throw new AppError("not_found", NO_SUCH, 404);
   const code =
-    message.target === "report" ? reportCode((found.data as { number: number }).number) : askCode(message.id);
+    message.target === "report" ? reportCode(finiteOrZero(valueAt(found.data, "number"))) : askCode(message.id);
   const acts: Partial<Record<"answered" | "done" | "reopened", ConsoleAct>> = MARK_ACTS[message.target];
   const act = acts[message.mark];
   if (!act) throw new AppError("validation", "A question is done once it is answered.", 400);

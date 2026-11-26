@@ -17,87 +17,106 @@
  * Two definer functions replace both, and each checks the CALLER's standing
  * itself. That is what makes them safe on the session client, which is the
  * actual win: one fewer privileged path, with the speed as a side effect.
+ *
+ * Run, not read (25 Nov 2026). On the replayed database: the roster refuses anyone who is not a member, carries each
+ * name, and the address lookup ignores case and answers only the platform
+ * (a-person-s-name-is-theirs-to-set-and-their-team-s-to-read.db.test.mjs); no session may call the lookup at all
+ * (database/privileges.db.test.mjs, "lookup_user_for_invite is the service role's"). The invite's lookup is asked by the
+ * platform's client, run in team-writes.test.mjs, where the one auth call left (inviteUserByEmail, the signup email SQL
+ * cannot send) is packages/db's. The functions as 00022 wrote them were pinned here until then; 00068 and 00261 have
+ * written the roster since, and 00121 moved the lookup to the platform.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readRaw, readCode } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { importSrc } from "../_source.mjs";
 
-const sql = readRaw("supabase/migrations/00022_team_reads.sql");
-// With the reads and doors it names, packages/db's (decision 0111).
-const service = readCode(
-  "apps/dashboard/src/server/workspace/team.ts",
-  "packages/db/src/repositories/workspace/team.ts",
-);
-const teamRoute = readCode("apps/dashboard/app/api/v1/team/route.ts");
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const team = await importSrc("apps/dashboard/app/api/v1/team/route.ts");
+const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
 
-/* ------------------------- the functions guard themselves ----------------- */
-
-test("the roster refuses a caller who is not in the workspace", () => {
-  // A definer function that reads auth.users without checking who is asking is
-  // an email-enumeration endpoint for every workspace at once.
-  assert.match(
-    sql,
-    /from public\.memberships m\s*\n\s*where m\.tenant_id = p_tenant_id and m\.user_id = auth\.uid\(\)/,
+test("the roster is read on the caller's own session, in one query, with the open invitations beside it, each member named", async () => {
+  const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const USER = "99999999-9999-4999-8999-999999999999";
+  const asked = [];
+  // The platform's client, which this read must never reach for: any use of it is the regression.
+  const touched = [];
+  const platform = new Proxy(
+    {},
+    {
+      get: (_t, key) => {
+        touched.push(String(key));
+        throw new Error(`REGRESSION: the roster read reached for the service role (${String(key)})`);
+      },
+    },
   );
-  assert.match(sql, /raise exception 'Not a member of this workspace\.' using errcode = '42501'/);
-});
-
-test("the email lookup is OWNER-only, not member-only", () => {
-  // It answers "does this address have an account", which is an oracle. Only
-  // the role that can already invite that address — and learn the same thing
-  // from the outcome — may ask.
-  assert.match(sql, /and m\.role = 'owner'/);
-  assert.match(sql, /raise exception 'Only an owner can invite people\.'/);
-});
-
-test("both are definer, scoped, and closed to anon", () => {
-  for (const fn of ["team_roster(uuid)", "lookup_user_for_invite(uuid, text)"]) {
-    assert.ok(sql.includes(`revoke execute on function public.${fn} from public, anon;`), fn);
-    assert.ok(sql.includes(`grant  execute on function public.${fn} to authenticated;`), fn);
+  setServiceClient(platform);
+  const invitation = (id, over = {}) => ({
+    id,
+    tenant_id: A,
+    email: `${id}@example.com`,
+    role: "viewer",
+    created_at: "2026-10-01T00:00:00Z",
+    expires_at: "2999-01-01T00:00:00Z",
+    accepted_at: null,
+    revoked_at: null,
+    ...over,
+  });
+  const ctx = {
+    supabase: fakeDb(
+      {
+        memberships: [
+          { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+        ],
+        invitations: [
+          invitation("open"),
+          invitation("taken", { accepted_at: "2026-10-02T00:00:00Z" }),
+          invitation("withdrawn", { revoked_at: "2026-10-02T00:00:00Z" }),
+        ],
+      },
+      {},
+      {
+        team_roster: (args) => {
+          asked.push(args);
+          return [
+            {
+              membership_id: "m-1",
+              member_user_id: USER,
+              email: "ada@example.com",
+              role: "owner",
+              joined_at: "2026-01-01T00:00:00Z",
+              display_name: "Ada Lovelace",
+            },
+          ];
+        },
+      },
+    ),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+    headers: {},
+  };
+  try {
+    const answer = await team.GET.run(new Request(`http://localhost/api/v1/team?workspace=${A}`), ctx);
+    assert.deepEqual(asked, [{ p_tenant_id: A }], "one query for the whole roster, not one per member");
+    assert.deepEqual(answer.members, [
+      {
+        membership_id: "m-1",
+        user_id: USER,
+        email: "ada@example.com",
+        display_name: "Ada Lovelace",
+        role: "owner",
+        joined_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    assert.deepEqual(
+      answer.invites.map((i) => i.id),
+      ["open"],
+      "the open invitations, read by plain RLS beside it: neither taken nor withdrawn",
+    );
+    assert.deepEqual(touched, [], "and the platform's client is never asked");
+  } finally {
+    setServiceClient(null);
   }
-  assert.equal(sql.split("security definer").length - 1, 2);
-  assert.equal(sql.split("set search_path = public").length - 1, 2);
-});
-
-test("every column reference is qualified, because these return `email` and `role`", () => {
-  // PL/pgSQL keeps OUT parameters in scope for the whole body, so an
-  // unqualified `email` or `role` is ambiguous — and it fails when CALLED, not
-  // when created. That exact mistake shipped in 00021.
-  assert.match(sql, /select m\.id, m\.user_id, u\.email::text, m\.role, m\.created_at/);
-  assert.ok(!/where email =/.test(sql) && !/where role =/.test(sql), "no bare OUT-param names");
-});
-
-test("the email match is case-insensitive", () => {
-  // A case mismatch would re-create the very bug this replaces: a known
-  // account read as new, and an invite that fails on send.
-  assert.match(sql, /lower\(u\.email\) = lower\(btrim\(p_email\)\)/);
-});
-
-/* --------------------------- the callers changed -------------------------- */
-
-test("the roster no longer loops the admin API, or uses the service role", () => {
-  assert.ok(service.includes('db.rpc("team_roster"'), "one query, not N");
-  assert.ok(!service.includes("auth.admin.getUserById"), "the per-member loop is gone");
-  assert.ok(!service.includes("auth.admin.listUsers"), "the platform-wide scan is gone");
-});
-
-test("the roster runs on the CALLER's client", () => {
-  // The point is not speed — it is one fewer path holding the service role.
-  assert.match(service, /export async function getTeamRoster\(\s*db: SupabaseClient<Database>,/);
-  assert.ok(teamRoute.includes("getTeamRoster(ctx.supabase,"));
-});
-
-// The invite's email lookup moved to the platform's client in 00121, and which
-// client asks is proved by running it: team-writes.test.mjs.
-
-test("the one remaining auth call is the one that must be, and it is packages/db's", () => {
-  // Sending a signup email is not something SQL can do. The call is db's (auth.ts), so this file names no admin API.
-  assert.deepEqual(service.match(/auth\.admin\.\w+/g) ?? [], [], "no admin API named here");
-  assert.deepEqual([...new Set(service.match(/\b(inviteUserByEmail)\(/g))], ["inviteUserByEmail("]);
-});
-
-test("invitations are read by plain RLS, as they always could have been", () => {
-  // invitations_member_read already scopes them to the caller's workspaces.
-  assert.ok(service.includes('.from("invitations")'));
-  assert.ok(service.includes("Promise.all"), "roster and invites still go together");
 });

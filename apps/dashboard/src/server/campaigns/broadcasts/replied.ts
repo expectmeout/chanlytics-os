@@ -11,8 +11,8 @@ import {
   type BroadcastCounts,
   type BroadcastDto,
   type BroadcastState,
-  recordOrEmpty,
   shaped,
+  valueAt,
   DbFailure,
 } from "@chanlytics/contracts";
 import { readAllRows, readColumn } from "@chanlytics/db/shared";
@@ -43,7 +43,7 @@ export interface BroadcastRow {
   template_language: string;
   params: unknown;
   audience: unknown;
-  state: string;
+  state: BroadcastState;
   scheduled_for: string;
   started_at: string | null;
   finished_at: string | null;
@@ -87,9 +87,7 @@ export interface RecipientRow {
 
 /** When a status arrived, from the stamp the guard keeps on the row (00111); null before it, or for a status not reached. */
 export function statusAt(meta: unknown, status: string): string | null {
-  const at = (meta && typeof meta === "object" && !Array.isArray(meta) ? recordOrEmpty(meta).status_at : null) as
-    Record<string, unknown> | null | undefined;
-  const v = at && typeof at === "object" ? at[status] : null;
+  const v = valueAt(meta, "status_at", status);
   return typeof v === "string" ? v : null;
 }
 
@@ -169,13 +167,12 @@ async function inboundOn(
   const byThread = new Map<string, Inbound[]>();
   for (let index = 0; index < convIds.length; index += IN_CHUNK) {
     const chunk = convIds.slice(index, index + IN_CHUNK);
-    // A select chosen at run time is past the client's typed parser: the rows are the columns named above.
     // Whole: each reply is counted, and who answered a run is said of them.
-    const inbound = (await readAllRows(
+    const inbound: Inbound[] = await readAllRows(
       "inbound messages",
       (from, to) => pageInboundOn(ctx.supabase, tenantId, { conversationIds: chunk, since, withWords, from, to }),
       "whole",
-    )) as unknown as Inbound[];
+    );
     for (const m of inbound) {
       if (!isPersonsWords(m.meta)) continue;
       const had = byThread.get(m.conversation_id);
@@ -316,7 +313,7 @@ export function toDto(broadcast: BroadcastRow, counts: BroadcastCounts): Broadca
         ? broadcast.audience
         : { kind: "everyone", id: null, label: "" },
     ),
-    state: broadcast.state as BroadcastState,
+    state: broadcast.state,
     scheduled_for: broadcast.scheduled_for,
     started_at: broadcast.started_at,
     finished_at: broadcast.finished_at,

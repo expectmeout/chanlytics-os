@@ -16,6 +16,7 @@ import {
   purposeOfTemplate,
   templateComponents,
   validateTemplateDraft,
+  recordOrNull,
   textOrEmpty,
   valueAt,
   whatsappOffersOpen,
@@ -82,7 +83,7 @@ export async function getWhatsAppOffers(ctx: RouteContext, tenantId: TenantId) {
 }
 
 export async function submitTemplate(ctx: RouteContext, req: Request, member: Member, review?: ReviewWords) {
-  return submitDraft(ctx, member, (await readJsonBody(req)) as TemplateAsked | null, review);
+  return submitDraft(ctx, member, recordOrNull(await readJsonBody(req)), review);
 }
 
 /**

@@ -1,5 +1,5 @@
 import "server-only";
-import { metaLinesOf, standingFromConfig, type ChannelDto, DbFailure } from "@chanlytics/contracts";
+import { metaLinesOf, recordOrEmpty, standingFromConfig, type ChannelDto, DbFailure } from "@chanlytics/contracts";
 import { findLastInboundOn } from "@chanlytics/db/channels";
 import { readerStamp, type Reader } from "../shared/reader";
 import { listChannelsForPage } from "@chanlytics/db/workspace";
@@ -36,9 +36,7 @@ export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
       voice: lastCall.data?.started_at ?? null,
     };
     const channels: ChannelDto[] = (rows.data ?? []).map((row) => {
-      const cfg = (
-        row.config && typeof row.config === "object" && !Array.isArray(row.config) ? row.config : {}
-      ) as Record<string, unknown>;
+      const cfg = recordOrEmpty(row.config);
       const s = (k: string) => (typeof cfg[k] === "string" ? cfg[k] : null);
       return {
         id: row.id,
