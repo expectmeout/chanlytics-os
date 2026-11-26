@@ -161,4 +161,10 @@ test("a template reply sends its name, its language and the member's words for i
     ],
   );
   assert.equal(new Set(sent.map((s) => s.key)).size, 3, "the words in its blank are part of what is sent");
+  // No approved message in hand: said in the browser, and nothing is asked of the server -- no one workspace's template
+  // name stands in for it (pinned as verbs.ts's text in veto-window.test.mjs until 26 Nov 2026).
+  const none = await quiet(() => inboxVerb(t, "reply-template", {}, { refresh: false }));
+  assert.equal(none.ok, false);
+  assert.match(none.message, /^No WhatsApp message is approved yet/);
+  assert.equal(sent.length, 3, "nothing was posted");
 });

@@ -108,7 +108,7 @@ before carries no `number_check` in its metadata, and the webhook decides nothin
 - `tests/inbound/the-gates-run-in-their-order.test.mjs`: the gate in its place, before the carriers' hold and before a
   pin drop or a voice note would hold; a START still confirmed. `tests/conversations/state/thread-move.test.mjs`: the
   thread stays off Needs you when they write.
-- `tests/conversations/reply-draft-verbs.test.mjs`: a selling call set aside is kept on the ledger; an email is not.
+- `tests/conversations/reply/reply-draft-verbs.test.mjs`: a selling call set aside is kept on the ledger; an email is not.
 - `tests/reports/receptionist/screened-calls.test.mjs`: the count. `receptionist-report.test.mjs`: the sentence, the
   window, and "No call connected". `receptionist-page.test.mjs`: where it is drawn. `tests/ask/readers.test.mjs`,
   `ask-turn.test.mjs`: the route carries it and Ask says it.
