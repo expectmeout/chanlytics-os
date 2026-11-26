@@ -25,7 +25,7 @@ const dto = {
     name: "Harbor Nails",
     hours: true,
     services: 4,
-    bookingLink: true,
+    booking_link: true,
     address: true,
     handoff: "+13055550199",
     broken: false,

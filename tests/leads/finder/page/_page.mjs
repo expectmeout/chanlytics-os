@@ -312,7 +312,7 @@ export const world = (over = {}) => ({
   more: null,
   one: {},
   suggestions: null,
-  month: { used: 262, left: 238, renewsOn: "Oct 1" },
+  month: { used: 262, left: 238, renews_on: "Oct 1" },
   ...over,
 });
 

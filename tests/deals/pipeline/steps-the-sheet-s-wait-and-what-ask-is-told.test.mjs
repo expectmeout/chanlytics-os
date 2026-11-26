@@ -302,16 +302,16 @@ test("a proposal waiting that the follow-up has in hand says the day its run goe
     return [c.words, c.tone];
   };
   const tomorrow = NOW + 86_400_000;
-  assert.deepEqual(said(with_("wes", { kind: "will", atMs: tomorrow, asks: false }), "wes"), [
+  assert.deepEqual(said(with_("wes", { kind: "will", at_ms: tomorrow, asks: false }), "wes"), [
     "Follow-up tomorrow",
     "info",
   ]);
-  assert.deepEqual(said(with_("wes", { kind: "will", atMs: tomorrow, asks: true }), "wes"), [
+  assert.deepEqual(said(with_("wes", { kind: "will", at_ms: tomorrow, asks: true }), "wes"), [
     "Follow-up to approve tomorrow",
     "info",
   ]);
   assert.deepEqual(
-    said(with_("wes", { kind: "had", atMs: NOW - 86_400_000 }), "wes"),
+    said(with_("wes", { kind: "had", at_ms: NOW - 86_400_000 }), "wes"),
     ["Nothing back", "warn"],
     "its one nudge went: the owner's now",
   );

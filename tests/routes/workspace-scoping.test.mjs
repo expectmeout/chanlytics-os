@@ -223,7 +223,7 @@ test("the server has the last word on which workspace is active", () => {
   // The stored preference is a REQUEST. The server validates membership and may
   // override it; whatever it decides is what later requests must agree with,
   // or the page renders one workspace's data under another's name.
-  assert.match(surfaceData, /data\.activeWorkspaceId/);
+  assert.match(surfaceData, /data\.active_workspace_id/);
   assert.match(surfaceData, /rememberWorkspace\(slug\)/, "the server's word is what the home returns to");
   assert.match(
     surfaceData,

@@ -45,7 +45,7 @@ test("the Line draws AI's face in the line, and says AI's mood as a turn runs", 
   // A turn as the stream sends it, one event per tick, so the palette draws between them.
   askCalls().send = async (input, on) => {
     calls.sent.push(input.text);
-    const final = { id: "m-f", role: "assistant", text: "Nora has waited longest.", atMs: Date.now(), failed: false };
+    const final = { id: "m-f", role: "assistant", text: "Nora has waited longest.", at_ms: Date.now(), failed: false };
     for (const ev of [
       { t: "thread", id: TH(3).id, title: input.text },
       { t: "trace", text: "Reading the inbox…" },
@@ -97,7 +97,7 @@ test("the reads: what AI has read stands under the three, the newest live; Send 
         id: "m-b",
         role: "assistant",
         text: "Done.",
-        atMs: Date.now(),
+        at_ms: Date.now(),
         failed: false,
         citations: [],
         followups: [],

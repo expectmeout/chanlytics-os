@@ -45,7 +45,7 @@ const card = (n, over = {}) => ({
   ...over,
 });
 const plan = (step) => ({ id: "plan-1", step, of: 2, silent: true, after: [] });
-const done = { state: "done", receipt: "Done", atMs: 1, undo: null };
+const done = { state: "done", receipt: "Done", at_ms: 1, undo: null };
 
 /* ---- The rules ---- */
 

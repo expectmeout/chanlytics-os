@@ -497,7 +497,7 @@ test("the card commits to POST lead-searches marked as Ask's, and its undo stops
   const undone = await undoProposal(
     win,
     { kind: "lead_search" },
-    { state: "done", receipt: done.receipt, atMs: Date.now(), undo: done.undo },
+    { state: "done", receipt: done.receipt, at_ms: Date.now(), undo: done.undo },
     client,
   );
   assert.deepEqual(

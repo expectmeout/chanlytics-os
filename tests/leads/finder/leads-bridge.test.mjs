@@ -1278,22 +1278,22 @@ test("the surface names its value, the tables a run writes, and its own event", 
 });
 
 test("the month's standing rides the surface, from the first page's own answer", async () => {
-  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 262, left: 238, renewsOn: "Oct 1" } });
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 262, left: 238, renews_on: "Oct 1" } });
   await leadsOverride.apply();
   assert.deepEqual(
     L().month,
-    { used: 262, left: 238, renewsOn: "Oct 1" },
+    { used: 262, left: 238, renews_on: "Oct 1" },
     "what a press costs is read from the surface, never from a page's own arithmetic",
   );
   // A Keep just spent one, so a refresh moves it; a refresh whose page carried none keeps what was last known.
-  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 263, left: 237, renewsOn: "Oct 1" } });
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 263, left: 237, renews_on: "Oct 1" } });
   await leadsOverride.apply();
-  assert.deepEqual(L().month, { used: 263, left: 237, renewsOn: "Oct 1" });
+  assert.deepEqual(L().month, { used: 263, left: 237, renews_on: "Oct 1" });
   wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
   await leadsOverride.apply();
   assert.deepEqual(
     L().month,
-    { used: 263, left: 237, renewsOn: "Oct 1" },
+    { used: 263, left: 237, renews_on: "Oct 1" },
     "what was last known, never a number the page made up",
   );
 });

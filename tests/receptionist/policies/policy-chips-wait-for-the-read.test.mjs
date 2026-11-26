@@ -54,7 +54,7 @@ globalThis.window.fetch = async (url) => {
   if (u.pathname === "/api/v1/team") return json({ ok: true, data: { members: [], invites: [] } });
   if (u.pathname === "/api/v1/policies") return json({ ok: true, data: { policies, role: "owner" } });
   if (u.pathname === "/api/v1/channels") return json({ ok: true, data: { channels: [] } });
-  if (u.pathname === "/api/v1/templates") return json({ ok: true, data: { templates: [], usedBy: {} } });
+  if (u.pathname === "/api/v1/templates") return json({ ok: true, data: { templates: [], used_by: {} } });
   return new Response(JSON.stringify({ ok: false, error: { code: "not_found" } }), { status: 404 });
 };
 

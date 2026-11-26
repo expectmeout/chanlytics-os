@@ -758,7 +758,7 @@ test("where only an approved message can reach them, the card's follow-up opens 
       const draw = await profile(quiet());
       setSurfaceValue("people", {
         ...(keep || {}),
-        rows: [{ id: vm.id, followUp: { kind: "will", atMs: NOW, asks: true } }],
+        rows: [{ id: vm.id, followUp: { kind: "will", at_ms: NOW, asks: true } }],
       });
       for (const title of all(draw(), (n) => n.props?.["data-testid"] === "person-deal-title")) press(title);
       const inHand = draw();

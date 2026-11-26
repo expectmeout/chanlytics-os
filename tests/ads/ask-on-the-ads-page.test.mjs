@@ -113,7 +113,7 @@ async function pageBlock(view, people_series) {
     view,
     focus: null,
     rows: [],
-    askedAt: 1,
+    asked_at: 1,
   });
   assert.deepEqual(
     built.blocks.map((b) => b.source),

@@ -112,7 +112,7 @@ test("the page is handed a message's email and text rows beside its WhatsApp one
       // A reach-out's email: its own list, and no message's.
       row("r1", "email", "reach_out_9f2c", { language: "en", header: "Quick one" }),
     ],
-    usedBy: {},
+    used_by: {},
     sends: {},
   });
   await settingsOverride.apply();
@@ -151,7 +151,7 @@ test("what sends a message and how much of it went out is read of every message 
       row("e1", "email", "spring_news", { category: "marketing", header: "Spring" }),
       row("e2", "email", "reach_out_9f2c", { header: "Hello" }),
     ],
-    usedBy: {
+    used_by: {
       spring_news: {
         playbooks: [{ id: "pb-1", name: "Spring", paused: false }],
         broadcasts: 0,
@@ -160,7 +160,7 @@ test("what sends a message and how much of it went out is read of every message 
         sequences: ["sq-1"],
       },
     },
-    sends: { spring_news: { count: 3, lastAt: when } },
+    sends: { spring_news: { count: 3, last_at: when } },
   });
   await settingsOverride.apply();
   const use = surfaceValue("settings").templateUse;
@@ -174,7 +174,7 @@ test("what sends a message and how much of it went out is read of every message 
 });
 
 test("a workspace with no email or text row is handed an empty list, and a failed read is null, never none", async () => {
-  wire({ templates: [row("w1", "whatsapp", "visit_reminder")], usedBy: {} });
+  wire({ templates: [row("w1", "whatsapp", "visit_reminder")], used_by: {} });
   await settingsOverride.apply();
   assert.deepEqual(surfaceValue("settings").templateVersions, [], "read, and there are none");
   wire(500);
@@ -201,7 +201,7 @@ test("the page is handed the read's own messages as they are, a version in revie
   ];
   // What the server made of every row (readers/templates.ts); the title is the read's, so a page that made its own would show.
   const made = campaignMessagesOf(rows).map((m) => ({ ...m, title: "From the read" }));
-  wire({ templates: rows, messages: made, usedBy: {}, sends: {} });
+  wire({ templates: rows, messages: made, used_by: {}, sends: {} });
   await settingsOverride.apply();
   const held = surfaceValue("settings");
   assert.deepEqual(held.messages, made, "the read's messages, not made again");
@@ -241,7 +241,7 @@ test("a read without messages (an older server) is handed messages made of the W
       // A reach-out's email is no message's.
       row("r1", "email", "reach_out_9f2c", { language: "en", header: "Quick one" }),
     ],
-    usedBy: {},
+    used_by: {},
     sends: {},
   });
   await settingsOverride.apply();
@@ -269,10 +269,10 @@ test("a failed read is no messages (null), and a workspace with no template has 
   wire(500);
   await settingsOverride.apply();
   assert.equal(surfaceValue("settings").messages, null, "not read is not none");
-  wire({ templates: [], usedBy: {}, sends: {} });
+  wire({ templates: [], used_by: {}, sends: {} });
   await settingsOverride.apply();
   assert.deepEqual(surfaceValue("settings").messages, [], "read, and there are none");
-  wire({ templates: [], messages: [], usedBy: {}, sends: {} });
+  wire({ templates: [], messages: [], used_by: {}, sends: {} });
   await settingsOverride.apply();
   assert.deepEqual(surfaceValue("settings").messages, []);
 });

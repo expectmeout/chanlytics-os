@@ -47,7 +47,7 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const ws = (slug, name) => ({ id: `id-${slug}`, slug, name, status: "active", timezone: "America/New_York" });
 const ME = { id: "u1", email: "ada@example.com", role: "operator" };
-const listOf = (...workspaces) => ({ workspaces, activeWorkspaceId: workspaces[0]?.id ?? null, user: ME });
+const listOf = (...workspaces) => ({ workspaces, active_workspace_id: workspaces[0]?.id ?? null, user: ME });
 
 /** The list the server answers with now. */
 let list = listOf();

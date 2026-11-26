@@ -1436,7 +1436,7 @@ test("the page's empty table under a search offers no Show them; under a list of
 });
 
 test("a search stopped by the month's leads says the day they renew, and offers the rest then; put off, it says when", () => {
-  const vm = leadStrip(ended("month_leads_used"), NOW, { month: { renewsOn: "Oct 1" } });
+  const vm = leadStrip(ended("month_leads_used"), NOW, { month: { renews_on: "Oct 1" } });
   assert.deepEqual(vm.parts, ["this month's leads are used", "the 61 found are yours", "your leads renew on Oct 1"]);
   assert.deepEqual(
     vm.actions.map((a) => [a.id, a.label]),
@@ -1453,7 +1453,7 @@ test("a search stopped by the month's leads says the day they renew, and offers 
       starts_at: "2026-10-01T05:00:00Z",
     }),
     NOW,
-    { month: { renewsOn: "Oct 1" } },
+    { month: { renews_on: "Oct 1" } },
   );
   assert.equal(waiting.title, "Finds the other 139 personal trainers on Oct 1");
   assert.deepEqual(waiting.parts, ["when your leads renew", "nothing is searched or counted before then"]);

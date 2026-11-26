@@ -61,7 +61,7 @@ const dto = (business = {}, google = {}) => ({
     name: "Harbor Moving",
     hours: true,
     services: 0,
-    bookingLink: false,
+    booking_link: false,
     address: true,
     handoff: null,
     broken: false,

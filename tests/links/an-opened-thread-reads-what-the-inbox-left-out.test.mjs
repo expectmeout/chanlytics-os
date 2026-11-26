@@ -274,7 +274,7 @@ globalThis.window.fetch = async (url) => {
   if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
   if (u.pathname === "/api/v1/templates") return json(200, { ok: true, data: { templates: [] } });
   if (u.pathname === "/api/v1/workspaces")
-    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
+    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, active_workspace_id: "t1" } });
   return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
 };
 const threadOf = (id) => surfaceValue("inbox").THREADS.find((t) => t.conversationId === id);

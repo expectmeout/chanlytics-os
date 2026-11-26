@@ -104,7 +104,7 @@ export const SETUP_FIXTURE = {
     name: "Harbor Moving",
     hours: true,
     services: 3,
-    bookingLink: true,
+    booking_link: true,
     address: true,
     handoff: "+16465550123",
     broken: false,

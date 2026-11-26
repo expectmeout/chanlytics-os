@@ -166,7 +166,7 @@ const SETUP = () => {
       name: "Marisa's Beauty Salon",
       hours: true,
       services: 2,
-      bookingLink: true,
+      booking_link: true,
       address: true,
       handoff: "+12125550142",
       broken: false,
