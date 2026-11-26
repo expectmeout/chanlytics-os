@@ -41,7 +41,7 @@ import { usePeopleMoved } from "./shell-thread";
 import { EmptyState } from "../../kit/empty/empty";
 import { useNeedsYouParts, waitingRunsNow } from "../../needs-you";
 import { ReplyStrip } from "./reply-strip";
-import { touchSwipe } from "../shell";
+import { shellTouchSwipe } from "../shell";
 import { heldAlong, heldUnder, showHeld } from "../../kit/motion/held-list";
 import { useRootFlag } from "../../kit/motion/root-flags";
 import { GRAB_AT } from "../../kit/motion/swipe";
@@ -134,7 +134,14 @@ export const ixGoing = (el: Element | null, on: boolean) => {
 // stood (kit/motion/swipe.ts touchSwipe, kit/motion/held-list.ts). Nothing without a Back, and nothing wider than a phone.
 export const ixSwipeBack = (onBack: (() => void) | null | undefined): HTMLAttributes<HTMLDivElement> =>
   (onBack
-    ? touchSwipe({ onBack, when: ixPhone, onGrab: ixGoing, under: heldUnder, along: heldAlong, backNavigates: true })
+    ? shellTouchSwipe({
+        onBack,
+        when: ixPhone,
+        onGrab: ixGoing,
+        under: heldUnder,
+        along: heldAlong,
+        backNavigates: true,
+      })
     : null) ?? {};
 
 /** What the pane asks of its page: the thread, and what to do with each press. */
