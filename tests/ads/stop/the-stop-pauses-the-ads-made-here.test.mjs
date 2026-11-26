@@ -11,11 +11,17 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { DAY_MS } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { linesOf } from "../../_log-lines.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+/**
+ * When the ads made here end: thirteen days from now. They ended at 22:00Z on 8 Dec 2026, and from then every one read as
+ * ended, which the stop leaves alone, so nothing was paused and both tests of what it pauses failed.
+ */
+const ENDS_AT = new Date(Date.now() + 13 * DAY_MS).toISOString();
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { stopEverything, resumeEverything } = await import(at("apps/dashboard/src/server/ask/act/stop.ts"));
@@ -52,7 +58,7 @@ const adRow = (n, over = {}) => ({
   budget_kind: "total",
   budget_minor: 7000,
   budget_left_minor: 6420,
-  ends_at: "2026-12-08T22:00:00Z",
+  ends_at: ENDS_AT,
   version: 3,
   paused_by: null,
   way_in: null,

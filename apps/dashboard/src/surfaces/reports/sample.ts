@@ -548,8 +548,8 @@ function sampleWires(vm: ReportVM, people: number, of: "value" | "prior"): Peopl
 
 /** The answers of the window, one a person, kind of message and answer: by who gave them, and by what they were about. */
 function sampleAnswers(total: number, sources: Record<string, number>): PeopleSeries["consent"]["now"]["yes"] {
-  const [messages = 0, offers = 0, email_offers = 0] = sharedOver(total, [60, 28, 12]);
-  return { total, by_source: split(total, sources), by_purpose: { messages, offers, email_offers } };
+  const [messages = 0, offers = 0, emailOffers = 0] = sharedOver(total, [60, 28, 12]);
+  return { total, by_source: split(total, sources), by_purpose: { messages, offers, email_offers: emailOffers } };
 }
 
 /** The window people_series answers for the sample's business, in shares of the people who reached it: a fifth said yes, one in twenty stopped, 3% had an address stop working, and the steps done are 40% of them (three in four on time). */
