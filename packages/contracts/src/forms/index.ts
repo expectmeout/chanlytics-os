@@ -1,5 +1,4 @@
 export {
-  FORM_PARTS,
   formPagePath,
   FORMS_ROUTE,
   formsPlaceOf,
@@ -40,7 +39,6 @@ export {
 } from "./limits";
 export type { FormFieldKind } from "./limits";
 export {
-  FORM_SITE_STANDINGS,
   formSiteNameOf,
   outsideFormNameOf,
   SITE_FORM_FIELDS,

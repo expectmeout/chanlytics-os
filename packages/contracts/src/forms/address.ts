@@ -20,7 +20,7 @@ export const isFormsParam = (param: string | null | undefined): boolean => !!par
  * A form's sheet in its three parts: the form as a visitor sees it (a site's: what Chanlytics receives from it), what
  * happens next, and where it is shared (a form made here) or where it comes from (a site's, `site`).
  */
-export const FORM_PARTS = ["form", "next", "share", "site"] as const;
+const FORM_PARTS = ["form", "next", "share", "site"] as const;
 export type FormPart = (typeof FORM_PARTS)[number];
 
 /**

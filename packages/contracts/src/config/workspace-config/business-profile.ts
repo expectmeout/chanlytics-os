@@ -42,9 +42,9 @@ const TIME = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
  * calendar date that does not exist — is checked on the way IN, and the
  * composer is written to tell the truth about whatever is already stored.
  */
-export const IntervalSchema = z.object({ open: TIME, close: TIME });
+const IntervalSchema = z.object({ open: TIME, close: TIME });
 
-export const HoursSchema = z
+const HoursSchema = z
   .object({
     /** "09:00". Absent or null = closed that day, which is a real answer. */
     open: TIME.nullable().optional(),
@@ -138,7 +138,7 @@ export const GuardrailsSchema = z
  * by a build from before it, which then says the note for good: what every note
  * did then, so either deploy order holds.
  */
-export const NoteSchema = z
+const NoteSchema = z
   .object({
     title: z.string().min(1).max(L.noteTitle),
     text: z.string().min(1).max(L.noteText),

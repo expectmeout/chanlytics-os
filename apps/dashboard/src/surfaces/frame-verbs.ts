@@ -514,7 +514,6 @@ export function refusalToast(r: Refusal | null | undefined, what?: string | null
  * goes. Named here for the surfaces that import every door from this file.
  */
 export { askOnScreenKey, setAskOnScreen } from "../bridge/ask/on-screen";
-export type { OnScreen as AskOnScreen } from "../bridge/ask/on-screen";
 
 /** Ask for the one deal sheet (components/deal-sheet.jsx); nothing where the shell has none. */
 export function openDealSheet(ask: DealSheetAsk): void {

@@ -89,6 +89,7 @@ function rememberOutcome(toolContext: ToolContext, input: { text: string; quote:
   const fromTheirs = long && !fromQuestion && (toolContext.theirs ?? []).some((w) => comparable(w).includes(quote));
   if (morning && !fromTheirs)
     return refuse(
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       "nothing is kept from the morning's turn but a line about how they write, quoting the words of their own cold emails that sequences with action edited returned",
     );
   if (fromTheirs && !text.toLowerCase().startsWith(VOICE_LINE_LEAD.toLowerCase()))

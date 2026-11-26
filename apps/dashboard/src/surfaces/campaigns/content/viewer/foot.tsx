@@ -18,7 +18,7 @@ import {
   type FileDto,
   type PostDto,
 } from "@chanlytics/contracts";
-import type { GoesTone } from "../model/goes";
+import { GOES_WORDS, type GoesTone } from "../model/goes";
 import { Button } from "../../../kit/button/button";
 import { useCopied } from "../../../kit/copy-button/copy-button";
 import { Icon } from "../../../kit/icon/icon";
@@ -181,6 +181,8 @@ interface ViewerFootActs {
    */
   onChange: (() => void) | null;
   onDetails: () => void;
+  /** Tell AI what to change, on a piece AI made that this person may change: its sheet, which holds the line to AI. */
+  onTell?: (() => void) | null;
 }
 
 /**
@@ -209,6 +211,8 @@ export function ViewerActs(props: {
   takeDown?: (() => void) | null | undefined;
   /** Nothing leads with a new post: a take-down of it is under way. */
   holdsLead?: boolean | undefined;
+  /** Tell AI what to change, as a round press before More (a phone's foot): the line to AI opens in its sheet. */
+  tell?: (() => void) | null | undefined;
 }) {
   const { file, next, may, busy, save, acts, desk } = props;
   const lead = actsLeadOf(props);
@@ -258,6 +262,18 @@ export function ViewerActs(props: {
       {inMore && may && file.source === "made" ? null : (
         <RoundPress onChange={may ? acts.onChange : undefined} onAsk={acts.onAsk} desk={!!desk} />
       )}
+      {props.tell ? (
+        <Button
+          variant={quiet}
+          size={size}
+          iconOnly
+          onClick={props.tell}
+          aria-label={GOES_WORDS.tell}
+          data-testid="cnv-tell"
+        >
+          <Icon name="three" size={18} />
+        </Button>
+      ) : null}
       {props.more}
     </div>
   );
@@ -302,6 +318,8 @@ function RoundPress(props: { onChange: (() => void) | null | undefined; onAsk: (
 }
 
 export function ViewerFoot(props: {
+  /** The piece's record is on its way: the foot is drawn unseen until it lands, so it shows once, as it will stay. */
+  waits?: boolean;
   file: FileDto;
   posts: readonly PostDto[];
   next: PieceNext;
@@ -338,22 +356,41 @@ export function ViewerFoot(props: {
   acts: ViewerFootActs;
 }) {
   const { file, posts, clock, acts } = props;
+  const status = viewerHasStatus(file, props.next);
   return (
-    <div className="cnv-viewer-foot">
-      <div>
+    <div className="cnv-viewer-foot" data-waits={props.waits || undefined}>
+      {/* Two lines (Ruben, 25 Nov 2026: "too many rows ... 1 maybe 2 lines"): its name, then where a post stands, the press
+          that opens its places, or what it is and when it was made, the press that opens its Details. One door each, as
+          before (Ruben, 12 Nov 2026: two sheets told one piece in halves); what a post was made from is in its sheet. */}
+      <div className="cnv-viewer-said">
         <h2 className="cnv-viewer-name">{props.name}</h2>
-        <p className="cnv-viewer-line" data-testid="cnv-line">
-          {props.line}
-        </p>
+        {status ? (
+          <ViewerStatus
+            posts={posts}
+            next={props.next}
+            clock={clock}
+            opens={acts.onStatus}
+            pill={props.standing?.pill}
+          />
+        ) : (
+          <Press
+            className="cnv-viewer-line cnv-viewer-details"
+            onClick={acts.onDetails}
+            aria-haspopup="dialog"
+            data-testid="cnv-details-open"
+          >
+            <span className="cnv-viewer-details-said" data-testid="cnv-line">
+              {props.line}
+            </span>
+            <Icon name="chevron-up" size={11} />
+          </Press>
+        )}
         {props.standing?.ver ? (
           <p className="cnv-viewer-line" data-testid="cnv-version-line">
             {props.standing.ver}
           </p>
         ) : null}
       </div>
-      {viewerHasStatus(file, props.next) ? (
-        <ViewerStatus posts={posts} next={props.next} clock={clock} opens={acts.onStatus} pill={props.standing?.pill} />
-      ) : null}
       {props.standing?.under ? (
         <p className="cnv-viewer-line" data-testid="cnv-version-under">
           {props.standing.under}
@@ -379,24 +416,10 @@ export function ViewerFoot(props: {
           ad={props.standing?.ad}
           takeDown={props.standing?.takeDown}
           holdsLead={props.standing?.holdsLead}
+          tell={acts.onTell}
         />
       )}
       {props.asking ? null : props.byHand}
-      {props.asking ? null : props.standing?.tell}
-      {/* One door to the piece's sheet (Ruben, 12 Nov 2026: two sheets told one piece in halves): a post's is where it
-          stands, above; Details stands only where there is no such row, a video or a photo of the Library. */}
-      {viewerHasStatus(file, props.next) ? null : (
-        <Button
-          variant="quiet"
-          size="sm"
-          className="cnv-viewer-up"
-          onClick={acts.onDetails}
-          data-testid="cnv-details-open"
-        >
-          {W.viewer.details}
-          <Icon name="chevron-up" size={11} />
-        </Button>
-      )}
     </div>
   );
 }

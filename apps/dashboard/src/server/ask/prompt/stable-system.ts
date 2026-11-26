@@ -384,6 +384,7 @@ export function factsBlock(workspaceFacts: WorkspaceFacts): string {
   if (workspaceFacts.guardrails.length) lines.push(`AI ${workspaceFacts.guardrails.join(", ")}.`);
   if (workspaceFacts.autonomy.length)
     lines.push(
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       `Autonomy, class by class (auto: on its own · veto: after a short hold unless someone stops it · ask: waits for a person · never: not at all): ${workspaceFacts.autonomy.join("; ")}. Money is always never, by charter.`,
     );
   if (workspaceFacts.notes.length)

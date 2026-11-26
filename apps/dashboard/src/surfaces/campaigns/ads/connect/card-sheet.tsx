@@ -1,9 +1,9 @@
 /**
- * The ad account's card, opened from its caret (the canvas's Step2 board, scene "card"): who Meta charges, the Page
- * and Meta's own limit, then its checks with what each is needed for, the Page's link to the number AI answers (a
- * quiet line, since Meta doesn't share it), the quiet line on what needs none, and at its foot the two things an owner
- * does here: change the ad account or the Page, and disconnect. Both foot acts are the owner's alone, and the page
- * hands them in where it offers them.
+ * The ad account's card, opened from its caret (the canvas's Step2 board, scene "card"; Ruben, 25 Nov 2026: what is which,
+ * and nothing to read past it): three short parts, a hairline between them. The ad account, its Page and Meta's limit;
+ * whether it may run ads, one line where every check is met; where the people an ad brings reach the business (WhatsApp,
+ * Instagram). At its foot the two things an owner does here: change the ad account or the Page, and disconnect. Both foot
+ * acts are the owner's alone, and the page hands them in where it offers them.
  */
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
@@ -41,9 +41,27 @@ function cardSheetFoot({ onChange, onDisconnect }: Pick<CardSheetProps, "onChang
   );
 }
 
+/** Whether the account may run ads: one line where every check is met; where one is not, how many are and each one. */
+function CardReady({ checks }: { checks: ConnectCardVM["checks"] }) {
+  const met = checks.filter((check) => check.state === "ok").length;
+  if (met === checks.length)
+    return (
+      <p className="ads-conn-all" data-testid="ads-conn-all">
+        <span className="ads-dot" data-state="ok" aria-hidden="true" />
+        {CARD.allReady}
+      </p>
+    );
+  return (
+    <div className="ads-conn-part">
+      <p className="ads-conn-checks-head">
+        <b>{CARD.ready(met, checks.length)}</b>
+      </p>
+      <CardChecks checks={checks} />
+    </div>
+  );
+}
+
 export function CardSheet({ open, vm, onClose, onChange, onDisconnect }: CardSheetProps) {
-  const met = vm.checks.filter((check) => check.state === "ok").length;
-  const head = met === vm.checks.length ? CARD.allReady : CARD.ready(met, vm.checks.length);
   return (
     <Sheet
       open={open}
@@ -56,20 +74,10 @@ export function CardSheet({ open, vm, onClose, onChange, onDisconnect }: CardShe
       fit
       testid="ads-conn-sheet"
     >
-      <div className="ads-conn ads-conn-open">
+      <div className="ads-conn ads-conn-open ads-conn-parts">
         <CardFacts facts={vm.facts} />
-        <div className="ads-conn-checks-head">
-          <b>{CARD.checks}</b>
-          <span>{head}</span>
-          <span className="ads-conn-for">{CARD.neededFor}</span>
-        </div>
-        <CardChecks checks={vm.checks} neededFor />
-        {vm.whatsapp ? (
-          <p className="ads-conn-says" data-testid="ads-conn-whatsapp">
-            {vm.whatsapp}
-          </p>
-        ) : null}
-        <p className="ads-conn-says">{vm.quiet}</p>
+        <CardReady checks={vm.checks} />
+        {vm.reach.length > 0 ? <CardFacts facts={vm.reach} testid="ads-conn-reach" /> : null}
       </div>
     </Sheet>
   );
