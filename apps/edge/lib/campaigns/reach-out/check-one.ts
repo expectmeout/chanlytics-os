@@ -195,7 +195,7 @@ export interface CheckInput {
 export type Tokens = { input: number; output: number };
 export type CheckFailure = "no_answer" | "unparseable" | "timeout" | "error";
 
-export type CheckOutcome =
+type CheckOutcome =
   | {
       kind: "checked";
       opening: WrittenOpening | null;

@@ -3,7 +3,8 @@ import { AppError, ASK_SPEECH_MAX_CHARS, SPEECH_PURPOSES } from "@chanlytics/con
 import { write, workspace } from "@/server/shared/route";
 import { log } from "@/server/shared/log";
 import { edgeConfigured, edgeReasonOf, readEdgeAnswer, streamEdge, type EdgeAnswer } from "@/server/shared/edge";
-import { DOOR, refusalOf, SPEECH_TIMEOUT_MS, SPEECH_UNREACHED } from "@/server/ask/doors/speech-request";
+import { DOOR, SPEECH_TIMEOUT_MS, SPEECH_UNREACHED } from "@/server/ask/doors/speech-request";
+import { voiceRefusalOf } from "@/server/ask/doors/voice-request";
 
 /**
  * POST /api/v1/ask/speech — words read aloud in Ask's one voice, as the signed-in member
@@ -61,7 +62,7 @@ export const POST = write({
         reason: edgeReasonOf(edgeAnswer),
         status: answer.status,
       });
-      throw refusalOf(edgeAnswer);
+      throw voiceRefusalOf(edgeAnswer, SPEECH_UNREACHED);
     }
     log.info("ask_speech", {
       tenant_id: tenantId,

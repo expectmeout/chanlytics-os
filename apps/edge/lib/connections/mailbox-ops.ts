@@ -55,7 +55,7 @@ import {
 } from "./mailbox-connect.js";
 import type { TenantId } from "@chanlytics/contracts";
 
-export interface Body {
+interface Body {
   op?: unknown;
   tenant_id?: unknown;
   user_id?: unknown;
