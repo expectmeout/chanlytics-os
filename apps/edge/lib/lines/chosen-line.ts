@@ -100,8 +100,8 @@ export async function startChosenLine(
       want: choices ? setupPhoneWantOf({ phone: choices.phone }) : null,
       noCalls: !!choices && callsNotByPhone({ phone: choices.phone }),
       billing: billing.data ? { mode: billing.data.mode, status: billing.data.status } : null,
-      lines: lines.data ?? [],
-      asked: (asked.data ?? []).length > 0,
+      lines: lines.data,
+      asked: asked.data.length > 0,
     });
     if (plan.kind === "stands") return { kind: "stands" };
     if (plan.kind === "none") return { kind: "none", why: plan.why };
@@ -126,7 +126,7 @@ export async function startChosenLine(
       provider: ports.choice.name,
       number,
       areaCode,
-      others: lines.data ?? [],
+      others: lines.data,
       now,
     });
     if (buy.kind === "refuse") return { kind: "stands" };

@@ -157,7 +157,7 @@ export async function countAutomaticResume(
   // raise, and a try that was not written down is one the bound never sees.
   const { data, error } = await saveLineFacts(db, row, facts);
   if (error) return { ok: false, error: error.message };
-  if (data?.length !== 1) return { ok: false, error: NOT_THERE_TO_COUNT };
+  if (data.length !== 1) return { ok: false, error: NOT_THERE_TO_COUNT };
   return { ok: true, row: { ...row, facts } };
 }
 
@@ -207,14 +207,14 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
   if (error) throw new DbFailure(error, "lines_sweep_read");
 
   const out: StuckSweepResult = {
-    stuck: (rows ?? []).length,
+    stuck: rows.length,
     resumed: 0,
     failed: 0,
     gaveUp: 0,
     skipped: 0,
     unreadable: 0,
   };
-  for (const row of rows ?? []) {
+  for (const row of rows) {
     // The workspace first, and only then the take: a line whose workspace cannot be
     // read is left untouched for the next tick rather than taken and abandoned.
     const workspace = await findWorkspaceName(db, row.tenant_id);

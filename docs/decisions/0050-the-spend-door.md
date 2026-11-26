@@ -540,7 +540,7 @@ with a card limit he sets.
   finish in one pass is taken up by the next (its door brings the account's next read within a minute). Each part is
   made paused just after its own dry run, and kept in `ad_objects` as sent before its make goes: the campaign, the ad
   set, the picture, and an ad for each version of the words. The campaign is read back whole and compared with
-  `approved` (`apps/edge/lib/ads/launch-parts.ts`); then, while AI is not stopped, the ads, the ad set and the campaign
+  `approved` (`apps/edge/lib/ads/launch/parts.ts`); then, while AI is not stopped, the ads, the ad set and the campaign
   are switched on, the campaign last, and read back once more for Meta's word. The page says In review until Meta says
   ACTIVE.
 - **Call 6, nothing unapproved is switched on.** No stop calls a switch. A stop removes the campaign with everything
