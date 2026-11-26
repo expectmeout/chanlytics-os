@@ -76,10 +76,16 @@ export const LEAD_STARTER_VIEWS: readonly LeadNamedView[] = [
 const anObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** A view's layout, each part only where it is such a part: one that is not leaves what stands. */
+/** Which columns a stored layout shows: each one it says yes or no of. */
+const shownColumnsOf = (columns: Record<string, unknown>): Record<string, boolean> =>
+  Object.fromEntries(
+    Object.entries(columns).filter((shown): shown is [string, boolean] => typeof shown[1] === "boolean"),
+  );
+
 const layoutRead = (v: Record<string, unknown>): LeadNamedLayout => ({
   ...(typeof v.sortBy === "string" ? { sortBy: v.sortBy } : {}),
   ...(v.sortDir === "asc" || v.sortDir === "desc" ? { sortDir: v.sortDir } : {}),
-  ...(anObject(v.columns) ? { columns: v.columns as Record<string, boolean> } : {}),
+  ...(anObject(v.columns) ? { columns: shownColumnsOf(v.columns) } : {}),
   ...(Array.isArray(v.order) && v.order.every((k) => typeof k === "string") ? { order: v.order } : {}),
   ...(v.density === "comfortable" || v.density === "compact" ? { density: v.density } : {}),
 });

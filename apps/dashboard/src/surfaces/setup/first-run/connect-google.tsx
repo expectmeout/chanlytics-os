@@ -7,7 +7,7 @@
  * manages no such location: who can add them, and the way on without it. Every word is contracts'.
  */
 import { useEffect, useState } from "react";
-import { ratingWords, type ImportRowDto } from "@chanlytics/contracts";
+import { ratingWords, type ImportRowDto, isOneOf } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "./model/first-run-helpers";
 import { googleVerbs } from "@/bridge/google";
 import { Icon } from "../../kit/icon/icon";
@@ -38,7 +38,7 @@ export function useGoogleBack(flash: (f: FrameFlash) => void): [GoogleBack | nul
     const o = googleVerbs.outcome();
     if (!o) return;
     if (o.outcome === "connected") return setBack("connected");
-    if (o.outcome === "choose" || (o.why && G.notManagerWhy.includes(o.why))) return setBack("not_manager");
+    if (o.outcome === "choose" || isOneOf(G.notManagerWhy, o.why)) return setBack("not_manager");
     const words = googleVerbs.outcomeWords;
     flash({ tone: "danger", msg: <>{(o.why && words[o.why]) || G.failed}</> });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival: Google's answer is the address's, said once

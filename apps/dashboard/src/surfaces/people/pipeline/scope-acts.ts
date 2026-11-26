@@ -9,6 +9,7 @@ import type { PipelineFrame, PipelineRows, PipelineUi } from "./scope-state";
 import { P, dealSheetOffered } from "./pipe";
 import type { PipelineSection } from "./pipe";
 import { pipeHoldFocus } from "./row";
+import { keysOf } from "@chanlytics/contracts";
 
 /** What the acts read of the page: the address it moves, its state and its rows. */
 interface ActsIn {
@@ -29,7 +30,7 @@ export const pipelinePickView =
 /** The board: every group as a column, those with nobody in them too, so a card has somewhere to drop. */
 export const pipelineBoardColumns = (r: PipelineRows): PipelineSection[] | null =>
   r.board
-    ? (Object.keys(P.words.groups) as PipelineGroupKey[]).map(
+    ? keysOf(P.words.groups).map(
         (key) =>
           r.sections.find((s) => s.key === key) || {
             key,

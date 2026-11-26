@@ -10,6 +10,7 @@ import { backToPeople } from "../frame-doors";
 import { useFrameToast } from "../frame-verbs";
 import { currentWorkspace } from "@/bridge/who";
 import { threadVerbs as inboxThreadVerbs } from "../inbox/thread/thread-verbs";
+import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
 
 /** What the shell's one flash takes, as a person's page raises it: words, a tone, an Undo or a door in the toast. */
 export interface PersonFlash {
@@ -23,7 +24,7 @@ export type FlashFn = (flash: PersonFlash) => void;
 
 /** What a rejected read says, if it said anything: its message, else nothing. */
 export function saidBy(e: unknown): string {
-  const m = typeof e === "object" && e !== null ? (e as { message?: unknown }).message : undefined;
+  const m = valueAt(e, "message");
   return typeof m === "string" ? m : "";
 }
 
@@ -55,7 +56,7 @@ export const threadVerbs = inboxThreadVerbs;
 
 /** Hear one of the window's own events (`deal:sheet`, `step:sheet`, `surface:clients`); the answer lets go. */
 export function hear(type: string, fn: (detail: Record<string, unknown>) => void): () => void {
-  const on = (e: Event) => fn((e as CustomEvent<Record<string, unknown> | null>).detail ?? {});
+  const on = (e: Event) => fn(e instanceof CustomEvent ? recordOrEmpty(e.detail) : {});
   window.addEventListener(type, on);
   return () => window.removeEventListener(type, on);
 }

@@ -70,7 +70,7 @@ function Toggles<V extends string>(p: {
                 items: p.all.map((v) => ({ value: v, label: p.words(v), on: p.on.includes(v) })),
                 onToggle: (v) =>
                   p.onChange(
-                    p.on.includes(v as V)
+                    p.on.some((x) => x === v)
                       ? p.on.filter((x) => x !== v)
                       : p.all.filter((x) => x === v || p.on.includes(x)),
                   ),

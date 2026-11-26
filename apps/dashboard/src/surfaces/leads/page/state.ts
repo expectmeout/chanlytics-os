@@ -6,7 +6,7 @@
  */
 import { useReducer, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { leadsRoute, parseLeadsRoute } from "@chanlytics/contracts";
+import { leadsRoute, parseLeadsRoute, keysOf } from "@chanlytics/contracts";
 import { useSurface } from "../../use-surface";
 import type { LeadsSurface } from "../surface";
 import type { Armed, DraftState, PeekMode } from "../peek/types";
@@ -83,7 +83,7 @@ const leadFinderStep = (f: FinderState, move: FinderMove): FinderState => {
       : "close" in move
         ? { ...f, open: false, more: null }
         : { ...f, ...move.set };
-  return (Object.keys(next) as (keyof FinderState)[]).every((k) => Object.is(next[k], f[k])) ? f : next;
+  return keysOf(next).every((k) => Object.is(next[k], f[k])) ? f : next;
 };
 
 /** The moves: open a plan (`{ stage, words, proposal, plan, more }`), close it, set fields. */

@@ -1,3 +1,4 @@
+import { isOneOf } from "../shared/unknown";
 /**
  * A business's videos (decision 0099, stage B): what a model is shown of one, worked out here so the edge that draws it, the
  * tool that opens it and a test all say the same. Claude takes pictures, not video, so a video is shown the way Claude Code
@@ -37,8 +38,7 @@ export type VideoDigestStep = (typeof VIDEO_DIGEST_STEPS)[number];
 /** The next step after one, or null after the last. */
 export const nextDigestStepOf = (step: VideoDigestStep): VideoDigestStep | null =>
   VIDEO_DIGEST_STEPS[VIDEO_DIGEST_STEPS.indexOf(step) + 1] ?? null;
-export const isDigestStep = (value: unknown): value is VideoDigestStep =>
-  typeof value === "string" && (VIDEO_DIGEST_STEPS as readonly string[]).includes(value);
+export const isDigestStep = (value: unknown): value is VideoDigestStep => isOneOf(VIDEO_DIGEST_STEPS, value);
 
 /** A frame's shape where the platform could not say: a phone's landscape clip. */
 const UNKNOWN_SHAPE: readonly [number, number] = [1920, 1080];

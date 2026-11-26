@@ -66,16 +66,19 @@ interface AskSpeech {
 /** Ask's voice where the shell has wired it and the device can play it; nothing in a stand-in window. */
 export function askSpeech(): AskSpeech | undefined {
   const a: Partial<AskSpeech> | undefined = askCalls();
-  if (
-    !a ||
-    typeof a.canSpeak !== "function" ||
-    typeof a.speak !== "function" ||
-    typeof a.state !== "function" ||
-    typeof a.watchSpeech !== "function" ||
-    typeof a.stopSpeaking !== "function"
-  )
-    return undefined;
-  return a.canSpeak() ? (a as AskSpeech) : undefined;
+  return isAskSpeech(a) && a.canSpeak() ? a : undefined;
+}
+
+/** Whether the shell's calls hold every one of the voice's own (warmSpeech may be absent). */
+function isAskSpeech(a: Partial<AskSpeech> | undefined): a is AskSpeech {
+  return (
+    !!a &&
+    typeof a.canSpeak === "function" &&
+    typeof a.speak === "function" &&
+    typeof a.state === "function" &&
+    typeof a.watchSpeech === "function" &&
+    typeof a.stopSpeaking === "function"
+  );
 }
 
 /* ------------------------------- Ask's cards ------------------------------- */
@@ -94,7 +97,12 @@ interface AskCardDoor {
 /** Ask's card door where the shell has wired it (Ask's ideas in Need you, decisions 0070 and 0071); nothing in a stand-in window. */
 export function askCards(): AskCardDoor | undefined {
   const a: Partial<AskCardDoor> | undefined = askCalls();
-  return a && typeof a.commit === "function" && typeof a.outcome === "function" ? (a as AskCardDoor) : undefined;
+  return isAskCardDoor(a) ? a : undefined;
+}
+
+/** Whether the shell's calls hold both of the card door's. */
+function isAskCardDoor(a: Partial<AskCardDoor> | undefined): a is AskCardDoor {
+  return !!a && typeof a.commit === "function" && typeof a.outcome === "function";
 }
 
 /* ------------------------------ the surfaces ------------------------------ */

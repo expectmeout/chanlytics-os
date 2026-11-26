@@ -25,8 +25,8 @@ import {
   supportSentence,
   type SupportKindFilter,
   type SupportRowVM,
-  type SupportTopic,
-  type SupportView,
+  isOneOf,
+  SUPPORT_TOPICS,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { PageHead } from "../kit/head/page-head";
@@ -174,7 +174,9 @@ function Tools({
         <SubTabs
           label={SUPPORT_WORDS.views}
           value={ask.view}
-          onSelect={(id) => set({ view: id as SupportView, page: 1 })}
+          onSelect={(id) => {
+            if (isOneOf(SUPPORT_VIEWS, id)) set({ view: id, page: 1 });
+          }}
           tabs={SUPPORT_VIEWS.map((v) => ({
             id: v,
             label: SUPPORT_VIEW_WORDS[v],
@@ -213,7 +215,7 @@ function Tools({
         <span className="cs-tools-pick">
           <Select
             value={ask.topic ?? ""}
-            onValueChange={(t: string) => set({ topic: (t || null) as SupportTopic | null, page: 1 })}
+            onValueChange={(t: string) => set({ topic: isOneOf(SUPPORT_TOPICS, t) ? t : null, page: 1 })}
             options={[
               { value: "", label: SUPPORT_WORDS.anyTopic },
               ...(c?.topics ?? []).map((t) => ({ value: t.topic, label: t.words, meta: String(t.n) })),

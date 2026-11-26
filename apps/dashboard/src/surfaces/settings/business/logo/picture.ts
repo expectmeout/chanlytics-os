@@ -12,6 +12,7 @@ import {
   LOGO_CHOSEN_TYPES,
   LOGO_SIDE,
   LOGO_SIDE_MIN,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { logoDrawRect, logoLayout, type LogoNote } from "./layout";
 
@@ -29,7 +30,7 @@ export interface MadePicture {
 
 /** Whether a file is one the picker offers, by its kind and its weight, before a byte of it is read. */
 export const chosenOk = (file: Blob): boolean =>
-  file.size > 0 && file.size <= LOGO_CHOSEN_MAX_BYTES && (LOGO_CHOSEN_TYPES as readonly string[]).includes(file.type);
+  file.size > 0 && file.size <= LOGO_CHOSEN_MAX_BYTES && isOneOf(LOGO_CHOSEN_TYPES, file.type);
 
 /** The bytes a found picture travelled in, as a file the page can decode. */
 export function blobOf(base64: string, type: string): Blob {

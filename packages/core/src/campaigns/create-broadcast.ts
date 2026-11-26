@@ -1,4 +1,4 @@
-import { heldContactId, causedBy } from "@chanlytics/contracts";
+import { heldContactId, causedBy, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import {
   AppError,
   AUDIENCE_KINDS,
@@ -117,22 +117,15 @@ function askedBreath(breathe: unknown): boolean {
 
 /** The body, judged in the order a person fills it in: the template, who it goes to, the list, the channels. */
 function asked(raw: unknown): Asked {
-  const body = raw as {
-    template_id?: unknown;
-    params?: unknown;
-    audience?: { kind?: unknown; id?: unknown } | null;
-    scheduled_for?: unknown;
-    name?: unknown;
-    channels?: unknown;
-    breathe?: unknown;
-  } | null;
-  const templateId = typeof body?.template_id === "string" ? body.template_id : "";
+  const body = recordOrEmpty(raw);
+  const templateId = typeof body.template_id === "string" ? body.template_id : "";
   if (!UUID.test(templateId)) throw new AppError("validation", "Pick a saved message.");
-  const kind = body?.audience?.kind;
+  const kind = valueAt(body, "audience", "kind");
   if (typeof kind !== "string" || !isOneOf(AUDIENCE_KINDS, kind)) {
     throw new AppError("validation", "Pick who this goes to.");
   }
-  const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
+  const listId = valueAt(body, "audience", "id");
+  const audienceId = typeof listId === "string" ? listId : null;
   // A list is a reference (contracts lists.ts): a built-in by its id, a saved list by its. The wire keeps its
   // kind and id, which is the same reference by another spelling.
   if (kind === "saved" && (!audienceId || !UUID.test(audienceId))) throw new AppError("validation", "Pick a list.");
@@ -150,11 +143,11 @@ function asked(raw: unknown): Asked {
     audienceId,
     ref,
     // Which of WhatsApp, text and email it may go by: WhatsApp alone when it names none, as every broadcast went before.
-    channels: parseChannels(body?.channels),
-    params: body?.params,
-    scheduledFor: body?.scheduled_for,
-    name: body?.name,
-    breathe: askedBreath(body?.breathe),
+    channels: parseChannels(body.channels),
+    params: body.params,
+    scheduledFor: body.scheduled_for,
+    name: body.name,
+    breathe: askedBreath(body.breathe),
   };
 }
 

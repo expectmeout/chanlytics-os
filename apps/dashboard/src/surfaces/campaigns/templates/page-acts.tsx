@@ -14,8 +14,8 @@ import {
   reachOutEditedWords,
   versionWord,
   versionWords,
+  entryOf,
 } from "@chanlytics/contracts";
-import type { OwnVersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { useFrameToast } from "../../frame-verbs";
@@ -236,7 +236,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
     run(
       `version-remove:${row.id}`,
       () => templateVerbs.removeVersion(row.id),
-      () => TPL_VERSION_WORDS.removed(g.title, VERSION_CHANNEL_WORDS[row.channel as OwnVersionChannel], lang.label),
+      () => TPL_VERSION_WORDS.removed(g.title, entryOf(VERSION_CHANNEL_WORDS, row.channel) ?? row.channel, lang.label),
     );
   // A message written in a new language, from the row that opened it: said once it is on its way.
   const written = (g: TemplateGroup, lang: TplLang) =>

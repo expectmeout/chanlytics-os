@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { FoldSection } from "@/bridge/business-tab";
+import { isFoldSection } from "../fold-says";
 import type { FrameFlash } from "../../../frame-verbs";
 import { useRecordFold } from "../../../kit/record/hooks";
 import { RecordInline } from "../../../kit/record/inline";
@@ -252,7 +253,7 @@ function btRowSays<D>(r: BtRowR<D>, e: BtRowEditor<D>): BtRowSays | null {
     S.willSay({
       was: on.brain,
       next: S.patched(on, { row: r.id, change: commit(e.now).change }).brain,
-      sections: r.section || (r.id as FoldSection),
+      sections: r.section || (isFoldSection(r.id) ? r.id : []),
       channel: r.channel,
     }),
   );

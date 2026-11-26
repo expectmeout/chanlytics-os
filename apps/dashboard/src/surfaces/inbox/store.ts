@@ -91,8 +91,9 @@ export interface Decision {
  * session and broadcast `inbox:decisions` (something changed, draw again): the badge is a selector over the threads and
  * these decisions, not a number sent.
  */
+const decisions: Record<string, Decision> = {};
 export const IX_STORE = {
-  decisions: {} as Record<string, Decision>,
+  decisions,
   _broadcast() {
     window.dispatchEvent(new CustomEvent("inbox:decisions"));
   },

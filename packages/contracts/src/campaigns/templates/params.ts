@@ -1,7 +1,7 @@
 /** Templates: params. */
 
 import { isIdentifierName } from "../../conversations/thread-contact";
-import { listOrEmpty } from "../../shared/unknown";
+import { isOneOf, listOrEmpty, valueAt } from "../../shared/unknown";
 
 /* ---- What fills a slot ---- */
 
@@ -72,30 +72,20 @@ export const PARAM_SOURCE_HINTS: Record<Exclude<ParamSourceKind, "text">, string
  */
 export function parseParamSpec(raw: unknown): ParamSpec | null {
   if (typeof raw === "string") {
-    const m =
-      /^@(first_name|business_name|booking_link|review_link|visit_when|visit_service|proposal_link|freed_when)$/.exec(
-        raw.trim(),
-      );
-    if (m) return { kind: m[1] as Exclude<ParamSourceKind, "text"> };
-    return { kind: "text", value: raw };
+    const named = /^@([a-z_]+)$/.exec(raw.trim())?.[1];
+    return isOneOf(PARAM_SOURCES, named) && named !== "text" ? { kind: named } : { kind: "text", value: raw };
   }
-  if (raw && typeof raw === "object") {
-    const value = raw as { kind?: unknown; value?: unknown };
-    if (value.kind === "text") return typeof value.value === "string" ? { kind: "text", value: value.value } : null;
-    if (
-      value.kind === "first_name" ||
-      value.kind === "business_name" ||
-      value.kind === "booking_link" ||
-      value.kind === "review_link" ||
-      value.kind === "visit_when" ||
-      value.kind === "visit_service" ||
-      value.kind === "proposal_link" ||
-      value.kind === "freed_when"
-    )
-      return { kind: value.kind };
+  const kind = valueAt(raw, "kind");
+  if (kind === "text") {
+    const value = valueAt(raw, "value");
+    return typeof value === "string" ? { kind: "text", value } : null;
   }
-  return null;
+  return isOneOf(PARAM_SOURCES, kind) && kind !== "text" ? { kind } : null;
 }
+
+/** The spec a slot's source makes: the words typed for text, and any other source by its name alone. */
+export const paramSpecOf = (kind: ParamSourceKind, typed: string): ParamSpec =>
+  kind === "text" ? { kind, value: typed } : { kind };
 
 /**
  * Every slot's spec from a stored row, leniently: a value nothing recognises

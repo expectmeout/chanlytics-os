@@ -23,6 +23,7 @@ import type { LineCodeDto } from "@chanlytics/contracts";
 import { unwrap } from "@/client/api";
 import { api, read } from "@/bridge/api";
 import { signupDoorRead } from "../frame/pane-reads";
+import { valueAt, textOrEmpty } from "@chanlytics/contracts";
 
 type Refused = {
   ok: false;
@@ -102,14 +103,20 @@ function clearSignupMark(win: Window): void {
 }
 
 /** The window as Meta's SDK leaves it: its global, and the hook it calls once loaded (the SDK's own contract with a page). */
-type SdkWindow = Window & { FB?: FB; fbAsyncInit?: () => void };
+declare global {
+  interface Window {
+    /** Meta's SDK, once its script has run, and the hook it calls as it does. */
+    FB?: FB;
+    fbAsyncInit?: () => void;
+  }
+}
 
 /** The load this page started, kept until it settles: a second press waits on the same one. */
 let fbReady: Promise<FB> | undefined;
 
 /** Load Meta's SDK once; resolve with the global it defines. */
 function loadSdk(win: Window, appId: string, version: string): Promise<FB> {
-  const w = win as SdkWindow;
+  const w = win;
   if (w.FB) return Promise.resolve(w.FB);
   if (fbReady) return fbReady;
   fbReady = new Promise<FB>((resolve, reject) => {
@@ -153,8 +160,7 @@ const IN_HAND = new WeakMap<Window, InHand>();
  * another site opens in a sheet of its own that cannot reach the page behind it, so Meta's window could never hand back the
  * code or the ids: the sign-up would finish on Meta's side and never arrive here.
  */
-const onHomeScreen = (win: Window): boolean =>
-  (win.navigator as { standalone?: boolean } | undefined)?.standalone === true;
+const onHomeScreen = (win: Window): boolean => valueAt(win.navigator, "standalone") === true;
 
 /**
  * Whether the browser gave the window asked for while `ask` ran: true or false, or null where none was asked for. Meta's SDK
@@ -195,22 +201,18 @@ export function parseSignupMessage(origin: string, data: unknown): SignupSaid | 
       return null;
     }
   }
-  const m = obj as {
-    type?: string;
-    event?: string;
-    data?: { phone_number_id?: string; waba_id?: string; waba_ids?: string[]; current_step?: string };
-  } | null;
-  if (!m || m.type !== "WA_EMBEDDED_SIGNUP") return null;
-  if (m.event === "FINISH" || m.event === "FINISH_ONLY_WABA") {
-    const d = m.data ?? {};
-    const waba = d.waba_id ?? (Array.isArray(d.waba_ids) ? d.waba_ids[0] : undefined);
+  if (valueAt(obj, "type") !== "WA_EMBEDDED_SIGNUP") return null;
+  const event = valueAt(obj, "event");
+  if (event === "FINISH" || event === "FINISH_ONLY_WABA") {
+    const phone = valueAt(obj, "data", "phone_number_id");
+    const waba = valueAt(obj, "data", "waba_id") ?? valueAt(obj, "data", "waba_ids", 0);
     const said = {
-      phone_number_id: d.phone_number_id ? String(d.phone_number_id) : null,
-      waba_id: waba ? String(waba) : null,
+      phone_number_id: textOrEmpty(phone) || null,
+      waba_id: textOrEmpty(waba) || null,
     };
     return said.phone_number_id || said.waba_id ? said : null;
   }
-  if (m.event === "CANCEL") return { cancelled: true };
+  if (event === "CANCEL") return { cancelled: true };
   return null;
 }
 
@@ -292,13 +294,14 @@ async function runSignup(win: Window, ask: SignupAsk = {}): Promise<ConnectResul
   // The ids arrive by message while the window is open; the code arrives when it closes. The code is what is needed:
   // the ids are sent on where they were heard, and the edge reads the rest from the token's own grant (8 October 2026:
   // three sign-ups finished on Meta's side, the page heard no ids, and each code was thrown away with nothing connected).
-  let ids: { phone_number_id: string | null; waba_id: string | null } | null = null;
+  // Heard in a listener, so held in a box: the checker reads a `let` set only there as never set.
+  const heard: { ids: { phone_number_id: string | null; waba_id: string | null } | null } = { ids: null };
   let cancelled = false;
   const onMessage = (e: MessageEvent) => {
     const parsed = parseSignupMessage(e.origin, e.data);
     if (!parsed) return;
     if ("cancelled" in parsed) cancelled = true;
-    else ids = parsed;
+    else heard.ids = parsed;
   };
   win.addEventListener("message", onMessage);
   let settle: (code: string | null) => void = () => {};
@@ -341,12 +344,12 @@ async function runSignup(win: Window, ask: SignupAsk = {}): Promise<ConnectResul
       reason: "cancelled",
       message: "The sign-up was closed before it finished. Nothing was connected.",
     };
-  const heard = ids as { phone_number_id: string | null; waba_id: string | null } | null;
+  const ids = heard.ids;
   const r = await api()("POST channels/whatsapp/connect", {
     body: {
       code,
-      ...(heard?.phone_number_id ? { phone_number_id: heard.phone_number_id } : {}),
-      ...(heard?.waba_id ? { waba_id: heard.waba_id } : {}),
+      ...(ids?.phone_number_id ? { phone_number_id: ids.phone_number_id } : {}),
+      ...(ids?.waba_id ? { waba_id: ids.waba_id } : {}),
       // The app kept (coexistence): the edge asks Meta for the contacts and the chat history within its 24 hours (R21).
       ...(ask.keepApp ? { keep_app: true } : {}),
     },

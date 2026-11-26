@@ -75,6 +75,13 @@ export interface AskedHow {
   files?: readonly AskAttached[];
 }
 
+declare global {
+  interface WindowEventMap {
+    /** The shell's ask as it opens the Line (frame-doors.ts askAbout): the one event that carries it. */
+    "ask:seed": CustomEvent<AskedSeed>;
+  }
+}
+
 /** What the shell sends as it opens the Line (`askAbout`, frame-doors.ts). */
 export interface AskedSeed {
   prompt?: string;
