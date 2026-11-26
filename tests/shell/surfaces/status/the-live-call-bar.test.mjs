@@ -376,6 +376,41 @@ test("a route whose surface has not landed is an empty pane that says it is read
   }
 });
 
+test("the gate is asked for the pane on screen, its param with it: one thread in, another still reading", () => {
+  // A second Inbox thread or Settings tab is a pane of its own to wait for, where its page is one mount across them
+  // (the-page-and-the-shell-s-doors.test.mjs): the shell asks the gate for the page and its param (shell-hooks.ts
+  // useRouteGate), pinned as its source's text in chrome.test.mjs until 26 Nov 2026.
+  shell.installShell(win);
+  const asked = [];
+  const keepTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = () => 0;
+  bridgeHolds({
+    parts: {
+      surfaceGate: (page, param) => {
+        asked.push([page, param]);
+        return param === "th-1";
+      },
+    },
+  });
+  try {
+    assert.ok(
+      find(mount("#/inbox/th-1").tree, (n) => n.type === "RoutePage"),
+      "the thread whose pane is in draws",
+    );
+    assert.ok(
+      !find(mount("#/inbox/th-2").tree, (n) => n.type === "RoutePage"),
+      "another thread of the page still reads",
+    );
+    assert.ok(
+      asked.some(([page, param]) => page === "inbox" && param === "th-2"),
+      "asked with its param",
+    );
+  } finally {
+    globalThis.setTimeout = keepTimeout;
+    bridgeHolds({ parts: { surfaceGate: undefined } });
+  }
+});
+
 test("Today waits for the card it draws above its queue, and once its own read is in, only for so long", () => {
   // The card that says what is left to set up sits above the queue: landing after it, it pushed the queue down. The
   // gate holds Today for it (surface-registry ROUTE_WAITS); once Today's own surface is in, past the wait it draws.

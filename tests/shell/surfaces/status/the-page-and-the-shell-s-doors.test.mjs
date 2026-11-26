@@ -1155,3 +1155,50 @@ test("⌘B folds the sidebar to its rail and back on a desk, and does nothing on
     bridgeHolds({ who: { activeWorkspaceId: undefined } });
   }
 });
+
+test("the rail is the sidebar folded, and the chrome draws the keys' sheet on every page", () => {
+  // The shell as drawn (surfaces/frame/shell-chrome.tsx), where chrome.test.mjs read its source until 26 Nov 2026: the
+  // device's preference "rail" folds the sidebar and marks its wrap, "open" does neither; ⌘B moving between the two on a
+  // desk alone is pressed in the test above.
+  placeAt("#/inbox");
+  const drawAt = (sidebar) => {
+    setDeep(false);
+    setCells([]);
+    frames.begin();
+    const tree = win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar,
+      onSidebar() {},
+      onTheme() {},
+    });
+    setDeep(true);
+    return tree;
+  };
+  for (const [sidebar, folded] of [
+    ["rail", true],
+    ["open", false],
+  ]) {
+    const tree = drawAt(sidebar);
+    const wrap = find(tree, (n) =>
+      String(n.props?.className ?? "")
+        .split(" ")
+        .includes("side-wrap"),
+    );
+    assert.equal(
+      String(wrap.props.className).split(" ").includes("rail"),
+      folded,
+      `${sidebar}: the wrap says the rail`,
+    );
+    assert.equal(
+      find(tree, (n) => n.type === "Sidebar" || n.type?.name === "Sidebar").props.collapsed,
+      folded,
+      sidebar,
+    );
+    assert.ok(
+      find(tree, (n) => n.type === "ShortcutsSheet" || n.type?.name === "ShortcutsSheet"),
+      `${sidebar}: the keys' sheet is the chrome's, drawn on every page for ? to open`,
+    );
+  }
+});

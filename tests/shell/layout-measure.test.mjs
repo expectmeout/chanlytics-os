@@ -17,18 +17,27 @@
  * on a wide screen. The file has since collected the rest of that family: a
  * presentation rule every call site has to REMEMBER is a rule half of them
  * will not, so each one here is a default with the exceptions named.
+ *
+ * Each is asked of the stylesheets the frame links, run as a browser runs them (tests/_css.mjs cascadeOf): what an
+ * element is drawn with, on a desk and on a phone, never a slice of a stylesheet's text, which a later rule, a media
+ * query or a class the page no longer draws would pass over. Until 26 Nov 2026 these sliced mobile.css,
+ * components.css, settings.css, inbox.css and tokens.css.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { ROOT, readRaw } from "../_source.mjs";
+import { ROOT } from "../_source.mjs";
+import { PHONE, cascadeOf, element, frameSheets } from "../_css.mjs";
 
 const STYLES = path.join(ROOT, "apps/dashboard/src/styles");
 const sheets = fs.readdirSync(STYLES).filter((f) => f.endsWith(".css"));
-// Read once for the tests below: the ratchet counts reads, and a phone rule is proven in the browser, pinned here.
-const MOBILE = readRaw("apps/dashboard/src/styles/mobile.css");
-const COMPONENTS = readRaw("apps/dashboard/src/styles/components.css");
+
+// The document as the frame stamps it (bridge/device-prefs.ts documentStamps): the tokens are its theme's.
+const DOC = 'html[data-theme="light"]';
+const desk = cascadeOf(frameSheets());
+const phone = cascadeOf(frameSheets(), PHONE);
+const at = (...parts) => element(DOC, ...parts);
 
 test("the shell is as tall as the phone shows, not as tall as it could show: 100dvh, with 100vh in front of it", () => {
   // On iOS Safari (and Chrome on Android) 100vh is the LARGEST viewport, the one with the browser's toolbar tucked
@@ -36,32 +45,47 @@ test("the shell is as tall as the phone shows, not as tall as it could show: 100
   // scrolls, its tab bar is fixed to the visible bottom, and the room every page keeps under the bar (.main-scroll's
   // padding) was the part pushed below the visible edge: on the salon's phone the thread's reply box, Today's last
   // card and every page's foot ended behind the tab bar (22 Sep). dvh is the visible height. Chrome's viewport is
-  // one size, so the browser cannot show this; the rule is pinned.
-  for (const root of [".app-root", ".app", ".shared-root"]) {
-    const rule = COMPONENTS.match(new RegExp(`\\${root} \\{[^}]*\\}`));
-    assert.ok(rule, `${root} has a rule`);
-    assert.match(rule[0], /height: 100vh;\s*height: 100dvh;/, `${root}: 100vh for a browser without dvh, then 100dvh`);
+  // one size, so the browser cannot show this; the cascade can: a browser that reads dvh draws with it, and one that
+  // does not keeps the 100vh written before it.
+  const tablet = { ...PHONE, width: 800 };
+  for (const [name, where] of [
+    ["a desk", {}],
+    ["a tablet", tablet],
+  ]) {
+    const seen = cascadeOf(frameSheets(), where);
+    const noDvh = cascadeOf(frameSheets(), { ...where, unsupported: ["dvh"] });
+    for (const root of [".app-root", ".app", ".shared-root"]) {
+      assert.equal(seen.style(at(root)).height, "100dvh", `${name}, ${root}: the visible height`);
+      assert.equal(noDvh.style(at(root)).height, "100vh", `${name}, ${root}: 100vh for a browser without dvh`);
+    }
   }
+  // Up to 720px the document is as long as the page and the window is its scroller (mobile.css, 21 Oct 2026): at least
+  // the screen at its largest, so even a short page scrolls by the toolbar's height and Safari tucks the toolbar away.
+  const shell = phone.style(at(".app-root"));
+  assert.deepEqual([shell.height, shell["min-height"]], ["auto", "100lvh"], "a phone's shell grows with its page");
+  assert.equal(
+    cascadeOf(frameSheets(), { ...PHONE, unsupported: ["lvh"] }).style(at(".app-root"))["min-height"],
+    "100vh",
+    "100vh for a browser without lvh",
+  );
   // The room under the bar, which dvh keeps on screen: the boards' tab bar floats 14px above the bottom (--bar-foot:
   // nearer the edge than the phone's own inset where that is more) and stands 62px tall with its capsule, so the page
   // keeps 76px over that (mobile.css). It is said once, as --page-foot: a page that scrolls inside a pane hands it to
   // that scroller, so its list runs under the bar as Today's does, and ends clear of it (7 Oct 2026).
-  assert.match(
-    MOBILE,
-    /\.main-scroll \{\s*--page-foot: calc\(var\(--bar-foot\) \+ 76px\);\s*padding-bottom: var\(--page-foot\);\s*\}/,
-  );
+  const barFoot = "max(14px, calc(env(safe-area-inset-bottom, 0px) - 13px))";
+  const scroll = phone.style(at(".app-root", ".main", ".main-scroll"));
+  assert.equal(scroll["--page-foot"], `calc(${barFoot} + 76px)`);
+  assert.equal(scroll["padding-bottom"], scroll["--page-foot"], "the room under every page is the bar's");
+  assert.equal(desk.style(at(".app-root", ".main", ".main-scroll"))["padding-bottom"], undefined, "a desk keeps none");
 });
 
 test("the measures are tokens, and every page takes one of them", () => {
-  const tokens = readRaw("apps/dashboard/src/styles/tokens.css");
-  for (const t of [
-    "--measure-prose: 720px",
-    "--measure-page: 1160px",
-    "--measure-wide: 1480px",
-    "--gutter-page: 28px",
-  ]) {
-    assert.ok(tokens.includes(t), `tokens.css defines ${t}`);
-  }
+  const root = desk.style(element(DOC));
+  assert.deepEqual(
+    ["--measure-prose", "--measure-page", "--measure-wide", "--gutter-page"].map((t) => root[t]),
+    ["720px", "1160px", "1480px", "28px"],
+    "the document holds each measure",
+  );
 
   // Nothing outside tokens.css may hard-code a page-sized max-width again. The
   // numbers listed here are the ones that were literals before; a new surface
@@ -85,73 +109,64 @@ test("Setup shares the settings column with the cards above and below it", () =>
   // The rows had no measure at all. Measured in the browser before capping
   // them: not one row's sentence or status line clips at 720, so the space
   // they were taking was empty — the fix loses no words.
-  const settings = readRaw("apps/dashboard/src/styles/settings.css");
-  assert.match(
-    settings,
-    /\.set-card, \.setup-rows \{ max-width: var\(--measure-prose\); \}/,
+  const card = desk.style(at(".settings", ".set-card"))["max-width"];
+  assert.equal(card, "720px", "a settings card stops at the prose measure");
+  assert.equal(
+    desk.style(at(".settings", ".setup-rows"))["max-width"],
+    card,
     "the cards and the Setup rows are one column, not two widths on one page",
   );
+  const wider = cascadeOf([...frameSheets(), { css: ":root:root[data-theme] { --measure-prose: 777px; }" }]);
+  for (const part of [".set-card", ".setup-rows"])
+    assert.equal(wider.style(at(".settings", part))["max-width"], "777px", `${part} takes the prose measure`);
 
   // A Setup row prints its sentence WHOLE, at every width, and always did.
   // Today's queue rows now clamp to two lines, which needs display:-webkit-box
   // -- and these would have inherited the ceiling with it.
-  assert.match(
-    settings,
-    /.setup-rows .cl-attn-sentence {[^}]*display: block; -webkit-line-clamp: none; }/,
-    "a Setup row keeps every line it had",
-  );
-
-  // A phone gets the sentence wrapped instead of truncated; that predates this
-  // and must survive it.
-  assert.ok(
-    MOBILE.includes(".setup-rows .cl-attn-sentence { white-space: normal; }"),
-    "a row's sentence still wraps on a phone",
-  );
+  const sentence = (where) => where.style(at(".settings", ".setup-rows", ".cl-attn-row", ".cl-attn-sentence"));
+  for (const [name, where] of [
+    ["a desk", desk],
+    ["a phone", phone],
+  ]) {
+    const s = sentence(where);
+    assert.equal(s.display, "block", `${name}: a Setup row keeps every line it had`);
+    assert.equal(s["-webkit-line-clamp"], "none", name);
+    // A phone gets the sentence wrapped instead of truncated; that predates this and must survive it.
+    assert.equal(s["white-space"], "normal", `${name}: a row's sentence wraps`);
+  }
 });
 
 test("on a phone Settings' one column is as wide as the screen, whatever the strip of sections holds", () => {
   // A bare 1fr is minmax(auto, 1fr): Safari sized it to the strip's tabs laid end to end (775px on a 393px iPhone,
   // 4 Oct), and every pane under the strip ran off the screen. Chromium shrank it, so only a phone showed it.
-  assert.match(
-    MOBILE,
-    /\n {2}\.settings \{ grid-template-columns: minmax\(0, 1fr\);/,
+  assert.equal(
+    phone.style(at(".settings"))["grid-template-columns"],
+    "minmax(0, 1fr)",
     "the phone's Settings column may shrink below what the strip and the panes hold",
   );
 });
 
 test("the thread pane has ONE gutter, and the pane owns it", () => {
-  const inbox = readRaw("apps/dashboard/src/styles/inbox.css");
-  // Every rule on the scroller, its layout and the look's gutter (16px 24px, set once, in the look's own rule).
-  const scroll = inbox
-    .split(".ix-th-scroll {")
-    .slice(1)
-    .map((s) => s.slice(0, s.indexOf("}")))
-    .join(" ");
-  assert.ok(scroll.includes("padding: 16px 24px;"), "the scroller sets the gutter");
-  assert.ok(
-    scroll.includes("gap: 12px;") && scroll.includes("flex-direction: column;"),
-    "and separates its children with gap, not their margins",
+  const pane = [".inbox", ".ix-thread-pane", ".ix-th-scroll"];
+  const scroll = desk.style(at(...pane));
+  assert.deepEqual(
+    [scroll["padding-top"], scroll["padding-right"], scroll["padding-bottom"], scroll["padding-left"]],
+    ["16px", "24px", "16px", "24px"],
+    "the scroller sets the gutter",
   );
+  assert.equal(scroll.gap, "12px", "and separates its children with gap, not their margins");
+  assert.equal(scroll["flex-direction"], "column");
 
   // The children that used to re-supply it must not carry it any more, or the
   // gutter doubles on some rows and not others.
-  const block = (sel) => {
-    const at = inbox.indexOf(sel);
-    assert.ok(at > -1, `${sel} exists`);
-    return inbox.slice(at, inbox.indexOf("}", at));
-  };
-  assert.ok(
-    !/margin: *\d+px +24px/.test(block(".ix-summary {")),
-    ".ix-summary no longer carries the gutter as a margin",
-  );
-  assert.ok(
-    !/margin: *\d+px +24px/.test(block(".ix-approval {")),
-    ".ix-approval no longer carries the gutter as a margin",
-  );
-  assert.ok(
-    !/padding: *\d+px +24px/.test(block(".ix-timeline {")),
-    ".ix-timeline no longer carries the gutter as padding",
-  );
+  for (const child of [".ix-summary", ".ix-approval"]) {
+    const s = desk.style(at(...pane, child));
+    for (const side of ["margin-left", "margin-right"])
+      assert.notEqual(s[side], "24px", `${child} no longer carries the gutter as a margin`);
+  }
+  const timeline = desk.style(at(...pane, ".ix-timeline"));
+  for (const side of ["padding-left", "padding-right"])
+    assert.notEqual(timeline[side], "24px", ".ix-timeline no longer carries the gutter as padding");
 });
 
 test("the focus ring is a default, not a list of names", () => {
@@ -159,18 +174,34 @@ test("the focus ring is a default, not a list of names", () => {
   // construction: it covered 29 selectors and missed 39 real controls —
   // calendar appointments, segment rows, policy dots, every chip and inline
   // link — so a keyboard user tabbing through them saw nothing move.
-  const components = COMPONENTS;
-  assert.match(
-    components,
-    /:where\(button, a\[href\], summary, \[role="button"\], \[role="switch"\], \[role="tab"\],\s*\[role="option"\], \[tabindex="0"\]\):focus-visible \{/,
-    "everything focusable gets the ring by default",
-  );
-  assert.ok(components.includes("box-shadow: var(--focus-ring)"), "and it is the token, not a literal");
+  const ring = desk.style(element(DOC))["--focus-ring"];
+  assert.ok(ring, "the theme names the ring");
+  for (const control of [
+    "button",
+    "a[href]",
+    "summary",
+    '[role="button"]',
+    '[role="switch"]',
+    '[role="tab"]',
+    '[role="option"]',
+    'span[tabindex="0"]',
+  ]) {
+    assert.equal(
+      desk.style(at(".app-root", `${control}:focus-visible`))["box-shadow"],
+      ring,
+      `${control}: everything focusable gets the ring by default, and it is the token`,
+    );
+  }
+  assert.equal(desk.style(at(".app-root", "a"))["box-shadow"], undefined, "a link with nowhere to go is not a control");
   // :where() carries no specificity, so every component override still wins
   // without !important. That is the whole reason it is safe to add.
+  const ringRule = desk
+    .rules(at(".app-root", 'span[tabindex="0"]:focus-visible'))
+    .find((r) => r.declarations.some((d) => d.prop === "box-shadow"));
+  assert.deepEqual(ringRule.specificity, [0, 1, 0], ":where is zero-specificity by design: only :focus-visible weighs");
   assert.ok(
-    !/:where\([^)]*\):focus-visible \{[^}]*!important/.test(components),
-    "no !important — :where is zero-specificity by design",
+    ringRule.declarations.every((d) => !d.important),
+    "no !important",
   );
 });
 
@@ -186,28 +217,34 @@ test("on a phone a thread opens by coming in from the right, over where the list
   // data-pushed; Ruben, 20 Oct 2026, "like iphone imessage"), and plays no entrance of its own: thread-in moves
   // `transform`, which an animation holds over the push's own, so the thread faded in place under it. The rule that says
   // so is one of its own after the entrance, never a `:not()` on it: that outranked the reduced-motion rule below.
-  const mobile = MOBILE;
-  assert.match(
-    mobile,
-    /\.inbox\[data-takeover\] \.ix-thread-pane, \.conversations\[data-takeover\] \.ix-thread-pane \{ animation: thread-in \d+ms var\(--ease-out\); \}/,
-    "both pages' threads, the one motion",
-  );
-  assert.match(
-    mobile,
-    /\.inbox\[data-takeover\] \.ix-thread-pane\[data-pushed\], \.conversations\[data-takeover\] \.ix-thread-pane\[data-pushed\] \{ animation: none; \}/,
-    "a thread pushed in plays none of its own",
-  );
-  const frames = mobile.match(/@keyframes thread-in \{([^}]*)\}/);
-  assert.ok(
-    frames && /translateX\(\d+px\)/.test(frames[1]) && /opacity: 0/.test(frames[1]),
-    "from the right, faded in",
-  );
-  assert.ok(!/(width|height|top|left):/.test(frames[1]), "never a layout property");
-  assert.match(
-    mobile,
-    /prefers-reduced-motion: reduce\) \{ \.inbox\[data-takeover\] \.ix-thread-pane, \.conversations\[data-takeover\] \.ix-thread-pane \{ animation: none; \} \}/,
-    "and none under reduced motion",
-  );
+  const still = cascadeOf(frameSheets(), { ...PHONE, reducedMotion: true });
+  for (const page of [".inbox[data-takeover]", ".conversations[data-takeover]"]) {
+    assert.match(
+      phone.style(at(page, ".ix-thread-pane")).animation ?? "",
+      /^thread-in \d+ms /,
+      `${page}: the one motion`,
+    );
+    assert.equal(
+      phone.style(at(page, ".ix-thread-pane[data-pushed]")).animation,
+      "none",
+      `${page}: a thread pushed in plays none of its own`,
+    );
+    assert.equal(still.style(at(page, ".ix-thread-pane")).animation, "none", `${page}: and none under reduced motion`);
+    assert.doesNotMatch(
+      desk.style(at(page, ".ix-thread-pane")).animation ?? "",
+      /thread-in/,
+      "a desk opens it in place",
+    );
+  }
+  const frames = phone.keyframes("thread-in");
+  const from = frames?.from ?? frames?.["0%"];
+  assert.ok(from && /translateX\(\d+px\)/.test(from.transform) && from.opacity === "0", "from the right, faded in");
+  for (const frame of Object.values(frames))
+    assert.deepEqual(
+      Object.keys(frame).filter((p) => !["transform", "opacity"].includes(p)),
+      [],
+      "never a layout property",
+    );
 });
 
 test("a route on its way is an empty pane that says so after a beat, never a skeleton", () => {
@@ -218,44 +255,36 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
   // and a 220px rail beside a 155px column on a 375px phone. Every page jumped when it left. A loading state that
   // moves the page when it leaves is worse than none, so the pane stays empty and says it is reading once a beat
   // has passed (surfaces/frame/shell-chrome.tsx, the route view; shell/surfaces/status/ draws it).
-  const components = COMPONENTS;
-  assert.doesNotMatch(components, /\.skel\b|skel-/, "no skeleton rules");
-  const reading = components.match(/\.route-reading \{[^}]*\}/);
-  assert.ok(reading, "the reading line has a rule");
-  const delay = reading[0].match(/animation:[^;]*?\s(\d+)ms both/);
+  const plain = desk.rules(at("div")).length;
+  for (const skel of [".skel", ".skel-line", ".skel-card"])
+    assert.equal(desk.rules(at(skel)).length, plain, `no rule draws ${skel}`);
+  const reading = desk.style(at(".app-root", ".route-reading"));
+  const delay = / (\d+)ms both$/.exec(reading.animation ?? "");
   assert.ok(
     delay && Number(delay[1]) >= 400,
     "the words wait a beat (fill-mode both holds them back until then), so a surface that lands fast is never said",
   );
-  assert.match(
-    components,
-    /@media \(max-width: 900px\) \{ \.route-reading \{ padding: 12px 16px; \} \}/,
+  assert.equal(
+    phone.style(at(".app-root", ".route-reading")).padding,
+    "12px 16px",
     "on a phone the line sits at the 16px gutter, where every page's first line sits",
   );
 
   // The rails themselves: eight literals for one structural element, of which
-  // these four agreed already and now say so.
-  const tokens = readRaw("apps/dashboard/src/styles/tokens.css");
-  assert.ok(
-    tokens.includes("--rail-nav: 220px") && tokens.includes("--rail-list: 360px"),
-    "the two kinds of rail are named",
-  );
-  for (const [file, sel] of [
-    ["settings.css", ".settings"],
-    ["clients.css", ".clients"],
-  ]) {
-    assert.match(
-      readRaw(`apps/dashboard/src/styles/${file}`),
-      /grid-template-columns: var\(--rail-nav\) minmax\(0, 1fr\);/,
-      `${sel} takes the nav rail`,
-    );
+  // these four agreed already and now say so. Taking the token is what follows it: the rails moved, each page moves.
+  const root = desk.style(element(DOC));
+  assert.deepEqual([root["--rail-nav"], root["--rail-list"]], ["220px", "360px"], "the two kinds of rail are named");
+  const moved = cascadeOf([
+    ...frameSheets(),
+    { css: ":root:root[data-theme] { --rail-nav: 301px; --rail-list: 402px; }" },
+  ]);
+  for (const page of [".settings", ".clients"]) {
+    assert.equal(desk.style(at(page))["grid-template-columns"], "220px minmax(0, 1fr)", page);
+    assert.equal(moved.style(at(page))["grid-template-columns"], "301px minmax(0, 1fr)", `${page} takes the nav rail`);
   }
-  for (const file of ["inbox.css", "conversations.css"]) {
-    assert.match(
-      readRaw(`apps/dashboard/src/styles/${file}`),
-      /grid-template-columns: var\(--rail-list\) minmax\(0, 1fr\)/,
-      `${file} takes the list rail`,
-    );
+  for (const page of [".inbox", ".conversations"]) {
+    assert.equal(desk.style(at(page))["grid-template-columns"], "360px minmax(0, 1fr)", page);
+    assert.equal(moved.style(at(page))["grid-template-columns"], "402px minmax(0, 1fr)", `${page} takes the list rail`);
   }
 });
 
@@ -264,14 +293,15 @@ test("digits in a column line up without being asked", () => {
   // in, so figures a reader is there to COMPARE sat on proportional digits and
   // the column edges wandered. Measured after: 66 numeric cells across four
   // surfaces, none proportional.
-  const components = COMPONENTS;
-  assert.match(
-    components,
-    /\.cl-table th, \.cl-table td \{ font-variant-numeric: tabular-nums; \}/,
-    "the cell decides, not the call site",
-  );
-  assert.ok(
-    !/\.tbl \.num \{ font-variant-numeric/.test(components),
+  for (const cell of ["th", "td"])
+    assert.equal(
+      desk.style(at("table.cl-table", "tr", cell))["font-variant-numeric"],
+      "tabular-nums",
+      `${cell}: the cell decides, not the call site`,
+    );
+  assert.equal(
+    desk.style(at("table.tbl", "tr", "td.num"))["font-variant-numeric"],
+    undefined,
     "and the opt-in rule it replaced is gone, not left to imply a choice",
   );
 });
