@@ -13,6 +13,7 @@ import {
   askTraitsOf,
   textOrEmpty,
   valueAt,
+  nonEmptyOrNull,
 } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
@@ -158,7 +159,7 @@ export const AskCardChange = ({
   const reply = p.kind === "reply";
   const shut = pl.window_open === false;
   const written = p.kind === "message" && Array.isArray(pl.said) ? pl.said.map(cardVersionOf) : null;
-  const follows = typeof pl.follows === "string" ? pl.follows : null;
+  const follows = nonEmptyOrNull(pl.follows);
   // A record: what it keeps, in a line, with no ground under it (the Keep shape).
   if (askTraitsOf(p.kind).shape === "keep" && !written && !(p.sheet && p.sheet.rows && p.sheet.rows.length))
     return <p className="ask-card-line">{p.line || p.summary}</p>;
@@ -467,7 +468,7 @@ export const AskCardReceipt = ({
       ) : null}
       {can && armed ? (
         <Confirm
-          question={`${p.undo ?? ""}?`}
+          question={`${textOrEmpty(p.undo)}?`}
           detail={t.undoCampaignDetail}
           yes={t.undoCampaignYes}
           danger

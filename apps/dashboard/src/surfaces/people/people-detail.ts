@@ -446,8 +446,9 @@ function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): Ma
     skipped: listOrEmpty(valueAt(r.data, "skipped")),
   };
   const failed = d.failed.length + d.skipped.length;
-  const said = valueAt(d.failed, 0, "message");
-  const why = typeof said === "string" ? said : d.skipped.length ? "no longer in this workspace" : undefined;
+  const firstFailure = valueAt(d.failed, 0, "message");
+  const why =
+    typeof firstFailure === "string" ? firstFailure : d.skipped.length ? "no longer in this workspace" : undefined;
   return {
     ok: failed === 0,
     done: d.done,

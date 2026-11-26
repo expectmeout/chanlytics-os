@@ -218,8 +218,8 @@ const btRefusal = (words: string): Refusal => Object.assign(new Error(words), { 
 const btMessageOf = (answer: unknown): ReactNode => btNodeOf(valueAt(answer, "message"));
 
 /** Words, or an element: what a toast can say of a value; nothing for anything else. */
-const btNodeOf = (said: unknown): ReactNode =>
-  typeof said === "string" || typeof said === "number" || isValidElement(said) ? said : undefined;
+const btNodeOf = (words: unknown): ReactNode =>
+  typeof words === "string" || typeof words === "number" || isValidElement(words) ? words : undefined;
 
 /** A throw as an Error to reject with: an Error as it is, anything else as an Error that says what it said (its `message`). */
 const btAsError = (thrown: unknown): Error => {
@@ -548,8 +548,8 @@ const btWorkspaceDoor = <J extends DoorJob, R extends DoorReply>({
       Promise.resolve(sent).then(
         (r) => answered(r),
         (e: unknown) => {
-          const said = valueAt(e, "message");
-          answered(undefined, typeof said === "string" ? said : undefined);
+          const message = valueAt(e, "message");
+          answered(undefined, typeof message === "string" ? message : undefined);
         },
       );
     },

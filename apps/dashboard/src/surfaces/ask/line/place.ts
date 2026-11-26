@@ -45,7 +45,7 @@ export const arScopeIcon = (s: AskScope) => askKindGlyph(s.kind);
  * message it wrote, and nothing reads it on one the Line drew itself.
  */
 export const lineMessage = (
-  said: Pick<AskMessageVM, "id" | "role" | "text"> & Partial<AskMessageVM>,
+  message: Pick<AskMessageVM, "id" | "role" | "text"> & Partial<AskMessageVM>,
 ): AskMessageVM => ({
   at: "",
   atMs: Date.now(),
@@ -58,7 +58,7 @@ export const lineMessage = (
   tools: [],
   latencyMs: null,
   failed: false,
-  ...said,
+  ...message,
 });
 
 export const arFailed = (id: string, text: string) => lineMessage({ id, role: "assistant", text, failed: true });

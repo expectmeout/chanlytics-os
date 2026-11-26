@@ -33,8 +33,8 @@ type Refuse = (r: { message?: string | null } | null | undefined, what: string) 
 const pkErasing = new Set<string>();
 
 /** The call being logged, with what was just said of it: nothing where no call is being logged. */
-const armedWith = (p: PeekPage, said: Partial<Armed>): void => {
-  if (p.armed) p.setArmed({ ...p.armed, ...said });
+const armedWith = (p: PeekPage, change: Partial<Armed>): void => {
+  if (p.armed) p.setArmed({ ...p.armed, ...change });
 };
 
 /**

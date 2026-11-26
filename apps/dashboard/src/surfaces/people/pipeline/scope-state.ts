@@ -170,8 +170,8 @@ export function usePipelineRows(f: PipelineFrame, ui: PipelineUi) {
   const { people, view, nowMs, controls } = f;
   const { phone, q, canExport, extraView } = controls;
   const { opened, every } = ui;
-  const asked = extraView?.layout;
-  const layout = typeof asked === "string" && PIPE_LAYOUTS.includes(asked) ? asked : "list";
+  const wanted = extraView?.layout;
+  const layout = typeof wanted === "string" && PIPE_LAYOUTS.includes(wanted) ? wanted : "list";
   const g = usePipelineGroups(f);
   const { rows, pace, all, inView, vm, sortBy, sortDir } = g;
   const rail = P.rail(all, nowMs);

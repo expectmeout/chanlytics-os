@@ -111,8 +111,8 @@ function phoneQuestions(ph: FirstRunPhoneVM, k: PhoneActs): ReactNode {
             value={one.value}
             options={one.options.map((o) => ({ value: o.key, label: o.label }))}
             onChange={(v) => {
-              const said = phoneAnswerOf(key, v);
-              if (said) answer(k, said);
+              const chosen = phoneAnswerOf(key, v);
+              if (chosen) answer(k, chosen);
             }}
           />
         </div>

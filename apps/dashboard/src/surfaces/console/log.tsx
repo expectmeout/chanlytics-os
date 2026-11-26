@@ -44,6 +44,11 @@ export function ActRow({ act, onOpen = null }: { act: PlatformActVM; onOpen?: ((
 const WHOSE = ["everyone", "mine"] as const;
 type Whose = (typeof WHOSE)[number];
 
+/** A tab pressed, as whose acts it shows: one of the two, else nothing changes. */
+const whosePicked = (set: (whose: Whose) => void) => (id: string) => {
+  if (isOneOf(WHOSE, id)) set(id);
+};
+
 export function LogScreen({ me, go }: { me: ConsoleMe; go: Go }) {
   const [whose, setWhose] = useState<Whose>("everyone");
   const [rows, setRows] = useState<PlatformActDto[] | null>(null);
@@ -95,9 +100,7 @@ export function LogScreen({ me, go }: { me: ConsoleMe; go: Go }) {
         <SubTabs
           label="Whose"
           value={whose}
-          onSelect={(id) => {
-            if (isOneOf(WHOSE, id)) setWhose(id);
-          }}
+          onSelect={whosePicked(setWhose)}
           tabs={[
             { id: "everyone", label: "Everyone" },
             { id: "mine", label: "Mine" },

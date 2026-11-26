@@ -25,6 +25,8 @@ import type { ReactNode } from "react";
 
 type ViewPatch = { searchId?: string | null; list?: LeadList; cls?: LeadClass | null };
 
+/** The class a strip's act names, or none. */
+const leadClassOf = (arg: unknown): LeadClass | null => (isOneOf(LEAD_CLASSES, arg) ? arg : null);
 export const leadRailRoutes = ({
   leadView,
   nav,
@@ -121,7 +123,7 @@ export const leadStripActs = (a: {
       });
       return undefined;
     }
-    if (id === "excluded" || id === "review") return isOneOf(LEAD_CLASSES, arg) ? goto({ cls: arg }) : undefined;
+    if (id === "excluded" || id === "review") return goto({ cls: leadClassOf(arg) });
     // "12 new", Sort by fit and the round's undo need no plan, whatever the search.
     if (id === "take_offered") return takeOffered();
     if (id === "undo") return undoRound(searchIdOf(arg));

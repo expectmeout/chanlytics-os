@@ -281,8 +281,8 @@ export function useAdAccount(on: boolean): AdAccountHere {
     channel.onmessage = (event: MessageEvent) => {
       const data: unknown = event.data;
       const word = valueAt(data, "outcome");
-      const why = valueAt(data, "why");
-      if (typeof word === "string") finish({ outcome: word, why: typeof why === "string" ? why : null });
+      const reason = valueAt(data, "why");
+      if (typeof word === "string") finish({ outcome: word, why: typeof reason === "string" ? reason : null });
     };
     // Back on the page with the window gone and no word said: it was closed before Meta finished.
     const watch = window.setInterval(() => {

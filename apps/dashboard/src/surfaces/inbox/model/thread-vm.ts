@@ -136,7 +136,7 @@ export function toConversationVM(
   // two had been canceled before it ever left.
   const msgs = dto.messages.map((message): ConversationMessageVM => {
     const media = mediaVM(message);
-    const why = messageWhy(message);
+    const replyWhy = messageWhy(message);
     const author = messageAuthor(message);
     return {
       from: message.sender === "customer" ? "client" : "agent",
@@ -149,7 +149,7 @@ export function toConversationVM(
       at: bubbleTime(messageAt(message), tz, now),
       text: messageWords(message),
       ...(media ? { media } : {}),
-      ...(why ? { why } : {}),
+      ...(replyWhy ? { why: replyWhy } : {}),
       ...(author ? { by: author.words } : {}),
       // Only for OUR messages. A customer's inbound message has no send status,
       // and labelling it would be inventing one.
