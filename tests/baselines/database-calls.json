@@ -1,5 +1,5 @@
 {
-  "note": "What a page may cost the database, as the nightly's whole suite counts it on its own stack (e2e/shell/database-calls.spec.ts): the database calls behind one cold load of each main page in a browser that holds nothing, with the requests it sent (`load`); the same for the page loaded again in the same browser, which holds the workspace's rows by then (`again`); the calls behind a minute of a tab left open, in front or hidden (`idle`); and the requests a tab sends in a minute while every read fails, on a load and after a return to the tab (`failing`). Set on 25 Nov 2026 from run 45535489082 of that spec on this branch at 011bb031cc, each line what was counted and three parts in a hundred of room: the counts are the run's own workspace's, the same every night, so a line passed is a change that asks more. A person's page reads the person twice or three times (its own read, again after its mark, and once more where the mark's own notice lands after that: 239 or 265 calls a first load, run 45550687336), and its lines have room for the third. The two failing lines are what run 45557505210 counted and four of room: 9 requests in the first minute of a load whose reads all fail (the opening, two reads that look for it, and two at each of three waits' ends), 10 after a return to the tab (the eight reads its pass had out before three had failed, and two looks), where main sent 87 and 86. The spec prints each of those requests with its second. Each line may only fall. Before the work that set them (main at 81d30d2f0d, run 45534194105): a cold load of Today 192 calls, People 264, a person 1,499 (a page that marked and read the person again every two seconds), and 87 requests in the first minute of a load whose reads all fail. The `again` lines were set again the same day, once a load on a device that holds the pages' rows read only what changed (bridge/hearing/kept.ts), from run 45540820521 of the one spec (Today 129, the Inbox 103, People 32, a person 89, the others 34 to 55) and run 45542281430 of the whole suite, where the workspace holds what the other specs left and each page asked up to four calls more: the higher count and about a twentieth of room, where the lines before were Today 185, People 160 and the other pages 155 to 220.",
+  "note": "What a page may cost the database, as the nightly's whole suite counts it on its own stack (e2e/shell/database-calls.spec.ts): the database calls behind one cold load of each main page in a browser that holds nothing, with the requests it sent (`load`); the same for the page loaded again in the same browser, which holds the workspace's rows by then (`again`); the calls behind a minute of a tab left open, in front or hidden (`idle`); and the requests a tab sends in a minute while every read fails, on a load and after a return to the tab (`failing`). Set on 25 Nov 2026 from run 45535489082 of that spec on this branch at 011bb031cc, each line what was counted and three parts in a hundred of room: the counts are the run's own workspace's, the same every night, so a line passed is a change that asks more. A person's page reads the person twice or three times (its own read, again after its mark, and once more where the mark's own notice lands after that: 239 or 265 calls a first load, run 45550687336), and its lines have room for the third. The two failing lines are what run 45557505210 counted and four of room: 9 requests in the first minute of a load whose reads all fail (the opening, two reads that look for it, and two at each of three waits' ends), 10 after a return to the tab (the eight reads its pass had out before three had failed, and two looks), where main sent 87 and 86. The spec prints each of those requests with its second. Each line may only fall. Before the work that set them (main at 81d30d2f0d, run 45534194105): a cold load of Today 192 calls, People 264, a person 1,499 (a page that marked and read the person again every two seconds), and 87 requests in the first minute of a load whose reads all fail. The `again` lines were set again the same day, once a load on a device that holds the pages' rows read only what changed (bridge/hearing/kept.ts), from run 45540820521 of the one spec (Today 129, the Inbox 103, People 32, a person 89, the others 34 to 55) and run 45542281430 of the whole suite, where the workspace holds what the other specs left and each page asked up to four calls more: the higher count and about a twentieth of room, where the lines before were Today 185, People 160 and the other pages 155 to 220. Content's two lines were raised on 26 Nov 2026 from run 45758891405 (the whole suite at b17e842dc1), what it counted and three parts in a hundred of room: a cold load 216 calls in 20 requests, a load again 64 in 15. #2661 starts the ad account and its ads beside Content's own read (2 requests, 2 calls each), so Ads is drawn at once from Content and the Ads tab's figure stands with Made's and the Library's; the Forms list and the Library read Content now readies ahead came in since the line was set (4 and 7 calls on a cold load), and Content's and Today's own reads one call each.",
   "load": {
     "today": {
       "calls": 190,
@@ -26,8 +26,8 @@
       "requests": 22
     },
     "campaigns-content": {
-      "calls": 205,
-      "requests": 18
+      "calls": 223,
+      "requests": 20
     },
     "campaigns-forms": {
       "calls": 205,
@@ -68,8 +68,8 @@
       "requests": 13
     },
     "campaigns-content": {
-      "calls": 62,
-      "requests": 14
+      "calls": 66,
+      "requests": 15
     },
     "campaigns-forms": {
       "calls": 46,
