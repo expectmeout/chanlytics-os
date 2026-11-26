@@ -33,6 +33,7 @@ import {
   normalizePhone,
   type ImportSource,
   recordOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
 import { importCursorOf, listImports, keepBefore, noteImport } from "@chanlytics/db/imports";
@@ -249,7 +250,7 @@ async function bringContact(db: Db, tenantId: TenantId, waSyncedContact: WaSynce
     });
     return person.outcome === "new";
   } catch (e) {
-    if ((e as { code?: unknown }).code === PERSON_FORGOTTEN) return false;
+    if (valueAt(e, "code") === PERSON_FORGOTTEN) return false;
     throw e;
   }
 }

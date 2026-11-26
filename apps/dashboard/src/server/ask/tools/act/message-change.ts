@@ -38,6 +38,7 @@ import { propose, refuse } from "../context/context";
 import { checkDoorRefusal } from "./message";
 
 /** Where a message's version ids are read, said as the model calls it. */
+// screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
 const MESSAGES_FROM = "sequences with action messages (a version's id in its versions)";
 
 /** A message's id field: any of its versions' ids (said once, in each action's words: the tools block has a ceiling). */
@@ -216,6 +217,7 @@ export const messageChangeActions = {
     examples: [{ template_id: EXAMPLE_ID, channel: "email", body: "Hi {{1}}, did you read the proposal?" }],
     label: "Writing the new words",
     words:
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       "Action message_words changes a message's words on one channel: template_id (a version's id, from sequences' messages), channel and body, its values kept ({{1}}); subject where an email's changes, or it has no email yet. Read its words first (messages with its name) and change only what was asked, adding no price or promise. WhatsApp reviews its own again (approved words: one change a day); an email's or a text's are saved at once, or written where missing.",
     build: proposeWords,
   }),

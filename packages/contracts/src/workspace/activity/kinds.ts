@@ -212,7 +212,7 @@ const replyWords = (p: Record<string, unknown>, base: string): string =>
 /** A call that never connected (Retell's not_connected, contracts neverConnected), by who dialled: a customer's is missed. */
 export const CALL_MISSED_WORDS = "A call was missed";
 
-export const CALL_UNANSWERED_WORDS = "A call we placed did not connect";
+export const CALL_UNANSWERED_WORDS = "An outgoing call didn't connect";
 
 /** A call's first sighting: recorded, unless the dial never connected, which is all there was of it. */
 function callRecordedWords(p: Record<string, unknown>, base: string): string {

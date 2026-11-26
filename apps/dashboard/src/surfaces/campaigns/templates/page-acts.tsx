@@ -20,7 +20,7 @@ import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { useFrameToast } from "../../frame-verbs";
 import type { StarterGroup, TemplateGroup, TplLang } from "./group";
-import { syncTemplates, templates as templateVerbs } from "./verbs";
+import { templates as templateVerbs } from "./verbs";
 import type { VersionDraft } from "./verbs";
 import { TPL_SHEET_WORDS, TPL_VERSION_WORDS, tplLangLabel, tplTitle } from "./words";
 
@@ -177,7 +177,7 @@ export function pageActs({ doingRef, setDoing, flash }: ActsProps) {
   const sync = () =>
     run(
       "sync",
-      () => syncTemplates(),
+      () => templateVerbs.sync(),
       (r) => {
         const { seen, approved, marketing } = r.data;
         return (

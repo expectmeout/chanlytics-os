@@ -191,7 +191,7 @@ function bcValues(b: BroadcastDto) {
 function bcFigBars(f: RunReportVM["figures"][number], span: string, tall: number) {
   const top = Math.max(...f.bars, 1);
   return (
-    <span className="bc-fig-bars" aria-hidden="true" title={`When they came, across ${span}`}>
+    <span className="bc-fig-bars" aria-hidden="true" data-tip={`When they came, across ${span}`}>
       {f.bars.map((v, i) => (
         <span
           key={i}

@@ -35,7 +35,7 @@ import {
   causedBy,
 } from "@chanlytics/contracts";
 
-export const PLACES_BASE = "https://places.googleapis.com/v1";
+const PLACES_BASE = "https://places.googleapis.com/v1";
 export const PLACES_SEARCH_MASK =
   "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus," +
   "places.primaryTypeDisplayName";
@@ -45,7 +45,7 @@ export const PLACES_DETAILS_MASK =
   "pureServiceAreaBusiness,timeZone,photos";
 /** Candidates shown to the owner: a handful, never a page of twenty. */
 export const PLACES_SEARCH_LIMIT = 5;
-export const PLACES_TIMEOUT_MS = 10_000;
+const PLACES_TIMEOUT_MS = 10_000;
 
 export interface PlacesRequest {
   url: string;

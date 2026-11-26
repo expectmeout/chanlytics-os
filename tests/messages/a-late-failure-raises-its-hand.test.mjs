@@ -57,7 +57,7 @@ test("a reply a person or AI wrote, reported failed after it was taken, flags th
   assert.deepEqual([conversation, reason], ["c1", "send_failed"]);
   assert.equal(
     details,
-    "A reply from your team was accepted for sending but did not reach them. WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only an approved message can reach them now.",
+    "A reply from your team was accepted for sending but did not reach them. WhatsApp wouldn't send it: they haven't written in 24 hours, so only an approved message reaches them.",
   );
   assert.deepEqual(p.log[2], [
     "noteFailed",

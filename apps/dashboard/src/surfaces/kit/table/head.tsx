@@ -89,7 +89,7 @@ function headingDrag(key: string, acts: HeadActs | null, keys: readonly string[]
   };
 }
 
-export interface HeadProps {
+interface HeadProps {
   words: TableNouns;
   columns: readonly AnyDataColumn[];
   selectable: boolean;
@@ -159,7 +159,7 @@ export function tableHead(p: HeadProps) {
               }}
               onChange={onToggleAll}
               aria-label={words.all}
-              title={words.all}
+              data-tip={words.all}
               data-testid="select-all"
             />
           </th>

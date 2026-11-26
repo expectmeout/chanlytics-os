@@ -11,7 +11,7 @@ import {
 import { isOneOf } from "../../shared/unknown";
 
 /** An invoice's status in an owner's words. A word Stripe adds later is shown as Stripe says it; none, as a dash. */
-export const INVOICE_STATUS_WORDS: Record<string, string> = {
+const INVOICE_STATUS_WORDS: Record<string, string> = {
   draft: "Draft",
   open: "Not paid yet",
   paid: "Paid",

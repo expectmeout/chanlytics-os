@@ -17,7 +17,6 @@ export {
   stripKey,
   VOICE_AGENT_DEFAULTS,
   VOICE_LLM_DEFAULTS,
-  VOICE_NUMBER_DEFAULTS,
   voiceAgentCreateBody,
   voiceEndpoints,
   voiceLlmCreateBody,
@@ -108,7 +107,6 @@ export {
   VOICE_SHELL_PROMPT,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
-  voiceShellTools,
 } from "./shell/tools";
 export type { LiveVoiceLlm, RetellTool, VoiceConvergencePlan, VoiceShellTarget } from "./shell/tools";
 export { webCallBody, webCallMadeOf } from "./web-call";

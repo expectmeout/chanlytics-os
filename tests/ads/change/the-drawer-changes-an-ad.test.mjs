@@ -276,5 +276,5 @@ test("an ad made here that Meta turned down offers Fix it beside a door to ask M
   assert.deepEqual([sheet.reason.words, sheet.change, sheet.ends], [refused.issue, null, true]);
   // One made in Meta is fixed in Meta, as before.
   const inMeta = adOf({ made_here: null, made_in_platform: true, state: "needs-you", needs: "refused", issue: "x" });
-  assert.notEqual(sheetModel(pageOf([inMeta]), ID, { timezone: TZ }).foot.kind, "fix");
+  assert.notEqual(sheetModel(pageOf([inMeta]), ID, { timezone: TZ, nowMs: NOW }).foot.kind, "fix");
 });

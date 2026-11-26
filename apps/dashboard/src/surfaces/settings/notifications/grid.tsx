@@ -48,12 +48,15 @@ function Cell({
   // and say why when pressed, as a gated act is (the one gate), never a title a keyboard or a finger cannot reach.
   if (cell.kind === "always" || cell.kind === "told")
     return <RecordSwitch on readOnly label={label} gate={heldProps(cell.kind === "always" ? W.always : W.phoneTold)} />;
-  if (cell.kind === "none")
+  if (cell.kind === "none") {
+    // Why this topic never goes this way: the dash's name for a screen reader, which heard only "—", and its tip.
+    const reason = channel === "email" ? W.notEmailed : W.notPushed;
     return (
-      <span className="pol-dash" title={channel === "email" ? W.notEmailed : W.notPushed}>
+      <span className="pol-dash" role="img" aria-label={reason} data-tip={reason}>
         —
       </span>
     );
+  }
   const hold = channel === "email" ? emailHold(cell) : null;
   const held = busy ? heldProps(W.saving) : hold;
   return (

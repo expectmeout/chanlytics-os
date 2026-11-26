@@ -28,7 +28,6 @@ export {
 export type { LinkOpened, LinkRead } from "./links";
 export {
   countOpenFormRequests,
-  findFormSite,
   findOutsideForm,
   listFormSites,
   listOutsideFormEntries,

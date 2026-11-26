@@ -15,6 +15,7 @@ import {
 const SOURCE = {
   type: "object",
   description:
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this conversation named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
@@ -129,6 +130,7 @@ export const ASK_ANSWER_FORMAT = {
             },
             series: {
               type: "array",
+              // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
               description: `What each point's values are, in their order, at most ${C.series}, each at most ${C.label} characters: one name for one count ("reviews written"), or the parts a read gives apart ("receptionist", "you").`,
               items: { type: "string" },
             },

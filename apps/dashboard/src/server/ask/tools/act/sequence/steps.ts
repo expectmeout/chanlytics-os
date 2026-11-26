@@ -50,6 +50,7 @@ export async function sequenceOnCard(
   sequenceId: string,
 ): Promise<SequenceRecordDto | { refusal: string }> {
   const id = str(sequenceId, 40);
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!UUID.test(id)) return { refusal: "sequence_id must be an id sequences with action list returned" };
   const read = await readUnlessNotFound(load(t.rc, sequenceReader, { id }));
   if (!read) return { refusal: "no such campaign in this workspace" };
@@ -69,12 +70,14 @@ const INSTEAD: Record<SequenceAct, string> = {
   discard: "let it go with action discard",
   run_now: "run it with action run_now",
   rename: "rename it with action change (name)",
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   cancel_send: "cancel it with action batch (verb skip)",
   send_again: "send it again with action once",
 };
 
 /** What the model is told to do where a refusal offers no act in its place. */
 const NEXT: Partial<Record<SequenceActReason, string>> = {
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   batch_waiting: "approve or skip that send with action batch",
   email_to_write: "its email is written on its page first: say so, and open it",
   unread: "say so, and ask again in a moment",
@@ -94,6 +97,7 @@ export function refusedAct(rec: SequenceRecordDto, act: SequenceAct, now: Date):
 /** A step after the first, by its id, in a sequence's record; or the refusal. The first step is the campaign's own. */
 function laterStep(rec: SequenceRecordDto, stepId: string) {
   const step = rec.steps.find((s) => s.id === str(stepId, 40));
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!step) return { refusal: "step_id must be a step of this campaign (sequences with action sequence lists them)" };
   if (step.place <= 1)
     return {
@@ -111,6 +115,7 @@ async function stepMessage(
   const id = str(templateId, 40);
   const token = stepNamed(toolContext, id);
   if (token !== null) return { id, name: `the message step ${token} writes` };
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!UUID.test(id)) return { refusal: "template_id must be a message's id from sequences with action messages" };
   const otherAskedMessage = await getAskedMessage(toolContext, id);
   if ("refusal" in otherAskedMessage) return otherAskedMessage;
@@ -258,6 +263,7 @@ export async function proposeWords(
   const rec = await sequenceOnCard(toolContext, input.sequence_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const step = rec.steps.find((s) => s.id === str(input.step_id, 40));
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!step) return refuse("step_id must be a step of this campaign (sequences with action sequence lists them)");
   if (step.hand) return refuse("that step is a call or a note: it sends no message");
   const msg = await stepMessage(toolContext, input.template_id);
@@ -334,6 +340,7 @@ async function sendOnCard(
   const rec = await sequenceOnCard(toolContext, input.sequence_id);
   if (isRefusal(rec)) return rec;
   const id = str(input.send_id, 40);
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!UUID.test(id)) return { refusal: "send_id must be an id sequences with action sequence returned" };
   const people = (await load(toolContext.rc, sequencePeople, { id: rec.sequence.id, limit: 500 })).data;
   const row = people.rows.find((r) => r.send_id === id);

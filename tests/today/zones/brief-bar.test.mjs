@@ -55,7 +55,7 @@ function drawn(v, calls = 0) {
 test("while your brief plays the capsule says so, and the whole of it is the Stop", () => {
   const v = voice("speaking");
   const bar = drawn(v);
-  assert.match(textOf(bar), /Your brief/);
+  assert.match(textOf(bar), /Today's brief/);
   assert.equal(bar.props["aria-label"], "Stop your brief");
   bar.props.onClick();
   assert.equal(v.stopped, 1);

@@ -162,7 +162,7 @@ function PartnerAccount({
         </div>
         <div className="set-row">
           <div className="set-row-info">
-            <span className="set-row-label">Your share</span>
+            <span className="set-row-label">What you earn</span>
             <span className="set-row-hint" data-testid="partner-share">
               {vm.share}, for as long as it pays.
             </span>

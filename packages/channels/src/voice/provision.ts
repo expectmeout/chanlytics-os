@@ -70,7 +70,7 @@ export const VOICE_AGENT_DEFAULTS = {
 } as const;
 
 /** A local US number through Retell's Twilio pool. Toll-free and Telnyx are later levers. */
-export const VOICE_NUMBER_DEFAULTS = {
+const VOICE_NUMBER_DEFAULTS = {
   country_code: "US",
   number_provider: "twilio",
 } as const;

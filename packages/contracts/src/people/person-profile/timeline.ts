@@ -265,8 +265,7 @@ export const PERSON_ACT_WORDS = {
  */
 export const PERSON_DELETE_WORDS = {
   title: "Delete person",
-  detail:
-    "Removes their messages, media and recordings from Chanlytics and stops any reply still waiting to go. This cannot be undone.",
+  detail: "Removes their messages, media and recordings, and stops any reply waiting to go. This can't be undone.",
   // The foot's question: the sheet's title asks what is done (title), so the foot asks only for the name.
   typed: (name: string) => `Type ${name} to confirm.`,
   yes: "Delete this person",

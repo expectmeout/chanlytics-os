@@ -12,7 +12,7 @@
 import { MIN_MS, recordOrEmpty, valueAt, type InstagramPostKind } from "@chanlytics/contracts";
 import type { InstagramRequest } from "./graph";
 import { instagramErrorOf } from "./graph";
-import { META_GRAPH, metaAppSecretProof } from "../meta/client";
+import { metaReadRequest, metaRemoveRequest, metaWriteRequest } from "../meta/client";
 
 /** What every posting call carries: the business's token, the app's secret its proof is made with, and the account. */
 export interface MetaPoster {
@@ -21,24 +21,13 @@ export interface MetaPoster {
   accountId: string;
 }
 
-const proofOf = (poster: Pick<MetaPoster, "token" | "appSecret">): Record<string, string> => ({
-  access_token: poster.token,
-  appsecret_proof: metaAppSecretProof(poster.token, poster.appSecret),
-});
-
 /** A read of the Graph, its token and proof in the address (a read carries no words). */
-export const readFrom = (path: string, params: Record<string, string>, poster: MetaPoster): InstagramRequest => ({
-  url: `${META_GRAPH}/${path}?${new URLSearchParams({ ...params, ...proofOf(poster) }).toString()}`,
-  method: "GET",
-});
+export const readFrom = (path: string, params: Record<string, string>, poster: MetaPoster): InstagramRequest =>
+  metaReadRequest(path, params, poster.token, poster.appSecret);
 
 /** A write's fields go in its body, so a caption never rides in an address a log may keep. */
-export const writeTo = (path: string, fields: Record<string, string>, poster: MetaPoster): InstagramRequest => ({
-  url: `${META_GRAPH}/${path}`,
-  method: "POST",
-  headers: { "content-type": "application/x-www-form-urlencoded" },
-  body: new URLSearchParams({ ...fields, ...proofOf(poster) }).toString(),
-});
+export const writeTo = (path: string, fields: Record<string, string>, poster: MetaPoster): InstagramRequest =>
+  metaWriteRequest(path, fields, poster.token, poster.appSecret);
 
 /** How many posts the account has made in the last 24 hours, and how many it may (stories count). */
 export function metaPostLimitRequest(poster: MetaPoster): InstagramRequest {
@@ -121,10 +110,7 @@ export function metaNewestMediaRequest(poster: MetaPoster, kind: InstagramPostKi
 
 /** A post taken off the account (Meta's IG Media, Deleting): the only call that removes anything. */
 export function metaDeleteRequest(poster: MetaPoster, mediaId: string): InstagramRequest {
-  return {
-    url: `${META_GRAPH}/${encodeURIComponent(mediaId)}?${new URLSearchParams(proofOf(poster)).toString()}`,
-    method: "DELETE",
-  };
+  return metaRemoveRequest(encodeURIComponent(mediaId), poster.token, poster.appSecret);
 }
 
 /* -------------------------------------------------------------- answers */

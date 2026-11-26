@@ -125,7 +125,7 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
     ],
     "the ask is the owner's move; AI is ours",
   );
-  assert.equal(row(vm, "line").sentence, "We set up your phone line with you.");
+  assert.equal(row(vm, "line").sentence, "Chanlytics sets up your number with you.");
   assert.deepEqual(row(vm, "line").details, ["A number, AI answering it, and forwarding from the number you have"]);
   assert.deepEqual(
     vm.rows.map((r) => r.required),
@@ -696,7 +696,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
     row(setupSteps(empty({ calendar: { state: "ok" } }), NOW), "calendar").sentence,
     "AI offers open times from it.",
   );
-  assert.equal(row(feed, "calendar").sentence, "Your calendar couldn't be read.");
+  assert.equal(row(feed, "calendar").sentence, "Couldn't load the calendar.");
   // REGRESSION: the row read the link alone, so a business whose bookings arrive by email was asked, for good, to
   // paste an address its tool does not have. It is ready; the tool's first email is waited for in its own words;
   // and a business that books by hand, by its own word, is ready with nothing to connect.
@@ -744,7 +744,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   );
   assert.equal(
     row(why, "calendar").sentence,
-    "Your calendar couldn't be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page.",
+    "Couldn't load the calendar. The calendar answered 404. It is usually the private iCal link, not the calendar's web page.",
     "the row says why, in the words the board and the preview use",
   );
 });
@@ -1118,7 +1118,7 @@ test("a workspace that cannot spend AND has no card door is offered the thing th
   assert.doesNotMatch(lineRow(closed).sentence, /Add a card/, "REGRESSION: sent to a page with no buttons");
   assert.notEqual(lineRow(closed).verb.to, "admin/billing", "REGRESSION: the dead end");
   assert.equal(lineRow(closed).verb.to, "verb:request-line");
-  assert.match(lineRow(closed).sentence, /We set up your phone line with you/);
+  assert.match(lineRow(closed).sentence, /Chanlytics sets up your number with you/);
   assert.ok(
     lineRow(closed).details.some((d) => /Billing is not open on this deployment/.test(d)),
     "and it says why, so the owner is not left wondering where the card went",
@@ -1147,7 +1147,7 @@ test("texting on Setup: the sole proprietor waiting on the carriers' text reads 
   const l = (sms_state) => ({ sms_state, reg_mock: false, reg_sole_prop: true });
   assert.equal(
     textingWords(l("otp_waiting")).sentence,
-    "The phone networks texted your mobile · reply to that message from the handset itself and texting switches on · the code lasts a day.",
+    "Reply to the phone networks' text on your mobile, and texting turns on. After a day, Chanlytics asks for a new code.",
   );
   assert.equal(textingWords(l("hosting")).sentence, "Texting is being approved.");
   assert.equal(textingWords(l("otp_waiting")).done, false);

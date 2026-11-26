@@ -194,7 +194,7 @@ const leavingRow = (plan: LeadSearchPlan, change: (over: PlanPatch) => void) => 
         <button
           type="button"
           aria-label={`Keep ${e.text}`}
-          title="Don't leave these out"
+          data-tip="Don't leave these out"
           onClick={() => change({ exclusions: plan.exclusions.filter((x) => x.key !== e.key) })}
         >
           <Icon name="x" size={11} />

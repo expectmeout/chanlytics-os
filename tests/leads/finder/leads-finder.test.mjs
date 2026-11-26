@@ -1233,7 +1233,7 @@ test("a running search is two lines: what it does and its Stop, then its count b
 test("REGRESSION: the finder draws no key -- Close's tip said (esc), beside the ? sheet that lists it", () => {
   const { st } = page({ words: "florists in Austin" });
   const tree = drawFinder(st, { answering: ANSWERING });
-  assert.equal(byTestId(tree, "plan-close").props.title, "Close");
+  assert.equal(byTestId(tree, "plan-close").props["data-tip"], "Close");
   assert.deepEqual(keysDrawn(tree), []);
 });
 

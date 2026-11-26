@@ -210,6 +210,7 @@ export const propose_reply = defineActions({
       ],
       label: "Drafting a reply",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for its voice, and proposes a new reply on the conversation's own wire.",
       build: draftReply,
     }),
@@ -219,6 +220,7 @@ export const propose_reply = defineActions({
       examples: [{ message_id: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", instruction: "shorter, and in Spanish" }],
       label: "Preparing a rewrite",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action steer takes message_id, the held draft's id from inbox (action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'in Spanish') of a reply AI is holding; the rewrite waits its turn like the first draft.",
       build: proposeSteer,
     }),

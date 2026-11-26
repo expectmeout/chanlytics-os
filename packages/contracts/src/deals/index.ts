@@ -6,7 +6,6 @@ export type { DealMove } from "./body";
 export {
   CONSULT_FOLLOW_DAYS,
   consultationHappened,
-  consultationHeld,
   consultationsWithoutProposal,
   consultServiceOf,
   consultsHeldWords,
@@ -15,7 +14,7 @@ export {
   noProposalSince,
 } from "./consultations";
 export type { DealStandingStage } from "./consultations";
-export { dealPaceFrom, medianWait, SAME_SITTING_MS, yesWaits } from "./pace";
+export { dealPaceFrom, medianWait, yesWaits } from "./pace";
 export type { DealWaitRow } from "./pace";
 export { pipelineOf, pipelineWorth } from "./pipeline/pipeline";
 export {
@@ -48,7 +47,6 @@ export {
   calendarPeekDeal,
   DEAL_ACT_HINTS,
   DEAL_SEND_WHY,
-  DEAL_SHEET_MODES,
   dealMenuActs,
   dealNextAct,
   dealSendOf,
@@ -74,7 +72,6 @@ export {
   dealIsOpen,
   dealOf,
   dealSentence,
-  dealSinceMs,
   openDealsFromJson,
   openDealsOf,
   pickCurrentDeal,

@@ -238,7 +238,7 @@ test("each act of What you offer is gated as a change to the settings, and named
       "Change what needs a consult first",
     ]);
     // The word's act is its menu, named by the question and the word it says now.
-    assert.equal(byTestId(tree, "appointment_word-menu").props.title, "What you call a booking: Appointment");
+    assert.equal(byTestId(tree, "appointment_word-menu").props["data-tip"], "What you call a booking: Appointment");
     assert.equal(textOf(byTestId(tree, "rec-row-act-services")).trim(), "Open the list", "the canvas's act");
   } finally {
     W.gate = was;

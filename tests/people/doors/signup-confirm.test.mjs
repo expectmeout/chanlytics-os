@@ -116,7 +116,7 @@ test("a sign-up is asked at its person's own address, from a mailbox, within the
     null,
     "someone who unsubscribed and signs up again is asked: their press is their newest word",
   );
-  assert.match(signupAskLine("asked"), /^We emailed them to confirm\./);
+  assert.match(signupAskLine("asked"), /^Emailed them to confirm\./);
   assert.equal(signupAskLine(null), null);
 });
 

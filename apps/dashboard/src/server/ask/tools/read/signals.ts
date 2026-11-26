@@ -63,6 +63,7 @@ const listsFeedNothing: Spot = ({ kept, steps }) => {
     key: "lists_feed_nothing",
     facts: { lists: idle.length, names },
     says: `${plural(idle.length, "list feeds", "lists feed")} no campaign: ${names.join(", ")}${idle.length > 4 ? "…" : ""}.`,
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     next: "propose_sequence with action moment on the list (trigger saved_list), after sequences with action lists counts who it reaches",
     weight: 2,
   };
@@ -121,6 +122,7 @@ const batchesWaiting: Spot = ({ seqs }) => {
     key: "batches_waiting",
     facts: { sends: n },
     says: `${plural(n, "send waits", "sends wait")} for an OK before it sends.`,
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     next: "sequences with action sent, then propose_sequence with action batch (approve or skip)",
     weight: 1,
   };

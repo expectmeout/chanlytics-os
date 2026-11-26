@@ -890,7 +890,7 @@ test("a Connect row draws what Meta will ask under its sentence; a sign-up an ea
     assert.equal(byTestId(tree, "connection-whatsapp-why").props["aria-expanded"], true);
     const notes = noteTexts(tree, "whatsapp");
     assert.equal(notes.length, 4, "the one it left behind, and the three the owner meets before and in Meta's window");
-    assert.match(notes[0], /^A WhatsApp sign-up was started here and did not come back to Chanlytics/);
+    assert.match(notes[0], /^A WhatsApp sign-up here didn't return/);
     assert.match(notes[1], /^Meta asks you to sign in with Facebook/);
     assert.match(notes[2], /^Meta texts a code to the number.* Keep this page open until Meta's window closes\.$/);
     assert.deepEqual(notes.slice(3), COST, "what WhatsApp costs and the card Meta asks for, last");
@@ -1042,10 +1042,7 @@ test("a number that has just connected is tried through its own link: the toast 
     render(Connections);
     await flush();
     const tree = settle(Connections);
-    assert.match(
-      noteTexts(tree, "whatsapp")[0],
-      /^Try it from your phone with this link, not by searching your contacts:/,
-    );
+    assert.match(noteTexts(tree, "whatsapp")[0], /^Open this link on your phone rather than searching:/);
     assert.deepEqual(noteLinks(tree, "whatsapp")[0], [
       "wa.me/13055550188",
       "https://wa.me/13055550188?text=Hi",
