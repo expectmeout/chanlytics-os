@@ -1,5 +1,5 @@
 /**
- * Templates, the verbs (`templates`, `syncTemplates`, imported by the page) and the starter library the pages read
+ * Templates, the verbs (`templates`, imported by the page) and the starter library the pages read
  * (`starters`): sync from Meta, draft one with the assistant, submit one to Meta, delete one.
  *
  * Every write goes through the typed client, and after it lands the refresh
@@ -86,10 +86,8 @@ export interface VersionDraft {
   message?: MessageBegins;
 }
 
-export const syncTemplates = syncWhatsAppList;
-
 export const templates = {
-  sync: syncTemplates,
+  sync: syncWhatsAppList,
   draft: (body: DraftBody) => api()("POST templates/draft", { body }),
   /** A version's words written again as the owner asks, every value kept: words handed back, never saved. */
   rewrite: (body: {

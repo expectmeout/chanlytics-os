@@ -262,7 +262,7 @@ export interface FirstRunGoLiveVM {
   rows: string[];
 }
 
-export interface GoLiveInput {
+interface GoLiveInput {
   dto: SetupDto;
   vm: SetupVM;
   /** Go live's phone, as first-run-phone.ts says it at `live`. */

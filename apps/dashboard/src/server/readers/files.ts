@@ -19,6 +19,7 @@ import {
   type FileShelf,
   type FilesPageDto,
   UUID,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 import type { FileForAsk } from "@/server/files/line";
 import {
@@ -95,13 +96,22 @@ const lookMomentsOf = (raw: unknown): FileForAsk["moments"] =>
 function fileForAskOf(fileMember: FileMemberRow): FileForAsk {
   const look = recordOrNull(fileMember.look);
   const quality = recordOrNull(look?.quality);
-  const subject = Array.isArray(look?.subject) && look.subject.length === 4 ? look.subject : null;
+  const box = listOrEmpty(look?.subject);
+  const [left, top, right, bottom] = box;
+  const subject: FileForAsk["subject"] =
+    box.length === 4 &&
+    typeof left === "number" &&
+    typeof top === "number" &&
+    typeof right === "number" &&
+    typeof bottom === "number"
+      ? [left, top, right, bottom]
+      : null;
   return {
     ...fileDtoOf(fileMember),
     text_seen: lookWordsOf(look?.text_seen),
     quality: { sharp: qualityWord(quality?.sharp), light: qualityWord(quality?.light) },
     colors: lookWordsOf(look?.colors),
-    subject: subject as FileForAsk["subject"],
+    subject,
     use: typeof look?.use === "string" && look.use ? look.use : null,
     stands_at: typeof look?.poster_at === "number" ? look.poster_at : null,
     moments: lookMomentsOf(look?.moments),

@@ -11,7 +11,9 @@ import {
   answerSpoken,
   listSpoken,
   type AskLanguage,
+  recordOrEmpty,
   recordOrNull,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import type { VoiceSessionRow } from "@chanlytics/db/ask";
@@ -138,11 +140,10 @@ function messageWords(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
-    .map((p) =>
-      p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string"
-        ? (p as { text: string }).text
-        : "",
-    )
+    .map((p) => {
+      const text = valueAt(p, "text");
+      return typeof text === "string" ? text : "";
+    })
     .join(" ");
 }
 
@@ -150,8 +151,8 @@ function messageWords(content: unknown): string {
 function lastUserText(messages: unknown): string | null {
   if (!Array.isArray(messages)) return null;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i] as { role?: unknown; content?: unknown };
-    if (m?.role !== "user") continue;
+    const m = recordOrEmpty(messages[i]);
+    if (m.role !== "user") continue;
     return messageWords(m.content).replace(/\s+/g, " ").trim() || null;
   }
   return null;
@@ -159,7 +160,7 @@ function lastUserText(messages: unknown): string | null {
 
 /** How many times the person has spoken in this conversation: a turn's place (turnKeyOf). */
 const userTurns = (messages: unknown): number =>
-  Array.isArray(messages) ? messages.filter((m) => (m as { role?: unknown })?.role === "user").length : 0;
+  Array.isArray(messages) ? messages.filter((m) => valueAt(m, "role") === "user").length : 0;
 
 type Db = SupabaseClient<Database>;
 
@@ -178,8 +179,7 @@ const knockAnswered = (response: Response): Knock => ({ kind: "answered", respon
 async function admit(body: Record<string, unknown> | null, deps: VoiceDoorDeps): Promise<Knock> {
   const now = deps.now ?? Date.now;
   const extra = body?.elevenlabs_extra_body;
-  const plain =
-    extra && typeof extra === "object" ? (extra as { chanlytics_session?: unknown }).chanlytics_session : null;
+  const plain = valueAt(extra, "chanlytics_session");
   if (typeof plain !== "string" || !SESSION_ID.test(plain)) {
     log.warn("ask_voice_door_refused", { why: "session" });
     return knockAnswered(new Response("forbidden", { status: 403 }));

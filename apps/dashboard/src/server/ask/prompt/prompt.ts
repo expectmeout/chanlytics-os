@@ -13,6 +13,8 @@ import {
   promptSafeName,
   isAskAdsView,
   isContentParam,
+  isObjectRecord,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
 import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
@@ -291,20 +293,13 @@ const clipText = (s: unknown, n: number): string =>
 
 /** The stored shape read back, or null for a turn that answered nothing. */
 export function answeringOf(value: unknown): SearchAnswering | null {
-  const searchAnswering = value as Partial<SearchAnswering> | null;
-  if (
-    !searchAnswering ||
-    typeof searchAnswering !== "object" ||
-    typeof searchAnswering.search_id !== "string" ||
-    !searchAnswering.search_id
-  )
-    return null;
+  if (!isObjectRecord(value) || typeof value.search_id !== "string" || !value.search_id) return null;
   return {
-    search_id: searchAnswering.search_id,
-    name: clipText(searchAnswering.name, 80),
-    question: clipText(searchAnswering.question, 300),
-    asked: clipText(searchAnswering.asked, 200),
-    leaving_out: (Array.isArray(searchAnswering.leaving_out) ? searchAnswering.leaving_out : [])
+    search_id: value.search_id,
+    name: clipText(value.name, 80),
+    question: clipText(value.question, 300),
+    asked: clipText(value.asked, 200),
+    leaving_out: listOrEmpty(value.leaving_out)
       .slice(0, 8)
       .map((x) => clipText(x, 80))
       .filter(Boolean),

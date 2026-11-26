@@ -37,7 +37,7 @@ import { fromView, toView, viewKey, type View, type ViewParts, type ViewStore } 
 import { useSlice } from "./use-table";
 
 /** Table-core's slices, each one atom the table is handed. */
-export interface TableAtoms {
+interface TableAtoms {
   sorting: Atom<SortingState>;
   globalFilter: Atom<string>;
   columnFilters: Atom<ColumnFiltersState>;
@@ -88,7 +88,7 @@ export const chosenSortOf = (
 };
 
 /** The rows selected, as a set of their ids. */
-export const selectedOf = (selection: RowSelectionState): Set<string> =>
+const selectedOf = (selection: RowSelectionState): Set<string> =>
   new Set(Object.keys(selection).filter((id) => selection[id]));
 
 /** A set of ids, as the selection atom holds it. */
@@ -102,7 +102,7 @@ const selectionFrom = (ids: Iterable<string>): RowSelectionState => {
 export const narrowedBy = (filters: ColumnFiltersState, words: string): boolean =>
   filters.length > 0 || words.trim() !== "";
 
-export interface TableStateArgs {
+interface TableStateArgs {
   /** Whose saved view this is: "people", "leads", "pipeline" (memberships.views, and this device's copy). */
   scope: string;
   /** Every column the page declares, whatever the workspace shows (a saved view names any of them). */
@@ -127,7 +127,7 @@ export interface TableStateArgs {
 }
 
 /** What the table's DOM leaves for the acts that measure it: the box that scrolls, and the measure Fit all asks for. */
-export interface TableDom {
+interface TableDom {
   scroll: HTMLElement | null;
   measure: ((table: HTMLTableElement) => Record<string, number>) | null;
 }

@@ -75,10 +75,11 @@ export async function saveBusinessRecord(ctx: RouteContext, req: Request, member
   // and one of those answers files the sole-proprietor brand — one number,
   // about a message a second, and no way to withdraw it.
   const request = typeof body.path === "string" ? body.path : "";
-  if (request && !isOneOf(REGISTRATION_PATHS, request)) {
+  const pathAsked = isOneOf(REGISTRATION_PATHS, request) ? request : null;
+  if (request && !pathAsked) {
     throw new AppError("validation", "That is not a registration we file.", 400);
   }
-  const path = (request || registrationPathOf(record) || "standard") as RegistrationPath;
+  const path: RegistrationPath = pathAsked ?? registrationPathOf(record) ?? "standard";
 
   // Checked here, in the owner's words, before anything leaves for a
   // provider: a refusal from the carriers arrives days later and says

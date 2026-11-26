@@ -154,12 +154,16 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
     openable.map((f) => f.id),
     timeLeftOf(turn),
   );
-  const shown = openable.filter((f) => copies.has(f.id));
+  // Each file opened, with its copy: one that has none could not be opened.
+  const opened = openable.flatMap((file) => {
+    const copy = copies.get(file.id);
+    return copy ? [{ file, copy }] : [];
+  });
+  const shown = opened.map((o) => o.file);
   // How their newest post looks, so the next keeps what they settled on: read only where a post may come of it.
   const lastPost = shown.some((f) => !isVideo(f)) ? await findNewestPostLook(turn.ctx.supabase, turn.tenantId) : null;
   const pictures: ToolPicture[] = await Promise.all(
-    shown.map(async (f) => {
-      const copy = copies.get(f.id) as FileCopy;
+    opened.map(async ({ file: f, copy }) => {
       if (isVideo(f)) return sheetPicture(turn, f, copy);
       const size = sizeOf(copy);
       return { name: f.name, id: f.id, fileId: copy.fileId, ...(size ? { size } : {}) };
@@ -174,8 +178,8 @@ async function picturesOpened(turn: ToolContext, names: readonly string[]) {
     ),
   );
   return {
-    shown: shown.map((f) => {
-      const size = sizeOf(copies.get(f.id) as FileCopy);
+    shown: opened.map(({ file: f, copy }) => {
+      const size = sizeOf(copy);
       const made = madeAs.get(f.id);
       return {
         name: f.name,

@@ -1,15 +1,15 @@
 /**
  * A post's words and look, changed where it stands (decision 0099, step 3): free, since code draws it, and the picture answers as
- * they are typed (post-draft.ts). No Base UI: Ask rides on every page, and the kit's Field and Segmented would ride with it. The box is
+ * they are typed (draft.ts). No Base UI: Ask rides on every page, and the kit's Field and Segmented would ride with it. The box is
  * the kit's LineField, which grows with its words, and what is chosen is the kit's Button (`PostChoice`).
  */
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { POST_LAYOUTS, POST_LIMITS, POST_VOICES, type PostPlan, type PostWords } from "@chanlytics/contracts";
-import { Icon } from "../kit/icon/icon";
-import { LineField } from "../kit/line/line";
-import { PostChoice } from "./post-choice";
-import type { PostDraft } from "./post-draft";
-import { Button } from "../kit/button/button";
+import { Icon } from "../../kit/icon/icon";
+import { LineField } from "../../kit/line/line";
+import { PostChoice } from "./choice";
+import type { PostDraft } from "./draft";
+import { Button } from "../../kit/button/button";
 
 const WORDS_AT: readonly PostPlan["words_at"][] = ["top", "bottom"];
 
@@ -154,7 +154,7 @@ function PostLooks({ draft, says }: { draft: PostDraft; says: PostWords }) {
         options={WORDS_AT}
         words={says.wordsAt}
         value={plan.words_at}
-        choose={(words_at) => change({ words_at })}
+        choose={(wordsAt) => change({ words_at: wordsAt })}
         testid="post-at"
         said
       />
