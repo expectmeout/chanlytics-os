@@ -5,7 +5,7 @@
  */
 import "server-only";
 import { parseTenantConfig, resolveFacts } from "@chanlytics/contracts";
-import { getKnownFacts } from "../readers/settings";
+import { getKnownFacts } from "../readers/settings/settings";
 import type { RouteContext } from "../shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
 

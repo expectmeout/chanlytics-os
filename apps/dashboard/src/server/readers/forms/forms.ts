@@ -63,9 +63,9 @@ import {
 import { findBookingRequest, listAppointmentsBetween } from "@chanlytics/db/calendar";
 import { findPersonAddress } from "@chanlytics/db/people";
 import { logAndGoOn } from "@chanlytics/log";
-import { findEmailReady } from "../connections/email-readiness";
-import { readOutsideRows, readSiteRequestShapes, type SiteRequestShape } from "../connections/outside-forms";
-import { readerStamp, stableJson, type Reader, type ReaderContext } from "../shared/reader";
+import { findEmailReady } from "../../connections/email-readiness";
+import { readOutsideRows, readSiteRequestShapes, type SiteRequestShape } from "../../connections/outside-forms";
+import { readerStamp, stableJson, type Reader, type ReaderContext } from "../../shared/reader";
 
 /** The most entries a sheet lists: the newest; the rest are in Inbox as they were answered. */
 const SHEET_ENTRIES = 60;

@@ -1,5 +1,5 @@
 /**
- * The ad account's card as its server read answers it (GET ads/account, server/readers/ad-account.ts), run on the
+ * The ad account's card as its server read answers it (GET ads/account, server/readers/ads/ad-account.ts), run on the
  * dashboard's own code over a database in memory, with the edge's word answered where the edge would be. Settled on
  * 20 November 2026: the card counts only what Chanlytics can read, so it can always say it is ready.
  *
@@ -23,7 +23,7 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV"]) delete process.env[k];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { adAccount } = await import(at("apps/dashboard/src/server/readers/ad-account.ts"));
+const { adAccount } = await import(at("apps/dashboard/src/server/readers/ads/ad-account.ts"));
 const { readerContext, readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 
 const USER = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

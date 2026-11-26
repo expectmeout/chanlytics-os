@@ -21,9 +21,9 @@ import { readReviewAskFacts } from "@chanlytics/db/content";
 import { findWeekRung, listGoals, readContentWeek } from "@chanlytics/db/files";
 import { findWorkspaceZone, isSendingStopped } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
-import { getAppointmentWord } from "../people/deals";
-import { findConfigRow } from "../workspace/config-row";
-import type { ReaderContext } from "../shared/reader";
+import { getAppointmentWord } from "../../people/deals";
+import { findConfigRow } from "../../workspace/config-row";
+import type { ReaderContext } from "../../shared/reader";
 
 /**
  * The plan's proposal of the review ask for a workspace now, or none (pass 6; the PRD's 10.5; the canvas's Loop4): from

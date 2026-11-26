@@ -1,7 +1,7 @@
 import "server-only";
 import { MIN_MS, UUID, fenced, promptSafeName, type AskSurface, type PageContextDto } from "@chanlytics/contracts";
 import { stableJson, type ReaderContext, type RowRef } from "../shared/reader";
-import type { WorkspaceShape } from "../readers/shape";
+import type { WorkspaceShape } from "../readers/workspace/shape";
 import {
   CONTEXT_CAPS,
   PAGE_TITLES,

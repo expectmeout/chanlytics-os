@@ -2,7 +2,7 @@ import "server-only";
 import { noteRows } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { load, type ReaderContext } from "../../shared/reader";
-import { shape as shapeReader } from "../../readers/shape";
+import { shape as shapeReader } from "../../readers/workspace/shape";
 import { listFileCopiesOf } from "../../files/copies";
 import { attachedPictures } from "../../files/attached";
 import { shapeBlock, type BuiltContext } from "../context";

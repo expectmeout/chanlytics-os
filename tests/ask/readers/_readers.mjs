@@ -47,13 +47,13 @@ export const {
   channelsReady: channelsReadyReader,
 } = await import(at("apps/dashboard/src/server/readers/facts.ts"));
 
-export const { metrics } = await import(at("apps/dashboard/src/server/readers/metrics.ts"));
+export const { metrics } = await import(at("apps/dashboard/src/server/readers/today/metrics.ts"));
 
-export const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+export const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations/conversations.ts"));
 
 export const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
 
-export const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
+export const { calls } = await import(at("apps/dashboard/src/server/readers/voice/calls.ts"));
 
 export const { searches } = await import(at("apps/dashboard/src/server/readers/searches.ts"));
 
@@ -66,7 +66,7 @@ export const { conversation: oneThread, messagesOf } = await import(
   at("apps/dashboard/src/server/readers/conversation.ts")
 );
 
-export const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/call.ts"));
+export const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/voice/call.ts"));
 
 export const { person: onePerson } = await import(at("apps/dashboard/src/server/readers/person.ts"));
 
@@ -109,12 +109,12 @@ export const { getCalendarWeek } = await import(at("apps/dashboard/src/server/ca
 
 export const { forgetFeeds, getOpenings } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 
-export const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/openings.ts"));
+export const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/calendar/openings.ts"));
 
 export const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 
 export const { calendar: calendarReader, sources: calendarSources } = await import(
-  at("apps/dashboard/src/server/readers/calendar.ts")
+  at("apps/dashboard/src/server/readers/calendar/calendar.ts")
 );
 
 export const calendarRoute = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
@@ -169,7 +169,7 @@ export const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playboo
 
 export const { getBroadcast } = await import(at("apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts"));
 
-export const { settings: settingsReader } = await import(at("apps/dashboard/src/server/readers/settings.ts"));
+export const { settings: settingsReader } = await import(at("apps/dashboard/src/server/readers/settings/settings.ts"));
 
 export const { connections } = await import(at("apps/dashboard/src/server/readers/connections.ts"));
 

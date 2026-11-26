@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { contentNote } from "@/server/readers/content";
+import { contentNote } from "@/server/readers/content/content";
 
 /**
  * GET /api/v1/content/note: Today's Content card (the content canvas, PhDoors "today"; the page's read is GET content, too

@@ -22,11 +22,11 @@ import {
 import { listMomentSchedules, listRunsInSpan, getSequenceModes, isWorkspacePaused } from "@chanlytics/db/campaigns";
 import { listFilesByIds, listPostsInSpan, listPostsOfFiles } from "@chanlytics/db/files";
 import { runCounts } from "@chanlytics/db/reports";
-import { getCalendarSources, weekFrom } from "../calendar/week/week";
-import type { CalendarSources } from "../calendar/week/items";
-import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
-import * as facts from "./facts";
-import { everyone } from "./everyone";
+import { getCalendarSources, weekFrom } from "../../calendar/week/week";
+import type { CalendarSources } from "../../calendar/week/items";
+import { load, readerStamp, type Reader, type RowRef } from "../../shared/reader";
+import * as facts from "../facts";
+import { everyone } from "../everyone";
 
 /**
  * The calendar's one read for a span (server/calendar/week/week.ts calendarSources) with the zone and the settings the turn

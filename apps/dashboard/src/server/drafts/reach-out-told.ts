@@ -20,7 +20,7 @@ import {
 import { findWorkspaceWords } from "@chanlytics/db/campaigns";
 import { listChains } from "../campaigns/reach-outs/reach-outs";
 import * as facts from "../readers/facts";
-import { newestLeadSequence } from "../readers/settings";
+import { newestLeadSequence } from "../readers/settings/settings";
 import { load, type ReaderContext } from "../shared/reader";
 import { getStoredConfig } from "../workspace/config-row";
 import { draftAskedParts, draftRules, readDraftKnown } from "./sequence";

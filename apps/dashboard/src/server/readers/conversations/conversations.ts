@@ -16,11 +16,11 @@ import {
   searchMessages,
 } from "@chanlytics/db/conversations";
 import { listLastClosedHolds } from "@chanlytics/db/people";
-import { groupMessages, messageRowsOf, toConversationDto } from "../conversations/dto";
-import { withAds } from "../conversations/from-ads";
-import { stillListed } from "../people/going";
-import { getSeenOfPeople } from "../people/person-seen";
-import { readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
+import { groupMessages, messageRowsOf, toConversationDto } from "../../conversations/dto";
+import { withAds } from "../../conversations/from-ads";
+import { stillListed } from "../../people/going";
+import { getSeenOfPeople } from "../../people/person-seen";
+import { readerStamp, type Reader, type ReaderContext, type RowRef } from "../../shared/reader";
 import { embedded } from "@chanlytics/db/shared";
 
 /** The threads the Inbox's read holds: the newest hundred, or as many as one read by id names. */

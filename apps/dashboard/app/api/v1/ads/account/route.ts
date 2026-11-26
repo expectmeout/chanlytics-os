@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { adAccount } from "@/server/readers/ad-account";
+import { adAccount } from "@/server/readers/ads/ad-account";
 
 /**
  * GET /api/v1/ads/account — the workspace's ad account on Facebook and Instagram as its card draws it: where the

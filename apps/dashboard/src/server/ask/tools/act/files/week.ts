@@ -12,7 +12,7 @@ import {
   weekSizeSaid,
 } from "@chanlytics/contracts";
 import { load } from "../../../../shared/reader";
-import { contentPlan } from "../../../../readers/plan";
+import { contentPlan } from "../../../../readers/content/plan";
 import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
 import { quotedInQuestion } from "../remember";
