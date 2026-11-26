@@ -575,9 +575,34 @@ async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<voi
  * The queued row settled with what the door says of it, in one transaction (00721 message_settle): message.sent,
  * .send_blocked or .send_failed, and a cancel that won the row first said beside a send. False when a cancel won it.
  */
-async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch, told: SendTold): Promise<boolean> {
+async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch, event: SendTold): Promise<boolean> {
   if (!d.messageId) return false;
-  return settleQueuedMessage(db, { tenantId: d.tenantId, messageId: d.messageId, patch, told });
+  return settleQueuedMessage(db, { tenantId: d.tenantId, messageId: d.messageId, patch, told: event });
+}
+
+/** What a refusal says of the person on the ledger: their consent as the door read it, and what overtook the send. */
+function blockedEvent(
+  delivery: Delivery,
+  reason: DeliveryRefusal,
+  contact: WireFacts["contact"],
+  overtakenBy: string | null,
+  extra: Record<string, Json>,
+): SendTold {
+  return {
+    kind: "blocked",
+    data: {
+      reason: reason,
+      purpose: delivery.purpose,
+      consent: contact.consent,
+      dnc: contact.dnc,
+      marketing_consent: contact.marketing_consent,
+      ...(delivery.purpose === "outreach" || delivery.purpose === "marketing"
+        ? { email_marketing: contact.email_marketing }
+        : {}),
+      ...(overtakenBy ? { after: overtakenBy } : {}),
+      ...extra,
+    },
+  };
 }
 
 export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<Delivered> {
@@ -602,26 +627,11 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
     extra: Record<string, Json> = {},
   ): Promise<Delivered> => {
     if (delivery.messageId) {
-      const contact = { ...facts.contact, ...now };
       await finalizeQueued(
         ports.db,
         delivery,
         { status: "canceled", error: { reason: reason } },
-        {
-          kind: "blocked",
-          data: {
-            reason: reason,
-            purpose: delivery.purpose,
-            consent: contact.consent,
-            dnc: contact.dnc,
-            marketing_consent: contact.marketing_consent,
-            ...(delivery.purpose === "outreach" || delivery.purpose === "marketing"
-              ? { email_marketing: contact.email_marketing }
-              : {}),
-            ...(overtakenBy ? { after: overtakenBy } : {}),
-            ...extra,
-          },
-        },
+        blockedEvent(delivery, reason, { ...facts.contact, ...now }, overtakenBy, extra),
       );
     }
     return { outcome: "refused", reason: reason, messageId: delivery.messageId ?? null };

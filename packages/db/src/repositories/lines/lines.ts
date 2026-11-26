@@ -114,32 +114,32 @@ export async function findFiledNames(
 
 /**
  * The business on record saved whole, one a workspace, with business.recorded in the same transaction (00721
- * business_record_keep): what the edge says of the save (`told`). Throws when it could not be written.
+ * business_record_keep): what the edge says of the save (`event`). Throws when it could not be written.
  */
 export async function keepBusinessOnRecord(
   db: SupabaseClient<Database>,
   tenantId: TenantId,
   row: Database["public"]["Tables"]["business_records"]["Insert"],
-  told: Record<string, Json>,
+  event: Record<string, Json>,
 ): Promise<void> {
-  const { error } = await db.rpc("business_record_keep", { p_tenant_id: tenantId, p_row: { ...row }, p_data: told });
+  const { error } = await db.rpc("business_record_keep", { p_tenant_id: tenantId, p_row: { ...row }, p_data: event });
   if (error) throw new DbFailure(error, "cannot keep the business on record");
 }
 
 /**
  * The voice line's routing row, made with voice.provisioned in the same transaction (00721 voice_channel_add): what was
- * provisioned (`told`). The answer is the database's as it came: the row's id, or its error.
+ * provisioned (`event`). The answer is the database's as it came: the row's id, or its error.
  */
 export const addVoiceChannel = async (
   db: SupabaseClient<Database>,
   tenantId: TenantId,
   channel: { agentId: string; e164: string; config: Record<string, Json> },
-  told: Record<string, Json>,
+  event: Record<string, Json>,
 ) =>
   db.rpc("voice_channel_add", {
     p_tenant_id: tenantId,
     p_agent_id: channel.agentId,
     p_e164: channel.e164,
     p_config: channel.config,
-    p_data: told,
+    p_data: event,
   });
