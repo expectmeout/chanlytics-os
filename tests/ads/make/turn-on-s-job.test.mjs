@@ -17,11 +17,29 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
+import { DAY_MS } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 for (const name of ["META_APP_ID", "META_APP_SECRET", "SUPABASE_URL"]) delete process.env[name];
 process.env.META_APP_ID = "990000000000077";
 const T = "abababab-8888-4000-8000-000000000001";
+const NY = "America/New_York";
+/**
+ * A day in New York whole days from today there, as an ad's last day is kept ("2026-12-04"), and its last minute as Meta
+ * writes it, with New York's offset that day ("2026-12-04T23:59:00-0500"). The approved ad ended on 4 Dec 2026, so from
+ * New York's midnight that day every ad these tests make read as ended, not in review or setting up.
+ */
+const nyDayOn = (days) => new Date(Date.now() + days * DAY_MS).toLocaleDateString("en-CA", { timeZone: NY });
+const nyLastMinuteOf = (day) => {
+  const zone = new Intl.DateTimeFormat("en-US", { timeZone: NY, timeZoneName: "longOffset" })
+    .formatToParts(new Date(`${day}T12:00:00Z`))
+    .find((p) => p.type === "timeZoneName").value;
+  return `${day}T23:59:00${zone.replace("GMT", "").replace(":", "")}`;
+};
+/** The approved last day, nine days on, its last minute as Meta holds it, and that minute as the edge keeps it. */
+const END_DAY = nyDayOn(9);
+const END_TIME = nyLastMinuteOf(END_DAY);
+const ENDS_AT = new Date(Date.parse(END_TIME.replace(/(\d\d)(\d\d)$/, "$1:$2"))).toISOString();
 const ACCOUNT = "acacacac-8888-4000-8000-000000000001";
 const AD = "adadadad-8888-4000-8000-000000000001";
 const FILE = "f1f1f1f1-8888-4000-8000-000000000001";
@@ -57,8 +75,8 @@ const APPROVED = {
   miles: 5,
   total_minor: 1500,
   most_minor: 1500,
-  end_day: "2026-12-04",
-  ends_at: "2026-12-05T04:59:00.000Z",
+  end_day: END_DAY,
+  ends_at: ENDS_AT,
   versions: VERSIONS,
   address: "12 Harbor Street, Miami, FL",
   whatsapp: "+1 (305) 555-0142",
@@ -104,7 +122,7 @@ function heldJson() {
               optimization_goal: "CONVERSATIONS",
               lifetime_budget: "1500",
               daily_budget: "0",
-              end_time: "2026-12-04T23:59:00-0500",
+              end_time: END_TIME,
               promoted_object: { page_id: PAGE, whatsapp_phone_number: "13055550142" },
               targeting: {
                 age_min: 18,
@@ -480,7 +498,7 @@ test("at every step Meta refuses, nothing after it is sent, nothing is switched 
 test("what Meta holds that is not what was approved stops it before any switch, and the campaign is removed", async () => {
   for (const [why, change] of [
     ["the total", (held) => Object.assign(held.adsets.data[0], { lifetime_budget: "1600" })],
-    ["the end", (held) => Object.assign(held.adsets.data[0], { end_time: "2026-12-05T23:59:00-0500" })],
+    ["the end", (held) => Object.assign(held.adsets.data[0], { end_time: nyLastMinuteOf(nyDayOn(10)) })],
     ["a declaration", (held) => Object.assign(held, { special_ad_categories: ["HOUSING"] })],
     [
       "the area",

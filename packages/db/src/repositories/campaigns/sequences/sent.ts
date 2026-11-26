@@ -103,15 +103,16 @@ export const listConsentChangesSince = async (db: Db, tenantId: TenantId, contac
     .in("subject_id", contactIds)
     .gt("created_at", since);
 
-/** One page (`from` to `to`) of the customers' messages on these threads since `since`, with their words or without. */
-export const pageInboundOn = async (
+/** pageInboundOn's read, its columns named as a literal so each choice of them reads typed. */
+const inboundPage = <Columns extends string>(
   db: Db,
   tenantId: TenantId,
-  page: { conversationIds: string[]; since: string; withWords: boolean; from: number; to: number },
+  page: { conversationIds: string[]; since: string; from: number; to: number },
+  columns: Columns,
 ) =>
   db
     .from("messages")
-    .select(page.withWords ? "conversation_id, created_at, meta, body" : "conversation_id, created_at, meta")
+    .select(columns)
     .eq("tenant_id", tenantId)
     .eq("direction", "inbound")
     .eq("sender", "customer")
@@ -119,6 +120,16 @@ export const pageInboundOn = async (
     .gt("created_at", page.since)
     .order("id")
     .range(page.from, page.to);
+
+/** One page (`from` to `to`) of the customers' messages on these threads since `since`, with their words or without. */
+export const pageInboundOn = async (
+  db: Db,
+  tenantId: TenantId,
+  page: { conversationIds: string[]; since: string; withWords: boolean; from: number; to: number },
+) =>
+  page.withWords
+    ? inboundPage(db, tenantId, page, "conversation_id, created_at, meta, body")
+    : inboundPage(db, tenantId, page, "conversation_id, created_at, meta");
 
 /** What went out on these threads since `since`: who sent it, its kind and its meta. */
 export const listOutboundSince = async (db: Db, tenantId: TenantId, conversationIds: string[], since: string) =>

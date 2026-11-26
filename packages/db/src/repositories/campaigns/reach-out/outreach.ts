@@ -419,8 +419,8 @@ export interface ReplyListRow {
   message_id: string;
   conversation_id: string;
   read_at: string;
-  intent: string;
-  claim: string;
+  intent: SchemaSet<"sequence_replies.intent">;
+  claim: SchemaSet<"sequence_replies.claim">;
   summary: string | null;
   named_day: string | null;
   refer_to: string | null;
@@ -428,7 +428,7 @@ export interface ReplyListRow {
   rereads: number;
   undone_at: string | null;
   draft: string | null;
-  draft_state: string;
+  draft_state: SchemaSet<"sequence_replies.draft_state">;
   draft_why: string | null;
   /** What the reading did (contracts ReadingPlan, as JSON), and an automatic away's day back. */
   plan: Json;

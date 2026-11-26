@@ -10,6 +10,7 @@ import {
   LEAD_PROBE_PLACES,
   type LeadRoundPurpose,
   type LeadSearchPlan,
+  entryOf,
   placesToAsk,
 } from "@chanlytics/contracts";
 import { MAPS_CAP_FLOOR_USD } from "@chanlytics/core";
@@ -145,9 +146,9 @@ export function refusalOf(doorAnswer: DoorAnswer): AppError | null {
       return new AppError("conflict", "That change was already undone.", 409);
     case "kind":
       return new AppError("conflict", "That change cannot be undone.", 409);
-    default:
-      if (doorAnswer.error in TOO_LATE)
-        return new AppError("conflict", TOO_LATE[doorAnswer.error as keyof typeof TOO_LATE], 409);
+    default: {
+      const tooLate = entryOf(TOO_LATE, doorAnswer.error);
+      if (tooLate) return new AppError("conflict", tooLate, 409);
       // A door said something this build has no sentence for. The owner gets
       // one plain sentence rather than a de-underscored word out of the
       // database; the code goes to the log, where it can be looked up.
@@ -157,6 +158,7 @@ export function refusalOf(doorAnswer: DoorAnswer): AppError | null {
         "Something about this search stopped that from going through. Reload and try again.",
         409,
       );
+    }
   }
 }
 

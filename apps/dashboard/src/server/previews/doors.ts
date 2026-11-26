@@ -40,6 +40,7 @@ import {
   type PreviewTurnVM,
   type TenantId,
   causedBy,
+  valueAt,
 } from "@chanlytics/contracts";
 import {
   findLeadPreviewByToken,
@@ -246,8 +247,8 @@ async function startPreviewCall(
     };
   } catch (e) {
     // The rehearsal's refusals are said to an owner in Settings; a business calling its preview hears the page's own.
-    const allowance = (e as { details?: { allowance?: { why?: string | null } | null } }).details?.allowance;
-    if (allowance?.why === "running") throw causedBy(new AppError("conflict", W.callRunning, 409), e);
+    const allowance = valueAt(e, "details", "allowance");
+    if (valueAt(allowance, "why") === "running") throw causedBy(new AppError("conflict", W.callRunning, 409), e);
     if (allowance) throw causedBy(new AppError("conflict", W.callUsed, 409), e);
     log.warn("preview_call_failed", { tenant_id: result.preview_tenant_id, error: e });
     throw causedBy(new AppError("upstream_retell", W.callFailed, 502), e);

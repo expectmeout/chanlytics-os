@@ -19,11 +19,13 @@ import {
   PROPOSAL_WORDS,
   askCardLapsed,
   cardWithSteps,
+  entryOf,
   errorMessageOf,
   failureDoorOf,
   isOneOf,
   planMadeOf,
   recordOrEmpty,
+  recordOrNull,
   type AskActAnswer,
   type AskProposal,
   type AskProposalOutcome,
@@ -38,7 +40,7 @@ import { fetchFromProvider } from "@chanlytics/channels/shared";
 import { findAskTurnContent, finishAskAction, markAskActionUndone, startAskAction } from "@chanlytics/db/ask";
 import { logAndGoOn } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
-import { setProposalOutcome } from "@/server/ask/store";
+import { setProposalOutcome, storedCards } from "@/server/ask/store";
 import { load } from "@/server/shared/reader";
 import { readerContext } from "@/server/shared/reader";
 import { config as configReader } from "@/server/readers/facts";
@@ -154,20 +156,23 @@ async function sendAll(
 async function tabHere(ctx: RouteContext, member: Member, kind: string): Promise<ProposalTab> {
   if (kind !== "settings") return { settings: null };
   const read = await load(readerContext(ctx, member), configReader, undefined).catch(logAndGoOn("act settings", null));
-  const row = read?.data as { config?: Record<string, unknown> | null; version?: number } | null | undefined;
-  return { settings: row ? { config: row.config ?? null, version: row.version } : null };
+  const row = read?.data;
+  return { settings: row ? { config: recordOrNull(row.config), version: row.version } : null };
 }
 
 const isProposalRefusal = (c: object): c is ProposalRefusal => "refused" in c;
-const isMany = (c: ProposalCall | readonly ProposalCall[]): c is readonly ProposalCall[] => Array.isArray(c);
-const asCalls = (c: ProposalCall | readonly ProposalCall[]): readonly ProposalCall[] => (isMany(c) ? c : [c]);
+/** What a spec made of the card: the calls it presses, one or many, or its no in the person's words. */
+type SpecMade = ProposalCall | readonly ProposalCall[] | ProposalRefusal;
+const isMany = (c: SpecMade): c is readonly ProposalCall[] => Array.isArray(c);
+const callsOrRefusal = (c: SpecMade): readonly ProposalCall[] | ProposalRefusal =>
+  isMany(c) ? c : isProposalRefusal(c) ? c : [c];
 
 /** The card as the turn keeps it, or a door's no in the person's words. */
 async function cardOnTurn(ctx: RouteContext, messageId: string, proposalId: string) {
   const { data: m, error } = await findAskTurnContent(ctx.supabase, messageId);
   if (error || !m) throw new AppError("not_found", "That card is not yours or is already gone.", 404);
   const content = recordOrEmpty(m.content);
-  const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
+  const proposals = storedCards(content.proposals);
   const card = proposals.find((p) => p.id === proposalId);
   if (!card) throw new AppError("not_found", "No such card on that turn.", 404);
   return { card, proposals };
@@ -178,9 +183,16 @@ const callsTold = (calls: readonly ProposalCall[]): AskActAnswer["calls"] =>
   calls.map((c) => ({ route: c.route, events: c.events ?? [] }));
 
 /** Stopped, in one sentence, with one way forward, kept on the turn and in the record. */
+/** The turn and card an act is of, and its row on the action ledger once started. */
+interface ActSides {
+  messageId: string;
+  proposalId: string;
+  actionId: string | null;
+}
+
 async function failedAnswer(
   ctx: RouteContext,
-  sides: { messageId: string; proposalId: string; actionId: string | null },
+  sides: ActSides,
   words: {
     message: string;
     code: string;
@@ -334,9 +346,9 @@ export async function runAct(
   const { card, proposals } = await cardOnTurn(ctx, input.messageId, input.proposalId);
   // A press sent twice, or a second tab: what the first did, once more.
   if (card.outcome?.state === "done") return { ok: true, message: "", outcome: card.outcome, calls: [], forward: null };
-  const spec = PROPOSAL_SPECS[card.kind] as ProposalSpec | undefined;
+  const spec: ProposalSpec | undefined = entryOf(PROPOSAL_SPECS, card.kind);
   if (!spec) throw new AppError("validation", "This card cannot be pressed from here.");
-  const sides = { messageId: input.messageId, proposalId: input.proposalId, actionId: null as string | null };
+  const sides: ActSides = { messageId: input.messageId, proposalId: input.proposalId, actionId: null };
   const stands = await cardAsItStands(ctx, tenantId, card, proposals);
   if ("stopped" in stands) return failedAnswer(ctx, sides, { ...stands.stopped, card });
   const filled = cardAsPressed(stands.filled, spec, input.settled ?? null);
@@ -356,15 +368,14 @@ export async function runAct(
   sides.actionId = started.id;
   const key = card.plan ? `plan:${card.plan.id}:${card.plan.step}` : card.id;
   const tab = await tabHere(ctx, member, card.kind);
-  const made = spec.commit(filled, tab);
-  if (!Array.isArray(made) && isProposalRefusal(made))
+  const calls = callsOrRefusal(spec.commit(filled, tab));
+  if (isProposalRefusal(calls))
     return failedAnswer(ctx, sides, {
-      message: made.refused,
+      message: calls.refused,
       code: "refused",
       moved: false,
       card,
     });
-  const calls = asCalls(made as ProposalCall | readonly ProposalCall[]);
   const sent = await sendAll(req, calls, key);
   if (!sent.ok && sent.landed === 0 && wasUnreached(sent.refused)) return WALK_HERE;
   if (!sent.ok)
@@ -405,20 +416,19 @@ export async function undoAct(
 ): Promise<AskActAnswer> {
   const tenantId = member.tenantId;
   const { card } = await cardOnTurn(ctx, input.messageId, input.proposalId);
-  const spec = PROPOSAL_SPECS[card.kind] as ProposalSpec | undefined;
+  const spec: ProposalSpec | undefined = entryOf(PROPOSAL_SPECS, card.kind);
   const record = card.outcome?.undo ?? null;
   if (!spec?.undo || !record) throw new AppError("validation", "This one has no undo.");
   const tab = await tabHere(ctx, member, card.kind);
-  const made = spec.undo.call(record, tab);
-  if (!Array.isArray(made) && isProposalRefusal(made))
+  const calls = callsOrRefusal(spec.undo.call(record, tab));
+  if (isProposalRefusal(calls))
     return {
       ok: false,
-      message: made.refused,
+      message: calls.refused,
       outcome: card.outcome ?? null,
       calls: [],
       forward: null,
     };
-  const calls = asCalls(made as ProposalCall | readonly ProposalCall[]);
   const undoOf = typeof record.decision_id === "string" && record.decision_id ? record.decision_id : null;
   const sent = await sendAll(req, calls, `undo:${card.id}`, undoOf);
   if (!sent.ok && sent.landed === 0 && wasUnreached(sent.refused)) return WALK_HERE;
