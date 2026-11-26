@@ -24,8 +24,9 @@
  * partitions read through it. A column the schema holds to a closed set (contracts SCHEMA_SETS) holds no person's words
  * and is not listed. A column with no strategy is counted: people/erasure/erasure-registry.test.mjs and the ratchet
  * "personal columns with no erasure strategy" (docs/debt.md) hold the count to fall, so a new column arrives with its
- * strategy. messages.body and messages.template_vars are counted on purpose: a message is immutable by trigger (00326),
- * so a person's words in someone else's thread stay until an exception to that is costed (Ruben, 6 October 2026).
+ * strategy. A message's words (messages.body, messages.template_vars) go with the person whose thread they are in, as
+ * its other columns do; a person's words in someone else's thread stay, since a message is immutable by trigger (00326)
+ * (Ruben, 6 October 2026, recorded as the rule on 26 November 2026).
  * A Google review's reviewer, words and reply are reached by no erasure (nothing joins a review to a person, and a name
  * is not a key): the mirror follows Google, and a review it has not seen for its days goes (00392, answered 10 October
  * 2026).
@@ -444,7 +445,18 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // The kinds a member's phones are not told (00372), and a member's sort and columns: the member's own settings.
   memberships: all(NOT_PERSONAL, "push_off", "views"),
-  messages: all(withPerson("erase_contact"), "template_name", "media", "external_id", "content_hash", "error", "meta"),
+  // A person's words in someone else's thread stay, as a message is immutable (00326; Ruben, 6 October 2026).
+  messages: all(
+    withPerson("erase_contact"),
+    "body",
+    "template_vars",
+    "template_name",
+    "media",
+    "external_id",
+    "content_hash",
+    "error",
+    "meta",
+  ),
   // A kept turn (decision 0039): the person's own go when their conversation does, by the fence's cascade, and a turn
   // about someone else that quoted them is deleted by needle; the prompt it read is the business's own facts, and
   // leaves by its clock.
