@@ -8822,6 +8822,9 @@ begin
     (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', p_category, v_vars, v_title, v_parts, v_body, p_user)
   returning * into v_row;
 
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'made', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', p_user)));
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $_$;
 
@@ -40014,6 +40017,9 @@ begin
     -- A playbook or a broadcast still names it (their template_id keys are not cascading): the owner moves them first.
     raise exception 'A playbook or broadcast still uses this version.' using errcode = 'P0001';
   end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', v_user)));
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $$;
 
@@ -41141,6 +41147,9 @@ begin
          body_preview = excluded.body_preview
   returning * into v_row;
 
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'saved', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', v_user)));
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $_$;
 
@@ -45739,6 +45748,9 @@ begin
   update templates
      set hidden_at = case when p_hidden then coalesce(hidden_at, now()) else null end
    where id = p_template_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'template.changed', 'message', 'template', p_template_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_hidden then 'hidden' else 'shown' end, 'by', v_user)));
   return jsonb_build_object('template_id', p_template_id, 'hidden', p_hidden);
 end $$;
 
@@ -45774,6 +45786,9 @@ begin
     raise exception 'Template not found.' using errcode = 'P0002';
   end if;
   update templates set title = v_title where id = p_template_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'template.changed', 'message', 'template', p_template_id,
+          jsonb_strip_nulls(jsonb_build_object('fields', jsonb_build_array('title'), 'by', v_user)));
   return jsonb_build_object('template_id', p_template_id, 'title', v_title);
 end $$;
 
