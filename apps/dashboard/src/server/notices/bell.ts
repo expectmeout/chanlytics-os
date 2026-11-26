@@ -14,7 +14,7 @@ import {
   forgetWebPush,
   keepWebPush,
 } from "@chanlytics/db/notices";
-import { readAnswer } from "@chanlytics/db/shared";
+import { jsonCopyOf, readAnswer } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { dbRefusal, type RouteContext } from "@/server/shared/with-route";
@@ -77,5 +77,8 @@ export async function markManyRead(ctx: Ctx, ids: readonly string[]) {
   return { read: answers.filter((a) => !a.error).length };
 }
 
-export const saveMemberView = (ctx: Ctx, args: Parameters<typeof keepMemberView>[1]) =>
-  keepMemberView(ctx.supabase, args);
+/** A page's view as the member left it. A body read from JSON is JSON: the copy says so to the column, field by field. */
+export const saveMemberView = (
+  ctx: Ctx,
+  args: Omit<Parameters<typeof keepMemberView>[1], "p_view"> & { p_view: Record<string, unknown> },
+) => keepMemberView(ctx.supabase, { ...args, p_view: jsonCopyOf(args.p_view) });

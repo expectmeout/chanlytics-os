@@ -6,7 +6,9 @@ import {
   type AskLanguage,
   type AskScope,
   type PageContext,
+  valueAt,
 } from "@chanlytics/contracts";
+import { scopeIn } from "./store";
 import {
   claimVoiceTurn,
   endVoiceSession as endRow,
@@ -95,10 +97,8 @@ export function tokenExpiry(token: string): string | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   try {
-    const claims = JSON.parse(Buffer.from(parts[1] ?? "", "base64url").toString("utf8")) as { exp?: unknown };
-    return typeof claims.exp === "number" && Number.isFinite(claims.exp)
-      ? new Date(claims.exp * 1000).toISOString()
-      : null;
+    const exp: unknown = valueAt(JSON.parse(Buffer.from(parts[1] ?? "", "base64url").toString("utf8")), "exp");
+    return typeof exp === "number" && Number.isFinite(exp) ? new Date(exp * 1000).toISOString() : null;
   } catch {
     // Not JSON: nothing to read.
     return null;
@@ -151,7 +151,7 @@ type Db = SupabaseClient<Database>;
 export const readVoiceSession = (service: Db, hash: string): Promise<VoiceSessionRow | null> => readRow(service, hash);
 
 /** The scope the row holds, as the turn takes it. */
-export const scopeOf = (row: VoiceSessionRow): AskScope | null => (row.scope as AskScope | null) ?? null;
+export const scopeOf = (row: VoiceSessionRow): AskScope | null => scopeIn(row.scope);
 /** The page the row holds, as the turn takes it: read as the page route reads one, since the member writes the column. */
 export const contextOf = (row: VoiceSessionRow): PageContext | null => {
   if (row.context === null) return null;
