@@ -83,17 +83,18 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     keepListed: "Your Google listing's number",
     lookup: (l: LineLookupDto) =>
       l.type === "mobile"
-        ? `a ${l.carrier && l.carrier !== "other" ? `${CARRIER_WORDS[l.carrier]} ` : ""}mobile, we checked`
+        ? `a ${l.carrier && l.carrier !== "other" ? `${CARRIER_WORDS[l.carrier]} ` : ""}mobile, checked`
         : l.type === "landline"
-          ? "a landline, we checked"
+          ? "a landline, checked"
           : l.type === "voip"
-            ? `an office phone system${l.name ? ` (${l.name})` : ""}, we checked`
+            ? `an office phone system${l.name ? ` (${l.name})` : ""}, checked`
             : null,
     nobodyPicksUp: "Calls nobody picks up go to AI.",
     everyCall: "Every call goes to AI.",
     newSays: "Customers call this number directly. Put it on your Google listing and your website once it's live.",
     moveSays: "Nothing changes for customers. Until the move is done, the number forwards.",
     /** Not by phone (decision 0091): a business whose customers write, and never call, goes live without a number. */
+    // screen-word: the owner's own answer about their business, said as they would say it
     noCalls: "We don't take calls",
     noCallsSays: "Not by phone. AI answers where your customers write, and you can add a number any time from Setup.",
     callsAfterAll: "Take calls after all",
@@ -111,7 +112,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     /** Where it cannot keep the app yet: honest about what connecting does. */
     sameMoves: "WhatsApp moves to a number on Chanlytics. The app on your phone stops receiving its messages.",
     own: (n: string | null) => (n ? `On its own number, ${n}` : "On its own number"),
-    ownSays: "Customers write there · we register it with Meta for you.",
+    ownSays: "Customers write there · Chanlytics registers it with Meta for you.",
     later: "Later",
     laterSays: "Today keeps it as a row to finish.",
     approveAtGoLive: "Approve on your phone at Go live",
@@ -150,7 +151,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     notNow: "Not now",
   },
   email: {
-    title: "Your email",
+    title: "Email",
     says: "Connect the inbox you already use: customers' emails and your contacts come in, and offers and campaigns go from your address.",
     google: "Connect Gmail",
     microsoft: "Connect Outlook",
@@ -161,7 +162,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     notAnswered: EMAIL_NOT_ANSWERED_SENTENCE,
   },
   filling: {
-    title: "Your dashboard, filling in",
+    title: "The dashboard, filling in",
     people: "People",
     peopleSub: "your clients, contacts, WhatsApp",
     inbox: "Inbox",
