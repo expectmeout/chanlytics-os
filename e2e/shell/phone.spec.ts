@@ -797,11 +797,50 @@ test.describe("Phone shell on a real workspace", () => {
       expect(await placeOf(act), `${label}'s act is the view picked's height, on its line`).toEqual(
         await placeOf(page.locator(".pg-slot > nav .stabs-tab.active")),
       );
-      const pressed = await act.evaluate((node) => {
+      // Each point says what a press there lands on, so a red names what covers the act's reach or what clips it: the
+      // element at the point and its ancestors (with their position and z-index), and the act's own ancestors whose
+      // box cuts the point off.
+      const points = await act.evaluate((node) => {
         const r = node.getBoundingClientRect();
-        return [r.top - 7, r.bottom + 7].map((y) => node.contains(document.elementFromPoint(r.left + r.width / 2, y)));
+        const x = r.left + r.width / 2;
+        const named = (el: Element) => {
+          const css = getComputedStyle(el);
+          const testid = el.getAttribute("data-testid");
+          return (
+            el.tagName.toLowerCase() +
+            (el.id ? `#${el.id}` : "") +
+            [...el.classList].map((c) => `.${c}`).join("") +
+            (testid ? `[data-testid=${testid}]` : "") +
+            (css.position === "static" ? "" : `{${css.position} z=${css.zIndex}}`)
+          );
+        };
+        const chain = (el: Element | null) => {
+          const out: string[] = [];
+          for (let at = el; at && out.length < 5; at = at.parentElement) out.push(named(at));
+          return out.join(" < ") || "nothing";
+        };
+        const after = getComputedStyle(node, "::after");
+        const reach = `::after ${after.content} ${after.position} inset ${after.inset}`;
+        return [r.top - 7, r.bottom + 7].map((y) => {
+          const at = document.elementFromPoint(x, y);
+          const cuts: string[] = [];
+          for (let up = node.parentElement; up; up = up.parentElement) {
+            const css = getComputedStyle(up);
+            const b = up.getBoundingClientRect();
+            const clips = css.overflowX !== "visible" || css.overflowY !== "visible" || css.clipPath !== "none";
+            if (clips && (y < b.top || y > b.bottom))
+              cuts.push(`${named(up)} ${Math.round(b.top)}..${Math.round(b.bottom)}`);
+          }
+          return {
+            pressed: node.contains(at),
+            said: `y ${Math.round(y)} (act ${Math.round(r.top)}..${Math.round(r.bottom)}, ${reach}): ${chain(at)}${cuts.length ? `; cut off by ${cuts.join(", ")}` : ""}`,
+          };
+        });
       });
-      expect(pressed, `${label}'s act is pressed over and under what it draws`).toEqual([true, true]);
+      expect(
+        points.map((p) => p.pressed),
+        `${label}'s act is pressed over and under what it draws. ${points.map((p) => p.said).join(" | ")}`,
+      ).toEqual([true, true]);
     }
     for (const [label, hash] of [
       ["the Calendar", "calendar"],

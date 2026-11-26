@@ -1580,7 +1580,13 @@ test.describe("Settings › Business on a real workspace", () => {
         });
         expect(leaving.dialogs, `${where}: the fold is closed the moment it is`).toBe(0);
         expect(leaving.focus, `${where}: focus is back on the row's act at once`).toBe("rec-row-act-tone");
-        if (reduced) expect([leaving.copy, leaving.wash], "nothing leaves under reduced motion").toEqual([null, null]);
+        // Under reduced motion nothing moves as it goes. Base UI may still hold the closing sheet and its wash a frame as
+        // leaving elements, with no animation on either, so what is read is motion, not whether an element stands.
+        if (reduced)
+          expect([leaving.copy ?? [], leaving.wash ?? []], "nothing moves as it leaves under reduced motion").toEqual([
+            [],
+            [],
+          ]);
         else {
           expect(leaving.copy, "the sheet goes down on sheet-out, its cut with it").toEqual([
             { prop: "sheet-out", ms: 180, easing: EASE_IN },
