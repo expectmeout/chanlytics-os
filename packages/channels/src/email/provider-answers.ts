@@ -1,4 +1,4 @@
-import { recordOrEmpty, recordOrNull } from "@chanlytics/contracts";
+import { recordOrEmpty, recordOrNull, valueAt } from "@chanlytics/contracts";
 /**
  * Two answers the provider gives a call, read: what a refusal means for the next send (resendLimitOf), and what it
  * thinks of the mail domain (mailDomainsFrom). The calls themselves are ./email-resend.ts.
@@ -21,7 +21,7 @@ export function resendLimitOf(row: { ok?: boolean; status: number; errorBody?: s
   if (row.ok || (row.status !== 429 && row.status !== 409)) return null;
   let name: unknown;
   try {
-    name = (JSON.parse(row.errorBody ?? "") as { name?: unknown } | null)?.name ?? null;
+    name = valueAt(JSON.parse(row.errorBody ?? ""), "name") ?? null;
   } catch {
     // Not JSON: nothing to read.
     name = null;

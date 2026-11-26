@@ -1,7 +1,7 @@
 /** Ask: limits. */
 
 import { MIN_MS, SECOND_MS } from "../shared/time";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../shared/unknown";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -25,7 +25,7 @@ const ASK_COLUMN_PX = { min: 240, max: 1600 } as const;
 /** A column as a request carries it, read leniently: null where it is not one. */
 export function askColumnOf(raw: unknown): AskColumn | null {
   if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
+  const r = recordOrEmpty(raw);
   const px = typeof r.px === "number" && Number.isFinite(r.px) ? Math.round(r.px) : Number.NaN;
   return px >= ASK_COLUMN_PX.min && px <= ASK_COLUMN_PX.max ? { px, phone: r.phone === true } : null;
 }

@@ -27,7 +27,7 @@
  * collect.ts, check.ts and sweep.ts.
  */
 
-import { LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS, recordOrNull } from "@chanlytics/contracts";
+import { LEAD_SCREEN_BOUND_MS, MIN_MS, SHADOW_WRITE_MS, recordOrNull, valueAt } from "@chanlytics/contracts";
 import { JUDGE_TIMEOUT_MS } from "../judge";
 import type { LeadMemberRow, LeadPorts, LeadRoundRow } from "../ports";
 
@@ -82,9 +82,9 @@ export class LeadRetry extends Error {
 
 const iso = (d: Date) => d.toISOString();
 /** The provider's two kinds of trouble, told by name: the class may come from another copy of the channels package (its dist, or a test's fake). */
-const isRefused = (e: unknown): boolean => (e as { name?: string } | null)?.name === "ApifyRefused";
+const isRefused = (e: unknown): boolean => valueAt(e, "name") === "ApifyRefused";
 const isRetryable = (e: unknown): e is { name: string; status: number | null } =>
-  (e as { name?: string } | null)?.name === "ApifyRetryable";
+  valueAt(e, "name") === "ApifyRetryable";
 const minute = (p: LeadPorts) => Math.floor(p.now().getTime() / MIN_MS);
 const outOfTime = (p: LeadPorts, marginMs: number = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
 /** The most a batch's mark step takes, its time permitting: it is the last thing the collect does and the first it gives up. */

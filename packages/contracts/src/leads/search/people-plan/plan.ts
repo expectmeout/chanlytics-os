@@ -16,7 +16,7 @@ import {
   type PeopleCompanySize,
   type PeopleSeniority,
 } from "./card";
-import { isOneOf } from "../../../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../../../shared/unknown";
 
 export const PEOPLE_KEYWORD_CHARS = 40;
 
@@ -120,7 +120,7 @@ const US_CODES_SET = new Set(Object.values(US_STATES));
  */
 export function peoplePlanOf(raw: unknown): LeadPeoplePlan | null {
   if (!raw || typeof raw !== "object") return null;
-  const value = raw as Record<string, unknown>;
+  const value = recordOrEmpty(raw);
   if (value.card !== PEOPLE_CARD || value.version !== 1) return null;
   const count = typeof value.count === "number" && Number.isInteger(value.count) ? value.count : 0;
   const titles = strs(value.titles, PEOPLE_TITLES_MAX, 60);

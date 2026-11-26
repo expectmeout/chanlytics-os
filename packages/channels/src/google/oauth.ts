@@ -130,7 +130,7 @@ export function idTokenClaims(idToken: string | null | undefined): { email: stri
   try {
     const payload = (idToken ?? "").split(".")[1];
     if (payload === undefined) return { email: null, sub: null };
-    const c = JSON.parse(new TextDecoder().decode(unb64url(payload))) as Record<string, unknown>;
+    const c = recordOrEmpty(JSON.parse(new TextDecoder().decode(unb64url(payload))));
     return { email: typeof c.email === "string" ? c.email : null, sub: typeof c.sub === "string" ? c.sub : null };
   } catch {
     return { email: null, sub: null };

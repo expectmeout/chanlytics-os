@@ -6,6 +6,7 @@ import { replyWindow } from "../config/policy/prices";
 import { windowClockOf } from "../config/policy/reply-limits";
 import { holdActOf } from "../conversations/escalations";
 import type { ReplyDraftKind } from "./reply-drafts";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** What the question reads of a thread (packages/db replyDraftFactsOf). */
 interface DraftOwedFacts {
@@ -193,7 +194,7 @@ export const CALL_SELLING_MAX_TOKENS = 120;
 
 /** The model's answer as what they are selling, or null where they are not, or it said nothing readable. */
 export function callSellingOf(answer: unknown): string | null {
-  const a = answer && typeof answer === "object" && !Array.isArray(answer) ? (answer as Record<string, unknown>) : {};
+  const a = recordOrEmpty(answer);
   if (a.selling !== true) return null;
   const what = typeof a.what === "string" ? a.what.trim() : "";
   return what || "someone selling to you";

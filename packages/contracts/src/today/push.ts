@@ -1,6 +1,6 @@
 import type { NotificationsDto, ServerNotificationKind } from "./notifications/feed-input";
 import { MIN_MS } from "../shared/time";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../shared/unknown";
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
 export const PUSH_PLATFORMS = ["ios", "android"] as const;
@@ -23,7 +23,7 @@ const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 
 /** What PUT /api/v1/me/devices accepts, or why not, in one sentence. */
 export function parseDevice(body: unknown): { ok: true; device: PushDevice } | { ok: false; reason: string } {
-  const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const record = recordOrEmpty(body);
   const token = typeof record.token === "string" ? record.token.trim() : "";
   if (!token) return { ok: false, reason: "A phone needs its notification address." };
   if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
@@ -121,7 +121,7 @@ export interface MemberAlertsDto {
 
 /** What `PUT /api/v1/me/alerts` accepts, or why not, in one sentence: `{ push_off: [kind, …] }`. */
 export function parseMemberAlerts(body: unknown): { ok: true; pushOff: PushKind[] } | { ok: false; reason: string } {
-  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const b = recordOrEmpty(body);
   if (!Array.isArray(b.push_off)) return { ok: false, reason: "Send the kinds your phone is not told, as push_off." };
   const unknown = b.push_off.filter((k) => typeof k !== "string" || !isPushKind(k));
   if (unknown.length) return { ok: false, reason: "That is not something a phone is told." };

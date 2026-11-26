@@ -8,6 +8,7 @@
  * and left out by the one that may not select them.
  */
 import type { LineDto } from "../setup/lines";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** The columns of a line the page may see (lines, the member's policy): no SID, no credential, no agent. */
 export interface LineFacts {
@@ -35,7 +36,7 @@ export interface LineFacts {
 /** A forwarded line's facts, in words only: never a provider id from a provisioned line's facts. */
 function forwardingOf(kind: string, facts: unknown): LineDto["forwarding"] {
   if (kind !== "forwarded" || !facts || typeof facts !== "object" || Array.isArray(facts)) return null;
-  const item = facts as Record<string, unknown>;
+  const item = recordOrEmpty(facts);
   const str = (k: string) => (typeof item[k] === "string" ? item[k] : null);
   return {
     carrier: str("carrier") ?? "other",

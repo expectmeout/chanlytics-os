@@ -15,7 +15,7 @@ import { extractContacts, sameVisitStart, type OwnAddresses } from "./people/mat
 import { normalizeEmail } from "../shared/email-address";
 import { normalizePhone, E164 } from "../shared/phone";
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../shared/unknown";
 
 /* ------------------------------------------------------------------ the tools whose mail is recognised */
 
@@ -291,7 +291,7 @@ export function noticeAnswerOf(
   nowMs: number,
 ): { reading: NoticeReading; hold: null } | { reading: null; hold: NoticeHold } {
   if (!answer || typeof answer !== "object" || Array.isArray(answer)) return { reading: null, hold: "unreadable" };
-  const first = answer as Record<string, unknown>;
+  const first = recordOrEmpty(answer);
   const kind = first.kind;
   if (kind === "other") return { reading: null, hold: "not_a_booking" };
   if (kind !== "booked" && kind !== "changed" && kind !== "cancelled") return { reading: null, hold: "unreadable" };

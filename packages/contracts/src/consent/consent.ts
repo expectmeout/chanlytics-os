@@ -20,6 +20,7 @@
  */
 import type { SystemOneQuestion } from "../ai/system-one";
 import { yesCovers } from "./channels";
+import { recordOrEmpty } from "../shared/unknown";
 
 export interface ConsentBearing {
   consent?: string | null;
@@ -406,7 +407,7 @@ export function consentChangeOf(input: {
   created_at: string;
   data: unknown;
 }): ConsentChange {
-  const data = (input.data ?? {}) as Record<string, unknown>;
+  const data = recordOrEmpty(input.data);
   const str = (k: string): string | null => (typeof data[k] === "string" && data[k] !== "" ? data[k] : null);
   return {
     id: input.id,
