@@ -13,6 +13,7 @@ import {
   type BusinessReadDto,
   type ReceptionistCardVM,
   type WalkIns,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { FirstRunCheckVM } from "../model/view";
 import type { SettingsRecord } from "@/bridge/surfaces/settings";
@@ -57,7 +58,7 @@ function WalkInsRow({
   flash: (f: FrameFlash) => void;
 }) {
   const [picked, setPicked] = useState<WalkIns | null>(null);
-  const value = picked ?? ((WALK_INS as readonly string[]).includes(stored ?? "") ? (stored as WalkIns) : null);
+  const value = picked ?? (isOneOf(WALK_INS, stored) ? stored : null);
   const words = W.check.walkIns;
   return (
     <div className="fr-question" data-testid="fr-walk-ins">

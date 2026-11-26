@@ -320,10 +320,10 @@ export function importRowsOf(rows: string[][], columns: ImportColumns, header: b
       .trim();
     // parseCsv carries the file's own 1-based line on each row it returns; a row built some other way (or a future
     // caller that hand-assembles string[][]) falls back to counting from the header instead of losing the field.
-    const carried = (cells as { line?: number }).line;
+    const carried: unknown = Reflect.get(cells, "line");
     const facts = fileFactsOf(cells, columns, cell);
     return {
-      line: carried ?? count + (header ? 2 : 1),
+      line: typeof carried === "number" ? carried : count + (header ? 2 : 1),
       name: name || null,
       phone: normalizePhone(cell(cells, columns.phone)),
       email: normalizeEmail(cell(cells, columns.email)),

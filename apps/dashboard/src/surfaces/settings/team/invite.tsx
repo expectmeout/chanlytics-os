@@ -12,7 +12,7 @@
  * bucket is ten an hour: where the server says no more, the rest are said as not sent, never as sent.
  */
 import { useState, type ReactNode } from "react";
-import { TEAM_INVITE_DAYS, roleSays } from "@chanlytics/contracts";
+import { TEAM_INVITE_DAYS, roleSays, recordOrEmpty } from "@chanlytics/contracts";
 import { teamVerbs } from "@/bridge/inbox-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -77,7 +77,7 @@ async function inviteEach(to: readonly string[], people: readonly TeamPerson[], 
       );
     else {
       const r = await teamVerbs.invite(email, role);
-      if (r.ok) out.push(saidOf(email, role, (r.data ?? {}) as Record<string, unknown>));
+      if (r.ok) out.push(saidOf(email, role, recordOrEmpty(r.data)));
       else {
         if (r.status === 429) stopped = r.message;
         out.push({ email, done: false, words: r.status === 429 ? `not sent: ${r.message}` : r.message });
@@ -114,7 +114,7 @@ function saidView(said: readonly Said[], onResend: (id: string) => void, again: 
               <b>{s.email}</b> {s.words}
             </span>
             {s.resend && (
-              <LinkButton onClick={() => onResend(s.resend as string)} data-testid="team-invite-resend">
+              <LinkButton onClick={() => s.resend && onResend(s.resend)} data-testid="team-invite-resend">
                 Send it again
               </LinkButton>
             )}

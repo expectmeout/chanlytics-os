@@ -4,6 +4,7 @@ import type { FoldedTurn, Line, LineTaken } from "./types";
 import { buildLineRows, flatRows, ownAsksOf, type LineRow } from "../home";
 import { answerMoves, freshNext } from "../turn";
 import { AR_FOCUS_MS, arEscape } from "./place";
+import { textOrEmpty } from "@chanlytics/contracts";
 
 /** The conversation's turns, whether the rows show (and are drawn: not while a phone's field is in use), the rows, and the answer drawn with its moves and words. */
 export const arUnder = ({
@@ -104,19 +105,29 @@ const arThreadOf = ({
 };
 
 /** A row or a move taken: a conversation opened, Earlier, a place gone to, words to finish, or a question asked. */
+/** A row's way on, where it names one. */
+const arGoTo = (nav: Line["nav"], to: string | undefined, how?: { leave: boolean }) => {
+  if (to) nav(to, how);
+};
+
+/** A thread's row opens its thread, where it holds one. */
+const arOpenRow = (openThread: Line["openThread"], th: LineRow["th"]) => {
+  if (th) void openThread(th);
+};
+
 export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line) => {
   const activate = (it: LineTaken | undefined) => {
     if (!it) return;
     if (it.type === "thread") {
-      void openThread(it.th as NonNullable<LineRow["th"]>);
+      arOpenRow(openThread, it.th);
       return;
     }
     if (it.type === "jump") {
-      nav(it.to as string, { leave: true });
+      arGoTo(nav, it.to, { leave: true });
       return;
     }
     if (it.type === "item" || it.type === "open") {
-      nav(it.to as string);
+      arGoTo(nav, it.to);
       return;
     }
     // What Ask noticed, where the thing to do is on a page: one step (D36 of the answers canvas).
@@ -125,7 +136,7 @@ export const arActivate = ({ openThread, nav, setQuery, inputRef, submit }: Line
       return;
     }
     if (it.compose) {
-      setQuery(it.q as string);
+      setQuery(textOrEmpty(it.q));
       setTimeout(() => inputRef.current && inputRef.current.focus(), AR_FOCUS_MS);
       return;
     }

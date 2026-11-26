@@ -133,7 +133,8 @@ export interface ProviderCall extends Omit<RequestInit, "signal"> {
 
 /** What a test hands in instead of the network and the clock. */
 interface ProviderDeps {
-  fetch?: typeof fetch;
+  /** A test's stand-in for the network; the runtime's own fetch where none is given, or it is given as undefined. */
+  fetch?: typeof fetch | undefined;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** The draw a backoff is lengthened by (contracts jittered); Math.random when absent. */

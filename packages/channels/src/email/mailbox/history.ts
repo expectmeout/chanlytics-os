@@ -8,6 +8,7 @@
 import { fetchFromProvider, type ProviderReply } from "../../shared/provider-fetch";
 import { MAILBOX_READ_MS } from "./read";
 import { GRAPH_API } from "./graph";
+import { listOrEmpty, valueAt } from "@chanlytics/contracts";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** A page of the past: Gmail lists up to five hundred ids a page, Graph fifty messages; a part reads a few pages. */
@@ -70,18 +71,18 @@ export async function listGmailSince(
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const json = response.json as {
-    messages?: Array<{ id?: unknown; threadId?: unknown }>;
-    nextPageToken?: unknown;
-  } | null;
+  const json = response.json;
+  const next = valueAt(json, "nextPageToken");
   return {
     ok: true,
-    listed: (json?.messages ?? []).flatMap((m) =>
-      typeof m.id === "string"
-        ? [{ id: m.id, threadId: typeof m.threadId === "string" ? m.threadId : null, from: null }]
-        : [],
-    ),
-    next: typeof json?.nextPageToken === "string" ? json.nextPageToken : null,
+    listed: listOrEmpty(valueAt(json, "messages")).flatMap((message) => {
+      const id = valueAt(message, "id");
+      const threadId = valueAt(message, "threadId");
+      return typeof id === "string"
+        ? [{ id, threadId: typeof threadId === "string" ? threadId : null, from: null }]
+        : [];
+    }),
+    next: typeof next === "string" ? next : null,
   };
 }
 
@@ -110,26 +111,24 @@ export async function listGraphSince(
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const json = response.json as {
-    value?: Array<{ id?: unknown; conversationId?: unknown; from?: { emailAddress?: { address?: unknown } } }>;
-    "@odata.nextLink"?: unknown;
-  } | null;
+  const json = response.json;
+  const next = valueAt(json, "@odata.nextLink");
   return {
     ok: true,
-    listed: (json?.value ?? []).flatMap((value) =>
-      typeof value.id === "string"
+    listed: listOrEmpty(valueAt(json, "value")).flatMap((value) => {
+      const id = valueAt(value, "id");
+      const threadId = valueAt(value, "conversationId");
+      const from = valueAt(value, "from", "emailAddress", "address");
+      return typeof id === "string"
         ? [
             {
-              id: value.id,
-              threadId: typeof value.conversationId === "string" ? value.conversationId : null,
-              from:
-                typeof value.from?.emailAddress?.address === "string"
-                  ? value.from.emailAddress.address.toLowerCase()
-                  : null,
+              id,
+              threadId: typeof threadId === "string" ? threadId : null,
+              from: typeof from === "string" ? from.toLowerCase() : null,
             },
           ]
-        : [],
-    ),
-    next: typeof json?.["@odata.nextLink"] === "string" ? json["@odata.nextLink"] : null,
+        : [];
+    }),
+    next: typeof next === "string" ? next : null,
   };
 }

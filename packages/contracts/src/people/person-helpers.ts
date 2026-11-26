@@ -8,7 +8,7 @@ import { DAY_MS } from "../shared/time";
 import type { PersonCampaignVM, PersonDetailDto, PersonSequenceVM } from "./person-dto";
 import type { PersonProposalVM } from "./person-reach";
 import { adRoute } from "../ads/address";
-import { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
+import { PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./person-words";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { WrittenChannel } from "../conversations/thread-channel";
 import {
@@ -20,6 +20,7 @@ import {
 } from "../conversations/thread-channel";
 import { HELD_REASONS, isReplyTo } from "../campaigns/broadcasts/run-words";
 import { addressOf } from "../activity/record-address";
+import { entryOf } from "../shared/unknown";
 
 export const MONTH_MS = 30 * DAY_MS;
 
@@ -96,8 +97,7 @@ export function proposalSent(conversations: ReadonlyArray<ConversationDto>, url:
     }
   }
   if (!best) return null;
-  const via =
-    best.channel && best.channel in PERSON_CHANNEL_WORDS ? PERSON_CHANNEL_WORDS[best.channel as PersonChannel] : null;
+  const via = entryOf(PERSON_CHANNEL_WORDS, best.channel) ?? null;
   return { at: best.iso, via };
 }
 

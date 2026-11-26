@@ -28,7 +28,6 @@ import { BulkAddDesk, BulkChoose, type BulkAdd } from "./bulk-add";
 
 const B = LEAD_SHEET_WORDS.bulk;
 
-type BulkAction = LeadsBulkInput["action"];
 type BulkView = Extract<LeadsBulkInput, { by: "view" }>["view"];
 
 interface BulkBarProps {
@@ -77,10 +76,8 @@ function bulkFacts(p: BulkBarProps) {
   const review = p.review;
   const acts: LeadReviewAct[] =
     review && !p.allMatching && picked.length > 0 && picked.every((l) => l.cls === "review") ? review.actsFor(ids) : [];
-  const scope = (action: BulkAction): LeadsBulkInput =>
-    p.allMatching
-      ? { by: "view", action: action as "contacted" | "not_a_fit", view: p.view }
-      : { by: "ids", action, ids };
+  const scope = (action: "contacted" | "not_a_fit"): LeadsBulkInput =>
+    p.allMatching ? { by: "view", action, view: p.view } : { by: "ids", action, ids };
   // Those no email can go to: an add leaves them selected, saying why; the bar says how many first.
   const noEmail = picked.filter((l) => !l.email).length;
   return { picked, ids, count, hidden, acts, scope, noEmail };
@@ -126,7 +123,8 @@ function moreMenu(p: BulkBarProps, picked: LeadRowVM[]) {
 function phoneReviewRows(p: BulkBarProps, f: ReturnType<typeof bulkFacts>, shut: (fn: () => unknown) => () => void) {
   const { busy, canFind } = p;
   const { ids, acts } = f;
-  const review = p.review as ReviewDoors;
+  const review = p.review;
+  if (!review) return null;
   const gateWork = canFind ? null : gate("find", "work these leads");
   return (
     <>
@@ -347,7 +345,7 @@ function phoneBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
 function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
   const { busy, canFind, allMatching, narrowed, total, rows, whyNot, whyOpen, onWhyOpen, view } = p;
   const { picked, ids, count, hidden, acts, noEmail } = f;
-  const review = p.review as ReviewDoors;
+  const review = p.review;
   const gateWork = canFind ? {} : gate("find", "work these leads");
   return (
     <div className="cl-bulk ld-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
@@ -374,7 +372,7 @@ function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
           Select all {total.toLocaleString()} that match
         </button>
       )}
-      {acts.includes("check_again") && review.canCheckAgain ? (
+      {review && acts.includes("check_again") && review.canCheckAgain ? (
         <button
           type="button"
           className="btn btn-sm btn-primary"
@@ -387,7 +385,7 @@ function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
           <span className="dim">· about {leadCheckAgainCents(ids.length)}¢</span>
         </button>
       ) : null}
-      {acts.includes("keep") ? (
+      {review && acts.includes("keep") ? (
         <button
           type="button"
           className="btn btn-sm"
@@ -399,7 +397,7 @@ function deskBulkBar(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
           Keep {ids.length}
         </button>
       ) : null}
-      {acts.includes("exclude") ? (
+      {review && acts.includes("exclude") ? (
         <button
           type="button"
           className="btn btn-sm"

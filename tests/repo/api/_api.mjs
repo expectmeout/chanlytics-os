@@ -17,7 +17,10 @@ const walk = (node, visit) => {
 
 /* ------------------------------------------------------------------ the doors contracts declares */
 
-/** Every door declared in contracts, as `{ name, aud, module }`: `export const X_DOOR = edgeDoor("/api/...", ...)`. */
+/**
+ * Every door declared in contracts, as `{ name, aud, module, bodyless }`: `export const X_DOOR = edgeDoor("/api/...", ...)`,
+ * bodyless where its body is declared `NO_BODY` (a GET that takes none).
+ */
 export function declaredDoors() {
   const out = [];
   for (const f of modules(["packages/contracts/src"])) {
@@ -35,7 +38,12 @@ export function declaredDoors() {
           call.arguments[0] &&
           ts.isStringLiteral(call.arguments[0])
         )
-          out.push({ name: d.name.text, aud: call.arguments[0].text, module: f });
+          out.push({
+            name: d.name.text,
+            aud: call.arguments[0].text,
+            module: f,
+            bodyless: call.arguments[1]?.getText(sf) === "NO_BODY",
+          });
       }
     }
   }

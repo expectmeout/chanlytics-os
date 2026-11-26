@@ -9,8 +9,8 @@ import { missedCall } from "../conversations/call-dto";
 import { CALL_HEARTBEAT_MS } from "../config/policy/reply-limits";
 import { liveStillUp, type LiveCallVM } from "../voice/live";
 import { ASK_ANSWER_CAPS, clip, type AskAnswer, type AskItem, type AskOpen } from "./answer/shape";
-import { ASK_CITATION_KINDS, type AskCitationKind } from "./citations";
-import { recordOrEmpty } from "../shared/unknown";
+import { ASK_CITATION_KINDS } from "./citations";
+import { recordOrEmpty, isOneOf } from "../shared/unknown";
 
 /* -------------------------------------------------------------- fast paths */
 
@@ -154,7 +154,6 @@ export function askIntent(question: string, now: number, tz?: string | null): As
 /* ------------------------------------------------- a quick answer, kept */
 
 const C = ASK_ANSWER_CAPS;
-const CITATION_KINDS = new Set<string>(ASK_CITATION_KINDS);
 const capTo = (v: unknown, n: number) => clip(typeof v === "string" ? v : "", n);
 /** Where a quick answer's door may go: a page of the app, never a scheme, a host or a path from the root. */
 const appRoute = (v: unknown): string | null =>
@@ -179,18 +178,12 @@ export function quickAnswerOf(raw: unknown): AskAnswer | null {
     const sourceFields = recordOrEmpty(it.source);
     const title = capTo(it.title, C.title);
     const to = appRoute(sourceFields.to);
-    if (
-      !title ||
-      !to ||
-      typeof sourceFields.kind !== "string" ||
-      !CITATION_KINDS.has(sourceFields.kind) ||
-      typeof sourceFields.id !== "string"
-    )
+    if (!title || !to || !isOneOf(ASK_CITATION_KINDS, sourceFields.kind) || typeof sourceFields.id !== "string")
       return null;
     if (!sourceFields.id || sourceFields.id.length > 300) return null;
     const label = capTo(sourceFields.label, C.label) || title;
     const source = {
-      kind: sourceFields.kind as AskCitationKind,
+      kind: sourceFields.kind,
       id: sourceFields.id,
       label,
       to,

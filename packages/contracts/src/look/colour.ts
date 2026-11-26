@@ -39,8 +39,9 @@ export function parseCssColour(text: string): Rgb | null {
     .filter(Boolean)
     .slice(0, 3)
     .map(part);
-  if (parts.length !== 3 || parts.some((p) => p === null)) return null;
-  return parts as Rgb;
+  const [r, g, b] = parts;
+  if (parts.length !== 3 || r == null || g == null || b == null) return null;
+  return [r, g, b];
 }
 
 export const hexOfRgb = ([r, g, b]: Rgb): string =>
@@ -79,6 +80,7 @@ export function contrastOnWhite(hex: string): number {
 export function readableOnWhite(hex: string): string {
   let rgb = parseCssColour(hex);
   if (!rgb) return hex;
-  for (let i = 0; i < 40 && 1.05 / (luminanceOf(rgb) + 0.05) < 4.5; i++) rgb = rgb.map((c) => c * 0.94) as Rgb;
+  for (let i = 0; i < 40 && 1.05 / (luminanceOf(rgb) + 0.05) < 4.5; i++)
+    rgb = [rgb[0] * 0.94, rgb[1] * 0.94, rgb[2] * 0.94];
   return hexOfRgb(rgb);
 }

@@ -29,7 +29,7 @@ export function nextThemePref(pref: unknown): ThemePref {
 /** What the top bar's theme button shows and says: the preference in force, and what a press makes it. */
 export function themeButtonWords(pref: unknown): { icon: string; label: string } {
   const now = THEME_OPTIONS.find((o) => o.id === pref) ?? THEME_OPTIONS[2];
-  const next = THEME_OPTIONS.find((o) => o.id === nextThemePref(now.id)) as (typeof THEME_OPTIONS)[number];
+  const next = THEME_OPTIONS.find((o) => o.id === nextThemePref(now.id)) ?? now;
   return { icon: now.icon, label: `Theme: ${now.label}. Switch to ${next.label}` };
 }
 

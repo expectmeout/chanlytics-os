@@ -16,8 +16,10 @@ import {
   type SchemaSet,
   type SequenceRowDto,
   type TenantId,
+  shaped,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
+import { readAnswer } from "../../shared/read-json";
 
 type Db = SupabaseClient<Database>;
 type Trigger = SchemaSet<"sequence_steps.trigger">;
@@ -174,7 +176,7 @@ export async function listOccasionsDue(db: Db, tenantId: TenantId, now: Date, li
     dueAt: r.due_at,
     createdAt: r.created_at,
     // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
-    step: r.step as StepRow | null,
+    step: readAnswer("sequence_occasions_due", shaped<StepRow>().nullable(), r.step ?? null),
     runs: r.runs,
   }));
 }

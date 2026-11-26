@@ -15,6 +15,6 @@ export interface ScopeView {
 }
 
 /** A scope's root with the deck's seat and its side on it; as it was where no page hands it one. */
-export function asScopeView(root: ReactElement, view: ScopeView | undefined): ReactElement {
-  return view?.ref ? cloneElement(root, { ref: view.ref, "data-slide": view.slide } as Record<string, unknown>) : root;
+export function asScopeView(root: ReactElement<Record<string, unknown>>, view: ScopeView | undefined): ReactElement {
+  return view?.ref ? cloneElement(root, { ref: view.ref, "data-slide": view.slide }) : root;
 }

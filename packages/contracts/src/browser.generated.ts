@@ -195,7 +195,7 @@ export { LANGUAGE_GROUP_WORDS, languageLabels, languageWords, messageLanguageCho
 export { EMAIL_BODY_MAX, EMAIL_SUBJECT_MAX, noVersionWords, OWN_VERSION_CHANNELS, SMS_SEGMENTS_MAX, smsSegments, smsStopLine, smsVersionSegments, VERSION_CHANNEL_WORDS, VERSION_CHANNELS, versionWord } from "./campaigns/templates/message-versions/channels";
 export { campaignEmailRules, emailIssues, isReachOutRow, keepsValues, reachOutRowName, reachOutStepOf, renderOwnVersion, validateEmailVersion, validateOwnVersion, validateSmsVersion, versionComponents, versionSlotsRefusal, versionsOf, versionWords } from "./campaigns/templates/message-versions/email-rules";
 export { bookingTemplate, compareTemplates, defaultTemplate, groupTemplates, starterIndex } from "./campaigns/templates/order";
-export { exampleParams, exampleParamsFor, firstNameOf, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARAM_SOURCES, paramLabel, paramSaid, parseParamSpec, parseParamSpecs, playbooksStillSending, resolveParams, testParamsOf } from "./campaigns/templates/params";
+export { exampleParams, exampleParamsFor, firstNameOf, PARAM_SOURCE_HINTS, PARAM_SOURCE_LABELS, PARAM_SOURCES, paramLabel, paramSaid, paramSpecOf, parseParamSpec, parseParamSpecs, playbooksStillSending, resolveParams, testParamsOf } from "./campaigns/templates/params";
 export { footerOf, refusedWords, sendableTemplates, templateBlocked, templateFooter, templateLinkButton, templateParts } from "./campaigns/templates/parts";
 export { SENDER_WORDS, senderLanguage, senderWords } from "./campaigns/templates/sender-words";
 export { fillSlots, numberedSlots, slotValueOf, slotWritten, slotMentions, slotOutside, slotsOut } from "./campaigns/templates/slot-sets";
@@ -563,7 +563,7 @@ export { linkHost, normalizeLink, publicObjectSrc, webAddressesIn, whyNotALink }
 export { sumOf } from "./shared/numbers";
 export { areaCodeOf, E164, formatPhoneDisplay, formatPhoneLocal, FORWARD_IS_HANDOFF, HANDOFF_FORWARDS_BACK, handoffE164, normalizePhone, phoneAsWritten, phoneDialable, phoneTail, samePhone, shortCode, tollFreeNumber, US_AREA_CODE, whyNotAHandoff, whyNotAPhone, whyNotForward } from "./shared/phone";
 export { agoShort, agoWords, dateFormat, DAY_MS, HOUR_MS, jittered, MIN_MS, SECOND_MS, spanLabel, timezoneCity, VIEW_CHANGE_MS, waitedLabel, WEEK_MS, isoMs, numberFormat } from "./shared/time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, nonEmptyOrNull, recordOrNull, trimmedOrNull, entryOf, globalSlot, isCount, isList, isObjectRecord, isOneOf, keysOf, listOrEmpty, recordOrEmpty, textOrEmpty, valueAt, withOldNames } from "./shared/unknown";
+export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, nonEmptyOrNull, recordOrNull, trimmedOrNull, entryOf, errorOfThrown, globalSlot, isCount, isList, isObjectRecord, isOneOf, keysOf, listOrEmpty, recordOrEmpty, textOrEmpty, valueAt, withOldNames } from "./shared/unknown";
 export { clipAtWord, ANSWER_JSON_ONLY, CONTROL_CHARS, groupedPlural, NUMBERED_SLOT, plural, TRY_AGAIN_IN_A_MINUTE, VOICE_IS_OFF, capitalize, joinWords, possessive } from "./shared/words";
 export { DAY_KEY, dayKeyNamed, dayWordIn, isDayKey, mondayOf, monthLabelOf, monthSpan, onOrAfter, shiftKey, shiftMonth, weekdayNamed, zoneMidnight } from "./shared/zone/day-keys";
 export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, usableZone, WEEKDAY_KEYS, zoneParts } from "./shared/zone/math";

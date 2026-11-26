@@ -7,17 +7,15 @@
  * Its word for a visit is the workspace's, as Today's own read says it, before a playbook's: a workspace with playbooks
  * off never reads one (the canvas of 2 Nov 2026).
  */
-import type { AppointmentWord, CalendarLike, TodayDayVM } from "@chanlytics/contracts";
+import type { AppointmentWord, TodayDayVM } from "@chanlytics/contracts";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import type { PlaybooksSurface } from "@/surfaces/campaigns/playbooks/surface";
 import { surfaceValue } from "../../surface-values";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, calendarLikeOf } from "../helpers";
 import { useMoved } from "../shell";
 
 /**
- * The day the calendar says, or null: no feed, one that could not be read, or nothing in its span. The calendar's `now` is
- * null when today is not in its span; todayDay reads it only on today's frame, where it is a number, and its own type
- * (CalendarLike) does not say null: what the surface published is handed over as it is. The reminders say the
+ * The day the calendar says, or null: no feed, one that could not be read, or nothing in its span. The reminders say the
  * workspace's word (Today's read's), else the playbooks surface's, as Campaigns says it: no read more.
  */
 function dayVmOf(
@@ -29,7 +27,7 @@ function dayVmOf(
   // Every entry of the day, never the old card's five: the zone draws its own lines and folds what is over ("3 earlier"),
   // which a cut list would undercount (the 3 Nov audit); Listen's brief and the closing read the whole day too.
   const vm = TODAY_HELPERS.day(
-    calendar.vm as CalendarLike,
+    calendarLikeOf(calendar.vm),
     playbooks ? { rows: playbooks.rows, word: word ?? playbooks.shape.word } : null,
     word ? { rows: [], word } : null,
     Number.POSITIVE_INFINITY,

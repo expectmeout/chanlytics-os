@@ -9,6 +9,7 @@ import { DAY_MS, HOUR_MS } from "../../../shared/time";
 import { fenceLine } from "../../../ai/fence";
 import { wordCount } from "../words/limits";
 import { REPLY_INTENTS, isReplyIntent, type ReplyIntent, type ReplyReading, type Unread, withinChars } from "./intents";
+import { recordOrEmpty } from "../../../shared/unknown";
 
 /** An automatic out-of-office that names no day pauses the chain this long (G8). */
 const REACH_OUT_AWAY_DAYS = 7;
@@ -253,7 +254,7 @@ const intentOf = (v: unknown): ReplyIntent | null => {
  */
 export function parseReplyReading(first: unknown): ReplyReading | null {
   if (!first || typeof first !== "object") return null;
-  const value = first as Record<string, unknown>;
+  const value = recordOrEmpty(first);
   const intent = intentOf(value.intent);
   if (!intent) return null;
   const day = typeof value.day === "string" && isRealDate(value.day.trim()) ? value.day.trim() : null;
@@ -272,7 +273,7 @@ export function parseReplyReading(first: unknown): ReplyReading | null {
 /** The reader's signer as it answered: a name and maybe a title, spaces made one and bounded; null for anything else. */
 function signerFieldOf(v: unknown): ReplyReading["signer"] {
   if (!v || typeof v !== "object") return null;
-  const o = v as Record<string, unknown>;
+  const o = recordOrEmpty(v);
   const name = typeof o.name === "string" ? o.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
   if (!name) return null;
   const title = typeof o.title === "string" ? o.title.replace(/\s+/g, " ").trim().slice(0, 80) : "";

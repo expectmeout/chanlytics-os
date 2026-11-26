@@ -14,6 +14,7 @@ import {
   BtPutBacks,
   type BtRowDoor,
 } from "./common";
+import { listOrEmpty } from "@chanlytics/contracts";
 
 export interface BtEditDoor<D> extends BtRowDoor<D> {
   initial: D | null;
@@ -96,7 +97,7 @@ interface BtListCx<D> {
   changed: BtUpdate<D>;
 }
 
-const btWholeList = <D,>(d: D) => d as unknown[];
+const btWholeList = <D,>(d: D) => listOrEmpty(d);
 
 const btListCx = <D,>(ed: BtEd<D>, update: BtUpdate<D>, undo: BtUndo<D>, o: BtListOpts<D>): BtListCx<D> => {
   // Required, and refused loudly: two lists rows() could not tell apart would share their put-backs (BtPutBacks).
@@ -146,7 +147,7 @@ const btListAdd = <D,>(cx: BtListCx<D>, blank: () => unknown) => {
   const { list, put, max } = cx;
   let at = -1;
   const taken = cx.changed((d) => {
-    const rows = list(d) as unknown[];
+    const rows = list(d) ?? [];
     if (rows.length >= max) return d;
     at = rows.length;
     return put(d, [...rows, blank()]);
@@ -207,7 +208,7 @@ const btListRemove = <D,>(
       (d) =>
         cx.put(
           d,
-          (cx.list(d) as unknown[]).filter((_, j) => j !== i),
+          (cx.list(d) ?? []).filter((_, j) => j !== i),
         ),
       cx.own(moved),
     )
@@ -222,7 +223,7 @@ const btListRemove = <D,>(
   const back = cx.undo((d) => {
     const w = BtPutBacks.find(l.backs, id);
     const copy = gone !== null && typeof gone === "object" ? { ...gone } : gone;
-    const rows = cx.list(d) as unknown[];
+    const rows = cx.list(d) ?? [];
     const at = w ? w.at : rows.length;
     return cx.put(d, [...rows.slice(0, at), copy, ...rows.slice(at)]);
   });
@@ -250,7 +251,7 @@ export const btEditorRows =
           (d) =>
             cx.put(
               d,
-              (cx.list(d) as unknown[]).map((x, j) => (j === i ? Object.assign({}, x, patch) : x)),
+              (cx.list(d) ?? []).map((x, j) => (j === i ? Object.assign({}, x, patch) : x)),
             ),
           cx.own(cx.keysOf(i)),
         ),
