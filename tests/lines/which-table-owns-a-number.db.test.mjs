@@ -92,10 +92,13 @@ test("the answer is written where it cannot be lost: on the tables themselves", 
     "lines says which way the arrow points",
   );
   assert.match(defs.tenant_channels?.description ?? "", /The ROUTING table/, "and tenant_channels says what it is for");
-  // The two shapes a reader gets wrong. A voice route is per RECEPTIONIST, so two numbers on one agent share it.
-  const config = defs.tenant_channels?.properties?.config?.description ?? "";
-  assert.match(config, /keyed on the receptionist \(external_id = agent id\)/);
-  assert.match(config, /keyed on the number, because a message arrives addressed to one/);
+  // The two shapes a reader gets wrong, said on the table too. A voice route is per RECEPTIONIST, so two numbers on one
+  // agent share it; a message's route is per number.
+  const routing = defs.tenant_channels?.description ?? "";
+  assert.match(routing, /keyed on the receptionist \(external_id = agent id\)/);
+  assert.match(routing, /keyed on the number, because a message arrives addressed to one/);
+  // And its config names the line behind a route, when there is one.
+  assert.match(defs.tenant_channels?.properties?.config?.description ?? "", /line_id \(the lines row behind it/);
 });
 
 test("number_drift() is silent about the states that are fine", { skip }, async () => {

@@ -12,9 +12,9 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
-import { fakeDb } from "../_fake-db.mjs";
-import { importSrc } from "../_source.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 // A deployment that may reach its providers (the dashboard's own gate: a preview answers "not here").

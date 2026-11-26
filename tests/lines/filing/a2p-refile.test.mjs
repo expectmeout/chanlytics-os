@@ -20,11 +20,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resetBreakers } from "@chanlytics/channels/shared";
-import { fakeDb } from "../_fake-db.mjs";
-import * as refile from "../../apps/edge/lib/lines/a2p-refile.ts";
-import { listFilingProblems } from "../../apps/edge/lib/lines/a2p-register.ts";
-import { syncRegistration } from "../../apps/edge/lib/lines/a2p-sync.ts";
-import { smsStateRow } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
+import { fakeDb } from "../../_fake-db.mjs";
+import * as refile from "../../../apps/edge/lib/lines/a2p-refile.ts";
+import { listFilingProblems } from "../../../apps/edge/lib/lines/a2p-register.ts";
+import { syncRegistration } from "../../../apps/edge/lib/lines/a2p-sync.ts";
+import { smsStateRow } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord, platformLineActions, textingWords } from "@chanlytics/contracts";
 
 const { unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign } = refile;

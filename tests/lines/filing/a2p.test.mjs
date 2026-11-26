@@ -790,7 +790,7 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   // workspace's money, so lines/register is an owner's or the partner's (0012), rate-limited and declared to spend:
   // route-policy.json, held to the route's own declaration by routes/route-policy.test.mjs. Pinned as the routes' text
   // until 25 Nov 2026. The free test registry is never reachable from the dashboard: the register route sends the edge
-  // the line alone, whatever the body asks (lines/the-owner-and-support-read-a-filing-s-state.test.mjs). Filing asks
+  // the line alone, whatever the body asks (lines/filing/the-owner-and-support-read-a-filing-s-state.test.mjs). Filing asks
   // once, plainly, with the contract's price for the registration in the question: the form is drawn and pressed in
   // lines/registration-path.test.mjs ("the price in the question"). Pinned as the form's text until 26 Nov 2026.
 });

@@ -599,7 +599,7 @@ test("one validator, three writers", async () => {
   // provision one. Passing no facts skipped it at the route, so it said the
   // record was ready and the edge refused it after the owner pressed Register.
   // The route is run with the workspace's own number on file, read on the owner's session, in
-  // lines/the-owner-and-support-read-a-filing-s-state.test.mjs; the filing, below ("our own number is not a
+  // lines/filing/the-owner-and-support-read-a-filing-s-state.test.mjs; the filing, below ("our own number is not a
   // sole proprietor's handset"); the door that writes the record in lines/door/ (`record` refuses the row it is about
   // to write in the owner's words, stores a sole proprietor with no tax id, and holds a caller that says "standard").
   // And the second list it used to keep is gone, not deprecated.
