@@ -28,7 +28,6 @@ import {
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import { logAndGoOn } from "@chanlytics/log";
 import type { Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { postFileToInstagram } from "../posts/instagram";
 import { getStoredConfig } from "../workspace/config-row";
@@ -75,13 +74,18 @@ const businessOn = (ctx: RouteContext, member: Member) => async () => {
 
 /**
  * The slots the press left out because their reason no longer stands, held on their rows with why, so "it says why" is
- * true of each. Written as the service once the member's own press has been taken (a member's session writes no slot but
- * through its doors, and none of those holds a slot not yet approved); a slot whose time passed says so by itself.
+ * true of each: through their door, as the member who pressed (plan_slots_hold, 00720), each with its event; a slot
+ * whose time passed says so by itself.
  */
-async function holdLeftOut(tenantId: TenantId, planId: string, slots: WeekApproval["holds"]): Promise<void> {
+async function holdLeftOut(
+  ctx: RouteContext,
+  tenantId: TenantId,
+  planId: string,
+  slots: WeekApproval["holds"],
+): Promise<void> {
   // The press has been taken either way: a row that could not be held keeps its time, and is not the press's failure.
   if (slots.length > 0)
-    await holdSlotsLeftOut(serviceDb(), tenantId, { planId, slots }).catch(
+    await holdSlotsLeftOut(ctx.supabase, tenantId, { planId, slots }).catch(
       logAndGoOn("holding the slots a week's approval left out", 0),
     );
 }
@@ -107,7 +111,7 @@ export async function approveWeekFor(
   const at = { zone: memberZoneOf(member), nowMs: Date.now() };
   const { going, leftOut, holds, snapshot } = await judgeWeekApproval(week.slots, at, businessOn(ctx, member));
   if (going.length === 0) {
-    await holdLeftOut(member.tenantId, week.plan.id, holds);
+    await holdLeftOut(ctx, member.tenantId, week.plan.id, holds);
     throw new AppError("validation", leftOut[0]?.why ?? PLAN_REFUSED.nothing);
   }
   const answer = await approveWeek(ctx.supabase, member.tenantId, {
@@ -117,7 +121,7 @@ export async function approveWeekFor(
   if (answer.fate === "changed") throw new AppError("conflict", PLAN_REFUSED.changed, 409);
   if (answer.fate === "gone") throw new AppError("not_found", PLAN_REFUSED.gone, 404);
   if (answer.fate !== "approved") throw new AppError("conflict", PLAN_REFUSED.approved, 409);
-  await holdLeftOut(member.tenantId, week.plan.id, holds);
+  await holdLeftOut(ctx, member.tenantId, week.plan.id, holds);
   makeWeekAfter(ctx, member, { tenantId: member.tenantId, weekOf: input.week_of }, later);
   return { approved: answer.slots, left_out: leftOut };
 }

@@ -61,7 +61,7 @@ test("the hero and the reply line say the hold, not a speed the setting made", (
 
 test("none past the hold says so, and says the ones with no hold", () => {
   const vm = toReportVM(dto(salon.filter((r) => r.s !== 72)));
-  assert.equal(vm.lines.reply, "None waited longer than your hold; 2 had no hold.");
+  assert.equal(vm.lines.reply, "None waited longer than your hold, and 2 had no hold.");
 });
 
 test("a hold changed mid-period: the label is the hold most replies waited, and the counts stay true", () => {

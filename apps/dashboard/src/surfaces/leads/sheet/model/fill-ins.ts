@@ -31,6 +31,7 @@ export const LEAD_FILL_WORDS = {
   firstName: "Their first name",
   title: "Their title",
   role: "Their role",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   yourName: "Your name",
   yourBusiness: "Your business name",
   bookingLink: "Your booking link",

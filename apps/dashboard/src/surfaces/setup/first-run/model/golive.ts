@@ -63,7 +63,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     hands: (code: boolean, wa: boolean) =>
       `Then on your phone: ${[code ? "dial one code" : null, code ? "call your number once" : null, wa ? "approve WhatsApp" : null].filter(Boolean).join(", ")}`,
   },
-  card: "Your card",
+  card: "Card",
   /** Stripe's checkout could not be mounted in the page (Stripe.js refused, or blocked). */
   checkoutFailed: "Stripe's checkout couldn't open here. Try again in a moment · nothing was charged.",
   secured: (days: number) => (days ? "Nothing is charged today · secured by Stripe" : "Secured by Stripe"),
@@ -71,7 +71,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
   confirmingLead: "Some banks ask you to approve in their app. This page moves on by itself.",
   confirmingFoot: "Usually a few seconds",
   noProvider: {
-    heading: "We set up your line with you",
+    heading: "Chanlytics sets up your number with you",
     lead: "Phone lines aren't automatic here yet. A person at Chanlytics sets yours up and writes to you within a day.",
     /** What goes live now without the line, of what is connected: WhatsApp's number, a mailbox's mail; null for none. */
     now: (whatsapp: boolean, email: boolean): string | null =>
@@ -130,7 +130,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     openMeta: "Open Meta's window",
     skipWhatsapp: "Skip WhatsApp for now",
     template: "Your booking-link message · Meta is reviewing it · until then it takes a caller's details",
-    templateOk: "Your booking-link message · approved",
+    templateOk: "Booking-link message · approved",
     needsYou: "Needs you",
     open: "Open Today, it keeps going",
     askTitle: (name: string | null) => `Getting ${name ?? "AI"} ready`,
@@ -189,7 +189,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     whatsappConnect: "Connect WhatsApp now",
     /** Chosen at Where it answers and not connected yet: everything else answers, and WhatsApp joins once approved. */
     whatsappConnectSays:
-      "Calls and email answer now. WhatsApp joins once you approve it on your phone; Today keeps this until then.",
+      "Calls and email answer now. WhatsApp joins once you approve it on your phone · Today keeps this until then.",
   },
 } as const;
 

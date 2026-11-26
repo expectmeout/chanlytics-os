@@ -133,6 +133,7 @@ export interface SetupCardRowVM extends SetupRowVM {
 const CARD_SHORT_NAMES: Record<string, string> = {
   team: "Team",
   handoff: "Hand-off",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   keep: "Your number",
   google: "Google listing",
   yes: "First yes",
@@ -230,7 +231,7 @@ const CARD_REMIND = {
  * The card while a payment failed or the plan is paused: said as the plan, never as a step of setting up. Go live needs
  * Billing, so a card that failed after setting up read as a step left, and opened the first run.
  */
-const CARD_BILLING = { title: "Your plan", left: "Needs you" } as const;
+const CARD_BILLING = { title: "Plan", left: "Needs you" } as const;
 
 /** A step's name inside a sentence: lower case, but AI keeps its capitals (docs/words.md). */
 const inSentence = (name: string): string => (/^AI\b/.test(name) ? name : name.toLowerCase());
@@ -271,7 +272,7 @@ export const SETUP_CARD_WORDS = {
     business: (name: string, listed: boolean) => (listed ? `${name}, read from Google` : name),
     sounds: (sounds: string) => `AI: ${sounds}`,
     taught: (n: number) => `${n} ${n === 1 ? "thing" : "things"} you taught it`,
-    rehearsed: "Your rehearsal, reviewed",
+    rehearsed: "Rehearsal reviewed",
     keeping: (n: string) => `Keeping ${n}, when you go live`,
     moving: (n: string) => `Moving ${n} to Chanlytics, when you go live`,
     newNumber: (n: string) => `Its own number, ${n}, when you go live`,
