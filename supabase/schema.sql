@@ -252,6 +252,11 @@ begin
      set most_minor = p_most_minor
    where a.tenant_id = p_tenant_id and a.platform = 'meta' and a.status = 'connected';
   get diagnostics v_kept = row_count;
+  if v_kept > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.most_set', 'ads', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('most_minor', p_most_minor, 'by', auth.uid())));
+  end if;
   return v_kept > 0;
 end $$;
 
@@ -1606,6 +1611,9 @@ begin
   update public.ad_accounts c
      set next_read_at = least(coalesce(c.next_read_at, 'infinity'::timestamptz), now() + interval '1 minute')
    where c.id = v_ad.account_id and c.tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.cancel_asked', 'ads', 'ad', p_ad_id,
+          jsonb_strip_nulls(jsonb_build_object('by', p_actor, 'via', v_by)));
   return jsonb_build_object('outcome', 'asked', 'version', v_ad.version);
 end $$;
 
@@ -4997,6 +5005,11 @@ begin
      set nudged_at = now()
    where id = p_appointment_id and nudged_at is null and source = 'receptionist' and status = 'proposed'
   returning id into v_id;
+  if v_id is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'appointment.nudged', 'appointment', 'appointment', a.id, '{}'::jsonb
+      from public.appointments a where a.id = v_id;
+  end if;
   return v_id is not null;
 end $$;
 
@@ -9120,9 +9133,18 @@ CREATE FUNCTION public.deadman_mark_alerted(p_ids uuid[]) RETURNS integer
     AS $$
 declare v_count integer;
 begin
-  update escalations set deadman_alerted_at = now()
-   where id = any(p_ids) and deadman_alerted_at is null;
-  get diagnostics v_count = row_count;
+  with alerted as (
+    update escalations set deadman_alerted_at = now()
+     where id = any(p_ids) and deadman_alerted_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'escalation.alerted', 'message', 'workspace', a.tenant_id,
+           jsonb_build_object('handovers', count(*), 'by', 'deadman')
+      from alerted a group by a.tenant_id
+    returning 1
+  )
+  select count(*) into v_count from alerted;
   return v_count;
 end $$;
 
@@ -22887,6 +22909,9 @@ begin
   if v_found is null then
     raise exception 'No such forwarded line.' using errcode = 'P0002';
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'line.forwarding_tested', 'setup', 'line', p_line_id,
+          jsonb_strip_nulls(jsonb_build_object('test_until', v_until, 'by', auth.uid())));
   return jsonb_build_object('ok', true, 'test_until', v_until);
 end $$;
 

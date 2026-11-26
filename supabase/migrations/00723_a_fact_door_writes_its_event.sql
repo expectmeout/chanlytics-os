@@ -3514,3 +3514,162 @@ begin
           jsonb_strip_nulls(jsonb_build_object('message_id', p_message_id, 'by', v_user)));
   return jsonb_build_object('declined', true, 'contact_id', p_contact_id);
 end $$;
+/* -- a booking nudged, a forwarding test begun, a handover's alarm, an ad's limit and its cancel: each with its event -- */
+
+-- A booking AI offered and nudged once writes appointment.nudged; a forwarded number's test begun writes
+-- line.forwarding_tested; the handovers the deadman sweep alerted the team about write escalation.alerted, one row per
+-- workspace; the most an ad may cost writes ad_account.most_set; and an ad's launch a member asked to cancel writes
+-- ad.cancel_asked, each in its own transaction. All are kept from Activity's rows: the page each is on says it.
+
+-- booking_request_nudged
+CREATE OR REPLACE FUNCTION public.booking_request_nudged(p_appointment_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  update public.appointments
+     set nudged_at = now()
+   where id = p_appointment_id and nudged_at is null and source = 'receptionist' and status = 'proposed'
+  returning id into v_id;
+  if v_id is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'appointment.nudged', 'appointment', 'appointment', a.id, '{}'::jsonb
+      from public.appointments a where a.id = v_id;
+  end if;
+  return v_id is not null;
+end $$;
+
+-- line_forwarding_test
+CREATE OR REPLACE FUNCTION public.line_forwarding_test(p_tenant_id uuid, p_line_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_until timestamptz := now() + interval '30 minutes';
+  v_found uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  update public.lines
+     set forwarding_state = 'instructed',
+         state_since = now(),
+         facts = facts || jsonb_build_object('test_started_at', now(), 'test_until', v_until) - 'verified_at' - 'verified_call_id' - 'verified_from'
+   where id = p_line_id and tenant_id = p_tenant_id and kind = 'forwarded'
+   returning id into v_found;
+  if v_found is null then
+    raise exception 'No such forwarded line.' using errcode = 'P0002';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'line.forwarding_tested', 'setup', 'line', p_line_id,
+          jsonb_strip_nulls(jsonb_build_object('test_until', v_until, 'by', auth.uid())));
+  return jsonb_build_object('ok', true, 'test_until', v_until);
+end $$;
+
+-- deadman_mark_alerted
+CREATE OR REPLACE FUNCTION public.deadman_mark_alerted(p_ids uuid[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_count integer;
+begin
+  with alerted as (
+    update escalations set deadman_alerted_at = now()
+     where id = any(p_ids) and deadman_alerted_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'escalation.alerted', 'message', 'workspace', a.tenant_id,
+           jsonb_build_object('handovers', count(*), 'by', 'deadman')
+      from alerted a group by a.tenant_id
+    returning 1
+  )
+  select count(*) into v_count from alerted;
+  return v_count;
+end $$;
+
+-- ad_account_most
+CREATE OR REPLACE FUNCTION public.ad_account_most(p_tenant_id uuid, p_most_minor bigint) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_kept integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- What an ad may spend is the owner's alone (0050, call 2).
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'ads'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_most_minor is not null and p_most_minor <= 0 then
+    raise exception 'The most an ad may cost is more than nothing.' using errcode = '22023';
+  end if;
+  update public.ad_accounts a
+     set most_minor = p_most_minor
+   where a.tenant_id = p_tenant_id and a.platform = 'meta' and a.status = 'connected';
+  get diagnostics v_kept = row_count;
+  if v_kept > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.most_set', 'ads', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('most_minor', p_most_minor, 'by', auth.uid())));
+  end if;
+  return v_kept > 0;
+end $$;
+
+-- ad_launch_cancel
+CREATE OR REPLACE FUNCTION public.ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text DEFAULT 'owner'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad public.ads;
+  v_by text := coalesce(p_by, 'owner');
+begin
+  if v_by not in ('owner', 'remediation') then
+    raise exception 'ad_launch_cancel: by the owner or a remediation' using errcode = '22023';
+  end if;
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, case v_by when 'owner' then 'ads' else 'settings' end),
+                  false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id and a.origin = 'chanlytics'
+   for update;
+  if not found then
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+  -- Made already: it is the ad now, and its Pause stops it. Stopped already: there is nothing left to cancel.
+  if v_ad.status = 'made' then
+    return jsonb_build_object('outcome', 'made', 'version', v_ad.version);
+  end if;
+  if v_ad.status <> 'sending' then
+    return jsonb_build_object('outcome', 'stopped', 'version', v_ad.version);
+  end if;
+  if v_ad.launch ? 'cancel' then
+    return jsonb_build_object('outcome', 'same', 'version', v_ad.version);
+  end if;
+  update public.ads a
+     set launch = coalesce(a.launch, '{}'::jsonb)
+                  || jsonb_build_object('cancel', jsonb_build_object('at', now(), 'by', v_by)),
+         version = a.version + 1
+   where a.id = p_ad_id
+  returning * into v_ad;
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (p_tenant_id, 'ad', p_ad_id, 'cancel_ad', 'user', p_actor,
+          jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', v_by));
+  -- Its account's job takes it up within a minute: the launch stops at its next step and removes what it made.
+  update public.ad_accounts c
+     set next_read_at = least(coalesce(c.next_read_at, 'infinity'::timestamptz), now() + interval '1 minute')
+   where c.id = v_ad.account_id and c.tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.cancel_asked', 'ads', 'ad', p_ad_id,
+          jsonb_strip_nulls(jsonb_build_object('by', p_actor, 'via', v_by)));
+  return jsonb_build_object('outcome', 'asked', 'version', v_ad.version);
+end $$;
