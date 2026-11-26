@@ -67,17 +67,6 @@ export const LIFECYCLE_WORDS = {
     when: "Sent when a caller asks for it",
     none: "No message for it yet",
   },
-  /**
-   * A moment with no campaign yet shows the one it offers as a row of its own, off (Ruben, 11 Oct 2026: a row to press
-   * where a heading had a Turn on under it): its line says what it does, by the moment's id.
-   */
-  offered: {
-    off: "Off",
-    before: "The day before each visit",
-    after: "The day after each visit",
-    proposal: "When a proposal waits for an answer",
-    quiet: "Brings back people who've gone quiet",
-  },
   monthsOffer: { name: "The month's offer" },
   /** A time a cancellation freed, offered to the people who asked and never booked (decision 0082): its line off. */
   freedTime: {

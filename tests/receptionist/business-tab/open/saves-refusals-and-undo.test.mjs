@@ -267,7 +267,7 @@ test("a zone being saved outlives the page that sent it: come back mid-save and 
     await settle();
     tree = redrawTab(flash);
     assert.deepEqual([openRows(tree), W.__settingsSaving()], [[], false]);
-    assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Your day is measured in Chicago now.");
+    assert.equal(textOf({ props: { children: flashes.at(-1).msg } }), "Days now run on Chicago time.");
   } finally {
     bridgeHolds({ parts: { workspace: undefined } });
   }

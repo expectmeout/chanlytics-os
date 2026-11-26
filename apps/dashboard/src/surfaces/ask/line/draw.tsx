@@ -334,7 +334,7 @@ const arStage = (ln: Line) => {
       {/* What the question is about, on a row of its own over the field: a file's picture or the kind's mark, and the whole
           name, never cut to a few letters beside the words (Ruben, 12 Nov 2026). */}
       {scope ? (
-        <div className="ask-scope" title={scope.label} data-kind={scope.kind} data-testid="ask-scope">
+        <div className="ask-scope" data-tip={scope.label} data-kind={scope.kind} data-testid="ask-scope">
           {scope.kind === "file" ? (
             <img className="ask-scope-pic" src={`${fileViewOf(scope.id)}?w=96`} alt="" />
           ) : (
@@ -558,7 +558,7 @@ export const arLineView = (ln: Line) => {
             className="ask-line-close"
             onClick={onClose}
             aria-label={t.close}
-            title={t.close}
+            data-tip={t.close}
             data-testid="ask-close"
           >
             <Icon name="x" size={14} />

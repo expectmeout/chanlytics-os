@@ -702,10 +702,7 @@ test("an app on an iPhone's home screen is sent to the browser: the window it wo
     assert.deepEqual(b.scripts, [], "Meta's SDK is not fetched where its window cannot be used");
     const said = await within(mod.waConnect.start());
     assert.deepEqual([said.ok, said.reason], [false, "home_screen"]);
-    assert.equal(
-      said.message,
-      "Open Chanlytics in Safari to connect WhatsApp. Meta's sign-up needs a browser tab, and an app on the home screen has none.",
-    );
+    assert.equal(said.message, "Open Chanlytics in Safari to connect WhatsApp: Meta's sign-up needs a browser tab.");
     assert.deepEqual([b.logins, b.asked, b.fetched, b.scripts], [[], [], [], []], "nothing was asked of anyone");
     assert.equal(b.held.has(SIGNUP_MARK), false);
   });

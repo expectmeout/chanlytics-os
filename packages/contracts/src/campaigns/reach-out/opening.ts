@@ -217,7 +217,11 @@ interface OpeningInput {
   retry?: { opening: string; why: string };
 }
 
-/** The writer's input, line by line, each with the part of What it's told it is. */
+/**
+ * The writer's input, line by line, each with the part of What it's told it is.
+ *
+ * screen-word: said to the model, never shown on a page.
+ */
 export function openingUserLines(params: OpeningInput): OpeningLine[] {
   const { record, workspace, words, asked, retry } = params;
   return [

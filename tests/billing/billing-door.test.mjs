@@ -860,7 +860,7 @@ test("sync reads the subscription from Stripe now and applies it: the row follow
   );
   assert.deepEqual(
     t3.notifications.map((n) => [n.kind, n.title]),
-    [["billing", "Your trial has started"]],
+    [["billing", "The trial has started"]],
     "none to trialing: the trial's own bell",
   );
   assert.equal(t3.tenants[0].status, "active", "on before, on after");
@@ -1042,7 +1042,7 @@ test("resume: a paused subscription is resumed on Stripe, billing from now, and 
   assert.equal(t.tenants[0].status, "active", "AI answers again -- here, without waiting for the webhook");
   assert.deepEqual(
     t.notifications.map((n) => [n.tenant_id, n.kind, n.title, n.body, n.route]),
-    [[A, "billing", "AI is back", "Billing is in order; AI answers again.", "admin/billing"]],
+    [[A, "billing", "AI is back", "Billing is in order · AI answers again.", "admin/billing"]],
   );
   assert.deepEqual(
     t.events.map((e) => [e.kind, e.data]),

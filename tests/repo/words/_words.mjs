@@ -20,9 +20,12 @@ const ROUTE_KEY = /^(GET|POST|PUT|PATCH|DELETE) \S+$/;
 /** A query, a style or a pattern written as a string: code a person never reads. */
 const CODE_TEXT =
   /^\s*(select|insert into|update|delete from|with|create|alter|drop|grant|set local)\s|^(var|calc|rgba?|hsla?|translate[XY]?|scale|rotate|url|linear-gradient)\(|=>|^\s*[{[<(]|\$\d|::[a-z]/i;
-/** What a developer reads, by what it is handed to: an error's own text and a log line never reach an answer (decision 0114). */
+/**
+ * What a developer reads, by what it is handed to: an error's own text and a log line never reach an answer (decision
+ * 0114), and neither do the notes a page's reads keep on why each table is left out (`declareReads`).
+ */
 const DEVELOPER_CALL =
-  /^(Error|TypeError|RangeError|SyntaxError|DbFailure|causedBy|logFailure|logAndGoOn|invariant|assert|describe|it|test)$|^(log|logger|console|assert)\b|\.(debug|info|warn|error|describe)$/;
+  /^(Error|TypeError|RangeError|SyntaxError|DbFailure|causedBy|logFailure|logAndGoOn|invariant|assert|describe|it|test|declareReads)$|^(log|logger|console|assert)\b|\.(debug|info|warn|error|describe)$/;
 /** A value a key holds as an id, whatever its words: a class, an address, a kind. */
 const ID_KEY =
   /^(className|class|id|key|testId|testid|href|to|route|path|event|code|kind|type|variant|tone|icon|slug)$/;
@@ -52,6 +55,32 @@ function modelPlace(node) {
  * its customer, which docs/words.md does not bind ("Who reads it"), however a page shows it to the owner.
  */
 const MESSAGE_BODY = /\{\{\s*[\w.]+\s*\}\}/;
+
+/** The entities a JSX text may write, as the screen draws each one. */
+const ENTITIES = {
+  amp: "&",
+  apos: "'",
+  quot: '"',
+  lt: "<",
+  gt: ">",
+  nbsp: " ",
+  lsquo: "‘",
+  rsquo: "’",
+  ldquo: "“",
+  rdquo: "”",
+  hellip: "…",
+  middot: "·",
+  mdash: "—",
+  ndash: "–",
+};
+
+/** A JSX text as a person reads it: `Couldn&apos;t` is Couldn't, with no semicolon in it, and `&mdash;` is a dash. */
+export const drawnText = (text) =>
+  text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name) =>
+    name[0] === "#"
+      ? String.fromCodePoint(/^#x/i.test(name) ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10))
+      : (ENTITIES[name] ?? entity),
+  );
 
 /** Whether text is words: letters with a space between them, or a label that opens with a capital. */
 export function isWords(text) {
@@ -145,7 +174,7 @@ export function wordsReadIn(sf, { only = () => true } = {}) {
       if (read(n)) say(n, n.text);
     } else if (ts.isTemplateExpression(n)) {
       if (read(n)) say(n, [n.head.text, ...n.templateSpans.map((s) => s.literal.text)].join("…"));
-    } else if (ts.isJsxText(n) && only(n)) say(n, n.text);
+    } else if (ts.isJsxText(n) && only(n)) say(n, drawnText(n.text));
     ts.forEachChild(n, visit);
   };
   visit(sf);

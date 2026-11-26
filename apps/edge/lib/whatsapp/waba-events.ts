@@ -44,6 +44,7 @@ import {
   SEQUENCES_ROUTE,
   textOrEmpty,
   DbFailure,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { logger, errField, type Logger } from "../shared/log.js";
 import { findChannelConfig, listNumbersOfWaba, patchChannelRow } from "@chanlytics/db/channels";
@@ -435,10 +436,7 @@ async function keepRating(
     log.error("channel_quality_row_failed", { channel_id: routed.channelId, step, error });
   const read = await findChannelConfig(db, routed.tenantId, routed.channelId);
   if (read.error) return failed("read", read.error.message);
-  const cfg = (read.data?.config && typeof read.data.config === "object" ? read.data.config : {}) as Record<
-    string,
-    unknown
-  >;
+  const cfg = recordOrEmpty(read.data?.config);
   const kept = await patchChannelRow(db, routed.tenantId, routed.channelId, {
     config: jsonCopyOf({
       ...cfg,

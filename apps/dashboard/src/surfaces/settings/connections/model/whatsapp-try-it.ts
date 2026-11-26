@@ -22,7 +22,7 @@ const TRY_IT_LIVE_WITHIN_MS = DAY_MS;
 
 /** The note's words; the link follows them on the row, its address as its label. */
 const TRY_IT_NOTE =
-  "Try it from your phone with this link, not by searching your contacts: it opens the chat even while WhatsApp there still says the number isn't on WhatsApp.";
+  "Open this link on your phone rather than searching: it works even while WhatsApp says the number isn't on WhatsApp yet.";
 
 /** WhatsApp opened on a connected number with a word ready to send; null without a usable number. */
 export function tryItLink(number: string | null | undefined): string | null {

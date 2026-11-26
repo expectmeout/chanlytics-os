@@ -240,6 +240,8 @@ const UNOFFERED_MIN = 3;
  * Ask's notice of the times nothing offered (decision 0082): at least three appointments cancelled in the window, a
  * calendar connected (the moment is offered there), and no step on the moment running by the one rule (campaignRunsOn: a
  * paused step, or one past its last day, offers nothing). Null otherwise, and where the count could not be read.
+ *
+ * screen-word: told to AI, never shown on a page.
  */
 export function freedTimesUnoffered(input: {
   cancellations: number | null;

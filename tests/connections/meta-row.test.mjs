@@ -68,12 +68,12 @@ test("with the switch, an unconnected workspace is offered Connect Meta; an Inst
   assert.equal(none.title, "Meta");
   assert.equal(none.state, "none");
   assert.deepEqual(none.verb, { label: "Connect Meta", to: "verb:meta-connect", who: "owner" });
-  assert.match(none.sentence, /answers your Instagram DMs now/);
+  assert.match(none.sentence, /answers Instagram DMs now/);
   const moving = rowOf({ channels: [account()], meta: { ready: true } });
   assert.equal(moving.title, "Instagram");
   assert.equal(moving.verb.to, "verb:instagram-disconnect", "its own Disconnect stays");
   assert.deepEqual(moving.also, { label: "Connect Meta", to: "verb:meta-connect", who: "owner" });
-  assert.match(moving.notes[0].text, /its DMs keep flowing/);
+  assert.match(moving.notes[0].text, /DMs keep working/);
 });
 
 test("an account connected through Meta is the Meta row: what Meta allowed, what it did not, and a Disconnect of its own", () => {

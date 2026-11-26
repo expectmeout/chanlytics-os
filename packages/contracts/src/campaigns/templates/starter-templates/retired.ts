@@ -111,8 +111,8 @@ export const RETIRED_STARTERS: readonly StarterTemplate[] = [
   {
     key: "after_visit",
     name: "after_visit",
-    title: "After the visit",
-    purpose: "for the day after a visit",
+    title: "After the appointment",
+    purpose: "for the day after an appointment",
     category: "marketing",
     trigger: "visited",
     retired: {
