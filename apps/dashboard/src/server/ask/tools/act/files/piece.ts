@@ -26,7 +26,7 @@ import { readBrandKit } from "@/server/workspace/brand-kit";
 import { findPieceOfVideo } from "@chanlytics/db/files";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
-import { filesNamedForAsk } from "../../../../readers/files";
+import { filesNamedForAsk } from "../../../../readers/files/files";
 import { findPictureCopy, warmVideoCopies } from "../../../../files/copies";
 import {
   timeLeftOf,

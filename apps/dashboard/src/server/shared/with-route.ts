@@ -21,7 +21,7 @@ import {
   DbFailure,
   causedBy,
 } from "@chanlytics/contracts";
-import { databaseFailing, ReadCutShort } from "@chanlytics/db/shared";
+import { databaseFailing, ReadCutShort, identityAccountOf, nullableIn, type NullableIn } from "@chanlytics/db/shared";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -187,6 +187,7 @@ function answerOf<T>(
         });
       }
       const authFrom = Date.now();
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the signature is Next's ParamCheck's, which wants the context; a caller of its own (a test) may still leave it out
       const params = (await routeCtx?.params) ?? {};
       // The token's signature verified (proxy.ts says how: locally over the project's public key, or over the Auth
       // server where the project still signs with its shared secret), and its claims: who this is, their address
@@ -232,7 +233,7 @@ function answerOf<T>(
         // The cookie's client reads its own session; a bearer's is asked over the token the header carried.
         const request = await (bearer ? supabase.auth.getUser(bearer) : supabase.auth.getUser());
         if (request.error) return isRetryableAuthError(request.error) ? "unknown" : "gone";
-        return request.data.user?.id === String(user.sub) ? "live" : "gone";
+        return identityAccountOf(request)?.id === String(user.sub) ? "live" : "gone";
       };
       const data = await handler(req, {
         supabase,
@@ -413,7 +414,11 @@ export function shareMembership(ctx: RouteContext): void {
 }
 
 /** A person's memberships, as the resolver reads them (db listMyMemberships). */
-type MembershipRows = NonNullable<Awaited<ReturnType<typeof listMyMemberships>>["data"]>;
+/** The person's memberships as read: a workspace RLS hides from this session rides as none (its embed is null). */
+type MembershipRows = NullableIn<
+  NonNullable<Awaited<ReturnType<typeof listMyMemberships>>["data"]>[number],
+  "tenants"
+>[];
 
 /** Each session's memberships, shared across a burst of its reads on this instance (auth/burst.ts). */
 const MEMBERSHIPS = burstsOf<MembershipRows>();
@@ -437,7 +442,7 @@ async function listMembershipsFor(ctx: RouteContext, shares: boolean): Promise<M
   const read = async (): Promise<MembershipRows> => {
     const { data, error } = await listMyMemberships(ctx.supabase, ctx.userId);
     if (error) throw new DbFailure(error);
-    return data ?? [];
+    return nullableIn(data, "tenants");
   };
   return shares ? MEMBERSHIPS.shared(ctx.userId, ctx.burst, read) : read();
 }

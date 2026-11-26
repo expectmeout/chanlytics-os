@@ -22,7 +22,7 @@ process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (file) => pathToFileURL(path.join(ROOT, file)).href;
 const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { settings } = await import(at("apps/dashboard/src/server/readers/settings.ts"));
+const { settings } = await import(at("apps/dashboard/src/server/readers/settings/settings.ts"));
 
 const GRANTED = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BARE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

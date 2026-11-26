@@ -18,9 +18,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations/conversations.ts"));
 const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
-const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
+const { calls } = await import(at("apps/dashboard/src/server/readers/voice/calls.ts"));
 const { inbox } = await import(at("apps/dashboard/src/server/readers/inbox.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

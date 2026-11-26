@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { formSheet } from "@/server/readers/forms";
+import { formSheet } from "@/server/readers/forms/forms";
 
 /**
  * GET /api/v1/forms/sheet?form=<id>: one form's sheet (00680): the form as it is being changed and as visitors see it,

@@ -191,7 +191,7 @@ async function decisionsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[
     ACTIVITY_PAGE + 1 + TIE_SLACK,
   );
   if (error) throw new DbFailure(error);
-  return (data ?? []).map(activityRowOfDecision);
+  return data.map(activityRowOfDecision);
 }
 
 /**
@@ -218,7 +218,7 @@ async function eventsFrom(ask: Ask, cut: Cut | null): Promise<ActivityRowDto[]> 
   );
   if (error) throw new DbFailure(error);
   return (
-    (data ?? [])
+    data
       // Belt and braces for a database that answers the like() differently: the rule, in code too.
       .filter((e) => narrowed.kinds !== null || !isActivityNoise(e.kind))
       // The member an event's data names did it (contact.added's `by`, a consent answer's): the log says who.
@@ -254,7 +254,7 @@ async function subjectsOf(ctx: RouteContext, tenantId: TenantId, person: Contact
   ]);
   if (convs.error) throw new DbFailure(convs.error);
   if (calls.error) throw new DbFailure(calls.error);
-  return [person, ...(convs.data ?? []).map((c) => c.id), ...(calls.data ?? []).map((k) => k.id)];
+  return [person, ...convs.data.map((c) => c.id), ...calls.data.map((k) => k.id)];
 }
 
 /**

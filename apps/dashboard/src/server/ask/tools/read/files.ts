@@ -29,8 +29,8 @@ import { readMadeAs } from "../../../posts/made-as";
 import { findNewestPostLook } from "../../../posts/record";
 import { getZoomInto } from "../../../files/zoom";
 import { load } from "../../../shared/reader";
-import { piecesStandForAsk } from "../../../readers/content";
-import { filesFoundForAsk, filesNamedForAsk } from "../../../readers/files";
+import { piecesStandForAsk } from "../../../readers/content/content";
+import { filesFoundForAsk, filesNamedForAsk } from "../../../readers/files/files";
 import {
   timeLeftOf,
   PICTURES,

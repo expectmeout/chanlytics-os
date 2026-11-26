@@ -2,8 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { ASK_CAPS, abandonedCall, askCallOutcome, dayInZone, noteRows, toCallVM, UUID } from "@chanlytics/contracts";
 import { load } from "../../../shared/reader";
-import { call } from "../../../readers/call";
-import { calls as callsReader } from "../../../readers/calls";
+import { call } from "../../../readers/voice/call";
+import { calls as callsReader } from "../../../readers/voice/calls";
 import { notePerson, noteRow, str, readUnlessNotFound } from "../context/tool-reads";
 import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
 

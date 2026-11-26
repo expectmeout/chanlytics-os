@@ -78,8 +78,8 @@ async function pictureForGoogle(ctx: RouteContext, member: Member, fileId: strin
     }
   }
   const signed = await bucket().createSignedUrl(path, PICTURE_LINK_S);
-  if (signed.error || !signed.data) {
-    log.error("file_google_store_failed", { tenant_id: member.tenantId, error: signed.error?.message ?? "no address" });
+  if (signed.error) {
+    log.error("file_google_store_failed", { tenant_id: member.tenantId, error: signed.error.message });
     throw new AppError("unavailable", ON_GOOGLE.notSent);
   }
   return signed.data.signedUrl;

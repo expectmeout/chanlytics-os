@@ -23,10 +23,10 @@ import {
 import { listMailboxConnectionsOf } from "@chanlytics/db/email";
 import { findNewestSearchName } from "@chanlytics/db/leads";
 import { logAndGoOn } from "@chanlytics/log";
-import { chainOf } from "../campaigns/reach-outs/chain-acts";
-import { load, readerStamp, type Reader } from "../shared/reader";
-import * as readers from "./facts";
-import { runningNewestFirst } from "./settings";
+import { chainOf } from "../../campaigns/reach-outs/chain-acts";
+import { load, readerStamp, type Reader } from "../../shared/reader";
+import * as readers from "../facts";
+import { runningNewestFirst } from "../settings/settings";
 
 interface NoteRoot {
   id: string;

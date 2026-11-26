@@ -94,11 +94,11 @@ export interface BusinessPageFacts {
    * What the business does, in the owner's words (`business_records.about`). A list of
    * services says what can be booked, not what the business is. The ninth refusal of
    * the live campaign (30919, 22 Sep 2026) asked for "the products, services, and
-   * industry", and the services alone could not say it.
+   * industry", and the services alone could not say it. Left out of a page drawn from a record before it: none.
    */
-  about: string;
-  /** Twilio's vertical, as the brand was registered with it: `PROFESSIONAL_SERVICES`. */
-  industry: string;
+  about?: string;
+  /** Twilio's vertical, as the brand was registered with it: `PROFESSIONAL_SERVICES`; left out, none. */
+  industry?: string;
   /**
    * A business on record with no tax id: one person, filed as a sole proprietor, whose street is often their home. The
    * page says where by city, state and ZIP alone (the wiring's second audit, X4-5; Ruben, 15 October 2026); the carriers
@@ -158,7 +158,8 @@ function identifiesABusiness(f: { legalName: string; street: string; city: strin
 
 /** The same rule over the record's own columns: whether a saved record publishes the page (the form's note and link). */
 export function publishesBusinessPage(
-  business: Pick<BusinessRecordDto, "legal_name" | "street" | "city"> | null | undefined,
+  // A record read before a part was filled may leave it out: a part left out is none.
+  business: Partial<Pick<BusinessRecordDto, "legal_name" | "street" | "city">> | null | undefined,
 ): boolean {
   return (
     !!business &&
@@ -372,8 +373,8 @@ export interface PreflightFacts {
   city: string;
   /** Their own site, when they gave one. */
   websiteUrl: string | null;
-  /** What the business does, in the owner's words. */
-  about: string;
+  /** What the business does, in the owner's words; left out, none. */
+  about?: string;
   /** Whether a customer has any way to say yes: a number the opt-in page can name. */
   hasOptInNumber: boolean;
 }

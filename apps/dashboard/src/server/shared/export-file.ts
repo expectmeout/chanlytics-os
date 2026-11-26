@@ -27,6 +27,7 @@ import {
   type CsvCell,
 } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
+import { embedded } from "@chanlytics/db/shared";
 
 interface ExportOpts {
   /** The workspace's name, for the header line. */
@@ -130,7 +131,8 @@ export function transcriptText(
   opts: ExportOpts,
 ): string {
   const customer = personLabel(conv.contact);
-  const phone = conv.contact?.phone_e164 && conv.contact.phone_e164 !== customer ? ` (${conv.contact.phone_e164})` : "";
+  const number = embedded(conv.contact)?.phone_e164;
+  const phone = number && number !== customer ? ` (${number})` : "";
   const at = opts.exportedAt ?? new Date();
   const sorted = [...messages].sort((a, b) => eventMs(a) - eventMs(b));
   const length = sorted.length;

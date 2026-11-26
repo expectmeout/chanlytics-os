@@ -1,12 +1,12 @@
 import "server-only";
 import { calendarFeedKeyOf, parseTenantConfig, type AppointmentWord, MIN_MS } from "@chanlytics/contracts";
-import { findConnection } from "../connections/google";
-import { getEmailLine } from "../connections/email";
-import { listPlaybookRows } from "../campaigns/playbooks";
-import { load, readerStamp, type Reader } from "../shared/reader";
-import * as facts from "./facts";
-import { channels } from "./channels";
-import { lists } from "./lists";
+import { findConnection } from "../../connections/google";
+import { getEmailLine } from "../../connections/email";
+import { listPlaybookRows } from "../../campaigns/playbooks";
+import { load, readerStamp, type Reader } from "../../shared/reader";
+import * as facts from "../facts";
+import { channels } from "../channels";
+import { lists } from "../lists";
 
 /**
  * The shape of the workspace (the Phase 2 plan, D9): what it is set up with, never how busy it is -- the kinds of line

@@ -1,7 +1,7 @@
 import "server-only";
 import { addressOf, heldThreadIds, type ConversationDto, type EscalationDto } from "@chanlytics/contracts";
 import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
-import { conversations, whoOf } from "./conversations";
+import { conversations, whoOf } from "./conversations/conversations";
 import { escalations } from "./escalations";
 import { log } from "@/server/shared/log";
 import { logAndGoOn } from "@chanlytics/log";

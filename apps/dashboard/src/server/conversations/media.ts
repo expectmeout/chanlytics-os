@@ -7,6 +7,7 @@ import { log } from "@/server/shared/log";
 import { signStoredMedia, signStoredMediaMany } from "../shared/storage";
 import { markRecordingOpened } from "@chanlytics/db/voice";
 import type { TenantId } from "@chanlytics/contracts";
+import { asFailedReply } from "@chanlytics/db/shared";
 
 /**
  * Stored media, signed for a member (the attachments of a thread, the recordings of a call). The bucket is private and
@@ -33,7 +34,7 @@ export async function findSignedMediaUrl(
     log.error("signed_media_url_failed", { error: error.message });
     return null;
   }
-  return data?.signedUrl ?? null;
+  return data.signedUrl;
 }
 
 /**
@@ -71,6 +72,10 @@ export async function recordOpeningOfRecording(db: SupabaseClient<Database>, cal
     log.warn("recording_audit_unavailable", { call_id: callId });
     return;
   }
-  log.error("recording_audit_unavailable", { call_id: callId, code: error.code ?? null, error: error.message });
+  log.error("recording_audit_unavailable", {
+    call_id: callId,
+    code: asFailedReply(error).code ?? null,
+    error: error.message,
+  });
   throw new AppError("unavailable", "Couldn't open the recording just now. Try again in a moment.");
 }

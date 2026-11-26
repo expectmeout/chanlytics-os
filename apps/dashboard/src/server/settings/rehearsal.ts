@@ -26,7 +26,7 @@ import { log } from "../shared/log";
 import { findConfigRow } from "../workspace/config-row";
 import { recordSettingsChanged } from "../workspace/settings-write";
 import { judgeChangedHandoff } from "./save";
-import { getKnownFacts } from "../readers/settings";
+import { getKnownFacts } from "../readers/settings/settings";
 import { composePromptPreview } from "../receptionist/prompt-preview";
 import type { RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";

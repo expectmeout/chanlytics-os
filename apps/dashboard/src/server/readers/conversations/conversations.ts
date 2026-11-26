@@ -16,11 +16,12 @@ import {
   searchMessages,
 } from "@chanlytics/db/conversations";
 import { listLastClosedHolds } from "@chanlytics/db/people";
-import { groupMessages, messageRowsOf, toConversationDto } from "../conversations/dto";
-import { withAds } from "../conversations/from-ads";
-import { stillListed } from "../people/going";
-import { getSeenOfPeople } from "../people/person-seen";
-import { readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
+import { groupMessages, messageRowsOf, toConversationDto } from "../../conversations/dto";
+import { withAds } from "../../conversations/from-ads";
+import { stillListed } from "../../people/going";
+import { getSeenOfPeople } from "../../people/person-seen";
+import { readerStamp, type Reader, type ReaderContext, type RowRef } from "../../shared/reader";
+import { embedded } from "@chanlytics/db/shared";
 
 /** The threads the Inbox's read holds: the newest hundred, or as many as one read by id names. */
 const THREADS_MAX = 100;
@@ -72,7 +73,7 @@ export const conversations: Reader<
       most: THREADS_MAX,
     });
     if (error) throw new DbFailure(error);
-    const ids = (convs ?? []).map((c) => c.id);
+    const ids = convs.map((c) => c.id);
     const messagesOf = async (): Promise<Map<string, MessageDto[]>> => {
       if (!ids.length) return new Map();
       // One read, bounded by what it answers (00258): each thread's newest through the thread's own index, the id
@@ -105,17 +106,20 @@ export const conversations: Reader<
       getSeenOfPeople(
         rc.ctx,
         tenantId,
-        (convs ?? []).flatMap((c) => (c.contacts?.id ? [c.contacts.id] : [])),
+        convs.flatMap((c) => {
+          const person = embedded(c.contacts);
+          return person?.id ? [person.id] : [];
+        }),
       ),
       ids.length ? listLastClosedHolds(supabase, tenantId, ids) : Promise.resolve([]),
     ]);
     const holdOf = new Map(closedHolds.map((h) => [h.conversation_id, h]));
-    const built: ConversationDto[] = (convs ?? []).map((item) => {
+    const built: ConversationDto[] = convs.map((item) => {
       const dto = toConversationDto(
         item,
         byConv.get(item.id) ?? [],
         userId,
-        item.contacts?.id ? seenOf(item.contacts.id) : {},
+        embedded(item.contacts)?.id ? seenOf(item.contacts.id) : {},
       );
       // Carried only where the customer wrote last: on any other thread a closed hold says nothing about who is waiting.
       const result = holdOf.get(item.id);
