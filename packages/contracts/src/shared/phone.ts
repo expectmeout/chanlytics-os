@@ -164,9 +164,9 @@ export function whyNotAHandoff(
  * forwarding's (whyNotForward).
  */
 export const HANDOFF_FORWARDS_BACK =
-  "That number sends the calls nobody picks up to AI, so a caller put through to it would come straight back. Use a mobile or another line a person answers.";
+  "That number forwards to AI, so a caller put through to it would come straight back. Use a line a person answers.";
 export const FORWARD_IS_HANDOFF =
-  "AI puts callers through to this number. Change the transfer number in Settings › Details first · once this number forwards to AI, a caller put through to it would come straight back.";
+  "AI transfers callers here. Change the transfer number in Settings › Details first, or they'd come straight back.";
 
 /** The same loop from forwarding's side: returns the owner's sentence, or null when the number may forward. */
 export function whyNotForward(number: string | null | undefined, handoff: string | null | undefined): string | null {
