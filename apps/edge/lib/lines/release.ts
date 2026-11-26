@@ -402,14 +402,14 @@ export async function sweepEndedLines(
   // The sweep's page: every workspace whose plan has ended, by design.
   const bills = await listStripeAccountsIn(db, ENDED_STATUSES);
   if (bills.error) throw new DbFailure(bills.error, "reading billing");
-  const byTenant = new Map((bills.data ?? []).map((b) => [b.tenant_id, b]));
+  const byTenant = new Map(bills.data.map((b) => [b.tenant_id, b]));
   if (!byTenant.size) return out;
   const ids = [...byTenant.keys()];
   const [tenants, lines] = await Promise.all([listWorkspaceStandings(db, ids), listLinesOfWorkspaces(db, ids)]);
   if (tenants.error) throw new DbFailure(tenants.error, "reading workspaces");
   if (lines.error) throw new DbFailure(lines.error, "reading lines");
-  const tenantOf = new Map((tenants.data ?? []).map((t) => [t.id, t]));
-  const rows = lines.data ?? [];
+  const tenantOf = new Map(tenants.data.map((t) => [t.id, t]));
+  const rows = lines.data;
   /** The owner's own number that forwards to this one, when one does. */
   const forwardedTo = (tenantId: TenantId, e164: string | null) =>
     rows.find(

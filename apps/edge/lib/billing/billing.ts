@@ -50,7 +50,7 @@ export async function getInvoices(
     return {
       ok: true,
       invoices: list.data.map((invoice) => ({
-        id: invoice.id ?? "",
+        id: invoice.id,
         number: invoice.number ?? null,
         status: invoice.status ?? null,
         amount_due: invoice.amount_due,
@@ -315,7 +315,7 @@ export async function keepEvent(
   if (seen.data?.state === APPLIED) return { claim: "applied" };
   const up = await reclaimBillingEvent(db, id, lease, now.toISOString());
   if (up.error) throw new DbFailure(up.error);
-  if (!up.data?.length) return { claim: "held" };
+  if (!up.data.length) return { claim: "held" };
   // The id's field is not called `event`: that is the line's own name (log.ts), and a field of that name replaces it.
   logger({ hook: "stripe" }).warn("stripe_event_reclaimed", { event_id: id, type, tenant_id: tenantId });
   return { claim: "taken", lease };
@@ -331,7 +331,7 @@ export async function keepEvent(
 export async function completeEvent(db: Db, id: string, lease: string, tenantId: TenantId | null): Promise<boolean> {
   const up = await completeBillingEvent(db, id, lease);
   if (up.error) throw new DbFailure(up.error);
-  if (up.data?.length) return true;
+  if (up.data.length) return true;
   logger({ hook: "stripe" }).warn("stripe_event_claim_lost", { event_id: id, tenant_id: tenantId });
   return false;
 }

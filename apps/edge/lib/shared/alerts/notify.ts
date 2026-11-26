@@ -236,7 +236,7 @@ type Addressing =
 
 export function chooseAddressing(target: NotifyTarget, platform: { to: string[]; from: string | null }): Addressing {
   const configured = target.notifications;
-  if (configured?.escalation_emails?.length) {
+  if (configured?.escalation_emails.length) {
     const from = configured.from || platform.from;
     if (from) return { kind: "tenant", to: configured.escalation_emails, from };
   }
@@ -325,8 +325,8 @@ export async function recordNotification(
       ...(input.sourceEvent ? { source_event: input.sourceEvent } : {}),
       ...(input.mailOwed ? { mail_due_at: new Date().toISOString() } : {}),
     });
-    if (error || !data) {
-      log.error("notification_record_failed", { kind, error: error?.message ?? "no row" });
+    if (error) {
+      log.error("notification_record_failed", { kind, error: error.message });
       return null;
     }
     // Good news kept closes the warning it mends (contracts NOTICE_MENDS): "back to normal" closes "flagged".

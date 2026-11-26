@@ -43,7 +43,7 @@ export interface HealthAnswer {
 
 /** The judgement, apart from the transport. */
 export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ status: number; body: HealthAnswer }> {
-  const checked_at = now.toISOString();
+  const checkedAt = now.toISOString();
   const [health, backlog, videoMachine] = await readPlatformHealth(db);
   if (health.error) {
     return {
@@ -52,14 +52,14 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
         ok: false,
         unhealthy: [],
         jobs_backlog: null,
-        checked_at,
+        checked_at: checkedAt,
         video_machine: videoMachine,
         reason: "health_unreadable",
       },
     };
   }
   const rows = Array.isArray(health.data) ? health.data : [];
-  const jobs_backlog = backlog.error ? null : typeof backlog.data === "number" ? backlog.data : null;
+  const jobsBacklog = backlog.error ? null : typeof backlog.data === "number" ? backlog.data : null;
   // ONE JUDGEMENT, shared with the back office, so an outside monitor and the
   // person reading the page cannot reach different conclusions from the same
   // two rows.
@@ -68,14 +68,14 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
   // somebody configured against it, and `unhealthy` there is a list of names.
   // Sharing the rule is worth doing; changing what a monitor parses is not. `video_machine` is a field beside them,
   // and no part of the judgement: what a monitor reads is as it was.
-  const judged = platformHealthOf(rows, jobs_backlog, now);
+  const judged = platformHealthOf(rows, jobsBacklog, now);
   return {
     status: judged.ok ? 200 : 503,
     body: {
       ok: judged.ok,
       unhealthy: judged.unhealthy.map((u) => u.sweep),
-      jobs_backlog,
-      checked_at,
+      jobs_backlog: jobsBacklog,
+      checked_at: checkedAt,
       video_machine: videoMachine,
       ...(judged.clocks === 0 ? { reason: "no_clocks" as const } : {}),
     },
@@ -101,7 +101,7 @@ export const GET = door(async function GET(): Promise<Response> {
   const hit = fromCache();
   if (hit) return hit;
   const db = pg();
-  const checked_at = new Date().toISOString();
+  const checkedAt = new Date().toISOString();
   if (!db) {
     return answer(
       503,
@@ -109,7 +109,7 @@ export const GET = door(async function GET(): Promise<Response> {
         ok: false,
         unhealthy: [],
         jobs_backlog: null,
-        checked_at,
+        checked_at: checkedAt,
         video_machine: null,
         reason: "no_database",
       } satisfies HealthAnswer),
@@ -122,7 +122,14 @@ export const GET = door(async function GET(): Promise<Response> {
     logKeptGoing("health's judgement", e);
     judged = {
       status: 503,
-      body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, video_machine: null, reason: "error" },
+      body: {
+        ok: false,
+        unhealthy: [],
+        jobs_backlog: null,
+        checked_at: checkedAt,
+        video_machine: null,
+        reason: "error",
+      },
     };
   }
   return remember(judged.status, judged.body);

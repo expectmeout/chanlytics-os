@@ -66,7 +66,8 @@ const MESSAGES_A_PART = 80;
 const CONTACTS_A_PART = 120;
 
 /** A delivery's key in the intake ledger, as the webhook hands it on (shared/keep-event.ts digestId). */
-const isDelivery = (connectionId: string | null): connectionId is string => !!connectionId?.startsWith("sha256:");
+const isDelivery = (connectionId: string | null): connectionId is `sha256:${string}` =>
+  !!connectionId?.startsWith("sha256:");
 
 /** Where an ask stands, on its row: the number connected, when, and Meta's request id once it was asked. */
 interface AskCursor {

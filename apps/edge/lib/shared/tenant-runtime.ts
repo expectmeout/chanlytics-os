@@ -330,7 +330,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     }
     const parsed = parseResult.ok ? parseResult.config : null;
     const policy: TenantRuntime["policy"] = {};
-    for (const p of polQ.data ?? []) {
+    for (const p of polQ.data) {
       policy[p.class] = { mode: p.mode, limits: (p.limits ?? {}) as PolicyLimits };
     }
     const rt: TenantRuntime = {
@@ -345,7 +345,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       // whole runtime unreadable over a fact it can live without.
       known: {
         workspace: { name: tzQ.data?.name ?? null, timezone: tzQ.data?.timezone ?? null },
-        channels: chanQ.error ? [] : (chanQ.data ?? []),
+        channels: chanQ.error ? [] : chanQ.data,
         listing: listQ.error ? null : (listQ.data ?? null),
         booking_message: bookingMessage,
         texting_line: textingLine,

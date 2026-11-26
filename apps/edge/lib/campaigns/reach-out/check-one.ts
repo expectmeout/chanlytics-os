@@ -224,6 +224,22 @@ async function withWebsite(i: CheckInput): Promise<OpeningRecord> {
   return { ...i.record, website_says: sentence };
 }
 
+/**
+ * The hold the code makes, facts about the business and not about the words written for it: a customer's own domain, a
+ * chain, a business abroad, in that order; none its owner included past it (R7).
+ */
+function codeHoldOf(
+  checkInput: CheckInput,
+  included: (hold: ReachOutHold) => boolean,
+): { hold: ReachOutHold; detail: string } | null {
+  if (checkInput.customerDomain && !included("customer_domain"))
+    return { hold: "customer_domain", detail: checkInput.customerDomain };
+  if (checkInput.chain && !included("chain"))
+    return { hold: "chain", detail: `${checkInput.chain.by}:${checkInput.chain.listings}` };
+  if (checkInput.abroad && !included("abroad")) return { hold: "abroad", detail: checkInput.abroad };
+  return null;
+}
+
 /** One send's check, over an injectable model; `forWhom` is the usage ledger's row for each call. */
 export async function checkOne(
   checkInput: CheckInput,
@@ -337,14 +353,7 @@ export async function checkOne(
   // The code holds come first: they are facts about the business, not about the words written for it. One that wins
   // over an opening the reader or code refused keeps no opening: an Include past the code hold then finds none, and the
   // send is checked again (the sender's no_opening), where the opening's own hold is said.
-  const code: { hold: ReachOutHold; detail: string } | null =
-    checkInput.customerDomain && !included("customer_domain")
-      ? { hold: "customer_domain", detail: checkInput.customerDomain }
-      : checkInput.chain && !included("chain")
-        ? { hold: "chain", detail: `${checkInput.chain.by}:${checkInput.chain.listings}` }
-        : checkInput.abroad && !included("abroad")
-          ? { hold: "abroad", detail: checkInput.abroad }
-          : null;
+  const code = codeHoldOf(checkInput, included);
   if (code) {
     if (hold) opening = null;
     hold = code.hold;

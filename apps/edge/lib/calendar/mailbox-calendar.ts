@@ -53,7 +53,7 @@ export async function findMailboxCalendarText(
   const row = await findMailboxConnection(db, tenantId, mailboxId);
   if (!row || row.state === "removed" || row.state === "reconnect") return null;
   const provider = row.provider === "microsoft" ? "microsoft" : "google";
-  if (!grantHolds(provider, row.scopes ?? [], "calendar")) {
+  if (!grantHolds(provider, row.scopes, "calendar")) {
     log.warn("mailbox_calendar_unreadable", { mailbox: row.id, why: "not_granted" });
     return null;
   }
@@ -113,7 +113,7 @@ export async function grantFeedFor(
   const cfg = parseTenantConfig((await getTenantConfig(db, tenantId))?.config ?? null);
   const mailboxId = cfg?.calendar_grant?.mailbox_id;
   if (!mailboxId) return refuse(404, "not_connected", "this workspace reads no calendar through a mailbox");
-  const season = seasonHorizon(new Date(), cfg?.brain?.profile?.booking_rules?.max_days_ahead ?? 0);
+  const season = seasonHorizon(new Date(), cfg.brain?.profile?.booking_rules?.max_days_ahead ?? 0);
   const from = typeof body.from === "number" && Number.isFinite(body.from) ? body.from : season.from;
   const to = typeof body.to === "number" && Number.isFinite(body.to) && body.to > from ? body.to : season.to;
   const text = await findMailboxCalendarText(db, tenantId, mailboxId, {

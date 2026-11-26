@@ -16,7 +16,7 @@ import type { pg } from "../../shared/pg.js";
 import { logger, type Logger } from "../../shared/log.js";
 import { listPlaybooksDue, listReachOutsDue, type DueStep } from "../../shared/sweep-rotation.js";
 import { CONTEXT_PAUSED, loadTenantRunContext, runPlaybook, type PlaybookRow } from "../playbooks/playbooks.js";
-import { tellPlaybookFailed } from "./playbook-failed.js";
+import { tellPlaybookFailed } from "../playbooks/failed.js";
 import { runReachOutStep } from "./run-step.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;

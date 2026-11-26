@@ -213,7 +213,7 @@ async function keepReviewLink(
     L.warn("google_review_link_write_failed", { error: errField(e) });
     return;
   }
-  if (!wrote.data?.length)
+  if (!wrote.data.length)
     L.warn("google_review_link_not_its_place", { why: "no listing of that place", place_id: place });
 }
 

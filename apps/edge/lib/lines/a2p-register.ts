@@ -162,7 +162,7 @@ export async function listFilingProblems(
   ]);
   // Our numbers unread are not none: the check would take the line we answer on for the owner's own phone.
   if (ours.error) throw new DbFailure(ours.error, "cannot read the workspace's lines");
-  const ourNumbers = (ours.data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
+  const ourNumbers = ours.data.map((r) => r.e164).filter((n): n is string => !!n);
   const problems = Object.values(businessRecordProblems(options.record, path, { ourNumbers }));
 
   // And the things a REVIEWER will check, which a complete record does not
@@ -300,7 +300,7 @@ async function takeFiling(db: Db, filing: Filing, record: BusinessRecord): Promi
     { fact: LEASE_FACT, now: new Date(now).toISOString() },
   );
   if (error) throw new DbFailure(error, "taking the line for its filing");
-  return data?.[0] ?? null;
+  return data[0] ?? null;
 }
 
 /**
@@ -423,7 +423,7 @@ function recordAsFiled(o: Filing): BusinessRecord {
   // brand, the campaign and the profile must all name the same URL, and three
   // places deciding that separately is three places to disagree.
   const base = businessRecordFrom(o.record);
-  const record = base.websiteUrl?.trim() ? base : { ...base, websiteUrl: o.hostedUrl ?? base.websiteUrl };
+  const record = base.websiteUrl.trim() ? base : { ...base, websiteUrl: o.hostedUrl ?? base.websiteUrl };
   return record;
 }
 

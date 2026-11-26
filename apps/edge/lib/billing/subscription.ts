@@ -180,7 +180,7 @@ export function subscriptionFacts(sub: Stripe.Subscription): SubscriptionFacts {
   return {
     id: sub.id,
     status: isOneOf(BILLING_STATUSES, sub.status) ? sub.status : "none",
-    price_id: item?.price?.id ?? null,
+    price_id: item?.price.id ?? null,
     current_period_end: unixIso(item?.current_period_end),
     trial_end: unixIso(sub.trial_end),
     cancel_at: unixIso(sub.cancel_at),
@@ -233,7 +233,7 @@ export async function applySubscription(
   const planned = planBilling(
     {
       mode: row.mode === "direct" ? "direct" : "stripe",
-      status: row.status ?? "none",
+      status: row.status,
       tenant_status: tenant?.status ?? "active",
     },
     facts,
@@ -247,7 +247,7 @@ export async function applySubscription(
   // reading the subscription afresh, so each plans the same move from the same row and finds the one bell kept; the
   // compare-and-set below lets one of them write the row.
   if (plan.bell) {
-    const key = `billing:${row.tenant_id}:${row.updated_at ?? "new"}:${facts.status}`;
+    const key = `billing:${row.tenant_id}:${row.updated_at}:${facts.status}`;
     // A pause is mailed too (tellOnce, S6-11): the receptionist stops answering. Its mail never holds the row back: a
     // mail provider that is down must not leave a workspace answering on a plan that has stopped, so a mail still owed
     // is said and the row is written; the bell and the phones are the notice that must be kept first.
