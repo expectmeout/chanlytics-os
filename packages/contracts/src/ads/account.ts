@@ -11,15 +11,7 @@
 import { isOneOf, recordOrEmpty } from "../shared/unknown";
 
 /** Where an ad account stands at its platform, in Chanlytics' words. */
-export const AD_ACCOUNT_STANDINGS = [
-  "active",
-  "disabled",
-  "unsettled",
-  "review",
-  "grace",
-  "closing",
-  "closed",
-] as const;
+const AD_ACCOUNT_STANDINGS = ["active", "disabled", "unsettled", "review", "grace", "closing", "closed"] as const;
 export type AdAccountStanding = (typeof AD_ACCOUNT_STANDINGS)[number];
 
 /** `ad_accounts.standing`: a key for each thing the account can stand on. A key not read yet is absent. */

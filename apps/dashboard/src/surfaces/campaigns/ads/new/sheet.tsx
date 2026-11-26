@@ -1,8 +1,9 @@
 /**
  * New ad: one screen that AI has already written (the Ads plan's 4.6; the canvas's "Making an ad: one screen"). It
  * opens from + New with the sentence there at once, and the words arriving under "AI is writing…". The owner reads
- * it, changes the amount, the miles or the date by tapping it, tells AI anything else, and presses Turn on, which
- * names the most the ad can cost. Above the press: who Meta charges, and what the press tells Meta. After the press,
+ * it, changes the amount, the miles or the date by tapping it, tells AI anything else on the line under it, and presses
+ * Turn on, which names the most the ad can cost. Above the press: who Meta charges, and what the press tells Meta, the
+ * foot's whole, so the press stands with what it declares (the Ads plan's D14). After the press,
  * it says the ad is being set up at Meta, and opens the ad.
  *
  * It stands in the kit's sheet, from the side on a desk and from the bottom edge on a phone, open by the address so
@@ -101,7 +102,7 @@ function Tell({ tell, onTell }: TellProps) {
           <Icon name="send" size={14} />
         </Button>
       </div>
-      {/* Under the line it answers, so the foot's top edge is always the box itself. */}
+      {/* Under the line it answers. */}
       {tell.status ? (
         <p className="ads-new-told" role="status" data-testid="ads-new-told">
           {tell.status}
@@ -113,15 +114,16 @@ function Tell({ tell, onTell }: TellProps) {
 
 interface FootProps {
   vm: NewAdVM;
-  onTell: (words: string) => void;
   onTurnOn: () => void;
 }
 
-/** The foot: Tell AI, who Meta charges and what the press tells Meta, the press, and the line under it. */
-function Foot({ vm, onTell, onTurnOn }: FootProps) {
+/**
+ * The foot: who Meta charges and what the press tells Meta, beside the press that tells it (the Ads plan's D14: the press
+ * is the declaration), the press, and the line under it. Tell AI is the draft's, in its body.
+ */
+function Foot({ vm, onTurnOn }: FootProps) {
   return (
     <div className="ads-new-foot">
-      <Tell tell={vm.tell} onTell={onTell} />
       <dl className="ads-conn-facts" data-testid="ads-new-facts">
         {vm.facts.map((fact) => (
           <div key={fact.label}>
@@ -159,7 +161,7 @@ interface DraftProps {
 
 /**
  * The draft's body: the post its picture went up as, where it did (pass 6), the sentence, the word being changed, why that
- * amount, the one line, and the ad as it will look.
+ * amount, the one line, the line to tell AI what to change, and the ad as it will look.
  */
 function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps) {
   const [editing, setEditing] = useState<AdEditing>(null);
@@ -193,6 +195,7 @@ function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps)
       ) : null}
       <NewWhy lines={vm.why} />
       {vm.line ? <NewAdLine line={vm.line} onAct={act} onConnect={onConnect} /> : null}
+      <Tell tell={vm.tell} onTell={acts.tell} />
       <AdShown shown={vm.shown} onNext={acts.nextVersion} preview={preview} />
     </div>
   );
@@ -261,7 +264,7 @@ function newAdParts(
           preview={props.source.preview}
         />
       ),
-      foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={acts.turnOn} />,
+      foot: <Foot vm={vm} onTurnOn={acts.turnOn} />,
       fit: false,
     };
   }

@@ -224,7 +224,7 @@ export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
             {l.name}
           </a>
           {l.places > 1 && (
-            <span className="ld-badge" title="Two listings on the map for one business">
+            <span className="ld-badge" data-tip="Two listings on the map for one business">
               {l.places} listings
             </span>
           )}

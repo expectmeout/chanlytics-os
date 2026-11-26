@@ -34,7 +34,7 @@ const out = await build({
     contents:
       'export { provide } from "../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export { ContentBody } from "../../apps/dashboard/src/surfaces/campaigns/content/body.tsx";\n' +
-      'export { ContentViewRow } from "../../apps/dashboard/src/surfaces/campaigns/content/views.tsx";\n' +
+      'export { ContentLists, ContentViewRow } from "../../apps/dashboard/src/surfaces/campaigns/content/views.tsx";\n' +
       'export { campaignsChrome } from "../../apps/dashboard/src/surfaces/campaigns/routes.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
       'export { contentOverride, readMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
@@ -439,4 +439,25 @@ test("a piece its owner posted by hand says so on its tile, as one that is up", 
   assert.match(html, /data-tone="up" data-testid="cnv-said"/);
   assert.match(html, /On TikTok, by you · /);
   assert.doesNotMatch(html, /Ready to (post|save)/);
+});
+
+test("where the workspace runs ads, Ads is the third list: how many it holds, amber while one needs you, lit on Ads", () => {
+  const tally = { made: 8, posted: 3, needs: 0, making: 1, scheduled: 2, library: 41, aside: 0, waiting: 0 };
+  const lists = (props) =>
+    S.renderToStaticMarkup(S.createElement(S.ContentLists, { list: "made", tally, onList: noop, ...props }));
+  const ads = (over = {}) => ({ on: false, count: 12, owed: false, onPress: noop, ...over });
+  assert.equal(count(lists({}), "cnv-list-ads"), 0, "no Ads where the workspace runs none");
+  const html = lists({ ads: ads() });
+  const at = (id) => html.indexOf(`data-testid="cnv-list-${id}"`);
+  assert.ok(at("made") < at("library") && at("library") < at("ads"), "Made, the Library, then Ads");
+  assert.match(html, /aria-selected="true"[^>]*data-testid="cnv-list-made"/);
+  assert.match(html.slice(at("ads")), />Ads<[^]*?>12</);
+  assert.doesNotMatch(html, /Something in Ads needs you/);
+  assert.match(lists({ ads: ads({ owed: true }) }), /Something in Ads needs you/);
+  // On Ads its tab is lit, and Made's is not.
+  const on = lists({ ads: ads({ on: true }) });
+  assert.match(on, /aria-selected="true"[^>]*data-testid="cnv-list-ads"/);
+  assert.doesNotMatch(on, /aria-selected="true"[^>]*data-testid="cnv-list-made"/);
+  // Before the Ads page has been read on this visit, it says no figure.
+  assert.doesNotMatch(lists({ ads: ads({ count: null }) }).slice(at("ads")), />12</);
 });

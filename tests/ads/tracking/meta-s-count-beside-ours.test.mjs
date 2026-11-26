@@ -102,10 +102,10 @@ test("when the two part, the drawer says what is happening, that nothing of the 
   assert.equal(vm.chats.line, "Meta counted 20 chats from this ad up to 7 Nov. 6 reached Chanlytics.");
   assert.equal(vm.chats.parted, "The ad and AI's replies aren't affected. Chanlytics is looking into it.");
   assert.doesNotMatch(vm.chats.parted, /fix|check|connect|try/i, "the owner is never asked to fix it");
-  // The figures stay as they were: the line stands beside them, never in them.
+  // The figures stay as they were (what a total spent is its bar's, above them): the line stands beside them, never in them.
   assert.deepEqual(
     vm.theirs.map((figure) => figure.label),
-    ["Spent", "Times shown", "Taps", "Chats Meta counted"],
+    ["Times shown", "Taps", "Chats Meta counted"],
   );
 });
 
