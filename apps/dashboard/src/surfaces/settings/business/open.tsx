@@ -155,11 +155,11 @@ interface ZoneBoxProps {
  * row's words when the zone is taken.
  */
 const btoZoneBox =
-  (T: Partial<TzApi>) =>
+  (tz: Partial<TzApi>) =>
   ({ draft, set, field, readOnly, open }: ZoneBoxProps) => {
     // The zones are listed only while the editor is open: 418 options worked out for a row at rest are 418 too many.
-    const zones = open && T.known ? T.known() : [];
-    const device = T.device ? T.device() : null;
+    const zones = open && tz.known ? tz.known() : [];
+    const device = tz.device ? tz.device() : null;
     return (
       <>
         <RecordCombobox
@@ -167,14 +167,14 @@ const btoZoneBox =
           label="Timezone"
           value={draft}
           // Found by the cities and states it covers too (contracts zoneSearchWords): "Miami" finds America/New York.
-          options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " "), also: T.also ? T.also(z) : "" }))}
+          options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " "), also: tz.also ? tz.also(z) : "" }))}
           onChange={set}
           placeholder="Search for a city"
           readOnly={readOnly}
           testid="rec-inline-timezone-zones"
         />
         <span className="bt-inline-note" data-testid="rec-inline-timezone-note">
-          {(T.words ? T.words(draft) : { line: draft }).line}
+          {(tz.words ? tz.words(draft) : { line: draft }).line}
           {device && device !== draft ? (
             <>
               {" "}
@@ -185,7 +185,7 @@ const btoZoneBox =
                 onClick={() => set(device)}
                 data-testid="rec-inline-timezone-device"
               >
-                Use this device&rsquo;s ({T.city ? T.city(device) : device})
+                Use this device&rsquo;s ({tz.city ? tz.city(device) : device})
               </button>
             </>
           ) : null}

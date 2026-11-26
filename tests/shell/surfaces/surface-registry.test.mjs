@@ -323,7 +323,7 @@ test("REGRESSION: an unconfigured workspace is not shown somebody else's busines
 // The Team card reads the real roster, never the mockup's seeded one; "You" is decided by the signed-in email; a real
 // workspace is counted in people, never in seats of a plan it does not have. The card is TSX now (surfaces/settings/team,
 // decision 0015 step 11) and has no seeded roster at all: drawn in settings-honest.test.mjs ("a real roster is counted in
-// people") and settings-owner-panes.test.mjs ("a team read that failed ...").
+// people") and workspace/settings-owner-panes/ ("a team read that failed ...").
 
 test("REGRESSION: a page opens on the pane it actually renders", () => {
   // The shell renders Settings as tab={param || "workspace"}, so /admin with no
@@ -503,7 +503,7 @@ test("the shell asks the gate with the pane it is about to render", () => {
 });
 
 // A team we could not READ is not a team of four strangers, and a failed team read still uses the real role: drawn in
-// empty-failed.test.mjs ("a team that could not be read draws the one FailedRead") and settings-owner-panes.test.mjs ("a
+// empty-failed.test.mjs ("a team that could not be read draws the one FailedRead") and workspace/settings-owner-panes/ ("a
 // team read that failed ...").
 
 test("the tab bar offers what the registry says is real, and only that", () => {
