@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
+import { again as againTree, fresh as freshTree, installStubReact, kitPages, useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
 import { bridgeHolds, drawsInPlace, holdFrameParts, surfaceValue } from "./_bridge-holds.mjs";

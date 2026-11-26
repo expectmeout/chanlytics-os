@@ -33,7 +33,7 @@
 import { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../../shell/address/_address.mjs";
-import { installRoleStore, useStubHooks } from "../../../_stub-react.mjs";
+import { installRoleStore, kitPages, useStubHooks } from "../../../_stub-react.mjs";
 import { until } from "../../../shared/_until.mjs";
 import { importSrc } from "../../../_source.mjs";
 import { ROLE_PERMS, stateOf, toLeadRowVM } from "@chanlytics/contracts";

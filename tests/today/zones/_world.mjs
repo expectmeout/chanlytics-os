@@ -5,7 +5,7 @@
  */
 import { after } from "node:test";
 import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, textOf } from "../../_stub-react.mjs";
+import { again, all, fresh, installStubReact, kitPages, textOf } from "../../_stub-react.mjs";
 import { askDoor, bridgeHolds, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 export const ZONE = "America/New_York";

@@ -18,7 +18,7 @@
  * search, the phone's bar and cards, and People in its place where deals are off. Executed, never read from source.
  */
 import "../../shell/address/_address.mjs";
-import { installRoleStore, useStubHooks } from "../../_stub-react.mjs";
+import { installRoleStore, kitPages, useStubHooks } from "../../_stub-react.mjs";
 import {
   CONSENT_SOURCES,
   csvCell,

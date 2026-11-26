@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, find, byTestId, textOf } from "../_stub-react.mjs";
+import { again, byTestId, find, fresh, installStubReact, kitPages, textOf } from "../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts, surfaceValue } from "../shell/_bridge-holds.mjs";
 const { gate } = await import("../../apps/dashboard/src/surfaces/frame/gate.ts");
 

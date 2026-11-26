@@ -25,7 +25,7 @@
  * stand-in was told. The Leads scope, the person page and the ? sheet are still JSX and are loaded beside it.
  */
 import { historyOf } from "../../shell/address/_address.mjs";
-import { installRoleStore, useStubHooks } from "../../_stub-react.mjs";
+import { installRoleStore, kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { CONSENT_SOURCES, ROLE_PERMS, mayReceive, offersYesRefusal, stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";

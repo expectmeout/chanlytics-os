@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { useStubHooks } from "../../_stub-react.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { smsStateRow, connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { bridgeHolds, drawsInPlace, holdFrameParts, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 

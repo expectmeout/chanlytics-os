@@ -23,7 +23,15 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
-import { installStubReact, fresh as freshTree, again as drawAgain, find, byTestId, textOf } from "../_stub-react.mjs";
+import {
+  again as drawAgain,
+  byTestId,
+  find,
+  fresh as freshTree,
+  installStubReact,
+  kitPages,
+  textOf,
+} from "../_stub-react.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { scenario, WORKSPACE } from "../../tooling/scripts/e2e-harness/scenarios.mjs";
 import { answer } from "../../tooling/scripts/e2e-harness/server.mjs";

@@ -24,11 +24,12 @@
  */
 import * as contracts from "@chanlytics/contracts";
 import {
-  installStubReact,
-  fresh as freshTree,
   again as drawAgain,
-  find,
   byTestId,
+  find,
+  fresh as freshTree,
+  installStubReact,
+  kitPages,
   textOf,
 } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";

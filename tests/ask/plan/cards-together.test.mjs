@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cardsTogether, holdsAlike, openCardOf, wordsLessHolds } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, textOf, press } from "../../_stub-react.mjs";
+import { again, all, fresh, installStubReact, kitPages, press, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";

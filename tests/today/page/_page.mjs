@@ -13,7 +13,7 @@
  */
 import { after } from "node:test";
 import { toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, find, byTestId, textOf, classes } from "../../_stub-react.mjs";
+import { again, all, byTestId, classes, find, fresh, installStubReact, kitPages, textOf } from "../../_stub-react.mjs";
 import { headline as periodHeadline } from "../_headline.mjs";
 import { importSrc } from "../../_source.mjs";
 import { askDoor, bridgeHolds } from "../../shell/_bridge-holds.mjs";

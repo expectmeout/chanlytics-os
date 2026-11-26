@@ -23,7 +23,7 @@ import { LEAD_DOCK_WORDS } from "../../../apps/dashboard/src/surfaces/leads/shee
 import { LEAD_ASKED_NOT_WRITTEN } from "../../../packages/contracts/src/leads/words/refusals.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { useStubHooks } from "../../_stub-react.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 

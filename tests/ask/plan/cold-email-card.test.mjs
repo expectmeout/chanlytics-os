@@ -16,6 +16,7 @@ import { holdsAlike, wordsLessHolds } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { kitPages } from "../../_stub-react.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";

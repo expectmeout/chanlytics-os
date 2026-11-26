@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, setupSteps } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, press, unmount } from "../_stub-react.mjs";
+import { again, fresh, installStubReact, kitPages, press, unmount } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { headline, weekSeen } from "./_headline.mjs";
 import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
