@@ -537,7 +537,7 @@ export async function suppressEmailOf(
     p_at: params.at,
   });
   if (error) throw new DbFailure(error, "email receipt: cannot stop sends to the address");
-  return data ?? null;
+  return data;
 }
 
 /**
