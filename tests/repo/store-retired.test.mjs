@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import fs from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { JOB_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
@@ -94,7 +94,7 @@ test("the manifest documents no lever either", () => {
   // That /api/diag names one memory is run in diag-door.test.mjs.
 });
 
-test("the queue's kinds: each one handled and each one scheduled somewhere", () => {
+test("the queue's kinds: each one handled and each one scheduled somewhere", async () => {
   assert.deepEqual(
     [...JOB_KINDS],
     [
@@ -149,11 +149,19 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "canary",
     ],
   );
-  const handlers = ["packages/jobs/src/handlers/incoming-email.ts", "packages/jobs/src/handlers/handlers.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  for (const k of JOB_KINDS)
-    assert.ok(new RegExp(`^\\s*${k}(?:: \\w+)?,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
+  // Each declared kind has its handler at compile time: the dispatch map is a Record<JobKind, Handler>
+  // (packages/jobs/src/handlers/handlers.ts), so a kind without one, or one of a kind nobody declares, does not build.
+  // Until 26 Nov 2026 this read the map as text. What the build does with a kind it retired, run: it is no kind, and the
+  // tick keeps its row for a runner that knows it, running nothing.
+  const { dispatchJob } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
+  const untouched = new Proxy(
+    {},
+    {
+      get: (_, k) => {
+        throw new Error(`a retired kind's job reached its context (${String(k)})`);
+      },
+    },
+  );
   for (const dead of [
     "veto_fire",
     "media_fetch",
@@ -162,8 +170,11 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
     "snooze_wake",
     "pause_expire",
     "blob_thread_erase",
-  ])
-    assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
+  ]) {
+    assert.ok(!JOB_KINDS.includes(dead), `${dead} is not declared`);
+    const job = { id: `job-${dead}`, tenant_id: null, kind: dead, payload: {} };
+    assert.equal(await dispatchJob(untouched, job), "unknown_kind", `${dead} is not handled`);
+  }
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
   // `ctx.schedule(...)` call, their once-per-subject forms (`scheduleOnce`,
   // `scheduleJobOnce`: a reply's reading), or the draft queue's row, naming it -- or a
@@ -184,18 +195,8 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
   // That the database's job_kinds rows agree is held by jobs/job-kinds.test.mjs (decision 0089).
 });
 
-test("the retired kind is withdrawn from the database too, rows first", () => {
-  // A CHECK tightened over rows that still hold the value fails the migration,
-  // so the delete has to come first -- and those rows are finished erasures of
-  // a store that no longer exists, not work anybody is waiting on.
-  const m = readRaw("supabase/migrations/00151_jobs_drop_blob_thread_erase.sql");
-  const del = m.indexOf("delete from public.jobs where kind = 'blob_thread_erase';");
-  const check = m.indexOf("add constraint jobs_kind_check");
-  assert.ok(del > -1 && check > del, "the rows go before the CHECK that would refuse them");
-  // The CHECK it wrote names no retired kind. That the CURRENT CHECK is the
-  // declared set, in order, is held at compile time (contracts/src/shared/schema-sets.ts
-  // against the set generated from the database) and by CI's replay, so a later
-  // migration that widens it (00162's push_send) is not this one's to repeat.
-  assert.ok(!m.slice(check).includes("'blob_thread_erase'"), "the CHECK it wrote has no retired kind");
-  assert.ok(m.slice(check).includes("'lead_check'"), "and keeps the kinds of its day");
-});
+// That the retired kind was withdrawn from the database rows first, before the CHECK that would refuse them, was 00151's
+// text, held here until 26 Nov 2026. It is an applied migration, and the ledger holds every applied file to the text it
+// was recorded with (database/migrations.test.mjs, "every migration is in the ledger"), so the order it was applied in
+// cannot change; that the CURRENT CHECK is the declared set is held at compile time (contracts schema-sets.ts) and by
+// CI's replay.

@@ -395,18 +395,10 @@ test("a log line on the message path carries a phone tail, never the number or t
     }
   }
   assert.deepEqual(offences, [], "a whole number or a customer's words on a log line");
-  assert.ok(
-    readRaw("apps/edge/lib/intake/whatsapp.ts").includes(
-      'L.info("wa_inbound", { from_tail: phoneTail(message.from), type: message.type, id: message.id });',
-    ),
-    "the WhatsApp inbound line: a tail, a type, an id",
-  );
-  assert.ok(
-    readRaw("apps/edge/lib/sms/inbound-text.ts").includes(
-      "from_tail: phoneTail(inbound.from), to_tail: phoneTail(inbound.to)",
-    ),
-    "the SMS logger's context: tails",
-  );
+  // What the two doors say is run, not read (until 26 Nov 2026 their lines were this test's text): the WhatsApp inbound
+  // line is a tail, a type and an id in whatsapp/door/the-door-and-what-it-routes.test.mjs ("a routed number runs its own
+  // workspace's receptionist"), and every line of a text carries the sender's and the line's tails in
+  // sms/sms-door.test.mjs ("every other refusal is heard as its own status").
 });
 
 /** A call of `name(…)` by its bare identifier. */

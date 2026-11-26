@@ -21,7 +21,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EVENT_KINDS, WABA_FIELDS } from "@chanlytics/contracts";
-import { readRaw } from "../_source.mjs";
+import { readRaw, importSrc } from "../_source.mjs";
 import { EVENT_KIND, emittedKinds, walkTypeScript as walk } from "../_measures.mjs";
 
 const KIND = EVENT_KIND;
@@ -47,7 +47,7 @@ test("every kind the product writes is declared, and every declared kind is writ
   assert.ok(written.length >= 40, `the lint saw ${written.length} kinds; the product writes more than that`);
 });
 
-test("the computed family is the contracts' list, and nothing else is computed", () => {
+test("the computed family is the contracts' list, and nothing else is computed", async () => {
   assert.deepEqual([...WABA_FIELDS].sort(), [
     "account_review_update",
     "account_update",
@@ -57,8 +57,10 @@ test("the computed family is the contracts' list, and nothing else is computed",
     "phone_number_quality_update",
     "template_category_update",
   ]);
-  const waba = readRaw("apps/edge/lib/whatsapp/waba-events.ts");
-  assert.ok(waba.includes("new Set<string>(WABA_FIELD_LIST)"), "the edge's set is the contracts' list");
+  // The set the edge routes the account's news by is the contracts' list, asked of the edge (read as its text until 26 Nov
+  // 2026).
+  const edge = await importSrc("apps/edge/lib/whatsapp/waba-events.ts");
+  assert.deepEqual([...edge.WABA_FIELDS].sort(), [...WABA_FIELDS].sort(), "the edge's set is the contracts' list");
   // The one template-literal emit is the channel family; any other would be a kind nobody can name.
   let computed = 0;
   for (const dir of [

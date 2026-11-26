@@ -8,6 +8,17 @@
  * meant to be used; F51 a GET wrote invitations on the way through, exempt
  * from the cross-site check by being a GET; F15 a hundred calls with
  * per-word timings on every refresh were most of the payload.
+ *
+ * Where each is held since 26 Nov 2026, when this file stopped reading 00037's text (an applied migration that later
+ * ones replaced: people_list, metrics_summary and report_series have each been made again since):
+ *   F44 the grants are the catalog's, asked in database/privileges.db.test.mjs ("the session role updates a thread, a
+ *       message and an escalation in the columns the dashboard's verbs set"); that the verbs set only those columns
+ *       is this file's rule, below;
+ *   F48 one person's row alone is people_list run with p_contact_id in broadcasts/campaign-channels.db.test.mjs, and
+ *       the logged-out key executes no function at all (database/privileges.db.test.mjs, "anon executes no function");
+ *   F51 the list of workspaces seats nobody and writes nothing: reads-never-write/a-read-never-writes.test.mjs (R1c),
+ *       the accept its own POST (reads-never-write/an-invitation-is-accepted-by-one-post.test.mjs);
+ *   F15 run below, through the call's own DTO.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -15,35 +26,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toCallVM } from "@chanlytics/contracts";
-import { readCode, readRaw, stripComments } from "../_source.mjs";
+import { readCode, stripComments } from "../_source.mjs";
 import { repoFiles, parse, importsOf, packageOf } from "../_ast.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { stripWordTimings } = await import(
+const { stripWordTimings, toCallDto } = await import(
   pathToFileURL(path.join(here, "../../apps/dashboard/src/server/conversations/dto.ts")).href
 );
-const sql = readRaw("supabase/migrations/00037_hygiene.sql");
 
-test("F44: the session role updates exactly the columns the verbs set, and nothing else", () => {
-  assert.ok(sql.includes("revoke update on public.conversations from authenticated, anon;"));
-  assert.ok(
-    sql.includes(
-      "grant update (state, paused_until, snooze_until, assignee_user_id, last_message_at)\n  on public.conversations to authenticated;",
-    ),
-  );
-  assert.ok(sql.includes("revoke update on public.messages from authenticated, anon;"));
-  assert.ok(
-    sql.includes("grant update (status, error) on public.messages to authenticated;"),
-    "cancel-send and the superseded-draft cancel",
-  );
-  assert.ok(sql.includes("revoke update on public.escalations from authenticated, anon;"));
-  assert.ok(
-    sql.includes("grant update (state, resolved_by_user_id, decision_id) on public.escalations to authenticated;"),
-  );
-  // Every session-client UPDATE in the dashboard sets only granted columns.
+test("F44: every session-client UPDATE in the dashboard sets only the columns the session role is granted", () => {
+  // A rule over the dashboard's code: every UPDATE its session client makes of the three tables names only columns the
+  // catalog grants the session role, the lists database/privileges.db.test.mjs holds the catalog to.
   const granted = {
     conversations: ["state", "paused_until", "snooze_until", "assignee_user_id", "last_message_at"],
     messages: ["status", "error"],
@@ -67,38 +63,6 @@ test("F44: the session role updates exactly the columns the verbs set, and nothi
       for (const c of cols) assert.ok(granted[m[1]].includes(c), `${rel}: ${m[1]}.${c} is not a granted column`);
     }
   }
-});
-
-test("F48: one person's profile reads one person's rows; the metrics CTEs are not materialised", () => {
-  const people = sql.slice(
-    sql.indexOf("create or replace function public.people_list"),
-    sql.indexOf("create or replace function public.metrics_summary"),
-  );
-  assert.ok(
-    people.includes("and (p_contact_id is null or m.contact_id = p_contact_id)\n  )"),
-    "the filter is inside the message CTE",
-  );
-  assert.equal((sql.match(/real_msgs as not materialized \(/g) ?? []).length, 2, "metrics_summary and report_series");
-  assert.ok(
-    sql.includes("revoke all on function public.metrics_summary(uuid, integer) from public, anon;"),
-    "the guards ride along",
-  );
-  assert.ok(sql.includes("grant execute on function public.report_series(uuid, integer) to authenticated;"));
-  // Re-created verbatim: the 00035 rule and the 00031 exclusions are still there.
-  assert.equal((sql.match(/from public\.first_replies\(p_tenant_id, v_start\)/g) ?? []).length, 2);
-  assert.ok(sql.includes("and k.status <> 'not_connected'"));
-});
-
-test("F51: a GET of the workspaces reads and writes nothing, from any site (a read never writes: decision 0047, lane 6)", () => {
-  const route = readCode(
-    "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/list.ts",
-  );
-  // F51 kept the acceptance of an invitation from running on a cross-site read, by looking at the request's origin. The
-  // acceptance is its own POST now, which the app's write guard holds to the app's own origin (with-route.ts, held by
-  // auth/auth-gate.test.mjs), so the list has no origin to look at and no invitation to look up.
-  assert.ok(!route.includes("acceptOpenInvites") && !route.includes("openInvitesFor"));
-  assert.ok(!route.includes("isSameOrigin") && !route.includes('from "@/server/shared/request-guards"'));
 });
 
 test("F15: the list route ships each turn's start and end, not every word's timing, and the viewers read either", () => {
@@ -156,8 +120,15 @@ test("F15: the list route ships each turn's start and end, not every word's timi
     "1:01",
     "and the raw provider shape still works",
   );
-  const route = readCode("apps/dashboard/src/server/conversations/dto.ts");
-  assert.ok(route.includes("transcript_object: stripWordTimings(call.transcript_object),"));
+  // What the list route ships is the call's DTO, built the one way: its turns stripped of the words' timings.
+  const raw = dto([
+    { role: "agent", content: "hi", words: [{ word: "hi", start: 0.4, end: 0.6 }] },
+    { role: "user", content: "when?", words: [{ word: "when", start: 27.2, end: 27.5 }] },
+  ]);
+  assert.deepEqual(toCallDto({ ...raw, contacts: raw.contact }).transcript_object, [
+    { role: "agent", content: "hi", start: 0.4, end: 0.6 },
+    { role: "user", content: "when?", start: 27.2, end: 27.5 },
+  ]);
 });
 
 test("every route pg_cron calls stands behind the one door", () => {
