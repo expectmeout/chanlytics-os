@@ -237,7 +237,7 @@ export const reachOutMakeSpec: ProposalSpec = {
     const name = asText(rec(pl.chain).name);
     return rec(data).words_ok === true
       ? `“${name}” is saved, and its emails have your approval: its first run goes as “Before each send” says.`
-      : `“${name}” is saved. Nothing goes until you approve the first emails. After that, each send goes as Before each send says on Cold email.`;
+      : `“${name}” is saved. Nothing goes until you approve the first emails, then each send goes as “Before each send” says.`;
   },
   made: (_p, data) => idIn(rec(data), "root_id"),
   open: (_p, outcome) => (outcome?.made?.id ? sequenceRoute(outcome.made.id) : SEQUENCES_ROUTE),

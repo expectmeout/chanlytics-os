@@ -214,10 +214,12 @@ const unreadWords = (text: string): string =>
  * OFFER_PLAN_WORDS and a setup's own (journey/plan.ts), in the question's language. WhatsApp's review is WhatsApp's.
  */
 export const PLAN_WORDS = {
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   noOffer:
     "intent offer takes offer: its words, from and until, the offer's first and last day. Ask what the offer is and when it runs.",
   noWords: "words is the offer in the owner's words: ask what the offer is.",
   /** The offer's words say a day from today that its message, note and send, first read on its first day, misread. */
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   dayFromToday: (phrase: string, from: string): string =>
     `“${phrase}” is said from today, and the offer is first read on ${from}, when it means another day: give words (and say) its days as a customer reads them then (“all November”, never “next month”), and call again.`,
   notADay: "from and until are days on the business's calendar, written YYYY-MM-DD: ask for them again.",
@@ -235,10 +237,13 @@ export const PLAN_WORDS = {
       ...open.map((c) => `${VERSION_CHANNEL_WORDS[c]} can carry it: name it, or leave channels out.`),
       ...(open.length ? [] : [`${CHANNEL_WORDS.noOffersByText} Say so, and what to set up first.`]),
     ].join(" "),
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   noChannelNamed:
     "channels names no channel: name WhatsApp, email or both, or leave channels out for every one the workspace sends offers on.",
   /** Texts asked for alone: never a channel an offer goes by, whatever the workspace can send. */
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   textOnly: `${CHANNEL_WORDS.noOffersByText} An offer goes by WhatsApp or email: say so, and name either, or leave channels out for every one the workspace sends offers on.`,
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   noOffersList:
     "who is not a list this workspace has: name one people with action lists gives, or leave who out for everyone who can receive offers.",
   journeyUnread: JOURNEY_PLAN_WORDS.journeyUnread,

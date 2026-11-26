@@ -1027,7 +1027,7 @@ export const ROWS = [
     world: world({ journey: QUIET_ONLY, shape: { ...NO_CALENDAR, calendar: "email" } }),
     steps: [{ n: 1, kind: "playbook", silent: false, after: [], input: { trigger: "quiet_30" } }],
     words: [
-      "First, connect your calendar's feed under Settings › Hours & booking (booking emails alone cannot time a campaign), so each appointment gets a reminder the day before.",
+      "Connect your calendar's feed under Settings › Hours & booking first, so each appointment gets a reminder the day before. Booking emails can't time it.",
       WIN_BACK,
       "Ask me again once it is connected, and I'll add it.",
     ],

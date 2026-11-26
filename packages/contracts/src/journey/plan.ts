@@ -34,6 +34,7 @@ const STAGE_WORDS: Record<JourneyStageId, string> = {
 export const JOURNEY_PLAN_WORDS = {
   journeyUnread:
     "The journey couldn't be read just now, so which moments are covered is not known: say so, and try again in a moment.",
+  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   nothingToCover:
     "Every moment asked for is covered already or not offered here (an appointment's moments need a calendar connected): say so, and propose nothing.",
   notOffered: (stages: readonly string[]): string => `Not offered here: ${joinWords(stages)}.`,
@@ -137,7 +138,7 @@ const SETUP_WORDS = {
       `Starts ${plural(n, "campaign")} now${n > 1 ? ", each its own card" : ""}: ${text}.`,
     calendar: (feed: boolean, each: string, gets: string) =>
       feed
-        ? `First, connect your calendar's feed under Settings › Hours & booking (booking emails alone cannot time a campaign), so each ${each} gets ${gets}.`
+        ? `Connect your calendar's feed under Settings › Hours & booking first, so each ${each} gets ${gets}. Booking emails can't time it.`
         : `First, connect your calendar under Settings › Hours & booking, so each ${each} gets ${gets}.`,
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} ${one ? "reaches" : "reach"} nobody today; ${one ? "its card says" : "each card says"} why.`,
@@ -169,7 +170,7 @@ const SETUP_WORDS = {
       `Empieza ${n === 1 ? "1 campaña" : `${n} campañas`} ya${n > 1 ? ", cada una en su tarjeta" : ""}: ${text}.`,
     calendar: (feed: boolean, each: string, gets: string) =>
       feed
-        ? `Primero, conecta el feed de tu calendario en Ajustes › Negocio (los correos de reserva no bastan para programar una campaña), para que cada ${each} tenga ${gets}.`
+        ? `Conecta el feed de tu calendario en Ajustes › Negocio, para que cada ${each} tenga ${gets}. Los correos de reserva no bastan.`
         : `Primero, conecta tu calendario en Ajustes › Negocio, para que cada ${each} tenga ${gets}.`,
     nobody: (named: string, one: boolean) =>
       `${capitalize(named)} no ${one ? "llega" : "llegan"} a nadie hoy; ${one ? "su tarjeta dice" : "cada tarjeta dice"} por qué.`,
