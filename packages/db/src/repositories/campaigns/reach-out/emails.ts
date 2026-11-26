@@ -26,7 +26,7 @@ export async function getLeadEmailOnItsWay(db: Db, tenantId: TenantId, leadId: s
     .eq("state", "queued");
   if (error) throw new DbFailure(error, "cannot read the lead's emails");
   let waiting = false;
-  for (const s of data ?? []) {
+  for (const s of data) {
     const email = s.message_id ? await findWrittenEmail(db, { tenantId, id: s.message_id }) : null;
     if (email?.status === "canceled")
       await moveSend(db, { tenantId, id: s.id, from: "queued", patch: { state: "skipped", reason: "canceled" } });
@@ -69,7 +69,7 @@ export async function listLeadEmails(db: Db, tenantId: TenantId, leadId: string)
     .is("sequence_id", null)
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the lead's emails");
-  return (data ?? []).map((s) => ({
+  return data.map((s) => ({
     id: s.id,
     state: s.state,
     at: s.sent_at ?? s.created_at,
@@ -144,7 +144,7 @@ export async function sendJobScheduled(db: Db, params: { tenantId: TenantId; mes
     .eq("payload->>message_id", params.messageId)
     .limit(1);
   if (error) throw new DbFailure(error, "cannot read the email's job");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** A send's run and its chain as they stand now: the claim read them, and its writer is seconds behind. */
@@ -176,17 +176,16 @@ export async function sendStanding(db: Db, reachOutSend: ReachOutSendRow): Promi
   ]);
   if (run.error) throw new DbFailure(run.error, "cannot read the send's run");
   if (chain.error) throw new DbFailure(chain.error, "cannot read the send's chain");
-  const step = reachOutSend.step_id ? (chain.data ?? []).find((p) => p.id === reachOutSend.step_id) : undefined;
+  const step = reachOutSend.step_id ? chain.data.find((p) => p.id === reachOutSend.step_id) : undefined;
   return {
     run: run.data?.state ?? null,
     step: step?.template_id
       ? { state: step.state, template_id: step.template_id, after_step_id: step.after_step_id }
       : null,
-    root: (chain.data ?? []).find((p) => p.id === reachOutSend.sequence_id)?.state ?? null,
-    signedBy: (chain.data ?? []).find((p) => p.id === reachOutSend.sequence_id)?.signed_by ?? null,
-    ownerSends: (chain.data ?? []).find((p) => p.id === reachOutSend.sequence_id)?.owner_sends === true,
-    signsWith:
-      (chain.data ?? []).find((p) => p.id === reachOutSend.sequence_id)?.signs_with === "mailbox" ? "mailbox" : "name",
+    root: chain.data.find((p) => p.id === reachOutSend.sequence_id)?.state ?? null,
+    signedBy: chain.data.find((p) => p.id === reachOutSend.sequence_id)?.signed_by ?? null,
+    ownerSends: chain.data.find((p) => p.id === reachOutSend.sequence_id)?.owner_sends === true,
+    signsWith: chain.data.find((p) => p.id === reachOutSend.sequence_id)?.signs_with === "mailbox" ? "mailbox" : "name",
   };
 }
 
@@ -333,7 +332,7 @@ export async function findParentEmail(
     .order("sent_at", { ascending: false })
     .limit(1);
   if (error) throw new DbFailure(error, "cannot read the step before's send");
-  const id = sends?.[0]?.message_id;
+  const id = sends[0]?.message_id;
   if (!id) return null;
   const { data: m, error: me } = await db
     .from("messages")
@@ -352,7 +351,7 @@ export async function findParentEmail(
     rfcMessageId: typeof otherError.message_id === "string" && otherError.message_id ? otherError.message_id : null,
     references: typeof refs === "string" ? refs.split(/\s+/).filter(Boolean) : [],
     subject: typeof subject === "string" ? subject : null,
-    ownerSent: sends?.[0]?.said_at != null,
+    ownerSent: sends[0]?.said_at != null,
   };
 }
 
@@ -382,7 +381,7 @@ export async function recordLeadAddressBounced(
     .select("id");
   if (e2) throw new Error(`cannot mark the lead's address bounced: ${e2.message}`);
   // Worked by a person at the same moment: read again and marked once more; twice, and the receipt comes again.
-  if ((moved ?? []).length === 0) {
+  if (moved.length === 0) {
     if (params.retried) throw new Error("the lead whose address bounced moved while it was marked");
     return recordLeadAddressBounced(db, { ...params, retried: true });
   }

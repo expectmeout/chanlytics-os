@@ -111,7 +111,7 @@ export function abandonedCall(
   if (dto.disconnection_reason !== "user_hangup") return false;
   // A transcript with turns in it says whether they spoke; an empty one says nothing either way, as a missing one does.
   if (Array.isArray(dto.transcript_object) && dto.transcript_object.length) {
-    return !dto.transcript_object.some((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
+    return !dto.transcript_object.some((t) => t.role === "user" && (t.content ?? "").trim() !== "");
   }
   // A list's ended call carries what its turns said in their place (CallDto.turns): the same reading.
   if (dto.turns && typeof dto.caller_spoke === "boolean") return !dto.caller_spoke;

@@ -354,5 +354,5 @@ export async function getSubjectsWith(
     .eq("kind", kind)
     .in("subject_id", subjectIds);
   if (error) throw new DbFailure(error, "events");
-  return new Set((data ?? []).map((r) => r.subject_id).filter((id): id is string => typeof id === "string"));
+  return new Set(data.map((r) => r.subject_id).filter((id): id is string => typeof id === "string"));
 }

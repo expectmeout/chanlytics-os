@@ -178,7 +178,8 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
     (await findWorkspaceZone(db, job.tenant_id).catch(logAndGoOn("findWorkspaceZone", null))) ?? DEFAULT_TIMEZONE;
   // Held after the reader tried on every try and failed, as against held before any try because it may not be asked; and
   // whether the reader answered this try, after which a throw is a write's, not the reader's.
-  let triedAndFailed = false;
+  // Set by the read's catch below, which the checker cannot follow into: a field, so its reading stays a boolean.
+  const lastTry = { failed: false };
   let readerAnswered = false;
   const outcome = await readBookingNotice(
     {
@@ -234,7 +235,7 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
     const reason = refused ? "unreadable" : "no_model";
     // The reader failed: news. A write that failed after it answered is not "the reader was unavailable" (the visit may
     // be on the calendar already), and is not told as it.
-    triedAndFailed = !readerAnswered;
+    lastTry.failed = !readerAnswered;
     await keepAppointmentNotice(db, {
       tenant_id: job.tenant_id,
       notice_id: receivedId,
@@ -268,7 +269,7 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
     // which the card lists and a person reads again; a read that failed on its last try is news, since the booking reached
     // no calendar and nothing will read it again by itself.
     const reason = outcome.slice("held:".length);
-    if (triedAndFailed || (reason !== "no_model" && reason !== "may_not_spend"))
+    if (lastTry.failed || (reason !== "no_model" && reason !== "may_not_spend"))
       await bookings.tell(job.tenant_id, {
         noticeId: receivedId,
         // The tool as the product says it ("Booksy"), the words the bell shows.

@@ -18,7 +18,7 @@ import { GUARDRAIL_RULE_WORDS, serviceTail } from "../ask/settings-change";
 import { noteNamesContact, noteNamesMoney, noteOverlap } from "../notes/suggest";
 import type { FixKind } from "./review";
 import { DAY_KEY } from "../shared/zone/day-keys";
-import { isOneOf, recordOrEmpty } from "../shared/unknown";
+import { isOneOf, recordOrEmpty, entryOf } from "../shared/unknown";
 
 type Day = (typeof DAYS)[number];
 
@@ -581,8 +581,8 @@ export function fixLine(change: AskSettingsChange): string {
   switch (change.op) {
     case "set_hours":
       return change.open && change.close
-        ? `When you're open: ${DAY_NAMES[change.day as Day] ?? change.day} ${clockOf(change.open)}–${clockOf(change.close)}`
-        : `When you're open: closed on ${DAY_NAMES[change.day as Day] ?? change.day}`;
+        ? `When you're open: ${entryOf(DAY_NAMES, change.day) ?? change.day} ${clockOf(change.open)}–${clockOf(change.close)}`
+        : `When you're open: closed on ${entryOf(DAY_NAMES, change.day) ?? change.day}`;
     case "add_closure":
       return `Days you're closed: ${change.date}${change.until ? ` to ${change.until}` : ""}`;
     case "add_service":

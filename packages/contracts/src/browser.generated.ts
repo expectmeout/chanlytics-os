@@ -132,7 +132,6 @@ export { FREED_TIME_DEFAULTS, isPlaybookState, MOMENT_TRIGGERS, PLAYBOOK_CAP_CHO
 export { CAMPAIGN_NOT_FOUND, coldBatchGoesNotice, delayWords, freedTimeTakenNotice, isWinBack, lateReminderSkippedNotice, leftBehindNotice, momentOffered, momentReadsCalendar, MOMENTS_RETIRED, owedOncePerMoment, PLAYBOOK_NAME_MAX, PLAYBOOK_VETO_DELAY_WORDS, policyClassOffered, REACH_OUT_IS_NOT_A_MOMENT, readyRunNotice, SEND_ONCE_STOP_MS, SEND_ONCE_STOP_WORDS, skippedRunNotice, triggerOf, triggerOffered, triggerWords, vetoRunNotice, VISIT_TRIGGERS, winBackWords } from "./campaigns/playbooks/triggers/notices";
 export { isOccasionTrigger, momentNamesVisit, occasionIsSingle, occasionWords, visitWhenExample, waitsForKept } from "./campaigns/playbooks/triggers/occasions";
 export { heldNoticeWords, REACH_OUT_RUN_REREAD_MS, REACH_OUT_TO_SEND_LABELS, reachOutRunMoving, reachOutRunWordsOf, TO_SEND_ALL_WORDS, toSendRowOf, toSendSaidWords, toSendWordsOf, waitingRunsDoor } from "./campaigns/reach-out/approval";
-export { COLD_EMAIL_CONNECT_WORDS } from "./campaigns/reach-out/connect-words";
 export { chainFirstSender, previewLinesOf, REACH_OUT_FIRST_WORDS, REACH_OUT_GAP_FIRST, REACH_OUT_NEW_LIST_WORDS, REACH_OUT_PREVIEW_WORDS, REACH_OUT_SHEET_PARTS, reachOutAddHandStep, reachOutAddStep, reachOutAfterDayChoices, reachOutChainBodyOf, reachOutDoorOf, reachOutDraftIssues, reachOutDraftOf, reachOutDropStep, reachOutEditedWords, reachOutMayAddStep, reachOutMayPickMailbox, reachOutPreviewOf, reachOutSavedWords, reachOutSetHandWords, reachOutSheetPaceOf, reachOutSheetUnreadOf, reachOutVersionDraftOf, reachOutWhoWords } from "./campaigns/reach-out/draft";
 export { REACH_OUT_DECISIONS, REACH_OUT_PREVIEW_INDEX_MAX, REACH_OUT_SAID_OUTCOMES } from "./campaigns/reach-out/dtos";
 export { HAND_KINDS, HAND_WORDS_MAX, handOf, handStepWords, personHandWords } from "./campaigns/reach-out/hand";
@@ -143,10 +142,10 @@ export { OPENING_SCHEMA, OPENING_UNSTATED, openingAskedOf, openingSystemPrompt, 
 export { composeLinksOf, mailtoOf } from "./campaigns/reach-out/owner/compose";
 export { REACH_OUT_SAID_WORDS, REACH_OUT_STOP_WORDS, REACH_OUT_UNDO_WORDS } from "./campaigns/reach-out/owner/lead-doors";
 export { CAMPAIGN_EMAIL_TAG, isCampaignEmail, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, WHY_FROM_MAPS, whyFrom } from "./campaigns/reach-out/reach-out";
+export { DRAFT_NEEDS_MS, draftExcerpt, draftRefusal, isDraftWhy, leadReplyNote, REPLY_MODE_UNSET, replyOfferSteer } from "./campaigns/reach-out/replies/draft";
 export { isReplyIntent, isUnread, OWNER_SAID_INTENTS, REACH_OUT_READS_PER_DAY, REACH_OUT_REPLY_DAYS, REPLY_INTENT_WORDS, REPLY_INTENTS, REPLY_UNREADS } from "./campaigns/reach-out/replies/intents";
 export { addressNamedIn, ownedDomainOf, readingPlan, replyNoticeWords, replyStepWords, UNREAD_READING } from "./campaigns/reach-out/replies/reading";
 export { awayUntilOf, notNowDayOf, parseReplyReading, REPLY_ANSWERED_MAX, REPLY_QUOTE_MAX, REPLY_READ_MAX_TOKENS, REPLY_REFER_TO_MAX, REPLY_REREADS, REPLY_SCHEMA, REPLY_SUBJECT_MAX, REPLY_WORDS_MAX, replyIntentQuestion, replySystemPrompt, replyTextOf, replyUserContent, rereadAt, stepDayFor } from "./campaigns/reach-out/replies/words";
-export { DRAFT_NEEDS_MS, draftExcerpt, draftRefusal, isDraftWhy, leadReplyNote, REPLY_MODE_UNSET, replyOfferSteer } from "./campaigns/reach-out/reply-draft";
 export { isReplyUndoRefusal, REPLIES_PAGE, REPLY_UNDO_REFUSALS, replyChipOf, replyChipStateOf, replyFromLineOf, replyLeftAsOf, replyStripOf } from "./campaigns/reach-out/reply-words";
 export { chainOfMoment, coldEndingOf, coldSignedOff, draftRefusalOf, isReachOutRun, isWaitRefusal, OUTREACH_WAIT_REFUSALS, outreachRefusalOf, REACH_OUT_DRAFTS_OPEN_MAX, REACH_OUT_DRAFTS_PER_DAY, REACH_OUT_LANGUAGE, REACH_OUT_MONTH_EMAILS, REACH_OUT_SIGNS_WITH, reachOutEmailOf, reachOutExampleLead, reachOutExampleValues, reachOutRootOf, REACH_OUT_CHECKS_AHEAD_PER_DAY, REACH_OUT_CHECKS_PER_DAY } from "./campaigns/reach-out/rules";
 export { openingWorkspaceOf, reachOutOfferOf, reachOutPitchSaid, reachOutSignatureOf, reachOutSignedByOf, reachOutToneOf } from "./campaigns/reach-out/section";
@@ -160,6 +159,7 @@ export { openingToldParts, reachOutExampleRecord, replyToldParts, toldPart, told
 export { US_STATE_ZONES, zoneOfRegion } from "./campaigns/reach-out/us-zones";
 export { coldWaitsNotice, coldWaitsReminderKey, coldWaitsReminderOf, coldWaitsTitle } from "./campaigns/reach-out/waiting";
 export { chainOf, customerDomainOf, heldClaimOf, HOLD_DOOR_WORDS, holdDoors, HOLDS_INCLUDED_FOR_CHAIN, holdWords, isReachOutHold, OPENING_CLAIM_KINDS, openingClaimWords, REACH_OUT_COUNTRIES_FREE, REACH_OUT_COUNTRIES_REFUSED, REACH_OUT_HOLDS, reachOutCountryOf } from "./campaigns/reach-out/words/claims";
+export { COLD_EMAIL_CONNECT_WORDS } from "./campaigns/reach-out/words/connect";
 export { ANGLE_WORDS_MAX, ASK_FIRST_WORDS_MAX, ASK_LATER_WORDS_MAX, emailWordCount, linkCount, linksIn, OPENING_CHARS_MAX, OPENING_WORDS_MAX, REACH_OUT_AFTER_DAYS, REACH_OUT_GAP_MINUTES, REACH_OUT_NAME_MAX, REACH_OUT_STEPS_MAX, reachOutRules, reachOutSlotFault, shoutingLine, SIGNED_BY_MAX, slotCount, validateReachOutWords, wordCount, wordsIssueWords, wordsNeedOpening } from "./campaigns/reach-out/words/limits";
 export { chainIssueWords, checkOpening, factValue, isOpeningProblem, OPENING_FACT_KEYS, openingProblemWords, validateReachOutChain } from "./campaigns/reach-out/words/opening";
 export { REACH_OUT_BODY_MAX, REACH_OUT_SLOT_SET, REACH_OUT_SLOTS, REACH_OUT_SUBJECT_MAX } from "./campaigns/reach-out/words/slots";

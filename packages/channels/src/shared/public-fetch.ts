@@ -150,7 +150,7 @@ export function publicLookup(resolve: Resolve) {
         const bad = answers.find((a) => !isPublicAddress(a.address));
         if (answers.length === 0) return callback(new NotPublicError(host, "no address"), "");
         if (bad) return callback(new NotPublicError(host, `resolves to ${bad.address}, not a public address`), "");
-        if (typeof options === "object" && options?.all) return callback(null, answers);
+        if (typeof options === "object" && options.all) return callback(null, answers);
         const first = answers[0];
         return first
           ? callback(null, first.address, first.family)

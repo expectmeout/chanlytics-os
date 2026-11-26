@@ -179,7 +179,7 @@ export function guessName(
   // The organiser is not the customer, so "Add … to People" never offers the
   // owner's own name -- which their CN puts on every event they organise.
   const organizer = item.organizer?.toLowerCase() || null;
-  const guest = (item.attendees ?? [])
+  const guest = item.attendees
     .filter((a) => !organizer || a.email?.toLowerCase() !== organizer)
     .map((a) => (a.name ?? "").trim())
     .find((n) => n && !n.includes("@"));

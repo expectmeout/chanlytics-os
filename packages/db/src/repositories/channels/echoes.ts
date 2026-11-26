@@ -73,8 +73,8 @@ export async function recordEchoAndPause(
     .upsert({ tenant_id: params.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" })
     .select("id")
     .single();
-  if (verr || !conv) {
-    dbLog().error("record_echo_conv_failed", { tenant_id: params.tenantId, error: verr?.message ?? "no row" });
+  if (verr) {
+    dbLog().error("record_echo_conv_failed", { tenant_id: params.tenantId, error: verr.message });
     return false;
   }
   const { error } = await db.from("messages").insert({

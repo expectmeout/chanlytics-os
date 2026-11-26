@@ -309,18 +309,82 @@ function mediaRefOf(
   };
 }
 
+/** The attachment a message carries, of whichever kind; none on a text, a tap, a location or a card. */
+const attachmentOf = (waRawMessage: WaRawMessage) =>
+  waRawMessage.image ||
+  waRawMessage.audio ||
+  waRawMessage.video ||
+  waRawMessage.document ||
+  waRawMessage.sticker ||
+  null;
+
+/**
+ * Everything that is neither typed text nor an attachment, named rather than lumped together. Location and contacts
+ * get a body a person can read, so they reach the operator as a fact rather than as "[location message]".
+ */
+function inboundKindOf(
+  waRawMessage: WaRawMessage,
+  isText: boolean,
+  mediaSrc: ReturnType<typeof attachmentOf>,
+): NormalizedInbound["kind"] {
+  const loc = waRawMessage.location;
+  return isText
+    ? "text"
+    : waRawMessage.type === "reaction" && waRawMessage.reaction
+      ? "reaction"
+      : loc && (loc.latitude != null || loc.address || loc.name)
+        ? "location"
+        : waRawMessage.contacts?.length
+          ? "contacts"
+          : waRawMessage.type === "system"
+            ? "system"
+            : mediaSrc?.id
+              ? "media"
+              : "unsupported";
+}
+
+/** A shared location as a sentence: its name and address, and where it is. */
+function locationWords(loc: WaRawMessage["location"]): string {
+  const where = [loc?.name, loc?.address].filter(Boolean).join(", ");
+  const coords = loc?.latitude != null && loc.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
+  return `Shared a location${where ? `: ${where}` : ""}${coords ? ` (${coords})` : ""}`;
+}
+
+/** Shared contact cards as a sentence: the names on them, or their first numbers. */
+function cardWords(cards: NonNullable<WaRawMessage["contacts"]>): string {
+  const names = cards.map((c) => c.name?.formatted_name || c.phones?.[0]?.phone).filter(Boolean);
+  return `Shared a contact card${names.length ? `: ${names.join(", ")}` : ""}`;
+}
+
+/** The words a message carries: typed or tapped, an emoji, a location or a card said, a system notice's; else none. */
+function inboundBodyOf(
+  waRawMessage: WaRawMessage,
+  kind: NormalizedInbound["kind"],
+  typed: boolean,
+  chosen: ReturnType<typeof chosenReply>,
+): string | null {
+  if (typed) return waRawMessage.text?.body ?? "";
+  if (chosen) return chosen.label || chosen.id;
+  switch (kind) {
+    case "reaction":
+      return waRawMessage.reaction?.emoji ?? null;
+    case "location":
+      return locationWords(waRawMessage.location);
+    case "contacts":
+      return cardWords(waRawMessage.contacts ?? []);
+    case "system":
+      return waRawMessage.system?.body ?? null;
+    default:
+      return null;
+  }
+}
+
 export function normalizeInbound(waRawMessage: WaRawMessage, value: WaChangeValue): NormalizedInbound {
   // Never guess identity: contacts[0] can belong to a DIFFERENT sender in a
   // batched webhook, and contact_identities.external_id is a permanent mapping.
   const list = value.contacts || [];
   const contact = list.find((c) => c.wa_id === waRawMessage.from) ?? (list.length === 1 ? list[0] : undefined);
-  const mediaSrc =
-    waRawMessage.image ||
-    waRawMessage.audio ||
-    waRawMessage.video ||
-    waRawMessage.document ||
-    waRawMessage.sticker ||
-    null;
+  const mediaSrc = attachmentOf(waRawMessage);
 
   // A tap IS text the customer sent — they just picked it instead of typing it.
   // Treating button and list replies as unreadable was two bugs in one: the
@@ -330,49 +394,8 @@ export function normalizeInbound(waRawMessage: WaRawMessage, value: WaChangeValu
   const chosen = chosenReply(waRawMessage);
   const typed = waRawMessage.type === "text" && !!waRawMessage.text?.body;
   const isText = typed || !!chosen;
-
-  // Everything that is neither typed text nor an attachment, named rather than
-  // lumped together. Location and contacts get a body a person can read, so
-  // they reach the operator as a fact rather than as "[location message]".
-  const loc = waRawMessage.location;
-  const cards = waRawMessage.contacts?.length ? waRawMessage.contacts : null;
-  const kind: NormalizedInbound["kind"] = isText
-    ? "text"
-    : waRawMessage.type === "reaction" && waRawMessage.reaction
-      ? "reaction"
-      : loc && (loc.latitude != null || loc.address || loc.name)
-        ? "location"
-        : cards
-          ? "contacts"
-          : waRawMessage.type === "system"
-            ? "system"
-            : mediaSrc?.id
-              ? "media"
-              : "unsupported";
-
-  const describeLocation = (): string => {
-    const where = [loc?.name, loc?.address].filter(Boolean).join(", ");
-    const coords = loc?.latitude != null && loc?.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
-    return `Shared a location${where ? `: ${where}` : ""}${coords ? ` (${coords})` : ""}`;
-  };
-  const describeCards = (): string => {
-    const names = (cards ?? []).map((c) => c.name?.formatted_name || c.phones?.[0]?.phone).filter(Boolean);
-    return `Shared a contact card${names.length ? `: ${names.join(", ")}` : ""}`;
-  };
-
-  const body = typed
-    ? (waRawMessage.text?.body ?? "")
-    : chosen
-      ? chosen.label || chosen.id
-      : kind === "reaction"
-        ? (waRawMessage.reaction?.emoji ?? null)
-        : kind === "location"
-          ? describeLocation()
-          : kind === "contacts"
-            ? describeCards()
-            : kind === "system"
-              ? (waRawMessage.system?.body ?? null)
-              : null;
+  const kind = inboundKindOf(waRawMessage, isText, mediaSrc);
+  const body = inboundBodyOf(waRawMessage, kind, typed, chosen);
 
   // Consent is tested against the label AND the developer-set id, so a tenant
   // can make a localised button opt out by giving it the id "stop".

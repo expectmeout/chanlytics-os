@@ -123,7 +123,8 @@ export function zoneSearchWords(zone: string): string {
  * choice rather than an empty menu.
  */
 export function knownTimezones(): string[] {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (k: string) => string[] };
+  // An older browser has no supportedValuesOf: the zones are then the short list.
+  const intl: { supportedValuesOf?: (key: "timeZone") => string[] } = Intl;
   try {
     const all = intl.supportedValuesOf?.("timeZone");
     if (all && all.length) return all;

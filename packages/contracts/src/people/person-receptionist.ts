@@ -56,16 +56,16 @@ export function ownModesOf(
   rows: ReadonlyArray<{ id: string; mode: string }>,
   names: ReadonlyMap<string, string>,
 ): OwnModesDto {
-  const by_mode: Record<PersonMode, number> = { auto: 0, ask: 0, never: 0 };
+  const byMode: Record<PersonMode, number> = { auto: 0, ask: 0, never: 0 };
   const named: OwnModesDto["named"] = [];
   for (const r of rows) {
     const mode = asPersonMode(r.mode);
     if (!mode) continue;
-    by_mode[mode] += 1;
+    byMode[mode] += 1;
     const name = names.get(r.id);
     if (name && named.length < OWN_MODE_NAMED) named.push({ id: r.id, name, mode });
   }
-  return { total: by_mode.auto + by_mode.ask + by_mode.never, by_mode, named };
+  return { total: byMode.auto + byMode.ask + byMode.never, by_mode: byMode, named };
 }
 
 /** The order the line says the modes in: the ones that hold the receptionist back first. */

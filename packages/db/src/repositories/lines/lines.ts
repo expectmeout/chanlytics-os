@@ -103,7 +103,7 @@ export async function findFiledNames(
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the names the workspace filed");
   const named = (key: string): string | null => {
-    for (const row of data ?? []) {
+    for (const row of data) {
       const value = recordOrEmpty(row.facts)[key];
       if (typeof value === "string" && value.trim()) return value.trim();
     }

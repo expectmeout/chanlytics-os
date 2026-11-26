@@ -56,7 +56,7 @@ export async function listReachOutSteps(db: Db, tenantId: TenantId): Promise<Rea
     .eq("tenant_id", tenantId)
     .eq("kind", "reach_out");
   if (error) throw new DbFailure(error, "cannot read the reach-outs");
-  return data ?? [];
+  return data;
 }
 
 /** A chain's root (its first step) by its id; null when there is none, or it is a later step. */
@@ -131,7 +131,7 @@ export async function findEmailWordsByTemplate(
     .eq("tenant_id", tenantId)
     .in("id", ids);
   if (error) throw new DbFailure(error, "cannot read the reach-outs' words");
-  return new Map((data ?? []).map((t) => [t.id, emailWordsFrom(t)]));
+  return new Map(data.map((t) => [t.id, emailWordsFrom(t)]));
 }
 
 /** The searches' names, by id. */
@@ -147,7 +147,7 @@ export async function findSearchesByIds(
     .eq("tenant_id", tenantId)
     .in("id", ids);
   if (error) throw new DbFailure(error, "cannot read the searches");
-  return new Map((data ?? []).map((s) => [s.id, { name: s.name, via: s.via }]));
+  return new Map(data.map((s) => [s.id, { name: s.name, via: s.via }]));
 }
 
 /** The businesses' names, by lead id: what a hand step's words call each lead (Part 5, G20). */
@@ -155,7 +155,7 @@ export async function getLeadNamesByIds(db: Db, tenantId: TenantId, ids: string[
   if (ids.length === 0) return new Map();
   const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
   if (error) throw new DbFailure(error, "cannot read the leads' names");
-  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
+  return new Map(data.map((l) => [l.id, l.business_name]));
 }
 
 /** One lead a hand step hands to the team: its send, its person, the step's words for it, and its step's id. */
@@ -251,7 +251,7 @@ export async function listRunsWaiting(
     .order("created_at", { ascending: false })
     .limit(RUNS_WAITING_READ_MAX);
   if (error) throw new DbFailure(error, "cannot read the runs waiting");
-  return data ?? [];
+  return data;
 }
 
 /** A run's sends, each with its lead's name, address and city (a run holds at most a step's cap, 200). */
@@ -292,7 +292,7 @@ export async function listReachOutRunSends(db: Db, tenantId: TenantId, runId: st
     .not("lead_id", "is", null);
   if (error) throw new DbFailure(error, "cannot read the run's emails");
   // A lead's send names its lead (the filter above): the row says so to the type.
-  return (data ?? []).flatMap((r) => (r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []));
+  return data.flatMap((r) => (r.lead_id ? [{ ...r, lead_id: r.lead_id }] : []));
 }
 
 /** A step's day: tried now, and, when it ran, the day it ran for (the sweep and Start both stamp it). */
@@ -368,7 +368,7 @@ export async function listHeldNoticeDue(
   const held = await sends;
   if (held.error) throw new DbFailure(held.error, "cannot read the held");
   const byRun = new Map<string, { held: number; reasons: Set<string> }>();
-  for (const s of held.data ?? []) {
+  for (const s of held.data) {
     if (!s.broadcast_id) continue;
     const r = byRun.get(s.broadcast_id) ?? { held: 0, reasons: new Set<string>() };
     r.held += 1;
@@ -382,7 +382,7 @@ export async function listHeldNoticeDue(
     .in("id", [...byRun.keys()])
     .in("state", [...RUN_GOING_STATES]);
   if (runs.error) throw new DbFailure(runs.error, "cannot read the held's runs");
-  return (runs.data ?? []).flatMap((row) => {
+  return runs.data.flatMap((row) => {
     const audience: JsonObject =
       row.audience && typeof row.audience === "object" && !Array.isArray(row.audience) ? row.audience : {};
     if (audience.kind !== "reach_out") return [];
@@ -422,7 +422,7 @@ export async function markHeldNotice(
   if (params.ifUpdatedAt) query = query.eq("updated_at", params.ifUpdatedAt);
   const { data, error } = await query.select("id");
   if (error) throw new DbFailure(error, "cannot mark the run");
-  return (data ?? []).length === 1;
+  return data.length === 1;
 }
 
 /**

@@ -278,7 +278,7 @@ async function resendLater(
           `${channel}: a workspace's credentials could not be read`,
           `Tenant ${cmd.tenantId}, message ${payload.message_id}: ${unavailableError.message}. The reply has failed for good after ${tries} tries; its thread is flagged for a person.`,
         )
-        ?.catch(() => undefined);
+        .catch(() => undefined);
     throw new CertainFailure(
       `outbound_send: the ${channel} ${unbound ? "wire could not be bound" : "provider did not take it"} for ${resumes} fresh jobs in a row (${unavailableError.message})`,
       unbound
@@ -299,7 +299,7 @@ async function resendLater(
       `${channel}: a workspace's credentials could not be read`,
       `Tenant ${cmd.tenantId}, message ${payload.message_id}: ${unavailableError.message}. The reply stays queued; a fresh job tries again in ${Math.round(wait / MIN_MS)} min (${resumes + 1} of ${SEND_RETRY_WAITS_MS.length}).`,
     )
-    ?.catch(logAndGoOn("paging the platform"));
+    .catch(logAndGoOn("paging the platform"));
 }
 
 /** What a failed send owes: the platform paged for its own conditions, the thread flagged and the owner told. */

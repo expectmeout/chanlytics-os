@@ -257,7 +257,7 @@ export const UNKNOWN_KIND_GIVE_UP_MS = DAY_MS;
 export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null> {
   const { data, error } = await claimDueJob(db, leaseSeconds);
   if (error) throw new DbFailure(error, "claim_due_jobs");
-  const rows: LedgerRow[] = data ?? [];
+  const rows: LedgerRow[] = data;
   return rows[0] ?? null;
 }
 
@@ -277,7 +277,7 @@ export async function markSpoke(
   const at = new Date().toISOString();
   const { data, error } = await stampJobSpoke(db, job, at);
   if (error) throw new DbFailure(error, "mark_spoke");
-  if ((data?.length ?? 0) === 0) throw new Error("mark_spoke: this run no longer holds the job");
+  if (data.length === 0) throw new Error("mark_spoke: this run no longer holds the job");
   job.spoke_at = at;
 }
 
@@ -289,7 +289,7 @@ export async function markSpoke(
 export async function completeJob(db: Db, job: { id: string; attempts: number }): Promise<boolean> {
   const { data, error } = await swapFiredJob(db, job, { state: "done", lease_until: null });
   if (error) throw new DbFailure(error, "complete_job");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 export async function failJob(db: Db, job: { id: string; attempts: number }, reason: string): Promise<boolean> {
@@ -299,7 +299,7 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
     lease_until: null,
   });
   if (error) throw new DbFailure(error, "fail_job");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**
@@ -327,5 +327,5 @@ export async function deferJob(
     ...(giveBackClaim ? { attempts: Math.max(0, job.attempts - 1) } : {}),
   });
   if (error) throw new DbFailure(error, "defer_job");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }

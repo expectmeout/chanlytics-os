@@ -58,7 +58,7 @@ export function closuresAheadWords(
   tz: string,
   now: Date,
 ): ClosuresAheadVM {
-  const dated = (closures ?? []).filter((c) => !!c?.date);
+  const dated = (closures ?? []).filter((c) => !!c.date);
   const ahead = closuresFrom(dated, zoneDayKey(now.getTime(), tz));
   const next = ahead[0];
   if (!next) return { count: 0, line: null };
