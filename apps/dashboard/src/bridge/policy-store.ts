@@ -44,7 +44,9 @@ import { provided } from "./provided";
  */
 
 export type UiMode = "Auto" | "Veto" | "Ask" | "Never";
+// screen-word: the modes' ids, as a mode is filed: a page says UI_MODE_WORDS
 export const UI_MODES: readonly UiMode[] = ["Auto", "Veto", "Ask", "Never"];
+// screen-word: the modes' ids, as a mode is filed: a page says UI_MODE_WORDS
 const LABELS: Record<PolicyMode, UiMode> = { auto: "Auto", veto: "Veto", ask: "Ask", never: "Never" };
 
 /**
@@ -219,6 +221,8 @@ interface SeedStore {
  * Ask and Never are how a mode is FILED; what anyone reads is contracts' POLICY_MODE_WORDS (UI_MODE_WORDS, above), which the
  * installed store speaks in every session. Published as `POLICY` before the store is installed, where none is (a test's
  * stand-in is kept).
+ *
+ * screen-word: Auto, Veto, Ask and Never are the modes' ids, never shown on a page
  */
 export function seedPolicyStore(): SeedStore {
   type SeedRow = { id: string; label: string; note: string; def: string; chip: string; locked?: boolean };

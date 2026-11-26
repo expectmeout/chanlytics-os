@@ -64,6 +64,8 @@ export function offersLinkOn(
  * What a call says to do when there is a booking link and neither a WhatsApp line nor a texting line to send it by
  * (offersLinkOn): the details for the team, as a business with no link takes them, and the website where the caller
  * would rather book themselves.
+ *
+ * screen-word: told to AI, never shown on a page.
  */
 export const NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent by WhatsApp or by text, and this business has no WhatsApp line and no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
@@ -71,6 +73,8 @@ export const NO_WAY_TO_SEND_LINK = `Booking: the booking link can only be sent b
  * What a call says to do when there is a booking link and a WhatsApp line, the message that carries the link is not
  * approved by Meta yet (decision 0073, R14), and there is no texting line to send it by instead: as with no line, the
  * details for the team, and never a promised link.
+ *
+ * screen-word: told to AI, never shown on a page.
  */
 const NO_MESSAGE_FOR_LINK = `Booking: the booking link is sent as a WhatsApp message that is not approved yet, and this business has no texting line, so never use send_booking_link and never promise a link or a message. When the caller wants to book, change or cancel a booking, take ${NO_LINK_DETAILS}, and say the team will follow up. If they would rather book themselves and a website is listed above, they can book there.`;
 
@@ -86,6 +90,8 @@ export const cannotSendLink = (whatsappLine: string | null): string =>
  * WhatsApp is asked about first (decision 0073, R14): a caller who says no is never sent a message that cannot reach
  * them, and is sent a text where there is a line for it (the live walk's SET-2, 28 Oct 2026); the tool also texts by
  * itself when WhatsApp cannot carry it, and says so. With a texting line alone nothing is asked.
+ *
+ * screen-word: told to AI, never shown on a page.
  */
 export function callBookingLine(base: {
   booking_link: string | null;

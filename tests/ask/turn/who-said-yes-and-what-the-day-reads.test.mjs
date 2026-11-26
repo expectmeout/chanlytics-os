@@ -800,11 +800,11 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   );
   assert.deepEqual(said.right_now, { title: vm.rightNow.title, detail: vm.rightNow.detail });
   assert.ok(
-    said.about.some((a) => /^Added: .* · from your calendar \(Local move\)$/.test(a)),
+    said.about.some((a) => /^Added: .* · from the calendar \(Local move\)$/.test(a)),
     `where she came from, which the tool's own read never said: ${said.about}`,
   );
   assert.ok(
-    said.timeline.some((i) => i.kind === "system" && i.text === "Added from your calendar (Local move)") &&
+    said.timeline.some((i) => i.kind === "system" && i.text === "Added from the calendar (Local move)") &&
       said.timeline.some((i) => i.kind === "consent"),
     "and on the timeline, with the yes she gave",
   );

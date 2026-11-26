@@ -64,6 +64,8 @@ export function visitLine(
  * name alone says so, so the receptionist confirms it is them before it
  * reads details back. With no booking link to send (the first run's
  * decision 2), a change goes to the team.
+ *
+ * screen-word: told to AI, never shown on a page.
  */
 export function describeVisits(
   visits: Visits,
@@ -81,7 +83,7 @@ export function describeVisits(
   if (visits.last) {
     const l = visits.last;
     out.push(
-      `Their last visit on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`,
+      `Their last appointment on the calendar: ${dateFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(l.start))} (${l.title}).`,
     );
   }
   return out.length ? out.join(" ") : null;

@@ -56,6 +56,7 @@ export type AwayQueueRef =
  * `about` and its door is `outbound`, so the run's own name is the one thing every such row shares with the queue's row
  * about the same run.
  */
+// screen-word: the titles of rows kept before 9 Oct 2026, matched and never written
 const readyRunTitles = (label: string) => [`Campaign “${label}” is ready`, `Playbook “${label}” is ready`];
 
 export interface AwayGroupVM<T extends AwayRowLike> {
