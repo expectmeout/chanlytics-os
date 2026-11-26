@@ -275,7 +275,7 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
     workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor({ ...tables, tenants: [] })),
     "forbidden",
     403,
-    "could not be changed",
+    "can't be changed from here",
   );
 });
 
@@ -347,7 +347,7 @@ test("what a workspace calls a booking: the owner's, one of the five, only what 
     workspaces.PATCH.run(send("PATCH", { appointment_word: "meeting" }, inB), ctxFor({ ...tables, tenants: [] })),
     "forbidden",
     403,
-    "What that workspace calls a booking could not be changed.",
+    "What that workspace calls a booking can't be changed from here.",
   );
 });
 

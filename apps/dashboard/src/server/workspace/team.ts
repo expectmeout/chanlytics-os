@@ -59,6 +59,8 @@ const teamDb = (): SupabaseClient<Database> => serviceDb();
 
 /** The one sentence for a change that would leave the workspace with no owner: team_change_role's and team_remove's refusal (last_owner), and 00271's trigger's behind it. */
 const ONLY_OWNER = "This is the only owner. Promote someone else first.";
+/** What a person is told when the invitation email didn't go: the mail provider's own words go to the log. */
+const INVITE_EMAIL_UNSENT = "Couldn't send the invitation email just now. Try again in a few minutes.";
 
 interface TeamMember {
   membership_id: string;
@@ -214,7 +216,8 @@ export async function inviteMember(
         code: withdrawn.error.code ?? null,
         error: withdrawn.error.message,
       });
-    throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
+    log.error("team_invite_email_failed", { tenant_id: tenantId, error: mailErr.message });
+    throw new AppError("upstream_email", INVITE_EMAIL_UNSENT, 502);
   }
   return { invited: true as const };
 }
@@ -315,7 +318,8 @@ export async function resendInvite(
       `${email} has an account now. Revoke this invitation and invite them again: they join at once.`,
       409,
     );
-  throw new AppError("upstream_email", `We could not send the invitation email: ${mailErr.message}`, 502);
+  log.error("team_invite_email_failed", { tenant_id: tenantId, error: mailErr.message });
+  throw new AppError("upstream_email", INVITE_EMAIL_UNSENT, 502);
 }
 
 /**

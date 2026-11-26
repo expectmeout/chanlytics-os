@@ -424,12 +424,12 @@ export async function resetPlatformPartnerSecondFactor(
       }
       const userId = factorReset.value;
       const { data, error } = await listSecondFactors(svc, userId);
-      if (error) throw new AppError("upstream_auth", "Could not reach sign-in just now. Try again in a moment.", 503);
+      if (error) throw new AppError("upstream_auth", "Couldn't reach sign-in just now. Try again in a moment.", 503);
       let removed = 0;
       for (const f of data?.factors ?? []) {
         const gone = await deleteSecondFactor(svc, userId, f.id);
         if (gone.error)
-          throw new AppError("upstream_auth", "Could not remove the authenticator. Try again in a moment.", 503);
+          throw new AppError("upstream_auth", "Couldn't remove the authenticator. Try again in a moment.", 503);
         removed += 1;
       }
       return { removed };
@@ -478,11 +478,12 @@ async function requeueOnce(
     case "not_found":
       throw new AppError("not_found", "That job does not exist in that workspace.", 404);
     case "not_failed":
+      // screen-word: a refusal staff read on the Console, where the code's words are allowed
       throw new AppError("conflict", `That job is ${result.state}, not failed: only a failed job is run again.`, 409);
     case "speaks_to_a_person":
       throw new AppError(
         "conflict",
-        "A send is never run again from here: it may have reached the person. Send it again from its thread or its broadcast.",
+        "A send is never run again from here: it may have reached the person. Send it again from its conversation or its campaign.",
         409,
       );
     case "unknown_kind":
@@ -492,6 +493,7 @@ async function requeueOnce(
         409,
       );
     case "redrive":
+      // screen-word: a refusal staff read on the Console, where the code's words are allowed
       throw new AppError(
         "conflict",
         `An event's delivery goes again with its subscriber, once the subscriber is mended: event_deliveries_redrive('${result.subscriber}') replays every failed or paused delivery of it, each once.`,
