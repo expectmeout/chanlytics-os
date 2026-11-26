@@ -87,6 +87,13 @@ export const ACTIVITY_SUBJECT_HOMES = {
     none: "a post is its piece's: Files and the week say where each post stands, and a post has no page of its own",
   },
   plan_slot: { none: "a week's slot is its week's: Content draws the week, and a slot has no page of its own" },
+  // What a fact door's own event (00723) can be about, where no page opens it.
+  piece: { none: "a video's making is its file's: Files draws it, and a piece has no page of its own" },
+  file: { none: "a business's file is kept on Settings › Files, and the row does not open one file there" },
+  content_plan: { none: "a week's plan is Content's: the week draws it, and a plan has no page of its own" },
+  comment_answer: { none: "an answer to a comment is the comment's: the row does not know the post it is under" },
+  form: { none: "a website form is kept on the Forms page, and the row does not open one form there" },
+  form_entry: { none: "a website entry is its person's: the row does not know the person yet" },
 } as const satisfies Record<string, SubjectHome>;
 
 /**
