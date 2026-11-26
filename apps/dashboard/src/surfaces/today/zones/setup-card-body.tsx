@@ -81,11 +81,11 @@ function ticks(title: string, lines: readonly string[], testid: string): ReactNo
  * What the card knows beyond Setup: the business's name, and how the receptionist sounds where the settings read is
  * already in (never read for the card alone: Today does not draw Settings).
  */
-function setupWhoOf(S: SetupSurface): SetupCardWho {
+function setupWhoOf(setup: SetupSurface): SetupCardWho {
   const read = surfaceValue("settings");
   const cfg = read && read.settings ? read.settings.config : null;
   const profile = cfg && cfg.brain ? cfg.brain.profile : null;
-  return { business: S.dto.business.name, sounds: profile ? FIRST_RUN_HELPERS.sounds(profile) : null };
+  return { business: setup.dto.business.name, sounds: profile ? FIRST_RUN_HELPERS.sounds(profile) : null };
 }
 
 /**
@@ -193,14 +193,14 @@ function remindRow(
 
 /** After: Setup's own optional rows, each with its Skip, and the reminder's row under them. */
 function optionalRows(
-  S: SetupSurface,
+  setup: SetupSurface,
   card: SetupCardVM,
   flash: (flash: Flash) => void,
   { tail, quiet, skip }: { tail: ReactNode; quiet: boolean; skip: (id: string) => ReactNode },
 ) {
   return (
     <SetupRows
-      S={S}
+      S={setup}
       rows={card.rows}
       look="card"
       // The first row's act is the coral while nobody waits, as the first run's row is (startRow); while someone does, the

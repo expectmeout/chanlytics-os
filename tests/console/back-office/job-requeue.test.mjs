@@ -131,7 +131,7 @@ test("only a failed job is run again: one still waiting, running or done is refu
   }
 });
 
-test("work that speaks to a person is never run again from here: it may have reached them, and goes again from its thread or its broadcast", async () => {
+test("work that speaks to a person is never run again from here: it may have reached them, and goes again from its conversation or its campaign", async () => {
   for (const kind of ["outbound_send", "broadcast_send"]) {
     const l = ledger({ kind, payload: { message_id: "m-1", broadcast_id: "b-1" } });
     await assert.rejects(

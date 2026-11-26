@@ -28,7 +28,7 @@ const PARTNER_STATE_WORDS: Record<WorkspacePartnerState, string> = {
   waiting: "Invitation waiting",
   declined: "Invitation declined",
   expired: "Invitation expired",
-  partner: "Your partner",
+  partner: "Partner",
 };
 const partnerWords = (vm: WorkspacePartnerVM): string =>
   vm.state === "partner" && !vm.seated ? "Former partner" : PARTNER_STATE_WORDS[vm.state];

@@ -16,7 +16,7 @@
 export const VISION_MAX_BYTES = 4 * 1024 * 1024;
 
 /** What the API accepts as an image block. */
-export const VISION_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+const VISION_MIMES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 export function isVisionMime(mime: string | null | undefined): mime is string {
   if (!mime) return false;

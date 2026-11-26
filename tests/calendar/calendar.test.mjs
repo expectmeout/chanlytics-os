@@ -278,7 +278,7 @@ test("without a feed the board still shows the hours and says so; a feed that co
     }),
     new Date("2026-09-08T16:00:00.000Z"),
   );
-  assert.equal(down.feed.line, "Your calendar couldn't be read · updated 4h ago");
+  assert.equal(down.feed.line, "Couldn't load the calendar · updated 4h ago");
   const noHours = toCalendarVM(dto({ hours: null }), new Date("2026-09-08T16:00:00.000Z"));
   assert.deepEqual(noHours.hours, { start: 7, end: 21 }, "no hours on file: a plain working day, with air");
   // No hours on file is hours not set, never a week closed (the Calendar's lane B): every day read as Closed, and the
@@ -433,7 +433,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   );
   const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   assert.ok(
-    dayModule.includes('if (!C || !C.vm || C.vm.feed.state !== "ok") return null;') &&
+    dayModule.includes('if (!calendar || !calendar.vm || calendar.vm.feed.state !== "ok") return null;') &&
       !dayModule.includes('data-testid="today-day"'),
     "Today reads the day from the calendar once, for the strip and the brief (no pane of its own since canvas E3), and a feed that is not ok is no day",
   );

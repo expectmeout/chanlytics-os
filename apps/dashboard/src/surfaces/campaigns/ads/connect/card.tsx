@@ -16,7 +16,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Panel } from "../../../kit/panel/panel";
 import { routeDoor } from "../../../frame-verbs";
-import type { CheckVM, ConnectCardVM, NeedAct, NeedVM } from "./card-model";
+import type { CardFactVM, CheckVM, ConnectCardVM, NeedAct, NeedVM } from "./card-model";
 import { CARD, QUESTION } from "./words";
 import { META_TAB } from "../live/words";
 
@@ -75,7 +75,7 @@ export function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => v
 }
 
 /** The checks as lines, each with its dot: turning while it is not known yet. */
-export function CardChecks({ checks, neededFor }: { checks: readonly CheckVM[]; neededFor: boolean }) {
+export function CardChecks({ checks }: { checks: readonly CheckVM[] }) {
   return (
     <ul className="ads-conn-checks" data-testid="ads-conn-checks">
       {checks.map((check) => (
@@ -87,17 +87,16 @@ export function CardChecks({ checks, neededFor }: { checks: readonly CheckVM[]; 
             aria-hidden="true"
           />
           <span className="ads-conn-check">{check.label}</span>
-          {neededFor ? <span className="ads-conn-for">{check.neededFor}</span> : null}
         </li>
       ))}
     </ul>
   );
 }
 
-/** Who Meta charges, the Page, and Meta's own limit, as a list of what and which. */
-export function CardFacts({ facts }: { facts: ConnectCardVM["facts"] }) {
+/** Who Meta charges, the Page, and Meta's own limit (or where people reach the business), as a list of what and which. */
+export function CardFacts({ facts, testid = "ads-conn-facts" }: { facts: readonly CardFactVM[]; testid?: string }) {
   return (
-    <dl className="ads-conn-facts" data-testid="ads-conn-facts">
+    <dl className="ads-conn-facts" data-testid={testid}>
       {facts.map((fact) => (
         <div key={fact.label}>
           <dt>{fact.label}</dt>
@@ -110,6 +109,7 @@ export function CardFacts({ facts }: { facts: ConnectCardVM["facts"] }) {
                 {fact.door.words}
               </LinkButton>
             ) : null}
+            {fact.note ? <span className="ads-conn-note">{fact.note}</span> : null}
           </dd>
         </div>
       ))}
@@ -188,10 +188,58 @@ interface ConnectCardProps {
   title: string;
   /** AI stopped with ads still on, where the card says it (live/stop-notice.tsx). */
   stop?: ReactNode;
+  /**
+   * The card says only its head while nothing needs the owner (the Ads page): connected, every check met, read lately.
+   * Who Meta charges, the Page and Meta's limit are in what its caret opens (card-sheet.tsx).
+   */
+  folded?: boolean;
+}
+
+/** Whether a folded card has nothing past its head to say: connected, ready, up to date, and nothing to answer. */
+export const saysOnlyItsHead = (vm: ConnectCardVM, stop: ReactNode): boolean =>
+  vm.state === "connected" && !vm.need && !vm.question && !vm.ready && !vm.stale && !stop;
+
+/**
+ * Where the ad account stands, as one quiet press at the end of the Ads page's figures, where the card has nothing past its
+ * head to say (Ruben, 25 Nov 2026: the card folded at the page's foot became this): its dot and its word, and the caret that
+ * opens the card whole, as the head's own caret does.
+ */
+export function CardAt({ vm, title, onOpen }: { vm: ConnectCardVM; title: string; onOpen: () => void }) {
+  return (
+    <Button
+      variant="quiet"
+      size="sm"
+      className="ads-conn-at"
+      aria-label={`${title}. ${CARD.caret}`}
+      onClick={onOpen}
+      data-testid="ads-conn-at"
+    >
+      <span className="ads-dot" data-state={DOT[vm.state]} aria-hidden="true" />
+      {vm.word}
+      <Icon name="chevron-down" size={12} />
+    </Button>
+  );
 }
 
 /** The ad account's card. */
-export function ConnectCard({ vm, acts, title, stop = null }: ConnectCardProps) {
+export function ConnectCard({ vm, acts, title, stop = null, folded = false }: ConnectCardProps) {
+  if (folded && saysOnlyItsHead(vm, stop))
+    return (
+      <Panel
+        as="section"
+        className="ads-conn"
+        aria-label={title}
+        data-state={vm.state}
+        data-folded
+        data-testid="ads-conn"
+      >
+        <div className="ads-conn-head">
+          <span className="ads-dot" data-state={DOT[vm.state]} aria-hidden="true" />
+          <b>{title}</b>
+          <CardWord vm={vm} onOpen={acts.open} />
+        </div>
+      </Panel>
+    );
   return (
     <Panel as="section" className="ads-conn" aria-label={title} data-state={vm.state} data-testid="ads-conn">
       <div className="ads-conn-head">
@@ -211,7 +259,7 @@ export function ConnectCard({ vm, acts, title, stop = null }: ConnectCardProps) 
       ))}
       {vm.state === "checking" ? (
         <>
-          <CardChecks checks={vm.checks} neededFor={false} />
+          <CardChecks checks={vm.checks} />
           <p className="ads-conn-says">{vm.quiet}</p>
         </>
       ) : null}

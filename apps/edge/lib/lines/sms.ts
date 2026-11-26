@@ -9,7 +9,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
-import type { LineSecrets, ProviderAccount } from "@chanlytics/channels/lines";
+import type { ProviderAccount } from "@chanlytics/channels/lines";
 import type { ProviderReply } from "@chanlytics/channels/shared";
 import type { SendResult } from "@chanlytics/channels/whatsapp";
 import { answerObject } from "@chanlytics/channels/shared";
@@ -17,7 +17,7 @@ import { smsStatusUrl, smsRefusalOf, requestTwilio } from "@chanlytics/channels/
 import { lineProviderFromEnv } from "./lines.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { logger, errField, logFailure, type Logger } from "../shared/log.js";
-import { phoneTail, type EdgeRefusal, DbFailure } from "@chanlytics/contracts";
+import { phoneTail, type EdgeRefusal, DbFailure, valueAt } from "@chanlytics/contracts";
 import { isWireUnavailable, wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { findLineByE164, findTextingLineOf, getLineCredentials, putLineCredentials } from "@chanlytics/db/lines";
 import { asJson } from "@chanlytics/db/shared";
@@ -49,8 +49,8 @@ export async function findLineAccount(db: Db, line: SmsLine): Promise<ProviderAc
   if (!line.subaccount_sid) return null;
   const { data, error } = await getLineCredentials(db, line.id);
   if (error) throw new DbFailure(error, "reading the line's credentials");
-  const s = (data && typeof data === "object" && !Array.isArray(data) ? data : {}) as LineSecrets;
-  return s.auth_token ? { sid: line.subaccount_sid, token: s.auth_token } : null;
+  const authToken = valueAt(data, "auth_token");
+  return typeof authToken === "string" && authToken ? { sid: line.subaccount_sid, token: authToken } : null;
 }
 
 /**

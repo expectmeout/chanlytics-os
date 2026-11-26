@@ -588,7 +588,7 @@ const btZoneDoor = btWorkspaceDoor({
     const tz = tzApi();
     return (
       <>
-        Your day is measured in <b>{tz && tz.city ? tz.city(r.tz) : r.tz}</b> now.
+        Days now run on <b>{tz && tz.city ? tz.city(r.tz) : r.tz}</b> time.
       </>
     );
   },

@@ -706,7 +706,7 @@ test("the campaign's status is read from the list Twilio answers with, and a wai
   // held for a person for ever -- on a code path whose own comment says it
   // exists to end exactly that.
   assert.ok(!/campaign\?\.campaign_status/.test(edge), "REGRESSION: the top-level read is always null");
-  assert.ok(edge.includes("Array.isArray(campaign?.compliance)") && edge.includes("usa2p?.campaign_status"));
+  assert.ok(edge.includes("listOrEmpty(campaign?.compliance)") && edge.includes("usa2p?.campaign_status"));
   // Twilio, not our column, is the authority on whether the filing it holds is
   // a rehearsal -- so a refile that made it real is recorded without anyone
   // remembering to.

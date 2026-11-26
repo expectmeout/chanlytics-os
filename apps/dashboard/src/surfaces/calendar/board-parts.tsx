@@ -13,6 +13,7 @@ import {
   BOOKING_TOOL_WORDS,
   CALENDAR_SETTING_ROUTE,
   CALENDAR_SHOW_WORDS as SHOW,
+  CALENDAR_UNLOADED,
   addressOf,
   bookingEmailsHeldWords,
   bookingEmailsStep,
@@ -402,7 +403,7 @@ function unreadNotice(p: NoticeProps): NoticeVM {
     id: "feed",
     fact: (
       <>
-        <b>{"Your calendar couldn't be read."}</b> {why}
+        <b>{`${CALENDAR_UNLOADED}.`}</b> {why}
         {until}
       </>
     ),
@@ -411,7 +412,7 @@ function unreadNotice(p: NoticeProps): NoticeVM {
         {p.refreshing ? "Retrying…" : "Retry"}
       </Button>
     ),
-    label: "Your calendar couldn't be read.",
+    label: `${CALENDAR_UNLOADED}.`,
   };
 }
 

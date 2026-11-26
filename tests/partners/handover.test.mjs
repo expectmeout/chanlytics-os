@@ -147,7 +147,7 @@ test("the invitation an account is sent: who set up what, what accepting means, 
     signInUrl: "https://app.example.com/login?email=owner%40luna.example",
   });
   assert.equal(m.subject, "ada-co set up Luna Studio on Chanlytics for you");
-  assert.match(m.body, /^ada-co set Luna Studio up for you\. Accept to become its owner/);
+  assert.match(m.body, /^ada-co set Luna Studio up for you\. Accept to own it/);
   assert.match(
     m.body,
     /Sign in to accept it or decline it: https:\/\/app\.example\.com\/login\?email=owner%40luna\.example/,

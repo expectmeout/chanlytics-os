@@ -477,10 +477,10 @@ test("a stylesheet's @media rules are read with its comments aside, and a script
   assert.deepEqual(stringsIn(sf).flatMap(mediaWidths), [760, 720, 640, 720]);
 });
 
-test("the set is the one tokens.css writes: a phone's width, a narrow screen's and a small desk's", () => {
+test("the set is the one tokens.css writes: a small phone's, a phone's, a narrow screen's, Reports' wide one and a small desk's", () => {
   assert.deepEqual(
     [...breakpointSet()].sort((a, b) => a - b),
-    [720, 900, 1280],
+    [360, 720, 900, 1180, 1280],
   );
 });
 

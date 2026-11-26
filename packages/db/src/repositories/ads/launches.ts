@@ -6,7 +6,7 @@
  * is written and nothing is wrong (either deploy order).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, finiteOrZero, nonEmptyOrNull, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
 import type { Database, Json } from "../../types";
@@ -22,7 +22,6 @@ export interface AdTurnOnKept {
 }
 
 const TURN_ON_OUTCOMES = ["kept", "same", "not_allowed", "not_connected", "stopped", "busy", "stale"] as const;
-const launchTextOf = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 
 /**
  * An owner's Turn on (ad_turn_on, 00666, 00710): the kept draft, as the press judged it, becomes the ad, setting up, with
@@ -47,7 +46,7 @@ export async function keepTurnOn(
   const answer = recordOrEmpty(data);
   const outcome = TURN_ON_OUTCOMES.find((one) => one === answer.outcome);
   if (!outcome) throw new Error("ad_turn_on answered no outcome");
-  return { outcome, adId: launchTextOf(answer.ad_id), approvalId: launchTextOf(answer.approval_id) };
+  return { outcome, adId: nonEmptyOrNull(answer.ad_id), approvalId: nonEmptyOrNull(answer.approval_id) };
 }
 
 /** One part a launch made, sent or left, as its door keeps it. */
@@ -101,8 +100,8 @@ export async function keepAdLaunch(
   if (error) throw new DbFailure(error, "ad_launch_keep");
   const answer = recordOrEmpty(data);
   return {
-    status: launchTextOf(answer.status) ?? "not_found",
-    intent: launchTextOf(answer.intent) ?? "on",
+    status: nonEmptyOrNull(answer.status) ?? "not_found",
+    intent: nonEmptyOrNull(answer.intent) ?? "on",
     cancelled: launchCancelledOf(answer.launch),
   };
 }
@@ -171,8 +170,7 @@ export async function keepAdWayIns(
     throw new DbFailure(error, "ad_way_in_keep");
   }
   const answer = recordOrEmpty(data);
-  const count = (value: unknown): number => (typeof value === "number" ? value : 0);
-  return { moved: count(answer.moved), rung: count(answer.rung), closed: count(answer.closed) };
+  return { moved: finiteOrZero(answer.moved), rung: finiteOrZero(answer.rung), closed: finiteOrZero(answer.closed) };
 }
 
 /** A launch still on its way: the ad, what was approved, where its launch stands, and what it has made so far. */

@@ -17,7 +17,7 @@ what the script writes.
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
 | [`ad_accounts`](#ad_accounts) | `packages/db/src/repositories/ads/accounts.ts` | on, 1 policy |
-| [`ad_days`](#ad_days) | none | on, 1 policy |
+| [`ad_days`](#ad_days) | `packages/db/src/repositories/ads/engaged.ts` | on, 1 policy |
 | [`ad_drafts`](#ad_drafts) | `packages/db/src/repositories/ads/drafts.ts` | on, 1 policy |
 | [`ad_entries`](#ad_entries) | `packages/db/src/repositories/ads/entries.ts`, `packages/db/src/repositories/content/touches.ts` | on, 1 policy |
 | [`ad_objects`](#ad_objects) | `packages/db/src/repositories/ads/launches.ts` | on, 1 policy |
@@ -172,7 +172,7 @@ what the script writes.
 | [`tenant_config`](#tenant_config) | `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/rows.ts` | on, 2 policies |
 | [`tenant_config_versions`](#tenant_config_versions) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`tenants`](#tenants) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/stranded-runs.ts`, `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/console/health.ts`, `packages/db/src/repositories/console/ops.ts`, `packages/db/src/repositories/console/staff.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/look/look.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/rows.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 2 policies |
-| [`touches`](#touches) | `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts` | on, 1 policy |
+| [`touches`](#touches) | `packages/db/src/repositories/ads/engaged.ts`, `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts` | on, 1 policy |
 | [`voice_agents`](#voice_agents) | `packages/db/src/repositories/facts/rehearsals.ts` | on, no policy, so only the service role reaches it |
 | [`waitlist`](#waitlist) | `packages/db/src/repositories/workspace/waitlist.ts` | on, no policy, so only the service role reaches it |
 | [`web_push_subscriptions`](#web_push_subscriptions) | `packages/db/src/repositories/notices/browsers.ts` | on, 1 policy |
@@ -235,7 +235,7 @@ Foreign keys:
 
 The platform's day for one ad, in the account's own zone (decision 0049 call 3, 00648): what it spent, in whole minor units of the account's currency, how often it was shown and tapped, and the platform's own count of what the ad asks for. The platform's half only: who an ad brought and who booked are worked out from contacts and the visits record at each read and kept nowhere. Kept 25 months. Members read; the read's door writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/ads/engaged.ts`
 - Primary key: `ad_id`, `day`
 - Row-level security: on, 1 policy
 
@@ -250,6 +250,7 @@ The platform's day for one ad, in the account's own zone (decision 0049 call 3, 
 | `platform_results` | bigint | yes |  |  |
 | `read_at` | timestamp with time zone | no | `now()` |  |
 | `settled` | boolean | no | `false` | Whether the platform's numbers for the day have stopped moving. A platform keeps correcting a day for about two weeks, so a figure with an unsettled day in it says "so far" (contracts adCostRule). |
+| `engaged` | jsonb | yes |  | What the day of the ad did as the platform counts it (00719): {plays, engaged, comments, reactions, saves, shares}, each a whole number, a part the platform gave none of left out; null where the read gave none. Theirs, labelled as theirs: never added to Chanlytics' count of people. |
 
 Foreign keys:
 
@@ -5260,7 +5261,7 @@ Foreign keys:
 
 A known person's reply, comment, reply to a story or coded first message, about a post or through a link (00699; the content loop PRD's Appendix A.1, A.3, A.5): one row per event, once per place by the place's own id. Events, never edited, written by post_comment_keep and touches_keep. The business's own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.
 
-- Owned by: `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`
+- Owned by: `packages/db/src/repositories/ads/engaged.ts`, `packages/db/src/repositories/content/comments.ts`, `packages/db/src/repositories/content/touches.ts`, `packages/db/src/repositories/conversations/thread/post-touch.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -5268,7 +5269,7 @@ A known person's reply, comment, reply to a story or coded first message, about 
 | --- | --- | --- | --- | --- |
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
-| `subject_type` | text | no |  |  |
+| `subject_type` | text | no |  | What was touched: a post Chanlytics sent, a link, or an ad this workspace holds (00719: a comment Meta says was left on an ad). A message that came from an ad lives in ad_entries, a form's entry in form_entries. |
 | `subject_id` | uuid | no |  |  |
 | `kind` | text | no |  |  |
 | `contact_id` | uuid | yes |  |  |

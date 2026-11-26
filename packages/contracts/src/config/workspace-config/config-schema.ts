@@ -63,7 +63,7 @@ export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
  * write with. Nothing is ever booked from here; the booking link does that,
  * whichever tool is behind it.
  */
-export const CalendarConfigSchema = z
+const CalendarConfigSchema = z
   .object({
     ical_url: z
       .string()

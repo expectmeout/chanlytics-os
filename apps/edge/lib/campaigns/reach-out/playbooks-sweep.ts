@@ -52,6 +52,7 @@ import {
   runDaysAt,
   runTooLate,
   skippedRunNotice,
+  valueAt,
 } from "@chanlytics/contracts";
 import { handOutPlans, startWeeksMaking } from "@chanlytics/db/files";
 import { notify } from "../../shared/alerts/notify.js";
@@ -140,7 +141,7 @@ async function tellSkipped(
   log: Logger,
   now: Date,
 ) {
-  const about = row.audience && typeof row.audience === "object" ? (row.audience as { label?: unknown }).label : null;
+  const about = valueAt(row.audience, "label");
   const name = typeof about === "string" && about ? about : row.name;
   // Its moment, as the run kept it: a visit's people are not in line for a later batch, and the notice says so; a freed
   // time's says the time it offered; a late booking's reminder says nothing later sends it (0118).

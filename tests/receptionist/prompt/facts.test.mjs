@@ -61,7 +61,7 @@ test("the live workspace: the published number is the transfer number, and that 
   // It knows the published number IS the transfer number, so it says the thing
   // that is actually true rather than a generic mismatch warning.
   assert.match(worst.sentence, /the number it transfers to/);
-  assert.match(worst.sentence, /never AI answering on \+1 \(305\) 555-0123/);
+  assert.match(worst.sentence, /never AI on \+1 \(305\) 555-0123/);
   assert.equal(worst.to, "admin/workspace");
 });
 
@@ -136,8 +136,7 @@ test("F1: a transfer number that forwards back to AI is a loop, said on the tran
     conflicts.map((c) => [c.fact, c.severity, c.known, c.known_source, c.to]),
     [["handoff_number", "serious", "+1 (212) 555-0142", "provisioned", "admin/workspace/handoff_number"]],
   );
-  assert.match(conflicts[0].sentence, /through to \+1 \(212\) 555-0142, which forwards the calls nobody picks up back/);
-  assert.match(conflicts[0].sentence, /they would come straight back/);
+  assert.match(conflicts[0].sentence, /go to \+1 \(212\) 555-0142, which sends unanswered calls back to AI/);
 
   // A transfer number that is not the kept one is no loop, and forwarding that reaches another line keeps nothing.
   const elsewhere = resolveFacts(
@@ -277,7 +276,7 @@ test("the field that caused this says what it is", () => {
   // And not a text box at all any more: the line is the default, and publishing
   // anything else is a deliberate act with a reason shown under it.
   assert.ok(
-    /\{ value: "line", label: "Your line" \},\s*\{ value: "other", label: "A different number" \}/.test(pane),
+    /\{ value: "line", label: "Your number" \},\s*\{ value: "other", label: "A different number" \}/.test(pane),
     "two options, the line first",
   );
 
@@ -359,7 +358,7 @@ test("Setup stops saying ready while a customer-facing fact is wrong", async () 
   );
   assert.equal(factsRow.verb.label, "Fix it in Business");
   // "Answering" and "answering correctly" are different claims.
-  assert.match(flagged.readiness.sentence, /never AI answering on \+1 \(305\) 555-0123/);
+  assert.match(flagged.readiness.sentence, /never AI on \+1 \(305\) 555-0123/);
   assert.ok(flagged.done < clean.done, "and the count of what is ready goes down, which is the point");
 });
 
