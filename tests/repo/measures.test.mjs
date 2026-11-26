@@ -83,6 +83,39 @@ test("a source read through a helper of the file's own counts, a shadowing name 
   assert.equal(sourceReads(sf), 2);
 });
 
+// A readFileSync of source written where it reads is as much a read as one through a helper: it went uncounted until 26
+// Nov 2026 (round one of lane 4 found twelve files). The path the call names last decides, by its literal or the value a
+// name is bound to; generated output, data, a migration a database suite replays and a script run in vm are not read.
+test("a direct readFileSync of source counts, by its literal or a name bound to one; generated output, data, a replayed migration and a script run in vm do not", () => {
+  const sf = source(`
+    import fs from "node:fs";
+    const ROOT = path.resolve(here, "../..");
+    const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
+    const { OUT } = await import(at("tooling/scripts/gen/inbound-gates.mjs"));
+    const a = fs.readFileSync(path.join(ROOT, "apps/dashboard/proxy.ts"), "utf8");
+    const b = fs.readFileSync(path.join(ROOT, KIT_CSS), "utf8");
+    const c = readFileSync(path.join(dir, action, "route.ts"), "utf8");
+    const d = fs.readFileSync(path.join(ROOT, "supabase/schema.sql"), "utf8");
+    const e = fs.readFileSync(path.join(ROOT, \`packages/contracts/dist/\${entry}.js\`), "utf8");
+    const f = fs.readFileSync(path.join(ROOT, "tests/route-policy.json"), "utf8");
+    const g = fs.readFileSync(path.join(ROOT, OUT), "utf8");
+    const h = fs.readFileSync(path.join(ROOT, "supabase/migrations/00439_the_business_has_one_name.sql"), "utf8");
+    const i = fs.readFileSync(path.join(dir, files.find((x) => x.endsWith(".sql"))), "utf8");
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT, "apps/dashboard/public/sw.js"), "utf8"), { self });
+    const j = new vm.Script(fs.readFileSync(path.join(ROOT, "apps/dashboard/public/sw.js"), "utf8"));
+  `);
+  assert.equal(
+    sourceReads(sf),
+    4,
+    "proxy.ts, kit.css by its name, route.ts, and the migration a plain test reads: a script run in vm is the run",
+  );
+  const replayed = source(
+    `const m = fs.readFileSync(path.join(ROOT, "supabase/migrations/00439_the_business_has_one_name.sql"), "utf8");`,
+    "public/the-business-has-one-name.db.test.mjs",
+  );
+  assert.equal(sourceReads(replayed), 0, "a database suite runs the migration's own statements: the read is the run");
+});
+
 test("a set's numbers are a record: its keys may only go, its numbers follow the measure", () => {
   const was = { __A: 2, __B: 5, __GONE: 1 };
   const now = { __A: 4, __B: 1, __NEW: 1 };

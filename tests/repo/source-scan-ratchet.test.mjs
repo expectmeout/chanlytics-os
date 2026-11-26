@@ -33,8 +33,9 @@ test("the rule tests outside tests/repo/ are a handful of repo-wide lints, each 
   // The list is the part that rots. A file belongs in it only if it asserts a policy ACROSS the repo -- "every write
   // names a workspace", "every switch the edge reads is listed with an owner and a day" -- and lives beside the domain
   // it holds; never because pinning one module's text was convenient. Four since 25 Nov 2026, when the rest of the
-  // rules were found where they live, under tests/repo/. Growth is a line of _measures.mjs in review.
-  assert.ok(RULE_TESTS_ELSEWHERE.length <= 4, `${RULE_TESTS_ELSEWHERE.length} rule tests outside tests/repo/`);
+  // rules were found where they live, under tests/repo/, and three since 26 Nov, when edge/runtime-freshness ran what it
+  // read. Growth is a line of _measures.mjs in review.
+  assert.ok(RULE_TESTS_ELSEWHERE.length <= 3, `${RULE_TESTS_ELSEWHERE.length} rule tests outside tests/repo/`);
   for (const f of RULE_TESTS_ELSEWHERE) {
     assert.ok(
       fs.existsSync(path.join(ROOT, TESTS_DIR, f)),
