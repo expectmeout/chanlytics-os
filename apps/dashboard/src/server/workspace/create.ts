@@ -17,6 +17,7 @@ import {
   WORKSPACE_MARKS,
   isOneOf,
   DbFailure,
+  heldTenantId,
 } from "@chanlytics/contracts";
 import { createWorkspaceFn, getMembershipCount, setSetupChoices } from "@chanlytics/db/workspace";
 import { z } from "zod";
@@ -103,7 +104,12 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
 
   // What follows every workspace made, in one place (recordWorkspaceBegun): the platform's notice, the creator's address
   // as its first alert address, and sign-up's answers cleared.
-  await recordWorkspaceBegun(ctx, data.id, { by: "created", notify: ctx.email ?? "", alertTo: ctx.email ?? null });
+  // The function answers the new workspace's own id.
+  await recordWorkspaceBegun(ctx, heldTenantId(data.id), {
+    by: "created",
+    notify: ctx.email ?? "",
+    alertTo: ctx.email ?? null,
+  });
 
   // Returned in the same shape /api/v1/workspaces lists, so the client can put
   // it straight into its workspace list without a second round trip.

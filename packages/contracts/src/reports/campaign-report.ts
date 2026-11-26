@@ -53,9 +53,8 @@ export interface CampaignReportDto {
   days: number;
   span_days: number;
   today: string;
-  /* campaign_series answers both (the days whole, the sources coalesced); a report built by hand may leave one out. */
-  series?: CampaignDayDto[];
-  sources?: CampaignSourceDto[];
+  series: CampaignDayDto[];
+  sources: CampaignSourceDto[];
   /** The current period by channel, the most sent first (0030); absent from a database before it. */
   by_channel?: CampaignChannelDto[];
   error?: string;
@@ -227,7 +226,14 @@ function channelsLine(channels: readonly CampaignChannelVM[]): string | null {
     : "A text or an email keeps no read receipt.";
 }
 
-export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
+/**
+ * A campaign report as the view model reads it: campaign_series answers both its days (whole) and its sources
+ * (coalesced), but a report built by hand may leave one out, and it reads as none.
+ */
+type CampaignReportAsRead = Omit<CampaignReportDto, "series" | "sources"> &
+  Partial<Pick<CampaignReportDto, "series" | "sources">>;
+
+export function toCampaignReportVM(dto: CampaignReportAsRead): CampaignReportVM {
   const days = dto.days;
   const series = dto.series ?? [];
   const current = series.slice(-days);

@@ -44,16 +44,11 @@ export interface ReportDto {
   /** The report's last day (00360): today for a period by name, an earlier day for days a member picked. Absent on a
    *  report from before 00360, which always ended today. */
   end?: string;
-  /*
-   * The days, the reasons, the replies, the moods and the voicemails: report_series answers each (coalesced, so an empty
-   * period is none of them, never null), but the view model is handed reports built by hand too (Ask's reader of a
-   * world, a page's sample), and one that leaves a part out reads as having none.
-   */
-  series?: ReportDayDto[];
-  reasons?: Record<string, number>;
-  reply_seconds?: number[];
-  sentiments?: Record<string, number>;
-  voicemail?: number;
+  series: ReportDayDto[];
+  reasons: Record<string, number>;
+  reply_seconds: number[];
+  sentiments: Record<string, number>;
+  voicemail: number;
   /** v3 (00139): each receptionist first reply this period, with the day it was asked (tenant zone); 00304 adds the
    *  hold it waited in seconds (0: none). Absent on a report from before 00304. */
   replies?: { day: string; s: number; hold?: number }[];
