@@ -317,6 +317,24 @@ test(
     const held = { p_post_id: begun.post_id, p_from: ["preparing"], p_to: "held", p_patch: { held_reason: "Pulled." } };
     assert.equal(ok(await db.rpc("post_moved", held), "hold"), true);
     assert.equal((await postOf(begun.post_id)).held_reason, "Pulled.");
+    // Each move is on the ledger with it, the door's own (00720): from and to, its place; a move that did not happen
+    // leaves none, and the service role names nobody.
+    const moves = ok(
+      await db
+        .from("events")
+        .select("subject_type, data")
+        .eq("kind", "post.moved")
+        .eq("subject_id", begun.post_id)
+        .order("created_at"),
+      "its events",
+    );
+    assert.deepEqual(
+      moves.map((e) => [e.subject_type, e.data.from, e.data.to, e.data.place, e.data.by ?? null]),
+      [
+        ["post", "queued", "preparing", "instagram", null],
+        ["post", "preparing", "held", "instagram", null],
+      ],
+    );
   },
 );
 

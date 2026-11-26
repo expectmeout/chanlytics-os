@@ -62,7 +62,7 @@ test.describe("Setup on a real workspace, a step at a time", () => {
           "the title is whole",
         ).toBe(true);
         await expect(row.locator(".cl-attn-status .lead")).toHaveText(
-          /^(Not started|Waiting on you|Waiting on us|Waiting on Meta|Ready)$/,
+          /^(Not started|Waiting on you|Waiting on Chanlytics|Waiting on Meta|Ready)$/,
         );
         expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
         expect(await row.getByTestId("setup-verb").count()).toBeLessThanOrEqual(1);

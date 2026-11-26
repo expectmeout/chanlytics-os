@@ -212,6 +212,8 @@ export const WORDS: Record<string, string> = {
   "form_entry.accepted": "Someone sent a form on your website",
   "form_entry.asked": "A sign-up from your website was asked to confirm, or why not",
   "form_key.set": "A website's key was made, changed or ended",
+  "post.moved": "A post moved on",
+  "plan_slot.held": "A planned post was held",
   "capability.activated": "Answering was switched on",
   "capability.deactivated": "Answering was switched off",
   "channel.quality_rating": "WhatsApp changed how it rates a number",

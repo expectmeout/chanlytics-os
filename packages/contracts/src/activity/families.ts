@@ -160,6 +160,9 @@ const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   ask: "settings",
   // A business's files are kept on Settings › Files (decision 0099).
   file: "settings",
+  // A piece's posts and a week's slots are Content's, under Campaigns (00720).
+  post: "campaigns",
+  plan_slot: "campaigns",
   usage: "records",
   webhook: "records",
   ingest: "records",

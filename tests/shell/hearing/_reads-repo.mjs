@@ -165,30 +165,28 @@ export async function apply() {
   "apps/dashboard/src/bridge/surface-data.ts": `export const workspaceOverride = { key: "workspace" };
 `,
 
-  // The shell's surfaces, as FrameApp.tsx lists them: names and comments, and the imports they come from (one over lines,
-  // one beside a type, a module with no file, and a side effect with no names at all).
-  "apps/dashboard/src/bridge/FrameApp.tsx": `import "./manifest";
+  // The shell's surfaces, as the frame lists them (bridge/boot/surfaces.ts): names and comments, and the imports they come
+  // from (one over lines, one beside a type, a module with no file, and a side effect with no names at all).
+  "apps/dashboard/src/bridge/boot/surfaces.ts": `import "../manifest";
 import {
   workspaceOverride,
   switchWorkspace,
   type Workspace,
-} from "./surface-data";
+} from "../surface-data";
 import { type PeopleDto, peopleOverride } from "@/surfaces/people/surface";
 import { todayOverride } from "@/surfaces/today/surface";
-const REQUIRED = ["CHANLY"] as const;
+const HELD = ["the frame's"] as const;
 
 // leadsOverride rides beside peopleOverride: it is only prose.
-const SURFACES = [
+export const FRAME_SURFACES = [
   workspaceOverride,
-  // Today's own read (surfaces/today/surface.ts), not todaysOverride.
+  // Today's own read (surfaces/today/surface.ts), not todaysOverride, and the page's, not anyone else's.
   todayOverride,
   /* partnerOverride is a comment too */
   peopleOverride,
 ];
 
-export function App() {
-  return <p>Don't stop here: {SURFACES.length}</p>;
-}
+export const SAID = "Don't stop here: " + FRAME_SURFACES.length;
 `,
 };
 

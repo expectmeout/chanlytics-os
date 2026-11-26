@@ -43,7 +43,9 @@ export function lineRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRo
       required: !answering,
       sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`,
       details: [
-        ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "",
+        ownLine?.voice_state === "answering" // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
+          ? "Your own number through Chanlytics"
+          : "",
         ownLine || texting.done
           ? ""
           : "Texting arrives with lines that register with the phone networks · this page will say when",
@@ -150,14 +152,14 @@ export function ownLineStandOf(line: LineDto, nowMs: number, number: string | nu
     return {
       kind: "stopped",
       sentence: `Setting up${numberWords} stopped while ${step}. A person at Chanlytics has it.`,
-      details: ["Retry from here · we have been told"],
+      details: ["Retry from here · Chanlytics has been told"],
       retry,
     };
   }
   if (line.voice_state === "answering") {
     return {
       kind: "connecting",
-      sentence: `${number ?? "Your number"} is set up · connecting it to AI.`,
+      sentence: `${number ?? "The number"} is set up · connecting it to AI.`,
       details: [],
       retry: null,
     };
@@ -204,7 +206,7 @@ function lineToGetRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowD
       required: !answering,
       sentence: `Requested ${agoWords(Date.parse(setupInputs.requests.port), nowMs)} · a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`,
       details: [
-        "Keep your current phone service until the move is finished — cancelling it first can lose the number",
+        "Keep your current phone service until the move is finished · cancelling it first can lose the number",
         "The move takes 7 to 14 business days once it's filed",
       ],
       verb: null,

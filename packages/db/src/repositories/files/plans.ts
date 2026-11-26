@@ -217,9 +217,10 @@ interface SlotHeldOut {
 const HELD_REASON_MAX = 400;
 
 /**
- * The slots an approval left out held on their rows with why (the Week review of 25 Nov 2026, C2), under the service
- * role: each still proposed slot of the plan named becomes blocked with its reason, so the Week says why it did not go
- * and nothing sits ready with no word. A slot that moved on meanwhile (approved, left out by its owner) is left as it is.
+ * The slots an approval left out held on their rows with why (the Week review of 25 Nov 2026, C2), through their door
+ * (plan_slots_hold, 00720), each with its event: as the member who pressed, or the service role for a week AI approves.
+ * Each still proposed slot of the plan named becomes blocked with its reason, so the Week says why it did not go and
+ * nothing sits ready with no word. A slot that moved on meanwhile (approved, left out by its owner) is left as it is.
  * How many were held.
  */
 export async function holdSlotsLeftOut(
@@ -227,25 +228,18 @@ export async function holdSlotsLeftOut(
   tenantId: TenantId,
   left: { planId: string; slots: readonly SlotHeldOut[] },
 ): Promise<number> {
-  let held = 0;
-  for (const slot of left.slots) {
-    const { data, error } = await db
-      .from("plan_slots")
-      .update({
-        state: "blocked",
-        blocked_why: slot.held,
-        blocked_reason: slot.why.trim().slice(0, HELD_REASON_MAX),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("tenant_id", tenantId)
-      .eq("plan_id", left.planId)
-      .eq("id", slot.id)
-      .eq("state", "proposed")
-      .select("id");
-    if (error) throw new DbFailure(error, "slots left out held");
-    held += data.length;
-  }
-  return held;
+  if (left.slots.length === 0) return 0;
+  const { data, error } = await db.rpc("plan_slots_hold", {
+    p_tenant_id: tenantId,
+    p_plan_id: left.planId,
+    p_holds: left.slots.map((slot) => ({
+      id: slot.id,
+      held: slot.held,
+      why: slot.why.trim().slice(0, HELD_REASON_MAX),
+    })),
+  });
+  if (error) throw new DbFailure(error, "slots left out held");
+  return typeof data === "number" ? data : 0;
 }
 
 /** One change to a slot, as plan_slot_set takes it. */
