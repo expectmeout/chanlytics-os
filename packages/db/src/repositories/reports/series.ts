@@ -19,7 +19,7 @@ import type { Database, Json } from "../../types";
 import type { JsonObject } from "../events/events";
 import { isMissingDoor } from "../../shared/missing-door";
 import type { TenantId } from "@chanlytics/contracts";
-import { DbFailure } from "@chanlytics/contracts";
+import { DbFailure, asFailedReply } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -168,7 +168,7 @@ export async function readReachOutReport(
   const { data, error } = await db.rpc("reach_out_report", windowArgs(tenantId, window));
   if (error) {
     if (notReadable(window, error)) throw new ReportWindowNotReadable("reach_out_report");
-    return { ok: false, code: error.code ?? "", message: error.message };
+    return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   }
   return { ok: true, data };
 }

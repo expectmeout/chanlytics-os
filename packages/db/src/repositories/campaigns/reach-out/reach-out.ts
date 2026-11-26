@@ -70,7 +70,7 @@ export async function listReachOutAudience(
     ...(params.againAfter ? { p_again_after: params.againAfter } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read who a reach-out may write to");
-  return data ?? [];
+  return data;
 }
 
 export type PersonForSend =
@@ -141,7 +141,7 @@ export async function moveSend(
     .eq("state", params.from)
     .select("id");
   if (error) throw new DbFailure(error, "cannot move the send");
-  return (data ?? []).length === 1;
+  return data.length === 1;
 }
 
 export interface FollowerLead {
@@ -177,10 +177,10 @@ export async function listReachOutFollowers(
     p_limit: params.limit,
   });
   if (error) throw new DbFailure(error, "cannot read who a step may write to");
-  const rows = (data ?? []) as FollowerLead[];
+  const rows = data as FollowerLead[];
   // The door's facts without the one it added last read as a failed read, as getOutreachFacts does (00181).
   for (const r of rows)
-    if (typeof r.facts?.wrote_back !== "boolean")
+    if (typeof r.facts.wrote_back !== "boolean")
       throw new Error("cannot read who a step may write to: the database did not say whether they wrote back");
   return rows;
 }
@@ -205,7 +205,7 @@ export async function listQueuedOutcomes(db: Db, limit: number, tenantId?: Tenan
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the queued sends");
-  return (data ?? []) as QueuedOutcome[];
+  return data as QueuedOutcome[];
 }
 
 /** Claims older than `before`, oldest first: a writer that died mid-send left them. */
@@ -254,7 +254,7 @@ export async function listClosedRunSends(
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the closed runs' sends");
-  return (data ?? []) as Array<{ send: ReachOutSendRow; email_status: string | null }>;
+  return data as Array<{ send: ReachOutSendRow; email_status: string | null }>;
 }
 
 /** Reach-out runs that go ahead with nothing left open (00186 reach_out_finishable). */
@@ -264,7 +264,7 @@ export async function listFinishableRuns(db: Db, limit: number, tenantId?: Tenan
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the runs to finish");
-  return (data ?? []).map((r) => (typeof r === "string" ? r : textOrEmpty(recordOrEmpty(r).reach_out_finishable)));
+  return data.map((r) => (typeof r === "string" ? r : textOrEmpty(recordOrEmpty(r).reach_out_finishable)));
 }
 
 /** Which of these email ids have a row, a hundred at a time (an id list rides in the request's address). */
@@ -277,7 +277,7 @@ export async function getWrittenEmails(db: Db, ids: string[]): Promise<Set<strin
       .select("id")
       .in("id", all.slice(i, i + 100));
     if (error) throw new DbFailure(error, "cannot read the sends' emails");
-    for (const m of data ?? []) out.add(m.id);
+    for (const m of data) out.add(m.id);
   }
   return out;
 }
@@ -310,5 +310,5 @@ export async function findLeadSequenceMailbox(db: Db, tenantId: TenantId, leadId
     .order("created_at", { ascending: false })
     .limit(1);
   if (error) throw new DbFailure(error, "cannot read the lead's sequence's mailbox");
-  return data?.[0]?.mailbox_id ?? null;
+  return data[0]?.mailbox_id ?? null;
 }

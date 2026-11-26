@@ -28,6 +28,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLAYBOOK_HOURS, type JobKind, type NumberStanding, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { nullableIn } from "../../shared/answers";
 
 type Db = SupabaseClient<Database>;
 
@@ -76,7 +77,7 @@ export async function getDuePlaybooks(
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the playbooks due");
-  const rows = data ?? [];
+  const rows = data;
   return {
     // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
     rows: rows.map((r) => ({ step: r.step as StepRow, timezone: r.timezone })),
@@ -175,7 +176,7 @@ export async function getDueCalendars(
     ...(params.tenantId ? { p_tenant_id: params.tenantId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the calendars due");
-  const rows = data ?? [];
+  const rows = nullableIn(data, "failed_since");
   return {
     rows: rows.map((r) => ({
       tenant_id: r.tenant_id,
@@ -223,7 +224,7 @@ export async function listWhatsappNumbersToRead(db: Db, limit: number): Promise<
     .order("config->>quality_read_at", { ascending: true, nullsFirst: true })
     .limit(limit);
   if (error) throw new DbFailure(error, "cannot read the WhatsApp numbers");
-  return (data ?? []).map((r) => ({
+  return data.map((r) => ({
     channel_id: r.id,
     tenant_id: r.tenant_id,
     phone_number_id: r.external_id,

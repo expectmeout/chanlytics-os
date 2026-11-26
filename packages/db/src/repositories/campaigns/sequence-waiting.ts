@@ -42,9 +42,7 @@ async function batchSendsIn(db: Db, tenantId: TenantId, id: string, state: "plan
  */
 export async function withReadyCounts(db: Db, tenantId: TenantId, rows: SequenceRowDto[]): Promise<SequenceRowDto[]> {
   const ids = [
-    ...new Set(
-      rows.flatMap((r) => (r.needs?.batches ?? []).filter((b) => b.audience?.kind === "reach_out").map((b) => b.id)),
-    ),
+    ...new Set(rows.flatMap((r) => r.needs.batches.filter((b) => b.audience.kind === "reach_out").map((b) => b.id))),
   ];
   if (ids.length === 0) return rows;
   const ready = new Map<string, number>();
@@ -60,7 +58,7 @@ export async function withReadyCounts(db: Db, tenantId: TenantId, rows: Sequence
     }),
   );
   return rows.map((row) => {
-    if (!(row.needs?.batches ?? []).some((b) => ready.has(b.id))) return row;
+    if (!row.needs.batches.some((b) => ready.has(b.id))) return row;
     const batches = row.needs.batches.map((b) =>
       ready.has(b.id) ? { ...b, people: ready.get(b.id) ?? b.people, held: held.get(b.id) ?? 0 } : b,
     );
@@ -112,7 +110,7 @@ export async function withOpenings<R extends { group: string; send_id: string | 
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(j, j + SENDS_IN_CHUNK));
     if (sends.error) throw new DbFailure(sends.error, "cannot read the emails' openings");
-    sent.push(...(sends.data ?? []));
+    sent.push(...sends.data);
   }
   const words = await getLeadWordsOfLeads(
     db,
@@ -163,7 +161,7 @@ export async function putBackOf(
     .order("created_at", { ascending: false })
     .limit(1);
   if (error) throw new DbFailure(error, "cannot read the leave to put back");
-  const [leave] = data ?? [];
+  const [leave] = data;
   const leftMeta = leave ? recordOrNull(leave.payload) : null;
   return leave && leftMeta && leftMeta.left === 1 && valueAt(leftMeta, "put_back", "why") === place.place.why
     ? { decision_id: leave.id }
@@ -191,7 +189,7 @@ async function listedWhyNotOf(db: Db, tenantId: TenantId, listed: readonly Liste
     p_sequence_ids: listed.map((l) => l.sequence_id),
   });
   if (error || !Array.isArray(data)) return out;
-  for (const r of data) if (r && typeof r.why === "string" && r.why) out.set(r.lead_id, r.why);
+  for (const r of data) if (typeof r.why === "string" && r.why) out.set(r.lead_id, r.why);
   return out;
 }
 

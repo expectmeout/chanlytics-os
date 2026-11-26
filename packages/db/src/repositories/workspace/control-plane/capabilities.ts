@@ -22,8 +22,8 @@ export async function listWorkspacesWithANumberChosen(db: Db): Promise<string[]>
       .order("tenant_id")
       .range(from, from + TRIAL_PAGE - 1);
     if (error) throw new DbFailure(error, "cannot read the setup choices");
-    out.push(...(data ?? []).map((r) => r.tenant_id));
-    if ((data ?? []).length < TRIAL_PAGE) return out;
+    out.push(...data.map((r) => r.tenant_id));
+    if (data.length < TRIAL_PAGE) return out;
   }
 }
 
@@ -64,8 +64,8 @@ export async function listTrialingWorkspaceIds(db: Db): Promise<string[]> {
       .order("tenant_id")
       .range(from, from + TRIAL_PAGE - 1);
     if (error) throw new DbFailure(error, "cannot read the trials");
-    out.push(...(data ?? []).map((r) => r.tenant_id));
-    if ((data ?? []).length < TRIAL_PAGE) return out;
+    out.push(...data.map((r) => r.tenant_id));
+    if (data.length < TRIAL_PAGE) return out;
   }
 }
 

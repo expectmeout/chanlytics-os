@@ -475,7 +475,7 @@ export async function getNoticesSince(
 ): Promise<{ notices: ToldNotice[]; whole: boolean }> {
   const { data, error } = await client.rpc("workspace_notices_since", { p_tenant_id: tenantId, p_since: since });
   if (error) throw new DbFailure(error);
-  const rows = data ?? [];
+  const rows = data;
   const notices = rows.slice(0, CATCH_UP_MOST).flatMap((row): ToldNotice[] => {
     const p = recordOrEmpty(row.payload);
     if (typeof p.table !== "string") return [];

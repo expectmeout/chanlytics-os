@@ -2,11 +2,12 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { SCHEMA_SETS, DbFailure } from "@chanlytics/contracts";
+import { SCHEMA_SETS, DbFailure, asFailedReply } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { isMissingFunction } from "../../shared/missing-door";
 import { readAnswer } from "../../shared/read-json";
 import type { TenantId } from "@chanlytics/contracts";
+import { nullableIn } from "../../shared/answers";
 
 export type Db = SupabaseClient<Database>;
 
@@ -99,7 +100,7 @@ export async function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]> {
       return [];
     throw new DbFailure(error, "getPartnerBalance");
   }
-  return (data ?? []).map((r) => ({
+  return nullableIn(data, "next_payable_at").map((r) => ({
     currency: r.currency,
     state: r.state,
     earned_cents: Number(r.earned_cents),
@@ -123,7 +124,7 @@ export async function setPartnerLetters(
   on: boolean,
 ): Promise<{ ok: true; letters: boolean } | { ok: false; code: string; message: string }> {
   const { data, error } = await db.rpc("partner_letters_set", { p_on: on });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, letters: data === true };
 }
 
@@ -133,7 +134,7 @@ export async function becomePartner(
   code: string,
 ): Promise<{ ok: true; row: PartnerPublicRow } | { ok: false; code: string; message: string }> {
   const { data, error } = await db.rpc("partner_become", { p_code: code });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, row: readAnswer("partner_become", PartnerPublicAnswer, data) };
 }
 
@@ -154,10 +155,10 @@ export async function getPartnerWorkspaces(
     if (r.error && !isMissingFunction(r.error)) throw new DbFailure(r.error, "getPartnerWorkspaces");
   }
   return {
-    overview: o.error ? [] : (o.data ?? []),
+    overview: o.error ? [] : o.data,
     money: m.error
       ? []
-      : (m.data ?? []).map((r) => ({
+      : m.data.map((r) => ({
           ...r,
           held_cents: Number(r.held_cents),
           payable_cents: Number(r.payable_cents),
@@ -193,13 +194,13 @@ export async function getPlatformPartners(
   return {
     balances: b.error
       ? []
-      : (b.data ?? []).map((r) => ({
+      : b.data.map((r) => ({
           ...r,
           held_cents: Number(r.held_cents),
           payable_cents: Number(r.payable_cents),
           paid_cents: Number(r.paid_cents),
         })),
-    workspaces: w.error ? [] : (w.data ?? []),
+    workspaces: w.error ? [] : w.data,
   };
 }
 
@@ -215,7 +216,7 @@ export async function setPartnerStanding(
     p_standing: standing,
     p_why: reason,
   });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, value: readAnswer("partner_standing_set", StandingAnswer, data) };
 }
 
@@ -259,7 +260,7 @@ export async function markPartnerPaid(
     p_reference: reference,
     ...(expectedCents === undefined ? {} : { p_expected_cents: expectedCents }),
   });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   const payoutAnswer = readAnswer("partner_payout_mark", PayoutAnswer, data);
   return { ok: true, value: { ...payoutAnswer, total_cents: Number(payoutAnswer.total_cents) } };
 }
@@ -272,7 +273,7 @@ export async function setPartnerStatus(
   reason: string,
 ): Promise<PartnerVerbResult<{ status: string; from: string; seats: number }>> {
   const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: reason });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, value: readAnswer("partner_status_set", StatusAnswer, data) };
 }
 
@@ -286,6 +287,6 @@ export async function recordPartnerSecondFactorReset(
   reason: string,
 ): Promise<PartnerVerbResult<string>> {
   const { data, error } = await db.rpc("partner_second_factor_reset", { p_partner: partnerId, p_why: reason });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, value: String(data) };
 }

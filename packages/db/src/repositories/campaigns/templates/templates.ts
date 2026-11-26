@@ -23,6 +23,7 @@ import {
   type SchemaSet,
   DbFailure,
   recordOrNull,
+  asFailedReply,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import type { TenantId } from "@chanlytics/contracts";
@@ -91,7 +92,7 @@ export async function listTemplates(
     .eq("tenant_id", tenantId);
   const { data, error } = await (channel === null ? ofTenant : ofTenant.eq("channel", channel));
   if (error) throw new DbFailure(error, "listTemplates");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -111,7 +112,7 @@ export async function listTemplatesToSend(
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
   if (error) throw new DbFailure(error, "listTemplatesToSend");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -145,7 +146,7 @@ export async function findHeldMessage(
     .eq("tenant_id", tenantId)
     .eq("name", name);
   if (error) throw new DbFailure(error, "findHeldMessage");
-  const rows = (data ?? []).slice().sort((a, b) => {
+  const rows = data.slice().sort((a, b) => {
     const wa = Number(b.channel === "whatsapp") - Number(a.channel === "whatsapp");
     return wa || Number(b.language === language) - Number(a.language === language);
   });
@@ -194,7 +195,7 @@ export async function listMessageVersionRows(
     .eq("name", message.name)
     .eq("language", message.language);
   if (error) throw new DbFailure(error, "listMessageVersionRows");
-  return data ?? [];
+  return data;
 }
 
 /** The email and text versions of these messages the workspace holds: each one's channel, name and language. */
@@ -211,7 +212,7 @@ export async function listOwnVersionsFiled(
     .in("channel", ["email", "sms"])
     .in("name", names);
   if (error) throw new DbFailure(error, "listOwnVersionsFiled");
-  return data ?? [];
+  return data;
 }
 
 /** A version as the doors answer it. */
@@ -260,7 +261,7 @@ export async function saveTemplateVersion(
     p_subject: params.subject ?? "",
     p_body: params.body,
   });
-  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  if (error) return { ok: false, error: { code: asFailedReply(error).code ?? null, message: error.message } };
   const version = versionRefOf(data);
   if (!version) throw new Error("saveTemplateVersion: the door answered without the version it wrote");
   return { ok: true, version };
@@ -310,7 +311,7 @@ export async function createMessageVersion(
     p_variables: params.variables,
     p_title: params.title ?? "",
   });
-  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  if (error) return { ok: false, error: { code: asFailedReply(error).code ?? null, message: error.message } };
   const version = versionRefOf(data);
   if (!version) throw new Error("createMessageVersion: the door answered without the version it wrote");
   return { ok: true, version };
@@ -319,7 +320,7 @@ export async function createMessageVersion(
 /** Remove an email or text version a member wrote (remove_template_version, 00296); never a WhatsApp template. */
 export async function removeTemplateVersion(db: Db, templateId: string): Promise<VersionDoor> {
   const { data, error } = await db.rpc("remove_template_version", { p_template_id: templateId });
-  if (error) return { ok: false, error: { code: error.code ?? null, message: error.message } };
+  if (error) return { ok: false, error: { code: asFailedReply(error).code ?? null, message: error.message } };
   const version = versionRefOf(data);
   if (!version) throw new Error("removeTemplateVersion: the door answered without the version it removed");
   return { ok: true, version };
@@ -357,7 +358,7 @@ export async function listTemplatesNamed(
     .eq("channel", "whatsapp")
     .in("name", names);
   if (error) throw new DbFailure(error);
-  return data ?? [];
+  return data;
 }
 
 /** Where one WhatsApp template stands at Meta, by name and language; null when the workspace holds none. */

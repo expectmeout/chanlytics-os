@@ -119,7 +119,7 @@ export async function getSupportPeople(db: Db, userIds: readonly string[]) {
 /** A person's sign-in address, from the platform's identity store: an ask names who asked by their id alone. */
 export async function findPersonEmail(db: Db, userId: string): Promise<string | null> {
   const { data, error } = await db.auth.admin.getUserById(userId);
-  return error ? null : (data.user?.email ?? null);
+  return error ? null : (data.user.email ?? null);
 }
 
 /** The team's marks on questions and asks since `sinceIso`: the acts that ran to their end, newest first. */

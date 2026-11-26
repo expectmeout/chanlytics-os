@@ -26,7 +26,7 @@ export async function takeMailboxSync(db: Db, id: string, at: Date, leaseMs: num
     .or(`sync_lease_until.is.null,sync_lease_until.lt.${at.toISOString()}`)
     .select("id");
   if (error) throw new DbFailure(error, "cannot take the mailbox's sync");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -90,7 +90,7 @@ export async function findSentEmailIdByMessageId(
     .eq("meta->email->>message_id", rfcMessageId)
     .limit(1);
   if (error) throw new DbFailure(error, "cannot find the email the report is about");
-  return data?.[0]?.id ?? null;
+  return data[0]?.id ?? null;
 }
 
 /** Of the provider threads that changed, the ones holding an email this workspace sent (00424). */
@@ -101,7 +101,7 @@ export async function getKnownThreads(db: Db, tenantId: TenantId, threadIds: str
     p_thread_ids: [...new Set(threadIds)],
   });
   if (error) throw new DbFailure(error, "cannot read which threads are the workspace's");
-  return new Set(data ?? []);
+  return new Set(data);
 }
 
 /**

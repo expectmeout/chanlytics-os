@@ -2,8 +2,9 @@
 
 import type { Db } from "./partner";
 import { saysMissing, isMissingFunction } from "../../shared/missing-door";
-import { recordOrEmpty, textOrEmpty, recordOrNull, DbFailure } from "@chanlytics/contracts";
+import { recordOrEmpty, textOrEmpty, recordOrNull, DbFailure, asFailedReply } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
+import { embedded } from "../../shared/answers";
 
 /* ------------------------------------------------------------------------------------------------ handovers */
 
@@ -36,8 +37,8 @@ export async function createWorkspaceForBusiness(
     p_timezone: input.timezone ?? "",
     p_owner_email: input.ownerEmail,
   });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const row = data?.[0];
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
+  const row = data[0];
   if (!row) return { ok: false, code: "", message: "The workspace was not made." };
   return { ok: true, value: { id: row.id, slug: row.slug, name: row.name } };
 }
@@ -52,7 +53,7 @@ export interface HandoverSent {
 /** The calling partner sends a handover again, to the same address or another (00214 partner_handover_resend). */
 export async function resendHandover(db: Db, tenantId: TenantId, email: string): Promise<HandoverResult<HandoverSent>> {
   const { data, error } = await db.rpc("partner_handover_resend", { p_tenant: tenantId, p_email: email });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   const v = recordOrEmpty(data);
   return {
     ok: true,
@@ -83,7 +84,7 @@ export async function getOpenHandovers(db: Db): Promise<{ handovers: OpenHandove
     .catch((e: unknown) => ({ data: null, error: { code: "", message: e instanceof Error ? e.message : String(e) } }));
   if (error) return { handovers: [], error: isMissingFunction(error) ? null : error.message };
   return {
-    handovers: (data ?? []).map((r) => ({
+    handovers: data.map((r) => ({
       tenantId: r.tenant_id,
       workspace: r.workspace,
       partnerCode: r.partner_code,
@@ -96,8 +97,8 @@ export async function getOpenHandovers(db: Db): Promise<{ handovers: OpenHandove
 /** The caller becomes the owner of the workspace handed to them (00214 handover_accept). */
 export async function acceptHandover(db: Db, tenantId: TenantId): Promise<HandoverResult<HandoverWorkspace>> {
   const { data, error } = await db.rpc("handover_accept", { p_tenant: tenantId });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const row = data?.[0];
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
+  const row = data[0];
   if (!row) return { ok: false, code: "P0002", message: "There is no workspace waiting for you there." };
   return { ok: true, value: { id: row.id, slug: row.slug, name: row.name } };
 }
@@ -105,7 +106,7 @@ export async function acceptHandover(db: Db, tenantId: TenantId): Promise<Handov
 /** The caller says no to the workspace handed to them (00214 handover_decline). */
 export async function declineHandover(db: Db, tenantId: TenantId): Promise<HandoverResult<null>> {
   const { error } = await db.rpc("handover_decline", { p_tenant: tenantId });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, value: null };
 }
 
@@ -137,9 +138,9 @@ export async function getPartnerHandovers(db: Db): Promise<PartnerHandoverLine[]
     if (/\b(origin|handover_\w+)\b/.test(error.message) && saysMissing(error.message)) return [];
     throw new DbFailure(error, "getPartnerHandovers");
   }
-  return (data ?? []).map((r) => ({
+  return data.map((r) => ({
     tenantId: r.tenant_id,
-    name: r.tenants?.name ?? null,
+    name: embedded(r.tenants)?.name ?? null,
     email: r.handover_email ?? "",
     sentAt: r.handover_sent_at ?? "",
     expiresAt: r.handover_expires_at ?? "",
@@ -175,8 +176,8 @@ export async function getHandoverInvite(db: Db, tenantId: TenantId): Promise<Han
   if (Date.parse(data.handover_expires_at) <= Date.now()) return null;
   return {
     email: data.handover_email,
-    workspace: data.tenants?.name ?? "",
-    partnerCode: data.partners?.code ?? "",
+    workspace: embedded(data.tenants)?.name ?? "",
+    partnerCode: embedded(data.partners)?.code ?? "",
     expiresAt: data.handover_expires_at,
   };
 }
@@ -203,7 +204,7 @@ export async function invitePartner(
   code: string,
 ): Promise<HandoverResult<PartnerInviteSent>> {
   const { data, error } = await db.rpc("partner_invite", { p_tenant: tenantId, p_code: code });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   const v = recordOrEmpty(data);
   return {
     ok: true,
@@ -214,7 +215,7 @@ export async function invitePartner(
 /** The owner takes the invitation back before it is answered (00225 partner_invite_withdraw). */
 export async function withdrawPartnerInvite(db: Db, tenantId: TenantId): Promise<HandoverResult<null>> {
   const { error } = await db.rpc("partner_invite_withdraw", { p_tenant: tenantId });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   return { ok: true, value: null };
 }
 
@@ -226,7 +227,7 @@ export interface WorkspacePartner {
 
 export async function getWorkspacePartner(db: Db, tenantId: TenantId): Promise<HandoverResult<WorkspacePartner>> {
   const { data, error } = await db.rpc("workspace_partner", { p_tenant: tenantId });
-  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  if (error) return { ok: false, code: asFailedReply(error).code ?? "", message: error.message };
   const value = recordOrEmpty(data);
   const partner = recordOrNull(value.partner);
   const invitation = recordOrNull(value.invitation);
@@ -271,7 +272,7 @@ export async function getPartnerInvitations(db: Db): Promise<PartnerInvitation[]
     if (isMissingFunction(error)) return [];
     throw new DbFailure(error, "getPartnerInvitations");
   }
-  return (data ?? []).map((r) => ({
+  return data.map((r) => ({
     tenantId: r.tenant_id,
     workspace: r.workspace,
     sentAt: r.sent_at,

@@ -27,7 +27,7 @@ export async function listActivityTokens(
   if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
   // A member who switched calls off for their phone (Settings › Notifications, push_off 'call') is not shown a call on
   // the Lock Screen either: the caller's name came up there all the same (the wiring's second audit, R11 S8-8).
-  const people = (members ?? []).filter((m) => !(m.push_off ?? []).includes("call")).map((m) => m.user_id);
+  const people = members.filter((m) => !(m.push_off ?? []).includes("call")).map((m) => m.user_id);
   if (!people.length) return [];
   const { data: devices, error: de } = await db
     .from("push_devices")
@@ -35,7 +35,7 @@ export async function listActivityTokens(
     .in("user_id", people)
     .not("activity_token", "is", null);
   if (de) throw new Error(`cannot read the phones: ${de.message}`);
-  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t): t is string => !!t))];
+  return [...new Set(devices.map((d) => d.activity_token).filter((t): t is string => !!t))];
 }
 
 /**
@@ -99,7 +99,7 @@ export async function getMemberAlerts(db: Db, params: { tenantId: TenantId; user
     throw new DbFailure(mine.error, "cannot read your alert choices");
   return {
     pushOff: mine.error ? [] : (mine.data?.push_off ?? []),
-    phones: (phones.data ?? []).map((d) => ({
+    phones: phones.data.map((d) => ({
       platform: d.platform,
       app_version: d.app_version,
       last_seen_at: d.last_seen_at,
@@ -118,7 +118,7 @@ export async function setMemberPushOff(
     p_kinds: [...params.kinds],
   });
   if (error) throw new DbFailure(error);
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -135,14 +135,13 @@ export async function listMembersPushed(
   const chosen = ids
     ? await db.from("memberships").select("user_id, push_off").eq("tenant_id", params.tenantId).in("user_id", ids)
     : await db.from("memberships").select("user_id, push_off").eq("tenant_id", params.tenantId);
-  if (!chosen.error)
-    return (chosen.data ?? []).filter((m) => !(m.push_off ?? []).includes(params.kind)).map((m) => m.user_id);
+  if (!chosen.error) return chosen.data.filter((m) => !(m.push_off ?? []).includes(params.kind)).map((m) => m.user_id);
   if (chosen.error.code !== UNDEFINED_COLUMN) throw new DbFailure(chosen.error, "cannot read who is in the workspace");
   // Before 00372: everyone named, or everyone in the workspace, as before there was a choice.
   if (ids) return ids;
   const all = await db.from("memberships").select("user_id").eq("tenant_id", params.tenantId);
   if (all.error) throw new DbFailure(all.error, "cannot read who is in the workspace");
-  return (all.data ?? []).map((m) => m.user_id);
+  return all.data.map((m) => m.user_id);
 }
 
 /**
@@ -165,14 +164,14 @@ export async function pushNamesFor(
   if (members.error) throw new DbFailure(members.error, "cannot read whose workspaces these are");
   if (tenant.error) throw new DbFailure(tenant.error, "cannot read the workspace's name");
   const workspaces = new Map<string, Set<string>>();
-  for (const m of members.data ?? []) {
+  for (const m of members.data) {
     const own = workspaces.get(m.user_id) ?? new Set<string>();
     own.add(m.tenant_id);
     workspaces.set(m.user_id, own);
   }
   return {
     inMany: new Set([...workspaces].filter(([, own]) => own.size > 1).map(([user]) => user)),
-    business: tenant.data?.name?.trim() || null,
+    business: tenant.data?.name.trim() || null,
   };
 }
 

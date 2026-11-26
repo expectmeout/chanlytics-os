@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import { recordOrEmpty, type SchemaSet, DbFailure } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, DbFailure, asFailedReply } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
@@ -29,7 +29,7 @@ export async function listMailboxConnectionsOf(db: Db, tenantId: TenantId): Prom
     .neq("state", "removed")
     .order("connected_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the workspace's mailboxes");
-  return data ?? [];
+  return data;
 }
 
 /** One of a workspace's mailboxes, removed or not; null when it is not this workspace's. */
@@ -99,7 +99,7 @@ export async function listMailboxesToTend(
   if (done.length) query = query.not("id", "in", `(${done.join(",")})`);
   const { data, error } = await query;
   if (error) throw new DbFailure(error, "cannot read the mailboxes to tend");
-  return data ?? [];
+  return data;
 }
 
 /** Why a connection was not made, by the door's own word (00423's P0001 hints). */
@@ -133,7 +133,7 @@ export async function connectMailbox(
     p_customer_domain: params.customerDomain,
   });
   if (error) {
-    const hint = error.hint ?? "";
+    const hint = asFailedReply(error).hint ?? "";
     if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
     throw new DbFailure(error, "cannot connect the mailbox");
   }
@@ -154,7 +154,7 @@ export async function patchMailboxConnection(
   if (params.from?.length) q = q.in("state", [...params.from]);
   const { data, error } = await q.select("*");
   if (error) throw new DbFailure(error, "cannot change the mailbox");
-  return data?.[0] ?? null;
+  return data[0] ?? null;
 }
 
 /* ------------------------------------------------------------------------------------------------ the token */
