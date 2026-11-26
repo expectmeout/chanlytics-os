@@ -130,12 +130,12 @@ function turnStartsOf(turns: CallTurns) {
 /** A spoken turn as the card's line: its moment, who said it, its words, and where it starts and ends in the call. */
 function transcriptLineOf(
   turn: CallTurns[number],
-  turnIndex: number,
+  position: number,
   { given, starts }: ReturnType<typeof turnStartsOf>,
 ): CallVM["transcript"][number] {
-  const own = given[turnIndex];
-  const start = starts[turnIndex] ?? null;
-  const next = start == null ? null : (starts.slice(turnIndex + 1).find((x) => x != null && x > start) ?? null);
+  const own = given[position];
+  const start = starts[position] ?? null;
+  const next = start == null ? null : (starts.slice(position + 1).find((x) => x != null && x > start) ?? null);
   const end = start == null ? null : (turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next);
   return {
     t: typeof own === "number" ? mmss(own * 1000) : "—",
