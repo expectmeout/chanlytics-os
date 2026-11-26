@@ -2638,6 +2638,11 @@ begin
     returning 1
   )
   select count(*) into v_rung from rung;
+  if v_moved > 0 or v_closed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.ways_in_kept', 'ads', 'ad_account', p_account_id,
+            jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed));
+  end if;
   return jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed);
 end $$;
 
@@ -4019,6 +4024,9 @@ begin
             (case when jsonb_typeof(p_job) = 'object' then p_job else '{}'::jsonb end)
               || jsonb_build_object('broadcast_id', p_broadcast_id));
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_broadcast_id,
+          jsonb_build_object('from', 'pending_approval', 'to', 'scheduled', 'at', p_send_at, 'by', v_actor));
   return public.team_decision(p_tenant_id, v_actor, 'broadcast', p_broadcast_id, 'send_broadcast',
                               coalesce(p_decision, '{}'::jsonb), p_via, p_undo_of);
 end $$;
@@ -23692,6 +23700,9 @@ begin
   if v_message is null then
     return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.owner_replied', 'message', 'conversation', v_conv,
+          jsonb_build_object('message_id', v_message, 'channel', 'email'));
 
   -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot
   -- both resolve them and write two decisions.
@@ -34631,6 +34642,10 @@ begin
 
   insert into public.billing_accounts (tenant_id, mode, status) values (p_tenant_id, 'stripe', 'none')
   on conflict (tenant_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.provisioned', 'setup', 'workspace', p_tenant_id, '{}'::jsonb);
+  end if;
 end $$;
 
 
@@ -37247,6 +37262,10 @@ begin
   -- A send any unique rule refuses (a replay's, or a lead another reach-out planned first: one first send per lead,
   -- 00427) is left out of this run, never the run's failure.
   on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'broadcast.moved', 'message', 'broadcast', v_run,
+          jsonb_build_object('to', 'planned', 'state', p_run ->> 'state', 'sends',
+                             (select count(*) from public.sequence_sends s where s.batch_id = v_run)));
   return jsonb_build_object('id', v_run);
 end $$;
 

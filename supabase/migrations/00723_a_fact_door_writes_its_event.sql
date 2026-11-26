@@ -3673,3 +3673,321 @@ begin
           jsonb_strip_nulls(jsonb_build_object('by', p_actor, 'via', v_by)));
   return jsonb_build_object('outcome', 'asked', 'version', v_ad.version);
 end $$;
+/* -- a batch approved by its owner, a cold email's run planned: each with its event -- */
+
+-- A batch its owner approved to go writes broadcast.moved (from waiting to scheduled, with when and who), and a cold
+-- email's run planned writes broadcast.moved (planned, with how many sends it holds), each in its own transaction. Both
+-- are kept from Activity's rows: Campaigns says each batch as it stands, and the run's own playbook.run says it ran.
+
+-- approve_broadcast
+CREATE OR REPLACE FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_released uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_send_at is null then
+    raise exception 'approve_broadcast: a run is released for a moment' using errcode = '22004';
+  end if;
+  -- Only a run still waiting, and this workspace's: the row carries the time its job carries (00119). No row is a run
+  -- that moved while the person looked (approved by someone else, skipped, canceled), and nothing else is written.
+  update public.sequence_batches
+     set state = 'scheduled', scheduled_for = p_send_at
+   where id = p_broadcast_id and tenant_id = p_tenant_id and state = 'pending_approval'
+  returning id into v_released;
+  if v_released is null then
+    return null;
+  end if;
+  -- The member has seen this step's words go in a real batch (0064): its next batches go by the sequence's mode.
+  update public.sequence_steps st
+     set words_ok_at = now()
+    from public.sequence_batches b
+   where b.id = v_released and st.id = b.step_id and st.tenant_id = p_tenant_id;
+  -- The send, on the ledger no session may write: what the caller carries with it (the request it was approved in)
+  -- rides in the payload, and the run it sends is named here, never by the caller.
+  if p_job is not null then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'broadcast_send', p_send_at,
+            (case when jsonb_typeof(p_job) = 'object' then p_job else '{}'::jsonb end)
+              || jsonb_build_object('broadcast_id', p_broadcast_id));
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_broadcast_id,
+          jsonb_build_object('from', 'pending_approval', 'to', 'scheduled', 'at', p_send_at, 'by', v_actor));
+  return public.team_decision(p_tenant_id, v_actor, 'broadcast', p_broadcast_id, 'send_broadcast',
+                              coalesce(p_decision, '{}'::jsonb), p_via, p_undo_of);
+end $$;
+
+-- reach_out_plan_run
+CREATE OR REPLACE FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_run uuid := (p_run->>'id')::uuid;
+  v_tenant uuid := (p_run->>'tenant_id')::uuid;
+  v_step uuid := (p_run->>'playbook_id')::uuid;
+  v_root uuid := (p_run->'audience'->>'root_id')::uuid;
+  v_back uuid[] := '{}';
+begin
+  if p_run->'audience'->>'kind' is distinct from 'reach_out' then
+    raise exception 'reach_out_plan_run: a run of a reach-out says so in its audience';
+  end if;
+  if not exists (select 1 from public.sequence_steps where id = v_step and tenant_id = v_tenant and kind = 'reach_out')
+     or not exists (select 1 from public.sequence_steps where id = v_root and tenant_id = v_tenant and kind = 'reach_out') then
+    raise exception 'reach_out_plan_run: step % or root % is no reach-out of workspace %', v_step, v_root, v_tenant;
+  end if;
+  begin
+    insert into public.sequence_batches (id, tenant_id, step_id, run_for, name, template_id, template_name,
+                                   template_language, state, scheduled_for, recipient_count, audience)
+    values (v_run, v_tenant, v_step, (p_run->>'run_for')::date, p_run->>'name', (p_run->>'template_id')::uuid,
+            p_run->>'template_name', p_run->>'template_language', p_run->>'state',
+            (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int, p_run->'audience');
+  exception when unique_violation then
+    return jsonb_build_object('exists', true);
+  end;
+  -- Who of these is written to a second time (00608, decision 0120): only where the sequence tries again, only by its
+  -- first email, and only whom reach_out_comes_back lets back now. Everyone else is of the first round, so a lead another
+  -- reach-out planned or wrote first is refused by the round's unique index below and left out, as before.
+  if v_step = v_root then
+    select coalesce(array_agg(b.lead_id), '{}') into v_back
+      from public.sequence_steps r,
+           lateral public.reach_out_comes_back(
+             v_tenant,
+             array(select (e->>'lead_id')::uuid from jsonb_array_elements(coalesce(p_sends, '[]'::jsonb)) e),
+             r.again_after_days) b
+     where r.id = v_root and r.tenant_id = v_tenant and r.again_after_days is not null;
+  end if;
+  insert into public.sequence_sends (id, tenant_id, batch_id, step_id, sequence_id, lead_id, contact_id, mailbox_id,
+                                      send_at, state, reason, round)
+  select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
+         coalesce(x.state, 'planned'), x.reason,
+         -- The second round is the last: reach_out_comes_back never lets back a lead with one.
+         case when x.lead_id = any (v_back) then 2 else 1 end
+    from jsonb_to_recordset(coalesce(p_sends, '[]'::jsonb))
+         as x(id uuid, lead_id uuid, contact_id uuid, mailbox_id uuid, send_at timestamptz, state text, reason text)
+   where exists (select 1 from public.leads l where l.id = x.lead_id and l.tenant_id = v_tenant)
+     and (x.mailbox_id is null
+          or exists (select 1 from public.mailbox_connections b where b.id = x.mailbox_id and b.tenant_id = v_tenant))
+  -- A send any unique rule refuses (a replay's, or a lead another reach-out planned first: one first send per lead,
+  -- 00427) is left out of this run, never the run's failure.
+  on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'broadcast.moved', 'message', 'broadcast', v_run,
+          jsonb_build_object('to', 'planned', 'state', p_run ->> 'state', 'sends',
+                             (select count(*) from public.sequence_sends s where s.batch_id = v_run)));
+  return jsonb_build_object('id', v_run);
+end $$;
+/* -- an ad's ways in, the owner's own email, a workspace's first rows: each with its event -- */
+
+-- The ways in an account's ads take (a message, a form) kept writes ad_account.ways_in_kept; the owner's own email in
+-- a mailbox they connected, kept on its thread, writes conversation.owner_replied as the owner's echo does; and a
+-- workspace's first rows (its policies, its settings, its billing) write workspace.provisioned where any was made. All
+-- are kept from Activity's rows.
+
+-- ad_way_in_keep
+CREATE OR REPLACE FUNCTION public.ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_moved  integer;
+  v_rung   integer := 0;
+  v_closed integer := 0;
+  v_gone   record;
+begin
+  if jsonb_typeof(p_ways) is distinct from 'array' then
+    raise exception 'ad_way_in_keep: the ways are an array' using errcode = '22023';
+  end if;
+  -- Each ad as the read judged it: what stands in the way, or nothing (null) where AI answers it or it does not run.
+  -- Since when is kept only where it moved, so an unknown word keeps the moment it was first not known.
+  with given as (
+    select (w.value ->> 'ad_id')::uuid as ad_id, nullif(w.value ->> 'way_in', '') as way_in
+      from jsonb_array_elements(p_ways) w
+  ), moved as (
+    update public.ads a
+       set way_in = g.way_in,
+           way_in_at = case when g.way_in is null then null else now() end
+      from given g
+     where a.id = g.ad_id and a.tenant_id = p_tenant_id and a.account_id = p_account_id
+       and a.origin = 'chanlytics' and a.way_in is distinct from g.way_in
+    returning a.id
+  )
+  select count(*) into v_moved from moved;
+
+  -- A row whose way in opened again, or whose ad stopped running, closes for everyone.
+  for v_gone in
+    select distinct n.subject_id
+      from public.notifications n
+      join public.ads d on d.id::text = n.subject_id
+     where n.tenant_id = p_tenant_id and n.kind = 'ad_way_in' and n.closed_at is null and n.subject_type = 'ad'
+       and n.created_at >= now() - interval '30 days'
+       and d.tenant_id = p_tenant_id and d.account_id = p_account_id
+       and (d.way_in is null or d.intent <> 'on' or d.status <> 'made')
+  loop
+    v_closed := v_closed + public.notifications_close_about(p_tenant_id, array['ad_way_in'], 'ad', v_gone.subject_id);
+  end loop;
+
+  -- A way in that closed rings once, for each member who may run ads, in the words the read handed (they say how much
+  -- the ad can still spend, in its account's own money). Meta's word on the number not known rings only once it has
+  -- stood an hour, so one read that could not tell wakes nobody. Never a second open row for one ad.
+  with said as (
+    select (w.value ->> 'ad_id')::uuid as ad_id,
+           nullif(left(btrim(coalesce(w.value ->> 'title', '')), 200), '') as title,
+           nullif(left(btrim(coalesce(w.value ->> 'body', '')), 600), '') as body
+      from jsonb_array_elements(p_ways) w
+  ), owed as (
+    select d.id, s.title, s.body
+      from said s
+      join public.ads d on d.id = s.ad_id
+     where d.tenant_id = p_tenant_id and d.account_id = p_account_id and d.origin = 'chanlytics'
+       and d.status = 'made' and d.intent = 'on' and d.way_in is not null
+       and s.title is not null and s.body is not null
+       and d.way_in_at <= now() - case when d.way_in = 'unread' then interval '1 hour' else interval '0 seconds' end
+  ), rung as (
+    insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
+                                      recipient_user_id, mail_due_at)
+    select p_tenant_id, 'ad_way_in', o.title, o.body, 'campaigns/ads:ad:' || o.id::text, 'ad', o.id::text, h.user_id,
+           now()
+      from owed o
+     cross join public.ad_bell_hearers(p_tenant_id) as h(user_id)
+     where not exists (select 1 from public.notifications x
+                        where x.tenant_id = p_tenant_id and x.kind = 'ad_way_in' and x.recipient_user_id = h.user_id
+                          and x.subject_type = 'ad' and x.subject_id = o.id::text and x.closed_at is null
+                          and x.created_at >= now() - interval '30 days')
+    returning 1
+  )
+  select count(*) into v_rung from rung;
+  if v_moved > 0 or v_closed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.ways_in_kept', 'ads', 'ad_account', p_account_id,
+            jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed));
+  end if;
+  return jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed);
+end $$;
+
+-- mailbox_owner_wrote
+CREATE OR REPLACE FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_address  text := nullif(lower(btrim(coalesce(p_address, ''))), '');
+  v_contact  uuid;
+  v_conv     uuid;
+  v_message  uuid;
+  v_ids      uuid[];
+  v_decision jsonb;
+begin
+  if p_tenant_id is null or v_address is null or nullif(btrim(coalesce(p_external_id, '')), '') is null
+     or p_channel_ts is null then
+    raise exception 'mailbox_owner_wrote: a workspace, the address it went to, the provider''s id and when it was sent'
+      using errcode = '22004';
+  end if;
+  -- Who it went to, as resolve_person matches an address (00413): the email identity, then the address on a living
+  -- record. Nobody is made: an address the workspace does not know is the owner's own business.
+  select coalesce(c.merged_into_contact_id, c.id)
+    into v_contact
+    from public.contact_identities i
+    join public.contacts c on c.id = i.contact_id
+   where i.tenant_id = p_tenant_id and i.channel = 'email' and i.external_id = v_address
+     and c.erased_at is null
+   limit 1;
+  if v_contact is null then
+    select c.id
+      into v_contact
+      from public.contacts c
+     where c.tenant_id = p_tenant_id and c.email = v_address
+       and c.erased_at is null and c.merged_into_contact_id is null
+     limit 1;
+  end if;
+  if v_contact is null then
+    return jsonb_build_object('kept', false, 'why', 'not_known');
+  end if;
+
+  -- Their thread, made where there is none yet, its recency moved only forward.
+  insert into public.conversations (tenant_id, contact_id, last_message_at)
+  values (p_tenant_id, v_contact, p_channel_ts)
+  on conflict (tenant_id, contact_id)
+    do update set last_message_at = greatest(conversations.last_message_at, excluded.last_message_at)
+  returning id into v_conv;
+
+  -- Once by the provider's id: a sync that reads the same email again keeps nothing twice.
+  insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender,
+                               type, body, external_id, channel_ts, status, meta)
+  values (p_tenant_id, v_conv, v_contact, 'email', 'outbound', 'human',
+          'text', nullif(p_body, ''), p_external_id, p_channel_ts, 'sent', coalesce(p_meta, '{}'::jsonb))
+  on conflict (tenant_id, external_id) where external_id is not null do nothing
+  returning id into v_message;
+  if v_message is null then
+    return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.owner_replied', 'message', 'conversation', v_conv,
+          jsonb_build_object('message_id', v_message, 'channel', 'email'));
+
+  -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot
+  -- both resolve them and write two decisions.
+  select array_agg(h.id)
+    into v_ids
+    from (
+      select e.id
+        from public.escalations e
+       where e.tenant_id = p_tenant_id
+         and e.conversation_id = v_conv
+         and e.state = 'open'
+         and e.reason = any(coalesce(p_reasons, '{}'::text[]))
+         and e.created_at < p_channel_ts
+       for update
+    ) h;
+  if v_ids is null then
+    return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv, 'resolved', 0);
+  end if;
+  v_decision := public.team_decision(p_tenant_id, null, 'conversation', v_conv, 'resolve',
+                                     jsonb_build_object('message_id', v_message), 'mailbox', null);
+  update public.escalations
+     set state = 'resolved', decision_id = (v_decision ->> 'decision_id')::uuid
+   where id = any(v_ids) and state = 'open';
+  return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv,
+                            'resolved', cardinality(v_ids)) || v_decision;
+end $$;
+
+-- provision_tenant
+CREATE OR REPLACE FUNCTION public.provision_tenant(p_tenant_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.policies (tenant_id, class, mode, limits)
+  select p_tenant_id, c.class, c.mode,
+         case when c.class = 'reply'
+              then '{"max_replies_day": 20, "pause_hours": 24, "max_llm_tokens_day": 1000000}'::jsonb
+              else '{}'::jsonb end
+  from (values
+    ('faq','auto'), ('booking','auto'), ('reply','auto'),
+    ('reengage','veto'), ('campaign','veto'), ('reviews','ask'), ('money','never'), ('follow_up','veto'),
+    ('outreach','veto'),
+    -- 00714: what AI does with content asks the owner first, every row.
+    ('plan_approve','ask'), ('post','ask'), ('ad_change','ask'), ('comment_reply','ask')
+  ) as c(class, mode)
+  on conflict (tenant_id, class, subject_type, subject_id) do nothing;
+
+  insert into public.tenant_config (tenant_id) values (p_tenant_id)
+  on conflict (tenant_id) do nothing;
+
+  insert into public.billing_accounts (tenant_id, mode, status) values (p_tenant_id, 'stripe', 'none')
+  on conflict (tenant_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.provisioned', 'setup', 'workspace', p_tenant_id, '{}'::jsonb);
+  end if;
+end $$;
