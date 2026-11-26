@@ -19,26 +19,46 @@ import { DAY_KEY } from "../shared/zone/day-keys";
 
 const Id = z.string().min(1).max(120);
 
-/** The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. */
-export const PageContextSchema = z
-  .object({
-    v: z.literal(1),
-    surface: z.enum(ASK_SURFACES),
-    route: z.string().max(200),
-    view: z.string().max(80).nullish(),
-    focus: z
-      .object({ kind: z.enum(ASK_SCOPE_KINDS), id: Id, label: z.string().max(80) })
-      .strict()
-      .nullish(),
-    rows: z.array(z.object({ kind: z.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-    askedAt: z.number().int().nonnegative(),
-  })
-  .strict();
+/**
+ * A body's field read by its old camelCase name too, for one release from 26 November 2026, when the context's
+ * `asked_at` and an outcome's `at_ms` took the wire's names (decision 0022, rule 3): a tab opened before that deploy
+ * sends the old one, and a voice session's context and a turn's cards kept before it hold it. A body that says both is
+ * read by its snake_case name. The kept cards are read through `keptOutcome` (dashboard server/ask/store.ts), so this
+ * goes in the release after, once no open tab sends it.
+ */
+function withOldName(old: string, name: string) {
+  return (body: unknown): unknown => {
+    if (typeof body !== "object" || body === null || Array.isArray(body) || !(old in body)) return body;
+    const named: Record<string, unknown> = { ...body };
+    if (!(name in named)) named[name] = named[old];
+    delete named[old];
+    return named;
+  };
+}
 
-export const AskProposalOutcomeSchema = z.object({
+/** The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. */
+export const PageContextSchema = z.preprocess(
+  withOldName("askedAt", "asked_at"),
+  z
+    .object({
+      v: z.literal(1),
+      surface: z.enum(ASK_SURFACES),
+      route: z.string().max(200),
+      view: z.string().max(80).nullish(),
+      focus: z
+        .object({ kind: z.enum(ASK_SCOPE_KINDS), id: Id, label: z.string().max(80) })
+        .strict()
+        .nullish(),
+      rows: z.array(z.object({ kind: z.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+      asked_at: z.number().int().nonnegative(),
+    })
+    .strict(),
+);
+
+const AskProposalOutcomeFields = z.object({
   state: z.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z.string().max(300).catch(""),
-  atMs: z.number().catch(0),
+  at_ms: z.number().catch(0),
   undo: z.record(z.string(), z.unknown()).nullable().optional(),
   // What the commit made that a plan's later step names (AskProposalOutcome.made): kept, never stripped, so a plan's
   // made survives a reload; absent (every outcome saved before) or unreadable, it made nothing a token names.
@@ -56,6 +76,9 @@ export const AskProposalOutcomeSchema = z.object({
     .optional()
     .catch(undefined),
 });
+
+/** A card's outcome as the page sends it: its time read by its old name too (`withOldName`). */
+export const AskProposalOutcomeSchema = z.preprocess(withOldName("atMs", "at_ms"), AskProposalOutcomeFields);
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */
 const CalendarDay = z.string().regex(DAY_KEY);

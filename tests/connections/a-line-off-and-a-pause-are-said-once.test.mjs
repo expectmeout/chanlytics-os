@@ -216,7 +216,7 @@ const startInputs = (over = {}) => ({
     name: "Northside Movers",
     hours: true,
     services: 4,
-    bookingLink: true,
+    booking_link: true,
     address: true,
     handoff: null,
     broken: false,

@@ -96,11 +96,11 @@ export interface Chain {
 }
 
 /**
- * An outcome as a live turn keeps what it told: the card, what became of it, and when that was recorded -- `atMs` as
+ * An outcome as a live turn keeps what it told: the card, what became of it, and when that was recorded -- `at_ms` as
  * the record's identity only, never compared as a clock, so a card approved again after its undo is told again. A
  * record of the same state written twice is told twice, which is harmless.
  */
-const toldOf = (o: { id: string; state: string; atMs: number }): string => `${o.id}:${o.state}:${o.atMs}`;
+const toldOf = (o: { id: string; state: string; at_ms: number }): string => `${o.id}:${o.state}:${o.at_ms}`;
 /** What a live turn keeps of the chain it replayed (RawTurn): where it ended, and what the turn told. */
 export const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(toldOf) });
 /**
@@ -110,7 +110,9 @@ export const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.sin
  */
 const toldIn = (rows: AskMessageVM[]): string[] =>
   rows.flatMap((r) =>
-    r.proposals.flatMap((p) => (p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [])),
+    r.proposals.flatMap((p) =>
+      p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, at_ms: p.outcome.at_ms })] : [],
+    ),
   );
 
 /**
@@ -295,7 +297,7 @@ export async function findThreadForTurn(
       );
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
-      const lastAt = found.messages.at(-1)?.atMs;
+      const lastAt = found.messages.at(-1)?.at_ms;
       sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
       if (scope === undefined) scope = found.thread.scope;
       chain = await chainFor(ctx, tenantId, found.messages, found.replays);
@@ -350,7 +352,7 @@ async function chainFor(
 function chainIds(rows: AskMessageVM[], replays: Array<AskTurnShape["replay"] | null>, now: number): string[] | null {
   const last = rows.at(-1);
   if (!last || last.role !== "assistant" || last.failed || rows.at(-2)?.role !== "user") return null;
-  if (now - last.atMs >= LIVE_WINDOW_MS) return null;
+  if (now - last.at_ms >= LIVE_WINDOW_MS) return null;
   const ids: string[] = [];
   for (let i = rows.length - 1; i >= 0 && ids.length < LIVE_TURNS; i--) {
     const row = rows[i];
@@ -444,7 +446,7 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
   const since = cards
     .flatMap(({ id, title, outcome }) =>
-      outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, atMs: outcome.atMs }] : [],
+      outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, at_ms: outcome.at_ms }] : [],
     )
     .filter((o) => !notice.has(toldOf(o)));
   const { results, model, prefix } = newest;
@@ -546,7 +548,7 @@ export interface RawTurn {
   /** The API's id for the last round's message (Chain.lastId); none when the stream never said it. */
   id?: string;
   /**
-   * What the turn told of the thread's cards (`<card id>:<state>:<atMs>`), which no later turn of its chain tells again:
+   * What the turn told of the thread's cards (`<card id>:<state>:<at_ms>`), which no later turn of its chain tells again:
    * a live turn's, the outcomes it said happened since (Chain.since); a rebuilt turn's, every outcome its history's
    * lines said (findThreadForTurn's `told`). A thread's first turn keeps none.
    */
@@ -643,7 +645,7 @@ export function rawTurn(
  */
 export function toldWithArrived(raw: RawTurn | null, cards: readonly AskProposal[]): RawTurn | null {
   const arrived = cards.flatMap((p) =>
-    p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [],
+    p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, at_ms: p.outcome.at_ms })] : [],
   );
   if (!raw || arrived.length === 0) return raw;
   return { ...raw, told: [...(raw.told ?? []), ...arrived] };

@@ -162,7 +162,7 @@ export const SEARCH_CARD_REPLACED = "Changed below.";
 export const replacedOutcome = (atMs: number): AskProposalOutcome => ({
   state: "dismissed",
   receipt: SEARCH_CARD_REPLACED,
-  atMs,
+  at_ms: atMs,
   undo: null,
 });
 
@@ -246,7 +246,7 @@ export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals"
   const gone = new Set(searchCardsReplaced(messages, landed.proposals ?? []).map((r) => r.proposalId));
   // What this turn pressed on a yes (D18 of the answers canvas) is drawn on its own card, up the thread.
   const pressed = new Map(
-    ((landed as { pressed?: AskMessageVM["pressed"] }).pressed ?? []).map((r) => [r.proposalId, r.outcome]),
+    ((landed as { pressed?: AskMessageVM["pressed"] }).pressed ?? []).map((r) => [r.proposal_id, r.outcome]),
   );
   const kept =
     gone.size || pressed.size

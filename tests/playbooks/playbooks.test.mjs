@@ -41,6 +41,7 @@ import {
   policyClassOffered,
   poolWords,
   reachLines,
+  runReachDto,
   triggerOffered,
   playbookReach,
   playbookReachDoor,
@@ -756,12 +757,12 @@ test("a proposal follow-up (0006): the proposal waiting past the pace, with its 
   assert.equal(scheduleLine({ ...follow, run_hour: 10 }, "visit"), "Daily 10:00 AM · up to 25 · once per proposal");
   assert.equal(poolWords("proposal_waiting", "visit"), "with a proposal waiting");
   assert.deepEqual(
-    reachLines(again.reach, follow).lines.map((l) => l.words),
+    reachLines(runReachDto(again.reach), follow).lines.map((l) => l.words),
     ["1 never said yes to hearing from you", "1 had this proposal's follow-up already", "1 asked you to stop"],
     "its yes is to hearing from them, never to offers; and the follow-up it already had, never a gap",
   );
   assert.deepEqual(
-    [reachLines(again.reach, follow).held, reachLines(again.reach, follow).lines[1].tone],
+    [reachLines(runReachDto(again.reach), follow).held, reachLines(runReachDto(again.reach), follow).lines[1].tone],
     [0, "plain"],
     "a follow-up already had is done for that proposal, never the amber of waiting for time",
   );
@@ -859,41 +860,41 @@ test("where one person stands with the follow-up (0006): by its run's own rules,
   // The sweep ticks at five past each hour (00048's cron): a run at eleven goes at its 11:05 tick.
   const at = (s) => Date.parse(s);
   // In its next run: today's, which waits for the owner under ask.
-  assert.deepEqual(stand(out("a")), { kind: "will", atMs: at("2026-09-08T15:05:00Z"), asks: true });
+  assert.deepEqual(stand(out("a")), { kind: "will", at_ms: at("2026-09-08T15:05:00Z"), asks: true });
   assert.equal(stand(out("a"), facts({ asks: false })).asks, false, "auto: it goes");
   // It ran today: tomorrow's.
-  assert.equal(stand(out("a"), facts({ last_run_for: "2026-09-08" })).atMs, at("2026-09-09T15:05:00Z"));
+  assert.equal(stand(out("a"), facts({ last_run_for: "2026-09-08" })).at_ms, at("2026-09-09T15:05:00Z"));
   // A playbook reached them four days ago: the week's breath holds them to Friday's run; ending after Friday's tick,
   // to Saturday's.
-  assert.equal(stand(out("a"), facts({ heard: { a: [iso(now - 4 * DAY)] } })).atMs, at("2026-09-11T15:05:00Z"));
+  assert.equal(stand(out("a"), facts({ heard: { a: [iso(now - 4 * DAY)] } })).at_ms, at("2026-09-11T15:05:00Z"));
   assert.equal(
-    stand(out("a"), facts({ heard: { a: [iso(now - 4 * DAY + 3 * HOUR)] } })).atMs,
+    stand(out("a"), facts({ heard: { a: [iso(now - 4 * DAY + 3 * HOUR)] } })).at_ms,
     at("2026-09-12T15:05:00Z"),
   );
   // The breath ending later today: today's run where it ends before the tick, tomorrow's where it ends after.
   assert.equal(
-    stand(out("a"), facts({ heard: { a: [iso(now - 7 * DAY + HOUR / 2)] } })).atMs,
+    stand(out("a"), facts({ heard: { a: [iso(now - 7 * DAY + HOUR / 2)] } })).at_ms,
     at("2026-09-08T15:05:00Z"),
   );
   assert.equal(
-    stand(out("a"), facts({ heard: { a: [iso(now - 7 * DAY + 2 * HOUR)] } })).atMs,
+    stand(out("a"), facts({ heard: { a: [iso(now - 7 * DAY + 2 * HOUR)] } })).at_ms,
     at("2026-09-09T15:05:00Z"),
   );
   // Already in a run: on its way, it goes; made to wait for the owner, it waits, whatever the class says now.
   assert.deepEqual(stand(out("a"), facts({ queued: { a: iso(now - HOUR) } })), {
     kind: "will",
-    atMs: now - HOUR,
+    at_ms: now - HOUR,
     asks: false,
   });
   assert.deepEqual(stand(out("a"), facts({ asks: false, held: { a: iso(now - HOUR) } })), {
     kind: "will",
-    atMs: now - HOUR,
+    at_ms: now - HOUR,
     asks: true,
   });
   // A run made for an older proposal is not this one's: the next run is.
-  assert.equal(stand(out("a"), facts({ held: { a: iso(now - 20 * DAY) } })).atMs, at("2026-09-08T15:05:00Z"));
+  assert.equal(stand(out("a"), facts({ held: { a: iso(now - 20 * DAY) } })).at_ms, at("2026-09-08T15:05:00Z"));
   // This proposal's follow-up went: had it. An older proposal's is not this one's.
-  assert.deepEqual(stand(out("a"), facts({ had: { a: iso(now - 2 * DAY) } })), { kind: "had", atMs: now - 2 * DAY });
+  assert.deepEqual(stand(out("a"), facts({ had: { a: iso(now - 2 * DAY) } })), { kind: "had", at_ms: now - 2 * DAY });
   assert.equal(stand(out("a"), facts({ had: { a: iso(now - 20 * DAY) } })).kind, "will");
   // Nobody it will not reach: no link, no yes, no number, asked to stop, not waiting.
   const yes = person("x").consent;
@@ -990,7 +991,7 @@ test("a follow-up's day is the first of the sweep's ticks at which no message of
     held: {},
     heard: { a: heard },
   });
-  const day = (times) => followUpStandOf(out, facts(times), tz, now, null, null).atMs;
+  const day = (times) => followUpStandOf(out, facts(times), tz, now, null, null).at_ms;
   // Messages on the 10th at 14:00 and the 24th at 20:00: every tick to the 31st has one within a week of it, and the
   // 1st of November's is the first clear of both. Not the 18th, where the first message's week ends.
   assert.equal(day(["2026-10-10T14:00:00Z", "2026-10-24T20:00:00Z"]), at("2026-11-01T09:05:00Z"));
@@ -1059,13 +1060,13 @@ test("a thank-you's run says who waits on the owner's word (decision 0123): the 
   const reach = {
     pool: 5,
     will: 2,
-    noNumber: 0,
+    no_number: 0,
     stopped: 0,
-    noYes: 1,
-    heardThis: 0,
-    heardAny: 0,
-    overCap: 0,
-    overLimit: 0,
+    no_yes: 1,
+    heard_this: 0,
+    heard_any: 0,
+    over_cap: 0,
+    over_limit: 0,
     unmarked: 2,
   };
   const after = { trigger: "visited", cap_per_run: 25, gap_days: 90, cadence_days: 30 };

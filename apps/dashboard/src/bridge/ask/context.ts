@@ -390,6 +390,6 @@ export function pageContext(
     focus: focus ? { kind: focus.kind, id: focus.id.slice(0, 120), label: focus.label.slice(0, 80) } : null,
     // The labels stay in the tab.
     rows: rows.map(({ kind, id }) => ({ kind, id })),
-    askedAt: Date.now(),
+    asked_at: Date.now(),
   };
 }

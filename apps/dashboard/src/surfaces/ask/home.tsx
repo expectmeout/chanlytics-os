@@ -154,7 +154,7 @@ export const buildLineRows = ({
 }: LineRowsAsk): LineSection[] => {
   const q = query.trim();
   // A conversation is one 36px line: its question, and its time at the right (spec 4.3).
-  const thread = (th: AskThreadVM): LineRow => ({ type: "thread", label: th.title, meta: ahAgo(th.lastAtMs), th });
+  const thread = (th: AskThreadVM): LineRow => ({ type: "thread", label: th.title, meta: ahAgo(th.last_at_ms), th });
   // Earlier: every conversation, or the ones whose question has the words typed.
   if (view === "earlier") {
     const list = q ? threads.filter((th) => th.title.toLowerCase().includes(q.toLowerCase())) : threads;

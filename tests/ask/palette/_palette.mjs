@@ -427,7 +427,7 @@ export const cmdJ = () => {
 export const TH = (n) => ({
   id: `aaaaaaaa-aaaa-4aaa-8aaa-00000000000${n}`,
   title: `Question ${n}`,
-  lastAtMs: Date.now() - n * 3_600_000,
+  last_at_ms: Date.now() - n * 3_600_000,
   scope: null,
 });
 
@@ -436,7 +436,7 @@ export const said = (id, text) => ({
   id,
   role: "assistant",
   text,
-  atMs: Date.now(),
+  at_ms: Date.now(),
   failed: false,
   citations: [],
   followups: [],
@@ -476,7 +476,7 @@ export const ask = (threads = []) => {
                 id: `u-${id}`,
                 role: "user",
                 text: th.title,
-                atMs: th.lastAtMs,
+                at_ms: th.last_at_ms,
                 citations: [],
                 followups: [],
                 proposals: [],
@@ -502,7 +502,7 @@ export const ask = (threads = []) => {
       const th = {
         id: `cccccccc-cccc-4ccc-8ccc-00000000000${calls.kept.length}`,
         title: input.text,
-        lastAtMs: Date.now(),
+        last_at_ms: Date.now(),
         scope: null,
       };
       list = [th, ...list];

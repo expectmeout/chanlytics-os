@@ -96,7 +96,7 @@ export function rememberWorkspace(slug: string | null): void {
  */
 export function homeHref(
   last: string | null,
-  answer: { workspaces: Array<{ id: string; slug: string }>; activeWorkspaceId: string | null } | null,
+  answer: { workspaces: Array<{ id: string; slug: string }>; active_workspace_id: string | null } | null,
   after = "",
 ): string | null {
   // A deep link into one workspace, signed out and back, is that workspace's: the last one this browser used is
@@ -104,7 +104,7 @@ export function homeHref(
   const asked = askedWorkspaceOf(after);
   if (asked.workspace) return workspaceHref(asked.workspace, asked.rest);
   if (last) return workspaceHref(last, asked.rest);
-  const active = answer?.workspaces.find((w) => w.id === answer.activeWorkspaceId);
+  const active = answer?.workspaces.find((w) => w.id === answer.active_workspace_id);
   return active ? workspaceHref(active.slug, asked.rest) : null;
 }
 

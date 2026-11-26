@@ -29,7 +29,7 @@ const ok = {
   view: "needs_you",
   focus: { kind: "thread", id: T1, label: "Rosa" },
   rows: [{ kind: "thread", id: T1 }],
-  askedAt: 1_758_880_000_000,
+  asked_at: 1_758_880_000_000,
 };
 
 test("a page context: identities and words, never facts, forty rows at most", () => {
@@ -69,7 +69,7 @@ test("a page context: identities and words, never facts, forty rows at most", ()
     false,
     "an id is something",
   );
-  assert.equal(PageContextSchema.safeParse({ ...ok, askedAt: -1 }).success, false);
+  assert.equal(PageContextSchema.safeParse({ ...ok, asked_at: -1 }).success, false);
   assert.equal(
     PageContextSchema.safeParse({ ...ok, focus: { kind: "deal", id: "x", label: "a deal" } }).success,
     false,

@@ -18,6 +18,7 @@ import {
   v1FromAnswer,
   recordOrEmpty,
   listOrEmpty,
+  valueAt,
   DbFailure,
 } from "@chanlytics/contracts";
 import type { AskTurnShape } from "./shape";
@@ -74,7 +75,7 @@ function toThreadVM(thread: ThreadRow): AskThreadVM {
   return {
     id: thread.id,
     title: thread.title || "Untitled",
-    lastAtMs: Date.parse(thread.last_at) || 0,
+    last_at_ms: Date.parse(thread.last_at) || 0,
     scope: scopeIn(thread.scope),
   };
 }
@@ -104,8 +105,20 @@ const isStoredNavigate = (value: unknown): value is NonNullable<AskMessageVM["na
 const isStoredCard = (value: unknown): value is AskProposal =>
   isObjectRecord(value) && typeof value.id === "string" && typeof value.kind === "string";
 
+/**
+ * A kept card with its outcome's time under the wire's name: a card kept before 26 November 2026 holds it as `atMs`
+ * (contracts schemas.ts withOldName), read here as `at_ms`, so every reader of a kept card reads one name.
+ */
+function keptOutcome(card: AskProposal): AskProposal {
+  const old = valueAt(card.outcome, "atMs");
+  if (!card.outcome || typeof old !== "number") return card;
+  const outcome = { ...card.outcome, at_ms: old };
+  Reflect.deleteProperty(outcome, "atMs");
+  return { ...card, outcome };
+}
+
 /** The cards a turn keeps, each one the turn made. */
-export const storedCards = (value: unknown): AskProposal[] => listOrEmpty(value).filter(isStoredCard);
+export const storedCards = (value: unknown): AskProposal[] => listOrEmpty(value).filter(isStoredCard).map(keptOutcome);
 
 /**
  * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
@@ -123,7 +136,7 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     role: message.role === "assistant" ? "assistant" : "user",
     text: typeof content.text === "string" ? content.text : "",
     at: message.created_at,
-    atMs: Date.parse(message.created_at) || 0,
+    at_ms: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
     followups: listOrEmpty(content.followups).filter((f): f is string => typeof f === "string"),
     navigate: isStoredNavigate(content.navigate) ? content.navigate : null,
@@ -131,7 +144,7 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     language: content.language === "es" || content.language === "en" ? content.language : "other",
     ungrounded: content.ungrounded === true,
     tools: listOrEmpty(content.tools).filter((t): t is string => typeof t === "string"),
-    latencyMs: typeof content.latency_ms === "number" ? content.latency_ms : null,
+    latency_ms: typeof content.latency_ms === "number" ? content.latency_ms : null,
     rounds: typeof content.rounds === "number" ? content.rounds : null,
     failed: content.failed === true,
   };

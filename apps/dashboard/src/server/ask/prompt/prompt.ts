@@ -43,7 +43,7 @@ export function systemHash(blocks: Array<{ text: string }>): string {
 }
 
 /** A card from earlier in the thread, and what the person did with it and when it was recorded (the Phase 5 plan, D8). */
-export type CardOutcome = Pick<AskProposal, "id" | "title"> & Pick<AskProposalOutcome, "state" | "receipt" | "atMs">;
+export type CardOutcome = Pick<AskProposal, "id" | "title"> & Pick<AskProposalOutcome, "state" | "receipt" | "at_ms">;
 
 /** What a person's doing with a card is called, in the Line's words: a card done was approved. */
 const DID: Record<AskProposalOutcome["state"], string> = {

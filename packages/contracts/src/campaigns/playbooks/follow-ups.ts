@@ -80,7 +80,7 @@ export interface FollowUpFactsDto {
 }
 
 /** Where one person stands with the follow-up: in a run to come -- when, and whether it waits on the owner -- or had it. */
-export type FollowUpStand = { kind: "will"; atMs: number; asks: boolean } | { kind: "had"; atMs: number };
+export type FollowUpStand = { kind: "will"; at_ms: number; asks: boolean } | { kind: "had"; at_ms: number };
 
 /**
  * What a follow-up was about, as one key (0029): the deal its words were written for (facts.deal_id), else the link
@@ -249,16 +249,16 @@ export function followUpStandOf(
   };
   // One follow-up per proposal: this proposal's went, or is in a run on its way, or waiting for a person.
   const had = when(followUpFacts.had);
-  if (had !== null && followUpIsFor(person, had)) return { kind: "had", atMs: had };
+  if (had !== null && followUpIsFor(person, had)) return { kind: "had", at_ms: had };
   const queued = when(followUpFacts.queued);
-  if (queued !== null && followUpIsFor(person, queued)) return { kind: "will", atMs: queued, asks: false };
+  if (queued !== null && followUpIsFor(person, queued)) return { kind: "will", at_ms: queued, asks: false };
   const held = when(followUpFacts.held);
-  if (held !== null && followUpIsFor(person, held)) return { kind: "will", atMs: held, asks: true };
+  if (held !== null && followUpIsFor(person, held)) return { kind: "will", at_ms: held, asks: true };
   // The week's breath: the first of the run's ticks at which no message of theirs, sent or due, falls within a week of it
   // (campaigns/broadcasts/run-words.ts heardWithin, the sweep's own) is theirs.
   const times = (followUpFacts.heard[person.id] ?? []).map(Date.parse);
   const clearAt = (tick: number) => !times.some(heardWithin(tick, nowMs));
-  return { kind: "will", atMs: followUpRunAt(followUpFacts, tz, clearAt, nowMs), asks: followUpFacts.asks };
+  return { kind: "will", at_ms: followUpRunAt(followUpFacts, tz, clearAt, nowMs), asks: followUpFacts.asks };
 }
 
 /**
@@ -271,6 +271,6 @@ export function followUpWords(
   tz: string,
   nowMs: number,
 ): string {
-  const day = clockNear(followUpStand.atMs, tz, nowMs);
+  const day = clockNear(followUpStand.at_ms, tz, nowMs);
   return followUpStand.asks ? `Follow-up to approve ${day}` : `Follow-up ${day}`;
 }

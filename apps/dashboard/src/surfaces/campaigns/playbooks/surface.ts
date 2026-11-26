@@ -40,7 +40,7 @@ export interface PlaybookTotalsVM {
   delivered: number;
   replied: number;
   held: number;
-  lastRun: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
+  last_run: { id: string; state: string; run_for: string | null; recipient_count: number } | null;
   /**
    * A run waiting for a person: the broadcast to approve or skip, with the day it was made for and the moment it kept
    * (what says whether an approval now would be refused, bcLateWords). A read from before the list carried them has none.
@@ -131,10 +131,10 @@ function namedOf(x: Omit<PoolRead, "by"> | null | undefined): PlaybookNamed | nu
   return x && typeof x.pool === "number"
     ? {
         pool: x.pool,
-        noYes: x.noYes ?? 0,
+        noYes: x.no_yes ?? 0,
         stopped: x.stopped ?? 0,
-        noNumber: x.noNumber ?? 0,
-        saidYes: x.saidYes ?? 0,
+        noNumber: x.no_number ?? 0,
+        saidYes: x.said_yes ?? 0,
         ...(x.no_address === undefined ? {} : { noAddress: x.no_address }),
         ...(x.address_stopped === undefined ? {} : { addressStopped: x.address_stopped }),
         ...(x.no_channel === undefined ? {} : { noChannel: x.no_channel }),

@@ -130,7 +130,7 @@ const bare = (email) => ({
     name: "Best Movers",
     hours: false,
     services: 0,
-    bookingLink: false,
+    booking_link: false,
     address: false,
     handoff: null,
     broken: false,

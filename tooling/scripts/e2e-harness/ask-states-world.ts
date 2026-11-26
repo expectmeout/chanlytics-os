@@ -37,7 +37,7 @@ const message = (id: string, role: "user" | "assistant", said: string, more: Par
     role,
     text: said,
     at: new Date(AT_MS).toISOString(),
-    atMs: AT_MS,
+    at_ms: AT_MS,
     citations: [],
     followups: [],
     navigate: null,
@@ -45,7 +45,7 @@ const message = (id: string, role: "user" | "assistant", said: string, more: Par
     language: "en",
     ungrounded: false,
     tools: [],
-    latencyMs: null,
+    latency_ms: null,
     failed: false,
     ...more,
   }) as AskMessageVM;
@@ -173,7 +173,7 @@ const CARDS: AskProposal[] = [
   } as unknown as AskProposal,
 ];
 
-const outcome = (state: string, receipt: string, undo: unknown = null) => ({ state, receipt, atMs: AT_MS, undo });
+const outcome = (state: string, receipt: string, undo: unknown = null) => ({ state, receipt, at_ms: AT_MS, undo });
 
 /** The same cards as they stand once acted on: sent with its take-back open, approved with its undo, and set aside. */
 const DECIDED: AskProposal[] = [
@@ -199,7 +199,7 @@ const longer = Array.from({ length: 6 }, (_, k) => [
 ]).flat();
 
 const thread = (id: string, title: string, messages: AskMessageVM[]) => ({
-  thread: { id, title, scope: null, lastAtMs: AT_MS, createdAtMs: AT_MS },
+  thread: { id, title, scope: null, last_at_ms: AT_MS, createdAtMs: AT_MS },
   messages,
 });
 

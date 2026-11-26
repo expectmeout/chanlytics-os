@@ -60,5 +60,5 @@ export function templatesRead(rows, { all }) {
   const sends = templateSends({ runs: [], recipients: [], inbox: [] });
   // Nothing on the harness has changed a message's words, so no refused one has approved words to go back to.
   const withBefore = templates.map((t) => ({ ...t, approved_before: null, fix_words: null }));
-  return { templates: withBefore, held, messages, booking, usedBy, sends };
+  return { templates: withBefore, held, messages, booking, used_by: usedBy, sends };
 }

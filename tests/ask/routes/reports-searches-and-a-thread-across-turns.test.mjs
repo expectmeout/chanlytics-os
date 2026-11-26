@@ -592,7 +592,7 @@ test("through the route a thread stays live turn after turn (the Phase 5 plan, P
     context: async () => page,
     propose: async () => ({ proposal: CARD, result: JSON.stringify({ proposed: true, id: CARD.id }), isError: false }),
   });
-  const onToday = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], askedAt: 1 };
+  const onToday = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], asked_at: 1 };
   try {
     const [opened] = await linesOf(
       await ask.POST.run(send("POST", { text: "Ask me before every reply" }, inA), asJsonb(tables)),
@@ -702,7 +702,7 @@ test("what happened since, through the route (the Phase 5 plan, D8): a card appr
     );
     const card = tables.ask_messages.find((m) => m.role === "assistant");
     const outcome = asJsonb(tables, { id: card.id, pid: REPLY.id });
-    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 }), outcome);
     for (const text of ["And the reminders?", "And tomorrow?"])
       await linesOf(await ask.POST.run(send("POST", { text, thread_id: opened.id }, inA), asJsonb(tables)));
 
@@ -796,7 +796,7 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
       isError: false,
     }),
   });
-  const onInbox = { v: 1, surface: "inbox", route: "inbox", view: null, focus: null, rows: [], askedAt: 1 };
+  const onInbox = { v: 1, surface: "inbox", route: "inbox", view: null, focus: null, rows: [], asked_at: 1 };
   const SINCE = "Since the last answer, the person acted on cards from earlier in this conversation:";
   const wordsOf = (req) =>
     req.messages
@@ -836,7 +836,7 @@ test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a
     );
 
     const outcome = asJsonb(tables, { id: first.id, pid: REPLY.id });
-    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 }), outcome);
     await linesOf(await ask.POST.run(send("POST", asked("Did it go?"), inA), asJsonb(tables)));
     await linesOf(await ask.POST.run(send("POST", asked("And tomorrow?"), inA), asJsonb(tables)));
     const [, , third, fourth] = requests;
@@ -990,7 +990,7 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
 
   // A card's outcome, recorded later: the row is read and written back whole, so the raw turn stays beside it.
   const outcome = asJsonb(tables, { id: answer.id, pid: CARD.id });
-  const done = await proposals.POST.run(send("POST", { state: "done", receipt: "Set", atMs: 0 }), outcome);
+  const done = await proposals.POST.run(send("POST", { state: "done", receipt: "Set", at_ms: 0 }), outcome);
   assert.equal(done.proposal.outcome.receipt, "Set");
   const row = tables.ask_messages.find((m) => m.id === answer.id);
   assert.equal(row.content.proposals[0].outcome.receipt, "Set");

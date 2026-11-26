@@ -368,7 +368,12 @@ export async function finishAskTurn(
     text: askTurnText(text, answering) || noWordsIn(language),
     ...(following ? { following } : {}),
     ...(ask.request
-      ? { request: ask.request, member, waitingOn: waitingOnThread(cards), onPressed: (r) => pressed.push(r) }
+      ? {
+          request: ask.request,
+          member,
+          waitingOn: waitingOnThread(cards),
+          onPressed: (r) => pressed.push({ message_id: r.messageId, proposal_id: r.proposalId, outcome: r.outcome }),
+        }
       : {}),
     attached: preparedTurn.attached,
     openedMs,
@@ -428,7 +433,7 @@ export async function finishAskTurn(
     role: "assistant",
     text: v1.text,
     at: saved?.created_at ?? new Date().toISOString(),
-    atMs: saved ? Date.parse(saved.created_at) : Date.now(),
+    at_ms: saved ? Date.parse(saved.created_at) : Date.now(),
     citations: v1.citations,
     followups: v1.followups,
     navigate: v1.navigate,
@@ -437,7 +442,7 @@ export async function finishAskTurn(
     language: result.answer.language,
     ungrounded: result.ungrounded,
     tools: result.tools,
-    latencyMs: result.latencyMs,
+    latency_ms: result.latencyMs,
     rounds: result.rounds,
     failed: result.failed,
     answer: result.answer,

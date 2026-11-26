@@ -315,7 +315,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         role: "assistant",
         text: answerText(answer),
         at: at.toISOString(),
-        atMs: at.getTime(),
+        at_ms: at.getTime(),
         citations: [],
         followups: [],
         navigate: null,
@@ -323,7 +323,7 @@ export function askPalette(win: Window, storage: Storage | null) {
         language: answer.language,
         ungrounded: false,
         tools: [],
-        latencyMs: null,
+        latency_ms: null,
         failed: true,
         answer,
       };

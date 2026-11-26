@@ -2,6 +2,7 @@
 
 import "server-only";
 import {
+  audienceDto,
   isAutomatedSend,
   isPersonsWords,
   isReplyTo,
@@ -306,12 +307,14 @@ export function toDto(broadcast: BroadcastRow, counts: BroadcastCounts): Broadca
     template_name: broadcast.template_name,
     template_language: broadcast.template_language,
     params: parseParamSpecs(broadcast.params),
-    audience: readColumn(
-      "broadcasts.audience",
-      shaped<Audience>(),
-      broadcast.audience && typeof broadcast.audience === "object"
-        ? broadcast.audience
-        : { kind: "everyone", id: null, label: "" },
+    audience: audienceDto(
+      readColumn(
+        "broadcasts.audience",
+        shaped<Audience>(),
+        broadcast.audience && typeof broadcast.audience === "object"
+          ? broadcast.audience
+          : { kind: "everyone", id: null, label: "" },
+      ),
     ),
     state: broadcast.state,
     scheduled_for: broadcast.scheduled_for,

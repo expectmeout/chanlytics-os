@@ -6,6 +6,7 @@ export {
   allowanceLines,
   allowanceRoom,
   AUDIENCE_KINDS,
+  audienceDto,
   audienceLate,
   audienceMembers,
   audiencePreview,
@@ -85,6 +86,7 @@ export {
   RUN_FILTERS,
   RUN_REPORT_STEPS,
   runCountsOf,
+  runReachDto,
   runStillMoving,
   runTitleOf,
   saidYesOnAny,
@@ -98,6 +100,7 @@ export {
 } from "./broadcasts";
 export type {
   Audience,
+  AudienceDto,
   AudienceKind,
   AudiencePreview,
   BroadcastCounts,
@@ -124,6 +127,7 @@ export type {
   RunFigureId,
   RunFilterId,
   RunPersonVM,
+  RunReachDto,
   RunReplyVM,
   RunReportVM,
   RunStop,

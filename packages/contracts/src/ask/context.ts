@@ -59,7 +59,7 @@ export interface PageContext {
   /** What is on screen, in the order shown. */
   rows: PageContextRow[];
   /** When the tab built it, in its own clock: a measure, never a fact the server believes. */
-  askedAt: number;
+  asked_at: number;
 }
 
 /** A kind of row a focus may be: a scope's, the page aside. */

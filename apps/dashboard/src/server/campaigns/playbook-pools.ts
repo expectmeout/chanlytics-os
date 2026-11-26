@@ -70,15 +70,15 @@ interface PoolCounts {
    * stop, or no number to send to. The card's grey: the chips counted only
    * who said yes, so the people who never did were in no number on the page.
    */
-  noYes: number;
+  no_yes: number;
   stopped: number;
-  noNumber: number;
+  no_number: number;
   /**
    * How many the moment names said the yes the playbook needs, a number or not.
-   * `noNumber` counts everyone without one, yes or no, so only this tells a
+   * `no_number` counts everyone without one, yes or no, so only this tells a
    * list whose yes has no number from a list nobody said yes to (#663's rule).
    */
-  saidYes: number;
+  said_yes: number;
   /**
    * No email address, where email was the only channel left; an address on file mail no longer goes to (it bounced, or they
    * marked a message as spam); and no channel the playbook ticks could carry its message.
@@ -336,10 +336,10 @@ function poolCounter({ vms, breath, nowMs, pace, ready, caps }: PoolCounting) {
       ...runReadingOf(drawn, trigger, caps),
       held: reach.heardAny,
       pool: reach.pool,
-      noYes: reach.noYes,
+      no_yes: reach.noYes,
       stopped: reach.stopped,
-      noNumber: reach.noNumber,
-      saidYes,
+      no_number: reach.noNumber,
+      said_yes: saidYes,
       no_address: reach.no_address ?? 0,
       address_stopped: reach.address_stopped ?? 0,
       no_channel: reach.no_channel ?? 0,

@@ -1283,8 +1283,8 @@ test("proposals waiting with the follow-up on (0006): the ones it has in hand ar
     deal: { stage: "proposed", sinceMs: NOW.getTime() - 9 * 86_400_000, brief: "Proposal out · 9 d" },
     followUp,
   });
-  const will = { kind: "will", atMs: NOW.getTime() + 86_400_000, asks: true };
-  const had = { kind: "had", atMs: NOW.getTime() - 86_400_000 };
+  const will = { kind: "will", at_ms: NOW.getTime() + 86_400_000, asks: true };
+  const had = { kind: "had", at_ms: NOW.getTime() - 86_400_000 };
   const people = (rows) => ({
     lists: [list("proposal_out", "Proposal out", rows.length, act("Open the Inbox", "inbox"))],
     aggregates: { total: rows.length },

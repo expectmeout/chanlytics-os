@@ -24,7 +24,7 @@ const dtoOf = (over = {}) => ({
     name: "Harbor Moving",
     hours: true,
     services: 2,
-    bookingLink: true,
+    booking_link: true,
     address: true,
     handoff: null,
     broken: false,
