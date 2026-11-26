@@ -11,7 +11,7 @@
  * itself. Skips (does not fail) without service-role credentials, so CI without
  * secrets stays green.
  *
- * Run: SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node --test tests/conversations/thread-state.integration.test.mjs
+ * Run: SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node --test tests/conversations/thread/thread-state.integration.test.mjs
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";

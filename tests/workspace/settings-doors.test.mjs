@@ -1056,6 +1056,37 @@ test("a number that has just connected is tried through its own link: the toast 
   }
 });
 
+test("keeping the WhatsApp Business app is a press of its own, where Meta's door offers it: Meta's flow for the app's users, and Connect stays the plain one (decision 0073, R12)", async () => {
+  // Pinned as pane.tsx's and row.tsx's text in whatsapp/connect/whatsapp-connect.test.mjs until 26 Nov 2026.
+  asRole("owner");
+  const realStart = waConnect.start;
+  const asked = [];
+  Object.assign(waConnect, {
+    config: async () => ({ ready: true, reason: null, keep_app: true }),
+    start: async (ask) => {
+      asked.push(ask);
+      return { ok: false, reason: "cancelled", message: "The sign-up was closed before it finished." };
+    },
+  });
+  try {
+    seam({ channels: [], google: null, setup: null });
+    render(Connections);
+    await flush();
+    press(byTestId(settle(Connections), "connect-whatsapp-keep-btn"));
+    await flush();
+    press(byTestId(settle(Connections), "connect-whatsapp-btn"));
+    await flush();
+    assert.deepEqual(asked, [{ keepApp: true }, {}]);
+    // Where Meta's door does not offer it, there is nothing to press.
+    Object.assign(waConnect, { config: async () => ({ ready: true, reason: null }) });
+    render(Connections);
+    await flush();
+    assert.equal(byTestId(settle(Connections), "connect-whatsapp-keep-btn"), null);
+  } finally {
+    Object.assign(waConnect, { config: async () => null, start: realStart });
+  }
+});
+
 test("the codes sent to the workspace's own line are asked for as Connections opens and every three seconds while Meta's window is open, and said on the Texting row; a read that fails changes nothing, and anyone but an owner asks nothing", async () => {
   asRole("owner");
   seam({ channels: [], google: null, setup: setupWithLine() });

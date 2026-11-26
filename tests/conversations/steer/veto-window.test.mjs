@@ -13,7 +13,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readCode } from "../_source.mjs";
 import {
   noTemplateWords,
   replyDelayMs,
@@ -23,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(here, "../..");
+const ROOT = path.join(here, "../../..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
 /* ------------------------------- the rule -------------------------------- */
@@ -91,29 +90,19 @@ test("garbage in the config falls back rather than producing NaN", () => {
   // The approved templates are actually fetched, and published with the Inbox's rows: the settings read is the one read
   // of them and the Inbox's picker is made of it (shell/hearing/templates-are-read-once.test.mjs), where the seam's text
   // was pinned here until 26 Nov 2026.
-  // readCode, not read: the forbidden-name assertion below is otherwise
-  // satisfied by the COMMENT explaining why that name is forbidden, so the
-  // only way to make the guard pass would be to delete the rationale. Same
-  // trap auth-gate.test.mjs documents.
-  const verbs2 = readCode("apps/dashboard/src/surfaces/inbox/verbs.ts");
+  // No hardcoded template name survives in the courier: booking_link_v1/en_US was right for exactly one workspace and a
+  // guaranteed server rejection for every other, including every newly created one, which has no template row at all.
+  // With none in hand the courier refuses in the browser and asks the server nothing: pressed in
+  // inbox/inbox-verbs.test.mjs, where verbs.ts's text was read until 26 Nov 2026.
   // The template reply box, where the composer offers what may go outside the window (template-box.tsx).
   const thread = read("apps/dashboard/src/surfaces/inbox/thread/template-box.tsx");
-
-  test("no hardcoded template name survives in the courier", () => {
-    // booking_link_v1/en_US is right for exactly one workspace and a
-    // guaranteed server rejection for every other — including every newly
-    // created one, which has no template row at all.
-    assert.ok(!/booking_link_v1/.test(verbs2), "the fallback template name must be gone");
-    assert.ok(!/FALLBACK_TEMPLATE/.test(verbs2));
-  });
 
   test("with no approved template the composer says so instead of offering a send", () => {
     // The composer says it in contracts' words (noTemplateWords), the plain sentence where nothing is counted.
     assert.match(thread, /noTemplateWords\(/);
     assert.match(noTemplateWords(null), /^No approved message yet/);
-    // And the courier refuses rather than posting a request the server must
-    // reject with a message the operator cannot act on.
-    assert.match(verbs2, /No WhatsApp message is approved yet/);
+    // And the courier refuses rather than posting a request the server must reject with a message the operator cannot
+    // act on: pressed in inbox/inbox-verbs.test.mjs.
   });
 
   // That a template read that fails degrades rather than blanking the Inbox is run, not read off the source:

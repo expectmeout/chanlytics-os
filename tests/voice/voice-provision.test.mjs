@@ -274,6 +274,7 @@ test("the receptionist is made once, in the lib both line paths share: the shell
       ["GET /get-retell-llm/llm_left", "POST /create-agent"],
       "a kept shell read, then the agent over it",
     );
+    assert.equal(reused.agent?.llmId, "llm_left", "and the agent is made over that shell, not a new one");
 
     calls.length = 0;
     const gone = await createVoiceAgent({ apiKey: "k" }, { fnSecret: "s" }, { agentName: "x", agentId: "agent_gone" });

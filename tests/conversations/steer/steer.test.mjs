@@ -11,11 +11,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameSteer, whisperText } from "@chanlytics/contracts";
-import { readRaw } from "../_source.mjs";
-import { installStubReact, settle } from "../_stub-react.mjs";
+import { readRaw } from "../../_source.mjs";
+import { installStubReact, settle } from "../../_stub-react.mjs";
 
 installStubReact({});
-const S = "../../apps/dashboard/src";
+const S = "../../../apps/dashboard/src";
 const { steerDraft } = await import(`${S}/surfaces/inbox/verbs.ts`);
 const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 

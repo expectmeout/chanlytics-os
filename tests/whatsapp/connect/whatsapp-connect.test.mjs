@@ -15,57 +15,34 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DECISION_SUBJECTS, DECISION_VERBS, templateTitle, toChannelVM } from "@chanlytics/contracts";
-import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
-import { readCode, readRaw } from "../_source.mjs";
+import { connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-test("the migration: one definer door writes a credential, service role only, named by the channel; the ledger learns the verb", () => {
-  const m = readRaw("supabase/migrations/00042_channel_connect.sql");
-  assert.ok(m.includes("create or replace function public.put_channel_credentials(p_channel_id uuid, p_secret jsonb)"));
-  assert.ok(m.includes("security definer"));
-  assert.ok(
-    m.includes("v_name text := 'wa-creds-' || p_channel_id::text;"),
-    "the secret is named by the channel, never by the tenant or the number",
-  );
-  assert.ok(
-    m.includes("perform vault.update_secret(v_id, p_secret::text);"),
-    "a second connection updates, never duplicates",
-  );
-  assert.ok(
-    m.includes(
-      "revoke execute on function public.put_channel_credentials(uuid, jsonb) from public, anon, authenticated;",
-    ),
-    "the session client cannot write a credential",
-  );
-  assert.ok(m.includes("'connect_channel'") && m.includes("'channel'"));
+test("the ledger learns the verb, and the graph module speaks for one app at one version", async () => {
+  // 00042's door as the database runs it: the service alone writes or reads a channel's credential, one secret named by the
+  // channel and written again in place (database/tenancy/a-workspace-s-rows-are-its-members-own.db.test.mjs), pinned as the
+  // migration's text until 26 Nov 2026. The connection's row in the ledger, over the database in memory that holds 00042's
+  // checks, and the dashboard's route and service (who may ask, the ids Meta's, the door asked, each refusal in the owner's
+  // words, a preview connecting nothing): a-number-is-connected-through-the-edge.test.mjs and
+  // a-preview-connects-no-number.test.mjs, where the route's and the service's text was read.
   assert.ok(
     DECISION_VERBS.includes("connect_channel") && DECISION_SUBJECTS.includes("channel"),
     "the contract carries the same vocabulary",
   );
-});
-
-test("the graph module: one version, the app secret spent on the edge and nowhere else, one default app id, the configuration's name documented", () => {
-  // The two edge doors themselves -- the knock, the four Graph calls in order
-  // as the app this deployment speaks for, the write scoped to the workspace,
-  // the token into Vault, a failed credential write disabling the row, the
-  // answer naming what is missing -- are run in whatsapp-connect-door.test.mjs;
-  // /api/diag introspecting tokens as the same app is run in diag-door.test.mjs.
-  const g = readCode("apps/edge/lib/whatsapp/meta-graph.ts");
-  assert.ok(g.includes('export const GRAPH_VERSION = "v25.0";'));
-  assert.ok(
-    g.includes("client_secret: appSecret") &&
-      !readCode("apps/dashboard/src/server/connections/whatsapp.ts").includes("META_APP_SECRET"),
-    "the app secret is spent on the edge and nowhere else",
-  );
-  // One place knows which Meta app this deployment speaks for: the sign-up
-  // and the token introspection can never disagree about it.
-  assert.ok(g.includes('export const DEFAULT_META_APP_ID = "1823820738182125";'));
-  assert.ok(readRaw("apps/edge/.env.example").includes("META_ES_CONFIG_ID="), "the new name is documented");
+  // The two edge doors themselves -- the knock, the four Graph calls in order as the app this deployment speaks for, the
+  // secret spent in the exchange and in no URL, the write scoped to the workspace, the token into Vault -- are run in
+  // whatsapp-connect-door.test.mjs; /api/diag introspecting tokens as the same app in diag-door.test.mjs. The app secret is
+  // the edge's alone (repo/env-manifest.test.mjs: no provider key read or declared on the dashboard), and the configuration's
+  // name is documented where the edge reads it (the same file's manifests).
+  const g = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/whatsapp/meta-graph.ts")).href);
+  assert.equal(g.GRAPH_VERSION, "v25.0");
+  // One place knows which Meta app this deployment speaks for: the sign-up and the token introspection can never disagree.
+  assert.equal(g.DEFAULT_META_APP_ID, "1823820738182125");
 });
 
 test("the graph helpers: E.164 out of Meta's display form, a six-digit PIN, the already-registered answer", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../apps/edge/lib/whatsapp/meta-graph.ts")).href);
+  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/whatsapp/meta-graph.ts")).href);
   assert.equal(mod.toE164("+1 555-123-4567"), "+15551234567");
   assert.equal(mod.toE164("+44 20 7946 0958"), "+442079460958");
   assert.equal(mod.toE164(undefined), null);
@@ -88,39 +65,10 @@ test("the graph helpers: E.164 out of Meta's display form, a six-digit PIN, the 
   assert.equal(mod.pinMismatch({ ok: true, data: { success: true } }), false);
 });
 
-test("the dashboard route: owner only, the settings rate bucket, the sign-up ids validated, the ledger keeps the connection in the owner's words", () => {
-  const r = [
-    "apps/dashboard/app/api/v1/channels/whatsapp/connect/route.ts",
-    "apps/dashboard/src/server/connections/whatsapp-connect-words.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(r.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
-  assert.ok(r.includes('rate: "settings",'));
-  assert.ok(
-    r.includes("if ((phoneNumberId && !ID.test(phoneNumberId)) || (wabaId && !ID.test(wabaId)))"),
-    "an id is validated only when the window gave one: the edge reads a missing one from the token's grant",
-  );
-  assert.ok(r.includes('recordDecision(ctx, member.tenantId, "channel", item.channelId, "connect_channel", {'));
-  assert.ok(r.includes('"upstream_meta"'), "Meta is the upstream that failed, not the model");
-  assert.ok(r.includes('number_taken: "That number is already connected to another workspace."'));
-  assert.ok(r.includes("pin_required:"), "the PIN wall has its own words");
-  const svc = readCode("apps/dashboard/src/server/connections/whatsapp.ts");
-  assert.ok(
-    svc.includes('if (!deployment.providersLive) return { ok: false, reason: "preview" };'),
-    "a preview never connects a real number",
-  );
-  assert.ok(
-    svc.includes('"/api/admin/whatsapp/connect"') && svc.includes('callEdge("/api/admin/whatsapp/signup-config"'),
-  );
-  const sr = readCode("apps/dashboard/app/api/v1/channels/whatsapp/signup/route.ts");
-  assert.ok(sr.includes("can_connect: !!ROLE_PERMS[member.role]?.disconnect && cfg.ready"));
-});
-
 test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.com, a cancel is a cancel, the code goes to the app's own route", async () => {
   // Moved from bridge/whatsapp-connect.ts with Settings › Connections (decision 0015 step 11).
   const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
   );
   assert.deepEqual(
     mod.parseSignupMessage(
@@ -180,23 +128,17 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   assert.equal(said("FINISH", {}), null, "a finish that names nothing is nothing heard");
   assert.equal(mod.parseSignupMessage("https://www.facebook.com", "not json"), null);
   assert.equal(mod.parseSignupMessage("https://www.facebook.com", { type: "OTHER" }), null);
-  const src = readCode("apps/dashboard/src/surfaces/settings/connections/whatsapp.ts");
-  assert.ok(src.includes('const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";'));
-  assert.ok(
-    /response_type: "code",\s*override_default_response_type: true/.test(src),
-    "a code, never a user token, reaches this page",
-  );
-  assert.ok(src.includes('api()("POST channels/whatsapp/connect"'));
-  assert.ok(!src.includes("access_token"), "no credential passes through the browser");
+  // Meta's SDK from its own address, a code and never a user token asked for, and the code sent to the app's own route with
+  // no credential beside it: run in the browser world below (pinned as the module's text until 26 Nov 2026).
   // The pane imports the flow's object (`waConnect`); nothing publishes it on the window, so the app installs nothing. Meta's
   // door as the tab last read it (`held`) is what the row draws in its first frame (settings/frame/pane-reads.ts).
   assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "held", "prepare", "start"]);
-  assert.ok(!src.includes("installWhatsAppConnect"));
-  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installWhatsAppConnect"));
+  assert.equal(globalThis.installWhatsAppConnect, undefined, "the module, loaded, put nothing on the window");
+  assert.equal(globalThis.waConnect, undefined);
 });
 
 test("the account's own news: routed by WABA, kept as an event, alerted when it changes what the business can do", async () => {
-  const mod = await import(pathToFileURL(path.join(here, "../../apps/edge/lib/whatsapp/waba-events.ts")).href);
+  const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/whatsapp/waba-events.ts")).href);
   assert.ok(
     mod.WABA_FIELDS.has("phone_number_quality_update") &&
       mod.WABA_FIELDS.has("message_template_status_update") &&
@@ -376,14 +318,8 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
 });
 
 test("the Integrations pane offers the connection to an owner or says exactly why it cannot start", () => {
-  // The pane is TSX now (moved from integrations-real.jsx): the row's test ids and the pane's verbs.
-  const s = ["pane", "row"].map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`)).join(" ");
-  assert.ok(
-    s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') &&
-      s.includes('case "verb:whatsapp-connect":') &&
-      // Keeping the WhatsApp Business app (decision 0073, R12): the same press, Meta's own flow for business app users.
-      s.includes('case "verb:whatsapp-connect-keep": {'),
-  );
+  // The pane is TSX now (moved from integrations-real.jsx): Connect and Keep the WhatsApp Business app are drawn and pressed,
+  // each its own flow, in workspace/settings-doors.test.mjs (pinned as pane.tsx's and row.tsx's text until 26 Nov 2026).
   // The row itself runs (contracts' connectionRows) rather than being read.
   const NOW = Date.parse("2026-09-07T15:00:00Z");
   const channel = (status) =>
@@ -434,16 +370,18 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
     ),
     "the missing piece is named, not hidden",
   );
-  assert.ok(
-    !s.includes("A WhatsApp number or a phone line is connected by Chanlytics when your workspace is set up."),
-    "the old by-hand line is gone",
-  );
+  const said = JSON.stringify([
+    whatsapp({}),
+    whatsapp({ whatsapp: null }),
+    whatsapp({ channels: [channel("active")] }),
+  ]);
+  assert.ok(!said.includes("connected by Chanlytics when your workspace is set up"), "the old by-hand line is gone");
   // The diag showing the gates that decide who is answered is run in diag-door.test.mjs.
 });
 
 test("a sign-up leaves a mark in the tab's sessionStorage while Meta's window is open and takes it away however it ends; a page that finds one left by a page that is gone can say so, and the page that is running the sign-up never does", async () => {
   const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
   );
   const MARK = "chanlytics.whatsapp.signup";
   const held = new Map();
@@ -548,6 +486,7 @@ function browser({ opens = true, sdk = true, standalone = false } = {}) {
     sdk,
     fetched: [],
     sent: [],
+    connects: [],
     scripts: [],
     asked: [],
     inits: [],
@@ -575,6 +514,7 @@ function browser({ opens = true, sdk = true, standalone = false } = {}) {
       // The app's own route: what the page sent is kept, and the number is connected.
       if (String(url).includes("channels/whatsapp/connect")) {
         b.sent.push(init && typeof init.body === "string" ? JSON.parse(init.body) : null);
+        b.connects.push(`${init?.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
         return new Response(
           JSON.stringify({
             ok: true,
@@ -612,7 +552,7 @@ function browser({ opens = true, sdk = true, standalone = false } = {}) {
 /** The flow, with `b` as the tab it runs in. */
 async function inBrowser(b, run) {
   const mod = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/surfaces/settings/connections/whatsapp.ts")).href
   );
   const realWindow = globalThis.window;
   globalThis.window = b.win;
@@ -636,6 +576,7 @@ test("Connections fetches Meta's SDK ahead, so a press asks for Meta's window in
     await turn();
     await turn();
     assert.equal(ahead.scripts.length, 1, "Meta's SDK is fetched as Connections opens on a door that is ready");
+    assert.equal(ahead.scripts[0].src, "https://connect.facebook.net/en_US/sdk.js", "from Meta's own address");
     assert.deepEqual(ahead.inits, [{ appId: DOOR.app_id, version: "v25.0", xfbml: false, cookie: false }]);
     assert.deepEqual(ahead.logins, [], "and nothing is asked of Meta until the press");
     assert.deepEqual(ahead.fetched, [], "the door's answer is the one Connections already holds");
@@ -646,6 +587,11 @@ test("Connections fetches Meta's SDK ahead, so a press asks for Meta's window in
     assert.equal(ahead.asked.length, 1, "and so is Meta's window");
     assert.deepEqual(ahead.fetched, [], "with nothing fetched on the way");
     assert.equal(ahead.logins[0].opts.config_id, DOOR.config_id);
+    assert.deepEqual(
+      [ahead.logins[0].opts.response_type, ahead.logins[0].opts.override_default_response_type],
+      ["code", true],
+      "a code, never a user token, reaches this page",
+    );
     assert.equal(ahead.held.has(SIGNUP_MARK), true, "the mark is made as before");
     closeUnfinished(ahead);
     assert.equal((await within(running)).reason, "cancelled");
@@ -721,11 +667,14 @@ test("a code that arrives without the ids is sent all the same, with whatever th
     };
     // Nothing heard: the code alone.
     let running = mod.waConnect.start();
-    b.logins[0].cb({ authResponse: { code: "AQBx-code-1" } });
+    // Meta's callback can carry a user token beside the code: it goes nowhere.
+    b.logins[0].cb({ authResponse: { code: "AQBx-code-1", accessToken: "EAAG-a-user-token" } });
     let result = await within(running);
     assert.equal(result.ok, true, JSON.stringify(result));
     assert.equal(result.number, "+15551230000");
-    assert.deepEqual(b.sent, [{ code: "AQBx-code-1" }]);
+    assert.deepEqual(b.sent, [{ code: "AQBx-code-1" }], "the code alone, to the app's own route");
+    assert.deepEqual(b.connects, ["POST /api/v1/channels/whatsapp/connect"]);
+    assert.ok(!JSON.stringify(b.sent).includes("EAAG"), "no credential passes through the browser");
     // The window named the account and not the number, from a Meta host the page used to be deaf to.
     running = mod.waConnect.start();
     heard("https://business.facebook.com", "FINISH_ONLY_WABA", { waba_id: "987654321098", business_id: "1" });
