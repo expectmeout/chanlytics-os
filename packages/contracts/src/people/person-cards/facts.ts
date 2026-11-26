@@ -69,7 +69,7 @@ export function personFactsOf({
         : lc.who === "receptionist"
           ? "AI replied"
           : lc.who === "system"
-            ? "we sent"
+            ? "Chanlytics sent"
             : "";
   const facts: PersonFact[] = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },

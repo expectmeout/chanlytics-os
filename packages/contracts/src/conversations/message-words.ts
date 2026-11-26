@@ -52,12 +52,10 @@ export function messageStatusLabel(status: string | undefined, channel?: string 
  */
 const WHATSAPP_FAILURES: Readonly<Record<number, string>> = {
   130429: "Your number has reached WhatsApp's message limit for now",
-  131026:
-    "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or they haven't accepted its latest terms or updated the app",
+  131026: "WhatsApp couldn't deliver it: their number may not be on WhatsApp, or their WhatsApp needs an update",
   131031: "Your WhatsApp Business account is restricted or turned off, or WhatsApp couldn't verify its details",
   131042: "WhatsApp reports a problem with your payment method",
-  131047:
-    "WhatsApp wouldn't send it: more than 24 hours have passed since they last replied, so only an approved message can reach them now",
+  131047: "WhatsApp wouldn't send it: they haven't written in 24 hours, so only an approved message reaches them",
   131048:
     "WhatsApp is limiting how many messages your number can send, because earlier ones were blocked or flagged as spam",
   131049: "WhatsApp held it back: offers to each person are limited, and offers to US numbers aren't delivered for now",

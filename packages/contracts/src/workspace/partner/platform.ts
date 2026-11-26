@@ -202,7 +202,7 @@ function standingLine(s: PartnerLetterNews["standing"][number]): string {
 function statusLine(s: NonNullable<PartnerLetterNews["status"]>): string {
   if (s.status === "paused")
     return `Your partner account is paused.${whyWords(s.why)} On the teams you joined you can read, not change, until it is restored.`;
-  if (s.status === "closed") return `Your partner account is closed.${whyWords(s.why)}`;
+  if (s.status === "closed") return `This partner account is closed.${whyWords(s.why)}`;
   return "Your partner account is active again.";
 }
 

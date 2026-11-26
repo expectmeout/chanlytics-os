@@ -55,7 +55,7 @@ test("a trial's end on the bell, in Billing and its words: the day it ends where
     NY,
   );
   assert.deepEqual(plan.bell, {
-    title: "Your trial has started",
+    title: "The trial has started",
     body: "5 days left on the trial, until Nov 2. Cancel any time from Billing.",
   });
   const account = {

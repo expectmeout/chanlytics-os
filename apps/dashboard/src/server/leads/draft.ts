@@ -46,7 +46,7 @@ const DRAFT_SYSTEM = [
   "The rules, all of them:",
   "- Say who is writing and why in the first two lines. Never pretend to be a customer.",
   "- Use only the facts you are given. Never invent a person's name, a price, a number, or anything about their business.",
-  "- One ask, and a small one: a reply, a short call, or a visit. Never a contract.",
+  "- One ask, and a small one: a reply, a short call, or a meeting. Never a contract.",
   "- Plain words. No slogans, no flattery, no bold claims, no emoji.",
   "- Under 120 words, in short paragraphs, with no bullet list.",
   "- The subject says what the email is about in under nine words. Never a question about their money, never capitals.",

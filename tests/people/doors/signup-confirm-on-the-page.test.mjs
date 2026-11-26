@@ -40,7 +40,7 @@ const ID = "p-ana";
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 /** The wire: the person's read and the ask's door, answered as the test says, every request kept. */
-const wire = { calls: [], person: null, answer: { asked: true, said: "We emailed them to confirm." } };
+const wire = { calls: [], person: null, answer: { asked: true, said: "Emailed them to confirm." } };
 W.fetch = async (url, init = {}) => {
   const u = new URL(String(url), "https://app.chanlytics.com");
   const method = init.method || "GET";
@@ -120,7 +120,7 @@ test("someone the website brought, not asked yet: Ask to confirm, one press, one
     [`/api/v1/contacts/${ID}/signup-confirm`],
   );
   assert.ok(
-    toasts.some((t) => textOf(t.msg) === "We emailed them to confirm."),
+    toasts.some((t) => textOf(t.msg) === "Emailed them to confirm."),
     `the page says the answer: ${toasts.map((t) => textOf(t.msg))}`,
   );
 });

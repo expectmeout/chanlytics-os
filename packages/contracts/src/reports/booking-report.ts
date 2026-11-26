@@ -5,6 +5,7 @@
  * every word the page says of it. Out of calendar-people.ts (9 Oct 2026), which is the match of an appointment to a
  * person: this is what Reports says of the count.
  */
+import { CALENDAR_UNLOADED } from "../calendar/words/labels";
 import { BOOKED_NEEDS_A_LINK } from "../setup/calendar-source";
 import { plural } from "../shared/words";
 
@@ -81,7 +82,7 @@ export function toBookingReportVM(dto: BookingReportDto | null | undefined): Boo
       present: false,
       calendar: "unavailable",
       headline: "—",
-      sub: "Your calendar couldn't be read.",
+      sub: `${CALENDAR_UNLOADED}.`,
       words: "",
       pct: null,
       asked: dto.asked,

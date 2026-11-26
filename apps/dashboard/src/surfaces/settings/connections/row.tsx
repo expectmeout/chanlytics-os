@@ -179,8 +179,8 @@ function saysMore(r: Row, says: Says): ReactNode {
       {says.asked.map(noteLine)}
       {says.listing ? (
         <span>
-          The public listing is read once a day: Google shows five reviews and counts every rating. Connect the Business
-          Profile for all of them, and for the replies you send from Reports.
+          Google&rsquo;s public listing shows five reviews, updated daily. Connect the Business Profile for all of them
+          and to reply.
         </span>
       ) : null}
     </span>
