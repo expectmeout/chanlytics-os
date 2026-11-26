@@ -69,96 +69,28 @@ test("garbage in the config falls back rather than producing NaN", () => {
 
 /* ---------------------- the wiring the rule depends on -------------------- */
 
-// The mode in force (reply-gates.ts) and the hold window (dispatch.ts).
-const edge = ["reply-gates", "dispatch"].map((m) => read(`packages/core/src/inbound/${m}.ts`)).join("\n");
-const sink = read("apps/edge/lib/inbound/persist.ts");
-const reply = read("packages/core/src/conversations/reply.ts");
-const takeOver = read("apps/dashboard/src/server/conversations/ports.ts");
-
-test("'veto' reaches the brain instead of being held as a policy block", () => {
-  // Before this, veto fell into the "hold everything for a human" branch — safe,
-  // but it meant selecting veto silently disabled the receptionist.
-  assert.match(
-    edge,
-    /const held = unattendedHold\(\{[^}]*\bmode: replyMode,\s*\}\);/,
-    "the gate asks the one rule, with the mode in force",
-  );
-});
-
-test("a queued draft falls back to sending when it cannot be scheduled", () => {
-  // An un-vetoed reply is a worse outcome than a vetoed one. No reply at all is
-  // worse than both — so a missing token or a dead queue must not mean silence.
-  assert.match(edge, /queueReply\(/);
-  // Spans lines since the confidence dial: the same expression, more arguments.
-  assert.match(edge, /delayMs > 0\s*\?\s*await ports\.persist\.queueReply\([\s\S]*?\)\s*:\s*false/);
-});
-
-test("EVERY path where a human takes control withdraws the draft", () => {
-  // Otherwise the customer receives both the override and the words it was
-  // meant to replace.
-  for (const [name, src, withdraw] of [
-    ["reply", reply, /ports\.withdrawDrafts\(/],
-    ["the adapter", takeOver, /withdrawDrafts: \(tenantId, id\) =>\s*cancelPendingAiReply\(/],
-  ]) {
-    assert.match(src, withdraw, `${name} must withdraw a held draft`);
-  }
-});
+// The wiring the rule depends on, run in steer/a-held-draft-is-written-once-and-rewritten.test.mjs (pinned as
+// reply-gates', dispatch's, persist.ts's, core reply's and the dashboard ports' text until 26 Nov 2026): 'veto' reaches
+// the model and holds its words in the window, never a policy block; a draft that cannot be held is sent at once, and the
+// window that did not happen is recorded on the ledger with its usual cause; a person taking the thread withdraws the
+// held draft through the member's door (and the core reply verb asks its port, core-reply.test.mjs).
 
 // How a held draft is withdrawn (the row and the job that would send it, in one transaction; by message, never by
 // conversation; the receptionist's drafts alone, and only one no run has claimed) is one door's since 00387, and
 // conversations/state/a-queued-message-is-withdrawn-by-one-door.db.test.mjs runs it on a real database. These held the
 // four writers it replaced by their text.
 
-test("a veto draft and its job are written in one statement, so neither is ever left without the other", () => {
-  // The row used to be written before the job. A scheduling failure left it `queued` while the caller sent the same
-  // words immediately, and a run killed between the two left a reply nothing would send, found only by the deadman ten
-  // minutes later. queue_send (00527) writes both or neither (jobs/a-send-is-queued-with-its-job.db.test.mjs runs it);
-  // the writer is lib/draft-queue.ts, one for the handler and the steer.
-  const queue = readCode("apps/edge/lib/ai/draft-queue.ts");
-  const fn = queue.slice(queue.indexOf("export async function queueDraft"));
-  const body = fn.slice(0, fn.indexOf("\n}\n", 1) + 3);
-  assert.ok(body.includes("queueSend("), "the draft and its job through the one statement");
-  assert.ok(!body.includes("recordOutbound(") && !body.includes("scheduleJob("), "never the row, then the job");
-});
-
-test("a delayed bot reply is not recorded as a human's", () => {
-  // The queue used to carry only human replies. Stamping every send 'human'
-  // would make the metrics report the bot's words as a person's.
-  const handlers = read("packages/core/src/messages/send.ts");
-  assert.match(
-    handlers,
-    /sender: \(msg\.sender \?\? "human"\)/,
-    "the door is handed the row's sender, never a constant",
-  );
-});
-
-test("a configured veto window that did not happen is RECORDED, not just logged", () => {
-  // The fallback is deliberate — an un-vetoed reply beats no reply — but the
-  // workspace asked to see its receptionist's words before the customer did,
-  // and instead the customer got them first. A log line nobody reads is how a
-  // setting quietly becomes a lie.
-  assert.match(edge, /if \(delayMs > 0 && !queued\) \{[\s\S]{0,400}?sink\.vetoFallback\(/);
-  assert.match(sink, /policy\.veto_window_skipped/);
-});
-
-test("the event names the usual cause rather than making someone guess", () => {
-  assert.match(sink, /scheduling_failed/);
-});
+// A veto draft and its job are written in one statement, so neither is ever left without the other (queue_send, 00527;
+// jobs/a-send-is-queued-with-its-job.db.test.mjs runs it), by one writer for the handler and the steer: run in
+// steer/a-held-draft-is-written-once-and-rewritten.test.mjs. A delayed bot reply is not recorded as a human's: the send
+// door is handed the row's own sender (messages/core-send-path.test.mjs). Pinned as draft-queue.ts's and send.ts's text
+// until 26 Nov 2026.
 
 /* ---- the closed-window send uses the workspace's OWN approved template ---- */
 {
-  // The seam and each surface's module beside it (bridge/surfaces/, and the surfaces that have left the shell),
-  // read as one text.
-  const seam = [
-    "apps/dashboard/src/bridge/surface-data.ts",
-    "apps/dashboard/src/surfaces/reports/surface.ts",
-    "apps/dashboard/src/surfaces/inbox/surface.ts",
-    ...fs
-      .readdirSync(path.join(ROOT, "apps/dashboard/src/bridge/surfaces"))
-      .map((f) => `apps/dashboard/src/bridge/surfaces/${f}`),
-  ]
-    .map((p) => read(p))
-    .join("\n");
+  // The approved templates are actually fetched, and published with the Inbox's rows: the settings read is the one read
+  // of them and the Inbox's picker is made of it (shell/hearing/templates-are-read-once.test.mjs), where the seam's text
+  // was pinned here until 26 Nov 2026.
   // readCode, not read: the forbidden-name assertion below is otherwise
   // satisfied by the COMMENT explaining why that name is forbidden, so the
   // only way to make the guard pass would be to delete the rationale. Same
@@ -166,19 +98,6 @@ test("the event names the usual cause rather than making someone guess", () => {
   const verbs2 = readCode("apps/dashboard/src/surfaces/inbox/verbs.ts");
   // The template reply box, where the composer offers what may go outside the window (template-box.tsx).
   const thread = read("apps/dashboard/src/surfaces/inbox/thread/template-box.tsx");
-
-  test("the approved templates are actually fetched", () => {
-    // /api/v1/templates existed, was tenant-scoped and approved-only, and had
-    // no caller anywhere. The composer named a template by a literal instead.
-    // Since decision 0047 (the wiring plan's task 3.3) the settings read is the one read of them, and the Inbox's are
-    // the WhatsApp rows of it that may go (offered-templates.ts offeredWhatsApp).
-    assert.ok(seam.includes('read("GET templates"'), "the workspace's templates are fetched");
-    assert.match(
-      seam,
-      /templates: shareUnchanged\(prev\.templates, offeredWhatsApp\(settings\)\),\s*templatesHeld: shareUnchanged\(prev\.templatesHeld, heldBackOf\(settings\)\)/,
-      "and published with the Inbox's rows (and the count of what the picker left out)",
-    );
-  });
 
   test("no hardcoded template name survives in the courier", () => {
     // booking_link_v1/en_US is right for exactly one workspace and a

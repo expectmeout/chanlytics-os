@@ -91,18 +91,8 @@ test("the thread's line above an attachment names it, and the attachment itself 
     messageText(msg({ media: { mime_type: null, fetch_state: "pending" }, meta: { raw_type: "document" } })),
     "Document",
   );
-  // The view models carry it through: the Inbox's (inbox-thread.ts) and Conversations' (surfaces/inbox/model/thread-vm.ts).
-  const vm = [
-    "packages/contracts/src/conversations/inbox-thread/thread-vm.ts",
-    "apps/dashboard/src/surfaces/inbox/model/thread-vm.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(vm.includes("...(media ? { media } : {}),"), "the Inbox timeline entry");
-  assert.ok(
-    vm.includes("...(mediaVM(message) ? { media: mediaVM(message) as MediaVM } : {}),"),
-    "the Conversations message",
-  );
+  // The view models carry it through, the Inbox's timeline entry and Conversations' message: run in
+  // media/a-photo-is-seen-and-drawn-where-it-is-kept.test.mjs (pinned as the two view models' text until 26 Nov 2026).
 });
 
 test("a browser sees the attachment's facts and never its storage path", () => {
@@ -197,64 +187,13 @@ test("vision: only small real images, and the words beside the picture restate t
   assert.equal(vision.toBase64(new Uint8Array([104, 105]).buffer), "aGk=");
 });
 
-test("the handler looks only when the workspace, the mode and the moment allow, and never fetches twice", () => {
-  // The decision and the bytes (unreadable.ts), and what the model is shown (model-turn.ts).
-  const wa = ["unreadable", "model-turn"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
-  assert.ok(
-    /const maySee =\s*n\.type === "media" &&\s*!!n\.media &&\s*!!rt\?\.features\?\.vision &&\s*isVisionMime\(n\.media\.mime_type\)/.test(
-      wa,
-    ),
-  );
-  assert.ok(
-    /&&\s*!!brainCfg &&\s*speaksUnattended\(replyMode\) &&\s*Date\.now\(\) > thread\.pausedUntil/.test(wa),
-    "a held workspace or person gets the old path",
-  );
-  assert.ok(wa.includes("result.bytes.byteLength <= VISION_MAX_BYTES"));
-  assert.ok(
-    wa.includes('if (!maySee && (n.type !== "text" || !n.body)) {'),
-    "the unreadable branch is skipped only when the photo is one we may look at",
-  );
-  // The DECISION is made where the routing needs it; the DOWNLOAD waits until
-  // the cap, the budget, the billing pause and the mode have all agreed there
-  // will be a reply, so none of them pays 25MB for bytes it throws away: RUN in
-  // inbound/phases/ ("a workspace that will not answer never
-  // pays to download the photo").
-  assert.ok(
-    wa.indexOf("const photo: { mime: string; base64: string } | null = null;") < 0,
-    "the bytes are fetched, not declared and filled from two places",
-  );
-  assert.ok(
-    (wa.match(/sink\.media\(n\)/g) ?? []).length === 2,
-    "one download per message: the unreadable path's, or the vision path's",
-  );
-  assert.ok(
-    wa.includes(
-      "const outcome = await sayUnreadable(thread.pausedUntil);\n      await sink.processed(handledOf(outcome.way));",
-    ),
-    "a photo that could not be fetched is handed over, not answered from its caption",
-  );
-  assert.ok(
-    /const bodyText: string = maySee \? \(?n\.media\?\.caption\?\.trim\(\) \|\| "\[photo\]"\)? : \(?n\.body \?\? ""\)?;/.test(
-      wa,
-    ),
-    "the record keeps the caption, not the instruction",
-  );
-  // The photo's instruction says what the reply may say of prices: the allowance at the turn's own zone and clock.
-  assert.ok(
-    /photo\s*\?\s*photoUserText\(n\.media\?\.caption, priceAllowance\(brainCfg, rt\?\.timezone, now\) \? "written" : "none"\)\s*:\s*bodyText,/.test(
-      wa,
-    ),
-  );
-  assert.ok(/\.\.\.\(photo \? \{ image: photo \} : \{\}\),/.test(wa), "the image reaches the brain");
-  assert.ok(readCode("apps/edge/lib/inbound/persist.ts").includes("return result;"), "sink.media hands the bytes back");
-  const brain = readCode("apps/edge/lib/ai/receptionist-brain.ts");
-  assert.ok(
-    brain.includes('{ type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } },'),
-  );
-  assert.ok(brain.includes('{ type: "text", text: userText },'), "image first, then the words");
-  const rt = readCode("apps/edge/lib/shared/tenant-runtime.ts");
-  assert.ok(rt.includes("features: parsed?.features ?? null,") && rt.includes("features: null,"));
-});
+// The handler looks only when the workspace, the mode and the moment allow, and never fetches twice. Run, not read
+// (pinned as unreadable.ts's, model-turn.ts's, persist.ts's, receptionist-brain.ts's and tenant-runtime.ts's text until
+// 26 Nov 2026): with the photo row on, the model is shown the picture itself, first, then the words restating the
+// rules; off, or past what the model takes, the photo is handed over as one nobody could look at; the switch is the
+// config's, and a load that fails turns nothing on (media/a-photo-is-seen-and-drawn-where-it-is-kept.test.mjs). A
+// workspace that will not answer never pays to download it, one download per message, and a fetch that failed is handed
+// over, never answered from its caption (inbound/phases/).
 
 // The owner turns it on with the switch on What it can do's photo row (the Settings wiring review, 18 Oct 2026), which
 // patches features.vision and nothing else, and is off unless the config says true: receptionist/business-tab/answers/
