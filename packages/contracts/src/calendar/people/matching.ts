@@ -225,7 +225,7 @@ export function extractContacts(
   const organizer = item.organizer?.toLowerCase() || null;
   const emails = new Set<string>();
   for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
-  for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
+  for (const a of item.attendees) if (a.email) emails.add(a.email.toLowerCase());
   if (organizer) emails.delete(organizer);
   // The business's own addresses come off the same way the organiser's do,
   // for the same reason: they are on the event because it is the business's
@@ -238,7 +238,7 @@ export function extractContacts(
     if (p) phones.add(p);
   }
   const names = new Set<string>();
-  for (const a of item.attendees ?? []) {
+  for (const a of item.attendees) {
     if (organizer && a.email?.toLowerCase() === organizer) continue;
     if (a.email && own.has(a.email.toLowerCase())) continue;
     const n = (a.name ?? "").trim();

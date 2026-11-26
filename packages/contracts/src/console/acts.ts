@@ -16,7 +16,7 @@ import {
   whyWords,
 } from "./staff";
 import { SLUG } from "../shared/identity";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, entryOf } from "../shared/unknown";
 
 // --------------------------------------------------------------------------------------------------- what came of it
 
@@ -103,7 +103,7 @@ export function actRowOf(dto: PlatformActDto, nowMs: number): PlatformActVM {
     when: Number.isFinite(at) ? agoWords(at, nowMs) : "",
     who: staffName(dto.actor_email),
     role: STAFF_ROLE_WORDS[dto.actor_role],
-    what: CONSOLE_ACTS[dto.act]?.words ?? dto.act,
+    what: entryOf(CONSOLE_ACTS, dto.act)?.words ?? dto.act,
     where: dto.name ?? (dto.tenant_id ? "A workspace since deleted" : TARGET_WORDS[dto.target_kind]),
     why: whyWords({ kind: dto.reason_kind, ticket: dto.ticket, note: dto.note }),
     outcome: quiet ? NEVER_FINISHED : ACT_OUTCOME_WORDS[dto.outcome],

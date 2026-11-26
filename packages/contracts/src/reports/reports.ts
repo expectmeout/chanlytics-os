@@ -153,7 +153,7 @@ export const withinWords = (days: number, until: string | null): string =>
  */
 function periodFactsOf(dto: ReportDto) {
   const days = dto.days;
-  const series = dto.series ?? [];
+  const series = dto.series;
   const current = series.slice(-days);
   const previous = series.slice(0, Math.max(0, series.length - days));
   const points: ReportPointVM[] = current.map((item) => ({
@@ -190,7 +190,7 @@ function periodFactsOf(dto: ReportDto) {
   const until = endedOn(dto);
   const answeredTotal = tot.ai + tot.you + tot.none;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
-  const sortedReply = [...(dto.reply_seconds ?? [])].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  const sortedReply = [...dto.reply_seconds].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   return {
     dto,
     days,
@@ -228,7 +228,7 @@ const reasonBarsOf = (reasons: ReportDto["reasons"]): ReportBarVM[] => {
   // once you could not do its time) are one bar of both, never two bars of one name (Ruben's screenshot, 18 Oct 2026). The
   // bar keeps the id of its most frequent reason.
   const byLabel = new Map<string, [string, string, number]>();
-  for (const [r, n] of Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1])) {
+  for (const [r, n] of Object.entries(reasons).sort((a, b) => b[1] - a[1])) {
     const label = capitalize(reasonShort(r)) || r;
     const had = byLabel.get(label);
     byLabel.set(label, had ? [had[0], label, had[2] + n] : [r, label, n]);
@@ -252,7 +252,7 @@ const reasonsShownOf = (reasons: ReportBarVM[]): ReportVM["reasonsShown"] => {
 /** The callers' moods in their own order (good, then neither, then bad). A mood is an order, not a verdict: no status colour. */
 const moodBarsOf = (sentiments: ReportDto["sentiments"]): ReportBarVM[] =>
   bars(
-    Object.entries(sentiments ?? {})
+    Object.entries(sentiments)
       .sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1])
       .map(([s, n]): [string, string, number] => [s, s, n]),
   );
@@ -306,7 +306,7 @@ function callsOf({ dto, current, previous, points, tot }: PeriodFacts, sentiment
     points,
     total: tot.calls,
     minutes: Math.round(tot.callSeconds / 60),
-    voicemail: dto.voicemail ?? 0,
+    voicemail: dto.voicemail,
     sentiments,
     max: Math.max(1, ...points.map((p) => p.calls)),
     prior: priorOf(current.length, previous, (d) => d.calls),
@@ -427,8 +427,8 @@ export function toReportVM(dto: ReportDto, opts: { profile: ReportProfile | null
         )
       : null,
     week,
-    hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts?.profile)),
-    hoursUnset: hoursUnsetOf(dto.arrivals, opts?.profile),
+    hours: hoursOf(dto.hours, closedOf(dto.arrivals, opts.profile)),
+    hoursUnset: hoursUnsetOf(dto.arrivals, opts.profile),
     channels,
     period: periodWords(periodFacts.days, periodFacts.until),
     lines: linesOf(periodFacts, week),

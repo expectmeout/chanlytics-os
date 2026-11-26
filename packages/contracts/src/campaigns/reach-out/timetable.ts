@@ -17,6 +17,7 @@ import { dayPlusInZone, localToUtcMs } from "../../shared/zone/math";
 import type { WeekdayKey } from "../../shared/zone/day-keys";
 import { DEFAULT_WEEK, type OpenWindow, type WeekHours } from "./lead-hours";
 import { DAY_MS, MIN_MS } from "../../shared/time";
+import { entryOf } from "../../shared/unknown";
 
 export const SEND_WINDOW_MARGIN_MIN = 30;
 /** The part of any day a cold email may arrive in, in the lead's own time (minutes after midnight): nine to five. */
@@ -61,7 +62,7 @@ const DAYS: readonly WeekdayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "
 function inFrame(week: WeekHours): WeekHours {
   const out: Partial<WeekHours> = {};
   for (const day of DAYS) {
-    out[day] = (week[day] ?? [])
+    out[day] = week[day]
       .map((w) => ({
         from: Math.max(w.from + SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME.from),
         to: Math.min(w.to - SEND_WINDOW_MARGIN_MIN, SEND_DAY_FRAME.to),
@@ -80,7 +81,7 @@ function inFrame(week: WeekHours): WeekHours {
 export function sendWindowsOf(week: WeekHours): WeekHours {
   const framed = inFrame(week);
   if (DAYS.some((d) => framed[d].length > 0)) return framed;
-  return DAYS.some((d) => (week[d] ?? []).length > 0) ? inFrame(DEFAULT_WEEK) : framed;
+  return DAYS.some((d) => week[d].length > 0) ? inFrame(DEFAULT_WEEK) : framed;
 }
 
 /** The send windows of the lead's days, as UTC instants, from `fromMs` for `days` days. */
@@ -88,7 +89,7 @@ function openSpans(zone: string, windows: WeekHours, fromMs: number, days: numbe
   const spans: Array<[number, number]> = [];
   for (let i = 0; i <= Math.ceil(days); i += 1) {
     const day = dayPlusInZone(zone, fromMs, i);
-    for (const w of windows[day.weekday as WeekdayKey] ?? []) {
+    for (const w of entryOf(windows, day.weekday) ?? []) {
       const start = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.from / 60), w.from % 60);
       const end = localToUtcMs(zone, day.y, day.m, day.d, Math.floor(w.to / 60), w.to % 60);
       if (end > fromMs) spans.push([Math.max(start, fromMs), end]);

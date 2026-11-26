@@ -305,8 +305,8 @@ function factsFor(platformTenant: PlatformTenantDto, nowMs: number): PlatformRow
         ? "Rehearsal"
         : (platformTenant.sms_state ?? "none").replace(/_/g, " ");
 
-  const at_ = isoMs(platformTenant.last_inbound_at);
-  return { paying, answering, texting, heard: at_ === null ? "Never" : agoWords(at_, nowMs) };
+  const lastMs = isoMs(platformTenant.last_inbound_at);
+  return { paying, answering, texting, heard: lastMs === null ? "Never" : agoWords(lastMs, nowMs) };
 }
 
 /**

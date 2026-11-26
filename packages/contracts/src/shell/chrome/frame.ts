@@ -23,7 +23,7 @@ export type Crumb = string | { label: string; to?: string | null };
  */
 export function pageTitle(crumbs: readonly Crumb[] | null | undefined, needs?: number | null): string {
   const words = (crumbs ?? [])
-    .map((c) => (typeof c === "string" ? c : (c?.label ?? "")).trim())
+    .map((c) => (typeof c === "string" ? c : c.label).trim())
     .filter(Boolean)
     .reverse();
   const where = [...words, "Chanlytics"].join(" · ");

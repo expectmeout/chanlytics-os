@@ -1,7 +1,14 @@
 /** Answer: shape. */
 
 import type { AskMessageVM } from "../thread-words";
-import { FOLLOWUP_ECHO, navigateLabel, sameQuestion, storedChart, type AskChart } from "../answer-text";
+import {
+  FOLLOWUP_ECHO,
+  navigateLabel,
+  sameQuestion,
+  storedChart,
+  type AskChart,
+  type AskChartBefore,
+} from "../answer-text";
 import type { AskLanguage } from "../language";
 import type { FastCall } from "../fast-paths";
 import { citationRoute, type AskCitation, type AskCitationKind } from "../citations";
@@ -107,14 +114,18 @@ export const ASK_ANSWER_CAPS = {
 /** No list: what every answer carries until one is asked for, and what an answer stored before the list part reads as. */
 export const noList = (): AskList => ({ style: "bullets", entries: [] });
 
+/**
+ * An answer as a turn kept it: one kept before the list part has none, and a chart kept before it had series is one
+ * value to a point (answer-text.ts storedChart).
+ */
+export type AskAnswerAsStored = Omit<AskAnswer, "show"> & {
+  show: Omit<AskAnswer["show"], "list" | "chart"> & { list?: AskList; chart?: AskChart | AskChartBefore };
+};
+
 /** An answer as it was stored, whole: one stored before the list part has none, and reads as having no list. */
-export function storedAnswer(askAnswer: AskAnswer): AskAnswer {
-  const c = askAnswer.show.chart;
-  if (askAnswer.show.list && (!c || c.series)) return askAnswer;
-  return {
-    ...askAnswer,
-    show: { ...askAnswer.show, ...(c ? { chart: storedChart(c) } : {}), list: askAnswer.show.list ?? noList() },
-  };
+export function storedAnswer(askAnswer: AskAnswerAsStored): AskAnswer {
+  const { chart, list, ...show } = askAnswer.show;
+  return { ...askAnswer, show: { ...show, ...(chart ? { chart: storedChart(chart) } : {}), list: list ?? noList() } };
 }
 
 /** `t`, at most n characters: a longer one ends on a whole word, with an ellipsis. */
@@ -215,7 +226,7 @@ export function oneDoor(
   return {
     answer: {
       ...askAnswer,
-      show: { figures, items, breakdown, ...chart, list: askAnswer.show.list ?? noList() },
+      show: { figures, items, breakdown, ...chart, list: askAnswer.show.list },
       do: { open, next: nextQuestions(askAnswer.do.next, [...offered]) },
     },
     cardOpen,
@@ -270,9 +281,9 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
 export function answerFromV1(
   askMessage: Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups" | "language">,
 ): AskAnswer {
-  const language = askMessage.language ?? "en";
+  const language = askMessage.language;
   const words = KIND_WORDS[language === "es" ? "es" : "en"];
-  const cites = askMessage.citations ?? [];
+  const cites = askMessage.citations;
   const items: AskItem[] = cites
     .filter((c) => c.kind !== "page")
     .slice(0, ASK_ANSWER_CAPS.items)
@@ -292,9 +303,9 @@ export function answerFromV1(
   return {
     v: 2,
     form: "prose",
-    say: { headline: "", detail: (askMessage.text ?? "").trim() },
+    say: { headline: "", detail: askMessage.text.trim() },
     show: { figures: [], items, breakdown: null, list: noList() },
-    do: { open, next: askMessage.followups ?? [] },
+    do: { open, next: askMessage.followups },
     language,
   };
 }

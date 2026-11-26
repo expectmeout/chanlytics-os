@@ -268,7 +268,7 @@ const callsTile: ReportTile = ({ dto, points, tot, prev, noun, rangeLabel, prior
   label: "Calls",
   value: String(tot.calls),
   meta: tot.calls
-    ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone · ${dto.voicemail ?? 0} to voicemail`
+    ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone · ${dto.voicemail} to voicemail`
     : "no calls",
   delta: deltaOf(tot.calls, prev.calls, true, noun),
   spark: points.map((p) => p.calls),

@@ -426,7 +426,7 @@ export function sourceRowsOf(rows: readonly ImportRowDto[] | null | undefined): 
       state,
       counts,
       parts_done: group.reduce((n, r) => n + r.parts_done, 0),
-      parts_total: totals.every((t) => t !== null) ? totals.reduce<number>((n, t) => n + (t ?? 0), 0) : null,
+      parts_total: totals.every((t) => t !== null) ? totals.reduce<number>((n, t) => n + t, 0) : null,
       oldest: momentOf(
         "min",
         group.map((r) => r.oldest),

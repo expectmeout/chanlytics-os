@@ -334,7 +334,7 @@ export function hoursOf(
   closed: number | null = null,
 ): ReportHoursVM | null {
   if (!grid || !grid.length) return null;
-  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row) => s + (Number(row?.[h]) || 0), 0));
+  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row) => s + (Number(row[h]) || 0), 0));
   const total = values.reduce((a, b) => a + b, 0);
   let peak: number | null = null;
   if (total > 0) {
@@ -351,7 +351,7 @@ export function channelsOf(ch: ReportDto["channels"]): ReportChannelVM[] | null 
   return REPORT_CHANNELS.map(({ key, label }) => ({
     key,
     label,
-    value: Number(ch.current?.[key]) || 0,
-    prior: Number(ch.previous?.[key]) || 0,
+    value: Number(ch.current[key]) || 0,
+    prior: Number(ch.previous[key]) || 0,
   })).filter((c) => c.value > 0 || c.prior > 0);
 }

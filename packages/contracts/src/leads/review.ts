@@ -170,7 +170,7 @@ export function leadReviewGroups(
   const by = new Map<string, LeadReviewGroup>();
   for (const row of rows) {
     if (row.cls !== "review") continue;
-    const reasons = row.reasons ?? [];
+    const reasons = row.reasons;
     // An address that checks out is not a problem: it groups a lead only when nothing else holds the lead back
     // (the month was full when its check answered), for Keep to count it. Anything else the lead waits on comes first.
     const held = reasons.map(reviewGroupOf).filter((g): g is LeadReviewGroupId => g !== null && g !== "checks_out");

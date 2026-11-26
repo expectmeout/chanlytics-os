@@ -496,7 +496,7 @@ async function overtakenByHuman(db: Db, delivery: Delivery): Promise<string | nu
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
   // Which sends those are is said once (contracts isAutomatedSend, with its SQL twin).
-  const spoke = (newer ?? []).find((m) => !isAutomatedSend(m.meta));
+  const spoke = newer.find((m) => !isAutomatedSend(m.meta));
   return spoke ? spoke.id : null;
 }
 
@@ -589,7 +589,7 @@ async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise
   if (!d.messageId) return false;
   const { data, error } = await finalizeQueuedMessage(db, d.messageId, patch);
   if (error) throw new DbFailure(error, `deliver: cannot finalize message ${d.messageId}`);
-  return !!data && data.length > 0;
+  return data.length > 0;
 }
 
 export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<Delivered> {

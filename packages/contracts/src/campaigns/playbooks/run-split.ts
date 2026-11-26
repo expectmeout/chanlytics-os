@@ -69,16 +69,16 @@ export function runReadingOf(
   if (below.size === 0 || CONSENT_CHANNELS.filter((c) => whole[c] > 0).length < 2) return reading;
   const last = Math.max(...below);
   const counts = noOne();
-  const run_split: RunSplit = {};
+  const runSplit: RunSplit = {};
   let taken = 0;
   for (const person of drawn.eligible) {
     if (taken === last) break;
     const channel = drawn.channelOf[person.id];
     if (channel) counts[channel] += 1;
     taken += 1;
-    if (below.has(taken)) run_split[String(taken)] = { ...counts };
+    if (below.has(taken)) runSplit[String(taken)] = { ...counts };
   }
-  return { ...reading, run_split };
+  return { ...reading, run_split: runSplit };
 }
 
 /**

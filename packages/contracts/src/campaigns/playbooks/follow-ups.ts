@@ -129,7 +129,7 @@ export function followUpDealOf(
   pace: Pick<DealPaceVM, "waitDays"> | null,
   had: FollowUpsHad,
 ): DealVM | null {
-  const open = person.openDeals && person.openDeals.length ? person.openDeals : person.deal ? [person.deal] : [];
+  const open = person.openDeals.length ? person.openDeals : person.deal ? [person.deal] : [];
   const named = open
     .filter((d) => d.stage === "proposed" && followUpNames({ deal: d, askedMs: person.askedMs }, nowMs, pace))
     .sort((a, b) => (a.sinceMs ?? 0) - (b.sinceMs ?? 0));

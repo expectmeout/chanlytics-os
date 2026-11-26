@@ -231,7 +231,7 @@ function inOrder<X extends { r: PipelineSource }>(xs: readonly X[], at: (x: X) =
 
 /** A row's open deals (0029): People's, or the one deal a row from before them shows, while it is open. */
 function openOf(r: PipelineSource): DealVM[] {
-  if (r.openDeals && r.openDeals.length) return r.openDeals;
+  if (r.openDeals.length) return r.openDeals;
   return r.deal && dealIsOpen(r.deal) ? [r.deal] : [];
 }
 

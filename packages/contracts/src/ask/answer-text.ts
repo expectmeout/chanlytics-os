@@ -228,7 +228,7 @@ export function answerRuns(line: string): AnswerRun[] {
     else if (i1 ?? i2) out.push(...answerRuns(i1 ?? i2 ?? "").map((r): AnswerRun => ({ ...r, italic: true })));
     else if (link && to) out.push({ text: link, to });
     else plain(link ?? code ?? "");
-    at = (m.index ?? 0) + m[0].length;
+    at = m.index + m[0].length;
   }
   plain(line.slice(at));
   return out;
@@ -463,7 +463,7 @@ export interface AskChart {
 }
 
 /** A chart as an answer stored it before it had series: one value to a point. */
-type AskChartBefore = Omit<AskChart, "series" | "points"> & {
+export type AskChartBefore = Omit<AskChart, "series" | "points"> & {
   series?: undefined;
   points: Array<{ label: string; value: number }>;
 };
@@ -534,9 +534,6 @@ function chartCopy(c: AskChart): string {
 
 /* ------------------------------------------------- the answer's words, read */
 
-/** No list: what an answer stored before the list part reads as. */
-const NO_LIST: AskList = { style: "bullets", entries: [] };
-
 /** A list's entries as lines of text, each with its mark: "• ", "1. ", or none. */
 function listLines(l: AskList): string[] {
   return l.entries.map((e, i) => (l.style === "numbers" ? `${i + 1}. ${e}` : l.style === "bullets" ? `• ${e}` : e));
@@ -550,7 +547,7 @@ function listLines(l: AskList): string[] {
 export function answerText(askAnswer: AskAnswer): string {
   const own = askAnswer.form === "prose" || opensWithBlock(askAnswer.say.detail);
   const say = [askAnswer.say.headline, askAnswer.say.detail].filter(Boolean).join(own ? "\n" : " ");
-  return answerPlain([say, ...listLines(askAnswer.show.list ?? NO_LIST)].filter(Boolean).join("\n"));
+  return answerPlain([say, ...listLines(askAnswer.show.list)].filter(Boolean).join("\n"));
 }
 
 /** The answer as Copy takes it: its words (answerText), then its parts, each figure and each row, a line each. */
@@ -590,7 +587,7 @@ export function listSpoken(askList: AskList): string {
  * lines, then the list (listSpoken). The figures and rows are drawn, never read.
  */
 export function answerSpoken(askAnswer: AskAnswer): string {
-  const l = askAnswer.show.list ?? NO_LIST;
+  const l = askAnswer.show.list;
   const sentence = sentences([askAnswer.say.headline, ...answerPlain(askAnswer.say.detail, true).split("\n")]);
   return [sentence, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })]
     .filter(Boolean)

@@ -228,7 +228,7 @@ function channelsLine(channels: readonly CampaignChannelVM[]): string | null {
 
 export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const days = dto.days;
-  const series = dto.series ?? [];
+  const series = dto.series;
   const current = series.slice(-days);
   const previous = series.slice(0, Math.max(0, series.length - days));
   const points: CampaignPointVM[] = current.map((d) => ({
@@ -260,7 +260,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
   const whatsapp = channels.find((c) => c.channel === "whatsapp");
   const read = dto.by_channel ? (whatsapp?.read ?? 0) : tot.read;
   const readOf = dto.by_channel ? (whatsapp?.sent ?? 0) : tot.sent;
-  const rawSources = dto.sources ?? [];
+  const rawSources = dto.sources;
   const sends = sumOf(rawSources.map((s) => s.runs));
   const sources: CampaignSourceVM[] = rawSources.map((rawSource) => ({
     id: rawSource.id,

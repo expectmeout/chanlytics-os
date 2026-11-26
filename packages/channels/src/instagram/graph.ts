@@ -316,7 +316,7 @@ function breakIn(part: string): number {
   const paragraph = part.lastIndexOf("\n\n");
   if (paragraph > 0) return paragraph + 2;
   let sentence = -1;
-  for (const m of part.matchAll(/[.!?…](?=\s)/g)) sentence = (m.index ?? -1) + 1;
+  for (const m of part.matchAll(/[.!?…](?=\s)/g)) sentence = m.index + 1;
   if (sentence > 0) return sentence;
   const space = part.search(/\s\S*$/);
   return space > 0 ? space + 1 : -1;

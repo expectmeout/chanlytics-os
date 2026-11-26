@@ -352,7 +352,7 @@ export function normalizeInbound(waRawMessage: WaRawMessage, value: WaChangeValu
 
   const describeLocation = (): string => {
     const where = [loc?.name, loc?.address].filter(Boolean).join(", ");
-    const coords = loc?.latitude != null && loc?.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
+    const coords = loc?.latitude != null && loc.longitude != null ? `${loc.latitude}, ${loc.longitude}` : null;
     return `Shared a location${where ? `: ${where}` : ""}${coords ? ` (${coords})` : ""}`;
   };
   const describeCards = (): string => {

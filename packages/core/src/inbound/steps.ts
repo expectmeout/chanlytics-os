@@ -63,7 +63,7 @@ export function holdPlan(
   brainMeta: BrainMeta | undefined,
 ): { delayMs: number; heldForConfidence: boolean; source: "veto_window" | "low_confidence"; minConfidence: number } {
   let delayMs = replyDelayMs(replyMode, replyLimits);
-  const minConfidence = typeof replyLimits?.min_confidence === "number" ? replyLimits.min_confidence : 0;
+  const minConfidence = typeof replyLimits.min_confidence === "number" ? replyLimits.min_confidence : 0;
   const heldForConfidence =
     replyMode === "auto" &&
     minConfidence > 0 &&

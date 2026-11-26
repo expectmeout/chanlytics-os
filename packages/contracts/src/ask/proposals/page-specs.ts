@@ -166,7 +166,7 @@ export function addProposalSpecs(specs: Readonly<Record<AskOnlyKind, ProposalSpe
  * none.
  */
 export function cardOpenRoute(askProposal: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
-  const card = { payload: askProposal.payload ?? {} };
+  const card = { payload: askProposal.payload };
   const spec = proposalSpec(askProposal.kind) ?? proposalSpec("thread_verb");
   return spec ? spec.open(card, askProposal.outcome ?? null) : null;
 }

@@ -181,12 +181,12 @@ export function searchCardsReplaced(
   // An offer's plan is one card: every step of one waiting above goes with it.
   const offers = new Set(
     newOffer
-      ? earlier.flatMap((m) => (m.proposals ?? []).flatMap((p) => (p.plan?.head?.press === "offer" ? [p.plan.id] : [])))
+      ? earlier.flatMap((m) => m.proposals.flatMap((p) => (p.plan?.head?.press === "offer" ? [p.plan.id] : [])))
       : [],
   );
   const ours = new Set(created.flatMap((p) => (p.plan ? [p.plan.id] : [])));
   return earlier.flatMap((m) =>
-    (m.proposals ?? [])
+    m.proposals
       .filter((p) => {
         if (p.outcome) return false;
         if (search && startsSearch(p)) return true;
@@ -227,7 +227,7 @@ export function withIdeaCarried<P extends Pick<AskProposal, "kind" | "payload" |
   created: readonly P[],
 ): P[] {
   const fromIdea = earlier.some((m) =>
-    (m.proposals ?? []).some((p) => !p.outcome && startsSearch(p) && rec(rec(p.payload).plan).from === "idea"),
+    m.proposals.some((p) => !p.outcome && startsSearch(p) && rec(rec(p.payload).plan).from === "idea"),
   );
   if (!fromIdea) return [...created];
   return created.map((p) =>
@@ -243,7 +243,7 @@ export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals"
   landed: M,
   atMs: number,
 ): M[] {
-  const gone = new Set(searchCardsReplaced(messages, landed.proposals ?? []).map((r) => r.proposalId));
+  const gone = new Set(searchCardsReplaced(messages, landed.proposals).map((r) => r.proposalId));
   // What this turn pressed on a yes (D18 of the answers canvas) is drawn on its own card, up the thread.
   const pressed = new Map(
     ((landed as { pressed?: AskMessageVM["pressed"] }).pressed ?? []).map((r) => [r.proposalId, r.outcome]),
@@ -251,7 +251,7 @@ export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals"
   const kept =
     gone.size || pressed.size
       ? messages.map((m) =>
-          (m.proposals ?? []).some((p) => gone.has(p.id) || pressed.has(p.id))
+          m.proposals.some((p) => gone.has(p.id) || pressed.has(p.id))
             ? {
                 ...m,
                 proposals: m.proposals.map((p) => {

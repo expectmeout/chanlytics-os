@@ -129,7 +129,11 @@ export function liveTurns(items: RetellCall["transcript_with_tool_calls"]): Rete
   if (!items?.length) return null;
   const spoken = items.filter((t) => t.role === "agent" || t.role === "user" || t.role === "injected");
   if (!spoken.length) return null;
-  return spoken.map(({ role, content, words }) => ({ role, content: content ?? "", ...(words ? { words } : {}) }));
+  return spoken.map((turn) => {
+    // The provider's turn as it is sent: one with no words carries none.
+    const sent: Partial<Pick<typeof turn, "content">> = turn;
+    return { role: turn.role, content: sent.content ?? "", ...(turn.words ? { words: turn.words } : {}) };
+  });
 }
 
 /**

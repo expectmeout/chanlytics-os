@@ -269,10 +269,10 @@ function letterLines(news: PartnerLetterNews): string[] {
   for (const s of news.standing) lines.push(standingLine(s));
   for (const b of news.brought)
     lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
-  // A news object written before 0016 has neither: nothing to say.
-  for (const a of news.accepted ?? [])
+  // A news object written before 0016 has neither, which its schema reads as none: nothing to say.
+  for (const a of news.accepted)
     lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
-  for (const d of news.declined ?? [])
+  for (const d of news.declined)
     lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
   return lines;
 }
@@ -287,8 +287,8 @@ const LETTER_SUBJECTS: readonly [(news: PartnerLetterNews) => boolean, (news: Pa
     () => "A workspace you brought is not eligible for a share",
   ],
   [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
-  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
-  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
+  [(n) => n.declined.length > 0, () => "A business declined the workspace you set up"],
+  [(n) => n.accepted.length > 0, () => "A business took over the workspace you set up"],
   [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`],
 ];
 

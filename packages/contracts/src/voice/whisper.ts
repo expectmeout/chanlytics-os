@@ -63,10 +63,7 @@ export function frameWhisper(text: string): string {
  * business with none, to take the details the team needs (priceNextStep).
  */
 export function frameGuardrail(rule: "price", opts: { hasBookingLink: boolean }): string {
-  const subject =
-    rule === "price"
-      ? "You said a price your instructions do not let you give."
-      : "You broke one of your standing rules.";
+  const subject = { price: "You said a price your instructions do not let you give." }[rule];
   return (
     "A correction from the Chanlytics platform, not from the business. The caller cannot hear it.\n" +
     `${subject}\n` +

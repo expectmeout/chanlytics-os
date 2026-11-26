@@ -332,7 +332,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     if (verdict === "stop") return;
     if (verdict !== "go on") return backOff(ports, broadcast, cmd, { ...verdict, timezone: facts.timezone });
     // A breath between two sends, none after the last: the next batch is a job away.
-    if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
+    if (i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
 
   // A batch that stopped at its wire's moment is no failing read: the next is placed at once, never stalled on.
@@ -485,7 +485,7 @@ async function backOff(
         `${channel}: a broadcast could not reach the provider`,
         `Broadcast ${stoppedRun.id} could not open a connection to ${words.to}; the person it was for is back in the queue and the run ${at ? `tries again at ${at.toISOString()}` : "has stopped"}.`,
       )
-      ?.catch(logAndGoOn("paging the platform"));
+      .catch(logAndGoOn("paging the platform"));
   if (at && !nextOpenMoment(timezone, at).moved) {
     await ports.scheduleNext(stoppedRun.id, at, { waits: waited + 1 });
     return;
