@@ -290,11 +290,12 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     else globalThis.React = hadReact;
   }
   // Today's queue, Setup and the back office still draw AttnRow, so the row's
-  // own rules stay; only the strip's container, footer and empty state went.
+  // own rules stay; only the strip's container, footer and empty state went. Its verbs are the kit's small buttons,
+  // the one primary the kit's coral (attn-row.tsx); where they stand in the row is the row's.
   const css = readRaw("apps/dashboard/src/styles/clients.css");
   assert.ok(
-    css.includes(".cl-attn-cta.primary { background: var(--accent); color: var(--accent-fg); }"),
-    "the one primary button is the mockup's coral",
+    css.includes(".cl-attn-act { align-self: center; white-space: nowrap; }"),
+    "the row's verbs stand where they stood",
   );
   assert.ok(css.includes("@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }"));
 });
