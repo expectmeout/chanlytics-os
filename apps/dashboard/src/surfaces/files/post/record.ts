@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FileDto, FilePosted, PieceTakeDownDto, PieceVersionsDto, PostDto } from "@chanlytics/contracts";
 import type { PieceAdStands } from "@/server/content/ad-pictures";
-import { fileVerbs } from "./verbs";
+import { fileVerbs } from "../verbs";
 
 /** A file's record as GET files/[id] answers it: its contracts record, with a made piece's ad and take-down beside it. */
 type RecordData = Extract<Awaited<ReturnType<typeof fileVerbs.record>>, { ok: true }>["data"];

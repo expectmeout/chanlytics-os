@@ -966,3 +966,65 @@ test("a conversation's file holds every message of a thread longer than 10,000, 
     "the ledger row counts what the file holds",
   );
 });
+
+test("messages written in one instant are each in the file once, in order, across every page's edge; a thread of another workspace is not found", async () => {
+  // Offset paging under a TOTAL order (created_at, then id), as the workspace bundle pages. The old cursor
+  // (`.lt(created_at, before)`) stepped strictly past a page's last row, so messages written in one transaction --
+  // identical timestamps -- lost every one tied with the boundary, silently, from the file whose whole promise is
+  // "every message". A page is 500 here (conversation-export.ts), so 1,005 tied messages cross two edges.
+  const { setRateStore, memoryStore } = await import(
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/shared/rate-limit.ts")).href
+  );
+  setRateStore(memoryStore());
+  const route = await import(
+    pathToFileURL(path.join(here, "../../../apps/dashboard/app/api/v1/conversations/[id]/export/route.ts")).href
+  );
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const U = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const C = "cccccccc-2222-4222-8222-cccccccccccc";
+  const THEIRS = "cccccccc-3333-4333-8333-cccccccccccc";
+  const P = "dddddddd-2222-4222-8222-dddddddddddd";
+  const N = 1_005;
+  const tables = {
+    memberships: [
+      { user_id: "u1", tenant_id: T, role: "viewer", tenants: { slug: "marisas" }, created_at: "2026-01-01T00:00:00Z" },
+    ],
+    tenants: [{ id: T, slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: TZ }],
+    contacts: [{ id: P, tenant_id: T, display_name: "Dani", wa_profile_name: null, phone_e164: null, email: null }],
+    conversations: [
+      { id: C, tenant_id: T, contact_id: P, state: "open", created_at: "2026-01-01T00:00:00Z" },
+      { id: THEIRS, tenant_id: U, contact_id: P, state: "open", created_at: "2026-01-01T00:00:00Z" },
+    ],
+    // Listed out of order on purpose: the file's order is the export's, not the table's.
+    messages: Array.from({ length: N }, (_, i) =>
+      msg({
+        id: `00000000-0000-4000-8000-${String(N - i).padStart(12, "0")}`,
+        conversation_id: C,
+        body: `tied ${N - i}`,
+        created_at: "2026-01-01T09:00:00.000Z",
+      }),
+    ),
+    decisions: [],
+  };
+  const ctxOf = (id) => ({ supabase: fakeDb(tables), userId: "u1", email: "ada@example.com", params: { id } });
+  const res = await route.GET.run(
+    new Request(`http://localhost/api/v1/conversations/${C}/export?workspace=${T}`),
+    ctxOf(C),
+  );
+  const said = (await res.text())
+    .split("\n")
+    .map((l) => /tied (\d+)$/.exec(l)?.[1])
+    .filter(Boolean)
+    .map(Number);
+  assert.equal(said.length, N, "every tied message, none lost at an edge and none twice");
+  assert.deepEqual(
+    said,
+    Array.from({ length: N }, (_, i) => i + 1),
+    "in the one order there is: the instant, then the id",
+  );
+  await assert.rejects(
+    route.GET.run(new Request(`http://localhost/api/v1/conversations/${THEIRS}/export?workspace=${T}`), ctxOf(THEIRS)),
+    (e) => e.code === "not_found",
+    "a thread of another workspace is none of this one's",
+  );
+});

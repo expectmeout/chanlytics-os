@@ -11,7 +11,7 @@ import { Meter } from "../../../kit/meter/meter";
 import { Press } from "../../../kit/press";
 import { AskLooking } from "../../../files/looking";
 import { VideoOpened } from "../../../files/video/player";
-import { postShapeAddress } from "../../../files/post-shapes";
+import { postShapeAddress } from "../../../files/post/shapes";
 import { fileVerbs } from "../../../files/verbs";
 
 /**

@@ -19,7 +19,7 @@ import {
 import { askAbout, canDo, navigate, type FrameFlash } from "../../frame-verbs";
 import { PostOnGoogle } from "../../files/places/post-google";
 import { PostOnInstagram } from "../../files/places/post-instagram";
-import { postsMovedOf, usePostRecord } from "../../files/post-record";
+import { postsMovedOf, usePostRecord } from "../../files/post/record";
 import type { PieceFootActs } from "./piece-foot";
 import { usePieceDrafts, usePiecePosts, usePiecePresses, type PieceHands, type PiecePresses } from "./piece-presses";
 import { usePieceStanding } from "./piece-standing";

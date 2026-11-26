@@ -4,8 +4,8 @@
  * visit (model/piece-open.ts piecesToReadAhead says which). A video's film is asked for only when it is played.
  */
 import { fileViewOf, type ContentMadeDto } from "@chanlytics/contracts";
-import { readRecordAhead } from "../../files/post-record";
-import { postShapeAddress } from "../../files/post-shapes";
+import { readRecordAhead } from "../../files/post/record";
+import { postShapeAddress } from "../../files/post/shapes";
 import { piecesToReadAhead } from "./model/piece-open";
 
 const readAlready = new Set<string>();
@@ -15,7 +15,7 @@ const stagedAt = (file: ContentMadeDto["file"]): string =>
   file.kind === "video" ? `${fileViewOf(file.id)}?w=1280` : postShapeAddress(file.id, "portrait");
 
 /**
- * Ask for them: each one's picture, and its record (files/post-record.ts), so its line, where it stands and its coral act are
+ * Ask for them: each one's picture, and its record (files/post/record.ts), so its line, where it stands and its coral act are
  * there as it lands. Nothing waits on it, and one that fails is asked for again when it is opened.
  */
 export function readAhead(pieces: readonly ContentMadeDto[], openId: string): void {

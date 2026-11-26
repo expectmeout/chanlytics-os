@@ -86,7 +86,7 @@ const FOOT_WAITS_MS = 600;
 /**
  * Whether the foot waits for the piece's record: drawn from the list alone, its line grew, a caret came and its coral act
  * changed a beat after the piece opened (Ruben, 25 Nov 2026). Its record is most often in already (read from the first touch
- * of the press, files/post-record.ts), so this waits only where it is not, and never longer than FOOT_WAITS_MS. The picture
+ * of the press, files/post/record.ts), so this waits only where it is not, and never longer than FOOT_WAITS_MS. The picture
  * is drawn at once either way.
  */
 function useFootWaits(settled: boolean, id: string): boolean {

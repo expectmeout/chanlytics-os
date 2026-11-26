@@ -1,5 +1,5 @@
 /** One of a few things to choose for a post (decision 0099, step 3): the kit's Button, the one chosen on the inset's fill. */
-import { Button } from "../kit/button/button";
+import { Button } from "../../kit/button/button";
 
 interface PostChoiceProps<T extends string> {
   label: string;
