@@ -44,6 +44,7 @@ import {
   type,
   workspace,
 } from "./_settings-owner-panes.mjs";
+import { bridgeHolds, heldDoors } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ one gate ------------------------------ */
 
@@ -693,10 +694,9 @@ test("Replies says how many people are set differently, by mode, and each of the
   assert.match(textOf(line), /3 people/);
   assert.match(textOf(line), /2 Never · 1 Ask me first/, "never first: what holds AI back");
   // Its menu names the newest, each in the person page's own word for their mode, and a press opens their page.
-  const W = globalThis.window;
-  const nav = W.CHANLY;
+  const nav = heldDoors();
   const went = [];
-  W.CHANLY = { ...(nav || {}), nav: (route) => went.push(route) };
+  bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
   try {
     press(byTestId(tree, "aut-own-modes-menu"));
     tree = settle("autonomy");
@@ -712,7 +712,7 @@ test("Replies says how many people are set differently, by mode, and each of the
     press(items[1]);
     assert.deepEqual(went, ["clients/k2"]);
   } finally {
-    W.CHANLY = nav;
+    bridgeHolds({ doors: nav });
   }
   // What the owner's corrections suggest is How it answers' now (item 8), so Autonomy draws no card of them.
   workspace("owner", {

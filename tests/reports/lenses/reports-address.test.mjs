@@ -200,19 +200,15 @@ test("the strip is the kit's, wearing whose views it holds, and says nothing of 
   // (7 Oct 2026): a third way for a view to change, beside a page mounted afresh and Settings' own. The lens's body is a
   // view of the deck's now (reports-page.tsx, kit/motion/view-deck.ts), and the strip is every page's.
   hold();
-  const win = globalThis.window;
-  win.CHANLY = { address: { href: (r) => `/w/harbor/${r}`, warm() {}, warmSoon() {} } };
+  // The bridge's address (bridge/shell.ts, provided as `shell`), as the frame's reads it: a link's path, a page warmed.
+  bridgeHolds({
+    parts: { shell: { route: () => "reports", href: (r) => `/w/harbor/${r}`, warm() {}, warmSoon() {} } },
+  });
   // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  Object.assign(win, {
-    SurfaceTabs: surfaceTabs.SurfaceTabs,
-    stripPlace: surfaceTabs.stripPlace,
-    stripSlide: surfaceTabs.stripSlide,
-    stripSwipe: surfaceTabs.stripSwipe,
-  });
   const views = chromeAt(null).views;
   assert.equal("stays" in views, false);
-  const strip = win.SurfaceTabs({ page: "reports", param: null, views, onNavigate() {} }).rendered;
+  const strip = surfaceTabs.SurfaceTabs({ page: "reports", param: null, views, onNavigate() {} }).rendered;
   assert.equal(strip.type, "nav");
   assert.match(strip.props.className, /\bstabs-reports\b/);
   assert.equal(strip.props["data-testid"], "reports-lenses");

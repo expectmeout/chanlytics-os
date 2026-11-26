@@ -50,7 +50,7 @@ import {
   went,
   withFacts,
 } from "./_first-run-world.mjs";
-import { provided } from "../shell/_bridge-holds.mjs";
+import { holdRoles, provided } from "../shell/_bridge-holds.mjs";
 
 const { waConnect } = await importSrc("apps/dashboard/src/surfaces/settings/connections/whatsapp.ts");
 const PW = FIRST_RUN_HELPERS.phoneWords;
@@ -483,7 +483,7 @@ test("Switch it on: a role that may not save the forwarding sees the questions a
   const saved = forwardingSays();
   setSetup(atLive(answeringLine(), { want: { ...KEEP, rings: "landline" } }));
   // The line's presses are the channel permission (contracts ROLE_PERMS `disconnect`), which an operator lacks.
-  globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
+  holdRoles({ can: (what) => what === "approve" || what === "autonomy" });
   try {
     const tree = open();
     await settle();
@@ -492,6 +492,7 @@ test("Switch it on: a role that may not save the forwarding sees the questions a
     await go.props.onClick();
     assert.deepEqual(saved, []);
   } finally {
+    holdRoles({ can: () => true });
   }
 });
 
@@ -953,9 +954,10 @@ test("You're live: a refused Open Today stays and says why, and again goes on; a
     assert.equal(asked.length, 1, "not asked again");
     assert.equal(went.at(-1), "today", "again goes on");
     // A teammate: Open Today switches nothing on (the channel permission), so nothing promises an email.
-    globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
+    holdRoles({ can: (what) => what === "approve" || what === "autonomy" });
     assert.equal(byTestId(open(), "fr-live-note"), null);
   } finally {
+    holdRoles({ can: () => true });
     setupVerbs.activate = readyActivate;
     answer = null;
   }

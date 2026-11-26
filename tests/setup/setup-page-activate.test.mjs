@@ -318,7 +318,6 @@ test("the page: the row's Turn on reaches the bridge with the capability's name,
 
 test("REGRESSION (S15): an operator sees Turn on gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
   const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
-  Object.assign(globalThis.window, {});
   bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   try {
     const tree = mount();
@@ -344,7 +343,7 @@ test("REGRESSION (S15): an operator sees Turn on gated before the press, with th
     );
     assert.equal(calls.nav.length, before.nav);
   } finally {
-    delete globalThis.window.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });
 
@@ -727,7 +726,6 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
   assert.equal(calls.nav.at(-1), "start/find", "one finder: the business step's, which opens on Find");
   assert.equal(calls.find.length, 0, "nothing is searched from the row");
   const before = calls.nav.length;
-  Object.assign(globalThis.window, {});
   bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   try {
     fresh();
@@ -736,7 +734,7 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
     await denied.cta.onClick();
     assert.equal(calls.nav.length, before, "reached any other way, the door goes nowhere for an operator");
   } finally {
-    delete globalThis.window.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });
 
@@ -875,7 +873,6 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
     if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props;
   });
   await lineRow.cta.onClick();
-  Object.assign(globalThis.window, {});
   bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   const searched = calls.search.length;
   try {
@@ -886,7 +883,7 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
     await tick();
     assert.equal(calls.search.length, searched, "REGRESSION: Enter searched past the gated Find numbers");
   } finally {
-    delete globalThis.window.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
 
     setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }

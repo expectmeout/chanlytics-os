@@ -39,7 +39,6 @@ const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/bridge/
 reactOfDashboard.createContext ??= (value) => ({ Provider: "Provider", Consumer: "Consumer", _currentValue: value });
 reactOfDashboard.useContext ??= (context) => context._currentValue;
 const W = globalThis;
-Object.assign(W, {});
 bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
 const S = "../../apps/dashboard/src/surfaces";
 holdFrameParts();

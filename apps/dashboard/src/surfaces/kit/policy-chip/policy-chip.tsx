@@ -5,7 +5,6 @@
  */
 import { useEffect, useReducer } from "react";
 import { openAutonomy, policyStore } from "../../frame-verbs";
-import type { PolicyRow } from "../../frame-verbs";
 
 interface PolicyChipProps {
   /** The policy class the chip names (the charter's row id). */

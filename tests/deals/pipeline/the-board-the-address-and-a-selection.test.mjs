@@ -64,6 +64,7 @@ import {
   withHead,
 } from "./_pipeline.mjs";
 import { bridgeHolds, provided, surfaceValue } from "../../shell/_bridge-holds.mjs";
+const { askOnScreen } = await import("../../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 test("a viewer's cards do not drag, and a phone keeps the list whatever was chosen", async () => {
   await fresh();
@@ -438,7 +439,7 @@ test("a view nobody touched is not written to the workspace: a first open saves 
 
 test("a viewer sees New proposal and why they may not press it, and a press opens nothing", async () => {
   await fresh();
-  const keep = globalThis.window.ST_STORE;
+  const keep = provided("roles");
   bridgeHolds({ parts: { roles: { can: () => false, myRole: () => "viewer" } } });
   try {
     let tree = draw();
@@ -673,7 +674,7 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
     "a person is read by their own id, never a row's",
   );
   assert.deepEqual(
-    globalThis.window.__askOnScreen.ids,
+    askOnScreen().ids,
     ["hana", "sara", "noa", "wes", "nia", "noa", "cat"],
     "Ask hears whose each row is, in the rows' order",
   );
@@ -709,7 +710,7 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
   items.at(-1).onClick();
   assert.deepEqual(opened, ["noa", "noa"]);
   // A selection of both rows passes both deals, each at the version its own read says, and both rows leave it.
-  const keepToast = globalThis.window.usePPToast;
+  const keepToast = provided("toast");
   bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   try {
     tree = draw();
@@ -891,7 +892,7 @@ test("the Pipeline's groups swap in with the kit's rise on a rail pick, the tabl
 test("a selection: People's bar leads with Mark as passed · N; why is asked once, the bridge records them, what it came to is said once, and only those who passed leave the selection", async () => {
   const seen = await fresh();
   const flashes = [];
-  const keepToast = globalThis.window.usePPToast;
+  const keepToast = provided("toast");
   bridgeHolds({ parts: { toast: () => [null, (f) => flashes.push(f)] } });
   const dealOfRow = (id) => surfaceValue("people").rows.find((r) => r.id === id).deal;
   // The bridge reads each person afresh (people-detail.ts passDeals): Wes is still a proposal out, Nia has become a

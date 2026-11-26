@@ -166,7 +166,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
   const flashes = [];
   // The step sheet is asked for by the event it hears (step-sheet.tsx openStepSheet): what the window was told.
   const asked = () => dispatched.filter((e) => e.type === "step:sheet").map((e) => e.detail);
-  const keep = { toast: globalThis.window.usePPToast };
+  const keep = { toast: provided("toast") };
   recordingNotes(sent);
   bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
   const W = contracts.NOTE_WORDS;
@@ -296,7 +296,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
   // What the window was told of a step: a done says nothing of its own when it lands (the write's refresh reads People behind it, and
   // the page follows People), and says People moved where the door refused it, as nothing is read for a write that was not made.
   const heard = (from) => dispatched.slice(from).filter((e) => e.type === "note:saved" || e.type === "surface:clients");
-  const keep = { sheet: globalThis.window.openStepSheet, me: whoIsLooking().me };
+  const keep = { sheet: provided("sheets")?.openStep, me: whoIsLooking().me };
   recordingNotes(sent);
   // The card asks the shell's step sheet, which the frame draws once: here, a stand-in that says it was asked.
   bridgeHolds({ parts: { sheets: { ...provided("sheets"), openStep: (ask) => (asked.push(ask), true) } } });

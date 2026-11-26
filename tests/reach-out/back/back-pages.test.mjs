@@ -13,7 +13,7 @@ import * as contracts from "@chanlytics/contracts";
 import { toCampaignLensVM } from "@chanlytics/contracts/report-lens";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { CAMPAIGNS, dtoWith } from "../../reports/campaigns/_campaign-world.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
@@ -22,7 +22,6 @@ Date.now = () => NOW;
 bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
-const SRC = "../../../apps/dashboard/src";
 holdFrameParts();
 // Reports' Reach-outs section is TSX (decision 0015): the Campaigns lens's part of it, on the same stub.
 const { reachOutsSection } =
@@ -36,9 +35,7 @@ const went = [];
 const flashed = [];
 const role = { may: true };
 bridgeHolds({ parts: { clock: { zone: () => "America/Chicago" } } });
-Object.assign(W, {
-  canDo: () => role.may,
-});
+holdRoles({ can: () => role.may });
 bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push(m)] } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 

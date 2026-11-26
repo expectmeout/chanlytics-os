@@ -28,13 +28,14 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hookFrames } from "./_hook-frames.mjs";
-import { hearSurfaces, surfaceHook, surfaceMoved } from "../apps/dashboard/src/bridge/surface-status.ts";
+import { hearSurfaces, surfaceMoved } from "../apps/dashboard/src/bridge/surface-status.ts";
 import { installRoles } from "../apps/dashboard/src/bridge/identity.ts";
 
 const requireFromDashboard = createRequire(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../apps/dashboard/src/bridge/_.js"),
 );
 const reactModule = requireFromDashboard("react");
+const { provide, provided } = requireFromDashboard("./provided.ts");
 // A part that says a state on the document's root holds it in an insertion effect (kit/motion/root-flags.ts): whatever
 // stub a test sets, the effect runs where that stub runs a layout effect, read as it is called.
 reactModule.useInsertionEffect = (effect, deps) => reactModule.useLayoutEffect(effect, deps);
@@ -403,11 +404,13 @@ export function installStubReact(extra = {}) {
     },
   };
   useStubHooks(globalThis.React);
-  // A TSX surface that draws into another node (a picker's list, on the body) imports `ReactDOM from "react-dom"` and calls
-  // `ReactDOM.createPortal` as it draws; under this runner's react-server condition that entry has no createPortal, so the
-  // stub gives it the one the pages' `window.ReactDOM` has: the node itself, drawn where it stands. Required here, not as
-  // this module loads: loading react-dom before a suite's own stub React is in place leaves People's rows undrawn.
-  requireFromDashboard("react-dom").createPortal = globalThis.ReactDOM.createPortal;
+  // A TSX part that draws into another node (a picker's list, on the body) calls react-dom's `createPortal` as it draws,
+  // and one that draws a change at once its `flushSync`; under this runner's react-server condition that entry has
+  // neither, so the stub gives it the node itself, drawn where it stands, and the change, run. Required here, not as this
+  // module loads: loading react-dom before a suite's own stub React is in place leaves People's rows undrawn.
+  const reactDom = requireFromDashboard("react-dom");
+  reactDom.createPortal = (node) => node;
+  reactDom.flushSync = (change) => change();
   hearTheSurfaces();
 }
 
@@ -448,14 +451,15 @@ export function unmount() {
 export const redrawWanted = () => cells.wanted;
 /**
  * The role store as the app has it, for the page tests whose gates ask who is acting: settings.jsx makes the store and the
- * bridge completes it (bridge/identity.ts installRoles), so `mayAtLeast`, `myRole` and View-as read the window's
- * `__ME` and the store's own `viewAsRole` at each ask, as they do in the app. A test that changes `window.__ME.role`
- * between draws changes who is acting. `can` is only there where a test has none, and answers yes, as no store does.
+ * bridge completes it (bridge/identity.ts installRoles, provided as `roles`), so `mayAtLeast`, `myRole` and View-as read
+ * who is looking (bridge/who.ts) and the store's own `viewAsRole` at each ask, as they do in the app. A test that changes
+ * who is looking between draws changes who is acting. `can` is only there where a test has none, and answers yes, as no store does.
  */
-export function installRoleStore(win = globalThis.window) {
-  const store = (win.ST_STORE ??= { viewAsRole: null, can: () => true });
+export function installRoleStore() {
+  const store = provided("roles") ?? { viewAsRole: null, can: () => true };
   store.viewAsRole ??= null;
-  installRoles(win);
+  provide("roles", store);
+  installRoles();
   return store;
 }
 /** A surface's rows landed, or its status moved: what FrameApp's read and the seam's event count against its key. */

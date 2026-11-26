@@ -43,9 +43,6 @@ const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: contracts.stateOf } } });
-Object.assign(globalThis, {
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { installTabMemory } = await import(`${SRC}/bridge/tab-memory.ts`);
 installTabMemory(globalThis);

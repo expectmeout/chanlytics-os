@@ -18,7 +18,7 @@ import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../../_log-lines.mjs";
 import { installStubReact, installRoleStore, fresh, again } from "../../_stub-react.mjs";
-import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -52,10 +52,7 @@ export async function peopleHarness() {
   installStubReact();
   installRoleStore(globalThis.window);
   const went = moved;
-  Object.assign(globalThis.window, {
-    mayAtLeast: (rung) => globalThis.window.ST_STORE.mayAtLeast(rung),
-    canDo: (action) => !!ROLE_PERMS[whoIsLooking().me.role]?.[action],
-  });
+  holdRoles({ can: (action) => !!ROLE_PERMS[whoIsLooking().me.role]?.[action] });
   bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
   bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const src = (p) => importSrc(`apps/dashboard/src/surfaces/${p}`);
@@ -400,7 +397,6 @@ export async function profileUi() {
       activeWorkspaceId: HARBOR,
     },
   });
-  Object.assign(globalThis, {});
   bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const P = "apps/dashboard/src/surfaces/people";
   const { hero, openWith } = await importSrc(`${P}/person/hero.tsx`);

@@ -75,7 +75,6 @@ globalThis.window = {
   location: { hash: "", pathname: "/w/marisas", origin: "https://app.chanlytics.com" },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  gateTitle: () => null,
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {
@@ -89,20 +88,13 @@ globalThis.window = {
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: { appendChild() {} } };
 
-const win = globalThis.window;
 // The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
-win.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
 // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
 // publishes it (seed-globals.ts); its hooks are this file's stub's.
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
 // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-Object.assign(win, {
-  SurfaceTabs: surfaceTabs.SurfaceTabs,
-  stripPlace: surfaceTabs.stripPlace,
-  stripSlide: surfaceTabs.stripSlide,
-  stripSwipe: surfaceTabs.stripSwipe,
-});
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -133,7 +125,7 @@ const hasClass = (n, cls) => typeof n.props?.className === "string" && n.props.c
 const nav = (active) => {
   cells = [];
   frames.begin();
-  const tree = win.Sidebar({ active, onNavigate() {} });
+  const tree = Sidebar({ active, onNavigate() {} });
   return findAll(tree, (n) => hasClass(n, "nav-item")).map((n) => ({
     label: textOf(n.props.children.find((c) => c && c.type === "span")),
     active: hasClass(n, "active"),
@@ -144,7 +136,7 @@ const nav = (active) => {
 const strip = (page, param = null) => {
   cells = [];
   frames.begin();
-  const tree = win.SurfaceTabs({ page, param, onNavigate() {} });
+  const tree = surfaceTabs.SurfaceTabs({ page, param, onNavigate() {} });
   if (!tree) return null;
   return findAll(tree, (n) => hasClass(n, "stabs-tab")).map((b) => ({
     label: textOf(b.props.children.filter((c) => typeof c === "string")).trim(),
@@ -242,7 +234,6 @@ test("the strip's badge is the count that already exists, not a second reading o
   );
   assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
   assert.equal(strip("inbox")[0].badge, null, "and none before the Inbox has been read");
-  delete win.useNeedsYou;
 });
 
 test("the strip is not drawn on a surface that has no second view", () => {
@@ -254,16 +245,16 @@ test("the strip is not drawn on a surface that has no second view", () => {
 // A phone's page swipes across its strip, and a tap slides the same way (frame/surface-tabs.tsx stripPlace and stripSlide,
 // docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md): a view from the tab beside comes in from its side.
 test("a view from the tab beside comes in from that side: the strip's own order, and nowhere off a strip", () => {
-  const at = (page) => win.stripPlace(page, null);
+  const at = (page) => surfaceTabs.stripPlace(page, null);
   assert.deepEqual(at("inbox"), { strip: "inbox", at: 0 });
   assert.deepEqual(at("live"), { strip: "inbox", at: 2 });
   assert.equal(at("messages"), null, "Campaigns has no strip: its rooms are reached from its home");
   assert.equal(at("outbound"), null);
   assert.equal(at("today"), null);
   assert.equal(at("content"), null, "a demo-only tab is on no real workspace's strip");
-  assert.equal(win.stripSlide(at("inbox"), at("conversations")), "next");
-  assert.equal(win.stripSlide(at("live"), at("inbox")), "prev");
-  assert.equal(win.stripSlide(at("inbox"), at("inbox")), null, "a thread opened on the same tab is not a move");
-  assert.equal(win.stripSlide(at("live"), at("outbound")), null, "a page off every strip is somewhere else");
-  assert.equal(win.stripSlide(null, at("inbox")), null);
+  assert.equal(surfaceTabs.stripSlide(at("inbox"), at("conversations")), "next");
+  assert.equal(surfaceTabs.stripSlide(at("live"), at("inbox")), "prev");
+  assert.equal(surfaceTabs.stripSlide(at("inbox"), at("inbox")), null, "a thread opened on the same tab is not a move");
+  assert.equal(surfaceTabs.stripSlide(at("live"), at("outbound")), null, "a page off every strip is somewhere else");
+  assert.equal(surfaceTabs.stripSlide(null, at("inbox")), null);
 });

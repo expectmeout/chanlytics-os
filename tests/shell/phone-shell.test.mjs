@@ -63,11 +63,7 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
     "the real places, and not Live: a call is a bar while it is happening, not a slot that is empty the rest of the week; nothing seeded gets a tab",
   );
   const drawn = (inboxNeeds) => {
-    const prev = globalThis.window.TabBar;
-    try {
-      return PhoneTabs({ page: "inbox", param: null, inboxNeeds, onNavigate() {}, onMenu() {}, onPlace() {} });
-    } finally {
-    }
+    return PhoneTabs({ page: "inbox", param: null, inboxNeeds, onNavigate() {}, onMenu() {}, onPlace() {} });
   };
   const bar = drawn(3);
   assert.equal(bar.props.testid, "phone-tabs", "drawn by the kit's TabBar");

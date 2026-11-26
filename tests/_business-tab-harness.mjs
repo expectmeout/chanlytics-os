@@ -42,7 +42,6 @@ bridgeHolds({
   },
 });
 const went = [];
-Object.assign(globalThis, {});
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 holdFrameParts();

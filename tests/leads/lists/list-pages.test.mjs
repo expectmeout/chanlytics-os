@@ -15,7 +15,6 @@ import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
-const SRC = "../../../apps/dashboard/src";
 holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
@@ -28,7 +27,6 @@ const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
 
 const flashed = [];
 bridgeHolds({ parts: { clock: { zone: () => "America/Chicago" } } });
-Object.assign(W, {});
 const IMPORTED = {
   search_id: "s-list",
   round_id: "r-list",

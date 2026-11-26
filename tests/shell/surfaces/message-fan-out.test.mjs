@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { changesOf, toldFor } from "../../_live-feed.mjs";
-import { historyOf, legacyAddress } from "../address/_address.mjs";
+import { historyOf } from "../address/_address.mjs";
 import { registeredSurfaces } from "../hearing/_reads.mjs";
 import { bridgeHolds } from "../_bridge-holds.mjs";
 
@@ -58,7 +58,6 @@ const settle = async (n = 10) => {
 
 // The address the bridge gives the pages, and the pages' way to it: a route moves with popstate, as Back does.
 bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
-win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
@@ -989,18 +988,8 @@ globalThis.React = {
     return snapshot();
   },
 };
-for (const name of ["Sidebar", "Topbar", "LiveCallBar", "ShellStatusBar", "SurfaceTabs", "AskBar", "ShortcutsSheet"])
-  globalThis[name] = name;
 registry.installRouteGate();
 registry.installSurfaceRegistry();
-win.drawRoute = (r) => ({
-  activeNav: r.page,
-  crumbs: [r.page],
-  pane: false,
-  primaryAction: null,
-  content: null,
-  mountKey: r.routeKey,
-});
 // The frame (surfaces/frame/app-shell.tsx), under the name these tests draw it by; TypeScript, so its hooks are this
 // file's stub's (the "react" module's, set from it).
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);

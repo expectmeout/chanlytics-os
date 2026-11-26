@@ -10,7 +10,7 @@ import { until } from "../shared/_until.mjs";
 import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../apps/dashboard/src";
 holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);

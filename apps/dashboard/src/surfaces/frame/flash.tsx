@@ -24,11 +24,13 @@
  * off the window, the portal and the glyph by their global names.
  */
 import { useEffect, useRef, useState } from "react";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Icon } from "../kit/icon/icon";
 import { touchSwipe } from "../kit/motion/swipe";
 import type { FrameFlash } from "../frame-verbs";
 import { provided } from "@/bridge/provided";
+import { createPortal } from "react-dom";
+import { navigate } from "../frame-doors";
 
 /** A toast's shape, as contracts' toastShape says it from the flash it was asked for. */
 interface ToastShape {
@@ -46,17 +48,6 @@ interface Timer {
   endsAt: number;
   left: number | null;
 }
-
-type FlashWindow = Window & {
-  CHANLY?: { nav?: (route: string) => void };
-};
-const flashWindow = () => window as FlashWindow;
-/** The page's portal and glyph, by the global names the JSX reached them by (bare `ReactDOM` and `Icon`). */
-type FlashGlobals = typeof globalThis & {
-  ReactDOM?: { createPortal?: (node: ReactNode, into: Element) => ReactNode };
-  Icon?: ComponentType<{ name: string; size?: number }>;
-};
-const flashGlobals = () => globalThis as FlashGlobals;
 
 const FALLBACK_MS = 4000;
 const TOAST_PHONE_QUERY = "(max-width: 900px)";
@@ -87,7 +78,6 @@ interface ToastActs {
 /** One toast: its glyph, its words, its doors, its act and its Undo; a pull down or a flick across takes it. */
 function toastOf(toast: Toast, acts: ToastActs): ReactNode {
   const { close, hold, release, pressed, keyed, byMouse } = acts;
-  const Glyph = flashGlobals().Icon ?? Icon;
   return (
     <div
       key={toast.id}
@@ -102,7 +92,7 @@ function toastOf(toast: Toast, acts: ToastActs): ReactNode {
       onKeyDown={keyed(toast)}
       {...touchSwipe({ onDown: () => close(toast.id), onAway: () => close(toast.id), onBack: () => close(toast.id) })}
     >
-      <Glyph name={toast.icon} size={13} />
+      <Icon name={toast.icon} size={13} />
       <span className="pp-toast-msg">{toast.msg}</span>
       {(toast.links || []).map((l, i) => (
         <button
@@ -110,7 +100,7 @@ function toastOf(toast: Toast, acts: ToastActs): ReactNode {
           className="pp-toast-cta"
           onClick={() => {
             close(toast.id);
-            flashWindow().CHANLY?.nav?.(l.to);
+            navigate(l.to);
           }}
         >
           {l.label}
@@ -229,24 +219,22 @@ export const usePPToast = (place?: string): [ReactNode, (flash: FrameFlash) => v
     });
     arm(id, shape.ms);
   };
-  const portal = flashGlobals().ReactDOM?.createPortal;
   const acts: ToastActs = { close, hold, release, pressed, keyed, byMouse };
-  const node =
-    toasts.length && portal
-      ? portal(
-          // stopPropagation: portal events bubble through the REACT tree, so a toast rendered inside an overlay (Ask modal,
-          // dialogs) would otherwise trigger the overlay's close-on-click and kill the undo.
-          <div
-            ref={stack}
-            className={`pp-toast-stack${place ? ` ${place}` : ""}`}
-            role="presentation"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {toasts.map((toast) => toastOf(toast, acts))}
-          </div>,
-          document.body,
-        )
-      : null;
+  const node = toasts.length
+    ? createPortal(
+        // stopPropagation: portal events bubble through the REACT tree, so a toast rendered inside an overlay (Ask modal,
+        // dialogs) would otherwise trigger the overlay's close-on-click and kill the undo.
+        <div
+          ref={stack}
+          className={`pp-toast-stack${place ? ` ${place}` : ""}`}
+          role="presentation"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {toasts.map((toast) => toastOf(toast, acts))}
+        </div>,
+        document.body,
+      )
+    : null;
   return [node, flash];
 };
 

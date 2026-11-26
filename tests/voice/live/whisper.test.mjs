@@ -18,7 +18,7 @@ import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contrac
 import { updateLiveCall } from "@chanlytics/channels/voice";
 import { readRaw } from "../../_source.mjs";
 import { installStubReact, fresh, again, find, byTestId } from "../../_stub-react.mjs";
-import { holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 test("the ledger knows a whisper on a call, and the database agrees", () => {
   assert.ok(DECISION_VERBS.includes("whisper"));
@@ -95,4 +95,85 @@ const call = (over = {}) => ({
   ...over,
 });
 
-holdFrameParts();
+test("the page offers it only on a live call, behind the gate the server enforces", async () => {
+  installStubReact({ setInterval: () => 1, clearInterval() {} });
+  const S = "../../../apps/dashboard/src";
+  // The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
+  holdFrameParts();
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
+  const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+  const { whisperCall } = await import(`${S}/bridge/inbox-verbs.ts`);
+  // The whisper is the bridge's verb, imported by the page and run for real over the client: this is the wire.
+  const sent = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const path = new URL(url, "https://app.chanlytics.com").pathname;
+    sent.push({ method: init.method, path, body: init.body ? JSON.parse(init.body) : null });
+    return new Response(JSON.stringify({ ok: true, data: {} }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const mount = () => again(() => LivePage({}));
+  const withCalls = (calls) => {
+    setSurfaceValue("live", toLiveVM(calls, [], ZONE, new Date(NOW)));
+    fresh();
+  };
+  // The one round button at the field's end: the arrow that sends, once there are words (the mic while there are none).
+  const sendButton = (tree) => byTestId(tree, "live-whisper-send");
+  const type = (tree, words) =>
+    find(byTestId(tree, "live-whisper"), (n) => n.type === "input").props.onChange({ target: { value: words } });
+  try {
+    // Only on a live call: an ended one has nobody to whisper to.
+    withCalls([call()]);
+    assert.ok(byTestId(mount(), "live-whisper"), "a call on the line offers the whisper");
+    withCalls([call({ status: "ended", ended_at: iso(1_000), duration_ms: 89_000, summary: "Asked for a person." })]);
+    assert.equal(byTestId(mount(), "live-whisper"), null, "a call that ended offers none");
+
+    // Behind the same door the server enforces (operator or owner: the `approve` gate): where the role may not, the
+    // control stays, says so, and sends nothing.
+    withCalls([call()]);
+    bridgeHolds({ parts: { roles: { can: (action) => action !== "approve" } } });
+    try {
+      let tree = mount();
+      type(tree, "offer the 3pm slot");
+      tree = mount();
+      const gated = sendButton(tree);
+      assert.equal(gated.props["aria-disabled"], true, "the whisper asks the approve gate, and this role is refused");
+      assert.ok(gated.props["data-gated"] !== undefined);
+      await gated.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: {} });
+      assert.deepEqual(sent, [], "and pressing it sends nothing");
+      bridgeHolds({ parts: { roles: { can: () => true } } });
+      tree = mount();
+      assert.equal(sendButton(tree).props["aria-disabled"], undefined, "a role that may approve is not gated");
+    } finally {
+      bridgeHolds({ parts: { roles: undefined } });
+    }
+
+    // No nudge to speak: a whisper is used when it fits, which may be a later turn.
+    fresh();
+    let tree = mount();
+    type(tree, "offer the 3pm slot");
+    await sendButton(mount()).props.onClick();
+    assert.deepEqual(
+      sent,
+      [{ method: "POST", path: "/api/v1/calls/c-live/whisper", body: { text: "offer the 3pm slot", trigger: false } }],
+      "no nudge to speak: a whisper is used when it fits",
+    );
+
+    // The verb the page takes takes the nudge off unless it is asked for.
+    sent.length = 0;
+    await whisperCall("c-live", "hello");
+    await whisperCall("c-live", "now", true);
+    assert.deepEqual(
+      sent.map((r) => r.body),
+      [
+        { text: "hello", trigger: false },
+        { text: "now", trigger: true },
+      ],
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

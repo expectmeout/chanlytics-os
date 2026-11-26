@@ -12,7 +12,7 @@ import { firstTouchOf, nothingConnectedOf } from "../../apps/dashboard/src/surfa
 import { V0, HEAD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
 import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../apps/dashboard/src";
 holdFrameParts();
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
@@ -20,7 +20,7 @@ const { api } = await import(`${S}/bridge/api.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
 const { read } = await import(`${S}/bridge/api.ts`);
-const { askOnScreenOf } = await import(`${S}/bridge/ask/on-screen.ts`);
+const { askOnScreen } = await import(`${S}/bridge/ask/on-screen.ts`);
 
 const seriesOf = (byVia, over = {}) => ({ first_came: { by_via: byVia }, today: "2031-03-15", days: 30, ...over });
 const rowsOf = (byVia) => firstTouchOf(seriesOf(byVia)).rows;
@@ -292,7 +292,7 @@ test("an address that names an ad, with nothing connected, is the page with noth
 
 test("the page tells Ask what it shows, in a word and no row: what is true", async () => {
   const said = () => {
-    const s = askOnScreenOf(globalThis.window);
+    const s = askOnScreen();
     return s && [s.key, s.view, s.ids];
   };
   await drawPage(() => ({ series: seriesOf(NO_AD), now: null }));

@@ -45,9 +45,6 @@ installClock();
 // The shell's own components the sheets draw by name, and its door to a route: the frame's JSX.
 holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: contracts.stateOf } } });
-Object.assign(globalThis, {
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { WhenSheet, ChannelsSheet, FromSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-sheets.tsx`);

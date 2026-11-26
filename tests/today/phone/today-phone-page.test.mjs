@@ -21,13 +21,11 @@ bridgeHolds({
   },
 });
 installStubReact({
-  appNavigate: (to) => went.push(to),
-  usePPToast: () => [null, () => {}],
-  canDo: () => true,
-  gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const W = globalThis.window;
 // The phone's width, as tokens.css --bp-phone asks it (surfaces/today/phone.ts), and the desk's where a test says so.
 let phone = true;
@@ -171,17 +169,12 @@ test("on a phone a reply is never written on Today: the card's press opens their
   went.length = 0;
   // Ana's line is the door to her conversation, where hers is written too (D8 of 17 Nov): the frame's own door, which
   // goes the line's way (frame-doors.ts routeDoor).
-  W.routeDoor = (await import("../../../apps/dashboard/src/surfaces/frame-doors.ts")).routeDoor;
-  try {
-    const [ana] = linesOf(draw(NeedYouOnToday));
-    const door = find(ana, (n) => typeof n.props?.href === "string");
-    const anaRow = vm.queue.rows.find((r) => r.who === "Ana Reyes");
-    assert.match(door.props.href, new RegExp(`inbox/th-${anaRow.conversationId}$`));
-    door.props.onClick({ button: 0, preventDefault() {} });
-    assert.deepEqual(went, [`inbox/th-${anaRow.conversationId}`]);
-  } finally {
-    delete W.routeDoor;
-  }
+  const [ana] = linesOf(draw(NeedYouOnToday));
+  const door = find(ana, (n) => typeof n.props?.href === "string");
+  const anaRow = vm.queue.rows.find((r) => r.who === "Ana Reyes");
+  assert.match(door.props.href, new RegExp(`inbox/th-${anaRow.conversationId}$`));
+  door.props.onClick({ button: 0, preventDefault() {} });
+  assert.deepEqual(went, [`inbox/th-${anaRow.conversationId}`]);
   went.length = 0;
 });
 

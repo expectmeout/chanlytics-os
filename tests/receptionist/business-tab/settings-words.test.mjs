@@ -17,9 +17,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
-import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { useStubHooks } from "../../_stub-react.mjs";
 import { smsStateRow, connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 const { setupSteps, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -363,7 +363,6 @@ bridgeHolds({
   },
 });
 Object.assign(globalThis.window, {
-  gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
@@ -583,9 +582,10 @@ test("a settings control is named by the row it sits in: what the row hands it l
   // put another file's keys in force. This stub draws a component when it is created, before
   // the row clones it; the row's clone is drawn here, as React draws it.
   workspace();
-  const wasGate = globalThis.window.gate;
-  // A gate that can be told apart from nothing, so where it lands shows.
-  globalThis.window.gate = () => ({ "data-gated": "" });
+  const wasGate = provided("roles");
+  // A gate that can be told apart from nothing, so where it lands shows: every control's own ask (it names what it
+  // does) is refused, which the frame's gate marks `data-gated` (frame/gate.ts), and the tab's own question is let through.
+  holdRoles({ can: (perm, doing) => !doing });
   /** The element a control draws: a dial on a desk draws the choice of a few, which draws the group. */
   const element = (drawn) => (typeof drawn.type === "function" ? element(drawn.rendered) : drawn);
   const controls = (tab, name) =>
@@ -615,6 +615,6 @@ test("a settings control is named by the row it sits in: what the row hands it l
       "a test id handed to a dial lands on its group",
     );
   } finally {
-    globalThis.window.gate = wasGate;
+    bridgeHolds({ parts: { roles: wasGate } });
   }
 });

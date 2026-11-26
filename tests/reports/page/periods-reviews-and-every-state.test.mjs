@@ -79,7 +79,7 @@ import {
   toReceptionistReportVM,
   went,
 } from "./_page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------------ states ------------------------------------------ */
 
@@ -721,7 +721,7 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
   const [ana] = NORTHSIDE.reviews;
   const answered = { ...ana, reply_text: "Thank you, Ana!", replied_at: "2026-09-04T14:00:00Z" };
   // The shell's toast, as the shell holds it: the state of the component that asked for it, drawn only while that component is.
-  const shellToast = globalThis.usePPToast;
+  const shellToast = provided("toast");
   bridgeHolds({
     parts: {
       toast: () => {
@@ -909,7 +909,7 @@ test("on a phone the reviews that wait come first, ahead of the figures; with no
 
 test("the doors out of the Reviews lens are for a person who may use them: the words stay for the rest", () => {
   const places = { ...NORTHSIDE, connection: null, reviews: [{ ...NORTHSIDE.reviews[0], origin: "places" }] };
-  const asWho = globalThis.canDo;
+  const asWho = provided("roles");
   const door = (tree) => find(byTestId(tree, "reviews-connect"), (n) => n.type === "button");
   try {
     for (const [who, may] of [
@@ -917,7 +917,7 @@ test("the doors out of the Reviews lens are for a person who may use them: the w
       ["an operator", (action) => action === "approve"],
       ["a viewer", () => false],
     ]) {
-      globalThis.canDo = may;
+      holdRoles({ can: may });
       const V = holdReviews(places, null);
       const tree = page();
       assert.ok(textOf(byTestId(tree, "reviews-connect")).includes(V.lines.connect), `${who}: the words`);
@@ -928,7 +928,7 @@ test("the doors out of the Reviews lens are for a person who may use them: the w
       } else assert.equal(door(tree), null, `${who}: no door to what they may not do`);
     }
   } finally {
-    globalThis.canDo = asWho;
+    bridgeHolds({ parts: { roles: asWho } });
     setSurfaceValue("reports_reviews", undefined);
   }
 });

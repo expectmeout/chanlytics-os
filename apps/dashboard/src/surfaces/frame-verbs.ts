@@ -105,8 +105,8 @@ export function drawnNow(change: () => void): void {
  * and nothing follows it. Where the frame hears no address (the standalone mockup), `then` follows the move at once.
  */
 export function afterMove(move: () => void, then: () => void): void {
-  const hear = provided("shell")?.hear;
-  if (!hear) {
+  const shell = provided("shell");
+  if (!shell?.hear) {
     move();
     then();
     return;
@@ -120,7 +120,7 @@ export function afterMove(move: () => void, then: () => void): void {
     clearTimeout(late);
     return true;
   };
-  const stop = hear(() => {
+  const stop = shell.hear(() => {
     if (end()) then();
   });
   try {
@@ -140,8 +140,8 @@ export function afterMove(move: () => void, then: () => void): void {
  * and a Back): what a part over the page follows, the lead sheet's `?lead=` among them. Nothing where the frame hears none.
  */
 export function hearPageMoves(fn: () => void): () => void {
-  const hear = provided("shell")?.hear;
-  return hear ? hear(fn) : () => undefined;
+  const shell = provided("shell");
+  return shell?.hear ? shell.hear(fn) : () => undefined;
 }
 
 /** Ask's own calls, as installAsk made them (bridge/ask.ts): a turn sent, a card committed, the page as context. */
@@ -213,8 +213,8 @@ export function hrefOf<K extends RouteKey>(key: K, params?: Params<K>): string |
   return href ? href(key, params) : null;
 }
 
-/** One class of the workspace's policy charter, as the chip names it (`POLICY.row`). */
-export interface PolicyRow {
+/** One class of the workspace's policy charter, as the chip names it (the store's `row`). */
+interface PolicyRow {
   id: string;
   chip: string;
   locked?: boolean;

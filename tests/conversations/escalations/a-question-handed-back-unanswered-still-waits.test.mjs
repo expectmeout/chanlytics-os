@@ -262,7 +262,6 @@ test("the Inbox's read carries the newest closed hold of each thread whose custo
 
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,

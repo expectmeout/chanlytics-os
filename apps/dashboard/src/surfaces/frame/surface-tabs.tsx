@@ -8,10 +8,9 @@
  * frame imports it.
  */
 import { useEffect, useLayoutEffect, useReducer } from "react";
-import type { ComponentType } from "react";
 import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
 import { holdMoves, touchSwipe } from "../kit/motion/swipe";
-import { ViewTabs as KitViewTabs, type ViewTabsProps } from "../kit/view-tabs/view-tabs";
+import { ViewTabs as KitViewTabs } from "../kit/view-tabs/view-tabs";
 import type { SurfaceViews } from "../routes";
 import { surfaceValue } from "../surface-values";
 import { frameChrome } from "./frame-window";
@@ -89,9 +88,8 @@ const stHref = (route: string) => {
   return a && a.href ? a.href(route) : `#/${route}`;
 };
 
-/** The strip by the global name the frame's JSX drew it by (a test's stand-in), else the kit's. */
-const stViewTabs = () =>
-  (globalThis as typeof globalThis & { ViewTabs?: ComponentType<ViewTabsProps> }).ViewTabs ?? KitViewTabs;
+/** The strip: the kit's ViewTabs. */
+const stViewTabs = () => KitViewTabs;
 
 /** A route's group and its tabs: the page's own views where it says more than one, else its group's here. */
 const stTabsOf = (page: string, own: SurfaceViews | null): [string | null, readonly StTab[]] => {

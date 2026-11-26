@@ -258,13 +258,12 @@ test("REGRESSION: More's Set a step closes the visit first and opens the step sh
     await settle(2);
     assert.deepEqual(steps, [{ personId: "p1" }], "the step sheet, for them");
   } finally {
-    delete globalThis.window.openStepSheet;
     forgetPeek();
   }
 });
 
 test("(0008) the proposal act is gated as the sheet's Save is: a role that may not record a deal is told why at the button, and nothing opens", async () => {
-  const hadStore = globalThis.window.ST_STORE;
+  const hadStore = provided("roles");
   bridgeHolds({ parts: { roles: { can: () => false, myRole: () => "viewer" } } });
   try {
     const tree = peek();
@@ -278,7 +277,7 @@ test("(0008) the proposal act is gated as the sheet's Save is: a role that may n
     assert.deepEqual(sheets, [], "nothing opens");
     assert.ok(byTestId(page(), "cal-panel"), "and the visit stays");
   } finally {
-    if (hadStore === undefined) delete globalThis.window.ST_STORE;
+    if (hadStore === undefined) bridgeHolds({ parts: { roles: undefined } });
     else bridgeHolds({ parts: { roles: hadStore } });
     forgetPeek();
   }

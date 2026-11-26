@@ -65,7 +65,7 @@ const channels = [
 /* ---- the page itself, drawn without a browser ---- */
 const flashed = [];
 const sent = [];
-installStubReact({ CHANLY: { nav: () => {} }, setInterval: () => 1, clearInterval() {} });
+installStubReact({ setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
 // The end is confirmed through the shared Confirm, and a control asks the role gate: the shell's JSX (surfaces/frame), drawn for real.
 holdFrameParts();

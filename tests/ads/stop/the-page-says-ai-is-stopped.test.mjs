@@ -18,9 +18,9 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);
@@ -227,7 +227,7 @@ const KEPT = (one) => ({ id: one.id, outcome: "soon", version: one.version + 1 }
 const route = { page: page(), pressed: [], pageFails: false, pauseAll: (set) => ({ ads: set.map(KEPT) }) };
 /** What the page said in a toast, where the frame would draw it. */
 const flashes = [];
-const realToast = globalThis.window.usePPToast;
+const realToast = provided("toast");
 bridgeHolds({ parts: { toast: () => [null, (flash) => flashes.push(flash)] } });
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {

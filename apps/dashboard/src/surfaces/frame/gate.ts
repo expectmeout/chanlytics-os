@@ -14,10 +14,10 @@ import { roleGate, type Role } from "@chanlytics/contracts";
 import { provided } from "@/bridge/provided";
 import type { GateProps } from "../frame-verbs";
 
-/** Whether the role acting may do a permission's act: with no role store, it may. */
-export const canDo = (a: string): boolean => {
+/** Whether the role acting may do a permission's act, asked as `doing` where a control names its own: with no role store, it may. */
+export const canDo = (a: string, doing?: string): boolean => {
   const store = provided("roles");
-  return !store || store.can?.(a) === true;
+  return !store || store.can?.(a, doing) === true;
 };
 
 /** Whether the member, as they are acting (View-as included), stands on this rung or above it; with no store, no. */
@@ -68,4 +68,4 @@ export const gatedProps = (reason: string): GateProps => {
 };
 
 /** What a role gate spreads onto a control: nothing where the role may act, `gatedProps` with its reason where not. */
-export const gate = (a: string, doing?: string): GateProps => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
+export const gate = (a: string, doing?: string): GateProps => (canDo(a, doing) ? {} : gatedProps(gateTitle(a, doing)));

@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
-import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { useStubHooks } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
@@ -206,7 +206,6 @@ bridgeHolds({
   },
 });
 Object.assign(globalThis.window, {
-  gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
 bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });

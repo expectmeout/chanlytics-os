@@ -86,8 +86,11 @@ export interface RoleStore {
   mayAtLeast?: (least: Role) => boolean;
   /** Preview a lower role, or `null` to stop; tells every reader (`team:changed`). */
   setViewAs?: (role: string | null) => void;
-  /** Whether the role acting may do a permission's act (the session store's, below). */
-  can?: (action: string) => boolean;
+  /**
+   * Whether the role acting may do a permission's act (the session store's, below). `doing` is what a control that names
+   * its own act asks as (the gate's, frame/gate.ts): the session's store answers by the permission alone.
+   */
+  can?: (action: string, doing?: string) => boolean;
   /** The session's own settings, the seeded charter's modes among them (the session store's, below). */
   get?: (k: string, fallback: unknown) => unknown;
   set?: (k: string, v: unknown) => void;

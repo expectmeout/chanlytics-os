@@ -14,7 +14,6 @@ import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
-Object.assign(W, {});
 bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
 holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";

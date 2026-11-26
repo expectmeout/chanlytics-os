@@ -23,14 +23,13 @@ const doc = {
 };
 globalThis.document = doc;
 holdFrameParts();
-const { trapFocus, dialogRef, trapTab, keyPress } = globalThis.window;
+const { trapFocus, dialogRef, trapTab } = await import("../../../apps/dashboard/src/surfaces/kit/focus/trap.ts");
+const { keyPress } = await import("../../../apps/dashboard/src/surfaces/kit/focus/keys.ts");
 /** Focus moved to an element, as a browser says it: the document's focusin heard, its target the element. */
 const focusTo = (el) => {
   el.focus();
   for (const fn of heard.focusin ?? []) fn({ target: el });
 };
-// The way out a dialog carries (frame-globals leaving), as a record of when an element arrives and leaves.
-const leavings = [];
 
 const control = (name, { tabIndex = 0, onScreen = true, disabled = false } = {}) => ({
   name,
@@ -160,17 +159,33 @@ test("dialogRef is one ref for a key, holds the element for its whole life, and 
   assert.equal(dialogRef("test-sheet"), ref, "a new ref every draw would let go and take hold again on each");
   assert.notEqual(dialogRef("another"), ref);
   const box = dialogOf([control("x")]);
-  leavings.length = 0;
-  ref(box);
-  assert.equal(doc.activeElement, box, "held as it mounts");
-  assert.equal(box.heard.size, 1);
-  ref(null);
+  // Where it stands, so its way out (kit/motion/leaving.ts) has somewhere to put the still copy it leaves by.
+  const left = [];
+  const copy = { attrs: {}, querySelectorAll: () => [], addEventListener() {}, remove() {} };
+  copy.setAttribute = (k, v) => (copy.attrs[k] = String(v));
+  copy.removeAttribute = (k) => delete copy.attrs[k];
+  Object.assign(box, {
+    parentNode: { insertBefore: (put) => left.push(put) },
+    nextSibling: null,
+    previousElementSibling: null,
+    cloneNode: () => copy,
+  });
+  const now = Date.now;
+  let clock = now();
+  Date.now = () => clock;
+  try {
+    ref(box);
+    assert.equal(doc.activeElement, box, "held as it mounts");
+    assert.equal(box.heard.size, 1);
+    clock += 1_000;
+    ref(null);
+  } finally {
+    Date.now = now;
+  }
   assert.equal(box.heard.size, 0, "let go as it unmounts");
   assert.equal(doc.activeElement, opener);
-  assert.deepEqual(leavings, [
-    ["test-sheet", "in"],
-    ["test-sheet", "out"],
-  ]);
+  assert.deepEqual(left, [copy], "and it leaves by its still copy, where it stood");
+  assert.equal(copy.attrs["data-leaving"], "true");
 });
 
 test("a sheet that autofocuses a field gives focus back to what opened it, not to the field", () => {

@@ -55,9 +55,6 @@ installClock();
 // The shell's own components the pages draw by name (PolicyChip, Confirm, the record kit's sheet): the frame's JSX.
 holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: contracts.stateOf } } });
-Object.assign(globalThis, {
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { DraftView } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-draft.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);

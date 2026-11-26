@@ -20,7 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 const NOW = Date.parse("2026-09-25T15:00:00Z");
 const kept = (over) => ({
@@ -810,7 +810,7 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
@@ -880,15 +880,15 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
 test("the bell's foot is the door to Settings › Notifications, where this browser's one alert switch is; it holds no switch of its own", () => {
   bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
   const went = [];
-  const hadNav = W.CHANLY;
-  W.CHANLY = { ...(hadNav ?? {}), nav: (to) => went.push(to) };
+  const hadNav = heldDoors();
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   let looks = 0;
   bridgeHolds({
     parts: {
@@ -921,9 +921,9 @@ test("the bell's foot is the door to Settings › Notifications, where this brow
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
-    if (hadNav === undefined) delete W.CHANLY;
-    else W.CHANLY = hadNav;
+    bridgeHolds({ parts: { toast: undefined } });
+    if (hadNav === undefined) bridgeHolds({ doors: { navigate: undefined } });
+    else bridgeHolds({ doors: hadNav });
   }
 });
 
@@ -973,6 +973,6 @@ test("a Mark all read, or an Undo, the server did not take is said in plain word
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });

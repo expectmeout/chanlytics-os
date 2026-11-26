@@ -24,8 +24,8 @@
  * search past the loaded rows) is the real one over the fake wire below, so a test says what the verb SENT, not what a
  * stand-in was told. The Leads scope, the person page and the ? sheet are still JSX and are loaded beside it.
  */
-import { legacyAddress, historyOf } from "../../shell/address/_address.mjs";
-import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../../_stub-react.mjs";
+import { historyOf } from "../../shell/address/_address.mjs";
+import { installRoleStore, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { CONSENT_SOURCES, ROLE_PERMS, mayReceive, offersYesRefusal, stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
@@ -429,15 +429,11 @@ globalThis.leadPeekFocus = () => () => undefined;
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
   AttnRow: () => null,
-  CHANLY: {
-    nav: (to) => went.push(to),
-    address: await legacyAddress(),
-    R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}` },
-  },
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
 
 export const { PeopleReal } = await import("../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
@@ -505,10 +501,6 @@ export const itemOf = (menu, label) => menu.props.items.find((i) => i.label === 
 // The shell's ? sheet, whose Esc is heard before People's.
 // The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
 export const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
-
-Object.assign(globalThis.window, {
-  ShortcutsSheet: shortcutsSheet.ShortcutsSheet,
-});
 
 /** A tree walked once per node: a drawn component is its children as it was given them and what it rendered, and the two share nodes. */
 export const walk = (n, fn, seen = new Set()) => {

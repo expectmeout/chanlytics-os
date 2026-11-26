@@ -23,7 +23,7 @@ import { LEAD_DOCK_WORDS } from "../../../apps/dashboard/src/surfaces/leads/shee
 import { LEAD_ASKED_NOT_WRITTEN } from "../../../packages/contracts/src/leads/words/refusals.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
@@ -515,7 +515,7 @@ const reset = () => {
   copied.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   wired.length = 0;
-  delete globalThis.window.ST_STORE;
+  bridgeHolds({ parts: { roles: undefined } });
 };
 
 /* ======================================================= who they are ==== */

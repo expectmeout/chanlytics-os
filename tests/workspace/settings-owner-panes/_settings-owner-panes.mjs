@@ -27,7 +27,7 @@ import {
   clockDayLabel,
   zoneDayKey,
 } from "@chanlytics/contracts";
-import { useStubHooks, kitPages } from "../../_stub-react.mjs";
+import { useStubHooks } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 export const TID = "t-studio";

@@ -13,10 +13,10 @@
  */
 import { after } from "node:test";
 import { toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, kitPages } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, all, find, byTestId, textOf, classes } from "../../_stub-react.mjs";
 import { headline as periodHeadline } from "../_headline.mjs";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { askDoor, bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -89,11 +89,8 @@ export const { surfaceMoved: surfaceLanded } = await import("../../../apps/dashb
 bridgeHolds({
   parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
 });
-Object.assign(globalThis, {
-  askAbout: (a) => asked.push(a),
-});
+bridgeHolds({ doors: askDoor({ ask: (a) => asked.push(a) }) });
 bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
-bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 // A verb the queue asks of the Inbox goes through the typed client to `fetch`: the workspace it names is this tab's, and

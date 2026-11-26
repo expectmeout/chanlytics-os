@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 
 installStubReact();
 const h = globalThis.React.createElement;
@@ -20,15 +21,16 @@ const drawBar = (page) =>
 
 test("the bar keeps warm its four places and the pages a swipe walks to from them", () => {
   const kept = [];
-  const had = globalThis.window.CHANLY;
-  globalThis.window.CHANLY = { address: { keepWarm: (routes) => kept.push(routes) } };
+  const had = provided("shell");
+  // The bridge's address (bridge/shell.ts, provided as `shell`), as the frame's reads it: the pages it keeps warm.
+  bridgeHolds({ parts: { shell: { route: () => "today", keepWarm: (routes) => kept.push(routes) } } });
   try {
     fresh();
     drawBar("today");
     assert.equal(kept.length, 1, "asked once as the bar stands");
     assert.deepEqual([...kept[0]].sort(), ["calendar", "clients", "conversations", "inbox", "live", "today"]);
   } finally {
-    globalThis.window.CHANLY = had;
+    bridgeHolds({ parts: { shell: had } });
   }
 });
 

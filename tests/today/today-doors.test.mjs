@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, setupSteps } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, kitPages, press, unmount } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, press, unmount } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { headline, weekSeen } from "./_headline.mjs";
 import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
@@ -117,13 +117,12 @@ bridgeHolds({
   },
 });
 installStubReact({
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  appNavigate: (to) => went.push(to),
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 holdFrameParts();
 for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStrip", "StatCell"])
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);

@@ -65,7 +65,6 @@ const channels = [
 const intervals = [];
 bridgeHolds({ who: { workspaces: [{ id: "w1", timezone: ZONE }], activeWorkspaceId: "w1" } });
 installStubReact({
-  CHANLY: { nav() {} },
   setInterval: (fn, ms) => {
     intervals.push({ fn, ms, running: true });
     return intervals.length;

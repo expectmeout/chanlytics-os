@@ -8,14 +8,10 @@
  * that vanished if either file moved or went, and the typed side called them with `?.`, so a missing door did nothing and
  * said nothing.
  *
- * Here they are real exports a page imports. The frame fills the bridge's registry with its doors as it renders (FrameApp
- * hands it `fillDoors` as a prop), before the pages under it draw; a door the registry does not hold answers as a stand-in
- * window would (a test's, the standalone mockup's), else says so once (`door_missing`) and does nothing, as it always did.
- * The names the pages that have not moved read (`askAbout`, `appNavigate`, `appAsk`) are published from here by
- * nobody: a page imports these, and they go through the same registry. `backToPeople` has no JSX reader and is no
- * window name.
- *
- * Each name is a line to delete on the day its last reader moves (decision 0015, step 13: the frame itself).
+ * Here they are real exports a page imports. The frame fills the registry with its doors as it renders (app-shell.tsx
+ * `fillDoors`), before the pages under it draw, and a test fills the ones it catches; a door the registry does not hold
+ * says so once (`door_missing`) and does nothing. No door is a window name: nothing is published, and nothing is read off
+ * the window (decision 0151).
  */
 import type { AskScope } from "@chanlytics/contracts";
 // A type only, which a bundle drops: this module imports only the bridge's store and the report seam at run time (which

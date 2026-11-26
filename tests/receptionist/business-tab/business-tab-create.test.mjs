@@ -391,6 +391,6 @@ test("a role that may not change the business is told why, and nothing opens for
     assert.equal(foldOpen(tree), false, "and the fold never opens");
     assert.equal(sent.length, 0);
   } finally {
-    delete W.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });

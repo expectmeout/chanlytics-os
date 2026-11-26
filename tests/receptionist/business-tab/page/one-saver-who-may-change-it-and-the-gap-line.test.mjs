@@ -37,7 +37,7 @@ import {
   without,
 } from "../../../_business-tab-harness.mjs";
 import { disputed, drawCreateCard, google, holding, useOn } from "./_page.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("two saves close together go one after the other, the second on the first's answer, and neither is refused", () => {
   // The reviewer's case: each row saved on the version the page last drew, so the second press sent version 7 again
@@ -656,7 +656,7 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
   // save, and refused at the round trip -- which is what the form did before it was made owner-only, opening on the
   // autonomy gate. The viewer test below cannot see that: it refuses every permission at once, so a card asking the
   // wrong one is refused too, by luck. These two roles tell them apart.
-  const was = W.ST_STORE;
+  const was = provided("roles");
   try {
     // An operator, who may change the autonomy matrix (PUT /policies) and NOT the business.
     bridgeHolds({ parts: { roles: { can: (perm) => perm === "autonomy", myRole: () => "operator" } } });
@@ -694,7 +694,7 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
     assert.equal(byTestId(drawCreateCard(), "rec-create-open").props["aria-disabled"], undefined);
   } finally {
     if (was) bridgeHolds({ parts: { roles: was } });
-    else delete W.ST_STORE;
+    else bridgeHolds({ parts: { roles: undefined } });
   }
 });
 
@@ -751,7 +751,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     W.__recordFolds.request("website");
     assert.deepEqual(openRows(redrawTab()), []);
   } finally {
-    delete W.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });
 

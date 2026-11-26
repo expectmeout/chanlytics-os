@@ -23,15 +23,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as contracts from "@chanlytics/contracts";
-import {
-  installStubReact,
-  kitPages,
-  fresh as freshTree,
-  again as drawAgain,
-  find,
-  byTestId,
-  textOf,
-} from "../_stub-react.mjs";
+import { installStubReact, fresh as freshTree, again as drawAgain, find, byTestId, textOf } from "../_stub-react.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { scenario, WORKSPACE } from "../../tooling/scripts/e2e-harness/scenarios.mjs";
 import { answer } from "../../tooling/scripts/e2e-harness/server.mjs";
@@ -76,9 +68,6 @@ holdFrameParts();
 bridgeHolds({
   who: { me: { role: "owner" } },
   parts: { chrome: { state: contracts.stateOf }, surfaceState: () => "live" },
-});
-Object.assign(globalThis, {
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
 bridgeHolds({
   parts: {

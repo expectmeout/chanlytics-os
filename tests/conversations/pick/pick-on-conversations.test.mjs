@@ -14,7 +14,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toCallVM, stateOf } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { legacyAddress } from "../../shell/address/_address.mjs";
+import "../../shell/address/_address.mjs";
 import { installStubReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
@@ -30,8 +30,8 @@ installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
-  appNavigate: (to, opts) => went.push(["app", to, opts || null]),
 });
+bridgeHolds({ doors: { navigate: (to, opts) => went.push(["app", to, opts || null]) } });
 bridgeHolds({
   who: {
     workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
@@ -40,12 +40,8 @@ bridgeHolds({
 });
 Object.assign(globalThis, {
   location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  CHANLY: {
-    nav: (to) => went.push(["nav", to]),
-    address: await legacyAddress(),
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-  },
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(["nav", to]) } });
 globalThis.document.visibilityState = "hidden";
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/frame-verbs.ts).
 holdFrameParts();

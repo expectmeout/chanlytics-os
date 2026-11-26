@@ -18,7 +18,7 @@ import {
 } from "@chanlytics/contracts";
 import { unmount, all, find, byTestId, textOf, press, settle, classes } from "../../_stub-react.mjs";
 import { W, drawTab, redrawTab, foldOf, openFold, openFolds } from "../../_business-tab-harness.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 after(() => unmount());
 
@@ -258,7 +258,7 @@ test("a refusal is said under the box and keeps what was written; six messages a
 });
 
 test("a role that may not change the settings is offered no Rehearse at all", () => {
-  const was = W.ST_STORE;
+  const was = provided("roles");
   try {
     bridgeHolds({ parts: { roles: { can: () => false, myRole: () => "viewer" } } });
     const tree = drawTab({ part: "receptionist" });

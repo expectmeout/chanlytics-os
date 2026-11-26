@@ -12,7 +12,7 @@ import { installStubReact, fresh, again, all, byTestId, textOf, press } from "..
 import { until } from "../shared/_until.mjs";
 import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ canDo: () => true });
+installStubReact({});
 globalThis.location.pathname = "/w/studio/settings/activity";
 
 /** What GET activity answers now, and how many times it was asked; every other read is refused as not read here. */

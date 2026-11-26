@@ -41,7 +41,7 @@ import {
   toPersonVM,
   went,
 } from "./_person-page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------- the words, in contracts ------------------------------- */
 
@@ -206,15 +206,15 @@ test("REGRESSION (B19, B15): a profile goes back to People, and names following 
   // Back is the frame's own (the People view they came from, with its place), and People itself where the frame has none.
   said.back.go();
   assert.deepEqual(went, ["back"]);
-  const frameBack = globalThis.window.appBackToPeople;
-  delete globalThis.window.appBackToPeople;
+  const frameBack = heldDoors().backToPeople;
+  bridgeHolds({ doors: { backToPeople: undefined } });
   try {
     went.length = 0;
     draw();
     standingSaid().back.go();
     assert.deepEqual(went, ["clients"]);
   } finally {
-    globalThis.window.appBackToPeople = frameBack;
+    bridgeHolds({ doors: { backToPeople: frameBack } });
   }
   const mode = byTestId(tree, "receptionist-mode");
   assert.deepEqual(

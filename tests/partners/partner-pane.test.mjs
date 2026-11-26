@@ -668,7 +668,7 @@ test("Team: an owner's View as another role sees no card, as that role would; th
     assert.equal(textOf(byTestId(tree, "team-partner-waiting")), "Waiting for late to accept.");
     assert.equal(byTestId(tree, "team-partner-form"), null, "an ask that was kept offers no second press");
   } finally {
-    delete globalThis.window.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });
 

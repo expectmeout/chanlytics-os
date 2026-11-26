@@ -69,7 +69,7 @@ const asked = (over = {}) => ({
 
 /* -------------------------------- a browser -------------------------------- */
 
-const address = await legacyAddress();
+await legacyAddress();
 bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({});
 bridgeHolds({
@@ -88,7 +88,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, address, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -660,7 +659,7 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
   } finally {
     globalThis.window.sessionStorage = keepStore;
     bridgeHolds({ parts: { tabMemory: undefined } });
-    delete globalThis.window.appNavigate;
+    bridgeHolds({ doors: { navigate: undefined } });
   }
 });
 
@@ -761,7 +760,7 @@ test("on a phone a thread a tap opens is an entry of its own: Back closes it to 
     w.matchMedia = keep.matchMedia;
     w.history = keep.history;
     w.location.hash = keep.hash;
-    delete w.appNavigate;
+    bridgeHolds({ doors: { navigate: undefined } });
   }
 });
 

@@ -89,7 +89,6 @@ export const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
 export const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/frame-verbs.ts).
-Object.assign(globalThis, {});
 bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])] } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 

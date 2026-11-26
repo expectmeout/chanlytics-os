@@ -13,21 +13,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 const { afterMove } = await import("../../../apps/dashboard/src/surfaces/frame-verbs.ts");
 
-/** The frame's address: who listens, and a move it tells them of. */
+/** The frame's address (the bridge's shell, provided as `shell`): who listens, and a move it tells them of. */
 function anAddress() {
   const listening = new Set();
-  globalThis.window.CHANLY = {
-    address: {
-      hear: (fn) => {
-        listening.add(fn);
-        return () => listening.delete(fn);
+  bridgeHolds({
+    parts: {
+      shell: {
+        route: () => "today",
+        hear: (fn) => {
+          listening.add(fn);
+          return () => listening.delete(fn);
+        },
       },
     },
-  };
+  });
   return {
     listening,
     moved: () => [...listening].forEach((fn) => fn()),

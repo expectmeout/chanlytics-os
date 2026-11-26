@@ -80,8 +80,6 @@ export const history = historyOf(win);
 /** What a page reads the address through (surfaces/frame/constants.ts), and what these tests' own `CHANLY` keeps of it. */
 export const address = await legacyAddress();
 
-win.CHANLY = { nav() {}, address };
-
 globalThis.document = {
   title: "Chanlytics",
   visibilityState: "hidden",
@@ -246,9 +244,6 @@ export const topbarParts = {
 };
 
 Object.assign(win, {
-  Topbar: topbarParts.Topbar,
-  LiveCallBar: topbarParts.LiveCallBar,
-  ShellStatusBar: topbarParts.ShellStatusBar,
   NotifPopover: topbarParts.NotifPopover,
 });
 
@@ -259,7 +254,6 @@ export const routeTable = await importSrc("apps/dashboard/src/surfaces/frame/rou
 Object.assign(win, {
   SHELL_ROUTES: routeTable.SHELL_ROUTES,
   SOON_META: routeTable.SOON_META,
-  drawRoute: routeTable.drawRoute,
 });
 
 // The frame (surfaces/frame/app-shell.tsx), under the name these tests draw it by.
@@ -291,27 +285,30 @@ export const textOf = (n) => {
   return textOf(n.props?.children) + textOf(n.rendered);
 };
 
-for (const name of [
-  "Sidebar",
-  "Topbar",
-  "LiveCallBar",
-  "SurfaceTabs",
-  "AskBar",
-  "ShortcutsSheet",
-  "LeadsReal",
-  "PipelineScope",
-  "BroadcastsPage",
-])
-  globalThis[name] = name;
-
-// The frame's rows for Leads and the Pipeline draw the pages by the window's names (app-routes.jsx drawLeads, drawPipeline).
-for (const name of ["LeadsReal", "PipelineScope"]) win[name] = name;
+/**
+ * The frame's own parts, as it imports them (surfaces/frame/shell-chrome.tsx): what a test finds in the tree a mount
+ * draws, which draws them shallow (`deep` is off while it mounts), by the part itself: `n.type === PART.Topbar`.
+ */
+export const PART = {
+  Topbar: topbarParts.Topbar,
+  LiveCallBar: topbarParts.LiveCallBar,
+  ShellStatusBar: topbarParts.ShellStatusBar,
+  Sidebar: (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar,
+  SurfaceTabs: (await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx")).SurfaceTabs,
+  ShortcutsSheet: (await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx")).ShortcutsSheet,
+  AskBar: (await importSrc("apps/dashboard/src/bridge/ask/line.tsx")).AskLine,
+};
 
 /** The window at an address (`#/inbox`, as the pages name one), placed at its path, where the frame leaves a route. */
 export const placeAt = (hash) => {
   win.location.pathname = `/w/acme/${hash.replace(/^#\//, "")}`;
   win.location.hash = "";
 };
+
+const { fillDoors } = await importSrc("apps/dashboard/src/surfaces/frame-doors.ts");
+let doorsFilled = null;
+/** The doors the frame filled as it last drew (app-shell.tsx `fillDoors`): its own move, Ask, and a person's Back. */
+export const frameDoors = () => doorsFilled;
 
 /** The shell at an address, freshly mounted at its path: its tree and the tab's name it left. */
 export const mount = (hash) => {
@@ -320,9 +317,12 @@ export const mount = (hash) => {
   frames.begin();
   placeAt(hash);
   globalThis.document.title = "Chanlytics";
-  globalThis.ShellStatusBar = win.ShellStatusBar;
   const tree = win.ChanlyticsApp({
     ...PAGES,
+    fillDoors: (doors) => {
+      doorsFilled = doors;
+      fillDoors(doors);
+    },
     theme: "dark",
     themePref: "dark",
     sidebar: "open",

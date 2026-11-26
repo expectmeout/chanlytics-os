@@ -15,6 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 let cells = [];
 const frames = hookFrames();
@@ -55,19 +56,22 @@ globalThis.React = {
 };
 const warmed = [];
 globalThis.window = {
-  CHANLY: {
-    address: {
-      warmSoon: (routes) => warmed.push(...routes),
-      warm: (r) => warmed.push(r),
-      href: (r) => `/w/acme/${r}`,
-    },
-  },
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
   clearTimeout() {},
 };
-const win = globalThis.window;
+// The bridge's address (bridge/shell.ts, provided as `shell`), as the frame's reads it: a page warmed, a link's path.
+bridgeHolds({
+  parts: {
+    shell: {
+      route: () => "clients",
+      warmSoon: (routes) => warmed.push(...routes),
+      warm: (r) => warmed.push(r),
+      href: (r) => `/w/acme/${r}`,
+    },
+  },
+});
 
 const { peopleChrome } = await import("../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -77,12 +81,6 @@ const { headNow, headUnder } = await import("../../../apps/dashboard/src/surface
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
 // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-Object.assign(globalThis.window, {
-  SurfaceTabs: surfaceTabs.SurfaceTabs,
-  stripPlace: surfaceTabs.stripPlace,
-  stripSlide: surfaceTabs.stripSlide,
-  stripSwipe: surfaceTabs.stripSwipe,
-});
 
 const people = () => ({ rows: [], lists: [], saved: [] });
 const viewsAt = (param) => peopleChrome({ param, backToPeople: null }).views ?? null;
@@ -101,7 +99,7 @@ const tabsOf = (tree) => {
 const strip = (props) => {
   cells = [];
   frames.begin();
-  const drawn = win.SurfaceTabs({ onNavigate() {}, ...props });
+  const drawn = surfaceTabs.SurfaceTabs({ onNavigate() {}, ...props });
   return drawn ? drawn.rendered : null;
 };
 

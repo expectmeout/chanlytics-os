@@ -38,7 +38,7 @@ import {
   went,
   without,
 } from "../../../_business-tab-harness.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../../shell/_bridge-holds.mjs";
 import "./_page.mjs";
 
 /* ------------------------------------ the plan's seven ------------------------------------ */
@@ -113,7 +113,7 @@ test("On calls holds the number the business keeps: Setup's own row, by its own 
     vm: setupSteps({ ...setup.dto, later: [], rests: {} }, at),
     fetchedAt: at,
   });
-  const was = W.ST_STORE;
+  const was = provided("roles");
   try {
     const setup = SETUP();
     const card = byTestId(drawTab({ profile: marisa, setup: seamOf(setup) }), "rec-card-calls");
@@ -169,7 +169,7 @@ test("On calls holds the number the business keeps: Setup's own row, by its own 
     assert.equal(byTestId(read, "rec-row-act-kept_number"), null, "and no act is offered");
   } finally {
     if (was) bridgeHolds({ parts: { roles: was } });
-    else delete W.ST_STORE;
+    else bridgeHolds({ parts: { roles: undefined } });
   }
 });
 

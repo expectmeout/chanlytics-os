@@ -14,12 +14,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../_bridge-holds.mjs";
 
-installStubReact({
-  usePPToast: () => [null, () => {}],
-  // The demo's presence menu is the kit's, drawn by name: a host element is enough to see which listeners the top bar made.
-  MoreMenu: "MoreMenu",
-});
+installStubReact({});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const W = globalThis.window;
 // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
 const topbarParts = {
@@ -28,30 +26,19 @@ const topbarParts = {
   ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx")),
 };
 Object.assign(W, {
-  Topbar: topbarParts.Topbar,
-  LiveCallBar: topbarParts.LiveCallBar,
-  ShellStatusBar: topbarParts.ShellStatusBar,
   NotifPopover: topbarParts.NotifPopover,
 });
 // The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
-W.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
 // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-Object.assign(W, {
-  SurfaceTabs: surfaceTabs.SurfaceTabs,
-  stripPlace: surfaceTabs.stripPlace,
-  stripSlide: surfaceTabs.stripSlide,
-  stripSwipe: surfaceTabs.stripSwipe,
-});
 // The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
 const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
-Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet });
 // The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
 const routeTable = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 Object.assign(W, {
   SHELL_ROUTES: routeTable.SHELL_ROUTES,
   SOON_META: routeTable.SOON_META,
-  drawRoute: routeTable.drawRoute,
 });
 const { SURFACE_STATES } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
 
@@ -104,17 +91,17 @@ const missing = (heard, names) => names.filter((n) => !heard.has(n));
 const present = (heard, names) => names.filter((n) => heard.has(n));
 
 test("the top bar listens for none of the mockup's bell rows: the demo's bell and its presence control went with demo mode", () => {
-  const real = heardWhile(drawn(W.Topbar, { crumbs: [] }));
+  const real = heardWhile(drawn(topbarParts.Topbar, { crumbs: [] }));
   assert.deepEqual(present(real, [...NO_SENDER, ...THE_DEMOS]), [], "a session registers none of them");
 });
 
 test("the live bar redraws on the live feed alone: a call that ends is a row on it, and no event says so", () => {
-  const heard = heardWhile(drawn(W.LiveCallBar));
+  const heard = heardWhile(drawn(topbarParts.LiveCallBar));
   assert.equal(heard.has("live:ended"), false);
 });
 
 test("the sidebar hears the workspace read; the count of what needs you is handed in, not heard, and a fleet pause, the credits, the call ends and a patched-ahead name left", () => {
-  const real = heardWhile(drawn(W.Sidebar, { onNavigate() {} }));
+  const real = heardWhile(drawn(Sidebar, { onNavigate() {} }));
   assert.deepEqual(missing(real, ["surface:workspace"]), [], "what redraws it in a workspace");
   assert.deepEqual(
     present(real, [...NO_SENDER, "fleet:status", "inbox:counts", "inbox:decisions"]),
@@ -124,9 +111,11 @@ test("the sidebar hears the workspace read; the count of what needs you is hande
 });
 
 test("the strip of views hears the live feed alone, the Needs-you badge being the count's own hook, and the sheet of keys hears the keyboard alone", () => {
-  const tabs = heardWhile(drawn(W.SurfaceTabs, { page: "clients", param: null, views: null, onNavigate() {} }));
+  const tabs = heardWhile(
+    drawn(surfaceTabs.SurfaceTabs, { page: "clients", param: null, views: null, onNavigate() {} }),
+  );
   assert.deepEqual([...tabs].sort(), ["surface:live"], "the Live tab's pulse: no event feeds the Needs-you badge");
-  const sheet = heardWhile(drawn(W.ShortcutsSheet));
+  const sheet = heardWhile(drawn(shortcutsSheet.ShortcutsSheet));
   assert.deepEqual([...sheet], ["keydown"], "it opens on ? and by openShortcuts(), never by an event");
 });
 

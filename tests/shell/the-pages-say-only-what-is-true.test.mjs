@@ -27,7 +27,7 @@ import {
   find,
 } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds, holdFrameParts, whoIsLooking } from "./_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, holdRoles, whoIsLooking } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -419,7 +419,6 @@ test("with every line up and nothing waiting, nothing above or in the work says 
 });
 /* ---------------- the Inbox: Hold all, and a missing link ---------------- */
 
-globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
 // The Inbox (surfaces/inbox, TSX), drawn over the rows the seam holds; the one thread it mounts is thread-pane.tsx's.
 const SRC = "../../apps/dashboard/src";
 const { Inbox } = await import(`${SRC}/surfaces/inbox/pages/inbox-page.tsx`);
@@ -637,9 +636,8 @@ test("REGRESSION: in Day view the arrows move one day -- they moved seven", asyn
 
 test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -- it quoted the mockup's '128 auto-sent · 9% edited'", () => {
   const { PolicyChip } = kitPages;
-  Object.assign(globalThis.window, {
-    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
-    TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },
+  bridgeHolds({
+    parts: { policy: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" } },
   });
   // The workspace's policies read, as the settings read lands them (whole: what follows that read reads every part).
   const was = surfaceValue("settings");
@@ -696,7 +694,6 @@ const inTokyo = (nowIso, fn) => {
       activeWorkspaceId: "t-tokyo",
     },
   });
-  Object.assign(globalThis.window, {});
   Date.now = () => Date.parse(nowIso);
   try {
     return fn();
@@ -706,7 +703,6 @@ const inTokyo = (nowIso, fn) => {
       who: { workspaces: before.ws, activeWorkspaceId: before.active },
       values: { broadcasts: before.bc },
     });
-    Object.assign(globalThis.window, {});
   }
 };
 
@@ -855,6 +851,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     outcome: async () => true,
     commit: async () => ({ ok: true, receipt: "", undo: null }),
   });
+  holdRoles({ can: () => true });
   const t = askText("en");
   const buttons = (tree) => {
     const out = [];
@@ -936,6 +933,7 @@ test("a deal card's Open goes to the person's page: a kind the card's maps did n
     // Where a card's Open goes is the contract's (ask/answer/normalize.ts), as the bridge publishes it.
     cardOpenRoute,
   });
+  holdRoles({ can: () => true });
   const buttons = (tree) => {
     const out = [];
     walk(tree, (n) => {
@@ -1022,8 +1020,6 @@ const campaignsWorld = async () => {
   });
   installStubReact({
     ...shellDoors,
-    // The policy store the chip on a card reads (the shell publishes it; policy-store.ts).
-    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
     location: {
       pathname: "/w/studio",
       hash: "#/outbound",
@@ -1032,12 +1028,12 @@ const campaignsWorld = async () => {
       replace() {},
       reload() {},
     },
-    usePPToast: () => [null, (t) => toasts.push(t)],
-    CHANLY: { nav() {}, R: {} },
-    appNavigate() {},
-    useHotkey: () => {},
     setInterval: () => 1,
     clearInterval() {},
+  });
+  bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
+  bridgeHolds({
+    parts: { policy: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" } },
   });
   const { MessageInPlace } = await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
   const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);

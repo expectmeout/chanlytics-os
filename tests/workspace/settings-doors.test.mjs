@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IN_APP_CLASS, ROLE_PERMS, stateOf, billingAccountDto } from "@chanlytics/contracts";
-import { kitPages, useStubHooks } from "../_stub-react.mjs";
+import { useStubHooks } from "../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
@@ -167,7 +167,6 @@ bridgeHolds({ parts: { tip: { show: (el) => tipped.push(el) } } });
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 bridgeHolds({ parts: { chrome: { state: stateOf } } });
-Object.assign(globalThis.window, {});
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 // The billing surface as the shell installs it: the pane's verbs are the module's object, which `__billing` is.
 const { installBilling } = await import("../../apps/dashboard/src/surfaces/settings/billing/surface.ts");
@@ -725,7 +724,6 @@ test("no new hosted address on Connections (decision 0073, R13); the form a work
       },
     },
   });
-  Object.assign(globalThis.window, {});
   const pane = render(Connections);
   assert.equal(byTestId(pane, "connection-email-verb"), null, "no address is made any more: the row offers nothing");
   assert.equal(byTestId(pane, "email-setup"), null);
@@ -994,7 +992,7 @@ test("a number that has just connected is tried through its own link: the toast 
   asRole("owner");
   seam({ channels: [], google: null, setup: null });
   const realStart = waConnect.start;
-  const realToast = globalThis.window.usePPToast;
+  const realToast = provided("toast");
   const realOpen = globalThis.window.open;
   const flashes = [];
   const opened = [];

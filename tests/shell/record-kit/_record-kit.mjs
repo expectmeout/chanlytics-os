@@ -23,7 +23,6 @@ installStubReact({});
 
 export const SRC = "../../../apps/dashboard/src";
 
-Object.assign(globalThis, {});
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 holdFrameParts();

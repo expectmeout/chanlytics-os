@@ -253,7 +253,7 @@ test("an owner whose receptionist answers nowhere lands on the first run, once a
     w.dispatchEvent(new CustomEvent("surface:setup"));
     assert.deepEqual(navs, ["start"], "once a session");
   } finally {
-    delete w.appNavigate;
+    bridgeHolds({ doors: { navigate: undefined } });
     wire.setup = SETUP;
     globalThis.sessionStorage.setItem(FIRST_RUN_LANDED_KEY, "1");
   }

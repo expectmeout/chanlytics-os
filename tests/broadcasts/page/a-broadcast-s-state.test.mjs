@@ -50,7 +50,7 @@ import {
   went,
   withMessage,
 } from "./_page.mjs";
-import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ a slot's words ------------------------------ */
 
@@ -115,7 +115,7 @@ test("REGRESSION (C12): a failed run says why in the owner's words -- its day in
   setSurfaceValue("broadcasts", broadcastsSurface({ rows: [toBroadcastVM(failed, ZONE)] }));
   answers.set("b-failed", [{ ok: true, data: detailOf(failed, []) }]);
   const calls = [];
-  const keep = globalThis.appNavigate;
+  const keep = heldDoors();
   bridgeHolds({ doors: { navigate: (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]) } });
   try {
     const props = { initialRun: "b-failed" };
@@ -126,7 +126,7 @@ test("REGRESSION (C12): a failed run says why in the owner's words -- its day in
     // Done, it is read in Reports: its campaign, over the day it ran for, in the run's place (Back never lands on it again).
     assert.deepEqual(calls.at(-1), ["reports/campaigns:2026-09-10~2026-09-10:seq:pb-1", "replace"]);
   } finally {
-    bridgeHolds({ doors: { navigate: keep } });
+    bridgeHolds({ doors: keep });
   }
   // Why, where its day is said: History's row, and Reports' Each send, which says History's words.
   const day = contracts.historyDayWords(
@@ -803,7 +803,7 @@ test("the run open at its home is the address's: closing it goes back to where i
   // Going out, so its screen stands: a run that is done moves to Reports (the C12 test above).
   answers.set("b-sent", [{ ok: true, data: detailOf(dto({ state: "sending" })) }]);
   const calls = [];
-  const keep = globalThis.appNavigate;
+  const keep = heldDoors();
   bridgeHolds({ doors: { navigate: (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]) } });
   try {
     const props = { initialRun: "b-sent" };
@@ -830,7 +830,7 @@ test("the run open at its home is the address's: closing it goes back to where i
       "the pane stays drawn until its page is left, never the list a moment first",
     );
   } finally {
-    bridgeHolds({ doors: { navigate: keep } });
+    bridgeHolds({ doors: keep });
   }
 });
 

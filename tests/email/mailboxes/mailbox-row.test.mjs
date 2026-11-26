@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, find, all, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
 const SAM = "sam@getharbor.example";
@@ -24,11 +24,7 @@ const role = { owner: true };
 // The workspace's zone, as the workspace list publishes it: a day the card says is its, never the suite's own.
 const ZONE = "America/Los_Angeles";
 bridgeHolds({ who: { workspaces: [{ id: "w1", timezone: ZONE }], activeWorkspaceId: "w1" } });
-Object.assign(globalThis.window, {
-  canDo: () => role.owner,
-  gate: (_perm, doing) => (role.owner ? {} : { "aria-disabled": "true", "data-gated": doing }),
-  gateTitle: (_perm, doing) => `Only an owner can ${doing}.`,
-});
+holdRoles({ can: () => role.owner });
 
 /** A mailbox the business connected, as the page is told of it (contracts MailboxConnectionDto). */
 const mbx = (over = {}) => ({
@@ -413,7 +409,11 @@ test("a member who may not change the mailboxes reads them and their settings, i
     assert.equal(saveOf(tree), null, "no Save for a role that may not");
     assert.equal(find(byTestId(tree, "mailbox-cap"), (n) => n.type === "input").props.disabled, true);
     assert.equal(byTestId(tree, "mailbox-remove-ask"), null);
-    assert.equal(byTestId(tree, `mailbox-test-${SAM}`).props["data-gated"], "send a test", "Send a test says why");
+    assert.match(
+      byTestId(tree, `mailbox-test-${SAM}`).props["aria-description"],
+      /send a test/,
+      "Send a test says why",
+    );
   } finally {
     role.owner = true;
   }

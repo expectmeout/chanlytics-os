@@ -1012,8 +1012,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(W, {});
-const SRC = "../../apps/dashboard/src";
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";
 // The Inbox's reply courier (window.threadVerbs) is asked for through the shell's verbs (person-verbs.ts); everything
 // else the sheet reads is imported, as the sheet imports it.
@@ -1338,24 +1336,19 @@ test("a send refused after a good record says both and closes; where it cannot g
 
   // No reply courier where the sheet is drawn: recorded, and it says nothing went. REGRESSION: it said only the
   // stage's word, "Proposal out", as though the proposal were on its way.
-  const courier = W.threadVerbs;
-  delete W.threadVerbs;
-  try {
-    const bare = wire(R.detail());
-    tree = open();
-    openDealSheet({ personId: "p1", mode: "propose" });
-    tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
-    type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/bare");
-    assert.equal(textOf(saveOf(redraw())), "Record and send");
-    press(saveOf(redraw()));
-    tree = await until("recorded", () => recorded.length > 0);
-    assert.deepEqual(
-      toasts.map((t) => [t.tone, textOf(t.msg)]),
-      [["danger", "Recorded. It did not send."]],
-    );
-    assert.equal(bare.calls.filter((c) => c.path.endsWith("/reply")).length, 0);
-  } finally {
-  }
+  const bare = wire(R.detail());
+  tree = open();
+  openDealSheet({ personId: "p1", mode: "propose" });
+  tree = await until("the person is read", (t) => input(t, "deal-sheet-link-input"));
+  type(input(tree, "deal-sheet-link-input"), "docs.example.com/p/bare");
+  assert.equal(textOf(saveOf(redraw())), "Record and send");
+  press(saveOf(redraw()));
+  tree = await until("recorded", () => recorded.length > 0);
+  assert.deepEqual(
+    toasts.map((t) => [t.tone, textOf(t.msg)]),
+    [["danger", "Recorded. It did not send."]],
+  );
+  assert.equal(bare.calls.filter((c) => c.path.endsWith("/reply")).length, 0);
 
   // Their window shut: the switch is off, a press cannot turn it on, it says why, and Save says Record.
   const shut = fixtures(Date.now());

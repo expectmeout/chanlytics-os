@@ -11,7 +11,8 @@
  *   store `roles`, the charter `policy`, People's `sheets`, …;
  * - `doors`: the frame's doors a page moves and asks through (surfaces/frame-doors.ts), the ones the test catches:
  *   `{ navigate: (to) => went.push(to) }`, where a page's own move went to a stand-in window's `CHANLY.nav` until
- *   26 Nov 2026. A door not handed in says it is missing, as it does before the frame draws.
+ *   26 Nov 2026. Each door handed in is set on its own and the others stay, as each was a name of its own on the window;
+ *   `undefined` takes one away. A door not handed in says it is missing, as it does before the frame draws.
  *
  * `fresh` empties the bridge's parts, its reads and who is looking first, as a new window did; a surface's values are the
  * seam's, which a new window never emptied, and are left. `undefined` takes one away.
@@ -30,9 +31,10 @@ const { provide, provided } = requireFromDashboard("./provided.ts");
 const { holdRead, heldRead } = requireFromDashboard("./held-reads.ts");
 const { holdWhoIsLooking, whoIsLooking } = requireFromDashboard("./who.ts");
 const { setSurfaceValue, surfaceValue } = requireFromDashboard("../surfaces/surface-values.ts");
-const { emptyDoors, fillDoors } = requireFromDashboard("../surfaces/frame-doors.ts");
+const { emptyDoors, fillDoors, takeAskedOfTheLine } = requireFromDashboard("../surfaces/frame-doors.ts");
 const { installTip } = requireFromDashboard("../surfaces/frame/tip.ts");
 const { hearFocusOutside } = requireFromDashboard("../surfaces/kit/focus/trap.ts");
+const { roleAtLeast } = requireFromDashboard("@chanlytics/contracts");
 
 /** Every part the bridge installs (provided.ts `BridgeParts`), so a fresh world holds none of them. */
 const PARTS = [
@@ -74,13 +76,36 @@ const PARTS = [
 /** Every read the bridge holds itself (held-reads.ts `HeldReads`). */
 const READS = ["workspace", "notifications", "reach_out_replies"];
 
+/** The doors the tests have handed in, each by its name. */
+let doorsHeld = null;
+
+/** The doors held now, or none: what a test keeps to put back when it is done (`bridgeHolds({ doors: kept })`). */
+export const heldDoors = () => ({ ...(doorsHeld ?? {}) });
+
+/**
+ * The frame's door to Ask as a test catches it: `ask` hears what a page asked about (frame-doors.ts `askAbout`, which
+ * opens Ask through this door with its question kept for the Line), `open` a plain open (`openAsk`, ⌘K). Until 26 Nov
+ * 2026 a test stood each in on the window as `askAbout` and `appAsk`.
+ */
+export const askDoor = ({ ask, open } = {}) => ({
+  openAsk: () => {
+    const asked = takeAskedOfTheLine();
+    if (asked) ask?.(asked);
+    else open?.();
+  },
+});
+
 export function bridgeHolds({ who, values, reads, parts, doors } = {}, { fresh = false } = {}) {
   if (fresh) {
     for (const name of PARTS) provide(name, undefined);
     for (const key of READS) holdRead(key, undefined);
     emptyDoors();
+    doorsHeld = null;
   }
-  if (doors) fillDoors(doors);
+  if (doors) {
+    doorsHeld = { ...(doorsHeld ?? {}), ...doors };
+    fillDoors(doorsHeld);
+  }
   if (who) holdWhoIsLooking(who);
   for (const [key, value] of Object.entries(values ?? {})) setSurfaceValue(key, value);
   for (const [key, value] of Object.entries(reads ?? {})) holdRead(key, value);
@@ -99,4 +124,36 @@ export { provided, heldRead, whoIsLooking, surfaceValue };
 export function holdFrameParts() {
   installTip();
   hearFocusOutside();
+}
+
+/**
+ * A role store that lets the member act where `can` says (bridge/identity.ts's shape, provided as `roles`): what a test
+ * hands in to draw a gate that refuses, where it stood `canDo` in on the window until 26 Nov 2026. `role` is who they act
+ * as, for the words a refusal says (contracts roleGate); `atLeast` answers the rungs (`mayAtLeast`), by default contracts' own
+ * ladder (roleAtLeast).
+ */
+export function rolesThat(can, { role = "operator", atLeast } = {}) {
+  return {
+    viewAsRole: null,
+    myRole: () => role,
+    can: (action) => !!can(action),
+    mayAtLeast: atLeast ?? ((rung) => roleAtLeast(role, rung)),
+  };
+}
+
+/**
+ * The role store held now, changed only where a test says: `can` answers what the role may do (the gate's `canDo`, told
+ * what a control asks as: `(perm, doing)`), `atLeast` the rungs (`mayAtLeast`); one named with nothing (`null`, or a kept answer that was never held) puts that one
+ * back (it may do everything; contracts' ladder). With none held it starts from a viewer's store that may do everything,
+ * since a page with no role store acts as a viewer and says a refusal in a viewer's words (gate.ts). What a test stood
+ * `canDo` or `mayAtLeast` in for on the window until 26 Nov 2026. A new store each time, so one a test kept
+ * (`provided("roles")`) is put back as it was.
+ */
+export function holdRoles(change = {}) {
+  const now = provided("roles") ?? rolesThat(() => true, { role: "viewer" });
+  const back = rolesThat(() => true, { role: now.myRole?.() ?? "viewer" });
+  const store = { ...now };
+  if ("can" in change) store.can = change.can ? (action, doing) => !!change.can(action, doing) : back.can;
+  if ("atLeast" in change) store.mayAtLeast = change.atLeast ?? back.mayAtLeast;
+  provide("roles", store);
 }

@@ -194,7 +194,7 @@ kitHooks();
 holdFrameParts();
 // The file ends with its tip: the last listener of each type it added as it loaded is the tip's.
 const tipHeard = Object.fromEntries(Object.entries(allHeard).map(([type, fns]) => [type, fns[fns.length - 1]]));
-const usePPToast = globalThis.window.usePPToast;
+const usePPToast = provided("toast");
 
 /** A component that owns one toast stack; mounting it again reads the cells back. */
 let flash = null;

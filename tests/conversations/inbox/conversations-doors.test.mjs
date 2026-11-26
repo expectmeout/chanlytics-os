@@ -178,7 +178,6 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-Object.assign(globalThis, {});
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const S = "../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);

@@ -17,7 +17,6 @@ installStubReact({});
 export const W = globalThis;
 export const toasts = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
-Object.assign(W, {});
 bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
 export const SRC = "../../../apps/dashboard/src";
 holdFrameParts();

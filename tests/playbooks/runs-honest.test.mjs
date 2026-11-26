@@ -249,15 +249,9 @@ bridgeHolds({
   },
   parts: { chrome: { state: stateOf }, surfaceState: () => "live" },
 });
-installStubReact({
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate: (to) => went.push(to),
-  canDo: () => true,
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  useHotkey: () => {},
-});
+installStubReact({});
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const S = "../../apps/dashboard/src";
 const { installClock } = await import(`${S}/bridge/zone.ts`);
 installClock();
@@ -426,7 +420,7 @@ test("a run's stop is asked where it can be read: at its head on a desk, where t
   setSurfaceValue("broadcasts", broadcastsSurface());
   answers.set("b-sending", [{ ok: true, data: detailOf(SENDING) }]);
   const stopped = [];
-  const keep = { cancel: broadcasts.cancel, media: globalThis.matchMedia, toast: globalThis.window.usePPToast };
+  const keep = { cancel: broadcasts.cancel, media: globalThis.matchMedia, toast: provided("toast") };
   broadcasts.cancel = async (id) => {
     stopped.push(id);
     return { ok: true, data: { was: "sending" } };
@@ -733,7 +727,7 @@ test("D1-run-words: a run still to come is stopped on Today's day as Sent cancel
   setSurfaceValue("broadcasts", { rows: [toBroadcastVM(soon, ZONE)] });
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   const cancelled = [];
-  const keep = { verbs: provided("broadcasts"), toast: globalThis.window.usePPToast };
+  const keep = { verbs: provided("broadcasts"), toast: provided("toast") };
   bridgeHolds({
     parts: {
       broadcasts: {

@@ -208,10 +208,9 @@ test("the Line's rules see it: two such cards say the hold once over them, and t
 // Last, since it puts a window on the global: the stub React draws the real card as the Line does (surfaces/ask/card.tsx).
 test("the Line draws it as it draws a campaign's: the rows, with every email whole and nothing behind Details", async () => {
   const { card: p } = await card([CONNECTED]);
-  const { installStubReact, fresh, all, textOf, kitPages } = await import("../../_stub-react.mjs");
+  const { installStubReact, fresh, all, textOf } = await import("../../_stub-react.mjs");
   bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
   installStubReact({});
-  Object.assign(globalThis, {});
   const { AskCards } = await import(at("apps/dashboard/src/surfaces/ask/card.tsx"));
   const { askText } = await import(at("apps/dashboard/src/surfaces/ask/words.ts"));
   const { holdAsk } = await import(at("apps/dashboard/src/surfaces/frame-verbs.ts"));

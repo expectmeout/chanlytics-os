@@ -17,8 +17,8 @@
  * wire: the switch with its third tab, the line, the sections and their fold, a row that opens its person, the keys, the
  * search, the phone's bar and cards, and People in its place where deals are off. Executed, never read from source.
  */
-import { legacyAddress } from "../../shell/address/_address.mjs";
-import { installRoleStore, kitPages, useStubHooks } from "../../_stub-react.mjs";
+import "../../shell/address/_address.mjs";
+import { installRoleStore, useStubHooks } from "../../_stub-react.mjs";
 import {
   CONSENT_SOURCES,
   csvCell,
@@ -535,7 +535,6 @@ globalThis.ChannelGlyph = () => null;
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
   AttnRow: () => null,
-  CHANLY: { nav: (to) => went.push(to), address: await legacyAddress(), R: { thread: (id) => `inbox/${id}` } },
   __csvCell: csvCell,
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
@@ -545,6 +544,7 @@ Object.assign(globalThis.window, {
   requestAnimationFrame: () => 0,
   cancelAnimationFrame: () => {},
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 // People's TSX, which the Pipeline draws by import (decision 0015), and the kit's table and Columns menu it draws with

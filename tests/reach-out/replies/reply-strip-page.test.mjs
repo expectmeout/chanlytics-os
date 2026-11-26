@@ -17,7 +17,6 @@ installStubReact({});
 const W = globalThis;
 const role = { real: "owner" };
 bridgeHolds({ parts: { clock: { zone: () => "America/New_York" } } });
-Object.assign(W, {});
 bridgeHolds({
   parts: {
     roles: {
@@ -27,7 +26,6 @@ bridgeHolds({
     },
   },
 });
-const SRC = "../../../apps/dashboard/src";
 holdFrameParts();
 const { ReplyStrip, ReplyChip, useReplyDraftDoor } =
   await import("../../../apps/dashboard/src/surfaces/inbox/thread/reply-strip.tsx");

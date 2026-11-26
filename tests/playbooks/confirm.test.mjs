@@ -33,9 +33,8 @@ bridgeHolds({
 installStubReact({
   StatStrip: "StatStrip",
   StatCell: "StatCell",
-  CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
-  gate: () => ({}),
 });
+bridgeHolds({ doors: { navigate: (to) => calls.nav.push(to) } });
 const S = "../../apps/dashboard/src";
 // The one Confirm is the shell's (surfaces/frame), and so are the Team card's menu and state pill: JSX the frame loads.
 holdFrameParts();

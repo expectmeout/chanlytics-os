@@ -22,15 +22,8 @@ bridgeHolds({
   },
   parts: { chrome: { state: stateOf }, surfaceState: () => "live" },
 });
-installStubReact({
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate() {},
-  canDo: () => true,
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  useHotkey: () => {},
-});
+installStubReact({});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const S = "../../../apps/dashboard/src";
 (await import(`${S}/bridge/zone.ts`)).installClock();
 holdFrameParts();

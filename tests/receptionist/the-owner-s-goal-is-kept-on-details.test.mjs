@@ -19,7 +19,8 @@ import {
   askGoalSaved,
 } from "../../apps/dashboard/src/surfaces/settings/business/model/goal.ts";
 import { unmount, byTestId, textOf } from "../_stub-react.mjs";
-import { drawTab, openFold, redrawTab, saveRow, saving, settingsHeld, typeInto, W } from "../_business-tab-harness.mjs";
+import { drawTab, openFold, redrawTab, saveRow, saving, settingsHeld, typeInto } from "../_business-tab-harness.mjs";
+import { bridgeHolds, holdRoles, provided } from "../shell/_bridge-holds.mjs";
 
 after(() => unmount());
 
@@ -100,14 +101,14 @@ test("a goal past the config's limit is refused under the box, and nothing is se
 });
 
 test("a role that may not change the settings reads the goal, and is offered no Change", () => {
-  const gated = W.canDo;
-  W.canDo = () => false;
+  const gated = provided("roles");
+  holdRoles({ can: () => false });
   try {
     const tree = drawTab({ config: { ask: { goal: "Twenty new clients a month" } } });
     const row = byTestId(goalCard(tree), "rec-row-ask_goal");
     assert.match(textOf(row), /Twenty new clients a month/);
     assert.equal(byTestId(row, "rec-row-act-ask_goal"), null);
   } finally {
-    W.canDo = gated;
+    bridgeHolds({ parts: { roles: gated } });
   }
 });

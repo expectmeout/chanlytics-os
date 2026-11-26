@@ -27,7 +27,7 @@ import {
   quiet,
   redrawWanted,
 } from "../../_stub-react.mjs";
-import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -100,10 +100,10 @@ const flashes = [];
 const went = [];
 const sent = [];
 installStubReact({
-  CHANLY: { nav: (to) => went.push(to) },
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const S = "../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (surfaces/frame).
 holdFrameParts();
@@ -382,7 +382,7 @@ test("the call open is the address's: a row opens it by replacing the address, n
   });
   withLive([call(), ada]);
   const navs = [];
-  const keep = globalThis.window.appNavigate;
+  const keep = heldDoors();
   bridgeHolds({ doors: { navigate: (to, opts) => navs.push([to, opts]) } });
   try {
     const rows = callRows(mount());
@@ -398,7 +398,7 @@ test("the call open is the address's: a row opens it by replacing the address, n
     fresh();
     assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "and a refresh opens it again");
   } finally {
-    bridgeHolds({ doors: { navigate: keep } });
+    bridgeHolds({ doors: keep });
   }
 });
 

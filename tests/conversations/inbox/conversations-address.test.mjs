@@ -19,7 +19,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toCallVM, stateOf } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { legacyAddress } from "../../shell/address/_address.mjs";
+import "../../shell/address/_address.mjs";
 import { installStubReact, fresh as freshTree, again, all, find, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
@@ -35,17 +35,9 @@ installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
-  appNavigate: (to, opts) => went.push(["app", to, opts || null]),
-  canDo: () => true,
-  gate: () => ({}),
 });
-Object.assign(globalThis, {
-  CHANLY: {
-    nav: (to) => went.push(["nav", to]),
-    address: await legacyAddress(),
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-  },
-});
+bridgeHolds({ doors: { navigate: (to, opts) => went.push(["app", to, opts || null]) } });
+bridgeHolds({ doors: { navigate: (to) => went.push(["nav", to]) } });
 const S = "../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
 const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/outcome-pill.tsx`);

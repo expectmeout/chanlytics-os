@@ -117,19 +117,15 @@ test("the switch between the scopes is the frame's strip of views: the page draw
 test("People's scopes are its strip's order: People, Leads, the Pipeline; a person's page is on no strip", async () => {
   // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  Object.assign(globalThis.window, {
-    SurfaceTabs: surfaceTabs.SurfaceTabs,
-    stripPlace: surfaceTabs.stripPlace,
-    stripSlide: surfaceTabs.stripSlide,
-    stripSwipe: surfaceTabs.stripSwipe,
-  });
-  const w = globalThis.window;
-  assert.deepEqual(w.stripPlace("clients", null), { strip: "people", at: 0 });
-  assert.deepEqual(w.stripPlace("clients", "seg:needs-you"), { strip: "people", at: 0 });
-  assert.deepEqual(w.stripPlace("clients", "leads:s-abc"), { strip: "people", at: 1 });
-  assert.deepEqual(w.stripPlace("clients", "pipeline"), { strip: "people", at: 2 });
-  assert.equal(w.stripPlace("clients", "c-123"), null);
-  assert.equal(w.stripSlide(w.stripPlace("clients", "leads"), w.stripPlace("clients", null)), "prev");
+  assert.deepEqual(surfaceTabs.stripPlace("clients", null), { strip: "people", at: 0 });
+  assert.deepEqual(surfaceTabs.stripPlace("clients", "seg:needs-you"), { strip: "people", at: 0 });
+  assert.deepEqual(surfaceTabs.stripPlace("clients", "leads:s-abc"), { strip: "people", at: 1 });
+  assert.deepEqual(surfaceTabs.stripPlace("clients", "pipeline"), { strip: "people", at: 2 });
+  assert.equal(surfaceTabs.stripPlace("clients", "c-123"), null);
+  assert.equal(
+    surfaceTabs.stripSlide(surfaceTabs.stripPlace("clients", "leads"), surfaceTabs.stripPlace("clients", null)),
+    "prev",
+  );
 });
 
 test("on a phone the top is the list's row and the search under the frame's strip, and the list stays over the search", () =>

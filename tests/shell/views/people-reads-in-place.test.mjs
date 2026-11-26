@@ -17,14 +17,12 @@ import { importSrc } from "../../_source.mjs";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 
 installStubReact();
-const win = globalThis.window;
 const { useViewFade } = await importSrc("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
 const { drawRoute } = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
-const strip = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-const words = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
+await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+await importSrc("apps/dashboard/src/surfaces/people/words.ts");
 // Where a view stands on a strip is the strip's, over People's scope words, as the shell publishes them (seed-globals.ts).
-Object.assign(win, { stripPlace: strip.stripPlace });
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 

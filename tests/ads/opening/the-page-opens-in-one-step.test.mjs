@@ -21,7 +21,7 @@ import { installStubReact, fresh, again, byTestId, textOf } from "../../_stub-re
 import { until } from "../../shared/_until.mjs";
 import { holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);

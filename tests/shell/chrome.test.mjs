@@ -244,7 +244,8 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
   // keys' sheet on a desk) are drawn in keys-in-the-sheet.test.mjs, where a workspace pressed is switched to, the new
   // one is the shell's door and Sign out signs out ("the menus' doors are the shell's"); the person in its words is
   // workspace/identity.test.mjs's; a rail item's tip says its count, drawn below ("the account chip says it opens a menu").
-  installStubReact({ usePPToast: () => [null, () => {}] });
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   for (const name of ["logout", "keyboard", "chevrons", "monitor", "user", "sidebar"]) {
     const drawn = Icon({ name });
     assert.notDeepEqual(
@@ -273,12 +274,13 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
 test("the account chip says it opens a menu with the chevrons the workspace row draws, in the same ink", async () => {
   // Both buttons open a popover from the sidebar. The row at the top always drew the chevrons; the chip at the foot drew
   // none, so nothing said it was a button (Ruben, 11 Oct 2026). Drawn as a person sees them, and the rail hides each.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
   fresh();
   const drawn = again(() =>
-    globalThis.React.createElement(globalThis.window.Sidebar, {
+    globalThis.React.createElement(Sidebar, {
       themePref: "dark",
       onTheme: () => {},
       look: "glass",
@@ -300,8 +302,9 @@ test("the account chip says it opens a menu with the chevrons the workspace row 
 test("the workspace row says its name, and under it how many workspaces there are only where there is more than one; never the lines", async () => {
   // "1 of 1 line on" under the name said again what Today says, for any workspace (Ruben, 11 Oct 2026). What the row's
   // menu does is switch, so the line under the name says how many there are to switch between.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
   bridgeHolds({ values: { today: { standing: { lines: { short: "1 of 1 line on" } } } } });
   const workspace = (id, name) => ({ id, slug: id, name, status: "active", timezone: "UTC", role: "owner" });
@@ -311,7 +314,7 @@ test("the workspace row says its name, and under it how many workspaces there ar
     fresh();
     const drawn = byTestId(
       again(() =>
-        globalThis.React.createElement(globalThis.window.Sidebar, {
+        globalThis.React.createElement(Sidebar, {
           themePref: "dark",
           onTheme: () => {},
           look: "glass",
@@ -343,8 +346,9 @@ test("the workspace row says its name, and under it how many workspaces there ar
 
 test("the workspace's circle wears its own logo over its initials, and its initials alone without one; never AI's three", async () => {
   // 00407: the circle said Ask's three for every business. The initials are contracts' rule, through the bridge.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
 
   const LOGO = "https://proj.supabase.co/storage/v1/object/public/workspace-logos/a/b.png";
@@ -368,7 +372,7 @@ test("the workspace's circle wears its own logo over its initials, and its initi
     bridgeHolds({ who: { activeWorkspaceId: "w1" } });
     fresh();
     const sidebar = () =>
-      globalThis.React.createElement(globalThis.window.Sidebar, {
+      globalThis.React.createElement(Sidebar, {
         themePref: "dark",
         onTheme: () => {},
         look: "glass",
@@ -443,15 +447,16 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
 test("the account menu offers the look only once contracts does: none while it is not offered, then the looks under the theme, a press handing it to the shell", async () => {
   // The real sidebar on the stub React, its account menu opened as a person opens it. The chrome's words are what
   // the bridge publishes (shell.ts installShell), with the flag as contracts has it and then turned on.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   const picked = [];
   const themed = [];
   const accountMenu = (lookOffered) => {
     bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered } } });
     fresh();
     const sidebar = () =>
-      globalThis.React.createElement(globalThis.window.Sidebar, {
+      globalThis.React.createElement(Sidebar, {
         themePref: "dark",
         onTheme: (v) => themed.push(v),
         look: "glass",

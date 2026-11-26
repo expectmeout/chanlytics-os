@@ -65,7 +65,6 @@ const at = (route) => {
   globalThis.location.hash = `#/${route}`;
 };
 const route = () => globalThis.location.hash.slice(2);
-Object.assign(globalThis, {});
 bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
 bridgeHolds({
   doors: {

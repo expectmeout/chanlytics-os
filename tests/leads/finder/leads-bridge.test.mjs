@@ -19,7 +19,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SECOND_MS } from "@chanlytics/contracts";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------- the window ------------------------------ */
 
@@ -639,7 +639,7 @@ test("ideas that are due are asked to be written by a member who may find, and r
   await leadsView("clients/leads");
   assert.deepEqual(asked(w), [], "a member who may not find asks for nothing");
   assert.deepEqual([L().suggestions.due, L().suggestions.items.length], [true, 0], "and reads what is there");
-  globalThis.window.canDo = (action) => action === "find";
+  holdRoles({ can: (action) => action === "find" });
   try {
     const w2 = wire({ searches: [], rows: [], counts: ZERO, suggestions: due, written: SUGGESTIONS });
     await leadsView("clients/leads");
@@ -649,7 +649,7 @@ test("ideas that are due are asked to be written by a member who may find, and r
     await leadsView("clients/leads");
     assert.deepEqual(asked(w3), [], "ideas that stand are only read");
   } finally {
-    delete globalThis.window.canDo;
+    holdRoles({ can: null });
   }
 });
 

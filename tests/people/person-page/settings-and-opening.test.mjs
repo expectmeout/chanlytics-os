@@ -115,7 +115,6 @@ test("REGRESSION: on a phone a deal's row folds open as a desk's does -- its pre
     );
   } finally {
     globalThis.window.matchMedia = mm;
-    delete globalThis.window.openDealSheet;
   }
 });
 
@@ -144,7 +143,11 @@ test("REGRESSION: a History filter holds still -- on a phone a shorter list made
   const vm = toPersonVM(detail({ visits: { ...VISITS, all: [PAST, NEXT] } }), ZONE, new Date(NOW));
   const draw = await profile(vm, "history");
   const held = [];
-  const hold = globalThis.window.holdStill;
+  // The tab pressed, as the page finds it (timeline.tsx tabPressed): holdStill (kit/motion/hold-still.ts) reads where it
+  // stands before the change, to keep it there.
+  const tab = { isConnected: true, parentElement: null, getBoundingClientRect: () => (held.push(tab), { top: 120 }) };
+  const query = globalThis.document.querySelector;
+  globalThis.document.querySelector = () => tab;
   try {
     // History's filters, not the page's tabs beside them (0052).
     find(
@@ -155,7 +158,7 @@ test("REGRESSION: a History filter holds still -- on a phone a shorter list made
     const timeline = find(draw(), (n) => typeof n.type === "function" && n.type.name === "PersonTimeline");
     assert.equal(timeline.props.filter, "visits", "and History shows the visits");
   } finally {
-    globalThis.window.holdStill = hold;
+    globalThis.document.querySelector = query;
   }
 });
 

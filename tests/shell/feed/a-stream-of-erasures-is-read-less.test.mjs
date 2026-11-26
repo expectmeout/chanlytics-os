@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { changesOf } from "../../_live-feed.mjs";
-import { historyOf, legacyAddress } from "../address/_address.mjs";
+import { historyOf } from "../address/_address.mjs";
 import { registeredSurfaces } from "../hearing/_reads.mjs";
 import { bridgeHolds } from "../_bridge-holds.mjs";
 
@@ -46,7 +46,6 @@ globalThis.CustomEvent ??= class CustomEvent {
   }
 };
 bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
-win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const REAL = [];
 for (const { name, file } of registeredSurfaces()) REAL.push((await importSrc(file))[name]);

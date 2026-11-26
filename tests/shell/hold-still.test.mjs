@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bridgeHolds, holdFrameParts } from "./_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "./_bridge-holds.mjs";
 
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", paddingBottom: "0px", ...over });
 globalThis.window = {
@@ -42,7 +42,8 @@ globalThis.React = {
   Fragment: "Fragment",
 };
 holdFrameParts();
-const { holdStill, routeDoor } = globalThis.window;
+const { holdStill } = await import("../../apps/dashboard/src/surfaces/kit/motion/hold-still.ts");
+const { routeDoor } = await import("../../apps/dashboard/src/surfaces/frame-doors.ts");
 
 /**
  * A page that scrolls in a 696px window (`box`, from 56 to 752 on the screen), `content` tall with `pad` of padding of
@@ -217,9 +218,12 @@ test("a door warms the page it opens as a pointer reaches it or it takes focus, 
   const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
   const warmed = [];
   const pages = [];
-  const was = globalThis.window.CHANLY;
+  const was = provided("shell");
   bridgeHolds({ parts: { warmPerson: (id) => warmed.push(id) } });
-  globalThis.window.CHANLY = { ...was, address: { href: (to) => `/w/acme/${to}`, warm: (to) => pages.push(to) } };
+  // The bridge's address (bridge/shell.ts, provided as `shell`), as the frame's reads it: a link's path, a page warmed.
+  bridgeHolds({
+    parts: { shell: { route: () => "today", href: (to) => `/w/acme/${to}`, warm: (to) => pages.push(to) } },
+  });
   try {
     const door = routeDoor(`clients/${ID}`);
     door.onPointerEnter();
@@ -232,10 +236,10 @@ test("a door warms the page it opens as a pointer reaches it or it takes focus, 
     assert.deepEqual(pages, others, "every door warms its page");
     assert.deepEqual(warmed, [ID, ID], "and reads no one where it opens no person");
     // The standalone mockup has no address to warm with: a door still opens, and warms nothing.
-    globalThis.window.CHANLY = was;
+    bridgeHolds({ parts: { shell: was } });
     routeDoor("calendar").onFocus();
   } finally {
     bridgeHolds({ parts: { warmPerson: undefined } });
-    globalThis.window.CHANLY = was;
+    bridgeHolds({ parts: { shell: was } });
   }
 });

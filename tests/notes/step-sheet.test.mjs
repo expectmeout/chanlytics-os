@@ -283,8 +283,6 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(W, {});
-const SRC = "../../apps/dashboard/src";
 // The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are the frame's; everything else it
 // reads is imported, as the sheet imports it.
 holdFrameParts();

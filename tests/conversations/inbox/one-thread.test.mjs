@@ -40,19 +40,12 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  CHANLY: {
-    nav: (to) => went.push(to),
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-    IX_NOW: "12:04",
-    CONF: { SAFE: 0.8, MED: 0.5 },
-  },
-  canDo: () => true,
-  gate: () => ({}),
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const realConsoleError = console.error;
 console.error = () => {};
 after(() => {

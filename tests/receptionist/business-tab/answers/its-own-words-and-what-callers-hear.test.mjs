@@ -36,7 +36,7 @@ import {
   without,
 } from "../../../_business-tab-harness.mjs";
 import { ROWS, boxIn, cardOf, langBox, langOptions, problemOf, tokensOf, typeIn } from "./_answers.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ in your own words ------------------------------------ */
 
@@ -287,17 +287,20 @@ test("a viewer reads How it answers and is offered no act on any of it, and noth
     }
     assert.equal(sent.length, 0);
   } finally {
-    delete W.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });
 
 test("every act of How it answers is gated as a change to the settings, and named for what it acts on", () => {
   const asked = [];
-  const was = W.gate;
-  W.gate = (perm, doing) => {
-    asked.push([perm, doing]);
-    return {};
-  };
+  const was = provided("roles");
+  // What each control asks the role store, and as what (frame/gate.ts): it may.
+  holdRoles({
+    can: (perm, doing) => {
+      asked.push([perm, doing]);
+      return true;
+    },
+  });
   try {
     const tree = drawTab({ profile: without(marisa, "tone") });
     const mine = asked.filter(([, doing]) =>
@@ -322,7 +325,7 @@ test("every act of How it answers is gated as a change to the settings, and name
       assert.ok(act.props["aria-label"].startsWith(words), `${id}: "${act.props["aria-label"]}" holds "${words}"`);
     }
   } finally {
-    W.gate = was;
+    bridgeHolds({ parts: { roles: was } });
   }
 });
 

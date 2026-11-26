@@ -25,7 +25,6 @@
 import * as contracts from "@chanlytics/contracts";
 import {
   installStubReact,
-  kitPages,
   fresh as freshTree,
   again as drawAgain,
   find,
@@ -221,10 +220,6 @@ installClock();
 holdFrameParts();
 
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
-Object.assign(globalThis, {
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
-bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 

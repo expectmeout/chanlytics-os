@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+const { askOnScreen, setAskOnScreen } = await import("../../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -690,9 +691,9 @@ test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- th
 
 test("the list tells Ask what it draws (the Phase 2 plan, D3): the conversations in its bucket, in the list's order, and the bucket that chose them", () => {
   fresh();
-  delete globalThis.window.__askOnScreen;
+  setAskOnScreen(null);
   again(() => InboxList(listProps()));
-  assert.deepEqual(globalThis.window.__askOnScreen, {
+  assert.deepEqual(askOnScreen(), {
     key: "inbox",
     ids: ["c1", "c2", "c3"],
     labels: ["Rosa Díaz", "Nina Park", "Ada Lovelace"],
@@ -700,11 +701,7 @@ test("the list tells Ask what it draws (the Phase 2 plan, D3): the conversations
   });
   fresh();
   again(() => InboxList(listProps({ threads: [ada], activeBucket: "all" })));
-  assert.deepEqual(
-    [globalThis.window.__askOnScreen.ids, globalThis.window.__askOnScreen.view],
-    [["c3"], "all"],
-    "another bucket, its own rows",
-  );
+  assert.deepEqual([askOnScreen().ids, askOnScreen().view], [["c3"], "all"], "another bucket, its own rows");
 });
 
 test("REGRESSION: a row draws one glyph beside its words, the wire they came on -- not one per wire the thread has used, where WhatsApp and a text drew the same bubble twice", () => {

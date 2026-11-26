@@ -39,7 +39,8 @@ globalThis.React = {
   Fragment: "Fragment",
 };
 holdFrameParts();
-const { touchSwipe, leaving, leaveOverlay } = globalThis.window;
+const { touchSwipe } = await import("../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
+const { leaving, leaveOverlay } = await import("../../apps/dashboard/src/surfaces/kit/motion/leaving.ts");
 const { holdMoves } = await import("../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1102,17 +1103,10 @@ test("a strip is walked only where the shell is narrow, and there only where the
   // People's strip is walked to 900px, where its page is one column, and any other only on a phone (5 Oct 2026). That is
   // the stylesheet's to say now, by the token that says how far a page travels (`--view-travel`: the tokens', and
   // People's to 900px in components.css): the strip's pager asks the deck whether a finger walks the page on screen.
-  const { viewPager } = await import("../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
+  await import("../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
   const { viewDeck } = await import("../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
-  Object.assign(globalThis.window, {});
   // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  Object.assign(globalThis.window, {
-    SurfaceTabs: surfaceTabs.SurfaceTabs,
-    stripPlace: surfaceTabs.stripPlace,
-    stripSlide: surfaceTabs.stripSlide,
-    stripSwipe: surfaceTabs.stripSwipe,
-  });
   const keep = globalThis.window.matchMedia;
   let width = 800;
   let token = "100%";
@@ -1150,7 +1144,7 @@ test("a strip is walked only where the shell is narrow, and there only where the
     view.contains = (other) => other === view;
     view.querySelector = (sel) => (takenOver && sel === "[data-takeover]" ? {} : null);
     viewDeck.view("frame")(view);
-    drag(globalThis.window.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
+    drag(surfaceTabs.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
     return pressed;
   };
   try {

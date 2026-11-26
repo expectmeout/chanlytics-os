@@ -81,9 +81,6 @@ const TM = provided("tabMemory");
 // the frame's JSX, loaded as the app loads it. The pages are TSX since decision 0015, and their verbs are imported.
 holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
-Object.assign(globalThis, {
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
 bridgeHolds({ doors: { navigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to) } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });

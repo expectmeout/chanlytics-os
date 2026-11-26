@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { historyOf, legacyAddress } from "../address/_address.mjs";
+import { historyOf } from "../address/_address.mjs";
 import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const listening = new Map();
@@ -48,7 +48,6 @@ globalThis.CustomEvent ??= class CustomEvent {
   }
 };
 bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
-win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const { filesOverride } = await importSrc("apps/dashboard/src/surfaces/files/surface.ts");
 

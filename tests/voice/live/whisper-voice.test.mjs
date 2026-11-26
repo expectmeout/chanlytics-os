@@ -58,7 +58,7 @@ const call = () => ({
 
 const flashed = [];
 const sent = [];
-installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+installStubReact({ setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
 // The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
 holdFrameParts();

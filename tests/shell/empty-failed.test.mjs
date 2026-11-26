@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { stateOf, toTodayVM, toLiveVM } from "@chanlytics/contracts";
 import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages, useStubHooks } from "../_stub-react.mjs";
+import { useStubHooks } from "../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -107,7 +107,6 @@ const storage = () => {
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.window = {
-  gate: () => ({ "data-gated": "" }),
   location: {
     pathname: "/w/harbor",
     hash: "",
@@ -137,7 +136,7 @@ bridgeHolds(
   { fresh: true },
 );
 holdFrameParts();
-const { EmptyState, FailedRead, MoreMenu, StatePill } = globalThis.window;
+const { EmptyState, FailedRead } = globalThis.window;
 Object.assign(globalThis, { EmptyState });
 bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 
@@ -497,7 +496,6 @@ test("Worth knowing is made from the numbers it is drawn from, once, by the page
 /* -------------------- Settings › Team, with a failed read ---------------- */
 
 bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", role: "owner" } } });
-Object.assign(globalThis.window, {});
 // The card is TSX (surfaces/settings/team, decision 0015 step 11), over the seam's settings value: a team read that failed.
 // Its hooks are this stub's (the kit's TSX imports them from "react"), and the seam's value is read as it draws.
 globalThis.React.useSyncExternalStore = (subscribe, snapshot) => snapshot();

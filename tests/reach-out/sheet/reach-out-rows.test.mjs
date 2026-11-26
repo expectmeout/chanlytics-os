@@ -26,12 +26,9 @@ const W = globalThis;
 const went = [];
 const toasts = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
-Object.assign(W, {});
 bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
-bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 // The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.
-const SRC = "../../../apps/dashboard/src";
 holdFrameParts();
 // The shell's toast is the frame's own; the home raises its notices through it, and a test reads them here.
 bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });

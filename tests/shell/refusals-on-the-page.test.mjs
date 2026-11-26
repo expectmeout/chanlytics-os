@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages, installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
+import { installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
 import { bridgeHolds, holdFrameParts, surfaceValue } from "./_bridge-holds.mjs";
@@ -164,8 +164,8 @@ test("FieldError: one sentence under the box it belongs to, announced, with the 
   assert.equal(FieldError({ message: "" }), null);
 });
 
-test("a refusal as a toast: the danger tone, the page's words for what did not happen, then why", () => {
-  const toast = globalThis.window.refusalToast;
+test("a refusal as a toast: the danger tone, the page's words for what did not happen, then why", async () => {
+  const toast = (await importSrc("apps/dashboard/src/surfaces/frame/flash.tsx")).refusalToast;
   assert.equal(typeof toast, "function", "one shape for a refusal's toast");
   const owner = refused("Only an owner can do this.", "forbidden", 403, { needs: "owner" });
   const said = toast(owner, "Not stopped");
@@ -708,11 +708,8 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
   bridgeHolds({ who: { me: { role: "owner" } }, parts: { surfaceState: () => "live" } });
   installStubReact({
     ...doors,
-    usePPToast: () => [null, () => {}],
-    CHANLY: { nav() {}, R: {} },
-    appNavigate() {},
-    useHotkey: () => {},
   });
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const SRC = "../../apps/dashboard/src";
   const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
   const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);

@@ -24,7 +24,7 @@ import {
 } from "../../../apps/dashboard/src/surfaces/campaigns/ads/new/words.ts";
 import { holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
 holdFrameParts();
 const { NewAd } = await import(`${S}/surfaces/campaigns/ads/new/sheet.tsx`);

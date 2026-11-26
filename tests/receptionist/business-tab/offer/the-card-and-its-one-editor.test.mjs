@@ -55,7 +55,7 @@ import {
   typeHeard,
   undoFor,
 } from "./_offer.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------ the plan's five ------------------------------------ */
 
@@ -215,11 +215,14 @@ test("with no services the row says none yet, and its act adds one", () => {
 
 test("each act of What you offer is gated as a change to the settings, and named for what it acts on", () => {
   const asked = [];
-  const was = W.gate;
-  W.gate = (perm, doing) => {
-    asked.push([perm, doing]);
-    return {};
-  };
+  const was = provided("roles");
+  // What each control asks the role store, and as what (frame/gate.ts): it may.
+  holdRoles({
+    can: (perm, doing) => {
+      asked.push([perm, doing]);
+      return true;
+    },
+  });
   // The word is offered only where there is a courier to save it through, as the zone is.
   bridgeHolds({ parts: { workspace: { patch: async () => ({ ok: true, workspace: {}, message: "" }) } } });
   try {
@@ -241,7 +244,7 @@ test("each act of What you offer is gated as a change to the settings, and named
     assert.equal(byTestId(tree, "appointment_word-menu").props["data-tip"], "What you call a booking: Appointment");
     assert.equal(textOf(byTestId(tree, "rec-row-act-services")).trim(), "Open the list", "the canvas's act");
   } finally {
-    W.gate = was;
+    bridgeHolds({ parts: { roles: was } });
     bridgeHolds({ parts: { workspace: undefined } });
   }
 });
@@ -284,7 +287,7 @@ test("a viewer reads what is offered and is offered no act on any of it, and not
     assert.equal(sent.length, 0);
     assert.deepEqual(patched, [], "and nothing goes to the workspace's courier");
   } finally {
-    delete W.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
     bridgeHolds({ parts: { workspace: undefined } });
   }
 });
@@ -356,7 +359,7 @@ test("only a role that may change the business is offered the word's menu: an op
     assert.equal(byTestId(tree, "appointment_word-menu"), null, "no menu, as no row of the business offers one");
     assert.match(textOf(byTestId(tree, "rec-row-appointment_word")), /Meeting/);
   } finally {
-    delete W.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
     bridgeHolds({ parts: { workspace: undefined } });
   }
 });

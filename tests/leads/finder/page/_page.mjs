@@ -33,13 +33,13 @@
 import { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { legacyAddress } from "../../../shell/address/_address.mjs";
-import { installRoleStore, kitPages, useStubHooks } from "../../../_stub-react.mjs";
+import { installRoleStore, useStubHooks } from "../../../_stub-react.mjs";
 import { until } from "../../../shared/_until.mjs";
 import { importSrc } from "../../../_source.mjs";
 import { ROLE_PERMS, stateOf, toLeadRowVM } from "@chanlytics/contracts";
 import { hookFrames } from "../../../_hook-frames.mjs";
 import { lineBox } from "../../../shared/_line.mjs";
-import { bridgeHolds, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
+import { askDoor, bridgeHolds, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
 
 export const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -1087,16 +1087,10 @@ export const install = ({ role = "owner" } = {}) => {
       clock: { dateYear: () => "Sep 18, 2026", time: () => "2:14 PM", zone: () => TZ },
     },
   });
-  Object.assign(globalThis.window, {
-    // The shell's doors to Ask, recorded: askAbout (dashboard-a-ask.jsx) with what the page hands it, and appAsk
-    // (surfaces/frame/app-shell.tsx), the plain open ⌘K makes, which keeps what the owner left in the field. The page reaches them through
-    // frame-verbs.ts (askAbout, openAsk, askCalls).
-    askAbout: (detail) => asks.push(detail),
-    appAsk: () => asks.push("open"),
-    CHANLY: { nav: (to) => went.push(to), address, R: { thread: (id) => `inbox/${id}` } },
-  });
-  bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
   bridgeHolds({ parts: { roles: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] } } });
+  bridgeHolds({ doors: askDoor({ ask: (detail) => asks.push(detail), open: () => asks.push("open") }) });
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+  bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
   // The bridge's reading of who is acting over this window's __ME (the pages ask mayAtLeast), beside the stub's own.
   installRoleStore();
 };

@@ -39,7 +39,7 @@ import assert from "node:assert/strict";
 import { shiftKey, stateOf, toCalendarVM } from "@chanlytics/contracts";
 import { createRequire } from "node:module";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { kitHooks, kitPages } from "../../_stub-react.mjs";
+import { kitHooks } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 export const TZ = "America/New_York";
@@ -240,26 +240,8 @@ globalThis.window = {
   clearTimeout() {},
 };
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
-bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 holdFrameParts();
-
-// A stub React attaches no ref, so the dialog's element does not exist here: the one focus helper (frame-globals trapFocus,
-// proved on a document of its own in shell/focus-trap.test.mjs) is handed a stand-in for it, and every ask is kept.
-export const trapped = [];
-
-export const realTrapFocus = globalThis.window.trapFocus;
-
-export const dialogBox = {
-  addEventListener() {},
-  removeEventListener() {},
-  contains: (n) => !!n,
-  getAttribute: () => "-1",
-  setAttribute() {},
-  focus() {
-    globalThis.document.activeElement = dialogBox;
-  },
-};
 
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
   globalThis[k] = globalThis.window[k];
@@ -429,7 +411,6 @@ export const fresh = (week = dto(), answers = []) => {
   // The page before goes, as React lets go of it: its effects' cleanups run, its minute's timer with them, which kept
   // the file from ever ending.
   leave();
-  trapped.length = 0;
   addr = {};
   followed = went.length;
   cells = [];
@@ -619,7 +600,6 @@ export const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
 export const forgetPeek = () => {
   bridgeHolds({ who: { workspaces: undefined } });
   bridgeHolds({ who: { activeWorkspaceId: undefined } });
-  delete globalThis.window.openDealSheet;
 };
 
 export const startAct = (tree) => byTestId(tree, "cal-visit-primary-proposal");

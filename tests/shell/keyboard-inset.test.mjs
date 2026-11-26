@@ -62,7 +62,7 @@ globalThis.React = {
   useRef: (v) => ({ current: v }),
 };
 holdFrameParts();
-const { watchKeyboard } = globalThis.window;
+const { watchKeyboard } = await import("../../apps/dashboard/src/surfaces/kit/motion/keyboard.ts");
 
 const fire = (type) => (heard[type] || []).forEach((fn) => fn());
 const focus = (type, target) => (docHeard[type] || []).forEach((fn) => fn({ target }));

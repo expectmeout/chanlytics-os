@@ -5,8 +5,8 @@
  */
 import { after } from "node:test";
 import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, kitPages, all, textOf } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { installStubReact, fresh, again, all, textOf } from "../../_stub-react.mjs";
+import { askDoor, bridgeHolds, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 export const ZONE = "America/New_York";
 export const NOW = new Date("2026-09-18T20:00:00Z");
@@ -23,12 +23,9 @@ bridgeHolds({
   },
   parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
 });
-Object.assign(globalThis, {
-  askAbout: (a) => asked.push(a),
-  mayAtLeast: () => true,
-});
+holdRoles({ atLeast: () => true });
+bridgeHolds({ doors: askDoor({ ask: (a) => asked.push(a) }) });
 bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
-bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 /** What the pages asked of the wire, by method and path, and the answer each test holds (`answer`), refused by default. */

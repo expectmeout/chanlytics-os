@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, LEAD_VIEW_SORTS } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, find, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
 const { LEAD_COLUMNS, leadViewNow, LEAD_VIEW_EXTRA, mayRowAct } = await importSrc(
@@ -112,26 +113,28 @@ test("a row that offers nothing draws no worded act, and still its copy", () => 
 });
 
 test("a member who may not press an act is told why at the press: the role gate's props come last", () => {
-  const kept = globalThis.window.gate;
-  globalThis.window.gate = (action, doing) => ({ "data-gated": `${action}: ${doing}`, onClick: () => undefined });
+  const kept = provided("roles");
+  // A viewer, refused both: the frame's gate (frame/gate.ts) says why in the act's own words.
+  holdRoles({ can: () => false });
   try {
     const gated = ctxOf({ canFind: false });
     const add = byTestId(drawn(lead(), gated.ctx), "lead-add");
-    assert.equal(add.props["data-gated"], "approve: add this lead to a campaign");
+    assert.equal(add.props["data-gated"], "");
+    assert.equal(add.props["aria-description"], "Only an owner or operator can add this lead to a campaign.");
     press(add);
     assert.deepEqual(gated.went, [], "a gated press adds nothing");
     const keep = byTestId(drawn(lead({ cls: "review", state: "review" }), gated.ctx), "lead-keep");
-    assert.equal(keep.props["data-gated"], "find: keep this lead");
+    assert.equal(keep.props["aria-description"], "Only an owner can keep this lead.");
   } finally {
-    globalThis.window.gate = kept;
+    bridgeHolds({ parts: { roles: kept } });
   }
 });
 
 test("REGRESSION: the key is no way round a role -- A may do only what the row's button would let this member press", () => {
-  const kept = globalThis.window.canDo;
+  const kept = provided("roles");
   try {
     // A viewer: may neither find nor approve.
-    globalThis.window.canDo = () => false;
+    holdRoles({ can: () => false });
     assert.equal(mayRowAct("keep", false), false, "Keep is the finder's");
     assert.equal(mayRowAct("put_back", false), false, "and so is Put back");
     assert.equal(mayRowAct("add", false), false, "an add is an approval");
@@ -139,12 +142,12 @@ test("REGRESSION: the key is no way round a role -- A may do only what the row's
     assert.equal(mayRowAct("pick", false), true);
     assert.equal(mayRowAct("call", false), true, "a call is the owner's own phone: no role is asked");
     // A member who may approve but not find, and one who may do both.
-    globalThis.window.canDo = (action) => action === "approve";
+    holdRoles({ can: (action) => action === "approve" });
     assert.equal(mayRowAct("add", false), true);
     assert.equal(mayRowAct("keep", false), false);
     assert.equal(mayRowAct("keep", true), true);
   } finally {
-    globalThis.window.canDo = kept;
+    bridgeHolds({ parts: { roles: kept } });
   }
 });
 

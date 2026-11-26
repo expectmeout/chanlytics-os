@@ -272,19 +272,24 @@ test("the menu wears .escape only when asked, and an escaped one closes on a scr
 
 test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull is its own", () => {
   const items = [{ label: "Rename", icon: "pencil", onClick() {} }];
-  let swipe = null;
   const kept = [];
+  /** A thumb down the menu from its top, as a browser reports one: where it began, and where it was let go. */
+  const pull = (on, dy) => {
+    const at = { dataset: {}, removeAttribute() {} };
+    on.onTouchStart({
+      touches: [{ clientX: 200, clientY: 300 }],
+      currentTarget: at,
+      target: null,
+      stopPropagation() {},
+    });
+    on.onTouchEnd({ changedTouches: [{ clientX: 200, clientY: 300 + dy }], currentTarget: at, stopPropagation() {} });
+  };
   // A phone's menu is drawn on the document's body; under this runner's react-server condition react-dom has no
   // createPortal, so the portal is the menu itself, as the shared stub has it (_stub-react.mjs).
   const reactDom = createRequire(new URL("../../apps/dashboard/package.json", import.meta.url))("react-dom");
   const portal = reactDom.createPortal;
   reactDom.createPortal = (node) => node;
   globalThis.window.matchMedia = () => ({ matches: true });
-  // the frame's reader of a thumb, as the page has it: what the menu asks of it.
-  globalThis.window.touchSwipe = (o) => {
-    swipe = o;
-    return { onTouchStart() {}, onTouchEnd() {} };
-  };
   try {
     cells = { ":0": true, ":1": new Set(), ":2": { current: null } }; // drawn open, as the page holds it once its trigger is pressed
     frames.begin();
@@ -297,9 +302,10 @@ test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull
     );
     menu.props.onTouchStart({ stopPropagation: () => kept.push(1) });
     assert.deepEqual(kept, [1], "kept its own: a pull on a menu opened in a sheet did not pull the sheet too");
-    assert.equal(swipe.when(), true, "on a phone");
-    swipe.onDown();
-    assert.equal(cells[":0"], false, "the pull closes it");
+    pull(menu.props, 40);
+    assert.equal(cells[":0"], true, "a short drag is nothing");
+    pull(menu.props, 200);
+    assert.equal(cells[":0"], false, "the pull closes it, on a phone");
     // A desk's menu hangs from its trigger, and nothing reads a thumb on it.
     globalThis.window.matchMedia = () => ({ matches: false });
     cells = { ":0": true, ":1": new Set(), ":2": { current: null } };
@@ -309,7 +315,6 @@ test("a phone's menu is pulled down to close, as the kit Menu's is, and the pull
     assert.equal(desk.props.onTouchStart, undefined);
   } finally {
     delete globalThis.window.matchMedia;
-    delete globalThis.window.touchSwipe;
     reactDom.createPortal = portal;
   }
 });

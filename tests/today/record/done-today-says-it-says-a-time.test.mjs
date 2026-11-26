@@ -22,13 +22,10 @@ bridgeHolds({
   },
 });
 installStubReact({
-  appNavigate() {},
-  usePPToast: () => [null, () => {}],
-  canDo: () => true,
-  gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 /** Today with Ana waiting on a person, and so many things the team dealt with. */

@@ -22,7 +22,6 @@ bridgeHolds({
   parts: { chrome: { state: stateOf } },
 });
 installStubReact({
-  gate: () => ({}),
   // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
   ROLE_PERMS,
 });
@@ -148,7 +147,7 @@ const item = (menu, label) => {
 };
 const reset = () => {
   for (const k of Object.keys(calls)) calls[k] = Array.isArray(calls[k]) ? [] : 0;
-  delete globalThis.window.ST_STORE;
+  bridgeHolds({ parts: { roles: undefined } });
 };
 
 test("the people come first, you at the top: the joined day and the alerts mark under each name, and the role a picker only where an owner may change it", () => {
@@ -377,7 +376,7 @@ test("an operator reads the roster and the gate's sentence with whom to ask; the
     "an operator may not change who gets alerts",
   );
   bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", role: "owner" } } });
-  delete globalThis.window.ST_STORE;
+  bridgeHolds({ parts: { roles: undefined } });
 });
 
 test("the card's foot opens the table ROLE_PERMS draws; the card has no Activity and no Preview as", () => {

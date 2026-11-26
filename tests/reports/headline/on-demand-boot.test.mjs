@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { historyOf, legacyAddress } from "../../shell/address/_address.mjs";
+import { historyOf } from "../../shell/address/_address.mjs";
 import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const heard = new Map();
@@ -51,7 +51,6 @@ const settle = async (n = 14) => {
   for (let i = 0; i < n; i += 1) await tick();
 };
 bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
-win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");

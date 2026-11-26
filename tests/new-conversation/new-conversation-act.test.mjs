@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NEW_CONVERSATION_WORDS, newConversationOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, textOf, press } from "../_stub-react.mjs";
+import { bridgeHolds, holdRoles, provided } from "../shell/_bridge-holds.mjs";
 
 installStubReact();
 // The standing keeps the minute on a timer (kit/head/dateline.ts), and a test that draws by hand starts none.
@@ -44,13 +45,12 @@ const key = (over = {}) => ({
   },
   ...over,
 });
-/** Where the tab is, as the frame's address says it. */
+/** Where the tab is, as the frame's address says it (the bridge's shell, provided as `shell`). */
 const at = (route) => {
-  globalThis.window.CHANLY = { ...globalThis.window.CHANLY, address: { route: () => route } };
+  bridgeHolds({ parts: { shell: { ...provided("shell"), route: () => route } } });
 };
 
 test("the Inbox says its one act to the head: New conversation, filled, its mark kept with its first word", () => {
-  delete globalThis.window.gate;
   const act = actSaid();
   assert.ok(act, "the act is the head's, at the right of the row of views");
   assert.equal(standingSaid().title, "Inbox");
@@ -71,7 +71,6 @@ test("the Inbox says its one act to the head: New conversation, filled, its mark
 
 test("a press asks for the sheet, on the pick; a pointer warms it; a role that may not write is told why and opens nothing", () => {
   closeNewConversation();
-  delete globalThis.window.gate;
   let warmed = 0;
   const forget = onWarmAsked(() => (warmed += 1));
   const act = actSaid();
@@ -87,23 +86,32 @@ test("a press asks for the sheet, on the pick; a pointer warms it; a role that m
     { open: true, personId: null },
   );
   closeNewConversation();
-  // The shell's role gate, as frame-globals answers a role that may not: spread after the handlers, it takes the press.
+  // The shell's role gate (frame/gate.ts) over a role that may not: spread after the handlers, it takes the press. The
+  // page asks first whether to offer the act (canDo), then its gate, naming the act: the gate's ask is refused.
   let asked = null;
-  globalThis.window.gate = (perm, doing) => {
-    asked = [perm, doing];
-    return { "aria-disabled": true, title: `Your role can't ${doing}.`, onClick: () => undefined };
-  };
-  const gated = actSaid();
-  assert.deepEqual(asked, ["approve", NEW_CONVERSATION_WORDS.gate]);
-  assert.match(gated.props.title, /start a conversation/);
-  press(gated);
-  assert.equal(newConversationAsked().open, false, "nothing opens for a role that may not write");
-  delete globalThis.window.gate;
+  const kept = provided("roles");
+  holdRoles({
+    can: (perm, doing) => {
+      if (!doing) return true;
+      asked = [perm, doing];
+      return false;
+    },
+  });
+  try {
+    const gated = actSaid();
+    assert.deepEqual(asked, ["approve", NEW_CONVERSATION_WORDS.gate]);
+    assert.match(gated.props["aria-description"], /start a conversation/);
+    press(gated);
+    assert.equal(newConversationAsked().open, false, "nothing opens for a role that may not write");
+  } finally {
+    bridgeHolds({ parts: { roles: kept } });
+  }
 });
 
 test("the frame's host answers N on the Inbox's tabs, and leaves it alone elsewhere, in a field, with a chord, in a dialog, or for a viewer", () => {
   closeNewConversation();
   fresh();
+  holdRoles({ can: () => true });
   at("inbox");
   again(() => h(NewConversationHost));
   const send = (over) => {
@@ -129,9 +137,10 @@ test("the frame's host answers N on the Inbox's tabs, and leaves it alone elsewh
     assert.equal(newConversationAsked().open, false, `on ${elsewhere || "no page"} N is not the page's key`);
   }
   at("inbox");
-  globalThis.window.canDo = () => false;
+  holdRoles({ can: () => false });
   send();
   assert.equal(newConversationAsked().open, false, "a role that may not write");
+  holdRoles({ can: () => true });
   // Pressed on a row of the list, N is still the page's: the row is an option in a listbox at rest, which stands over
   // nothing. The target answers `closest` as a row would: yes to its own listbox, no to anything over the page.
   closeNewConversation();

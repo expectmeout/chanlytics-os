@@ -7,7 +7,7 @@
  * frame's kit step.
  */
 import { Component } from "react";
-import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
+import type { ErrorInfo, PointerEvent, ReactNode } from "react";
 import { askDockRef } from "@/bridge/ask/dock";
 import { AskLine } from "@/bridge/ask/line";
 import { AskDisc } from "../kit/face/ask-face";
@@ -337,8 +337,6 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
     </div>
   );
 };
-
-type DeckView = (typeof viewDeck)["view"];
 
 /** The view is the deck's to move: it registers as it mounts and says which side it arrives from; a phone swipes it. */
 const routeMain = (s: ChromeAt, glass: boolean) => {
