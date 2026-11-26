@@ -71,6 +71,7 @@ export const PLAYBOOK_PATCH_WORDS = {
   mode: (to: SequenceMode, was: SequenceMode): string =>
     `Before each send: ${SEQUENCE_MODE_WORDS[to].choice}, where it was ${SEQUENCE_MODE_WORDS[was].choice}`,
   /** A mode that is none of the three (decision 0064). */
+  // screen-word: the mode names a caller sends, listed back to the caller
   modeWhich: "Before each send is ask (Ask me), veto (Hold it for a stop) or auto (Send it).",
   /**
    * Ask me on a sequence an occasion starts (decision 0119, contracts sequenceModesFor): it writes to one person at a

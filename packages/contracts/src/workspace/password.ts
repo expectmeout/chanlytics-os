@@ -70,7 +70,7 @@ export const PASSWORD_WORDS = {
 
   /* ------------------------------------------------------------ the reset */
   resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetLead: "A 6-digit code goes to your work email. Enter it with the password you want.",
   resetSent: (email: string) =>
     `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
   resetSubmit: "Set my password",

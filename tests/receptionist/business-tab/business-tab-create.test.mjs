@@ -75,7 +75,7 @@ test("a workspace with no receptionist is told so, and offered the one act that 
   const tree = drawCreate();
   const empty = find(tree, (n) => classes(n).includes("empty"));
   assert.match(textOf(empty), /AI isn't set up for this workspace yet/);
-  assert.match(textOf(empty), /no business name, no phone line, no booking link/);
+  assert.match(textOf(empty), /No business name, number or booking link yet/);
   assert.equal(foldOpen(tree), false, "and the fold is closed until it is asked for");
   // The act carries the fold's id, where the kit gives focus back as the fold closes (record-fold.jsx data-rec-act).
   assert.equal(byTestId(tree, "rec-create-open").props["data-rec-act"], "receptionist");
@@ -132,7 +132,7 @@ test("the line it answers on is named the way people write it, and choosing it i
   setUp(tree);
   tree = redrawCreate();
   const choice = byTestId(tree, "rec-create-number-choice");
-  assert.deepEqual(all(choice, (n) => n.props?.role === "radio").map(textOf), ["Your line", "A different number"]);
+  assert.deepEqual(all(choice, (n) => n.props?.role === "radio").map(textOf), ["Your number", "A different number"]);
   const note = textOf(byTestId(tree, "rec-create-number-note"));
   assert.ok(note.startsWith("+1 (305) 555-0100 · the line AI answers"), note);
   assert.ok(!note.includes("+13055550100"), "REGRESSION: the stored form, in front of the owner");
@@ -304,7 +304,7 @@ test("a number typed and then put back to the line is stored as no number, not a
     "+1 (305) 555-0123",
     "the box fills with the line it answers on",
   );
-  choose("Your line");
+  choose("Your number");
   const box = () => find(byTestId(tree, "rec-create-number"), (n) => classes(n).includes("bt-inline-box"));
   assert.equal(box().props.hidden, true, "and choosing the line puts the box away, with what was in it");
   assert.equal(boxIn(tree, "rec-create-number").props.value, "+1 (305) 555-0123", "which the draft still carries");

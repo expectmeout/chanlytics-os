@@ -1355,7 +1355,7 @@ test("the second batch of what the ledgers never kept reads in an owner's words:
   assert.equal(activityWords("call.recorded", { direction: "inbound", status: "not_connected" }), "A call was missed");
   assert.equal(
     activityWords("call.recorded", { direction: "outbound", status: "not_connected" }),
-    "A call we placed did not connect",
+    "An outgoing call didn't connect",
   );
   assert.equal(activityWords("call.recorded", {}), "A call was recorded", "a row from before the status was filed");
 

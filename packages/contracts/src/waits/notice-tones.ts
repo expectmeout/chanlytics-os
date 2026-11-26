@@ -32,8 +32,8 @@ const LISTED: readonly ToneOf[] = [
   { kind: "number", title: /^Forwarding works: /u, tone: "ok" },
   { kind: "number", title: /^Texting is on: /u, tone: "ok" },
   { kind: "number", title: /^Your business is approved by the carriers$/u, tone: "ok" },
-  // The subscription (contracts workspace/billing.ts planBilling's bell).
-  { kind: "billing", title: /^Your trial has started$/u, tone: "ok" },
+  // The subscription (contracts workspace/billing.ts planBilling's bell); "Your" is the title of rows kept before 25 Nov 2026.
+  { kind: "billing", title: /^(?:The|Your) trial has started$/u, tone: "ok" },
   // The carriers' refusals of a texting registration (channels a2p verdict.ts), kept as alerts: warnings.
   { kind: "alert", title: /^The carriers sent your texting registration back$/u, tone: "warn" },
   { kind: "alert", title: /^Your texting registration stopped$/u, tone: "warn" },

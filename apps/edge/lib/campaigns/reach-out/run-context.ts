@@ -33,6 +33,7 @@ import {
   handOf,
   runRoute,
   waitEndsWords,
+  valueAt,
 } from "@chanlytics/contracts";
 import { stepSenders } from "./senders.js";
 import { notify, notifyOnceAs } from "../../shared/alerts/notify.js";
@@ -209,10 +210,10 @@ export async function getReachOutRunContext(
     planRun: async (run, sends) => {
       const { data, error } = await planReachOutRun(db, asJson(run), asJson(sends));
       if (error) throw new DbFailure(error, "cannot plan the step's run");
-      const item = (data ?? {}) as { id?: string; exists?: boolean };
-      if (item.exists) return "exists";
-      if (!item.id) throw new Error("cannot plan the step's run: no run came back");
-      return { id: item.id };
+      if (valueAt(data, "exists")) return "exists";
+      const id = valueAt(data, "id");
+      if (typeof id !== "string" || !id) throw new Error("cannot plan the step's run: no run came back");
+      return { id };
     },
     recordRun: async (run, counts) => {
       const data = { run_for: run.run_for, broadcast_id: run.id, state: run.state, ...counts, reach_out: true };

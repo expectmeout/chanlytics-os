@@ -542,7 +542,7 @@ test("a connected number nobody has written to yet says how to try it from a pho
   // 8 October 2026: an owner took a number that had just connected for one that had not, since WhatsApp on their phone still
   // said "invite". The note was plain words behind the row's press, and a new account (no card yet) did not say it at all.
   const TRY = {
-    text: "Try it from your phone with this link, not by searching your contacts: it opens the chat even while WhatsApp there still says the number isn't on WhatsApp.",
+    text: "Open this link on your phone rather than searching: it works even while WhatsApp says the number isn't on WhatsApp yet.",
     link: { label: "wa.me/13055550188", href: "https://wa.me/13055550188?text=Hi" },
   };
   const unwritten = { last_inbound_at: null };

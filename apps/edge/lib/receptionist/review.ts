@@ -66,6 +66,8 @@ import {
   type RehearsalTurn,
   ANSWER_JSON_ONLY,
   isTenantId,
+  recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { rehearsalRouting } from "../voice/rehearsal-call.js";
 import type { TenantId } from "@chanlytics/contracts";
@@ -83,8 +85,7 @@ function typedTurnsOf(raw: unknown): RehearsalTurn[] | null {
   if (!Array.isArray(raw) || raw.length > TYPED_TURNS_MAX) return null;
   const out: RehearsalTurn[] = [];
   for (const t of raw) {
-    const role = (t as { role?: unknown })?.role;
-    const content = (t as { content?: unknown })?.content;
+    const { role, content } = recordOrEmpty(t);
     if (typeof content !== "string" || !content.trim() || content.length > TURN_MAX_CHARS) return null;
     if (role === "user") out.push({ role: "user", content: content.trim() });
     else if (role === "assistant" || role === "agent") out.push({ role: "agent", content: content.trim() });
@@ -342,7 +343,7 @@ async function judgeTyped(reviewWorld: ReviewWorld, rawTurns: unknown, configVer
   return { id, review };
 }
 
-const isFixKind = (v: unknown): v is FixKind => (FIX_KINDS as readonly unknown[]).includes(v);
+const isFixKind = (v: unknown): v is FixKind => isOneOf(FIX_KINDS, v);
 
 /** The settings a correction is routed against: today, the services, the hours, the languages. */
 function fixAskOf(rt: TenantRuntime, kind: FixKind, words: string, rule: string | null): FixAsk {

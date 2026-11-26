@@ -436,7 +436,7 @@ export const TODAY_PHONE_WORDS = {
     word: "Listen",
     named: (length: string) => `Listen to your brief, ${length}`,
     getting: "Getting AI's voice",
-    brief: "Your brief",
+    brief: "Today's brief",
     stop: "Stop your brief",
   },
   /** What cannot wait's one door: a line that is down is reconnected, a paused workspace is billing's. */
