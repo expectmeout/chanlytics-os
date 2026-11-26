@@ -13,8 +13,7 @@ export interface ProbeMember {
   excluded_by: string | null;
   term?: string | null;
 }
-export type LeadQuestion =
-  { ask: true; sentence: string; criterionKey: string; dropTerm: string | null } | { ask: false };
+type LeadQuestion = { ask: true; sentence: string; criterionKey: string; dropTerm: string | null } | { ask: false };
 
 /**
  * An intent check, never an accuracy measure (P4). Measured by exclusion, not

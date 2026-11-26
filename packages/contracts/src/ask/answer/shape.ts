@@ -118,7 +118,7 @@ export const noList = (): AskList => ({ style: "bullets", entries: [] });
  * An answer as a turn kept it: one kept before the list part has none, and a chart kept before it had series is one
  * value to a point (answer-text.ts storedChart).
  */
-export type AskAnswerAsStored = Omit<AskAnswer, "show"> & {
+type AskAnswerAsStored = Omit<AskAnswer, "show"> & {
   show: Omit<AskAnswer["show"], "list" | "chart"> & { list?: AskList; chart?: AskChart | AskChartBefore };
 };
 
