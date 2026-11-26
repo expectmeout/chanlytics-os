@@ -19,7 +19,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
+import { stateOf, formatPhoneDisplay, workspacePath } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
@@ -354,8 +354,8 @@ test("on a phone the bare address is the list of sections: their words in order,
     "under the rail's groups",
   );
   assert.ok(
-    rows.every((r, i) => r.type === "a" && String(r.props.href).endsWith(`/${listed[i].id}`)),
-    "a section has an address, so its row is a link to it",
+    rows.every((r, i) => r.type === "a" && r.props.href === workspacePath("studio", `admin/${listed[i].id}`)),
+    "a section has an address, its workspace's own, so its row is a link to it",
   );
   let stopped = 0;
   rows.find((r) => textOf(r).includes("Team")).props.onClick({ button: 0, preventDefault: () => stopped++ });

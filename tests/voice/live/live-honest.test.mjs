@@ -195,7 +195,7 @@ test("REGRESSION (A20, L8): an ended call's card leads with what the caller want
   const door = byTestId(tree, "lm-head-avatar");
   assert.ok(door, "the caller's face is the door to their page");
   assert.equal(door.type, "a");
-  assert.equal(door.props.href, "#/clients/c7", "and it opens the person's page");
+  assert.equal(door.props.href, "/w/studio/people/c7", "and it opens the person's page");
   assert.match(door.props["aria-label"], /Emily Chen/, "named for a reader, as the face itself is decoration");
   assert.ok(!find(tree, (n) => n.type === "button" && textOf(n).includes("Open profile")), "no button says it twice");
   assert.ok(!textOf(tree).includes("Open client"));
@@ -231,7 +231,7 @@ test("REGRESSION: who is calling opens their page, and their number rings them -
   const who = byTestId(tree, "lm-head-person");
   assert.ok(who, "the caller's name is a link");
   assert.equal(who.type, "a");
-  assert.equal(who.props.href, "#/clients/c7", "to their page");
+  assert.equal(who.props.href, "/w/studio/people/c7", "to their page");
   assert.equal(textOf(who), "Emily Chen");
   const tel = find(tree, (n) => n.type === "a" && String(n.props?.href || "").startsWith("tel:"));
   assert.ok(tel, "the number is a link that rings them");

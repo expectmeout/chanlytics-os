@@ -668,10 +668,11 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
   } finally {
     setSurfaceValue("settings", was);
   }
+  // Before the workspace's policies are read, the same words: no figures (the demo's seeded table went with demo mode).
   cells = [];
   frames.begin();
-  const demo = PolicyChip({ cls: "reengage" });
-  assert.ok(String(demo.props["data-tip"]).includes("128 auto-sent"), "the demo keeps its own figures");
+  const unread = PolicyChip({ cls: "reengage" });
+  assert.equal(unread.props["data-tip"], "Workspace policy · Settings · Autonomy");
 });
 
 /* ------------- Campaigns: an approve says when the run really goes ------------- */

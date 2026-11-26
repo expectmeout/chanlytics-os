@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { toastShape, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks } from "../_stub-react.mjs";
-import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, frameParts, holdFrameParts, provided } from "./_bridge-holds.mjs";
 
 /* ---------------------------- the shape ------------------------------- */
 
@@ -231,7 +231,7 @@ const buttonsOf = (toast) => {
 const iconOf = (toast) => {
   let hit = null;
   walk(toast, (n) => {
-    if (!hit && n.type === "Icon" && n.props.size === 13) hit = n.props.name;
+    if (!hit && n.type === frameParts().Icon && n.props.size === 13) hit = n.props.name;
   });
   return hit;
 };

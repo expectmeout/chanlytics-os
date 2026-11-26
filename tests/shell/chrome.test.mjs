@@ -23,7 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, again, all, byTestId, classes, press, textOf } from "../_stub-react.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, frameParts } from "./_bridge-holds.mjs";
 import { fromDashboard, stepRunning } from "./boot/_frame-boot.mjs";
 
 const { Icon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
@@ -236,9 +236,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
       shell.includes('onSidebar(sidebar === "rail" ? "open" : "rail");'),
     "⌘B folds the sidebar on a desk only",
   );
-  assert.ok(
-    shell.includes('const Sheet = fromGlobal("ShortcutsSheet", ShortcutsSheet);') && shell.includes("<Sheet />"),
-  );
+  assert.ok(shell.includes("const Sheet = ShortcutsSheet;") && shell.includes("<Sheet />"));
 
   // The sidebar's menus are drawn and pressed: the account chip opens a menu, not Settings, and its rows (Settings, the
   // keys' sheet on a desk) are drawn in keys-in-the-sheet.test.mjs, where a workspace pressed is switched to, the new
@@ -287,7 +285,8 @@ test("the account chip says it opens a menu with the chevrons the workspace row 
       onLook: () => {},
     }),
   );
-  const chevrons = (testid) => all(byTestId(drawn, testid), (n) => n.type === "Icon" && n.props.name === "chevrons");
+  const chevrons = (testid) =>
+    all(byTestId(drawn, testid), (n) => n.type === frameParts().Icon && n.props.name === "chevrons");
 
   assert.equal(chevrons("sb-workspace").length, 1, "the workspace row, which always had them");
   const chip = chevrons("sb-account");
@@ -385,7 +384,7 @@ test("the workspace's circle wears its own logo over its initials, and its initi
     return {
       initials: textOf(circle),
       picture: all(circle, (n) => n.type === "img").map((n) => [n.props.src, classes(n)]),
-      three: all(row, (n) => n.type === "Icon" && n.props.name === "three").length,
+      three: all(row, (n) => n.type === frameParts().Icon && n.props.name === "three").length,
       menu: all(menu, (n) => n.type === "span" && classes(n).includes("sb-ws-mark")).map((m) => [
         textOf(m),
         all(m, (n) => n.type === "img").length,

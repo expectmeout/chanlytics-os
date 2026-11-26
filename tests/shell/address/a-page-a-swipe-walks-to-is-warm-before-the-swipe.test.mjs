@@ -23,7 +23,9 @@ test("the bar keeps warm its four places and the pages a swipe walks to from the
   const kept = [];
   const had = provided("shell");
   // The bridge's address (bridge/shell.ts, provided as `shell`), as the frame's reads it: the pages it keeps warm.
-  bridgeHolds({ parts: { shell: { route: () => "today", keepWarm: (routes) => kept.push(routes) } } });
+  bridgeHolds({
+    parts: { shell: { route: () => "today", href: (to) => `/w/acme/${to}`, keepWarm: (routes) => kept.push(routes) } },
+  });
   try {
     fresh();
     drawBar("today");

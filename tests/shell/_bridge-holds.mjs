@@ -116,14 +116,16 @@ export function bridgeHolds({ who, values, reads, parts, doors } = {}, { fresh =
 export { provided, heldRead, whoIsLooking, surfaceValue };
 
 /**
- * The frame's own parts a page draws with, as the boot installs them (bridge/boot/installs.ts): the one tooltip and the
- * focus a dialog gives back. What a test called `installFrameGlobals()` for until 26 Nov 2026, less the names it put on
- * the window, which the app no longer reads. The role store is not among them: a test that draws a role gives it
- * (`parts: { roles }`, or who is looking).
+ * The frame's own parts a page draws with, as the boot installs them (bridge/boot/installs.ts): the one tooltip, the
+ * toast every page raises (frame/flash.tsx usePPToast, the boot's `toast` step) and the focus a dialog gives back. What
+ * a test called `installFrameGlobals()` for until 26 Nov 2026, less the names it put on the window, which the app no
+ * longer reads. A toast a test already handed in (`parts: { toast }`) is kept, before or after. The role store is not
+ * among them: a test that draws a role gives it (`parts: { roles }`, or who is looking).
  */
 export function holdFrameParts() {
-  installTip();
   hearFocusOutside();
+  installTip();
+  if (!provided("toast")) provide("toast", requireFromDashboard("../surfaces/frame/flash.tsx").usePPToast);
 }
 
 /**

@@ -489,7 +489,8 @@ test("Switch it on: a role that may not save the forwarding sees the questions a
     await settle();
     assert.deepEqual(saved, [], "nothing saved by itself for a role that may not");
     const go = byTestId(tree, "fr-phone-go");
-    await go.props.onClick();
+    // Pressed as a browser presses it: the frame's gate (frame/gate.ts) takes the press and says why, at the control.
+    await go.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: null });
     assert.deepEqual(saved, []);
   } finally {
     holdRoles({ can: () => true });

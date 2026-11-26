@@ -439,7 +439,11 @@ test("REGRESSION: who the thread is with opens their page -- the face, the name 
   const link = find(draw(vm, { onOpenClient: (id) => went.push(id) }), byTestId("ix-th-person"));
   assert.ok(link, "a link to the person");
   assert.equal(link.type, "a");
-  assert.equal(link.props.href, "#/clients/k1", "their page's address, so a long press or a new tab opens it too");
+  assert.equal(
+    link.props.href,
+    "/w/marisas/people/k1",
+    "their page's address, so a long press or a new tab opens it too",
+  );
   assert.ok(
     find(link, hasClass("face")) && find(link, hasClass("ix-th-name")) && find(link, byTestId("ix-th-sub")),
     "the face, the name and the line under it are one door, a thumb tall",
@@ -490,7 +494,7 @@ test("REGRESSION: on a phone too, More opens the thread's sheet and who it is op
     assert.equal(more.props.trigger.props.className, "ix-th-more", "the ⋯ on its round, at the head's right");
     const link = find(tree, byTestId("ix-th-person"));
     assert.ok(link && link.type === "a", "who it is, one link to their page");
-    assert.equal(link.props.href, "#/clients/k1");
+    assert.equal(link.props.href, "/w/marisas/people/k1");
     assert.equal(
       find(link, (n) => n.type === Menu),
       undefined,

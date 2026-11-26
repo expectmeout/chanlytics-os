@@ -224,12 +224,12 @@ export const FRAME_INSTALLS: readonly FrameInstall[] = [
   { name: "clock", run: installClock },
   // Who is acting, which every gate asks from the first draw (identity.ts): made here, completed by `identity` below.
   { name: "roleStore", run: installRoleStore },
-  // The one tooltip a control shows (frame/tip.ts), and where focus last stood outside a dialog, for it to go back to
-  // when the dialog closes (kit/focus/trap.ts).
+  // Where focus last stood outside a dialog, for it to go back to when the dialog closes (kit/focus/trap.ts), heard
+  // before the one tooltip a control shows (frame/tip.ts), as the frame heard them before.
+  { name: "focusOutside", run: hearFocusOutside },
   { name: "tip", run: installTip },
   // The one toast every page raises (frame/flash.tsx usePPToast), read where a part draws it.
   { name: "toast", run: () => provide("toast", usePPToast) },
-  { name: "focusOutside", run: hearFocusOutside },
   // What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
   { name: "tabMemory", run: installTabMemory },
   { name: "inboxVerbs", run: installInboxVerbs },

@@ -4,6 +4,7 @@
  * live here: never fork a threshold, a route string or an agent's identity in a page. Imported where it is read; a move
  * is frame-doors.ts `navigate`.
  */
+import { workspacePath } from "@chanlytics/contracts";
 import { frameShell } from "./frame-window";
 
 /** The address as a page reads and moves it: the bridge's in the app, the hash in the standalone mockup. */
@@ -52,9 +53,14 @@ const addressGo = (route: string, opts?: GoOptions): void => {
 // (bridge/workspace.ts, provided as `shell`); the standalone mockup has no workspace path and keeps its #/<route>.
 const address = {
   route: routeOnScreen,
+  // Where no shell is held yet, a workspace page's link is still its route's own path (contracts workspacePath, as the
+  // bridge's hrefOfRoute gives it), which a long press or a new tab opens, never the retired `#/` one: the hash only off
+  // a workspace page (what frame-verbs' routeDoor did where the frame had published none, until 26 Nov 2026).
   href(route: string): string {
     const s = shellAddress();
-    return s ? s.href(route) : "#/" + route;
+    if (s) return s.href(route);
+    const slug = /^\/w\/([^/?#]+)/.exec(window.location?.pathname ?? "")?.[1];
+    return slug ? workspacePath(decodeURIComponent(slug), route) : "#/" + route;
   },
   go: addressGo,
   hear(fn: () => void): () => void {

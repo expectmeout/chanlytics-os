@@ -15,14 +15,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
+import { holdPeopleParts } from "../_bridge-holds.mjs";
 
 installStubReact();
 const { useViewFade } = await importSrc("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
 const { drawRoute } = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/routes.ts");
-await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-await importSrc("apps/dashboard/src/surfaces/people/words.ts");
-// Where a view stands on a strip is the strip's, over People's scope words, as People's courier provides them (the bridge's `peopleScopes`).
+// Where a view stands on a strip is the strip's, over People's scopes, as People's courier hands them to the frame.
+holdPeopleParts();
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 

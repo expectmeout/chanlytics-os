@@ -222,18 +222,32 @@ test("the Inbox strip offers the three views, and says which one you are on", ()
 });
 
 test("the strip's badge is the count that already exists, not a second reading of it", () => {
-  // The one number every surface says (surfaces/needs-you.ts, published as `window.useNeedsYou`): the strip is handed it and
+  // The one number every surface says (surfaces/needs-you.ts needsYouNow, over Today's read): the strip is handed it and
   // counts nothing of its own, so no row of INBOX_DATA can make it say another.
-  bridgeHolds({ values: { inbox: { THREADS: [{ id: "c1", real: true, needsYou: true }] } } });
-  assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
-  assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");
-  assert.match(
-    strip("inbox")[0].tally,
-    /\btally-warn\b/,
-    "amber: it counts people who need you, as the Needs you pill does",
-  );
-  assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
-  assert.equal(strip("inbox")[0].badge, null, "and none before the Inbox has been read");
+  const waiting = (...ids) => ({
+    standing: { paused: false },
+    queue: {
+      rows: ids.map((id) => ({ id: `q-${id}`, kind: "handoff", conversationId: id, who: id, waitedMs: 3_600_000 })),
+    },
+  });
+  bridgeHolds({
+    values: { inbox: { THREADS: [{ id: "c1", real: true, needsYou: true }] }, today: waiting("th-1", "th-2") },
+  });
+  try {
+    assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
+    assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");
+    assert.match(
+      strip("inbox")[0].tally,
+      /\btally-warn\b/,
+      "amber: it counts people who need you, as the Needs you pill does",
+    );
+    bridgeHolds({ values: { today: waiting() } });
+    assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
+    bridgeHolds({ values: { today: undefined } });
+    assert.equal(strip("inbox")[0].badge, null, "and none before Today has been read");
+  } finally {
+    bridgeHolds({ values: { today: undefined } });
+  }
 });
 
 test("the strip is not drawn on a surface that has no second view", () => {

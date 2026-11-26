@@ -121,7 +121,11 @@ test("Reports draws the reach-outs' section: the strip, the emails, the business
   assert.match(textOf(byTestId(tree, "ro-funnel")), /Written to.*8/);
   assert.match(textOf(byTestId(tree, "ro-emails")), /Written.*12/);
   went.length = 0;
-  assert.match(byTestId(tree, "ro-source-open").props.href, /^#\//, "the chain's name is a link with its address");
+  assert.match(
+    byTestId(tree, "ro-source-open").props.href,
+    /^\/w\/studio\//,
+    "the chain's name is a link with its address",
+  );
   press(byTestId(tree, "ro-source-open"));
   assert.deepEqual(went, ["campaigns/sequences/r1"]);
 });
