@@ -22,6 +22,7 @@ import {
   type LeadClass,
   type LeadStage,
   placeSpanOf,
+  entryOf,
 } from "@chanlytics/contracts";
 import type {
   LeadCardCheck,
@@ -251,10 +252,7 @@ export function leadSheetClosedOf(params: {
   const call = params.lead.canCall ? "call" : null;
   if (params.lead.cls === "excluded") return { title: LEAD_LEFT_OUT_WORD, line: "", fix: "put_back" };
   if (params.lead.stage === "archived") {
-    const word =
-      params.closedReason && params.closedReason in LEAD_CLOSED_WORDS
-        ? LEAD_CLOSED_WORDS[params.closedReason as keyof typeof LEAD_CLOSED_WORDS]
-        : "Closed";
+    const word = entryOf(LEAD_CLOSED_WORDS, params.closedReason) ?? "Closed";
     return { title: word, line: "Nothing is written to them.", fix: "ready" };
   }
   if (params.lead.emailState === "invalid")
