@@ -34,9 +34,9 @@ async function askPerson(what: "line" | "repair", to: string, k: RowActs): Promi
             msg: r.already ? (
               ALREADY
             ) : what === "line" ? (
-              <>We got it · a person at Chanlytics will set up your line with you.</>
+              <>Got it · a person at Chanlytics will set up your number with you.</>
             ) : (
-              <>We got it · a person at Chanlytics will repair your settings and reach you by email.</>
+              <>Got it · a person at Chanlytics will repair your settings and email you.</>
             ),
           }
         : refusalToast(r, "Request not sent"),

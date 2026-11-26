@@ -214,10 +214,7 @@ test("Where it answers (R11): the number kept is looked up once it rests in the 
   await new Promise((r) => setTimeout(r, 750));
   assert.deepEqual(asked.lookup, ["+13055550100"], "one carrier read");
   const tree = mount();
-  assert.equal(
-    textOf(byTestId(tree, "fr-calls-lookup")),
-    "Your Google listing's number · a Verizon mobile, we checked",
-  );
+  assert.equal(textOf(byTestId(tree, "fr-calls-lookup")), "Your Google listing's number · a Verizon mobile, checked");
   await byTestId(tree, "fr-onward").props.onClick();
   await tick();
   assert.deepEqual(asked.want, [{ way: "keep", number: "+13055550100", rings: "mobile", company: "verizon" }]);
@@ -413,12 +410,12 @@ test("Where it answers: the owner's own mailbox -- Gmail and Outlook where this 
     }),
   );
   tree = open();
-  assert.match(textOf(byTestId(tree, "fr-email")), /^Your emailowner@harbor\.example is connected/);
+  assert.match(textOf(byTestId(tree, "fr-email")), /^Emailowner@harbor\.example is connected/);
   assert.equal(byTestId(tree, "fr-email-google"), null);
   setSetup(atChannels(phoneReady()));
   tree = open();
   assert.equal(byTestId(tree, "fr-email").props["data-state"], "soon");
-  assert.match(textOf(byTestId(tree, "fr-email")), /^Your emailComing soon/);
+  assert.match(textOf(byTestId(tree, "fr-email")), /^EmailComing soon/);
   // Back from the consent screen: what came of it, said once.
   connectedMailboxes.outcome = () => ({
     ok: false,
@@ -431,7 +428,7 @@ test("Where it answers: the owner's own mailbox -- Gmail and Outlook where this 
   assert.equal(flashes.at(-1).tone, "warn");
 });
 
-/* ---- Your dashboard, filling in ---- */
+/* ---- The dashboard, filling in ---- */
 test("Where it answers: the dashboard filling in beside it, as what came in counts it, and the sources one by one with Try again where one stopped", async (t) => {
   t.after(restoreSetupVerbs);
   phoneWorld();

@@ -781,7 +781,7 @@ test("the bulk bar acts on the leads loaded and selected: Add them, Not a fit, C
     .onSelect();
   assert.equal(
     textOf(flashes.at(-1).msg),
-    "Copied 3 emails; 2 had none you can use",
+    "Copied 3 emails · 2 had none you can use",
     "what was copied, and what couldn't be",
   );
 });

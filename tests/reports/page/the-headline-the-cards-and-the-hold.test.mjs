@@ -291,7 +291,7 @@ test("every card is drawn, under the testids the e2e, Today and the Google tests
       "AI",
       "Time between steps",
       "Stuck now",
-      "Your customers",
+      "Customers",
       "Time between steps",
       "Stuck now",
       "Campaigns",

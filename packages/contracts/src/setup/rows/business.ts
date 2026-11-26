@@ -281,7 +281,7 @@ export function whatsappRow(setupInputs: SetupInputs, ctx: SetupRowContext): Set
       title: "WhatsApp",
       state: "waiting_you",
       required: !answering,
-      sentence: `${waNum ?? "Your number"} is connected but switched off.`,
+      sentence: `${waNum ?? "The number"} is connected but switched off.`,
       details: [],
       verb: { label: "Open Connections", to: "admin/integrations" },
     };
