@@ -151,7 +151,7 @@ test("Go live: back from Stripe before the plan lands is confirming with the ban
   assert.equal(byTestId(buying, "fr-number").props["data-stage"], "buying");
   assert.equal(
     textOf(byTestId(buying, "fr-phone-status")),
-    "Waiting on usGetting AI's number in 305…Usually a minute or two · this page updates by itself",
+    "Waiting on ChanlyticsGetting AI's number in 305…Usually a minute or two · this page updates by itself",
   );
   assert.deepEqual(asked.search, ["305"]);
   assert.deepEqual(asked.buy, [["+13055550142", "305"]], "the first number offered: customers never see it");
@@ -231,7 +231,7 @@ test("Go live with no line provider here (canvas 5A·d): a person sets the line 
   flashes.length = 0;
   let tree = open();
   const none = byTestId(tree, "fr-no-provider");
-  assert.match(textOf(none), /^We set up your line with you/);
+  assert.match(textOf(none), /^Chanlytics sets up your number with you/);
   assert.match(textOf(none), /WhatsApp goes live now · emails keep coming to the Inbox/);
   await byTestId(tree, "fr-no-provider-ask").props.onClick();
   assert.deepEqual(asked.request, ["line"]);
@@ -506,7 +506,7 @@ test("Switch it on (canvas V6): an office phone system is shown the number, and 
   assert.equal(textOf(byTestId(tree, "fr-phone-dial")), "+1 (305) 555-0142");
   await byTestId(tree, "fr-phone-with-me-go").props.onClick();
   assert.deepEqual(asked.request, ["forwarding"]);
-  assert.equal(textOf(flashes.at(-1).msg), "We'll email you to find a time for a call.");
+  assert.equal(textOf(flashes.at(-1).msg), "Chanlytics emails you to find a time for a call.");
   setSetup(
     atLive(
       {
@@ -921,7 +921,7 @@ test("You're live (canvas 5C): what answers now, AI's three moves each waiting f
     textOf(byTestId(tree, "fr-live-greeting")),
     /^Every caller hears “Hi, Harbor Moving\. I'm the AI assistant, and calls are recorded\./,
   );
-  assert.equal(textOf(byTestId(tree, "fr-live-note")), "We'll email you a copy of this.");
+  assert.equal(textOf(byTestId(tree, "fr-live-note")), "Chanlytics emails you a copy of this.");
   await byTestId(tree, "fr-onward").props.onClick();
   await tick();
   assert.deepEqual(activated, ["voice"], "the owner's own act, recorded");

@@ -15,7 +15,7 @@ export const LEAD_ASKED_NOT_WRITTEN = "They asked not to be written to, so no em
 
 /** A draft that kept saying a number about the business that none of Cold email's facts backs (0113). */
 export const LEAD_UNBACKED_NUMBER =
-  "Not written: it kept saying a number about your business that none of your facts backs. Add it to Facts your emails can use, on Cold email.";
+  "Not written: it kept saying a number about your business no fact of yours backs. Add it to Facts on Cold email.";
 
 export const LEAD_NO_ADDRESS =
   "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";

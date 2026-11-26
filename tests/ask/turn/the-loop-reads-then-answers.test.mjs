@@ -1092,7 +1092,7 @@ test("report says the Campaigns lens where the database does not keep the ledger
   assert.deepEqual(noLedger.lines, [JSON.stringify({ tenant_id: A })], "said once in the log, naming the workspace");
   const { campaigns: bare } = noLedger.result;
   assert.deepEqual(Object.keys(bare), ["head", "figures", "funnel", "by_channel", "sources", "window", "stuck"]);
-  assert.equal(bare.head, "240 messages over 14 runs; people wrote back to 50 of them.");
+  assert.equal(bare.head, "240 messages over 14 runs, and people wrote back to 50 of them.");
   assert.deepEqual(sends(bare), alone, "the people sent to and who wrote back need the ledger");
   assert.equal(bare.window, null);
   assert.equal(bare.stuck.length, 5, "what is stuck is a read of its own");
@@ -1150,7 +1150,7 @@ test("report says the Campaigns lens where the database does not keep the ledger
     "never silence, and never nothing waiting",
   );
   assert.deepEqual(sends(lost), alone);
-  assert.equal(lost.head, "240 messages over 14 runs; people wrote back to 50 of them.");
+  assert.equal(lost.head, "240 messages over 14 runs, and people wrote back to 50 of them.");
   assert.equal(lost.funnel.rows.length, 4);
 
   // What is stuck fails alone: the window stands, and the error names the part.

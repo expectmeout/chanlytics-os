@@ -23,7 +23,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "../_fake-db.mjs";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import {
   registrationPathOf,
   businessFieldsFor,
@@ -266,19 +266,26 @@ test("the phone networks register two countries, and a refusal for that is days 
 });
 
 test("brandTypeFor and the fork cannot disagree about the same tax id", () => {
-  for (const ein of ["12-3456789", "123456789", null, "", "  "]) {
+  // REGRESSION: a second place that read the tax id its own way. Asked of every shape an owner types one in, the two
+  // answer alike, which only one rule asked twice can do.
+  for (const ein of [
+    "12-3456789",
+    "123456789",
+    " 12-3456789 ",
+    "12 3456789",
+    "1234",
+    "12-34567890",
+    "AB-CDEFGHI",
+    "-",
+    null,
+    undefined,
+    "",
+    "  ",
+    "\t",
+  ]) {
     const want = registrationPathOf({ ein }) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
     assert.equal(brandTypeFor({ ein }), want, `ein=${JSON.stringify(ein)}`);
   }
-  const src = readCode("packages/channels/src/lines/a2p/business-record.ts");
-  assert.ok(
-    src.includes('registrationPathOf(business) === "sole_proprietor"'),
-    "it delegates rather than deciding again",
-  );
-  assert.ok(
-    !/return r\.ein && r\.ein\.trim\(\) \? "STANDARD"/.test(src),
-    "REGRESSION: a second place that reads the tax id its own way",
-  );
 });
 
 test("what the narrow path gives up is said before the button, with the real numbers", () => {
@@ -580,42 +587,24 @@ test("only an owner answers it", async () => {
   }
 });
 
-test("one validator, three writers", () => {
+test("one validator, three writers", async () => {
   // The form checks so the owner is not left guessing; the route checks because
   // the form is not the only caller; the filing checks because a fee is about
   // to be spent. Three moments, one list of what each registration needs.
-  const route = readCode(
-    "apps/dashboard/app/api/v1/business-record/route.ts",
-    "apps/dashboard/src/server/connections/business-record.ts",
-  );
+  //
   // ...with the same facts the door is given. The one check a record cannot
   // make about itself is whether its contact_phone is a number WE gave the
   // workspace -- which the carriers refuse as a sole proprietor's handset, and
   // which is exactly the number a business puts on its website once we
-  // provision one. Passing no facts skipped it here, so this route said the
+  // provision one. Passing no facts skipped it at the route, so it said the
   // record was ready and the edge refused it after the owner pressed Register.
-  assert.ok(route.includes("businessRecordProblems(record, path, { ourNumbers:"));
-  // On the owner's own client (packages/db's read, decision 0111): under RLS.
-  assert.ok(route.includes("listLineNumbersOf(ctx.supabase, tenantId)"), "read where the owner can read it, under RLS");
-  assert.ok(route.includes('registrationPathOf(record) ?? "standard"'), "derived only when the caller did not say");
-  assert.ok(
-    /record, path \},\s*20_000[,)]/.test(route),
-    "and the path travels with the record to the door that writes it",
-  );
-
-  // The door that writes it is run in lines/door/: `record` refuses the
-  // row it is about to write in the owner's words, stores a sole proprietor
-  // with no tax id, and holds a caller that says "standard" to it.
-  const filing = readCode("apps/edge/lib/lines/a2p-register.ts");
-  assert.ok(filing.includes("businessRecordProblems(options.record, path, { ourNumbers })"));
-  assert.ok(
-    filing.indexOf("businessRecordProblems(options.record") < filing.indexOf("const send = async"),
-    "checked before a single call is made",
-  );
-  assert.ok(
-    !readRaw("packages/channels/src/lines/a2p/business-record.ts").includes("whatSoleProprietorNeeds"),
-    "and the second list it used to keep is gone, not deprecated",
-  );
+  // The route is run with the workspace's own number on file, read on the owner's session, in
+  // lines/filing/the-owner-and-support-read-a-filing-s-state.test.mjs; the filing, below ("our own number is not a
+  // sole proprietor's handset"); the door that writes the record in lines/door/ (`record` refuses the row it is about
+  // to write in the owner's words, stores a sole proprietor with no tax id, and holds a caller that says "standard").
+  // And the second list it used to keep is gone, not deprecated.
+  const lines = await import("@chanlytics/channels/lines");
+  assert.ok(!("whatSoleProprietorNeeds" in lines));
 });
 
 test("an incomplete sole-proprietor record spends nothing", async () => {
@@ -661,27 +650,80 @@ test("an incomplete sole-proprietor record spends nothing", async () => {
     const row = rows[0];
     assert.equal(row.sms_state, "needs_record");
     assert.match(row.last_error, /Personal mobile is needed/, "in the owner's words, on the row the page reads");
+
+    // Our own number is not a sole proprietor's handset: the filing asks the record what the route asked it, with the
+    // workspace's numbers, before a single call is made.
+    const ours = [{ ...line }];
+    const refused = await registerLine(fakeDb({ lines: ours }), {
+      line,
+      record: soleProp({ contact_phone: "+1 929 656 6623" }),
+      workspaceName: "Harbor Moving",
+      optInUrl: "https://x/yes",
+      privacyUrl: "https://x/privacy",
+      termsUrl: "https://x/terms",
+      mock: false,
+    });
+    assert.equal(refused.ok, false);
+    assert.deepEqual(fetched, [], "nothing left for the provider");
+    assert.match(ours[0].last_error, /Use your own handset, not the number Chanlytics answers/);
   } finally {
     globalThis.fetch = realFetch;
     process.env = env;
   }
 });
 
-test("which registration was filed is remembered, not re-derived", () => {
+test("which registration was filed is remembered, not re-derived", async () => {
   // A sole proprietor who incorporates and types their new tax id would read
   // back as a standard brand while the carriers still hold the narrow one —
   // promising throughput the line does not have, which is worse than silence.
-  const sql = readRaw("supabase/migrations/00090_which_registration_was_filed.sql");
-  assert.match(sql, /add column if not exists reg_sole_prop boolean not null default false/);
-  const filing = readCode("apps/edge/lib/lines/a2p-register.ts");
-  assert.ok(
-    filing.includes('reg_sole_prop: brandTypeFor(record) === "SOLE_PROPRIETOR"'),
-    "written with reg_mock, at the moment of filing",
-  );
-  assert.ok(
-    filing.indexOf("reg_sole_prop:") < filing.indexOf("const result = await runA2PSaga"),
-    "before the saga runs, like every other filing fact",
-  );
+  //
+  // Written with reg_mock at the moment of filing, before the saga runs, like every other filing fact: so a filing the
+  // carriers stop at its first step has already said which one it was. (00090's column and a2p-register.ts's text were
+  // pinned here until 26 Nov 2026.)
+  const env = { ...process.env };
+  Object.assign(process.env, {
+    TWILIO_ACCOUNT_SID: "ACtest",
+    TWILIO_AUTH_TOKEN: "token",
+    TWILIO_PRIMARY_PROFILE_SID: "BUprimary",
+    LEAD_TO: "platform@chanlytics.com",
+  });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ code: 20003, message: "the carriers are down" }), { status: 500 });
+  try {
+    for (const [record, narrow] of [
+      [soleProp(), true],
+      [RECORD, false],
+    ]) {
+      const line = {
+        id: LINE,
+        tenant_id: TENANT,
+        e164: "+19296566623",
+        sms_state: "none",
+        subaccount_sid: "ACsub",
+        messaging_service_sid: "MG1",
+        reg_sole_prop: !narrow,
+        facts: {},
+        updated_at: "2026-09-10T00:00:00Z",
+      };
+      const rows = [{ ...line }];
+      const db = fakeDb({ lines: rows }, {}, { get_line_credentials: () => ({ auth_token: "sub-token" }) });
+      const out = await registerLine(db, {
+        line,
+        record,
+        workspaceName: "Harbor Moving",
+        optInUrl: "https://x/yes",
+        privacyUrl: "https://x/privacy",
+        termsUrl: "https://x/terms",
+        mock: false,
+      });
+      assert.equal(out.ok, false, "the carriers stopped it at its first step");
+      assert.equal(rows[0].reg_sole_prop, narrow, `${narrow ? "the narrow" : "the standard"} filing says so`);
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+    process.env = env;
+  }
 
   // And it reaches the page from both sides: selecting it in one and not the other is exactly how the campaign-status
   // defect shipped inert. One builder makes the line for both (contracts lineDtoOf), and forwarding.test.mjs runs the

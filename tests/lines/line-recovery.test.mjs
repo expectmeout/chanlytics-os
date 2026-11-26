@@ -31,7 +31,7 @@ import {
   channelFor,
   toChannelVM,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb, fakeLog } from "../_fake-db.mjs";
 import {
   claimLineForResume,
@@ -43,6 +43,12 @@ import {
 } from "../../apps/edge/lib/lines/resume.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+// Setup's reader and Integrations' rows, for the disabled route a release leaves beside the active one.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const { setupDtoFor } = await importSrc("apps/dashboard/src/server/setup/setup.ts");
+const { connectionRows } = await importSrc("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
 const NOW = 1_800_000_000_000;
 const ago = (ms) => new Date(NOW - ms).toISOString();
 
@@ -207,25 +213,13 @@ test("the retry rule accepts a line the wall killed, and refuses one that is sti
   }
 });
 
-test("the sweep's schedule and its 60 seconds", () => {
-  // What the sweep DECIDES -- which lines, the take, the count, when the platform
-  // hears -- moved to lib/line-resume.ts and is run below against a fake database.
-  // The route itself -- its refusals (no provider, no key, no secret), its bound of
-  // two a tick, the job it schedules and who it tells -- runs in
-  // cron/doors-b/. What stays here is configuration nothing runs.
-
-  // Registered, scheduled, and watched from its first tick.
-  const m = readRaw("supabase/migrations/00097_a_line_stops_being_stuck.sql");
-  assert.match(
-    m,
-    /check \(sweep in \('calls', 'deadman', 'health', 'jobs', 'registration', 'calendar', 'google', 'playbooks', 'lines'\)\)/,
-  );
-  assert.match(m, /values \('lines', now\(\)\)/, "the deploy grace row, or the first health run mails a false alarm");
-  assert.match(m, /select public\.request_sweep\('lines', '\/api\/cron\/lines'\)/);
-  assert.match(m, /cron\.schedule\('lines-sweep', '8,23,38,53 \* \* \* \*'/);
-  assert.doesNotMatch(m, /cron\.schedule\('lines-sweep', '13,43/, "never onto the health check's own grid");
-  assert.match(readRaw("apps/edge/vercel.json"), /"api\/cron\/lines\.ts"/, "or Vercel gives it ten seconds");
-});
+// The sweep's schedule and its 60 seconds. What the sweep DECIDES -- which lines, the take, the count, when the platform
+// hears -- moved to lib/line-resume.ts and is run below against a fake database. The route itself -- its refusals (no
+// provider, no key, no secret), its bound of two a tick, the job it schedules and who it tells -- runs in cron/doors-b/.
+// Its configuration is held where it is read: the clock registered as data and judged from its first tick, a clock
+// that has not run yet healthy until its silence is up (ops/sweep-registry.db.test.mjs); its job in pg_cron, active,
+// off the health check's own grid (ops/sweep-health.integration.test.mjs); and its time limit in vercel.json, held for
+// every door by repo/ops-hygiene.test.mjs. Pinned as 00097's text and vercel.json's until 26 Nov 2026.
 
 /* ---------------------- taking a line, and the sweep, run ---------------------- */
 
@@ -479,7 +473,7 @@ test("a read that FAILS must not be reported as 'we do not own it'", async () =>
 
 /* --------------- and the bug the old escape route created ---------------- */
 
-test("a released line leaves a disabled route beside the active one, and the pick is no longer arbitrary", () => {
+test("a released line leaves a disabled route beside the active one, and the pick is no longer arbitrary", async () => {
   // `release` switches the routing row off rather than deleting it, so calls keep
   // their history — which means a released-then-rebought line legitimately has two
   // voice rows. Postgres row order is unspecified, so `.find(c => c.kind === kind)`
@@ -525,29 +519,56 @@ test("a released line leaves a disabled route beside the active one, and the pic
   assert.equal(channelFor(vms, "voice").id, "b");
   assert.equal(channelFor([...vms].reverse(), "voice").id, "b");
 
-  // Both page readers use it, rather than one of them getting it right.
-  assert.match(
-    ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
-      .map((p) => readCode(p))
-      .join("\n"),
-    /const byKind = \(kind: string\) => channelFor\(channels, kind\);/,
-  );
-  assert.match(
-    [
-      "apps/dashboard/src/server/setup/channel-rows.ts",
-      "apps/dashboard/src/server/setup/setup.ts",
-      // The read itself, in Setup's rows (setup_rows, 00700).
-      "supabase/migrations/00700_setup_reads_its_rows_at_once.sql",
-    ]
-      .map((p) => readCode(p))
-      .join("\n"),
-    /'kind', c\.kind, 'status', c\.status, 'number_e164', c\.number_e164, 'config', c\.config,\s*'created_at', c\.created_at/,
-    "or the tie-break has nothing to read",
-  );
-  assert.match(
-    readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts"),
-    /const channel = \(kind: string\) => channelFor\(connectionInputs\.channels, kind\);/,
-  );
+  // Both pages that say whether the line answers use it, rather than one of them getting it right: run on the escape's
+  // own leftovers, a disabled voice row beside the active one, in either order the database hands them back. (Read as
+  // the two readers' text, and as 00700's columns, until 26 Nov 2026.)
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const leftovers = [
+    { id: "ch-old", kind: "voice", status: "disabled", number_e164: "+13055550100", created_at: ago(9 * 86_400_000) },
+    { id: "ch-new", kind: "voice", status: "active", number_e164: "+13055550111", created_at: ago(86_400_000) },
+  ];
+  for (const order of [leftovers, [...leftovers].reverse()]) {
+    // Setup: its reader, over Setup's rows as the database answers them (setup_rows, 00700).
+    const db = fakeDb({
+      tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+      tenant_channels: order.map((c) => ({ ...c, tenant_id: T, external_id: c.id, config: {} })),
+    });
+    const setup = await setupDtoFor(db, T, { kind: "back_office" }, new Date(NOW));
+    assert.equal(setup.channels.voice.active, true, "Setup: the line answers, whichever row came first");
+    assert.equal(setup.channels.voice.number, "+13055550111");
+    // Integrations: its rows, over the channels as the page holds them.
+    const voice = connectionRows(
+      {
+        channels: order.map((c) => toChannelVM({ ...c, last_inbound_at: null }, new Date(NOW))),
+        whatsapp: null,
+        lines: { rows: [], ready: false },
+        lineRequestedAt: null,
+        google: null,
+        calendar: null,
+      },
+      NOW,
+    ).find((r) => r.kind === "phone");
+    assert.notEqual(voice.state, "off", "Integrations: not switched off");
+  }
+  // And a workspace whose only row is the disabled one is said to be switched off, on both: the rule, not a default.
+  const lone = [leftovers[0]];
+  const offRow = connectionRows(
+    {
+      channels: lone.map((c) => toChannelVM({ ...c, last_inbound_at: null }, new Date(NOW))),
+      whatsapp: null,
+      lines: { rows: [], ready: false },
+      lineRequestedAt: null,
+      google: null,
+      calendar: null,
+    },
+    NOW,
+  ).find((r) => r.kind === "phone");
+  assert.equal(offRow.state, "off");
+  const offDb = fakeDb({
+    tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+    tenant_channels: lone.map((c) => ({ ...c, tenant_id: T, external_id: c.id, config: {} })),
+  });
+  assert.equal((await setupDtoFor(offDb, T, { kind: "back_office" }, new Date(NOW))).channels.voice.active, false);
 });
 
 test("a failure at the vault is named as one: no Retry on the row, the refusal says why, the capability says why", async () => {

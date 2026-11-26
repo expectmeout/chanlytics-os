@@ -5,14 +5,14 @@
  * "It's not there": it never went up, so it is a post that did not go, in those words, to post again; never a
  * take-down, since nothing was up to take down.
  *
- * The member's own read of the piece's posts says the post is theirs, and the route asks who may post; the move itself
- * is the service role's door (post_moved), as every move of a post is.
+ * The member's own read of the piece's posts says the post is theirs, and the route asks who may post; the word itself
+ * goes through its own door as the member (post_seen_say, 00720), which asks the same again and moves the post through
+ * post_moved, as every move of a post is, with its event and who said it.
  */
 import "server-only";
 import { AppError, ON_INSTAGRAM, POST_PLACES, STANDING_WORDS, isOneOf, postNeverSeen } from "@chanlytics/contracts";
-import { listFilePosts, movePost, type FileMemberRow } from "@chanlytics/db/files";
+import { listFilePosts, sayPostSeen, type FileMemberRow } from "@chanlytics/db/files";
 import type { Member } from "@/server/shared/route";
-import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 
 /**
@@ -30,18 +30,10 @@ export async function sayWhetherPostIsThere(
   if (!post) throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
   const place = post.place;
   if (post.status !== "published" || !postNeverSeen(post) || !isOneOf(POST_PLACES, place)) return { moved: false };
-  const moved = input.there
-    ? await movePost(serviceDb(), {
-        postId: post.id,
-        from: ["published"],
-        to: "published",
-        patch: { verified_at: new Date().toISOString() },
-      })
-    : await movePost(serviceDb(), {
-        postId: post.id,
-        from: ["published"],
-        to: "failed",
-        patch: { error: { code: null, subcode: null, words: STANDING_WORDS.stopped.notThere(place) } },
-      });
+  const moved = await sayPostSeen(ctx.supabase, {
+    postId: post.id,
+    there: input.there,
+    words: input.there ? null : STANDING_WORDS.stopped.notThere(place),
+  });
   return { moved };
 }

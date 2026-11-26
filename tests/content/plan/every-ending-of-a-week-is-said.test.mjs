@@ -237,6 +237,21 @@ function todayOf(page) {
 /* ---------------------------------------------------------------------------------------- the owner's own press -- */
 
 /** A week planned on Sunday and looked at on Wednesday: Monday's and Tuesday's posts have passed, Thursday's is ahead. */
+/**
+ * The slots an approval left out, held as their door holds them (plan_slots_hold, 00720): each of the plan's still
+ * proposed, with why; one that moved on meanwhile is left as it is. How many were held.
+ */
+const holdDoor = (tables) => (args) => {
+  let held = 0;
+  for (const h of args.p_holds) {
+    const row = tables.plan_slots.find((s) => s.id === h.id && s.plan_id === args.p_plan_id && s.state === "proposed");
+    if (!row) continue;
+    Object.assign(row, { state: "blocked", blocked_why: h.held, blocked_reason: h.why });
+    held += 1;
+  }
+  return held;
+};
+
 function pressWorld() {
   const monday = slot("Monday's", -2 * DAY);
   const tuesday = slot("Tuesday's", -DAY);
@@ -279,6 +294,7 @@ function pressWorld() {
           );
         return { fate: "approved", approval_id: APPROVAL, slots: args.p_snapshot.slots.length };
       },
+      plan_slots_hold: holdDoor(tables),
     },
   );
   setServiceClient(db);
@@ -428,6 +444,7 @@ function jobWorld({ slots, rung = "veto", paused = null, stoppedAt = null, appro
         if (!args.p_goes_at) plan.goes_at = null;
         return { fate: args.p_goes_at ? "held" : "let_go" };
       },
+      plan_slots_hold: holdDoor(tables),
     },
   );
   setPg(db);

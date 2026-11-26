@@ -158,11 +158,14 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   // On the wire, a dial goes alone: the mode it was drawn beside stays home, so a stale tab never flips the row back.
   wire.length = 0;
   await setPolicy("reply", undefined, { pauseHours: 6 });
+  await setPolicy("reply", undefined, { minConfidence: 0.75 });
   await setPolicy("reply", "veto");
   assert.deepEqual(
     wire.map((w) => [w.route, w.body]),
     [
       ["PUT policies", { class: "reply", pause_hours: 6 }],
+      // The confidence dial by the row's own name (pinned as inbox-verbs.ts's text in receptionist/brain-v2 until 26 Nov).
+      ["PUT policies", { class: "reply", min_confidence: 0.75 }],
       ["PUT policies", { class: "reply", mode: "veto" }],
     ],
   );

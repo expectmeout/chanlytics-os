@@ -138,7 +138,7 @@ export const REPORT_LENSES = [
     role: "viewer",
     empty: () => ({
       title: "Find your business on Google once.",
-      body: "Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.",
+      body: "Its rating, count and newest reviews show here for the period, with a line on Today and the bell when one lands.",
       door: { label: "Find it", to: "start/find" },
     }),
   },
