@@ -65,8 +65,8 @@ const day = (v: unknown): string | null => (typeof v === "string" && DAY_KEY.tes
 /** The look a row keeps, read for what each part is; null unless the read kept one. */
 function lookReadOf(v: unknown): LookRead | null {
   if (!v || typeof v !== "object" || Array.isArray(v)) return null;
-  const o = recordOrEmpty(v);
-  const worn = recordOrEmpty(o.worn);
+  const o = v as { logo_url?: unknown; accent?: unknown; worn?: unknown };
+  const worn = o.worn && typeof o.worn === "object" ? (o.worn as { logo?: unknown; accent?: unknown }) : {};
   return {
     logo_url: cleanText(o.logo_url, 500),
     accent: typeof o.accent === "string" && /^#[0-9a-f]{6}$/.test(o.accent) ? o.accent : null,
