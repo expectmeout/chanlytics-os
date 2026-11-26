@@ -6907,6 +6907,9 @@ begin
      where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left';
   end if;
   select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_left then 'left' else coalesce(v_state, 'open') end, 'touch_id', p_touch_id, 'by', auth.uid())));
   return jsonb_build_object('state', v_state);
 end $$;
 
@@ -6954,6 +6957,9 @@ begin
           jsonb_build_object('touch_id', p_touch_id, 'step', 'send',
                              'attempt', floor(extract(epoch from clock_timestamp()) * 1000)::bigint::text),
           now());
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', 'sending', 'touch_id', p_touch_id, 'by', auth.uid())));
   return jsonb_build_object('sent', true, 'state', 'sending');
 end $$;
 
@@ -6981,7 +6987,13 @@ begin
          sent_at = case when p_sent then now() else a.sent_at end,
          updated_at = now()
    where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'sending';
-  return found;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_sent then 'sent' else 'failed' end, 'touch_id', p_touch_id)));
+  return true;
 end $$;
 
 
@@ -13594,6 +13606,11 @@ begin
      set state = 'held', held_why = 'member'
    where tenant_id = p_tenant_id and id = p_entry_id and form_id is not null and state <> 'held' and not test;
   get diagnostics v_held = row_count;
+  if v_held > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.held', 'contact', 'form_entry', p_entry_id,
+            jsonb_strip_nulls(jsonb_build_object('why', 'member', 'by', auth.uid())));
+  end if;
   return v_held > 0;
 end $$;
 
@@ -14544,6 +14561,11 @@ begin
    where tenant_id = p_tenant_id and id = p_form_id and live_version_id is not null
      and state = case when coalesce(p_on, false) then 'off' else 'live' end;
   get diagnostics v_turned = row_count;
+  if v_turned > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when coalesce(p_on, false) then 'live' else 'off' end, 'by', auth.uid())));
+  end if;
   return v_turned > 0;
 end $$;
 
@@ -26255,6 +26277,11 @@ begin
   update public.outside_forms o set listed = coalesce(p_listed, true)
    where o.tenant_id = p_tenant_id and o.id = p_form_id;
   get diagnostics v_set = row_count;
+  if v_set > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('listed', coalesce(p_listed, true), 'outside', true, 'by', auth.uid())));
+  end if;
   return v_set > 0;
 end $$;
 
@@ -26290,6 +26317,11 @@ begin
   -- Blank goes back to the name the site sends.
   update public.outside_forms o set name = v_name where o.tenant_id = p_tenant_id and o.id = p_form_id;
   get diagnostics v_renamed = row_count;
+  if v_renamed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', jsonb_build_array('name'), 'outside', true, 'by', auth.uid())));
+  end if;
   return v_renamed > 0;
 end $$;
 

@@ -2049,3 +2049,220 @@ begin
   return jsonb_build_object('fate', 'kept', 'outcome', p_outcome, 'post_id', v_action.target_id,
                             'tenant_id', v_action.tenant_id, 'file_id', v_file, 'place', v_place, 'down', v_places);
 end $$;
+/* -- a comment's answer, and a website form: each move with its event -- */
+
+-- An answer to a comment at its place (sent, settled, left, put back) writes comment_answer.moved; a form turned on or
+-- off writes form.moved, an outside form listed or renamed form.changed, and an entry a member held form_entry.held,
+-- each in its own transaction. All are kept from Activity's rows: the comment's row and the Forms page say each.
+
+-- comment_answer_settle
+CREATE OR REPLACE FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.comment_answers a
+     set state = case when p_sent then 'sent' else 'failed' end,
+         external_id = case when p_sent then nullif(btrim(coalesce(p_external_id, '')), '') else a.external_id end,
+         said = case when p_sent then null else left(nullif(btrim(coalesce(p_said, '')), ''), 300) end,
+         sent_at = case when p_sent then now() else a.sent_at end,
+         updated_at = now()
+   where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'sending';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_sent then 'sent' else 'failed' end, 'touch_id', p_touch_id)));
+  return true;
+end $$;
+
+-- comment_answer_leave
+CREATE OR REPLACE FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_leave: not a member who may act here' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment') then
+    raise exception 'comment_answer_leave: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  if p_left then
+    -- Left as it stands: AI's draft and its reason are kept, for an answer after all.
+    insert into public.comment_answers (tenant_id, touch_id, state)
+    values (p_tenant_id, p_touch_id, 'left')
+    on conflict (tenant_id, touch_id) do update
+      set state = 'left', updated_at = now()
+      where comment_answers.state in ('drafted', 'cannot', 'failed');
+  else
+    update public.comment_answers a
+       set state = case when a.draft is not null then 'drafted' when a.cannot_why is not null then 'cannot' end,
+           updated_at = now()
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left'
+       and (a.draft is not null or a.cannot_why is not null);
+    -- Left before AI wrote anything: back to no answer at all.
+    delete from public.comment_answers a
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_left then 'left' else coalesce(v_state, 'open') end, 'touch_id', p_touch_id, 'by', auth.uid())));
+  return jsonb_build_object('state', v_state);
+end $$;
+
+-- comment_answer_send
+CREATE OR REPLACE FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_words text := nullif(btrim(coalesce(p_words, '')), '');
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_send: not a member who may act here' using errcode = '42501';
+  end if;
+  if v_words is null or char_length(v_words) > 2200 then
+    raise exception 'comment_answer_send: an answer of 1 to 2,200 characters' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment'
+                    and t.contact_id is not null) then
+    raise exception 'comment_answer_send: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  if v_state in ('sending', 'sent') then
+    return jsonb_build_object('sent', false, 'state', v_state);
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, words, sent_by)
+  values (p_tenant_id, p_touch_id, 'sending', v_words, auth.uid())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sending', words = excluded.words, sent_by = excluded.sent_by, said = null, updated_at = now();
+  insert into public.jobs (tenant_id, kind, payload, due_at)
+  values (p_tenant_id, 'comment_reply',
+          jsonb_build_object('touch_id', p_touch_id, 'step', 'send',
+                             'attempt', floor(extract(epoch from clock_timestamp()) * 1000)::bigint::text),
+          now());
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', 'sending', 'touch_id', p_touch_id, 'by', auth.uid())));
+  return jsonb_build_object('sent', true, 'state', 'sending');
+end $$;
+
+-- form_turn
+CREATE OR REPLACE FUNCTION public.form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_turned integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- Only a form that was published has a state to turn: a draft goes live by form_publish.
+  update public.forms
+     set state = case when coalesce(p_on, false) then 'live' else 'off' end, updated_at = now()
+   where tenant_id = p_tenant_id and id = p_form_id and live_version_id is not null
+     and state = case when coalesce(p_on, false) then 'off' else 'live' end;
+  get diagnostics v_turned = row_count;
+  if v_turned > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when coalesce(p_on, false) then 'live' else 'off' end, 'by', auth.uid())));
+  end if;
+  return v_turned > 0;
+end $$;
+
+-- form_entry_hold
+CREATE OR REPLACE FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+  v_held integer;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  update public.form_entries
+     set state = 'held', held_why = 'member'
+   where tenant_id = p_tenant_id and id = p_entry_id and form_id is not null and state <> 'held' and not test;
+  get diagnostics v_held = row_count;
+  if v_held > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.held', 'contact', 'form_entry', p_entry_id,
+            jsonb_strip_nulls(jsonb_build_object('why', 'member', 'by', auth.uid())));
+  end if;
+  return v_held > 0;
+end $$;
+
+-- outside_form_listed
+CREATE OR REPLACE FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_set integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.outside_forms o set listed = coalesce(p_listed, true)
+   where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_set = row_count;
+  if v_set > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('listed', coalesce(p_listed, true), 'outside', true, 'by', auth.uid())));
+  end if;
+  return v_set > 0;
+end $$;
+
+-- outside_form_rename
+CREATE OR REPLACE FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_name    text := nullif(btrim(coalesce(p_name, '')), '');
+  v_renamed integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_name is not null and char_length(v_name) > 120 then
+    raise exception 'A form''s name is at most 120 characters.' using errcode = '22023';
+  end if;
+  -- Blank goes back to the name the site sends.
+  update public.outside_forms o set name = v_name where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_renamed = row_count;
+  if v_renamed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', jsonb_build_array('name'), 'outside', true, 'by', auth.uid())));
+  end if;
+  return v_renamed > 0;
+end $$;
