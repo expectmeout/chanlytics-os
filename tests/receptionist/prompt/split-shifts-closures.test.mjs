@@ -27,7 +27,7 @@ import {
   MAX_INTERVALS_PER_DAY,
   PROFILE_LIMITS,
 } from "@chanlytics/contracts";
-import { readCode } from "../../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 
 const base = { business_name: "Aurora", phone_display: "p", booking_link: "https://b.example" };
 const TZ = "America/New_York";
@@ -205,17 +205,30 @@ test("closures do NOT decide whether a workspace has a profile", () => {
 
 /* --------------------------- the shifts editor ---------------------------- */
 
-test("one shift is still stored as open/close, never as a one-item array", () => {
+test("one shift is still stored as open/close, never as a one-item array", async () => {
   // Writing a single stretch the new way would rewrite every existing config
   // into a new shape the first time anybody pressed Save — a migration nobody
-  // asked for, on rows that already said this correctly.
-  const folds = readCode("apps/dashboard/src/surfaces/settings/business/folds.ts");
-  assert.ok(/shifts\.length === 1\s*\?\s*\{ open: first\.open, close: first\.close \}/.test(folds));
-  assert.ok(/:\s*\{ intervals: shifts\.map\(\(s\) => \(\{ open: s\.open, close: s\.close \}\)\) \};/.test(folds));
+  // asked for, on rows that already said this correctly. The hours fold's save, run (pinned as folds.ts's text until
+  // 26 Nov 2026): a closed day is a real answer, `{}`.
+  const { FOLDS } = await importSrc("apps/dashboard/src/surfaces/settings/business/folds.ts");
+  const shift = (open, close) => ({ open, close });
+  const week = {
+    mon: { isOpen: true, shifts: [shift("09:00", "17:00")] },
+    tue: { isOpen: true, shifts: [shift("09:00", "12:00"), shift("13:00", "17:00")] },
+    wed: { isOpen: false, shifts: [shift("09:00", "17:00")] },
+  };
+  const hours = FOLDS.saveFold("hours", {}, week).brain?.profile?.hours ?? {};
+  assert.deepEqual(hours.mon, { open: "09:00", close: "17:00" }, "one stretch: open and close");
+  assert.deepEqual(hours.tue, { intervals: [shift("09:00", "12:00"), shift("13:00", "17:00")] }, "two: the intervals");
+  assert.deepEqual(hours.wed, {}, "a day switched off is closed, said");
   // The cap the fold offers is the write schema's, and it is no longer written twice: the page reads contracts'
   // PROFILE_LIMITS, which is read off the schemas (business-tab-vm.test.mjs holds every one of them to its schema,
   // and business-tab-bridge.test.mjs holds the page's copy to contracts'). receptionist/business-tab/open/ fills a day to
   // the cap and presses Add again.
   assert.equal(PROFILE_LIMITS.shifts, MAX_INTERVALS_PER_DAY, "the fold's cap is the schema's cap");
-  assert.ok(!/maxIntervalsPerDay\)\s*\|\|/.test(folds), "REGRESSION: a literal cap in the page, beside the schema's");
+  assert.equal(
+    FOLDS.LIMITS.shifts,
+    MAX_INTERVALS_PER_DAY,
+    "REGRESSION: a literal cap in the page, beside the schema's",
+  );
 });

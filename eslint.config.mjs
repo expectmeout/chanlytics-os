@@ -454,12 +454,15 @@ export const LIMITED_TREES = [
   "packages/contracts/src/ask/memory",
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/ask/skills",
+  "packages/contracts/src/calendar",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
   "packages/contracts/src/jobs",
   "packages/contracts/src/consent",
   "packages/contracts/src/console",
   "packages/contracts/src/content",
+  "packages/contracts/src/conversations",
+  "packages/contracts/src/deals",
   "packages/contracts/src/email",
   "packages/contracts/src/events",
   "packages/contracts/src/files",
@@ -467,6 +470,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/google",
   "packages/contracts/src/imports",
   "packages/contracts/src/journey",
+  "packages/contracts/src/leads",
   "packages/contracts/src/lines",
   "packages/contracts/src/logo",
   "packages/contracts/src/look",
@@ -475,17 +479,20 @@ export const LIMITED_TREES = [
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
-  "packages/contracts/src/people/person-page",
+  "packages/contracts/src/people",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/previews",
   "packages/contracts/src/campaigns/reach-out",
   "packages/contracts/src/rehearsal",
   "packages/contracts/src/reports",
   "packages/contracts/src/campaigns/sequences",
+  "packages/contracts/src/setup",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
+  "packages/contracts/src/today",
   "packages/contracts/src/voice",
   "packages/contracts/src/waits",
+  "packages/contracts/src/workspace",
   "packages/core/src/calendar",
   "packages/core/src/campaigns",
   "packages/core/src/content",
@@ -510,7 +517,18 @@ export const LIMITED_TREES = [
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
  * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). The edge's
  * voice joined on 25 November 2026, the day its call start's plan was split: six take five (the call's activity, an
- * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts).
+ * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts). Contracts'
+ * today joined on 25 November 2026, the day its figures were split: four take five to seven (the day's figures and the
+ * brief, a band's words, the facts' reader). Contracts' leads joined the same day, its row and peek split: a search's
+ * class takes six. Contracts' conversations and people's person-row joined on 25 November 2026, the day the call's and
+ * a person's rows were split: a thread's view model takes five, a person's row six. Contracts' deals joined on 25
+ * November 2026, the day the deal sheet was split: six take five (the pipeline's three, the deal card's two, the
+ * sheet's own). Contracts' calendar joined on 25 November 2026, the day its week and its feed's reader were split: five
+ * take five (a block, the rule's occurrences, a run's day, a person's visit facts, a freed time). Contracts' setup and
+ * people's lists joined on 25 November 2026, the day a capability's status and a list's chip were split: one each takes
+ * five (the calendar's source, a list's action). With them all of contracts' people is held, one tree in place of its
+ * three folders, and waits here while six take five or six (a list's action, a card's two, the profile, the
+ * receptionist's line, a person's row).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -520,8 +538,12 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
+  "packages/contracts/src/calendar",
+  "packages/contracts/src/people",
+  "packages/contracts/src/setup",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
+  "packages/contracts/src/deals",
   "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/calendar",
@@ -556,6 +578,9 @@ export const WIDE_PARAMS = [
   // one takes five there (Twilio's request), eighteen here (a place's member, a round's decision, the people runner's).
   "packages/channels/src/lines",
   "packages/core/src/leads",
+  "packages/contracts/src/today",
+  "packages/contracts/src/leads",
+  "packages/contracts/src/conversations",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);

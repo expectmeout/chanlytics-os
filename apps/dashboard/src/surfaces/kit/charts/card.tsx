@@ -1,18 +1,22 @@
 /**
  * The card every chart lives in, its table twin and its CSV, and the one bar split into parts (moved whole from
  * legacy/components/chart-core.jsx, decision 0015): a title, one line of what it shows, the legend for two or more
- * series, and on the right a Chart/Table switch and the CSV, which wait for the pointer or the keyboard (charts.css)
- * and stay while the table shows. The card owns the series: `config` is published as --color-<key> on its <section>.
+ * series, and on the right a Chart/Table switch (the kit's Segmented) and the CSV (the kit's quiet icon Button),
+ * which wait for the pointer or the keyboard (charts.css) and stay while the table shows. The card is the kit's panel. The
+ * card owns the series: `config` is published as --color-<key> on its <section>.
  */
-import { useState } from "react";
-import type { MouseEvent, ReactNode, Ref } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
+import type { ReactNode, Ref } from "react";
 import { csvCell } from "@chanlytics/contracts";
 import { holdStill } from "../../frame-verbs";
 import { downloadCsv } from "../download";
+import { Button } from "../button/button";
 import { Icon } from "../icon/icon";
+import type { SegmentedOption } from "../segmented/segmented";
 import { ckVars } from "./geometry";
 import type { ChartConfig } from "./geometry";
 import { ChartLegend } from "./parts";
+import { customProperties } from "../variants";
 
 /** A table a chart offers beside itself: its columns and its rows, a number sitting right, a missing value a dash. */
 interface ChartTableData {
@@ -65,7 +69,7 @@ function ChartTable({ columns, rows }: ChartTableData) {
           ))}
           {!rows.length && (
             <tr>
-              <td colSpan={columns.length} className="ck-table-empty">
+              <td colSpan={columns.length} className="ck-table-none">
                 Nothing in this period.
               </td>
             </tr>
@@ -111,7 +115,43 @@ interface ChartCardProps {
   children?: ReactNode;
 }
 
-// The card every chart lives in. The twin is `table` when the page has one of its own, or made from `twin`.
+/** What a card shows: its chart, or the chart's table. */
+type CardShows = "chart" | "table";
+/** The card's switch: the kit's segmented control (kit.css, "A choice of a few"), the ids a page's tests press. */
+const CARD_SHOWS: readonly SegmentedOption<CardShows>[] = [
+  { value: "chart", label: "Chart", testid: "card-chart" },
+  { value: "table", label: "Table", testid: "card-table" },
+];
+
+/**
+ * The switch is the kit's Segmented, Base UI's radio group, loaded as the card first draws rather than with the page:
+ * on every page's first load it carried a few KB to Reports, and through the bundler's shared chunks fourteen more to
+ * the Inbox and nine to People, which draw no chart (26 Nov 2026). Reports' period control loads it so already.
+ */
+const CardSwitch = lazy(() => import("../segmented/segmented").then((m) => ({ default: m.Segmented<CardShows> })));
+
+/** The switch's own markup while it loads: its place held, inert and unread, so nothing moves as it arrives. */
+function CardSwitchWaits({ shows }: { shows: CardShows }) {
+  return (
+    <div className="rec-seg" aria-hidden="true" inert>
+      {CARD_SHOWS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={option.value === shows}
+          tabIndex={-1}
+          className="rec-seg-btn"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// The card every chart lives in, the kit's panel. The twin is `table` when the page has one of its own, or made from
+// `twin`.
 export function ChartCard({
   title,
   takeaway = null,
@@ -129,62 +169,53 @@ export function ChartCard({
   const data = table || ckTwin(twin, config);
   const showTable = asTable && !!data;
   // A chart and its table are not one height: the switch holds still, the last card's too.
-  const switchTo = (to: boolean) => (e?: MouseEvent<HTMLButtonElement>) =>
-    holdStill(e && e.currentTarget, () => setAsTable(to));
+  const switchRef = useRef<HTMLDivElement>(null);
+  const switchTo = (to: CardShows) => holdStill(switchRef.current, () => setAsTable(to === "table"));
   return (
     <section
-      className={`ck-card${className ? ` ${className}` : ""}${showTable ? " is-table" : ""}`}
+      className={`panel ck-chart${className ? ` ${className}` : ""}${showTable ? " is-table" : ""}`}
       data-testid={testid}
-      style={ckVars(config)}
+      style={customProperties(ckVars(config))}
     >
-      <header className="ck-card-head">
-        <div className="ck-card-titles">
-          <h3 className="ck-card-title" ref={titleRef} {...(titleRef && { tabIndex: -1 })}>
+      <header className="ck-chart-head">
+        <div className="ck-chart-titles">
+          <h3 className="ck-chart-title" ref={titleRef} {...(titleRef && { tabIndex: -1 })}>
             {title}
           </h3>
-          {takeaway && <p className="ck-card-takeaway">{takeaway}</p>}
+          {takeaway && <p className="ck-chart-takeaway">{takeaway}</p>}
         </div>
         {data && (
-          <div className="ck-card-actions">
+          <div className="ck-chart-actions">
             {switchable && (
-              <div className="ck-seg" role="group" aria-label={`Show ${title} as`}>
-                <button
-                  type="button"
-                  className={showTable ? "" : "on"}
-                  aria-pressed={!showTable}
-                  onClick={switchTo(false)}
-                  data-testid="card-chart"
-                >
-                  Chart
-                </button>
-                <button
-                  type="button"
-                  className={showTable ? "on" : ""}
-                  aria-pressed={showTable}
-                  onClick={switchTo(true)}
-                  data-testid="card-table"
-                >
-                  Table
-                </button>
-              </div>
+              <Suspense fallback={<CardSwitchWaits shows={showTable ? "table" : "chart"} />}>
+                <CardSwitch
+                  ref={switchRef}
+                  label={`Show ${title} as`}
+                  value={showTable ? "table" : "chart"}
+                  onValueChange={switchTo}
+                  options={CARD_SHOWS}
+                />
+              </Suspense>
             )}
-            <button
-              type="button"
-              className="ck-icon-btn"
+            <Button
+              variant="quiet"
+              size="sm"
+              iconOnly
+              className="ck-csv"
               onClick={() => ckSaveCsv(title, data)}
               aria-label={`Save “${title}” as a CSV file`}
               data-tip="Save as CSV"
               data-testid="card-csv"
             >
               <Icon name="download" size={13} />
-            </button>
+            </Button>
           </div>
         )}
       </header>
       {config && legend !== false && !showTable && (
         <ChartLegend config={config} values={legend ? legend.values : null} />
       )}
-      <div className="ck-card-body">
+      <div className="ck-chart-body">
         {showTable && data ? <ChartTable columns={data.columns} rows={data.rows} /> : children}
       </div>
     </section>
@@ -211,7 +242,7 @@ export function SegmentBar({
   if (!shown.length) return null;
   const label = (k: string) => config[k]?.label || k;
   return (
-    <div className="ck-segbar" data-testid={testid} style={ckVars(config)}>
+    <div className="ck-segbar" data-testid={testid} style={customProperties(ckVars(config))}>
       <span className="ck-segbar-title">{title}</span>
       <div
         className={`ck-segbar-bar${small ? " small" : ""}`}
@@ -219,7 +250,7 @@ export function SegmentBar({
         aria-label={rows.map((r) => `${r.value} ${label(r.key)}`).join(", ")}
       >
         {shown.map((r) => (
-          <i key={r.key} style={{ flexGrow: r.value, background: `var(--color-${r.key})` }} />
+          <i key={r.key} style={customProperties({ "--share": r.value, "--part-color": `var(--color-${r.key})` })} />
         ))}
       </div>
       <ChartLegend

@@ -17,10 +17,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { toInboxThreadVM, isHeldDraft, draftSendsAtMs } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, find } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
 
 installStubReact();
-const S = "../../apps/dashboard/src/surfaces/inbox";
+const S = "../../../apps/dashboard/src/surfaces/inbox";
 const { VW_STORE, VW_UTIL } = await import(`${S}/store.ts`);
 const { Composer } = await import(`${S}/thread/composer.tsx`);
 
@@ -28,7 +28,7 @@ const { Composer } = await import(`${S}/thread/composer.tsx`);
 const ZONE = "America/New_York";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(here, "../..");
+const ROOT = path.join(here, "../../..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
 const NOW = new Date("2026-08-29T12:00:00.000Z");

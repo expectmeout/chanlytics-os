@@ -143,7 +143,7 @@ export const conversation = (id, over = {}) => ({
   snooze_until: null,
   assignee_user_id: null,
   // Something has come to the thread from their side, and the row says when, as ingest_inbound stamps it: a thread
-  // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply-window.test.mjs).
+  // nothing has come to is a first message's, and the reply card asks more of it (conversations/reply/reply-window.test.mjs).
   last_inbound_at: ago(3600_000),
   last_inbound_on_whatsapp: ago(3600_000),
   last_message_at: ago(3600_000),

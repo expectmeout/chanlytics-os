@@ -1285,7 +1285,7 @@ test.describe("Settings › Business on a real workspace", () => {
                   : id === "rec-who-carriers" ||
                       el.closest(".set-team-mail") ||
                       el.closest(".set-data-val") ||
-                      el.classList.contains("set-mark")
+                      el.classList.contains("cl-attn-note")
                     ? "part of a sentence it sits in"
                     : el.classList.contains("rec-row-act")
                       ? "a row's act"

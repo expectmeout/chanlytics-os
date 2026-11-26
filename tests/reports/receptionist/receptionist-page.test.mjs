@@ -144,7 +144,7 @@ test("every sentence and number a new card draws is the fold's: the rows, their 
   const v = foldOf();
   const tree = draw();
   const rowsOf = (id) => find(byTestId(tree, id), (n) => n.type === BarList).props.rows.map((r) => [r.label, r.value]);
-  const lineOf = (id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-card-takeaway")));
+  const lineOf = (id) => textOf(find(byTestId(tree, id), (n) => classes(n).includes("ck-chart-takeaway")));
   const wanted = (part) => part.rows.map((r) => [r.label, r.value]);
   assert.deepEqual(rowsOf("chart-hold"), wanted(v.hold));
   assert.equal(lineOf("chart-hold"), v.hold.line);

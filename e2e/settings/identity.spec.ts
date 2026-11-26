@@ -9,7 +9,7 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 test.describe("identity on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
 
-  test("the name you give is the name the chrome shows; clearing it brings 'Your account' back", async ({ page }) => {
+  test("the name you give is the name the chrome shows; clearing it brings 'Account' back", async ({ page }) => {
     await signIn(page);
     await page.goto("/#/admin/profile");
     await page.waitForLoadState("networkidle");
@@ -59,7 +59,7 @@ test.describe("identity on a real workspace", () => {
       expect(cleared.status).toBe(200);
       await page.reload();
       await page.waitForLoadState("networkidle");
-      await expect(page.locator(".user-chip .name")).toHaveText("Your account");
+      await expect(page.locator(".user-chip .name")).toHaveText("Account");
       const tooLong = await put("x".repeat(81));
       expect(tooLong.status).toBe(400);
     } finally {
