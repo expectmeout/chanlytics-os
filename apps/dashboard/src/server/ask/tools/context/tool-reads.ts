@@ -44,6 +44,9 @@ export const WHOSE: Record<MembershipRole, string> = {
  */
 export const AUDIENCES_CALL = "campaigns with action lists";
 
+/** A campaign's id that is no id, refused in one sentence by the read and the cards that take one. */
+export const CAMPAIGN_ID_REFUSAL = "campaign_id must be an id campaigns with action list returned";
+
 export const str = (value: unknown, max = 200): string => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 /**

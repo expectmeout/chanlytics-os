@@ -12,7 +12,7 @@
  * registration it is not sold, and this says so rather than "not yet".
  */
 import type { SetupDto } from "./lines";
-import { lineCredentialFailure } from "../lines/failure";
+import { LINE_CREDENTIALS_SENTENCE, lineCredentialFailure } from "../lines/failure";
 import { agoWords } from "../shared/time";
 
 export const CAPABILITY_KINDS = ["voice", "whatsapp", "sms"] as const;
@@ -81,8 +81,7 @@ function voiceBlockersOf(inputs: CapabilityInputs): CapabilityBlocker[] {
     return [
       {
         code: "line_failed",
-        words:
-          "Setting up your line stopped at the vault that keeps its keys. Chanlytics is on it, and trying again can't help until they're restored.",
+        words: `Setting up your line stopped at ${LINE_CREDENTIALS_SENTENCE}. A person at Chanlytics has it.`,
       },
     ];
   if (own && own.voice_state === "failed")

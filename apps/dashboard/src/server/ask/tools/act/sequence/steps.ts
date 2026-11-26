@@ -26,7 +26,14 @@ import {
 } from "@chanlytics/contracts";
 import { load } from "../../../../shared/reader";
 import { sequence as sequenceReader, sequencePeople } from "../../../../readers/sequences";
-import { getAskedMessage, noteRow, stepNamed, str, readUnlessNotFound } from "../../context/tool-reads";
+import {
+  CAMPAIGN_ID_REFUSAL,
+  getAskedMessage,
+  noteRow,
+  stepNamed,
+  str,
+  readUnlessNotFound,
+} from "../../context/tool-reads";
 import { propose, refuse } from "../../context/context";
 import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
 import { playbookAction } from "../playbook/playbook";
@@ -50,7 +57,7 @@ export async function sequenceOnCard(
   sequenceId: string,
 ): Promise<SequenceRecordDto | { refusal: string }> {
   const id = str(sequenceId, 40);
-  if (!UUID.test(id)) return { refusal: "campaign_id must be an id campaigns with action list returned" };
+  if (!UUID.test(id)) return { refusal: CAMPAIGN_ID_REFUSAL };
   const read = await readUnlessNotFound(load(t.rc, sequenceReader, { id }));
   if (!read) return { refusal: "no such campaign in this workspace" };
   noteRow(t, "playbook", id, read.data.sequence.name, sequenceRoute(id));

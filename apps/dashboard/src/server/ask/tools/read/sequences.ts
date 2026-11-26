@@ -30,7 +30,7 @@ import { listSequenceMakes, type SequenceMake } from "@chanlytics/db/campaigns";
 import { load, type ReaderContext, type RowRef } from "../../../shared/reader";
 import { reachOutChains } from "../../../readers/playbooks";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
-import { notePerson, str, readUnlessNotFound } from "../context/tool-reads";
+import { CAMPAIGN_ID_REFUSAL, notePerson, str, readUnlessNotFound } from "../context/tool-reads";
 import type { ToolContext } from "../context/tool-defs";
 
 /**
@@ -92,7 +92,7 @@ export async function readSequences(toolContext: ToolContext): Promise<unknown> 
  */
 export async function readSequence(toolContext: ToolContext, input: { campaign_id: string }): Promise<unknown> {
   const id = str(input.campaign_id, 40);
-  if (!UUID.test(id)) return { error: "campaign_id must be an id campaigns with action list returned" };
+  if (!UUID.test(id)) return { error: CAMPAIGN_ID_REFUSAL };
   const record = await readUnlessNotFound(load(toolContext.rc, sequence, { id }));
   if (!record) return { error: "no such campaign in this workspace" };
   const [people, history] = await Promise.all([
