@@ -367,6 +367,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/styles",
   "apps/dashboard/src/bridge/ask",
   "apps/dashboard/src/bridge/billing",
+  "apps/dashboard/src/bridge/boot",
   "apps/dashboard/src/bridge/hearing",
   "apps/dashboard/src/bridge/invitations",
   "apps/dashboard/src/bridge/mascot",

@@ -40,9 +40,24 @@ async function batchSendsIn(db: Db, tenantId: TenantId, id: string, state: "plan
  * were held rides beside the count, which Approve's ask on a lead's sheet says stay with you (3 Nov 2026). Its next and
  * the sequence's waiting people follow; a customer's batch is counted as the read counts it.
  */
+/**
+ * A row's batches waiting for an OK. sequence_overview builds every row's needs (its batches coalesced), but a row read
+ * from an answer built by hand may come without them, and has none.
+ */
+function batchesOf(row: SequenceRowDto): SequenceRowDto["needs"]["batches"] {
+  const kept: Partial<Pick<SequenceRowDto, "needs">> = row;
+  return kept.needs?.batches ?? [];
+}
+
 export async function withReadyCounts(db: Db, tenantId: TenantId, rows: SequenceRowDto[]): Promise<SequenceRowDto[]> {
   const ids = [
-    ...new Set(rows.flatMap((r) => r.needs.batches.filter((b) => b.audience.kind === "reach_out").map((b) => b.id))),
+    ...new Set(
+      rows.flatMap((r) =>
+        batchesOf(r)
+          .filter((b) => b.audience.kind === "reach_out")
+          .map((b) => b.id),
+      ),
+    ),
   ];
   if (ids.length === 0) return rows;
   const ready = new Map<string, number>();
@@ -58,7 +73,7 @@ export async function withReadyCounts(db: Db, tenantId: TenantId, rows: Sequence
     }),
   );
   return rows.map((row) => {
-    if (!row.needs.batches.some((b) => ready.has(b.id))) return row;
+    if (!batchesOf(row).some((b) => ready.has(b.id))) return row;
     const batches = row.needs.batches.map((b) =>
       ready.has(b.id) ? { ...b, people: ready.get(b.id) ?? b.people, held: held.get(b.id) ?? 0 } : b,
     );

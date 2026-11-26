@@ -24,6 +24,7 @@ import {
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, again, all, byTestId, classes, press, textOf } from "../_stub-react.mjs";
 import { bridgeHolds } from "./_bridge-holds.mjs";
+import { fromDashboard, stepRunning } from "./boot/_frame-boot.mjs";
 
 const { Icon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
 
@@ -185,11 +186,12 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
 test("the wiring: the pill is retired, the shell bridge carries its two actions and its status, the page has the menus, the rail and the sheet", () => {
   const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(!app.includes("bridge-pill") && !app.includes("pill-signout"), "no floating pill");
+  // The shell bridge is installed as the frame loads (bridge/boot, run in tests/shell/boot/frame-boot.test.mjs); the line is the component's.
+  assert.ok(stepRunning(fromDashboard("bridge/shell.ts").installShell));
   assert.ok(
-    app.includes("installShell();") &&
-      app.includes(
-        "publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));",
-      ),
+    app.includes(
+      "publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));",
+    ),
   );
   // What the device's preferences are, what a press keeps and what the page wears are device-prefs.ts's, run by
   // theme-boot.test.mjs against the head's script. The component only holds them: these are its calls.
