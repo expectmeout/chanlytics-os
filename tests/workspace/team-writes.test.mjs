@@ -107,7 +107,7 @@ test("an invitation the mail could not carry is taken back with its row, and the
     inviteMember(A, USER, "bo@example.com", "operator", undefined, w.svc),
     "upstream_email",
     502,
-    "We could not send the invitation email: smtp: connection refused",
+    "Couldn't send the invitation email just now. Try again in a few minutes.",
   );
   assert.deepEqual(w.calls.at(-1), ["team_invite_withdraw", { p_tenant_id: A, p_invitation_id: "i1" }]);
   assert.deepEqual(w.mails, ["bo@example.com"], "the mail was attempted");
@@ -225,7 +225,7 @@ test("Resend renews the invitation, then mails it; a mail that cannot go takes t
     resendInvite(ctx(), A, "i1", down.svc),
     "upstream_email",
     502,
-    "We could not send the invitation email: smtp down",
+    "Couldn't send the invitation email just now. Try again in a few minutes.",
   );
   assert.deepEqual(down.calls.at(-1), [
     "team_invite_renew_withdraw",

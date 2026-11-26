@@ -252,7 +252,7 @@ function attnSentence(
 function attnFace(person: FacePerson | undefined, glyph: string | null, initials: string | undefined) {
   if (person) return <Face person={person} className="cl-attn-pic" />;
   return (
-    <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} title={glyph === "phone" ? "No name yet" : undefined}>
+    <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} data-tip={glyph === "phone" ? "No name yet" : undefined}>
       {glyph ? <Icon name={glyph} size={12} /> : initials}
     </div>
   );

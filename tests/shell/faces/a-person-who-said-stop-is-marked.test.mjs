@@ -77,7 +77,7 @@ test("the stop words have one mark, in the one tone a STOP has, and its hover is
   assert.ok(pill, "the kit's one pill");
   assert.equal(pill.props.className, "pill", "at rest, neutral: no tone's ground");
   assert.equal(textOf(mark), "Stopped");
-  assert.equal(pill.props.title, "Asked to stop receiving messages");
+  assert.equal(pill.props["data-tip"], "Asked to stop receiving messages");
   assert.equal(pill.props["data-testid"], "stopped-mark");
   assert.equal(
     h(StoppedMark, { className: "cl-row-stopped", testid: "mine" }).rendered.rendered.props["data-testid"],
