@@ -11080,6 +11080,10 @@ export type Database = {
           subject: string
         }[]
       }
+      appointment_notice_dismiss: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       appointments_feed_sync: {
         Args: {
           p_from: string

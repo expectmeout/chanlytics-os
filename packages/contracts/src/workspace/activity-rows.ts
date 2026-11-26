@@ -46,6 +46,8 @@ export const ACTIVITY_NOISE_KINDS = [
   "template.fix_written",
   // A sign-up's ask settled (00675): what tells the owner's notice. The form's arrival is what the owner reads.
   "form_entry.asked",
+  // A held booking email set aside (00722): its row on Settings › Business says it, not the owner's day.
+  "appointment.notice_dismissed",
   // A post's every step, and a week's slot held (00720): Files and the week say where each stands, not the owner's day.
   "post.moved",
   "plan_slot.held",

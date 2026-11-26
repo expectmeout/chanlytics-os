@@ -3413,6 +3413,44 @@ COMMENT ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) IS 'Who h
 
 
 --
+-- Name: appointment_notice_dismiss(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointment_notice_dismiss(p_tenant_id uuid, p_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+  v_row public.appointment_notices;
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.appointment_notices n set outcome = 'dismissed'
+   where n.tenant_id = p_tenant_id and n.id = p_id and n.outcome = 'held'
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'appointment.notice_dismissed', 'appointment', 'booking_email', p_id,
+          jsonb_build_object('tool', v_row.tool, 'hold_reason', v_row.hold_reason, 'by', v_by));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION appointment_notice_dismiss(p_tenant_id uuid, p_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointment_notice_dismiss(p_tenant_id uuid, p_id uuid) IS 'A held booking email set aside (00722): its notice kept as dismissed, only while it is held, with appointment.notice_dismissed (its tool, why it was held, who) in the same transaction, kept from Activity''s rows. A member who acts in the workspace, on their own session; the service role too. False where it is not held any more.';
+
+
+--
 -- Name: appointment_notices_tell_bookings(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -69890,6 +69928,15 @@ GRANT ALL ON FUNCTION public.anthropic_profile_claim(p_kind text, p_subject uuid
 
 REVOKE ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.anthropic_profiles_waiting(p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION appointment_notice_dismiss(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointment_notice_dismiss(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointment_notice_dismiss(p_tenant_id uuid, p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.appointment_notice_dismiss(p_tenant_id uuid, p_id uuid) TO service_role;
 
 
 --

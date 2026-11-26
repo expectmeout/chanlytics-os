@@ -2036,6 +2036,31 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       });
       return true;
     },
+    /** A held booking email set aside, with its event (00722 appointment_notice_dismiss); false where it is not held. */
+    appointment_notice_dismiss: ({ p_tenant_id, p_id }) => {
+      const fault = faults["appointment_notices.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.appointment_notices ?? []).find(
+        (n) => n.tenant_id === p_tenant_id && n.id === p_id && n.outcome === "held",
+      );
+      if (!row) return false;
+      row.outcome = "dismissed";
+      seen.push({
+        table: "appointment_notices",
+        op: "update",
+        values: { outcome: "dismissed" },
+        filters: [["eq", "id", p_id]],
+      });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "appointment.notice_dismissed",
+        category: "appointment",
+        subject_type: "booking_email",
+        subject_id: p_id,
+        data: { tool: row.tool, hold_reason: row.hold_reason ?? null, by: opts.userId ?? null },
+      });
+      return true;
+    },
     /** The owner's echo's pause and its event (00721 conversation_owner_echo_keep); false where the thread is not theirs. */
     conversation_owner_echo_keep: ({ p_tenant_id, p_conversation_id, p_patch, p_until }) => {
       const fault = faults["conversations.update"];

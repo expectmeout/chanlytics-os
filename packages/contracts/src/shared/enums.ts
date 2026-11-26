@@ -677,6 +677,8 @@ export const EVENT_KINDS = [
   "appointment.moved",
   "appointment.cancelled",
   "appointment.lapsed", // a request that ran out, closed (00679): { told, starts_at, service, contact_id }
+  /** A held booking email a member set aside ({ tool, hold_reason, by }: appointment_notice_dismiss, 00722). */
+  "appointment.notice_dismissed",
   /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
   "conversation.owner_replied",
   /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */
