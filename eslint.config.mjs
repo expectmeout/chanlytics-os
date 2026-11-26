@@ -476,9 +476,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
-  "packages/contracts/src/people/lists",
-  "packages/contracts/src/people/person-page",
-  "packages/contracts/src/people/person-row",
+  "packages/contracts/src/people",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/previews",
   "packages/contracts/src/campaigns/reach-out",
@@ -524,7 +522,9 @@ export const LIMITED_TREES = [
  * sheet's own). Contracts' calendar joined on 25 November 2026, the day its week and its feed's reader were split: five
  * take five (a block, the rule's occurrences, a run's day, a person's visit facts, a freed time). Contracts' setup and
  * people's lists joined on 25 November 2026, the day a capability's status and a list's chip were split: one each takes
- * five (the calendar's source, a list's action).
+ * five (the calendar's source, a list's action). With them all of contracts' people is held, one tree in place of its
+ * three folders, and waits here while six take five or six (a list's action, a card's two, the profile, the
+ * receptionist's line, a person's row).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -535,7 +535,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
   "packages/contracts/src/calendar",
-  "packages/contracts/src/people/lists",
+  "packages/contracts/src/people",
   "packages/contracts/src/setup",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
@@ -573,7 +573,6 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/today",
   "packages/contracts/src/leads",
   "packages/contracts/src/conversations",
-  "packages/contracts/src/people/person-row",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
