@@ -146,9 +146,15 @@ test("the wiring: the bridge names nobody on the window, and the chip and the ro
   (await importSrc("apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
   const { Sidebar } = await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx");
   const heard = { added: [], removed: [] };
-  const was = { add: window.addEventListener, remove: window.removeEventListener };
-  window.addEventListener = (type, fn, ...rest) => (heard.added.push([type, fn]), was.add(type, fn, ...rest));
-  window.removeEventListener = (type, fn, ...rest) => (heard.removed.push([type, fn]), was.remove(type, fn, ...rest));
+  const was = { add: globalThis.window.addEventListener, remove: globalThis.window.removeEventListener };
+  globalThis.window.addEventListener = (type, fn, ...rest) => (
+    heard.added.push([type, fn]),
+    was.add(type, fn, ...rest)
+  );
+  globalThis.window.removeEventListener = (type, fn, ...rest) => (
+    heard.removed.push([type, fn]),
+    was.remove(type, fn, ...rest)
+  );
   try {
     fresh();
     Sidebar({ active: "today", onNavigate() {} });
@@ -163,8 +169,8 @@ test("the wiring: the bridge names nobody on the window, and the chip and the ro
       "an unmounted sidebar lets it go",
     );
   } finally {
-    window.addEventListener = was.add;
-    window.removeEventListener = was.remove;
+    globalThis.window.addEventListener = was.add;
+    globalThis.window.removeEventListener = was.remove;
   }
   // A person names themselves on Profile: drawn in workspace/settings-owner-panes/ ("your name is a row on Profile"). The
   // Team card reads the same words as the chip, each row its member's given name or their address, drawn in
