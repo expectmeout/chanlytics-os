@@ -263,7 +263,7 @@ test("a playbook's totals and history come from every run it made, not the recen
     ],
     "newest first, with what each earned",
   );
-  assert.equal(p.totals.lastRun.run_for, "2026-07-30");
+  assert.equal(p.totals.last_run.run_for, "2026-07-30");
   assert.equal(p.totals.waiting, null, "no run waits");
   // A run waiting for a person comes with its own day and moment: what the approve verb's refusal reads
   // (contracts runApprovalRefusal), so the playbook's card can say an approval would be refused before it is pressed.

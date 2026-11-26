@@ -16,10 +16,10 @@ import {
   withIdeaCarried,
   type AskColumn,
   type AskLanguage,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskProposal,
   type AskScope,
-  type PageContext,
+  type PageContextDto,
 } from "@chanlytics/contracts";
 import { filesLineOf, folderLineOf } from "@/server/files/line";
 import type { RouteContext } from "../shared/with-route";
@@ -58,7 +58,7 @@ interface AskTurnAsk {
   /** This turn's scope: one, `null` to clear the thread's, `undefined` to keep it (the Phase 5 plan, D9). */
   scope: AskScope | null | undefined;
   surface: string | null;
-  context: PageContext | null;
+  context: PageContextDto | null;
   openedMs: number | null;
   answering: SearchAnswering | null;
   /** A question that comes from a follow-up of the member's that came due (D33 of the answers canvas). */
@@ -87,7 +87,7 @@ interface AskTurnDone {
   thread: { id: string; title: string };
   result: TurnResult;
   /** The answer as the Line draws it, beside the v1 fields it gives (spec 5.8). */
-  message: AskMessageVM;
+  message: AskMessageDto;
 }
 
 /** The first half's yield: everything the turn is run with, once the thread is kept and the facts are read. */
@@ -101,7 +101,7 @@ interface PreparedTurn {
   attached: AttachedFile[];
   earlier: Pick<TurnInput, "history" | "sinceLastMs" | "chain" | "told" | "cited" | "waiting">;
   /** The thread's turns' cards before this one (memory.ts findThreadForTurn): what a new search card sets aside. */
-  cards: Array<Pick<AskMessageVM, "id" | "proposals">>;
+  cards: Array<Pick<AskMessageDto, "id" | "proposals">>;
   /** The thread's questions and the next questions it offered, this question among them (nextNotAsked). */
   offered: string[];
   rc: ReaderContext;
@@ -287,7 +287,7 @@ function stoppedTurn(
 /** The thread's waiting search cards a new one replaced (contracts searchCardsReplaced), kept as set aside; a failure is logged. */
 async function setAsideReplaced(
   ctx: RouteContext,
-  cards: Array<Pick<AskMessageVM, "id" | "proposals">>,
+  cards: Array<Pick<AskMessageDto, "id" | "proposals">>,
   created: AskProposal[],
   tenantId: TenantId,
 ): Promise<void> {
@@ -345,7 +345,7 @@ export async function finishAskTurn(
   } = preparedTurn;
   const { text, surface, context, openedMs, answering, following } = ask;
   // Cards of earlier turns this one pressed on a yes (D18 of the answers canvas).
-  const pressed: NonNullable<AskMessageVM["pressed"]> extends ReadonlyArray<infer R> ? R[] : never = [];
+  const pressed: NonNullable<AskMessageDto["pressed"]> extends ReadonlyArray<infer R> ? R[] : never = [];
   emit({ t: "thread", id: turn.id, title: turn.title });
   const t0 = Date.now();
   // The Say as the person last read it: an empty one took the answer back (loop.ts unsay).
@@ -368,7 +368,12 @@ export async function finishAskTurn(
     text: askTurnText(text, answering) || noWordsIn(language),
     ...(following ? { following } : {}),
     ...(ask.request
-      ? { request: ask.request, member, waitingOn: waitingOnThread(cards), onPressed: (r) => pressed.push(r) }
+      ? {
+          request: ask.request,
+          member,
+          waitingOn: waitingOnThread(cards),
+          onPressed: (r) => pressed.push({ message_id: r.messageId, proposal_id: r.proposalId, outcome: r.outcome }),
+        }
       : {}),
     attached: preparedTurn.attached,
     openedMs,
@@ -423,12 +428,12 @@ export async function finishAskTurn(
   // can be pressed, the newest. The Line sets the same cards aside as the answer lands (contracts withAnswerLanded).
   if (saved) await setAsideReplaced(ctx, cards, proposals, tenantId);
   const acted = saved ? await runCardsAlone(preparedTurn, saved.id, proposals) : proposals;
-  const message: AskMessageVM = {
+  const message: AskMessageDto = {
     id: saved?.id ?? `unsaved-${Date.now()}`,
     role: "assistant",
     text: v1.text,
     at: saved?.created_at ?? new Date().toISOString(),
-    atMs: saved ? Date.parse(saved.created_at) : Date.now(),
+    at_ms: saved ? Date.parse(saved.created_at) : Date.now(),
     citations: v1.citations,
     followups: v1.followups,
     navigate: v1.navigate,
@@ -437,7 +442,7 @@ export async function finishAskTurn(
     language: result.answer.language,
     ungrounded: result.ungrounded,
     tools: result.tools,
-    latencyMs: result.latencyMs,
+    latency_ms: result.latencyMs,
     rounds: result.rounds,
     failed: result.failed,
     answer: result.answer,
@@ -469,7 +474,7 @@ export async function finishAskTurn(
  * turn's cards. A card further up is made again, so the person presses one they can see (decision 0132: "Yes, run the New
  * York City search" pressed a card an hour and forty minutes up the thread).
  */
-function waitingOnThread(cards: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>) {
+function waitingOnThread(cards: ReadonlyArray<Pick<AskMessageDto, "id" | "proposals">>) {
   const latest = cards.filter((m) => m.proposals.length).slice(-1);
   return new Map(
     latest.flatMap((m) =>

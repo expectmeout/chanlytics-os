@@ -140,7 +140,7 @@ const playbook = (over = {}) => ({
     delivered: 4,
     replied: 1,
     held: 0,
-    lastRun: { id: "b-run-0", state: "sent", run_for: "2026-09-14", recipient_count: 3 },
+    last_run: { id: "b-run-0", state: "sent", run_for: "2026-09-14", recipient_count: 3 },
     waiting: null,
     history: [runOf(0), runOf(1)],
   },

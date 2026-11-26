@@ -1,5 +1,5 @@
 /** What Ask's voice door reads from a request, and what a refusal from the edge means. */
-import { AppError, type AskLanguage, type AskScope, type PageContext, VOICE_IS_OFF } from "@chanlytics/contracts";
+import { AppError, type AskLanguage, type AskScope, type PageContextDto, VOICE_IS_OFF } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/shared/request-guards";
 import { edgeReasonOf, edgeRefusalWords, type EdgeAnswer } from "@/server/shared/edge";
 import { scopeIn } from "@/server/ask/store";
@@ -36,7 +36,7 @@ export interface Asked {
   threadId: string | null;
   scope: AskScope | null;
   language: AskLanguage;
-  context: PageContext | null;
+  context: PageContextDto | null;
   surface: string | null;
 }
 

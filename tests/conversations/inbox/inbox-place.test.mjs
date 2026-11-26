@@ -124,7 +124,7 @@ test("the thread the first draw opens on waits for what it draws: its reply box'
     if (u.pathname === "/api/v1/conversations") return json(200, { ok: true, data: { conversations: [conv()] } });
     if (u.pathname === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
     if (u.pathname === "/api/v1/workspaces")
-      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
+      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, active_workspace_id: "t1" } });
     // Their own read is slow: People's book says who they are first.
     if (u.pathname === "/api/v1/contacts") return new Promise(() => {});
     return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
@@ -163,7 +163,7 @@ test("REGRESSION (A15): a templates read that fails leaves null -- 'could not re
     if (path === "/api/v1/conversations") return json(200, { ok: true, data: { conversations: [conv()] } });
     if (path === "/api/v1/escalations") return json(200, { ok: true, data: { escalations: [] } });
     if (path === "/api/v1/workspaces")
-      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
+      return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, active_workspace_id: "t1" } });
     return json(404, { ok: false, error: { code: "not_found", message: path } });
   };
   // Settings' templates read failed: the slice it publishes says null, and so does the Inbox's.

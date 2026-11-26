@@ -22,7 +22,7 @@ export async function activeWorkspace(page: Page): Promise<string> {
   const slug = /^\/w\/([^/]+)/.exec(new URL(page.url(), "http://page.invalid").pathname)?.[1];
   const url = slug ? scoped("/api/v1/workspaces", decodeURIComponent(slug)) : "/api/v1/workspaces";
   const { data } = await (await page.request.get(url)).json();
-  const id = data?.activeWorkspaceId ?? data?.workspaces?.[0]?.id;
+  const id = data?.active_workspace_id ?? data?.workspaces?.[0]?.id;
   if (!id) throw new Error("no workspace for this account");
   return id;
 }

@@ -56,7 +56,7 @@ test("a page's rows are the first n of its GET, each the kind its surface's prov
     view: null,
     focus: null,
     rows: [{ kind: "thread", id: U(1) }],
-    askedAt: 1234,
+    asked_at: 1234,
   });
   assert.equal(inbox.scope, null, "a list opens no row");
   const people = resolveContext({ surface: "people", route: "clients", view: "all", rows: "GET contacts" }, ANSWERS);
@@ -514,7 +514,7 @@ test("a settings note approved between the turns as the Line approves it, turn 2
   assert.equal(put.body.version, 7);
   assert.deepEqual([told.headers.origin, told.headers["x-via"]], [ORIGIN, "ask"]);
   assert.deepEqual(d.state.outcomes, [
-    { state: "done", receipt: CARD.summary, atMs: 1000, undo: { config: SEED, version_after: 8 } },
+    { state: "done", receipt: CARD.summary, at_ms: 1000, undo: { config: SEED, version_after: 8 } },
   ]);
   // Turn 2 is asked here, with the note in the settings it reads.
   const back = await putBack(d.io, a.approval);
@@ -529,7 +529,7 @@ test("a settings note approved between the turns as the Line approves it, turn 2
   assert.deepEqual(d.state.outcomes[1], {
     state: "undone",
     receipt: "Put back.",
-    atMs: 1000,
+    at_ms: 1000,
     undo: null,
   });
 });

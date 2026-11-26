@@ -682,7 +682,7 @@ test("the ledger and the events know the reply and the connection", () => {
         name: "N",
         hours: true,
         services: 1,
-        bookingLink: false,
+        booking_link: false,
         address: true,
         handoff: null,
         broken: false,
