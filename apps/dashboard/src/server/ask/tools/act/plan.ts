@@ -382,6 +382,7 @@ const planAction = actAction({
   ],
   label: "Making a plan",
   words:
+    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
     "Action offer makes every card an offer or a whole setup takes, from one call: intent offer, with offer (words, the offer in their words, its days named as a customer reads them on its first day: “all November”, never “next month”; from and until, its first and last day, YYYY-MM-DD by the business's calendar; service, who as a list token, and channels, each optional) and say, their own phrasing of the offer where they gave one, its days named as words names them, never the ask (“I want to offer”); or intent cover_journey, with optional stages, for a campaign on each moment of the journey not covered yet, and what they told you of their business: books, what their customers book in their own words (“discovery call”), and proposals true where some customers get a proposal before they buy. The plan says what must be connected or turned on first for the moments it cannot start yet, and leads the answer with it. Name what they asked for and the days they gave, never an id or a time to send: the plan reads the Library, the lists, the campaigns, the notes, the calendar's room and the channels itself, and reuses a message that fits or writes one in language (en or es, as the rule for a message's language says; left out, the business's). It comes back as one card with one press, the send included, with the plan's reason (why) and its steps: answer from them once they come back.",
   build: proposePlan,
 });
@@ -562,6 +563,7 @@ const stepsAction = actAction({
     },
   ],
   label: "Making a plan",
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   words: `Action steps makes a plan across pages from the steps you name: each a card of any act tool, by its tool, action and its own input, a later step naming what an earlier one makes by its token (@step:n: a list, a list of leads, a message, a campaign, a search). They show as one card: its press does what keeps records and the first that sends, spends or posts; each later send is the next press. Call it when one ask takes several cards that build on each other (lists, then a cold email to a list of leads with a follow-up, a campaign and its first steps); for an offer or a whole setup of the journey, action offer.`,
   build: proposeSteps,
 });

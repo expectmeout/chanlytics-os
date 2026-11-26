@@ -78,7 +78,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await expect(soon.first()).toBeVisible();
     for (const word of await soon.all()) {
       await expect(word).toHaveText("Soon");
-      await expect(word).toHaveAttribute("title", /Not built yet/);
+      await expect(word).toHaveAttribute("data-tip", /Not built yet/);
     }
     for (const button of await later.locator(".set-int-row button").all())
       await expect(button, "a Later row's only button opens what it says").toHaveAttribute("aria-label", /^About /);

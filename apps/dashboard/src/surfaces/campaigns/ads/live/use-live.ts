@@ -12,7 +12,7 @@ import type { AdPersonLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { adsFirstAnswer } from "@/bridge/surfaces/ads-first-reads";
 import { getActiveWorkspace } from "@/bridge/workspace";
-import { firstReadOf } from "./model";
+import { firstReadOf } from "./ai-line";
 
 /** How often the page reads again while a press of the owner's is on its way to Meta. */
 const PENDING_EVERY_MS = 8 * SECOND_MS;

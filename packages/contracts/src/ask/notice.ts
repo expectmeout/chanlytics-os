@@ -198,7 +198,7 @@ export const NOTICE_SAID_BY_RIGHT_NOW: Readonly<Record<string, "runs" | "searche
 export const ASK_NOTICES_SENT = 3 + Object.keys(NOTICE_SAID_BY_RIGHT_NOW).length;
 
 /** The order a notice is worth acting on, first first: money and time before the slow ones. */
-export const ASK_NOTICE_ORDER: readonly string[] = [
+const ASK_NOTICE_ORDER: readonly string[] = [
   "search_asks",
   "freed_times_unoffered",
   "replies_waiting",

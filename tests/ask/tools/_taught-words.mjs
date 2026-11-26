@@ -196,6 +196,8 @@ export const TAUGHT_WORDS = [
   ["a thread; a", "a conversation; a"],
   ["a batch of", "a send of"],
   ["a batch to", "a send to"],
+  ["as the bell keeps them on the server:", "as the bell keeps them:"],
+  ["a part the database does not keep yet or could not count is null", "a part not kept yet, or not counted, is null"],
 ];
 
 /** A frozen value (a tool, an answer, a string) read in today's words: every string in it, each pair in turn. */

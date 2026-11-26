@@ -314,7 +314,7 @@ const REGION = /^[A-Za-z]{2}$/;
 const REGISTERABLE_COUNTRIES = ["US", "CA"];
 /** What `about` holds: one real sentence at least, and at most what the database keeps (00152). */
 export const ABOUT_MIN = 40;
-export const ABOUT_MAX = 500;
+const ABOUT_MAX = 500;
 
 const digits = (s: string) => s.replace(/\D/g, "");
 

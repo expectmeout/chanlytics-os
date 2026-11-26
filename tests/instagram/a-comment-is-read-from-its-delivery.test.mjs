@@ -2,8 +2,8 @@
  * What Meta delivers about a post, read (the first-post sitting, 21 Nov 2026: answers 5-6 and 6.2; the content loop
  * PRD's 7 and Appendix A.3 to A.5): a person's comment names its post by the id Chanlytics keeps and its own id; the
  * business's own comment is told apart by its author being the account; a mention is the same comment again and is
- * not a second one; an ig.me link that opens an existing chat arrives as its code alone; a reply to a story keeps the
- * story's id.
+ * not a second one; a comment left on an ad names the ad (00719); an ig.me link that opens an existing chat arrives as
+ * its code alone; a reply to a story keeps the story's id.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -34,6 +34,23 @@ test("a person's comment on the reel is a comment, naming the post, its own id, 
   assert.equal(event.parentId, null);
   assert.equal(event.text, "how much is this?");
   assert.equal(event.atIso, new Date(1763764642 * 1000).toISOString());
+  assert.equal(event.adId, null, "a comment on the post itself names no ad");
+});
+
+test("a comment left on an ad names the ad Meta says it was left on, and an id that is not one names none", () => {
+  const onAd = (ad_id) =>
+    instagramEventsOf(
+      change("comments", {
+        from: { id: PERSON, username: "second.account" },
+        media: { id: "18103022591544444", media_product_type: "FEED", ad_id, ad_title: "Boost: first visit" },
+        id: "18452487913135081",
+        text: "do you have openings friday?",
+      }),
+    )[0];
+  assert.equal(onAd("120243112410030512").adId, "120243112410030512");
+  assert.equal(onAd(" 120243112410030512 ").adId, "120243112410030512");
+  assert.equal(onAd("not an ad").adId, null);
+  assert.equal(onAd(undefined).adId, null);
 });
 
 test("a reply inside a thread names the thread's first comment as its parent", () => {

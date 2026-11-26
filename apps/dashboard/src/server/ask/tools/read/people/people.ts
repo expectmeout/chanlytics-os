@@ -379,6 +379,7 @@ export const peopleTool = defineActions({
         },
       ],
       label: "Looking through People",
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page does; each row says their state in the pages' words, last contact and message, conversation id, channels, consent, how AI treats them, calls, next and last appointment where the calendar is connected, and next step where they have one. No query lists the most recent people; all finds who conditions hold today, in the lists' vocabulary (who said yes, when they last booked, how they came, a channel, a deal's stage, and the rest propose_list names), counted over everyone; list narrows to one list, by the token sequences with action lists gives (seg:<id> for People's lists, list:<id> for the workspace's own) or a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone or to see who is on a list; it returns at most ${ASK_CAPS.people} people, matches counted before the cap, and a list that cannot be counted here says why. A condition over more than N days holds only for someone with that date on record (never heard from is not quiet): not_on_record counts who meets the rest with no such date, by its chip, said apart, never as nobody or as not in People.`,
       run: searchPeople,
     }),
@@ -387,6 +388,7 @@ export const peopleTool = defineActions({
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }],
       label: "Reading the profile",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action get takes contact_id (the id a row here, inbox with action thread, calls with action get or calendar with action week returned) and reads one person's profile as their page does: right now, the facts on file, what is known about them, how AI treats them, last exchange, open conversation, conversations and calls with ids, next and last appointments' ids, timeline, and the team's notes (one AI suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page holds only their row; it returns the five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
       run: getPerson,
     }),
@@ -395,6 +397,7 @@ export const peopleTool = defineActions({
       examples: [{}],
       label: "Reading the lists",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it, the ones it cannot count here with why, the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it for which lists there are and how many are on each; action search with a list's token says who. It counts over everyone in People, as a send does.",
       run: listLists,
     }),

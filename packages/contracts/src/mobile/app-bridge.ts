@@ -54,7 +54,7 @@ const APP_FILE_MAX_CHARS = 2_000_000;
 const APP_FILE_NAME_RE = /^[\w .()-]{1,100}\.(csv|txt)$/;
 
 /** A phone's push token, as expo-notifications hands it out. */
-export const PUSH_TOKEN_MAX = 200;
+const PUSH_TOKEN_MAX = 200;
 
 export type ShellMessage =
   /**
