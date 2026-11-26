@@ -24,6 +24,8 @@ interface ViewerMoreActs extends PieceMoreActs {
   onRename: () => void;
   /** Save to the phone: the device's share sheet where it has one (`share`), the download's address everywhere. */
   save?: { share: (() => void) | null; href: string } | undefined;
+  /** "I posted it", on a phone, until it is said (by-hand.tsx): the foot then says where it stands. */
+  onPosted?: (() => void) | undefined;
 }
 
 /**
@@ -32,6 +34,8 @@ interface ViewerMoreActs extends PieceMoreActs {
  */
 function moreItemsOf(file: FileDto, acts: ViewerMoreActs): MenuItem[] {
   const items: MenuItem[] = [];
+  if (acts.onPosted)
+    items.push({ label: W.piece.byHand.say, glyph: <Icon name="check" size={13} />, onSelect: acts.onPosted });
   const save = acts.save;
   if (save) {
     const words = { label: W.piece.save, glyph: <Icon name="download" size={13} /> };

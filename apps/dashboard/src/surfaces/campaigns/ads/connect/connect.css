@@ -10,6 +10,10 @@
   gap: var(--space-3);
   min-width: 0;
 }
+/* Folded to its head on the Ads page (card.tsx `folded`): one row, its caret the press that opens it whole. */
+.ads-conn[data-folded] {
+  padding-block: var(--space-2);
+}
 .ads-conn-head {
   display: flex;
   align-items: center;
@@ -125,11 +129,6 @@
 .ads-conn-checks li[data-state="missing"] .ads-conn-check {
   color: var(--warn-ink);
 }
-.ads-conn-for {
-  flex: none;
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-}
 /* A line still being checked: its dot is an open ring that turns. Still where motion is turned down. */
 .ads-dot[data-turning] {
   border-top-color: var(--ink);
@@ -177,12 +176,6 @@
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-/* The quiet line under the card: the platforms that come later. */
-.ads-conn-later {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-}
 /* The opened card: the same lines with room between them, and the checks' own head. */
 .ads-conn-open {
   gap: var(--space-4);
@@ -199,6 +192,35 @@
   font-weight: var(--weight-semibold);
   color: var(--ink);
 }
-.ads-conn-checks-head .ads-conn-for {
-  margin-left: auto;
+/* The opened card's three parts, a hairline between two (card-sheet.tsx), their values standing in one column. */
+.ads-conn-parts .ads-conn-facts {
+  grid-template-columns: minmax(104px, max-content) minmax(0, 1fr);
+}
+.ads-conn-parts > * + * {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.ads-conn-part {
+  display: grid;
+  gap: var(--space-2);
+}
+.ads-conn-checks-head {
+  margin: 0;
+}
+/* Every check met: one line, its green dot first. */
+.ads-conn-all {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+/* A fact's word under it (where Meta checks the WhatsApp link): the dim ink, its own line. */
+.ads-conn-facts .ads-conn-note {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--ink-dim);
 }

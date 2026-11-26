@@ -12,7 +12,7 @@ import { ON_INSTAGRAM, type InstagramPostable, type PostPlace } from "../posts";
  * list of Pages, which the other two lean on. A story with a business's own sign-in asks `business_management` too, which
  * is read where a story is sent, not here: a picture and a reel go without it.
  */
-export const PAGE_POSTING_PERMISSIONS = ["pages_manage_posts", "pages_read_engagement", "pages_show_list"] as const;
+const PAGE_POSTING_PERMISSIONS = ["pages_manage_posts", "pages_read_engagement", "pages_show_list"] as const;
 
 /** A Page the link keeps on its row (`tenant_channels.config.page`): its id, and its name for the row and the sheet. */
 export interface MetaPage {
