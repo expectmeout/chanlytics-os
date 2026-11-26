@@ -44,7 +44,7 @@ import {
 import type { ContactId } from "@chanlytics/contracts";
 export { consentChangeOf } from "@chanlytics/contracts";
 
-const BUNDLE_FORMAT = "chanlytics-workspace-export";
+export const BUNDLE_FORMAT = "chanlytics-workspace-export";
 const BUNDLE_VERSION = 2;
 /** One person's own copy: the workspace's file of them alone, from its first version. */
 const PERSON_BUNDLE_FORMAT = "chanlytics-person-export";

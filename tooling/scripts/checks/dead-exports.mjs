@@ -103,20 +103,25 @@ function suiteTexts() {
 }
 
 /**
- * Whether a test or a script reads `name` of `file` by the module's path: a text that names the path by at least its
- * last two parts (`${S}/calendar/sample.ts` names it so), with or without its extension, and the name as a word. With no
- * name, whether any text names the path: a module only the suite loads.
+ * Whether a test or a script reads `name` of `file` by the module's path. A text names the path by its last two parts,
+ * with or without its extension (`${S}/calendar/sample.ts`), or by its last part with its extension (`${S}/lines.tsx`, or
+ * `"tab.tsx"` in a helper's list of modules). It reads the name where that text names it as a word, or where the text
+ * loads the module whole (`export const kernel = await import(at("…/reader.ts"))`) and any text takes the name off it
+ * (`kernel.READER_CACHE_CAP`). With no name, whether any text names the path: a module only the suite loads.
  */
 export function readByPath(file, name, texts) {
-  const tail = file
-    .replace(/\.(tsx?|mjs|js)$/, "")
-    .split("/")
-    .slice(-2)
-    .join("/");
   const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const at = new RegExp(`[/"'\`]${escape(tail)}(\\.(tsx?|mjs|js))?["'\`]`);
-  const word = name === null ? null : new RegExp(`(^|[^\\w$])${escape(name)}($|[^\\w$])`);
-  return texts.some((text) => at.test(text) && (word === null || word.test(text)));
+  const parts = file.replace(/\.(tsx?|mjs|js)$/, "").split("/");
+  const two = escape(parts.slice(-2).join("/"));
+  const one = escape(file.split("/").at(-1) ?? file);
+  const at = new RegExp(`[/"'\`](${two}(\\.(tsx?|mjs|js))?|${one})["'\`]`);
+  const naming = texts.filter((text) => at.test(text));
+  if (name === null) return naming.length > 0;
+  const word = new RegExp(`(^|[^\\w$])${escape(name)}($|[^\\w$])`);
+  if (naming.some((text) => word.test(text))) return true;
+  const whole = new RegExp(`=\\s*await import\\([^)]*(${two}|${one})`);
+  const member = new RegExp(`\\.${escape(name)}($|[^\\w$])`);
+  return naming.some((text) => whole.test(text)) && texts.some((text) => member.test(text));
 }
 
 /** The modules a module imports by a relative path, as the repository's paths each could be. */
