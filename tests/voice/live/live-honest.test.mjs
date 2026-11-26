@@ -27,6 +27,7 @@ import {
   quiet,
   redrawWanted,
 } from "../../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -105,9 +106,9 @@ installStubReact({
 });
 const S = "../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (surfaces/frame).
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 // frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
-globalThis.usePPToast = () => [null, (m) => flashes.push(m)];
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
 const { StatePill } = globalThis;
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
@@ -382,7 +383,7 @@ test("the call open is the address's: a row opens it by replacing the address, n
   withLive([call(), ada]);
   const navs = [];
   const keep = globalThis.window.appNavigate;
-  globalThis.window.appNavigate = (to, opts) => navs.push([to, opts]);
+  bridgeHolds({ doors: { navigate: (to, opts) => navs.push([to, opts]) } });
   try {
     const rows = callRows(mount());
     rows.find((r) => r.props["data-call-id"] === "c-live-2").props.onClick();
@@ -397,7 +398,7 @@ test("the call open is the address's: a row opens it by replacing the address, n
     fresh();
     assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "and a refresh opens it again");
   } finally {
-    globalThis.window.appNavigate = keep;
+    bridgeHolds({ doors: { navigate: keep } });
   }
 });
 

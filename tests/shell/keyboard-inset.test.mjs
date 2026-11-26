@@ -12,6 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { holdFrameParts } from "./_bridge-holds.mjs";
 
 const heard = {};
 const vv = {
@@ -60,7 +61,7 @@ globalThis.React = {
   useEffect() {},
   useRef: (v) => ({ current: v }),
 };
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { watchKeyboard } = globalThis.window;
 
 const fire = (type) => (heard[type] || []).forEach((fn) => fn());

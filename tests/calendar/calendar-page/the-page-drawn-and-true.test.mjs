@@ -62,7 +62,7 @@ import {
   went,
   withVisits,
 } from "./_calendar-page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 test("REGRESSION (D14): on a desk an appointment opens in the peek at the board's edge, named by its title; Escape closes it, and the board holds still behind it", () => {
   // The visit opened as Ask's old modal (lane E): it is the peek People's, the Pipeline's and Leads' pages draw, beside
@@ -243,7 +243,7 @@ test("REGRESSION (0008): the proposal act closes the visit first and opens the o
 
 test("REGRESSION: More's Set a step closes the visit first and opens the step sheet on the next task, as the proposal act does -- opened over the visit, the record sheet stood hidden behind it, and nothing seemed to happen (census, 13 Oct 2026)", async () => {
   const steps = [];
-  globalThis.window.openStepSheet = (ask) => steps.push(ask);
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openStep: (ask) => steps.push(ask) } } });
   try {
     const tree = peek();
     const more = find(
@@ -265,7 +265,7 @@ test("REGRESSION: More's Set a step closes the visit first and opens the step sh
 
 test("(0008) the proposal act is gated as the sheet's Save is: a role that may not record a deal is told why at the button, and nothing opens", async () => {
   const hadStore = globalThis.window.ST_STORE;
-  globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
+  bridgeHolds({ parts: { roles: { can: () => false, myRole: () => "viewer" } } });
   try {
     const tree = peek();
     const act = startAct(tree);
@@ -279,7 +279,7 @@ test("(0008) the proposal act is gated as the sheet's Save is: a role that may n
     assert.ok(byTestId(page(), "cal-panel"), "and the visit stays");
   } finally {
     if (hadStore === undefined) delete globalThis.window.ST_STORE;
-    else globalThis.window.ST_STORE = hadStore;
+    else bridgeHolds({ parts: { roles: hadStore } });
     forgetPeek();
   }
   // A role that may: no gate on it.

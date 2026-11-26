@@ -37,7 +37,7 @@ installShell(W);
 W.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
 // The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
 const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
-Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet, openShortcuts: shortcutsSheet.openShortcuts });
+Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet });
 
 /** The sidebar and the sheet, as the shell draws them (surfaces/frame/shell-chrome.tsx). */
 const shell = (props = {}) =>

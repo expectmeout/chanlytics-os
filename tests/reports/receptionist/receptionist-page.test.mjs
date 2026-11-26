@@ -20,7 +20,8 @@ import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const navigated = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({});
-Object.assign(globalThis, { CHANLY: { nav: (to) => navigated.push(to), R: { admin: (pane) => `admin/${pane}` } } });
+Object.assign(globalThis, {});
+bridgeHolds({ doors: { navigate: (to) => navigated.push(to) } });
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
 bridgeHolds({

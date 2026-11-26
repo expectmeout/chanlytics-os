@@ -89,11 +89,9 @@ export const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
 export const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/frame-verbs.ts).
-Object.assign(globalThis, {
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  usePPToast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])],
-  canDo: () => true,
-});
+Object.assign(globalThis, {});
+bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 // The page reads through the runner, which the period's own door refreshes through; nothing to boot.
 export let stopRunner = startSurfaces([], () => () => {});

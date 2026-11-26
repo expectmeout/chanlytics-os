@@ -10,10 +10,11 @@ import { until } from "../shared/_until.mjs";
 import { SERIES, dtoWith } from "../reports/people/_people-world.mjs";
 import { firstTouchOf, nothingConnectedOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-v0.ts";
 import { V0, HEAD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
+import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 installStubReact({ CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
 const { api } = await import(`${S}/bridge/api.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);

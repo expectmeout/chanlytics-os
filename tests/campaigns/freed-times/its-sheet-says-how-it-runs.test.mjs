@@ -9,18 +9,14 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, press, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  appNavigate: () => {},
-  ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  useHotkey: () => {},
-});
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+Object.assign(W, {});
+bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const { Sheet } = await import(`${S}/kit/sheet/sheet.tsx`);
 const { SettingsSheet } = await import(`${S}/campaigns/sequences/settings-sheet.tsx`);

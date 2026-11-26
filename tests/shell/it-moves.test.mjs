@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
+import { holdFrameParts } from "./_bridge-holds.mjs";
 
 let reduced = false;
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", ...over });
@@ -37,7 +38,7 @@ globalThis.React = {
   useRef: (v) => ({ current: v }),
   Fragment: "Fragment",
 };
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { touchSwipe, leaving, leaveOverlay } = globalThis.window;
 const { holdMoves } = await import("../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 
@@ -1103,7 +1104,7 @@ test("a strip is walked only where the shell is narrow, and there only where the
   // People's to 900px in components.css): the strip's pager asks the deck whether a finger walks the page on screen.
   const { viewPager } = await import("../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
   const { viewDeck } = await import("../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
-  Object.assign(globalThis.window, { viewPager, viewDeck });
+  Object.assign(globalThis.window, {});
   // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   Object.assign(globalThis.window, {

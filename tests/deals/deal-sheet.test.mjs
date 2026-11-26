@@ -17,7 +17,7 @@ import * as contracts from "@chanlytics/contracts";
 import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
 import { dealSheetBody, dealSheetRefusal } from "../../apps/dashboard/src/surfaces/people/deal-sheet/body.ts";
 import { pipelinePeekOf, pipelineSheetOf } from "../../apps/dashboard/src/surfaces/people/pipeline/peek-view.ts";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 const {
   DEAL_ACT_HINTS,
@@ -1012,18 +1012,12 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  canDo: () => true,
-  gate: () => ({}),
-});
+Object.assign(W, {});
 const SRC = "../../apps/dashboard/src";
 const PEOPLE = "../../apps/dashboard/src/surfaces/people";
 // The Inbox's reply courier (window.threadVerbs) is asked for through the shell's verbs (person-verbs.ts); everything
 // else the sheet reads is imported, as the sheet imports it.
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-// The Inbox's reply courier, which the app publishes for the sheet (seed-globals, from surfaces/inbox/thread/thread-verbs.tsx).
-W.threadVerbs = (await import("../../apps/dashboard/src/surfaces/inbox/thread/thread-verbs.tsx")).threadVerbs;
+holdFrameParts();
 const quietly = async (fn) => {
   const e = console.error;
   console.error = () => {};
@@ -1047,7 +1041,7 @@ await quietly(() => import("../../apps/dashboard/src/bridge/refresh-map.ts"));
 installInboxVerbs();
 // The host's toasts, as the page's stack would draw them.
 const toasts = [];
-W.usePPToast = () => [null, (t) => toasts.push(t)];
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -1361,7 +1355,6 @@ test("a send refused after a good record says both and closes; where it cannot g
     );
     assert.equal(bare.calls.filter((c) => c.path.endsWith("/reply")).length, 0);
   } finally {
-    W.threadVerbs = courier;
   }
 
   // Their window shut: the switch is off, a press cannot turn it on, it says why, and Save says Record.

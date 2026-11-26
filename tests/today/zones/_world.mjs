@@ -16,7 +16,6 @@ export const asked = [];
 
 bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false, refreshSurface: () => {} } });
 installStubReact({});
-Object.assign(globalThis.window, kitPages);
 bridgeHolds({
   who: {
     workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: ZONE }],
@@ -25,16 +24,12 @@ bridgeHolds({
   parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
 });
 Object.assign(globalThis, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  appNavigate: (to) => went.push(to),
   askAbout: (a) => asked.push(a),
-  usePPToast: () => [null, (m) => flashes.push(m)],
-  canDo: () => true,
   mayAtLeast: () => true,
-  gate: () => ({}),
-  useHotkey: () => {},
-  refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
 });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 /** What the pages asked of the wire, by method and path, and the answer each test holds (`answer`), refused by default. */
 export const wire = [];

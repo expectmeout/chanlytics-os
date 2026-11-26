@@ -33,10 +33,8 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(globalThis, {
-  // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
-  __afterTheMoveMs: 0,
-});
+Object.assign(globalThis, {});
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 // On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
 // rest until it is in front (shell/feed/the-runner-heals.test.mjs).
 globalThis.document = { visibilityState: "visible", addEventListener() {}, removeEventListener() {} };

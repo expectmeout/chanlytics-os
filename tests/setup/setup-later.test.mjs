@@ -239,7 +239,7 @@ test("a first read without the member's view puts nothing off, and refuses to sa
 
 test("an owner whose receptionist answers nowhere lands on the first run, once a session", async () => {
   const navs = [];
-  w.appNavigate = (to) => navs.push(to);
+  bridgeHolds({ doors: { navigate: (to) => navs.push(to) } });
   wire.setup = {
     ...SETUP,
     channels: { ...SETUP.channels, voice: { present: false, active: false, number: null, last_inbound_at: null } },

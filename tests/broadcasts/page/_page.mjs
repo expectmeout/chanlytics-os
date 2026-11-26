@@ -32,7 +32,7 @@ import {
   byTestId,
   textOf,
 } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 export const { toBroadcastVM, stateOf, numberHealth } = contracts;
 
@@ -218,20 +218,15 @@ installClock();
 
 // What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work
 // rule (record-fold) and the record sheet. The pages themselves are TSX (decision 0015) and imported below.
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 Object.assign(globalThis, {
-  useHotkey: () => {},
-  usePPToast: () => [null, (t) => toasts.push(t)],
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate: (to) => went.push(to),
-  canDo: () => true,
-  gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 
 export const { BroadcastRun } = await import(`${SRC}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
 

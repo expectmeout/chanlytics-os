@@ -21,7 +21,6 @@ installStubReact({
   MoreMenu: "MoreMenu",
 });
 const W = globalThis.window;
-W.PR_STORE = { away: false, transfers: true };
 // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
 const topbarParts = {
   ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
@@ -46,7 +45,7 @@ Object.assign(W, {
 });
 // The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
 const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
-Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet, openShortcuts: shortcutsSheet.openShortcuts });
+Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet });
 // The route table (surfaces/frame/route-table.tsx), under the names the frame reads it by.
 const routeTable = await importSrc("apps/dashboard/src/surfaces/frame/route-table.tsx");
 Object.assign(W, {

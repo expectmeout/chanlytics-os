@@ -14,7 +14,7 @@
 import { stateOf } from "@chanlytics/contracts";
 import { installStubReact, again, unmount, all, find, classes } from "../../_stub-react.mjs";
 import { KIT_GLOBALS } from "../../../apps/dashboard/src/surfaces/kit/kit-globals.ts";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../_bridge-holds.mjs";
 
 // The app's chrome bridge provides contracts' stateOf as chrome.state (bridge/shell.ts). Without it every
 // StatePill is plain, and no tone could be read here.
@@ -23,14 +23,10 @@ installStubReact({});
 
 export const SRC = "../../../apps/dashboard/src";
 
-Object.assign(globalThis, {
-  CHANLY: { nav: () => {}, R: {} },
-  canDo: () => true,
-  gate: () => ({}),
-  usePPToast: () => [null, () => {}],
-});
+Object.assign(globalThis, {});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 
 export const W = globalThis.window;
 

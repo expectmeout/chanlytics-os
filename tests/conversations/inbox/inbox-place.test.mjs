@@ -20,7 +20,7 @@ import { toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts
 import { installStubReact, fresh, again, find, textOf, settle } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
-import { bridgeHolds, whoIsLooking, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -196,7 +196,7 @@ const { OWN_VERBS } = await import(`${S}/surfaces/inbox/store.ts`);
 const { AFTER } = await quiet(() => import(`${S}/bridge/refresh-map.ts`));
 const { installTabMemory } = await import(`${S}/bridge/tab-memory.ts`);
 // The shell's own toast and role gate, which the pages draw through the bridge (surfaces/frame-verbs.ts).
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
 const click = { stopPropagation() {}, preventDefault() {} };
@@ -597,7 +597,7 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
   };
   installTabMemory(globalThis.window);
   const navs = [];
-  globalThis.window.appNavigate = (to, opts) => navs.push([to, opts]);
+  bridgeHolds({ doors: { navigate: (to, opts) => navs.push([to, opts]) } });
   const base = {
     real: true,
     state: "escalated",
@@ -684,12 +684,16 @@ test("on a phone a thread a tap opens is an entry of its own: Back closes it to 
     addEventListener() {},
     removeEventListener() {},
   });
-  w.appNavigate = (to, opts) => {
-    navs.push([to, opts || null]);
-    if (opts && opts.replace) entries[entries.length - 1] = "#/" + to;
-    else entries.push("#/" + to);
-    w.location.hash = entries.at(-1);
-  };
+  bridgeHolds({
+    doors: {
+      navigate: (to, opts) => {
+        navs.push([to, opts || null]);
+        if (opts && opts.replace) entries[entries.length - 1] = "#/" + to;
+        else entries.push("#/" + to);
+        w.location.hash = entries.at(-1);
+      },
+    },
+  });
   w.history = {
     back: () => {
       backs += 1;

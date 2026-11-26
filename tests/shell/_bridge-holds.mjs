@@ -7,7 +7,11 @@
  *   `activeWorkspaceId`, `pending`, `posture`;
  * - `values`: a surface's value, as its read publishes it (surfaces/surface-values.ts): `people`, `live`, `inbox`, …;
  * - `reads`: a read the bridge holds itself (bridge/held-reads.ts): `notifications`, `reach_out_replies`;
- * - `parts`: a part the bridge installs at boot (bridge/provided.ts): `chrome`, `shell`, `clock`, `surfaceState`, …
+ * - `parts`: a part the bridge installs at boot (bridge/provided.ts): `chrome`, `shell`, `clock`, `surfaceState`, the role
+ *   store `roles`, the charter `policy`, People's `sheets`, …;
+ * - `doors`: the frame's doors a page moves and asks through (surfaces/frame-doors.ts), the ones the test catches:
+ *   `{ navigate: (to) => went.push(to) }`, where a page's own move went to a stand-in window's `CHANLY.nav` until
+ *   26 Nov 2026. A door not handed in says it is missing, as it does before the frame draws.
  *
  * `fresh` empties the bridge's parts, its reads and who is looking first, as a new window did; a surface's values are the
  * seam's, which a new window never emptied, and are left. `undefined` takes one away.
@@ -26,6 +30,9 @@ const { provide, provided } = requireFromDashboard("./provided.ts");
 const { holdRead, heldRead } = requireFromDashboard("./held-reads.ts");
 const { holdWhoIsLooking, whoIsLooking } = requireFromDashboard("./who.ts");
 const { setSurfaceValue, surfaceValue } = requireFromDashboard("../surfaces/surface-values.ts");
+const { emptyDoors, fillDoors } = requireFromDashboard("../surfaces/frame-doors.ts");
+const { installTip } = requireFromDashboard("../surfaces/frame/tip.ts");
+const { hearFocusOutside } = requireFromDashboard("../surfaces/kit/focus/trap.ts");
 
 /** Every part the bridge installs (provided.ts `BridgeParts`), so a fresh world holds none of them. */
 const PARTS = [
@@ -55,16 +62,25 @@ const PARTS = [
   "refreshPlaybooks",
   "calendar",
   "billing",
+  "roles",
+  "policy",
+  "sheets",
+  "peopleScopes",
+  "phoneDoor",
+  "afterTheMoveMs",
+  "toast",
 ];
 
 /** Every read the bridge holds itself (held-reads.ts `HeldReads`). */
 const READS = ["workspace", "notifications", "reach_out_replies"];
 
-export function bridgeHolds({ who, values, reads, parts } = {}, { fresh = false } = {}) {
+export function bridgeHolds({ who, values, reads, parts, doors } = {}, { fresh = false } = {}) {
   if (fresh) {
     for (const name of PARTS) provide(name, undefined);
     for (const key of READS) holdRead(key, undefined);
+    emptyDoors();
   }
+  if (doors) fillDoors(doors);
   if (who) holdWhoIsLooking(who);
   for (const [key, value] of Object.entries(values ?? {})) setSurfaceValue(key, value);
   for (const [key, value] of Object.entries(reads ?? {})) holdRead(key, value);
@@ -73,3 +89,14 @@ export function bridgeHolds({ who, values, reads, parts } = {}, { fresh = false 
 
 /* What the bridge holds, read back by a test as the app reads it. */
 export { provided, heldRead, whoIsLooking, surfaceValue };
+
+/**
+ * The frame's own parts a page draws with, as the boot installs them (bridge/boot/installs.ts): the one tooltip and the
+ * focus a dialog gives back. What a test called `installFrameGlobals()` for until 26 Nov 2026, less the names it put on
+ * the window, which the app no longer reads. The role store is not among them: a test that draws a role gives it
+ * (`parts: { roles }`, or who is looking).
+ */
+export function holdFrameParts() {
+  installTip();
+  hearFocusOutside();
+}

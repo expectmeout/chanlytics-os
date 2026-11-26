@@ -12,6 +12,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM, frameWhisper, frameHandOver } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -67,9 +68,9 @@ const sent = [];
 installStubReact({ CHANLY: { nav: () => {} }, setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
 // The end is confirmed through the shared Confirm, and a control asks the role gate: the shell's JSX (surfaces/frame), drawn for real.
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 // frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
-globalThis.usePPToast = () => [null, (m) => flashed.push(m)];
+bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push(m)] } });
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 

@@ -111,8 +111,6 @@ export const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/
 // asked on every draw, since this stub React holds no external store.
 export const { needsYouNow } = await importSrc("apps/dashboard/src/surfaces/needs-you.ts");
 
-win.useNeedsYou = () => needsYouNow();
-
 export const bridgeApi = await importSrc("apps/dashboard/src/bridge/api.ts");
 
 export const readCaches = await importSrc("apps/dashboard/src/bridge/read-cache.ts");
@@ -180,8 +178,6 @@ export const frames = hookFrames();
 /** Deep for the line, which is all in one file; shallow for the shell, whose children are other files' pages. */
 export let deep = true;
 
-globalThis.Icon = "Icon";
-
 globalThis.React = {
   Fragment: "Fragment",
   Component: class {},
@@ -238,9 +234,6 @@ globalThis.React = {
     return snapshot();
   },
 };
-
-// The bridge's hook the shell redraws on (surface-status.ts), over this React.
-globalThis.useSurface = (await importSrc("apps/dashboard/src/bridge/surface-status.ts")).surfaceHook(globalThis.React);
 
 // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by: TypeScript, so their
 // hooks are this file's stub's (the "react" module's, set from it).

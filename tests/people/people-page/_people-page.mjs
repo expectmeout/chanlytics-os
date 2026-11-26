@@ -30,7 +30,7 @@ import { until } from "../../shared/_until.mjs";
 import { CONSENT_SOURCES, ROLE_PERMS, mayReceive, offersYesRefusal, stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 export const TID = "t-salon";
 
@@ -344,8 +344,6 @@ export const opened = [];
 
 export const went = [];
 
-globalThis.Icon = "Icon";
-
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -398,18 +396,10 @@ globalThis.React = {
 // A page that has left the shell is TSX and takes its hooks from the react module, which has none under this runner.
 useStubHooks();
 
-globalThis.ReactDOM = { createPortal: (node) => node };
-
 // The hooks the TSX imports from the react module (it has none under this runner): the stub's own.
 useStubHooks(globalThis.React);
 
-// The shell's own hook (bridge/surface-status.ts) for the JSX pages this file still loads: these tests draw once, and
-// the redraw is proved in shell/surfaces. PeopleReal, being TSX, reads People through the real useSurface.
-globalThis.useSurface = () => 0;
-
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "mayAtLeast"])
   globalThis[k] = globalThis.window[k];
@@ -430,14 +420,6 @@ export const mayOnly = (can) => {
   };
 };
 
-// The kit's own menu and question, drawn as the page draws them: a test finds them by type (`n.type === MoreMenu`) and
-// presses their items, which are their props.
-globalThis.MoreMenu = kitPages.MoreMenu;
-
-globalThis.Confirm = kitPages.Confirm;
-
-globalThis.useHotkey = () => {};
-
 // Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops: People draws no peek, and the
 // Leads scope a test here draws over it needs them named.
 globalThis.leadArmOnReturn = () => () => undefined;
@@ -446,7 +428,6 @@ globalThis.leadPeekFocus = () => () => undefined;
 
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, (t) => flashes.push(t)],
   AttnRow: () => null,
   CHANLY: {
     nav: (to) => went.push(to),
@@ -457,13 +438,7 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
-
-// People's parts the shell still reads by name (people-globals.ts: the strip's scopes, the deal and step sheets), on the
-// window and as the bare names a classic script reads. The saved lists' verbs are imported by the pages that press them
-// (lists/actions.ts), and the page itself is TSX, imported here.
-Object.assign(globalThis.window, peoplePages);
-
-Object.assign(globalThis, peoplePages);
+bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
 
 export const { PeopleReal } = await import("../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 
@@ -533,7 +508,6 @@ export const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame
 
 Object.assign(globalThis.window, {
   ShortcutsSheet: shortcutsSheet.ShortcutsSheet,
-  openShortcuts: shortcutsSheet.openShortcuts,
 });
 
 /** A tree walked once per node: a drawn component is its children as it was given them and what it rendered, and the two share nodes. */

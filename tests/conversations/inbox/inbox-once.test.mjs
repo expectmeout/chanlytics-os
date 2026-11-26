@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, walk } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -112,14 +112,13 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
 });
 // The shell's own toast and role gate, which the pages draw through the bridge (surfaces/frame-verbs.ts).
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
 const itemsIn = (menu) => menu.props.groups.flatMap((g) => g.items);
 

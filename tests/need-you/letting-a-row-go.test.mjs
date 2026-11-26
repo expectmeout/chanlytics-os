@@ -86,7 +86,7 @@ function drawn(row, rung) {
 
 test("an owner's email row says Not a person under Not now's times, and it opens their page with it asked", () => {
   const went = [];
-  globalThis.appNavigate = (to) => went.push(to);
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const { menu, item } = drawn(rowOf("Email"), "owner");
   assert.equal(menu.props.label, NEED_YOU_WORDS.notNowFor("Weekly Digest"));
   assert.ok(item, "REGRESSION: a program's mail in Need you could be let go only from its thread, three presses away");

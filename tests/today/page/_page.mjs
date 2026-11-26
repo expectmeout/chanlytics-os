@@ -40,9 +40,6 @@ bridgeHolds({
 });
 installStubReact({});
 
-// The kit's parts the pages here draw by name or the tests reach (kitParts: the attention row, the record kit ...).
-Object.assign(globalThis.window, kitPages);
-
 export const { TodayAlertBand } = await import("../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 
 export const { TodaySetup } = await import("../../../apps/dashboard/src/surfaces/today/zones/setup-card.tsx");
@@ -93,15 +90,11 @@ bridgeHolds({
   parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
 });
 Object.assign(globalThis, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  appNavigate: (to) => went.push(to),
   askAbout: (a) => asked.push(a),
-  usePPToast: () => [null, (m) => flashes.push(m)],
-  canDo: () => true,
-  gate: () => ({}),
-  useHotkey: () => {},
-  refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
 });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 // A verb the queue asks of the Inbox goes through the typed client to `fetch`: the workspace it names is this tab's, and
 // the refresh a landed write runs reads through the runner (nothing to boot). Any read is refused unless a test holds it.

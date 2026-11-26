@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "./_bridge-holds.mjs";
 
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", paddingBottom: "0px", ...over });
 globalThis.window = {
@@ -26,8 +26,6 @@ globalThis.window = {
   dispatchEvent() {
     return true;
   },
-  // What React's flushSync does, for what these tests ask of it: the change is drawn before it returns.
-  ReactDOM: { flushSync: (fn) => fn() },
 };
 globalThis.document = {
   addEventListener() {},
@@ -43,7 +41,7 @@ globalThis.React = {
   useRef: (v) => ({ current: v }),
   Fragment: "Fragment",
 };
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { holdStill, routeDoor } = globalThis.window;
 
 /**
@@ -207,7 +205,7 @@ test("a door is a link: its address in the href, the app's own way there on a pl
   assert.equal(went, null, "a new tab or window is the browser's");
   assert.equal(prevented, false);
   const navs = [];
-  globalThis.window.CHANLY = { nav: (to) => navs.push(to) };
+  bridgeHolds({ doors: { navigate: (to) => navs.push(to) } });
   routeDoor("calendar/2026-09-28").onClick({ button: 0, preventDefault() {} });
   assert.deepEqual(navs, ["calendar/2026-09-28"], "without a way of the page's own, the app's navigation");
 });

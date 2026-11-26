@@ -14,7 +14,8 @@ const { roleOf, installRoles } = await importSrc("apps/dashboard/src/bridge/iden
 const windowWith = ({ me, viewAs = null } = {}) => {
   const store = { viewAsRole: viewAs, myRole: () => "owner" };
   bridgeHolds({ who: { me: me } });
-  const win = { ST_STORE: store, ...(me === undefined ? {} : {}) };
+  const win = { ...(me === undefined ? {} : {}) };
+  bridgeHolds({ parts: { roles: store } });
   installRoles(win);
   return { win, store };
 };

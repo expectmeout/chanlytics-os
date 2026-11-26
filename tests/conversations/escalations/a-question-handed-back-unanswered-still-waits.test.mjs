@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { stateOf, theyWroteLast, toInboxThreadVM } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { all, again, find, fresh, installStubReact, textOf } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -268,7 +268,7 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { InboxThread } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;

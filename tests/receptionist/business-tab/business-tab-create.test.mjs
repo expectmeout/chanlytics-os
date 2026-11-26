@@ -379,7 +379,7 @@ test("a receptionist is set up with no booking link: the box says it is optional
 /* ------------------------------------ who may do it ------------------------------------ */
 
 test("a role that may not change the business is told why, and nothing opens for it", () => {
-  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  bridgeHolds({ parts: { roles: { can: (perm) => perm !== "settings", myRole: () => "viewer" } } });
   try {
     const sent = saving();
     let tree = drawCreate();

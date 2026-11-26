@@ -22,7 +22,6 @@ import { bridgeHolds } from "../_bridge-holds.mjs";
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -76,10 +75,6 @@ globalThis.window = {
   location: { hash: "", pathname: "/w/marisas", origin: "https://app.chanlytics.com" },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  CHANLY: { nav() {}, agentIdFor: (n) => String(n).toLowerCase().replace(/ /g, "-") },
-  usePPToast: () => [null, () => {}],
-  gate: () => ({}),
-  canDo: () => true,
   gateTitle: () => null,
   addEventListener() {},
   removeEventListener() {},
@@ -91,6 +86,7 @@ globalThis.window = {
   setInterval: () => 1,
   clearInterval() {},
 };
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: { appendChild() {} } };
 
 const win = globalThis.window;
@@ -99,7 +95,6 @@ win.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sideba
 // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
 // publishes it (seed-globals.ts); its hooks are this file's stub's.
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
-globalThis.ViewTabs = (await import("../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
 // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
 Object.assign(win, {
@@ -238,7 +233,6 @@ test("the strip's badge is the count that already exists, not a second reading o
   // The one number every surface says (surfaces/needs-you.ts, published as `window.useNeedsYou`): the strip is handed it and
   // counts nothing of its own, so no row of INBOX_DATA can make it say another.
   bridgeHolds({ values: { inbox: { THREADS: [{ id: "c1", real: true, needsYou: true }] } } });
-  win.useNeedsYou = () => 2;
   assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
   assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");
   assert.match(
@@ -246,9 +240,7 @@ test("the strip's badge is the count that already exists, not a second reading o
     /\btally-warn\b/,
     "amber: it counts people who need you, as the Needs you pill does",
   );
-  win.useNeedsYou = () => 0;
   assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
-  win.useNeedsYou = () => null;
   assert.equal(strip("inbox")[0].badge, null, "and none before the Inbox has been read");
   delete win.useNeedsYou;
 });

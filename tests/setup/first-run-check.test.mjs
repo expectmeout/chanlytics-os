@@ -22,8 +22,8 @@ after(() => unmount());
 const flashes = [];
 Object.assign(W, {
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  usePPToast: () => [null, (m) => flashes.push(m)],
 });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
 // Setup's verbs are the module object the TSX calls; stubbed in place, and `window.__setup` is the same object.
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 Object.assign(setupVerbs, {

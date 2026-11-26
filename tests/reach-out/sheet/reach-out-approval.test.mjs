@@ -24,7 +24,7 @@ import {
   settle,
 } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
@@ -35,13 +35,11 @@ const TODAY = dayKey(Date.now());
 const YESTERDAY = dayKey(Date.now() - 86_400_000);
 const role = { now: "owner" };
 bridgeHolds({ parts: { clock: { zone: () => ZONE, dayKey } } });
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  ST_STORE: { can: (a) => !!(contracts.ROLE_PERMS[role.now] || {})[a], myRole: () => role.now },
-});
+Object.assign(W, {});
+bridgeHolds({ parts: { roles: { can: (a) => !!(contracts.ROLE_PERMS[role.now] || {})[a], myRole: () => role.now } } });
 // The shell's own parts (Confirm, StatePill, PolicyChip, the role gate) are still JSX the frame loads; the run's page is TSX.
 const SRC = "../../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces/campaigns";
 const { BroadcastDetail } = await import(`${S}/broadcasts/run.tsx`);
 const { broadcasts } = await import(`${S}/broadcasts/verbs.ts`);

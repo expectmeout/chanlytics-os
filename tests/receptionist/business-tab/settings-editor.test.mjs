@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 
@@ -94,7 +94,6 @@ const slot = () => {
 };
 const toasts = [];
 const saved = [];
-globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.Sparkline = "Sparkline";
@@ -179,10 +178,7 @@ globalThis.React = {
   isValidElement: (n) => !!n && typeof n === "object" && "type" in n && "props" in n,
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// The record kit's folds answer the rail's question too, and the kit is published before any page, as it is in the app.
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 useStubHooks();
 const kitUnsaved = globalThis.window.__settingsUnsaved;
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
@@ -210,13 +206,10 @@ bridgeHolds({
   },
 });
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, (t) => toasts.push(t)],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
-  canDo: () => true,
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 await import("./_business-parts.mjs");
 // The page and its tabs are the TSX module (decision 0015 step 11), imported as the app imports it.
 const { SettingsPage } = await import("../../../apps/dashboard/src/surfaces/settings/frame/page.tsx");

@@ -18,7 +18,7 @@ import { frameBell, frameChrome } from "../frame-window";
 import { NotifPopover, type BellNote } from "./notif-popover";
 import type { BellApi } from "@/bridge/notifications";
 import { Icon } from "../../kit/icon/icon";
-import { usePPToast } from "../flash";
+import { useFrameToast } from "../flash";
 
 type Flash = (p: FrameFlash) => void;
 type Bell = BellApi;
@@ -366,7 +366,7 @@ export function Topbar({
   onMenu = () => {},
   right = null,
 }: TopbarProps) {
-  const [toastNode, flash] = usePPToast();
+  const [toastNode, flash] = useFrameToast();
   const bell = useBell(flash);
   const { next: themeNext, said: themeSaid } = themeOf(theme, themePref);
   return (

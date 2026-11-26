@@ -172,8 +172,6 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
   const verbs = () =>
     BcRunVerbs({ row: toBroadcastVM(stale, ZONE), ...acts, approve: (row) => void broadcasts.approve(row.id) });
   try {
-    // Where the shell gates a control (frame-globals gatedProps), the button carries the verb's own sentence.
-    globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
     let approve = byTestId(verbs(), "bc-approve");
     assert.equal(approve.props["aria-disabled"], true);
     assert.match(

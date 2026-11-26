@@ -36,7 +36,7 @@ import {
   settle,
 } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -262,7 +262,7 @@ const S = "../../apps/dashboard/src";
 const { installClock } = await import(`${S}/bridge/zone.ts`);
 installClock();
 // What the shell still owns and the pages draw by name: Confirm, StatePill, PolicyChip (frame-globals), the unsaved-work rule (record-fold).
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { installPolicyStore } = await import(`${S}/bridge/policy-store.ts`);
 const { policiesNow } = await import(`${S}/surfaces/settings/business/shell.ts`);
 installPolicyStore(globalThis.window, policiesNow);
@@ -433,7 +433,7 @@ test("a run's stop is asked where it can be read: at its head on a desk, where t
   };
   // The page's toast, kept here: the frame's own closes itself on a timer, after the test.
   toasts.length = 0;
-  globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
+  bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
   const props = { initialRun: "b-sending" };
   const part = (tree, tag) => find(byTestId(tree, "bc-run-solo"), (n) => n.type === tag);
   // The run's page once its report is read, its Stop at its head.
@@ -494,7 +494,7 @@ test("a run's stop is asked where it can be read: at its head on a desk, where t
   } finally {
     broadcasts.cancel = keep.cancel;
     globalThis.matchMedia = keep.media;
-    globalThis.window.usePPToast = keep.toast;
+    bridgeHolds({ parts: { toast: keep.toast } });
   }
 });
 
@@ -747,7 +747,7 @@ test("D1-run-words: a run still to come is stopped on Today's day as Sent cancel
     },
   });
   toasts.length = 0;
-  globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
+  bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
   try {
     fresh();
     let band = DayZone();
@@ -777,7 +777,7 @@ test("D1-run-words: a run still to come is stopped on Today's day as Sent cancel
     assert.equal(textOf(toasts.at(-1).msg), "Offers canceled · nothing will send");
   } finally {
     bridgeHolds({ parts: { broadcasts: keep.verbs } });
-    globalThis.window.usePPToast = keep.toast;
+    bridgeHolds({ parts: { toast: keep.toast } });
     setSurfaceValue("today", undefined);
   }
 });

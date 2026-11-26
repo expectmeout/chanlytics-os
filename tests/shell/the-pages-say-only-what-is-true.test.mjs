@@ -27,7 +27,7 @@ import {
   find,
 } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds, whoIsLooking } from "./_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, whoIsLooking } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -218,7 +218,6 @@ test("a call's note names the thread it went to, never a channel the caller may 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -273,17 +272,13 @@ globalThis.React = {
     frames.key();
     return snapshot();
   },
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+}; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 globalThis.document = {
   body: {},
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  CHANLY: { nav() {}, R: {} },
-  gate: () => ({}),
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
@@ -293,12 +288,8 @@ bridgeHolds(
   { parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou }, surfaceState: () => "live" } },
   { fresh: true },
 );
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// The record kit, published as the app publishes it before any page loads.
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 useStubHooks();
-// The kit's components (Confirm, StatePill, ...) are on the window the pages read them off (seed-globals, in the app).
-Object.assign(globalThis.window, kitPages);
 // The shell's doors the TSX Campaigns pages reach (by name, through the bridge's verbs), kept for the tests that draw them at the foot.
 const shellDoors = {};
 for (const k of [
@@ -315,7 +306,6 @@ for (const k of [
   "FieldError",
 ])
   shellDoors[k] = globalThis.window[k];
-globalThis.StatePill = kitPages.StatePill;
 const { OutcomePill } = await import("../../apps/dashboard/src/surfaces/inbox/pages/outcome-pill.tsx");
 
 const walk = (n, fn) => {
@@ -364,14 +354,10 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
 
 /* ------------- Today: a dark line silences the reassurance -------------- */
 
-Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
-globalThis.PolicyChip = kitPages.PolicyChip;
+Object.assign(globalThis, { EmptyState: kitPages.EmptyState });
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
-globalThis.useHotkey = () => {};
 Object.assign(globalThis.window, {
-  canDo: () => true,
-  appNavigate() {},
   setInterval: () => 1,
   clearInterval() {},
   dispatchEvent() {},
@@ -869,7 +855,6 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     outcome: async () => true,
     commit: async () => ({ ok: true, receipt: "", undo: null }),
   });
-  globalThis.window.canDo = () => true;
   const t = askText("en");
   const buttons = (tree) => {
     const out = [];
@@ -951,7 +936,6 @@ test("a deal card's Open goes to the person's page: a kind the card's maps did n
     // Where a card's Open goes is the contract's (ask/answer/normalize.ts), as the bridge publishes it.
     cardOpenRoute,
   });
-  globalThis.window.canDo = () => true;
   const buttons = (tree) => {
     const out = [];
     walk(tree, (n) => {
@@ -1055,7 +1039,6 @@ const campaignsWorld = async () => {
     setInterval: () => 1,
     clearInterval() {},
   });
-  Object.assign(globalThis.window, kitPages);
   const { MessageInPlace } = await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
   const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
   campaigns = { toasts, MessageInPlace, setSurfaceValue };

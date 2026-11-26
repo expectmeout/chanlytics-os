@@ -7,14 +7,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HANDOVER_WORDS, PARTNER_WORDS, SECOND_FACTOR_WORDS } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press, settle } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 /** The code box the team card draws: the kit field's own input, which takes the event, not the field's words. */
 const teamCodeBox = (tree) =>
   all(tree, (n) => n.type === "input" && n.props?.["data-testid"] === "team-partner-code")[0];
 
 installStubReact();
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 const { partnerVerbs } = await import("../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
 const { PanePartner } = await import("../../apps/dashboard/src/surfaces/settings/partner/pane.tsx");
@@ -631,7 +631,7 @@ test("Team: an owner's View as another role sees no card, as that role would; th
   teamRead();
   const drawTeam = () => again(() => globalThis.React.createElement(PaneTeam, { flash }));
   const store = { viewAsRole: "viewer", can: () => false, myRole: () => "viewer" };
-  globalThis.window.ST_STORE = store;
+  bridgeHolds({ parts: { roles: store } });
   try {
     fresh();
     drawTeam();

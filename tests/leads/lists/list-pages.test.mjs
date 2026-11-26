@@ -10,13 +10,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
 const SRC = "../../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const bridge = await import(`${S}/campaigns/reach-out/surface.ts`);
 const { LeadImportSheet, useLeadLists } =
@@ -28,11 +28,7 @@ const { FieldError } = await import(`${S}/kit/field-error/field-error.tsx`);
 
 const flashed = [];
 bridgeHolds({ parts: { clock: { zone: () => "America/Chicago" } } });
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  canDo: () => true,
-  gate: () => ({}),
-});
+Object.assign(W, {});
 const IMPORTED = {
   search_id: "s-list",
   round_id: "r-list",

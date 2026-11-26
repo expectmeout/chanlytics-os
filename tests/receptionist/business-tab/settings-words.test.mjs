@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { smsStateRow, connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const { setupSteps, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -272,7 +272,6 @@ const slot = () => {
   return `${f.key}#${f.hook++}`;
 };
 const saved = [];
-globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.Sparkline = "Sparkline";
@@ -350,9 +349,7 @@ globalThis.React = {
   isValidElement: (n) => !!n && typeof n === "object" && "type" in n && "props" in n,
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 bridgeHolds({
@@ -366,13 +363,10 @@ bridgeHolds({
   },
 });
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
-  canDo: () => true,
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Autonomy's rows are the seam's
 // policies, its one door a module object a test stands a door in on.

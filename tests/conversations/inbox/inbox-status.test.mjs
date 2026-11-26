@@ -15,7 +15,7 @@ import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
 import { installStubReact, fresh, again, settle, quiet, redrawWanted } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -105,7 +105,7 @@ installStubReact({
 });
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const { InboxThread } = await import(`${S}/inbox/thread/thread.tsx`);
 const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);

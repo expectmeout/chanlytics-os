@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { toastShape, TOAST_MS, TOAST_UNDO_MS, TOAST_MAX_MS, TOAST_MIN_MS, TOAST_ICONS } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks } from "../_stub-react.mjs";
-import { bridgeHolds, provided } from "./_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "./_bridge-holds.mjs";
 
 /* ---------------------------- the shape ------------------------------- */
 
@@ -100,7 +100,6 @@ const fresh = () => {
   cells = [];
   timers.length = 0;
 };
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -147,7 +146,6 @@ globalThis.React = {
     }
   },
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
 // The document's listeners, by type: the toast's press besides is heard here.
 const heard = {};
 // Every listener of each type, in the order they were added: the tip's are the last the file adds as it loads.
@@ -180,7 +178,6 @@ globalThis.document = {
 globalThis.innerWidth = 375;
 globalThis.innerHeight = 812;
 globalThis.window = {
-  CHANLY: { nav() {} },
   addEventListener() {},
   removeEventListener() {},
   setTimeout: (fn, ms) => {
@@ -194,7 +191,7 @@ globalThis.window = {
 bridgeHolds({ parts: { chrome: { toast: toastShape } } }, { fresh: true });
 // The toast is TSX (surfaces/frame/flash.tsx), and takes its hooks from "react": this file's stub, set there.
 kitHooks();
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 // The file ends with its tip: the last listener of each type it added as it loaded is the tip's.
 const tipHeard = Object.fromEntries(Object.entries(allHeard).map(([type, fns]) => [type, fns[fns.length - 1]]));
 const usePPToast = globalThis.window.usePPToast;

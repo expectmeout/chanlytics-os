@@ -653,7 +653,6 @@ test("Settings offers the door the privacy page promises: one link, owners only,
     addEventListener: () => {},
     removeEventListener: () => {},
   };
-  globalThis.Icon = "Icon";
   // The card is the TSX module's (settings/frame/workspace.tsx), which imports the record kit's row.
   const { WorkspaceData: Card } = await import("../../../apps/dashboard/src/surfaces/settings/frame/workspace.tsx");
   assert.equal(typeof Card, "function", "exported, or nothing below tests anything");

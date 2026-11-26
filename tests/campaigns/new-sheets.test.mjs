@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, classes, textOf, press } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -43,16 +43,13 @@ const SRC = "../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
 // The shell's own components the sheets draw by name, and its door to a route: the frame's JSX.
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: contracts.stateOf } } });
 Object.assign(globalThis, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate() {},
-  canDo: () => true,
-  gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { WhenSheet, ChannelsSheet, FromSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-sheets.tsx`);
 const { MessageSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-message-sheets.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);

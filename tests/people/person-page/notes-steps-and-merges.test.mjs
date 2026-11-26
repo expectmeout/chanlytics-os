@@ -44,7 +44,7 @@ import {
   world,
   worldFetch,
 } from "./_person-page.mjs";
-import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 test("a person's notes are a log (0007): AI's suggestion first, then newest first, each signed and dated, who it is for and whether AI reads it", () => {
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
@@ -168,7 +168,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
   const asked = () => dispatched.filter((e) => e.type === "step:sheet").map((e) => e.detail);
   const keep = { toast: globalThis.window.usePPToast };
   recordingNotes(sent);
-  globalThis.window.usePPToast = () => [null, (t) => flashes.push(t)];
+  bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
   const W = contracts.NOTE_WORDS;
   try {
     const draw = await notesTab(vm);
@@ -286,7 +286,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
       { body: "Allergic to ammonia.", for_user_id: null, team_only: false, note_id: "n-plain", version: 1 },
     ]);
   } finally {
-    globalThis.window.usePPToast = keep.toast;
+    bridgeHolds({ parts: { toast: keep.toast } });
   }
 });
 
@@ -299,7 +299,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
   const keep = { sheet: globalThis.window.openStepSheet, me: whoIsLooking().me };
   recordingNotes(sent);
   // The card asks the shell's step sheet, which the frame draws once: here, a stand-in that says it was asked.
-  globalThis.window.openStepSheet = (ask) => (asked.push(ask), true);
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openStep: (ask) => (asked.push(ask), true) } } });
   const S = contracts.NOTE_WORDS;
   try {
     const notes = [
@@ -379,7 +379,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     tree = await openedRow(withDeals([dealRow()], { person_notes: [], note_team: NOTE_TEAM }), "overview");
     assert.equal(byTestId(tree, "person-deal-set-nextstep"), null);
   } finally {
-    globalThis.window.openStepSheet = keep.sheet;
+    bridgeHolds({ parts: { sheets: { ...provided("sheets"), openStep: keep.sheet } } });
     bridgeHolds({ who: { me: keep.me } });
     globalThis.window.fetch = keep.fetch;
   }

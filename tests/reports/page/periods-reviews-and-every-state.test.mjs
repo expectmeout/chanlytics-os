@@ -722,10 +722,14 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
   const answered = { ...ana, reply_text: "Thank you, Ana!", replied_at: "2026-09-04T14:00:00Z" };
   // The shell's toast, as the shell holds it: the state of the component that asked for it, drawn only while that component is.
   const shellToast = globalThis.usePPToast;
-  globalThis.usePPToast = () => {
-    const [said, say] = globalThis.React.useState(null);
-    return [said ? globalThis.React.createElement("div", { "data-testid": "toast" }, textOf(said.msg)) : null, say];
-  };
+  bridgeHolds({
+    parts: {
+      toast: () => {
+        const [said, say] = globalThis.React.useState(null);
+        return [said ? globalThis.React.createElement("div", { "data-testid": "toast" }, textOf(said.msg)) : null, say];
+      },
+    },
+  });
   keepReportPeriod("7d");
   holdReviews(NORTHSIDE, northsideLedger());
   reviewReply.posted.length = 0;
@@ -782,7 +786,7 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
     );
   } finally {
     reviewReply.now = null;
-    globalThis.usePPToast = shellToast;
+    bridgeHolds({ parts: { toast: shellToast } });
     setLensAt(LENS_PATHS[0]);
     setSurfaceValue("reports_reviews", undefined);
     // The answer's re-read of Today, not served here, is asked for again 2 and 10 s later (RETRY_AFTER_MS): drop it.

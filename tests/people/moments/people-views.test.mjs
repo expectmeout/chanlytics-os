@@ -18,7 +18,6 @@ import { importSrc } from "../../_source.mjs";
 
 let cells = [];
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -76,7 +75,6 @@ const { headNow, headUnder } = await import("../../../apps/dashboard/src/surface
 // The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
 // publishes it (seed-globals.ts); its hooks are this file's stub's.
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
-globalThis.ViewTabs = (await import("../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
 // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
 Object.assign(globalThis.window, {

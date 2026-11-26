@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, unmount, again, settle, find, byTestId, textOf, press } from "../_stub-react.mjs";
-import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 const { STEP_SHEET_WORDS, NOTE_REFUSALS, dealStepOf, stepSheetBody, stepSheetDirty, stepSheetFor, zoneDayKey } =
   contracts;
@@ -283,15 +283,11 @@ bridgeHolds({
     activeWorkspaceId: "t1",
   },
 });
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  canDo: () => true,
-  gate: () => ({}),
-});
+Object.assign(W, {});
 const SRC = "../../apps/dashboard/src";
 // The shell's own verbs the sheet still asks for (window.gate, window.usePPToast) are the frame's; everything else it
 // reads is imported, as the sheet imports it.
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const quietly = async (fn) => {
   const e = console.error;
   console.error = () => {};
@@ -310,7 +306,7 @@ await quietly(() => import("../../apps/dashboard/src/bridge/refresh-map.ts"));
 // The courier's window names, for the last test: the Inbox's thread still writes a step through window.__personNotes.
 installPeopleCourier();
 const toasts = [];
-W.usePPToast = () => [null, (t) => toasts.push(t)];
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 
 /** A person as the person read hands them over: a proposal out, a teammate, and their notes. */
 const personDto = (now, notes = []) => {

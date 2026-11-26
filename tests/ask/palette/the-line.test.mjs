@@ -916,7 +916,7 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
   let role = "operator";
   // As the shell's are: the gate each kind checks (the bridge publishes contracts' PROPOSAL_GATE) and the member's role.
   globalThis.window.PROPOSAL_GATE = PROPOSAL_GATE;
-  globalThis.window.ST_STORE = { can: (a) => !!(ROLE_PERMS[role] || {})[a], myRole: () => role };
+  bridgeHolds({ parts: { roles: { can: (a) => !!(ROLE_PERMS[role] || {})[a], myRole: () => role } } });
   // An invitation made before an operator was refused one (a thread read back): its gate is `team`, an owner's.
   const card = {
     id: "p1",
@@ -968,7 +968,7 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
     assert.deepEqual(committed, ["p1"]);
     assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Invited ada@example.com as viewer"));
   } finally {
-    globalThis.window.ST_STORE = was.store;
+    bridgeHolds({ parts: { roles: was.store } });
     globalThis.window.PROPOSAL_GATE = was.gate;
   }
   await closes();

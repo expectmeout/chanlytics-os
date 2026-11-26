@@ -14,7 +14,7 @@ import { SbMenu, UserMenu, WorkspaceMenu, useSbMenu } from "./sidebar-menus";
 import { SbWorkspaceFace, sbTeamSub, sbWho, sbWorkspace, sbWorkspaceName, type SbWho } from "./sidebar-who";
 import { Icon } from "../../kit/icon/icon";
 import { touchSwipe } from "../../kit/motion/swipe";
-import { usePPToast } from "../flash";
+import { useFrameToast } from "../flash";
 
 type Badges = Record<string, string | number | null | undefined>;
 
@@ -250,7 +250,7 @@ export function Sidebar({
   onLook,
 }: SidebarProps) {
   useSidebarRedraws();
-  const [toastNode, flash] = usePPToast();
+  const [toastNode, flash] = useFrameToast();
   const who = sbWho();
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} {...drawerSwipeOf(onClose)} data-testid="sidebar">

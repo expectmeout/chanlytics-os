@@ -64,11 +64,9 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
   );
   const drawn = (inboxNeeds) => {
     const prev = globalThis.window.TabBar;
-    globalThis.window.TabBar = function TabBar() {};
     try {
       return PhoneTabs({ page: "inbox", param: null, inboxNeeds, onNavigate() {}, onMenu() {}, onPlace() {} });
     } finally {
-      globalThis.window.TabBar = prev;
     }
   };
   const bar = drawn(3);

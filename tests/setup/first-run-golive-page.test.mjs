@@ -492,7 +492,6 @@ test("Switch it on: a role that may not save the forwarding sees the questions a
     await go.props.onClick();
     assert.deepEqual(saved, []);
   } finally {
-    globalThis.window.canDo = () => true;
   }
 });
 
@@ -957,7 +956,6 @@ test("You're live: a refused Open Today stays and says why, and again goes on; a
     globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
     assert.equal(byTestId(open(), "fr-live-note"), null);
   } finally {
-    globalThis.window.canDo = () => true;
     setupVerbs.activate = readyActivate;
     answer = null;
   }

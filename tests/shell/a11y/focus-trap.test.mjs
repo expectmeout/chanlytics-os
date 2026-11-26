@@ -11,6 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact } from "../../_stub-react.mjs";
+import { holdFrameParts } from "../_bridge-holds.mjs";
 
 installStubReact();
 const heard = {};
@@ -21,7 +22,7 @@ const doc = {
   removeEventListener() {},
 };
 globalThis.document = doc;
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { trapFocus, dialogRef, trapTab, keyPress } = globalThis.window;
 /** Focus moved to an element, as a browser says it: the document's focusin heard, its target the element. */
 const focusTo = (el) => {
@@ -30,7 +31,6 @@ const focusTo = (el) => {
 };
 // The way out a dialog carries (frame-globals leaving), as a record of when an element arrives and leaves.
 const leavings = [];
-globalThis.window.leaving = (key) => (el) => leavings.push([key, el ? "in" : "out"]);
 
 const control = (name, { tabIndex = 0, onScreen = true, disabled = false } = {}) => ({
   name,

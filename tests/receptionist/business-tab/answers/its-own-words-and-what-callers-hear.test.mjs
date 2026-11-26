@@ -261,7 +261,7 @@ test("what stops a message is said under its own box, each at once, and nothing 
 /* ------------------------------------ the card as a whole ------------------------------------ */
 
 test("a viewer reads How it answers and is offered no act on any of it, and nothing opens a fold", () => {
-  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  bridgeHolds({ parts: { roles: { can: (perm) => perm !== "settings", myRole: () => "viewer" } } });
   try {
     const sent = saving();
     const tree = drawTab();

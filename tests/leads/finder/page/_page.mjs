@@ -39,7 +39,7 @@ import { importSrc } from "../../../_source.mjs";
 import { ROLE_PERMS, stateOf, toLeadRowVM } from "@chanlytics/contracts";
 import { hookFrames } from "../../../_hook-frames.mjs";
 import { lineBox } from "../../../shared/_line.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
 
 export const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -427,8 +427,6 @@ export const peeks = [];
 /** A component the page draws -> where its props are kept as it is drawn. Filled once the components are imported. */
 export const recorded = new Map();
 
-globalThis.Icon = "Icon";
-
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -548,17 +546,13 @@ export const drawsFrom = (key) => {
   return redraws > before;
 };
 
-globalThis.ReactDOM = { createPortal: (node) => node };
-
 globalThis.window.React = globalThis.React;
 
 // The tab's one store for what pages keep (the place in a view: the words in the box, the cursor), which People's hooks read
 // through the bridge's own module, on this window's sessionStorage.
 export const { clearTabMemory, tabMemoryFor } = await import("../../../../apps/dashboard/src/bridge/tab-memory.ts");
 
-(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 
 installRoleStore();
 
@@ -1099,10 +1093,10 @@ export const install = ({ role = "owner" } = {}) => {
     // frame-verbs.ts (askAbout, openAsk, askCalls).
     askAbout: (detail) => asks.push(detail),
     appAsk: () => asks.push("open"),
-    ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
-    usePPToast: () => [null, (t) => flashes.push(t)],
     CHANLY: { nav: (to) => went.push(to), address, R: { thread: (id) => `inbox/${id}` } },
   });
+  bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
+  bridgeHolds({ parts: { roles: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] } } });
   // The bridge's reading of who is acting over this window's __ME (the pages ask mayAtLeast), beside the stub's own.
   installRoleStore();
 };

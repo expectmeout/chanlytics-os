@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ROLE_PERMS, roleTable, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const calls = { flash: [], invite: [], setRole: [], remove: [], resend: [], leave: 0, put: [], assign: [], viewAs: [] };
 bridgeHolds({
@@ -36,7 +36,7 @@ globalThis.window.fetch = async (url, init = {}) => {
   });
 };
 const S = "../../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { MoreMenu } = globalThis;
 const { TeamSection } = await import(`${S}/surfaces/settings/team/team.tsx`);
 const { teamVerbs } = await import(`${S}/bridge/inbox-verbs.ts`);
@@ -353,7 +353,9 @@ test("several addresses go at once and each is said apart; one already waiting o
 test("an operator reads the roster and the gate's sentence with whom to ask; their own ⋯ holds their name and Leave", () => {
   reset();
   fresh();
-  globalThis.window.ST_STORE = { viewAsRole: null, can: (a) => !!ROLE_PERMS.operator[a], myRole: () => "operator" };
+  bridgeHolds({
+    parts: { roles: { viewAsRole: null, can: (a) => !!ROLE_PERMS.operator[a], myRole: () => "operator" } },
+  });
   bridgeHolds({ who: { me: { email: "alex@example.com", role: "operator" } } });
   workspace({ role: "operator", team: [OWNER, ALEX] });
   const tree = draw();

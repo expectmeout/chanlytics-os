@@ -16,7 +16,6 @@ let answerTo = () => ({});
 
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
-  __afterTheMoveMs: 0,
   location: {
     pathname: "/w/acme/admin/files",
     search: "",
@@ -48,6 +47,7 @@ const win = {
     });
   },
 };
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 globalThis.window = win;
 historyOf(win);
 globalThis.document = { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} };

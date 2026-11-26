@@ -42,7 +42,7 @@ import {
   press,
   settle,
 } from "../_stub-react.mjs";
-import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 const { stateOf, NEW_WORDS: W } = contracts;
 const TID = "t-studio";
@@ -79,17 +79,14 @@ installTabMemory(globalThis);
 const TM = provided("tabMemory");
 // What the shell still owns and the pages draw by name (Confirm, StatePill, PolicyChip, the sheet, the unsaved-work rule):
 // the frame's JSX, loaded as the app loads it. The pages are TSX since decision 0015, and their verbs are imported.
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 Object.assign(globalThis, {
-  useHotkey: () => {},
-  usePPToast: () => [null, (t) => toasts.push(t)],
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to),
-  canDo: () => true,
-  gate: () => ({}),
   gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
 });
+bridgeHolds({ doors: { navigate: (to, opts) => (opts && opts.replace ? replaced : went).push(to) } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 // React's context, which the react-server condition this suite runs under has none of: Campaigns' toast is held in one at the
 // route's mount (home/route-toast.ts), and New, drawn here on its own, reads its default -- none -- and says its own toast.
 const react = createRequire(path.join(path.dirname(fileURLToPath(import.meta.url)), `${SRC}/bridge/_.js`))("react");

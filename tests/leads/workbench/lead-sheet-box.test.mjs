@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 let cells = {};
 const frames = hookFrames();
@@ -100,7 +100,6 @@ globalThis.window = {
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent: () => true,
-  refusalToast: (r, what) => ({ tone: "danger", msg: r?.message ?? what }),
   fetch: async (url, init = {}) => {
     const { pathname } = new URL(String(url), "https://app.chanlytics.com");
     sent.push([init.method ?? "GET", pathname, init.body ? JSON.parse(init.body) : undefined]);
@@ -129,9 +128,7 @@ bridgeHolds(
   },
   { fresh: true },
 );
-
-const { installFrameGlobals } = await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts");
-installFrameGlobals();
+holdFrameParts();
 const box = await import("../../../apps/dashboard/src/surfaces/leads/sheet/email-box.tsx");
 const { GRAB_AT } = await import("../../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 const { Menu } = await import("../../../apps/dashboard/src/surfaces/kit/menu/menu.tsx");
@@ -267,7 +264,7 @@ beforeEach(() => {
   kept.clear();
   cells = {};
   frames.reset();
-  globalThis.window.ST_STORE = { can: () => true, myRole: () => "owner" };
+  bridgeHolds({ parts: { roles: { can: () => true, myRole: () => "owner" } } });
   globalThis.window.getSelection = () => null;
 });
 
@@ -587,7 +584,7 @@ test("the dock's caret: Send me a test saves first and tests what was typed; ref
 });
 
 test("a member who may not change it reads it: no Edit, no tap, no way back", () => {
-  globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
+  bridgeHolds({ parts: { roles: { can: () => false, myRole: () => "viewer" } } });
   const edit = editOf({ own: true, written: { subject: "Mine", body: "Mine.\n\n{{your name}}" } });
   const s = sheetOf(mailOf(edit));
   const tree = s.draw();

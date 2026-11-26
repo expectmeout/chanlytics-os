@@ -250,6 +250,16 @@ export const usePPToast = (place?: string): [ReactNode, (flash: FrameFlash) => v
   return [node, flash];
 };
 
+declare module "@/bridge/provided" {
+  interface BridgeParts {
+    /** The frame's one toast hook (usePPToast above), as the boot installs it: a test hands in its own to see what a page flashes. */
+    toast: typeof usePPToast;
+  }
+}
+
+/** The toast a part of the frame or a page draws: the boot's (usePPToast), or a test's stand-in for it. */
+export const useFrameToast = (): [ReactNode, (flash: FrameFlash) => void] => (provided("toast") ?? usePPToast)();
+
 /** What a refusal says, for `refusalToast`: contracts' refusalOf, a title for the kind of no and the owner's sentence. */
 interface Refusal {
   title?: string | null;

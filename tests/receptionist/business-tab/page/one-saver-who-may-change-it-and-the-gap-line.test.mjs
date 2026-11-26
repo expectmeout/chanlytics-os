@@ -659,7 +659,7 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
   const was = W.ST_STORE;
   try {
     // An operator, who may change the autonomy matrix (PUT /policies) and NOT the business.
-    W.ST_STORE = { can: (perm) => perm === "autonomy", myRole: () => "operator" };
+    bridgeHolds({ parts: { roles: { can: (perm) => perm === "autonomy", myRole: () => "operator" } } });
     let tree = drawTab();
     assert.deepEqual(
       all(tree, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || "")),
@@ -682,7 +682,7 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
 
     // And an operator who may change the business and nothing else is offered all of it, refused nowhere: every act
     // asks "settings", so widening that one permission widens exactly these controls.
-    W.ST_STORE = { can: (perm) => perm === "settings", myRole: () => "operator" };
+    bridgeHolds({ parts: { roles: { can: (perm) => perm === "settings", myRole: () => "operator" } } });
     tree = drawTab();
     const acts = all(tree, (n) => /^rec-row-act-/.test(n.props?.["data-testid"] || ""));
     assert.ok(acts.length > 6, "the rows offer their changes");
@@ -693,14 +693,14 @@ test("every act of the record is a PUT the settings door refuses, and none asks 
     );
     assert.equal(byTestId(drawCreateCard(), "rec-create-open").props["aria-disabled"], undefined);
   } finally {
-    if (was) W.ST_STORE = was;
+    if (was) bridgeHolds({ parts: { roles: was } });
     else delete W.ST_STORE;
   }
 });
 
 test("a viewer reads everything, is offered no act, and is told why once", () => {
   // the frame's real gate, over contracts' role table (roleGate): the role is the store's.
-  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  bridgeHolds({ parts: { roles: { can: (perm) => perm !== "settings", myRole: () => "viewer" } } });
   try {
     const sent = saving();
     const google = "1200 Maple Ave, Brooklyn, NY 11208, USA";

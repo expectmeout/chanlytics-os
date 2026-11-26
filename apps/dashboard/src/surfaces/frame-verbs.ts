@@ -13,7 +13,7 @@ import type { AskApi } from "../bridge/ask";
 import { policiesNow } from "./settings/business/shell";
 import { askAbout, backFrom, navigate, openAsk, tellAskHeld } from "./frame-doors";
 import { BACK_SETTLE_MS } from "./kit/sheet/back";
-import { usePPToast } from "./frame/flash";
+import { useFrameToast as useToastPart } from "./frame/flash";
 import { canDo } from "./frame/gate";
 import { CHANLY } from "./frame/constants";
 import { provided } from "@/bridge/provided";
@@ -193,9 +193,9 @@ export function canRefreshSurfaces(): boolean {
   return !!provided("refreshSurface");
 }
 
-/** The shell's toast (frame/flash.tsx `usePPToast`): its node, to be drawn by the page, and the flash that raises one. */
+/** The shell's toast (frame/flash.tsx, provided as `toast`): its node, to be drawn by the page, and the flash that raises one. */
 export function useFrameToast(): [ReactNode, (flash: FrameFlash) => void] {
-  return usePPToast();
+  return useToastPart();
 }
 
 /* ------------------------------ what the kit's shared components ask of the shell ------------------------------ */

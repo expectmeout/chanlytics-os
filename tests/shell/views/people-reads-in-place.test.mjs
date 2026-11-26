@@ -24,7 +24,7 @@ const { SURFACE_ROUTES } = await importSrc("apps/dashboard/src/surfaces/routes.t
 const strip = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
 const words = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
 // Where a view stands on a strip is the strip's, over People's scope words, as the shell publishes them (seed-globals.ts).
-Object.assign(win, { stripPlace: strip.stripPlace, plScopes: words.plScopes, plScopeRoute: words.plScopeRoute });
+Object.assign(win, { stripPlace: strip.stripPlace });
 
 const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
 

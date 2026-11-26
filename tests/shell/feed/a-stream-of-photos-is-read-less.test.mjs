@@ -17,7 +17,6 @@ import { bridgeHolds } from "../_bridge-holds.mjs";
 const listening = new Map();
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
-  __afterTheMoveMs: 0,
   location: {
     pathname: "/w/acme/admin/files",
     search: "",
@@ -38,6 +37,7 @@ const win = {
     return true;
   },
 };
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 globalThis.window = win;
 historyOf(win);
 globalThis.document = { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} };

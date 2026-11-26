@@ -76,7 +76,7 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 test("the Pipeline has its own rail under People's switch (the frame's strip), the line, and the table in sections -- every word contracts'", async () => {
   await fresh();
@@ -426,10 +426,17 @@ test("the peek is in the address: opening pushes it, the cursor walking it repla
 test("New proposal: pick someone, and the one deal sheet opens to propose", async () => {
   await fresh();
   const asked = [];
-  globalThis.window.openDealSheet = (a) => {
-    asked.push(a);
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (a) => {
+          asked.push(a);
+          return true;
+        },
+      },
+    },
+  });
   let tree = draw();
   const open = newOpen(tree);
   assert.deepEqual(
@@ -855,10 +862,17 @@ test("a row opens its deal sheet beside the rows: the head at once (its name the
   // The read is on its way until the test says: the sheet is drawn at once, and says so.
   let release = () => {};
   seen.hold = new Promise((r) => (release = r));
-  globalThis.window.openDealSheet = (ask) => {
-    asked.push(ask);
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (ask) => {
+          asked.push(ask);
+          return true;
+        },
+      },
+    },
+  });
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
   tree = draw();
@@ -967,10 +981,17 @@ test("a proposal waiting with nothing back asks whether they said yes, a pass as
     return { ...d, conversations: [{ ...d.conversations[0], messages: [sent] }] };
   };
   const asked = [];
-  globalThis.window.openDealSheet = (a) => {
-    asked.push(a);
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (a) => {
+          asked.push(a);
+          return true;
+        },
+      },
+    },
+  });
   const open = async (id) => {
     find(draw(), (n) => n.type === "tr" && n.props?.id === `person-${id}`).props.onClick();
     draw();
@@ -1087,10 +1108,17 @@ test("the sheet reads the person again when People lands or changes (a deal reco
 test("on a desk the rows can be a board: every group a column, the cards, a drop that asks the sheet, a refused one that asks nothing, and the choice kept", async () => {
   const seen = await fresh();
   const asked = [];
-  globalThis.window.openDealSheet = (ask) => {
-    asked.push(ask);
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (ask) => {
+          asked.push(ask);
+          return true;
+        },
+      },
+    },
+  });
   globalThis.localStorage.removeItem("pipeline.view");
   let tree = draw();
   const views = byTestId(withHead(tree), "pipeline-views");

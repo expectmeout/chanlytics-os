@@ -16,7 +16,7 @@ import { setupSteps, RECEPTIONIST_MET, REHEARSE_SKIPPED } from "@chanlytics/cont
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 export const NOW = Date.parse("2026-09-07T15:00:00Z");
 export const blank = {
@@ -111,13 +111,11 @@ globalThis.window = {
       delete store[k];
     },
   },
-  usePPToast: () => [null, () => {}],
-  appNavigate: () => {},
-  canDo: () => true,
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {},
 };
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 globalThis.document ??= {
   body: {},
   addEventListener() {},
@@ -125,10 +123,10 @@ globalThis.document ??= {
 };
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 // The shell's role gate, refusal toast and the rest of what a surface still asks of it by name (frame-verbs.ts).
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 // frame-globals publishes the shell's toast hook; this harness keeps its own, which remembers what was said.
 export const flashes = [];
-globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
 
 // The page, the seam's store, Setup's verbs and the tab's memory: one instance of each, the one the page itself imports.
 const { FirstRun } = await importSrc("apps/dashboard/src/surfaces/setup/first-run/page.tsx");

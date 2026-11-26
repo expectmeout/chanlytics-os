@@ -165,7 +165,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
 });
 globalThis.document.visibilityState = "hidden";
 const json = (status, body) =>

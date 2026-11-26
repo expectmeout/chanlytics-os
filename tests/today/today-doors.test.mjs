@@ -16,7 +16,7 @@ import { toTodayVM, setupSteps } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, kitPages, press, unmount } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { headline, weekSeen } from "./_headline.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 const ZONE = "America/New_York";
@@ -124,13 +124,10 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// The record kit, as the app publishes it (surfaces/kit/kit-globals.ts), for the pages that still draw it by name.
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 for (const k of ["StatePill", "EmptyState", "FailedRead", "PolicyChip", "StatStrip", "StatCell"])
   globalThis[k] = globalThis.window[k] || (({ children }) => children ?? null);
-globalThis.useHotkey = () => {};
-globalThis.window.usePPToast = () => [null, (m) => flashes.push(m)];
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
 // Today's zones are TSX (surfaces/today/zones), drawn by import over the day and Setup the seam holds (surface-values.ts).
 // Setup's rows are the surface's own (surfaces/setup/rows), imported by the card, not published on the window.
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");

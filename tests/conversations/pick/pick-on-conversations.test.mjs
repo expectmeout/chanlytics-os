@@ -17,7 +17,7 @@ import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/mod
 import { legacyAddress } from "../../shell/address/_address.mjs";
 import { installStubReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -48,7 +48,7 @@ Object.assign(globalThis, {
 });
 globalThis.document.visibilityState = "hidden";
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/frame-verbs.ts).
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 const S = "../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);

@@ -33,7 +33,7 @@ import {
   LeadSearchPlanSchema,
   planSentence,
 } from "@chanlytics/contracts";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 export const { askCalls, holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -98,8 +98,8 @@ globalThis.window = {
   },
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
-  ST_STORE: { can: (a) => !!(ROLE_PERMS.owner || {})[a], myRole: () => "owner" },
 };
+bridgeHolds({ parts: { roles: { can: (a) => !!(ROLE_PERMS.owner || {})[a], myRole: () => "owner" } } });
 
 /* ------------------------------ a stub React ------------------------------ */
 
@@ -219,14 +219,10 @@ globalThis.React = {
   cloneElement: (n, p) => ({ ...n, props: { ...n.props, ...p } }),
 };
 
-globalThis.ReactDOM = { createPortal: (node) => node };
-
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 // Confirm is the kit's (surfaces/kit/confirm), which seed-globals publishes as window.Confirm, over this file's own React.
 useStubHooks(globalThis.React);
-
-globalThis.Confirm = globalThis.window.Confirm = kitPages.Confirm;
 
 Object.assign(globalThis.window, {
   CHANLY: { nav() {}, R: {}, address: await legacyAddress() },

@@ -23,7 +23,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, quiet, redrawWanted } from "../../_stub-react.mjs";
-import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -61,7 +61,7 @@ installStubReact({
 });
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const { InboxThread } = await import(`${S}/inbox/thread/thread.tsx`);
 const { MoreMenu } = await import(`${S}/kit/more-menu/more-menu.tsx`);
@@ -988,11 +988,18 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   const order = [];
   // The kit the courier publishes (people-detail.ts window.__deal), and the sheet's door (components/deal-sheet.jsx).
   bridgeHolds({ parts: { deal: { menu: dealMenuActs, actWords: DEAL_ACT_WORDS } } });
-  globalThis.window.openDealSheet = (ask) => {
-    opened.push(ask);
-    order.push("sheet");
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (ask) => {
+          opened.push(ask);
+          order.push("sheet");
+          return true;
+        },
+      },
+    },
+  });
   // The header's More button, as the page has it.
   const actions = { focus: () => order.push("actions") };
   globalThis.document.querySelector = (sel) => (sel === ".ix-th-head .ix-th-more" ? actions : null);
@@ -1069,7 +1076,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     peopleAre(undefined);
     delete globalThis.document.querySelector;
     bridgeHolds({ parts: { deal: was.deal } });
-    globalThis.window.openDealSheet = was.open;
+    bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: was.open } } });
   }
 });
 

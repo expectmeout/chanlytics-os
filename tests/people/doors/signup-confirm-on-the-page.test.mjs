@@ -25,10 +25,8 @@ bridgeHolds({
     activeWorkspaceId: "t-1",
   },
 });
-Object.assign(W, {
-  CHANLY: { nav() {} },
-  usePPToast: () => [null, (t) => toasts.push(t)],
-});
+Object.assign(W, {});
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 installRoleStore(W);
 W.mayAtLeast = (rung) => W.ST_STORE.mayAtLeast(rung);
 const { ClientProfile } = await import(`${PEOPLE}/person/person-real.tsx`);

@@ -74,6 +74,7 @@ import {
 } from "../workspace";
 import { installClock } from "../zone";
 import { FRAME_SURFACES } from "./surfaces";
+import { usePPToast } from "../../surfaces/frame/flash";
 
 /** A step of the boot: what it is called, and what it runs. */
 export interface FrameInstall {
@@ -226,6 +227,8 @@ export const FRAME_INSTALLS: readonly FrameInstall[] = [
   // The one tooltip a control shows (frame/tip.ts), and where focus last stood outside a dialog, for it to go back to
   // when the dialog closes (kit/focus/trap.ts).
   { name: "tip", run: installTip },
+  // The one toast every page raises (frame/flash.tsx usePPToast), read where a part draws it.
+  { name: "toast", run: () => provide("toast", usePPToast) },
   { name: "focusOutside", run: hearFocusOutside },
   // What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
   { name: "tabMemory", run: installTabMemory },

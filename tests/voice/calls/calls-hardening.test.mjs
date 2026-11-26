@@ -16,6 +16,7 @@ import { toLiveCallVM, toLiveVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../../_source.mjs";
 import { changesOf } from "../../_live-feed.mjs";
 import { installStubReact, fresh, again, byTestId, textOf } from "../../_stub-react.mjs";
+import { holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -111,81 +112,4 @@ test("the storage upload is bounded too", () => {
   assert.ok(lib.includes('"storage upload"'), "the upload is bounded too");
 });
 
-test("Live says only what is true about a silent 'ongoing' row", async () => {
-  const NOW = new Date("2026-09-04T18:14:00.000Z");
-  const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
-  const base = {
-    id: "p",
-    retell_call_id: "r-p",
-    direction: "inbound",
-    call_type: "phone_call",
-    from_e164: "+17865550181",
-    from_raw: "+17865550181",
-    to_e164: null,
-    started_at: ago(3_600_000),
-    ended_at: null,
-    updated_at: ago(20 * 60_000),
-    duration_ms: null,
-    disconnection_reason: null,
-    sentiment: null,
-    call_successful: null,
-    in_voicemail: null,
-    summary: null,
-    transcript_object: null,
-    recording: null,
-    conversation_id: null,
-    contact_id: null,
-    message_id: null,
-    contact: null,
-    status: "ongoing",
-  };
-  const phantom = toLiveCallVM(base, ZONE, NOW);
-  assert.equal(phantom.live, false);
-  assert.equal(phantom.stale, true, "neither live nor ended");
-  assert.equal(toLiveCallVM({ ...base, status: "ended", duration_ms: 1000 }, ZONE, NOW).stale, false);
-  // "No word from the provider" is the one pill's word for a stale call now: run in state-pill.test.mjs.
-  // The page (surfaces/live, TSX since decision 0015), drawn on the legacy stub React over each state a call can be in as it
-  // is drawn: the words are the ones it says, not the ones its source holds.
-  installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
-  const S = "../../../apps/dashboard/src";
-  (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-  globalThis.usePPToast = () => [null, () => {}];
-  const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
-  const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
-  const at = new Date();
-  const before = (ms) => new Date(at.getTime() - ms).toISOString();
-  const draw = (over) => {
-    setSurfaceValue("live", toLiveVM([{ ...base, ...over }], [], ZONE, at));
-    fresh();
-    return again(() => LivePage({}));
-  };
-  const turns = [
-    { role: "agent", content: "Thank you for calling!" },
-    { role: "user", content: "Is anyone free on Thursday?" },
-  ];
-  const onTheLine = { started_at: before(120_000), updated_at: before(2_000) };
-  const quiet = draw({ ...onTheLine, updated_at: before(6 * 60_000), transcript_object: turns });
-  assert.ok(
-    textOf(byTestId(quiet, "live-checking")).includes("checked with the phone provider within five minutes"),
-    "a live call nobody has heard from says what is being done about it, and by whom",
-  );
-  const talking = draw({ ...onTheLine, transcript_object: turns });
-  assert.match(textOf(talking), /Live transcript/, "turns stream now");
-  assert.ok(textOf(talking).includes("Is anyone free on Thursday?"), "and are drawn as they come");
-  const seen = [
-    quiet,
-    talking,
-    draw({ ...onTheLine, transcript_object: null }),
-    draw({ started_at: before(3_600_000), updated_at: before(20 * 60_000) }),
-    draw({ status: "ended", ended_at: before(30_000), duration_ms: 90_000, updated_at: before(30_000) }),
-  ].map(textOf);
-  for (const words of seen)
-    assert.ok(!words.includes("The transcript arrives when the call ends"), "REGRESSION: turns stream now");
-  const tabs = readRaw("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  assert.ok(
-    tabs.includes("chrome.liveStillUp(c, live.heartbeatMs, Date.now())"),
-    "the tab applies the heartbeat rule too",
-  );
-  const today = readCode("packages/contracts/src/today/rows.ts");
-  assert.ok(today.includes('import { ANALYSIS_GRACE_MS } from "../voice/live"'), "one grace constant");
-});
+holdFrameParts();

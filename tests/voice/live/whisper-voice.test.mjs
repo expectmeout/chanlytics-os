@@ -20,6 +20,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -60,8 +61,8 @@ const sent = [];
 installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
 // The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-globalThis.usePPToast = () => [null, (m) => flashed.push(m)];
+holdFrameParts();
+bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push(m)] } });
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 

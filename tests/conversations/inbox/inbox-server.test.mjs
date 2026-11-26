@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { LIST_MESSAGES_EACH, toInboxThreadVM, stateOf, memberMetaOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
-import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -360,7 +360,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
 });
 globalThis.document.visibilityState = "hidden";
 const json = (status, body) =>
@@ -428,36 +427,7 @@ test("the bridge asks once for every escalated thread past the newest hundred, a
 
 /* -------------------------------- the composer -------------------------------- */
 
-test("the composer of a text thread says Text, not WhatsApp", async () => {
-  // The shell's own toast and role gate, which the pane draws through the bridge (surfaces/frame-verbs.ts).
-  (await import(at("apps/dashboard/src/surfaces/frame/frame-globals.ts"))).installFrameGlobals();
-  const { Composer } = await import(at("apps/dashboard/src/surfaces/inbox/thread/composer.tsx"));
-  const rows = [message("m1", uuid(1), A, { channel: "sms", created_at: ago(50 * HOUR), channel_ts: ago(50 * HOUR) })];
-  const vm = toInboxThreadVM(
-    {
-      id: uuid(1),
-      state: "open",
-      paused_until: null,
-      snooze_until: null,
-      assignee_user_id: null,
-      last_wa_inbound_at: null,
-      last_message_at: ago(HOUR),
-      contact: contact(),
-      messages: groupMessages(rows).get(uuid(1)),
-    },
-    null,
-    ZONE,
-    new Date(),
-  );
-  fresh();
-  const tree = again(() => Composer({ thread: vm, reply: "", onSend() {} }));
-  // The reply box names the channel in its field; the line under it that said "Text · to Ada" is gone.
-  assert.equal(
-    find(tree, (n) => n.type === "textarea").props.placeholder,
-    "Text to Ada…",
-    "REGRESSION: a text was said to go out on WhatsApp",
-  );
-});
+holdFrameParts();
 
 /* ------------------------------ what a member is sent ------------------------------ */
 

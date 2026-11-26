@@ -36,7 +36,7 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
-import { surfaceValue } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
 test("their next step on the page: a column after Stage that sorts by its day, in the warn ink once it has come; the phone's card and the board's say it, and Steps due holds only theirs", async () => {
   const now = Date.now();
@@ -216,7 +216,7 @@ test("the sheet judges a wait by People's pace, as the rows beside it do, not by
   const W = globalThis.window;
   // Nia's own read carries none: the wire says no pace beside their person.
   seen.person = (id) => ({ ...detailOf(seen.rawOf(id)), deal_pace: null });
-  W.openDealSheet = () => true;
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: () => true } } });
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
   draw();
@@ -275,7 +275,7 @@ test("the sheet says the follow-up has them where their row does (0006): the day
     };
     return { ...d, conversations: [{ ...d.conversations[0], messages: [sent] }] };
   };
-  W.openDealSheet = () => true;
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: () => true } } });
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
   draw();

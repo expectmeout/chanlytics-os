@@ -25,8 +25,6 @@ import { bridgeHolds } from "../_bridge-holds.mjs";
 const heard = new Map();
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
-  // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
-  __afterTheMoveMs: 0,
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {
     if (!heard.has(type)) heard.set(type, new Set());
@@ -40,6 +38,7 @@ const win = {
     return true;
   },
 };
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 globalThis.window = win;
 historyOf(win);
 // On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
@@ -936,7 +935,6 @@ test("the page that owns what it draws is an explicit one: the surface registry 
 let cells = {};
 let redraws = 0;
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   Component: class {},
@@ -991,7 +989,6 @@ globalThis.React = {
     return snapshot();
   },
 };
-globalThis.useSurface = status.surfaceHook(globalThis.React, registry.routeSurfaces);
 for (const name of ["Sidebar", "Topbar", "LiveCallBar", "ShellStatusBar", "SurfaceTabs", "AskBar", "ShortcutsSheet"])
   globalThis[name] = name;
 registry.installRouteGate();

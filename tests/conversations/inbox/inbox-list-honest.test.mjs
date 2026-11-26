@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, settle } from "../../_stub-react.mjs";
-import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -74,13 +74,12 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setInterval: () => 1,
   clearInterval() {},
 });
 globalThis.document.visibilityState = "hidden";
 // The shell's own toast and role gate, which the pages draw through the bridge (surfaces/frame-verbs.ts).
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const quiet = async (fn) => {

@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { readCode, readRaw, importSrc } from "../../_source.mjs";
 import { installStubReact, fresh, again, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -200,7 +201,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   const LR = await import("../../_stub-react.mjs");
   LR.installStubReact();
   const went = [];
-  globalThis.CHANLY = { nav: (to) => went.push(to) };
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
   const { PersonLists } = await importSrc("apps/dashboard/src/surfaces/people/person/lists.tsx");
   const picked = [];

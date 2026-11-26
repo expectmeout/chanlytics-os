@@ -15,7 +15,7 @@ import { FIRST_RUN_WORDS } from "../../apps/dashboard/src/surfaces/setup/first-r
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -99,7 +99,6 @@ const calls = {
   find: [],
   link: [],
 };
-globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 bridgeHolds({ parts: { billing: {} } }, { fresh: true });
 globalThis.window = {
@@ -126,13 +125,11 @@ globalThis.window = {
       return { ok: true, read: true, message: "" };
     },
   },
-  usePPToast: () => [null, (m) => calls.flash.push(m)],
-  // The frame's own move, which the rows go through (frame-verbs navigate): `CHANLY.nav`.
-  CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
-  canDo: () => true,
   addEventListener() {},
   removeEventListener() {},
 };
+bridgeHolds({ doors: { navigate: (to) => calls.nav.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 globalThis.document ??= {
   body: {},
   addEventListener() {},
@@ -141,9 +138,9 @@ globalThis.document ??= {
 globalThis.ReactDOM ??= { createPortal: (node) => node };
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 // frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
-globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
+bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
 let cells = [];
@@ -321,9 +318,8 @@ test("the page: the row's Turn on reaches the bridge with the capability's name,
 
 test("REGRESSION (S15): an operator sees Turn on gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
   const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
-  Object.assign(globalThis.window, {
-    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-  });
+  Object.assign(globalThis.window, {});
+  bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   try {
     const tree = mount();
     let row = null;
@@ -731,9 +727,8 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
   assert.equal(calls.nav.at(-1), "start/find", "one finder: the business step's, which opens on Find");
   assert.equal(calls.find.length, 0, "nothing is searched from the row");
   const before = calls.nav.length;
-  Object.assign(globalThis.window, {
-    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-  });
+  Object.assign(globalThis.window, {});
+  bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   try {
     fresh();
     const denied = googleRow();
@@ -880,9 +875,8 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
     if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props;
   });
   await lineRow.cta.onClick();
-  Object.assign(globalThis.window, {
-    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-  });
+  Object.assign(globalThis.window, {});
+  bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   const searched = calls.search.length;
   try {
     tree = mount();

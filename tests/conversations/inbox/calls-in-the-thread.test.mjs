@@ -25,7 +25,7 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again as drawOver } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-21T14:00:00Z");
@@ -97,7 +97,7 @@ installStubReact({
 });
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { InboxThread, ixOpensAt } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 const { tlFollowBy } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/call.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");

@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, classes, textOf } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -76,8 +76,8 @@ installStubReact({
 });
 const S = "../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name (the role gate on the whisper): surfaces/frame.
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-globalThis.usePPToast = () => [null, () => {}];
+holdFrameParts();
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue, surfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);

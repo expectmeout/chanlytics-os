@@ -65,16 +65,15 @@ const at = (route) => {
   globalThis.location.hash = `#/${route}`;
 };
 const route = () => globalThis.location.hash.slice(2);
-Object.assign(globalThis, {
-  CHANLY: {
-    nav: (to, opts) => {
+Object.assign(globalThis, {});
+bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
+bridgeHolds({
+  doors: {
+    navigate: (to, opts) => {
       moves.push([to, opts?.replace === true]);
       at(to);
     },
-    R: { admin: (pane) => `admin/${pane}` },
   },
-  usePPToast: () => [null, () => undefined],
-  canDo: () => true,
 });
 const stopRunner = startSurfaces([], () => () => {});
 after(() => stopRunner());

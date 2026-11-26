@@ -462,7 +462,7 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
     stripSwipe: strip.stripSwipe,
   });
   const words = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
-  Object.assign(win, { plScopes: words.plScopes, plScopeRoute: words.plScopeRoute });
+  Object.assign(win, {});
   const view = (t) =>
     find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
   const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");

@@ -17,8 +17,6 @@ import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 const heard = new Map();
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
-  // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
-  __afterTheMoveMs: 0,
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {
     if (!heard.has(type)) heard.set(type, new Set());
@@ -32,6 +30,7 @@ const win = {
     return true;
   },
 };
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 globalThis.window = win;
 historyOf(win);
 const docHeard = new Map();

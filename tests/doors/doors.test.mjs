@@ -6,6 +6,7 @@
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 globalThis.window = globalThis;
 const heard = [];
@@ -142,7 +143,7 @@ test("a door nobody filled does nothing and says so once, not once a press", () 
 
 test("where the frame has filled nothing, a stand-in window's doors answer, as a test's or the mockup's do; the module's own published names are never taken for one", () => {
   const seen = [];
-  globalThis.CHANLY = { nav: (...args) => void seen.push(["CHANLY.nav", ...args]) };
+  bridgeHolds({ doors: { navigate: (...args) => void seen.push(["CHANLY.nav", ...args]) } });
   globalThis.appAsk = () => void seen.push(["appAsk"]);
   globalThis.appBackToPeople = () => void seen.push(["appBackToPeople"]);
   doors.navigate("clients");

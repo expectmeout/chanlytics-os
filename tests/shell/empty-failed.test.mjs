@@ -18,7 +18,7 @@ import { stateOf, toTodayVM, toLiveVM } from "@chanlytics/contracts";
 import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -33,7 +33,6 @@ const fresh = () => {
   frames.begin();
 };
 const calls = { nav: [], refresh: [], flash: [] };
-globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.Sparkline = "Sparkline";
@@ -92,7 +91,6 @@ globalThis.React = {
     }
   },
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
 globalThis.document = {
   body: {},
   addEventListener() {},
@@ -109,7 +107,6 @@ const storage = () => {
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.window = {
-  CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
   gate: () => ({ "data-gated": "" }),
   location: {
     pathname: "/w/harbor",
@@ -127,6 +124,7 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds({ doors: { navigate: (to) => calls.nav.push(to) } });
 bridgeHolds(
   {
     parts: {
@@ -138,12 +136,10 @@ bridgeHolds(
   },
   { fresh: true },
 );
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// EmptyState and FailedRead are the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 const { EmptyState, FailedRead, MoreMenu, StatePill } = globalThis.window;
-Object.assign(globalThis, { EmptyState, FailedRead, MoreMenu, StatePill });
-globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
+Object.assign(globalThis, { EmptyState });
+bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;

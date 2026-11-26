@@ -18,8 +18,6 @@ const listeners = [];
 globalThis.window = {
   innerWidth: 1440,
   innerHeight: 900,
-  canDo: () => true,
-  gate: () => ({}),
   addEventListener(type, fn, opts) {
     listeners.push({ type, fn, opts });
   },
@@ -40,7 +38,6 @@ globalThis.document = {
 let cells = {};
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -84,7 +81,6 @@ globalThis.React = {
   },
   useCallback: (fn) => fn,
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
 // MoreMenu is the kit's (surfaces/kit/more-menu), which imports its hooks from "react": the stub's are set on it.
 kitHooks();
 const { MoreMenu } = kitPages;

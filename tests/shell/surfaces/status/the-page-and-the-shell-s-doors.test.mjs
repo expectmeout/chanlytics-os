@@ -705,7 +705,6 @@ test("REGRESSION (C13): a link to a playbook lands on its sequence, named in the
 test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no primary act in the top bar until the page is ready -- Book and New campaign opened Ask over the skeleton or the failure pane", () => {
   shell.installShell(win);
   const keepGate = win.gate;
-  win.gate = () => ({});
   const right = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.right;
   try {
     assert.equal(
@@ -773,7 +772,7 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
 
 test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and System and says which is on -- it flipped light and dark and dropped System", () => {
   shell.installShell(win);
-  globalThis.usePPToast = () => [null, () => {}];
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const chosen = [];
   const themeButton = (themePref, theme) => {
     setDeep(true);
@@ -831,7 +830,7 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
 
 test("the bell's close is the member looking: opening it marks nothing, closing it by its button or the popover's own close marks every row seen, once (Today in three zones, 2 Nov 2026)", () => {
   shell.installShell(win);
-  globalThis.usePPToast = () => [null, () => {}];
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   let seen = 0;
   const row = {
     id: "n-1",
@@ -880,7 +879,7 @@ test("the bell's close is the member looking: opening it marks nothing, closing 
 
 test("REGRESSION: the top bar's Ask button says Ask Chanlytics and draws no key -- ⌘K stood in it and in its tip, beside the ? sheet that lists it", () => {
   shell.installShell(win);
-  globalThis.usePPToast = () => [null, () => {}];
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   try {
     setDeep(true);
     setCells([]);
@@ -1078,7 +1077,6 @@ test("People has no tab strip -- its one real tab is People, and Lists and Leads
   // publishes it; its hooks are this file's stub's.
   const { useStubHooks } = await import("../../../_stub-react.mjs");
   useStubHooks(globalThis.React);
-  globalThis.ViewTabs = (await importSrc("apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
   // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   Object.assign(win, {

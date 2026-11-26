@@ -55,10 +55,9 @@ export async function peopleHarness() {
   Object.assign(globalThis.window, {
     mayAtLeast: (rung) => globalThis.window.ST_STORE.mayAtLeast(rung),
     canDo: (action) => !!ROLE_PERMS[whoIsLooking().me.role]?.[action],
-    gate: () => ({}),
-    usePPToast: () => [null, () => {}],
-    CHANLY: { nav: (route) => went.push(route) },
   });
+  bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const src = (p) => importSrc(`apps/dashboard/src/surfaces/${p}`);
   const { setSurfaceValue } = await src("surface-values.ts");
   const { peopleSample } = await src("people/sample.ts");
@@ -401,9 +400,8 @@ export async function profileUi() {
       activeWorkspaceId: HARBOR,
     },
   });
-  Object.assign(globalThis, {
-    CHANLY: { nav: (to) => went.push(to) },
-  });
+  Object.assign(globalThis, {});
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const P = "apps/dashboard/src/surfaces/people";
   const { hero, openWith } = await importSrc(`${P}/person/hero.tsx`);
   const { PersonNotes } = await importSrc(`${P}/person/notes.tsx`);

@@ -18,7 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, kitPages, textOf } from "../_stub-react.mjs";
-import { bridgeHolds, surfaceValue } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, surfaceValue } from "../shell/_bridge-holds.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -76,12 +76,9 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// The record kit, as the app publishes it (surfaces/kit/kit-globals.ts), for the pages that still draw it by name.
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
-globalThis.useHotkey = () => {};
 /** Where a pressed gate shows its reason: the tip, anchored to the control. */
 const shown = [];
 bridgeHolds({ parts: { tip: { show: (el) => shown.push(el) } } });
@@ -316,9 +313,8 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
       broadcasts: { approve: async () => ({ ok: true, data: {} }), cancel: async () => ({ ok: true, data: {} }) },
     },
   });
-  Object.assign(globalThis.window, {
-    usePPToast: () => [null, () => {}],
-  });
+  Object.assign(globalThis.window, {});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   // What the head counts, and so what the card holds, is read with the Inbox and the runs' own read (surfaces/needs-you.ts):
   // the Inbox read and empty, the runs as the window has them.

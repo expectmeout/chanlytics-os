@@ -19,7 +19,7 @@ import { toInboxThreadVM, toBroadcastVM, toTodayVM, stateOf, replyWaitsOnYou } f
 import { installStubReact, fresh, again, all, find, byTestId, textOf, settle, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { lineBox } from "../../shared/_line.mjs";
-import { bridgeHolds, provided, heldRead } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldRead, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -235,7 +235,6 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -250,7 +249,7 @@ globalThis.dispatchEvent = (e) => {
   return dispatched(e);
 };
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/frame-verbs.ts).
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 /** A read landing (surface:inbox) is fired at what listens for it, by name: a page adds several listeners. */
 const landsARead = () => globalThis.dispatchEvent({ type: "surface:inbox" });
@@ -481,11 +480,11 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
     // Its door is the run at its home under its sequence, which the frame opens over the Inbox (lanes 2 and 3).
     const went = [];
     const keepNav = globalThis.window.appNavigate;
-    globalThis.window.appNavigate = (route) => went.push(route);
+    bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
     try {
       rows[0].props.onOpen();
     } finally {
-      globalThis.window.appNavigate = keepNav;
+      bridgeHolds({ doors: { navigate: keepNav } });
     }
     assert.deepEqual(went, ["campaigns/sequences/q-1/runs/b-wait"], "and its door is the run, at its home");
     assert.equal(

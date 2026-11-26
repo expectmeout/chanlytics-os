@@ -10,24 +10,19 @@ import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
 import { toSlotParts } from "../../../apps/dashboard/src/surfaces/campaigns/templates/message-version-slots.ts";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
 export const W = globalThis;
 export const toasts = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
-Object.assign(W, {
-  CHANLY: { nav() {}, R: {} },
-  appNavigate() {},
-  // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
-  ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  useHotkey: () => {},
-});
+Object.assign(W, {});
+bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
 export const SRC = "../../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 // The toast is the shell's (the frame's usePPToast): what the page flashes is recorded in its place.
-W.usePPToast = () => [null, (t) => toasts.push(t)];
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 export const S = "../../../apps/dashboard/src/surfaces";
 export const { MessageInPlace } = await import(`${S}/campaigns/parts/message-in-place.tsx`);
 export const { templates: verbs } = await import(`${S}/campaigns/templates/verbs.ts`);

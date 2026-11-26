@@ -109,7 +109,6 @@ globalThis.window = {
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent: () => true,
-  refusalToast: (r, what) => ({ tone: "danger", msg: what }),
   fetch: async (url, init = {}) => {
     const { pathname } = new URL(String(url), "https://app.chanlytics.com");
     const body = init.body ? JSON.parse(init.body) : undefined;

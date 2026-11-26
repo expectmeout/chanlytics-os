@@ -15,7 +15,7 @@ import { stateOf, toInboxThreadVM, toCallVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 
@@ -60,7 +60,7 @@ after(() => {
   console.error = realConsoleError;
 });
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src";
 const { ThreadPane } = await import(`${S}/surfaces/inbox/thread/thread-pane.tsx`);
 const { threadVerbs } = await import(`${S}/surfaces/inbox/thread/thread-verbs.tsx`);

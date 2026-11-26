@@ -22,10 +22,11 @@ import {
   PRICE_FAULT,
   WORDS_FAULT,
 } from "../../../apps/dashboard/src/surfaces/campaigns/ads/new/words.ts";
+import { holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 installStubReact({ CHANLY: { nav() {} } });
 const S = "../../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { NewAd } = await import(`${S}/surfaces/campaigns/ads/new/sheet.tsx`);
 
 const FILE = "11111111-1111-4111-8111-111111111111";

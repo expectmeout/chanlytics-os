@@ -145,10 +145,6 @@ test("REGRESSION: a History filter holds still -- on a phone a shorter list made
   const draw = await profile(vm, "history");
   const held = [];
   const hold = globalThis.window.holdStill;
-  globalThis.window.holdStill = (control, change) => {
-    held.push(control);
-    change();
-  };
   try {
     // History's filters, not the page's tabs beside them (0052).
     find(

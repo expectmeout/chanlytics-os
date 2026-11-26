@@ -247,7 +247,7 @@ test("each act of What you offer is gated as a change to the settings, and named
 });
 
 test("a viewer reads what is offered and is offered no act on any of it, and nothing opens the sheet", () => {
-  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  bridgeHolds({ parts: { roles: { can: (perm) => perm !== "settings", myRole: () => "viewer" } } });
   // A courier to save the answer through, so that only the role stops it.
   const patched = [];
   bridgeHolds({
@@ -349,7 +349,7 @@ test("a word refused says the server's words, and the row keeps the word it had"
 });
 
 test("only a role that may change the business is offered the word's menu: an operator reads it", () => {
-  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "operator" };
+  bridgeHolds({ parts: { roles: { can: (perm) => perm !== "settings", myRole: () => "operator" } } });
   courier();
   try {
     const tree = drawTab({ word: "meeting" });

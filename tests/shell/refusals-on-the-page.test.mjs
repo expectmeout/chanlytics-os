@@ -17,13 +17,12 @@ import { hookFrames } from "../_hook-frames.mjs";
 import { kitPages, installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds, surfaceValue } from "./_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, surfaceValue } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -78,17 +77,13 @@ globalThis.React = {
   },
   // A store outside React, read as it stands (this test draws once): all Today's queue asks of it.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: this test draws once
+}; // the bridge's hook: this test draws once
 globalThis.document = {
   body: {},
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  gate: () => ({}),
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {},
@@ -96,19 +91,14 @@ globalThis.window = {
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-  canDo: () => true,
-  appNavigate() {},
 };
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-
-Object.assign(globalThis.window, kitPages);
+holdFrameParts();
 useStubHooks();
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"])
   globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
-globalThis.useHotkey = () => {};
 // Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops that return their own cleanup.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
@@ -412,7 +402,6 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
     },
   });
   Object.assign(globalThis.window, {
-    usePPToast: () => [null, (p) => flashes.push(p)],
     // The server refuses every change: the client names the refusal, as it does in the browser.
     fetch: async (url, init = {}) => {
       wire.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
@@ -429,6 +418,7 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
       );
     },
   });
+  bridgeHolds({ parts: { toast: () => [null, (p) => flashes.push(p)] } });
   setSurfaceValue(
     "today",
     toTodayVM(
@@ -723,7 +713,6 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
     appNavigate() {},
     useHotkey: () => {},
   });
-  Object.assign(globalThis.window, kitPages);
   const SRC = "../../apps/dashboard/src";
   const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
   const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);

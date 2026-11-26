@@ -104,7 +104,6 @@ test("a press asks for the sheet, on the pick; a pointer warms it; a role that m
 test("the frame's host answers N on the Inbox's tabs, and leaves it alone elsewhere, in a field, with a chord, in a dialog, or for a viewer", () => {
   closeNewConversation();
   fresh();
-  globalThis.window.canDo = () => true;
   at("inbox");
   again(() => h(NewConversationHost));
   const send = (over) => {
@@ -133,7 +132,6 @@ test("the frame's host answers N on the Inbox's tabs, and leaves it alone elsewh
   globalThis.window.canDo = () => false;
   send();
   assert.equal(newConversationAsked().open, false, "a role that may not write");
-  globalThis.window.canDo = () => true;
   // Pressed on a row of the list, N is still the page's: the row is an option in a listbox at rest, which stands over
   // nothing. The target answers `closest` as a row would: yes to its own listbox, no to anything over the page.
   closeNewConversation();

@@ -28,7 +28,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { useStubHooks, kitPages } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 export const TID = "t-studio";
 
@@ -131,8 +131,6 @@ export const memo = (make, deps) => {
   return cells.get(k).value;
 };
 
-globalThis.Icon = "Icon";
-
 globalThis.StatStrip = "StatStrip";
 
 globalThis.StatCell = "StatCell";
@@ -203,14 +201,10 @@ globalThis.React = {
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
 
-globalThis.ReactDOM = { createPortal: (node) => node };
-
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 // frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
 bridgeHolds({ parts: { tip: { show: (el) => tipped.push(el) } } });
-
-Object.assign(globalThis.window, kitPages);
 
 useStubHooks();
 
@@ -243,10 +237,9 @@ bridgeHolds({
 });
 
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 await import("../../receptionist/business-tab/_business-parts.mjs");
 
@@ -299,7 +292,7 @@ alertVerbs.saveConfig = (config, version, accepted) => {
 /** What the pane flashed, each `{ msg, undo? }`: the frame's toast, as a list. */
 export const flashes = [];
 
-globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+bridgeHolds({ parts: { toast: () => [null, (f) => flashes.push(f)] } });
 
 /** Open the email row's addresses (its Change). */
 export const openEmail = (tree) => press(byTestId(tree, "ntf-email-change"));
