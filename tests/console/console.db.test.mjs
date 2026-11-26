@@ -203,7 +203,21 @@ test(
         .select("id")
         .single(),
     );
+    // Two rows the delete script handles because the cascade does not (tooling/scripts/ops/delete-tenant.mjs): Stripe's
+    // dedup ledger, kept with its key set null so a redelivered event is not processed twice (00073), and the history,
+    // which carries a tenant_id with no foreign key at all (00002: a partitioned table cannot reference one).
+    const delivery = `evt_gone_${RUN}`;
+    ok(await db.from("billing_events").insert({ id: delivery, type: "invoice.paid", tenant_id: shortLived.id }));
+    const [history] = ok(
+      await db.from("events").insert({ tenant_id: shortLived.id, kind: "message.received" }).select("id"),
+    );
     ok(await db.from("tenants").delete().eq("id", shortLived.id));
+    const [ledger] = ok(await db.from("billing_events").select("tenant_id").eq("id", delivery));
+    assert.deepEqual(ledger, { tenant_id: null }, "Stripe's ledger outlives the workspace, its key set null");
+    const stranded = ok(await db.from("events").select("tenant_id").eq("id", history.id));
+    assert.deepEqual(stranded, [{ tenant_id: shortLived.id }], "and its history stands, pointing at nobody: no key");
+    ok(await db.from("events").delete().eq("tenant_id", shortLived.id));
+    ok(await db.from("billing_events").delete().eq("id", delivery));
     const [kept] = ok(await db.from("privacy_requests").select("tenant_id, name, slug").eq("id", req.id));
     assert.deepEqual(kept, { tenant_id: null, name: "Gone Soon", slug: shortLived.slug });
     const [logged] = ok(await db.from("platform_acts").select("tenant_id").eq("id", act.id));
@@ -353,5 +367,26 @@ test(
     const gone = await db.from("platform_acts").delete().eq("id", act.id);
     assert.equal(gone.error?.code, "23514", "no row is deleted");
     assert.equal(ok(await db.from("platform_acts").select("id").eq("id", act.id)).length, 1);
+  },
+);
+
+test(
+  "the back office's join is no door at all: not a stranger's, not a session's, not the service role's (00093)",
+  { skip },
+  async () => {
+    // 00092 revoked three roles and missed service_role, which answered 200 with every workspace in it. The join is the
+    // owner's alone; platform_overview(), which asks who is calling first, is the only door to it.
+    const stranger = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    for (const [who, client] of [
+      ["the service role", db],
+      ["a signed-out caller", stranger],
+      ["an owner's session", owner.client],
+      ["a staff member's session", staff.client],
+    ]) {
+      const all = await client.rpc("platform_overview_rows");
+      assert.ok(all.error, `${who}: platform_overview_rows() is nobody's`);
+      const some = await client.rpc("platform_overview_rows_for", { p_tenants: [owner.tenant] });
+      assert.ok(some.error, `${who}: nor is platform_overview_rows_for()`);
+    }
   },
 );

@@ -483,3 +483,19 @@ test(
     });
   },
 );
+
+test(
+  "the health check keeps its own grid: never on the deadman's ticks, which it would judge seconds old",
+  { skip },
+  async () => {
+    // '*/30' fires at :00 and :30, both deadman ticks under '*/10': every health run would judge a request seconds old,
+    // exempt it under the two-minute grace, and report healthy forever (00026). And the lines sweep keeps off it too.
+    const { data: jobs, error } = await db.rpc("sweep_schedules");
+    assert.equal(error, null, error?.message);
+    const byName = new Map(jobs.map((j) => [j.jobname, j]));
+    assert.equal(byName.get("sweep-health")?.schedule, "13,43 * * * *");
+    const minutes = (schedule) => schedule.split(" ")[0].split(",").map(Number);
+    for (const m of minutes(byName.get("sweep-health").schedule)) assert.ok(m % 10 !== 0, `:${m} is a deadman tick`);
+    assert.equal(byName.get("lines-sweep")?.schedule, "8,23,38,53 * * * *", "never onto the health check's own grid");
+  },
+);

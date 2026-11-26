@@ -17,7 +17,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { signupPosture, signupPostureFor, SIGNUP_WAITLIST, SIGNUP_WORDS } from "@chanlytics/contracts";
-import { readRaw } from "../_source.mjs";
 import { RATE, signupWorld } from "./_signup-route.mjs";
 
 test("one environment variable, three postures", () => {
@@ -105,21 +104,10 @@ test("the words say what is true and when they will hear", () => {
   }
 });
 
-test("the table is a queue, not a mailing list", () => {
-  const sql = readRaw("supabase/migrations/00088_waitlist.sql");
-  assert.match(sql, /create table public\.waitlist/);
-  assert.match(
-    sql,
-    /create unique index waitlist_email_idx on public\.waitlist \(lower\(email\)\)/,
-    "one row per address",
-  );
-  assert.match(sql, /where invited_at is null/, "the partial index is the queue");
-  // Deny-all: the people on this list have no workspace to be scoped to, so
-  // there is no membership that could make a row legitimately session-readable.
-  assert.match(sql, /alter table public\.waitlist enable row level security/);
-  assert.ok(!/create policy/.test(sql), "no policies at all — service role only");
-  assert.match(sql, /revoke all on public\.waitlist from anon, authenticated/);
-});
+// The table is a queue, not a mailing list: run on the stack. One row per address, in the spelling its index judges by,
+// a repeat no re-join and somebody invited left alone, the queue read oldest first and only who still waits
+// (waitlist.db.test.mjs); no session reads or writes a row of it, the service role alone (database/tenancy/, waitlist:
+// "none"). Pinned as 00088's text until 26 Nov 2026.
 
 // The page renders the door it actually is: nothing can be pressed until the server has named the door, each door
 // sends only what it takes and draws only its own fields (the code field the invite's alone), a waitlist answer is its

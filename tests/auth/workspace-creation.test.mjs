@@ -16,71 +16,19 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc, readRaw, readCode } from "../_source.mjs";
+import { importSrc, readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
-const sql = readRaw("supabase/migrations/00021_create_workspace.sql");
 const boot = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
 
-/* --------------------------- the privilege boundary ----------------------- */
+/* ----------------------------- the database's door ----------------------------- */
 
-test("anon cannot mint a tenant; only a signed-in caller can", () => {
-  assert.match(sql, /revoke execute on function public\.create_workspace\(text, text\) from public, anon;/);
-  assert.match(sql, /grant\s+execute on function public\.create_workspace\(text, text\) to authenticated;/);
-});
-
-test("the caller is read inside the function, never passed in", () => {
-  // If the user were a parameter, anyone who could call the RPC could make
-  // anyone else the owner of a workspace — or add themselves to one.
-  assert.match(sql, /v_user\s+uuid\s*:=\s*auth\.uid\(\);/);
-  assert.ok(!/p_user|p_owner|p_user_id/.test(sql), "identity must not be an argument");
-  assert.match(sql, /if v_user is null then/, "and a session without a user is refused");
-});
-
-test("the privilege is scoped, not ambient", () => {
-  assert.match(sql, /security definer/);
-  // Without a pinned search_path, a definer function resolves unqualified names
-  // through the CALLER's path — the classic privilege-escalation route.
-  assert.match(sql, /set search_path = public/);
-});
-
-test("tenant and membership are one transaction", () => {
-  // A tenant whose membership insert failed is a workspace nobody can see,
-  // own or delete — and it still holds a slug. Two REST calls could not have
-  // this property; a function body is one transaction.
-  const tenantAt = sql.indexOf("insert into public.tenants");
-  const memberAt = sql.indexOf("insert into public.memberships");
-  assert.ok(tenantAt > 0 && memberAt > tenantAt, "both inserts live in the same body");
-  assert.ok(!/commit;/i.test(sql), "no explicit commit that could split them");
-});
-
-/* ------------------------------ the inputs -------------------------------- */
-
-test("an unreal timezone is refused at the door", () => {
-  // describeNow() falls back to "you do not know what day it is" on an unknown
-  // zone — so a typo here silently costs the receptionist its clock, forever,
-  // with nothing on screen to say why.
-  assert.match(sql, /from pg_timezone_names z where z\.name = v_tz/);
-  assert.match(sql, /raise exception 'Unknown timezone/);
-});
-
-test("pg_timezone_names.name is QUALIFIED, because the function returns a `name`", () => {
-  // PL/pgSQL keeps OUT parameters in scope for the whole body, so an
-  // unqualified `name` here is ambiguous — and it fails at call time, not at
-  // creation. This one shipped broken and was caught by running it.
-  assert.ok(!/where name = v_tz/.test(sql), "the unqualified form is the bug");
-});
-
-test("slug generation terminates, and always produces something", () => {
-  assert.match(sql, /if v_try > 50 then/, "the collision counter is bounded");
-  assert.match(sql, /v_base := 'workspace';/, "a name of pure punctuation still gets a slug");
-  assert.match(sql, /btrim\(v_base, '-'\);\s*--\s*left\(\) can strand/, "truncation cannot leave a trailing dash");
-});
-
-test("there is a cap, so one account cannot fill the tenants table", () => {
-  assert.match(sql, /if v_owned >= 10 then/);
-  assert.match(sql, /errcode = '54000'/, "a distinct code, so the route can say why");
-});
+// The door itself (create_workspace over create_workspace_for), run on the stack in workspace-created.db.test.mjs: a
+// signed-out caller cannot mint a tenant and the service role has no user to name; the caller is read inside the door
+// and owns what it made, and create_workspace_for is no session's; a zone Postgres does not know and a name too short
+// are refused, punctuation still gets a slug; one account owns ten at most, the eleventh refused as 54000. That a
+// definer door pins its search_path is every door's rule (database/privileges.db.test.mjs). Pinned as 00021's text
+// until 26 Nov 2026, which later migrations had replaced.
 
 /* -------------------------------- the route ------------------------------- */
 

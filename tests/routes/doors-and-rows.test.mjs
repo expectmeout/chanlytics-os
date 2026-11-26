@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readRaw, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 const { isRetryableAuthError } = await importSrc("apps/dashboard/src/server/shared/auth/errors.ts");
@@ -134,19 +134,16 @@ test("an auth outage is a 503 at the gate too, and the predicate is shared", () 
 });
 
 test("the doors agree with the code above them", async () => {
-  const sql = readRaw("supabase/migrations/00033_doors_and_rows.sql");
-  // Operators may tune the WORKSPACE rows — the route, the permissions and the
-  // legend all said so; the RLS was the laggard.
-  assert.ok(sql.includes("create policy policies_acting_member_update on public.policies"));
-  assert.ok(sql.includes("subject_type is null"), "person-scoped rows stay owner-only");
+  // Operators may tune the WORKSPACE rows -- the route, the permissions and the legend all said so, and the RLS was the
+  // laggard (00033). A policy now changes in one write (policy_change, 00624), run as each role on the stack in
+  // receptionist/policies/a-policy-save-is-one-step.db.test.mjs, and a person-scoped row stays the owner's
+  // (policies_member_update). The idempotency keys are an acting member's alone (database/tenancy/, idempotency_keys:
+  // "acting"). Pinned as 00033's text until 26 Nov 2026, which later migrations had replaced.
   const policies = await importSrc("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(
     Object.values(policies).some((handler) => handler?.policy?.role === "operator"),
     "the route lets an operator tune them too",
   );
-  // Idempotency keys: acting members only.
-  assert.ok(sql.includes("drop policy if exists idempotency_member_all"));
-  assert.ok(sql.includes("create policy idempotency_acting_member_all"));
 });
 
 // Customer numbers stay out of edge logs: ops/notify-transport.test.mjs runs every line the platform's mail writes

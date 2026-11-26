@@ -52,7 +52,7 @@ import {
   messageAboutOfTrigger,
   channelNeverCarries,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 import { campaignFactsFor } from "../../apps/edge/lib/lines/a2p-campaign-facts.ts";
 import { personDto, personRow } from "./_person-row.mjs";
@@ -236,12 +236,9 @@ test("the database records the two answers apart, and neither writer reaches acr
   // consent/consent-channels.db, consent/consent-evidence.db). Pinned as 00095's text until 25 Nov 2026.
 
   // The yes rides its message (00592): ingest_inbound keeps it in the transaction that keeps the message, once the stop
-  // this message may carry is read back, and the edge writes it through no second door.
-  const kept = readRaw("supabase/migrations/00592_a_message_and_the_yes_it_carries_are_kept_together.sql");
-  assert.match(
-    kept,
-    /if p_opt_in_marketing and v_consent is distinct from 'opted_out' and v_dnc is not true then\s+perform public\.set_marketing_consent\(/,
-  );
+  // this message may carry is read back, and the edge writes it through no second door. Run on the stack in
+  // intake/a-delivery-taken-in-again-changes-no-consent.db.test.mjs: a YES OFFERS kept once with its words, and none
+  // under a stop that stands. Pinned as 00592's text until 26 Nov 2026.
   // That the repository makes no second call is run: consent-history.test.mjs (one call, the ingest's).
 
   // people_list carries both, or no page can compute an audience: the function, redefined since 00096 through 00680,
@@ -621,17 +618,12 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   // desk recording a form the customer signed." Only the first existed, so a salon
   // holding thirty signed consent slips had no way to record any of them -- and
   // both controls that looked like they did wrote the conversational column.
-  const kept = readRaw("supabase/migrations/00592_a_message_and_the_yes_it_carries_are_kept_together.sql");
-  assert.match(kept, /perform public\.set_marketing_consent\(/, "the customer's own message, kept with it (00592)");
-  // A person at the desk: the member's one call (00356 record_consent), which hands the offers door the workspace it
-  // read the person from (the edge calls that door with no session, so it takes the workspace as a parameter), and
-  // writes the history line with the answer. consent-paths.test.mjs runs the route through it.
-  const desk = readRaw("supabase/migrations/00356_an_answer_and_its_history_line_are_one_write.sql");
-  assert.match(
-    desk,
-    /public\.set_marketing_consent\(v_tenant, p_contact_id, p_consent, p_source, p_note, null, p_message_id\)/,
-    "and a person at the desk, with no evidence of the session's own",
-  );
+  // The customer's own message is kept with it (00592, run on the stack in intake/a-delivery-taken-in-again-changes-
+  // no-consent.db.test.mjs). A person at the desk: the member's one call (00356 record_consent), which hands the offers
+  // door the workspace it read the person from (the edge calls that door with no session, so it takes the workspace as a
+  // parameter), and writes the history line with the answer: run on the stack in consent-paths.db.test.mjs ("a
+  // person's answer and its line in their history are one write"), and its route in consent-paths.test.mjs. Pinned as
+  // 00592's and 00356's text until 26 Nov 2026.
 
   // The bulk sibling, because a signed-form yes usually arrives for a class at once: sixty selected are one request to
   // the offers door, fifty at most, run over the wire in calendar/people/asked-then-booked-and-bulk-actions.test.mjs
@@ -669,19 +661,9 @@ test('every read of "said yes to offers" points at the offers column', async () 
   // The Setup row reads the offers count, not the yes to messages: its read and its row run in setup/setup.test.mjs
   // ("REGRESSION: a yes to offers with no number to send one to is a yes", where three yeses to messages and one to
   // offers read "1 person said yes to offers.").
-  const server = [
-    "apps/dashboard/src/server/setup/channel-rows.ts",
-    "apps/dashboard/src/server/setup/setup.ts",
-    // The counts themselves, in Setup's rows (setup_rows, 00700).
-    "supabase/migrations/00700_setup_reads_its_rows_at_once.sql",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.match(
-    server,
-    /'offers_yes', count\(\*\) filter \(where c\.marketing_consent = 'opted_in' and c\.dnc = false\)/,
-    "and it is counted the way the reachable view counts it",
-  );
+  // The counts themselves are Setup's rows' (setup_rows, 00700), counted the way the reachable view counts them: a yes
+  // to offers from somebody not on the do-not-contact list, run on the stack in consent-channels.db.test.mjs ("Setup
+  // counts a yes to offers it may send to"). Pinned as 00700's text until 26 Nov 2026.
 
   // The column titled Offers reads the offers answer, and sorting by it sorts by it: People's own column and sort
   // (surfaces/people/), run over rows that differ in the two yeses. The conversational yes moves neither.

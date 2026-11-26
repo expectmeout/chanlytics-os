@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { ROOT, readCode } from "../../_source.mjs";
+import { ROOT } from "../../_source.mjs";
 import { NAME, OTHER, STRANDED, T, deleteTenant, harbor } from "./_delete-tenant-world.mjs";
 import { bucket } from "./_supabase-stand-in.mjs";
 
@@ -115,9 +115,8 @@ test("the two tables that do not cascade are handled, not discovered afterwards"
   // events carries a tenant_id with NO foreign key, because it is partitioned
   // and a partitioned table cannot reference one. Without this the whole
   // history is left pointing at a tenant that no longer exists.
-  const events = readCode("supabase/migrations/00002_conversations.sql");
-  const decl = /create table public\.events\s*\(([\s\S]*?)\n\);/.exec(events)?.[1] ?? "";
-  assert.match(decl, /tenant_id\s+uuid not null,/, "events still has no foreign key");
+  // That the history outlives its workspace, pointing at nobody, is run on the stack (console/console.db.test.mjs: "a
+  // request is kept by name once its workspace is gone").
   const applied = deleteTenant({ tables: harbor() }, ...WHO, "--apply");
   assert.deepEqual(
     applied.tables.events.map((e) => e.tenant_id),
@@ -132,8 +131,7 @@ test("the two tables that do not cascade are handled, not discovered afterwards"
 
   // billing_events is ON DELETE SET NULL on purpose: Stripe's dedup ledger has
   // to outlive the workspace or a redelivered event is processed twice.
-  const billing = readCode("supabase/migrations/00073_billing.sql");
-  assert.ok(billing.includes("tenant_id    uuid references public.tenants (id) on delete set null"));
+  // That ledger outliving its workspace, its key set null, is run on the stack beside the history (console.db).
   // A partner's earnings (0012) are money owed or paid, and outlive the workspace as the ledger does; so do what the
   // Console's staff did there and the request that asked for the delete (00467, decision 0066). The tally says which
   // rows survive, rather than a comment nobody reads; that they outlive their workspace, its key set null, is run on the

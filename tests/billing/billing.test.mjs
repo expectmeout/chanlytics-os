@@ -25,11 +25,12 @@ import {
   ESCALATION_REASONS,
   EVENT_KINDS,
   SERVER_NOTIFICATION_KINDS,
+  SCHEMA_SETS,
   kindListDoor,
   noticeRoute,
   verbForRoute,
 } from "@chanlytics/contracts";
-import { importSrc, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 import { fromDashboard, listedTogether, stepRunning } from "../shell/boot/_frame-boot.mjs";
@@ -348,31 +349,19 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
   assert.equal(rowOf(undefined), undefined);
 });
 
-test("the table: the migration's grants and the direct rows", () => {
-  const sql = readRaw("supabase/migrations/00073_billing.sql");
-  assert.ok(
-    sql.includes("create table public.billing_accounts") && sql.includes("check (mode in ('stripe', 'direct'))"),
-  );
-  assert.ok(
-    sql.includes("select t.id, 'direct', 'active' from public.tenants t"),
-    "every workspace on record keeps its direct arrangement",
-  );
-  assert.ok(
-    sql.includes("values (p_tenant_id, 'stripe', 'none')"),
-    "a new workspace pays by card, nothing subscribed yet",
-  );
-  assert.ok(
-    sql.includes("create table public.billing_events (") && sql.includes("id           text primary key"),
-    "a delivery is kept once, by Stripe's id",
-  );
-  assert.ok(
-    sql.includes("create policy billing_accounts_member_select") && !sql.includes("billing_events_member"),
-    "members read their row; the ledger is the edge's alone",
-  );
-  assert.ok(sql.includes("'callback','paused'") && sql.includes("'alert','review','billing'"));
-  assert.ok(sql.includes("alter publication supabase_realtime add table public.billing_accounts;"));
-  assert.ok(ESCALATION_REASONS.includes("paused") && SERVER_NOTIFICATION_KINDS.includes("billing"));
+test("the table: what it holds, as the database's closed sets say it, and who reads it", () => {
+  // The sets the database's CHECKs hold, as the generator reads them from the replayed stack (schema-sets.generated.ts,
+  // held to the database by its own check): a workspace pays by card or by a direct arrangement; a paused workspace's
+  // hold and its notice are kinds the tables take.
+  assert.deepEqual(SCHEMA_SETS["billing_accounts.mode"], ["stripe", "direct"]);
+  assert.ok(SCHEMA_SETS["escalations.reason"].includes("paused") && ESCALATION_REASONS.includes("paused"));
+  assert.ok(SCHEMA_SETS["notifications.kind"].includes("billing") && SERVER_NOTIFICATION_KINDS.includes("billing"));
   for (const k of ["billing.updated", "billing.paused", "billing.resumed"]) assert.ok(EVENT_KINDS.includes(k), k);
+  // Run on the stack: a new workspace pays by card, nothing subscribed yet (auth/workspace-created.db.test.mjs, its
+  // billing row made with it); a delivery is kept once, by Stripe's id (billing-event-claim.db.test.mjs); members read
+  // their row and the ledger is the edge's alone (database/tenancy/: billing_accounts "member", billing_events "none").
+  // No table is published to Postgres Changes since 00324 (database/realtime-publication.db.test.mjs): the tab hears
+  // billing on its workspace's topic. Pinned as 00073's text until 26 Nov 2026, which still said it was published.
 });
 
 test("the wiring: the webhook, the ops, the keys on the edge alone, the bucket, the bridge, the pane, the watch list, the kinds", async () => {

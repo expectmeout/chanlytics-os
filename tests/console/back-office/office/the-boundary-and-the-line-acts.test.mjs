@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setupSteps, platformLineActions, platformActionWarning, platformRows } from "@chanlytics/contracts";
-import { importSrc, readRaw } from "../../../_source.mjs";
+import { importSrc } from "../../../_source.mjs";
 import { fakeDb } from "../../../_fake-db.mjs";
 const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
 import { setupDtoFor } from "../../../../apps/dashboard/src/server/setup/setup.ts";
@@ -40,23 +40,16 @@ import { bootRunsOneNamed } from "../../../shell/boot/_frame-boot.mjs";
 
 /* ------------------------------- the boundary ------------------------------ */
 
-test("one door: the check is the first statement, and the inner join is not reachable", () => {
-  // Who may look across workspaces is the database's, asked about the caller alone (is_platform_admin, redefined by
-  // 00467 as platform_staff_state): a staff member who showed a second factor, never a password alone, never an owner
-  // -- proved on the stack (console/console.db.test.mjs); the overview refused to anyone else, run through the route
-  // (console/back-office/platform-routes.test.mjs, "the back office's door"). Pinned as 00091's and 00092's text until
-  // 25 Nov 2026, which later migrations had replaced.
-  const three = readRaw("supabase/migrations/00093_the_inner_join_is_not_a_door.sql");
-  // And it is not a second door. 00092 revoked three roles and missed
-  // service_role, which answered 200 with every workspace in it.
-  assert.match(three, /revoke execute on function public\.platform_overview_rows\(\) from public;/);
-  assert.match(three, /from pg_roles/, "the revoke asks Postgres which roles exist rather than trusting a list");
-  assert.match(
-    three,
-    /raise exception '00093: platform_overview_rows\(\) is still granted to/,
-    "a grant that comes back fails the deploy",
-  );
-});
+// One door: the check is the first statement, and the inner join is not reachable:
+// Who may look across workspaces is the database's, asked about the caller alone (is_platform_admin, redefined by
+// 00467 as platform_staff_state): a staff member who showed a second factor, never a password alone, never an owner
+// -- proved on the stack (console/console.db.test.mjs); the overview refused to anyone else, run through the route
+// (console/back-office/platform-routes.test.mjs, "the back office's door"). Pinned as 00091's and 00092's text until
+// 25 Nov 2026, which later migrations had replaced.
+// And it is not a second door: 00092 revoked three roles and missed service_role, which answered 200 with every
+// workspace in it. The join is nobody's to call, the service role's included, run on the stack in
+// console/console.db.test.mjs ("the back office's join is no door at all"); 00093's own revoke asked Postgres which
+// roles exist and failed the deploy on a grant that came back. Pinned as 00093's text until 26 Nov 2026.
 
 test("every route under /api/v1/platform asks the database who is calling", () => {
   // The invariant the PRD's Risk section asks for, made mechanical: "every path
