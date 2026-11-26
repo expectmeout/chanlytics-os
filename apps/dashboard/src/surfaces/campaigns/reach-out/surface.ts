@@ -87,6 +87,7 @@ import {
   type ReachOutReachDto,
   type BroadcastDetailDto,
   leadChainStepOf,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { Input } from "@/client/api";
 import { api, read } from "@/bridge/api";
@@ -112,8 +113,10 @@ export interface PileAsk {
 function pileAskOf(raw: string | null): PileAsk | null {
   if (!raw) return null;
   try {
-    const v = JSON.parse(raw) as { id?: unknown; name?: unknown };
-    return typeof v.id === "string" ? { id: v.id, name: typeof v.name === "string" ? v.name : null } : null;
+    const kept: unknown = JSON.parse(raw);
+    const id = valueAt(kept, "id");
+    const name = valueAt(kept, "name");
+    return typeof id === "string" ? { id, name: typeof name === "string" ? name : null } : null;
   } catch {
     return { id: raw, name: null };
   }

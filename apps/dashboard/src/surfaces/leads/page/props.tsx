@@ -46,7 +46,7 @@ import type { LeadActs } from "./acts";
 import type { LeadsNav } from "./peek-hooks";
 import type { RailRoutes, StripActs } from "./routes";
 import type { FinderActs, SearchActs } from "./search-acts";
-import type { LeadNarrowings } from "./reads";
+import { leadSortOf, type LeadNarrowings } from "./reads";
 import type { LeadsState, LeadView } from "./state";
 
 type Controls = ReturnType<typeof usePlControls<LeadRowVM, LeadCellCtx, ColCtx>>;
@@ -363,16 +363,16 @@ const reviewDoors = (p: LeadsPage): ReviewDoors => {
  * The view a selection of "all that match" stands for, and the file of it: the list, the search, the class and the sort,
  * and the filters the read narrows by (00500), so the act and the file are the rows the table shows.
  */
-const bulkViewOf = (p: LeadsPage) => {
+const bulkViewOf = (p: LeadsPage): Extract<LeadsBulkInput, { by: "view" }>["view"] => {
   const { leadView, sortBy, sortDir } = p;
   return {
     list: leadView.list,
     ...(leadView.searchId ? { search: leadView.searchId } : {}),
     ...(leadView.cls ? { class: leadView.cls } : {}),
-    sort: sortBy,
+    sort: leadSortOf(sortBy),
     dir: sortDir,
     ...leadFiltersOf({ q: p.q, excluded_by: p.chip, fit: p.fitChip, reach: p.reach, status_group: p.statusGroups }),
-  } as Extract<LeadsBulkInput, { by: "view" }>["view"];
+  };
 };
 
 /** The rail picks as People's does (railToggle): a list or a search, one at a time; the class and the chip start over. */

@@ -18,6 +18,7 @@ import {
   type PersonRowVM,
   type PeopleAggregates,
   type ListRule,
+  errorOfThrown,
 } from "@chanlytics/contracts";
 import type { AttentionRowVM } from "./person/model/attention";
 import { resnapshotHere } from "@/bridge/surface-cache";
@@ -238,7 +239,11 @@ export function peopleGoing(ids: readonly string[], gone: () => void): void {
 }
 
 /** The views this tab has saved (the latest by page), how many saves it has made, and how many still wait on their reply. */
-const keptViews = { views: {} as Record<string, Record<string, unknown>>, made: 0, waiting: 0 };
+const keptViews: { views: Record<string, Record<string, unknown>>; made: number; waiting: number } = {
+  views: {},
+  made: 0,
+  waiting: 0,
+};
 
 // A save reads nothing back, and People mounted again (Back) reads the view from this copy, so the copy takes each save.
 // Until the first read of People lands (straight after F5) the copy is the one the tab's cache painted. What it returns
@@ -525,7 +530,7 @@ export const peopleOverride: SurfaceOverride = {
       read("GET contacts"),
       // The saved lists failing is their own state (savedRead): one failed read of
       // them took the whole surface down, and with it People, every profile and Lists.
-      read("GET segments").catch((e: unknown) => e as Error),
+      read("GET segments").catch(errorOfThrown),
       // A member's own views; a route that is not there yet reads as none.
       read("GET views").catch(() => ({ views: {}, failed: true as const })),
       workspaceZone(),

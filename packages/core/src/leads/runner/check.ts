@@ -3,7 +3,7 @@
  * answers are read by the collect (collect.ts).
  */
 
-import { LEAD_CARDS, LEAD_ESTIMATE_MARGIN, PEOPLE_RUN_FLOOR_USD } from "@chanlytics/contracts";
+import { LEAD_CARDS, LEAD_ESTIMATE_MARGIN, PEOPLE_RUN_FLOOR_USD, recordOrEmpty } from "@chanlytics/contracts";
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels/leads";
 import { CARDS, CHECKER_RUN_TIMEOUT_SECS } from "../cards";
 import { FINAL_RUN_STATES } from "../endings";
@@ -135,7 +135,7 @@ export async function check(
   try {
     const started = await leadPorts.apify.startRun(
       card.checker.actor,
-      { ...(card.checker.buildInput(emails) as Record<string, unknown>), [INPUT_MARKER]: row.id },
+      { ...recordOrEmpty(card.checker.buildInput(emails)), [INPUT_MARKER]: row.id },
       {
         build: card.checker.build,
         timeoutSecs: CHECKER_RUN_TIMEOUT_SECS,

@@ -76,6 +76,19 @@ const conv = (over = {}) => ({
   ...over,
 });
 
+test("Today counts the threads that need you, never the read's count of open escalations: nine open and no thread waiting is a quiet morning", () => {
+  // Pinned as the absence of live.escalations_open in Today's modules (standing.test.mjs) until 26 Nov 2026.
+  const vm = toTodayVM(
+    metrics({ now: { escalations_open: 9, oldest_open_escalation_at: "2026-08-26T09:00:00Z" } }),
+    [],
+    [],
+    [],
+    NOW,
+  );
+  assert.equal(vm.needsYou, null, "nobody waits: no thread needs you");
+  assert.equal(vm.quiet?.headline, "Nothing needs you.");
+});
+
 test("a quiet morning is proven, not left implied", () => {
   const vm = toTodayVM(metrics(), [], [], [], NOW);
   assert.ok(vm.quiet, "quiet card should be present");

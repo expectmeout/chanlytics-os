@@ -12,15 +12,13 @@
  *   3. Leads chosen on Leads: only a lead already counted joins, counted without drawing the month again and outside a
  *      round that ends as it is made and rings nothing, so nothing is given back; who may, nothing to add, the limit.
  *   4. A file of 500 rows in one call, well inside a signed-in member's statement timeout.
- *   5. The bell's function is 00163's body but for the list's lines (and 00421's question close and 00491's source
- *      failed after it), a lead's story 00241's but for one key, and the
- *      database runs both; the vias are held; the doors are a signed-in member's, never anon's.
+ *   5. A lead's story says whether it was found on a listing; the vias are held; the doors are a signed-in member's,
+ *      never anon's. (The bell's and the story's later changes are run where they act: see the test's own note.)
  *
  * Local stack only: it makes workspaces, people and leads.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,29 +55,6 @@ function query(sql) {
   const parsed = JSON.parse(out.slice(start, out.lastIndexOf(out[start] === "{" ? "}" : "]") + 1));
   return Array.isArray(parsed) ? parsed : (parsed.rows ?? []);
 }
-/** A migration's text, by its number, its lines ended as git keeps them (a Windows checkout ends them in CRLF). */
-const migration = (n) => {
-  const dir = path.join(ROOT, "supabase/migrations");
-  const file = path.join(
-    dir,
-    fs.readdirSync(dir).find((f) => f.startsWith(`${n}_`)),
-  );
-  return fs.readFileSync(file, "utf8").split("\r\n").join("\n");
-};
-const bodyIn = (src, header) => {
-  const at = src.indexOf(header);
-  assert.ok(at >= 0, `no ${header}`);
-  // In either case: 00635 writes its functions as the schema prints them (AS $$).
-  const open = at + src.slice(at).search(/\bas \$\$/i) + "as $$".length;
-  return src.slice(open, src.indexOf("$$", open));
-};
-const liveBody = (name) =>
-  query(
-    `select p.prosrc from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${name}'`,
-  )[0]
-    ?.prosrc?.split("\r\n")
-    .join("\n");
-
 const stamp = Date.now().toString(36);
 const at = (who) => `${who}-${stamp}@fixture-lists.example`;
 
@@ -667,163 +642,18 @@ test(
 );
 
 test(
-  "the bell is 00163's but for the list's lines, a lead's story 00241's but for one key; the vias are held; the doors are a member's",
+  "a lead's story says whether it was found on a listing; the vias are held; the doors are a member's",
   { skip },
   async () => {
     const w = await world();
-    const guarded = bodyIn(migration("00635"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(liveBody("lead_rounds_notify"), guarded, "the database runs 00635's");
-    // 00635 is 00628's with a widened search its own guards stopped short of its count, with areas still within reach,
-    // saying how many of how many it found and that it stopped after the nearby areas it reads on its own; and nothing
-    // else.
-    const widened = bodyIn(migration("00628"), "create or replace function public.lead_rounds_notify(");
-    assert.equal(
-      guarded
-        .replace(/ {16}when v_wide and v_want is not null and v_n < v_want[^\n]*\n[^\n]*\n/, "")
-        .replace(/ {16}when v_via <> 'import' and v_wide[^\n]*\n[^\n]*\n[^\n]*\n/, ""),
-      widened,
-    );
-    // 00628 is 00506's with a search that widens to its count (decision 0133): a round that opened the next leg rings
-    // nothing, the one that ends a widened search counts every leg's finished leads, and an ending short of its count
-    // says why in its title; and nothing else.
-    const rang = widened
-      .replace("  v_want integer;\n", "")
-      .replace("  v_wide boolean;\n", "")
-      .replace(
-        "  select s.name, s.via, (s.plan->>'count')::integer into v_name, v_via, v_want\n    from public.lead_searches s where s.id = NEW.search_id;\n",
-        "  select s.name, s.via into v_name, v_via from public.lead_searches s where s.id = NEW.search_id;\n",
-      )
-      .replace(
-        /coalesce\(NEW\.ending, ''\) <> 'stopped'\n {8}and not NEW\.carries_on then\n(?: {4}--[^\n]*\n){2} {4}select exists [^\n]*into v_wide;\n/,
-        "coalesce(NEW.ending, '') <> 'stopped' then\n",
-      )
-      .replace(
-        /where \(m\.round_id = NEW\.id or \(v_wide and m\.search_id = NEW\.search_id\)\) and m\.class = 'qualified' and m\.blanked_at is null\n {7}and \(v_via = 'import' or public\.lead_member_shown\(m\.class, m\.counted\)\);\n/,
-        "where m.round_id = NEW.id and m.class = 'qualified' and m.blanked_at is null;\n",
-      )
-      .replace(
-        / {16}when NEW\.ending = '(?:day_used|month_leads_used|budget_used|reach_searched)'[^\n]*\n[^\n]*\n/g,
-        "",
-      )
-      .replace(
-        /case when v_via <> 'import' and NEW\.ending = 'reach_searched' then\n[^\n]*\n {16}when v_via <> 'import' then /,
-        "case when v_via <> 'import' then ",
-      );
-    assert.equal(rang, bodyIn(migration("00506"), "create or replace function public.lead_rounds_notify("));
-    // 00506 is 00491's with a search that ended waiting a day on its question ringing, and saying so, and nothing else.
-    const told = rang
-      .replace(
-        "coalesce(NEW.ending, '') <> 'stopped' then",
-        "coalesce(NEW.ending, '') not in ('stopped', 'question_unanswered') then",
-      )
-      .replace(/ {16}when NEW\.ending = 'question_unanswered' then\n[^\n]*\n/, "");
-    assert.equal(told, bodyIn(migration("00491"), "create or replace function public.lead_rounds_notify("));
-    // 00491 is 00421's with a search whose source failed saying so (didn't run, or stopped), and nothing else.
-    const bell = told
-      .replace("  v_seen boolean;\n", "")
-      .replace(/ {4}-- Whether the source returned anything[^\n]*\n {4}select exists [^\n]*\n/, "")
-      .replace(
-        /case when v_via = 'import' then\n {18}case when ([^\n]*' is checked', 200\))\n {23}(else [^\n]*' could not be checked', 200\)) end\n {16}when NEW\.ending = 'source_failed' and not v_seen then\n[^\n]*\n {16}when NEW\.ending = 'source_failed' then\n[^\n]*\n {16}else (left\('Your search for ' \|\| v_name \|\| ' is done', 200\)) end,/,
-        (_, checked, unchecked, done) =>
-          `case when v_via <> 'import' then ${done}\n                when ${checked}\n                ${unchecked} end,`,
-      );
-    assert.equal(bell, bodyIn(migration("00421"), "create or replace function public.lead_rounds_notify("));
-    // 00421 is 00242's with the round's question closed as it leaves waiting_on_owner, and nothing else.
-    const now = bell.replace(
-      / {2}-- A round that leaves waiting_on_owner[^\n]*\n {2}--[^\n]*\n {2}if OLD\.state = 'waiting_on_owner'[^\n]*\n {4}perform public\.notifications_close_about[^\n]*\n {2}end if;\n/,
-      "",
-    );
-    assert.equal(now, bodyIn(migration("00242"), "create or replace function public.lead_rounds_notify("));
-    const was = now
-      .replace("  v_via  text;\n", "")
-      .replace("select s.name, s.via into v_name, v_via from", "select s.name into v_name from")
-      .replace(/ {2}-- A list: [^\n]*\n {2}if v_via = 'chosen'[^\n]*\n/, "")
-      .replace(
-        /'leads_ready',\n {11}case when v_via <> 'import' then (left\('Your search for ' \|\| v_name \|\| ' is done', 200\))\n[^\n]*\n[^\n]*\n {11}case when v_via <> 'import' then (case when v_n > 0 then v_n \|\| ' found\.' else 'Nothing new was counted\.' end)\n[^\n]*\n[^\n]*end,/,
-        "'leads_ready', $1,\n           $2,",
-      );
-    assert.equal(was, bodyIn(migration("00163"), "create or replace function public.lead_rounds_notify("));
-
-    // 00426 gave a lead on a list, before any send, its chain and when it was added (leads/workbench/reach-out-add.db.test.mjs);
-    // 00430 says what the lead is and where it came from (kind, source), and nothing else.
-    const live = bodyIn(migration("00430"), "create or replace function public.reach_out_lead_timeline(");
-    // 00451 read it from the sequence tables, the ones the old names were views of, and changed nothing else; 00455 says
-    // their place in it (a leave between steps moves no send of theirs), and nothing else; 00457 says what a held
-    // email's check flagged (hold_detail), and nothing else.
-    const placed = bodyIn(migration("00455"), "create or replace function public.reach_out_lead_timeline(");
-    const flagged = bodyIn(migration("00457"), "create or replace function public.reach_out_lead_timeline(");
-    // 00459 (one road from a lead to a sequence) finds a lead's chain on the search it draws from as well as its list,
-    // names that search for a lead it brought, and counts a first send skipped as moved as the old one; nothing else.
-    const roads = bodyIn(migration("00459"), "create or replace function public.reach_out_lead_timeline(");
-    // 00540 (a lead's own email is a send with no sequence) leaves such a send out of where a lead's chain is found; nothing
-    // else.
-    assert.equal(
-      liveBody("reach_out_lead_timeline"),
-      roads.replace(
-        "s.tenant_id = p_tenant_id and s.lead_id = p_lead_id\n",
-        "s.tenant_id = p_tenant_id and s.lead_id = p_lead_id and s.sequence_id is not null\n",
-      ),
-      "the database runs 00540's",
-    );
-    const CASE =
-      "case when p.source_search_id is null\n                     or exists (select 1 from public.lead_search_members x\n                                 where x.search_id = p.lead_search_id and x.lead_id = v_lead.id and x.blanked_at is null)\n                   then p.lead_search_id else p.source_search_id end";
-    assert.equal(
-      roads
-        .replace(
-          "m.search_id in (p.lead_search_id, p.source_search_id) and m.lead_id",
-          "m.search_id = p.lead_search_id and m.lead_id",
-        )
-        .replace("'owner_took_back', 'moved'))", "'owner_took_back'))")
-        .replace(
-          `  select q.via into v_via from public.sequence_steps p\n    join public.lead_searches q on q.id = ${CASE}\n`,
-          "  select q.via into v_via from public.sequence_steps p join public.lead_searches q on q.id = p.lead_search_id\n",
-        )
-        .replace(
-          `join public.lead_searches q on q.tenant_id = p_tenant_id and q.id = ${CASE}\n`,
-          "join public.lead_searches q on q.id = p.lead_search_id and q.tenant_id = p_tenant_id\n",
-        ),
-      flagged,
-      "00459's is 00457's with the search a chain draws from, and a moved send",
-    );
-    assert.equal(
-      flagged.replace("               'hold_detail', s.hold_detail,\n", ""),
-      placed,
-      "00457's is 00455's with what a held email's check flagged",
-    );
-    assert.equal(
-      placed.replace(
-        "    'can_stop', v_sent and v_lead.reach_out_stopped_at is null,\n" +
-          "    -- Their place in it (00455), the one record of where they stand: a leave between steps moves no send of theirs.\n" +
-          "    'place', (select jsonb_build_object('id', e.id, 'state', e.state, 'why', e.why, 'next_at', e.next_at)\n" +
-          "                from public.sequence_enrollments e\n" +
-          "               where e.tenant_id = p_tenant_id and e.sequence_id = v_root and e.lead_id = v_lead.id\n" +
-          "               order by e.entered_at desc limit 1)\n",
-        "    'can_stop', v_sent and v_lead.reach_out_stopped_at is null\n",
-      ),
-      bodyIn(migration("00451"), "create or replace function public.reach_out_lead_timeline("),
-      "00455's is 00451's with their place",
-    );
-    assert.equal(
-      live.replace(
-        / {4}-- What the lead is and where it came from \(00430\)[^\n]*\n {4}-- a list's either\.\n {4}'kind', v_lead\.kind,\n {4}'source', v_lead\.source,\n/,
-        "",
-      ),
-      bodyIn(migration("00426"), "create or replace function public.reach_out_lead_timeline("),
-      "00430's is 00426's with the lead's kind and source",
-    );
-    const latest = bodyIn(migration("00280"), "create or replace function public.reach_out_lead_timeline(");
-    // 00280 is 00242's with a partner's second-factor clause on the membership check, and nothing else.
-    const story = latest
-      .replace(
-        "  -- A partner's seat counts for the calling session only once it showed its second factor (0013, 00261).\n",
-        "",
-      )
-      .replace("\n          and (m.role <> 'partner' or public.session_shows_second_factor())", "");
-    assert.equal(story, bodyIn(migration("00242"), "create or replace function public.reach_out_lead_timeline("));
-    assert.equal(
-      story.replace(/ {4}-- Found on a listing[^\n]*\n {4}'found_on_listing', v_lead\.place_id is not null,\n/, ""),
-      bodyIn(migration("00241"), "create or replace function public.reach_out_lead_timeline("),
-    );
+    // Pinned until 26 Nov 2026 as each migration's text, the one before it with one change, from 00163 to 00635 for the
+    // bell (lead_rounds_notify) and from 00241 to 00540 for a lead's story (reach_out_lead_timeline). Each change is run:
+    // a widened search's endings and words in leads/rounds/a-search-widens-until-its-count.db.test.mjs (00628, 00635,
+    // the month's leads too); a question unanswered, a source that failed and a question closed as its round leaves
+    // waiting_on_owner in leads/leads.db.test.mjs (00421, 00491, 00506); a list's own bell above (00242); the partner's
+    // second factor in partners/second-factor-catalog.db.test.mjs (00280); what a lead is, its chain through the search
+    // a list was chosen from, a moved, a held and an own email, and its place, in
+    // leads/workbench/reach-out-add.db.test.mjs (00430, 00455, 00457, 00459, 00540); found on a listing below (00241).
     const [listed] = query(`select id from public.leads where tenant_id = '${A}' and email = '${at("new1")}'`);
     const fromList = ok(await as.owner.c.rpc("reach_out_lead_timeline", { p_tenant_id: A, p_lead_id: listed.id }));
     const found = ok(await as.owner.c.rpc("reach_out_lead_timeline", { p_tenant_id: A, p_lead_id: w.counted }));

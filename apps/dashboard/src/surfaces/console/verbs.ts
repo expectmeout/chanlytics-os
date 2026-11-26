@@ -23,6 +23,7 @@ import type {
 } from "@chanlytics/contracts";
 import type { Output } from "@/client/api";
 import { api } from "@/bridge/api";
+import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
 
 export type ConsoleMe = Output<"GET platform/me">;
 export type ConsoleHome = Output<"GET platform/home">;
@@ -48,10 +49,13 @@ export type Read<T> = { ok: true; data: T } | { ok: false; message: string; miss
 /** A write's answer: what it returned, or its refusal's words (a form's fields beside them). */
 type Wrote<T> = { ok: true; data: T } | { ok: false; message: string; fields: Record<string, string> };
 
-const refusedFields = (details: unknown): Record<string, string> => {
-  const f = details && typeof details === "object" ? (details as { fields?: unknown }).fields : null;
-  return f && typeof f === "object" ? (f as Record<string, string>) : {};
-};
+/** A refusal's sentences by the field each is under: each one that is words. */
+const refusedFields = (details: unknown): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(recordOrEmpty(valueAt(details, "fields"))).filter(
+      (field): field is [string, string] => typeof field[1] === "string",
+    ),
+  );
 
 type Answer<T> = { ok: true; data: T } | { ok: false; message: string; status?: number; details?: unknown };
 

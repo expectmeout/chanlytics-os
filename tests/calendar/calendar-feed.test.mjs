@@ -42,11 +42,12 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
-const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
+const { loadFeed, forgetFeeds, getOpenings } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 const { getCalendarWeek } = await import(at("apps/dashboard/src/server/calendar/week/week.ts"));
 const { itemsToDays, MAX_ITEMS_PER_DAY } = await import(at("apps/dashboard/src/server/calendar/week/items.ts"));
 const { previewFeed } = await import(at("apps/dashboard/src/server/calendar/feed-preview.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
+const previewRoute = await import(at("apps/dashboard/app/api/v1/calendar/preview/route.ts"));
 const visitRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/[id]/route.ts"));
 const keptRoute = await import(at("apps/dashboard/app/api/v1/calendar/visits/kept/route.ts"));
 
@@ -396,6 +397,35 @@ test("the preview refuses in the same words: an address, an answer, a web page, 
     ["Ana Ruiz · Balayage"],
   );
   assert.match(ok.next[0].start, /Tue, Sep 8, 2:00 PM/);
+});
+
+test("POST calendar/preview: an operator's address is read in the business's own zone; a viewer is refused before anything is fetched", async (t) => {
+  // Pinned as the route's text in calendar.test.mjs until 26 Nov 2026. The clock is the week the feed holds.
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
+  const url = "https://cal.example/preview.ics";
+  answers.set(url, { body: ONE });
+  const ask = (role, body = { url }) => {
+    const t = tables(null, role);
+    t.tenants[0].timezone = "America/Los_Angeles";
+    return previewRoute.POST.run(
+      new Request(`http://localhost/api/v1/calendar/preview?workspace=${T}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { ...ctxFor(t), aal: "aal2" },
+    );
+  };
+  await assert.rejects(ask("viewer"), (e) => e.code === "forbidden", "a viewer previews nothing");
+  assert.deepEqual(fetched, [], "and nothing was fetched for them");
+  await assert.rejects(
+    ask("operator", { url: "  " }),
+    (e) => e.code === "validation" && e.message === "Paste the calendar's iCal address first.",
+  );
+  const read = await ask("operator");
+  assert.equal(read.events, 1);
+  assert.match(read.next[0].start, /Tue, Sep 8, 11:00 AM/, "2 PM in New York, said in the business's own zone");
+  assert.deepEqual(fetched, [url]);
 });
 
 test("settings that will not parse are a calendar that could not be read, never a workspace without one", async () => {
@@ -876,6 +906,32 @@ test("the route: asked for the weeks around today, it answers the board's own wi
   t.mock.timers.setTime(NOW.getTime());
   const bare = (await ask("days=7")).calendar;
   assert.deepEqual([bare.from, bare.days.length], ["2026-09-07", 7]);
+  // At most the board's nine weeks, whatever is asked (pinned as items.ts's text in calendar.test.mjs until 26 Nov 2026).
+  assert.equal((await ask("from=2026-09-07&days=400")).calendar.days.length, 63, "never more than nine weeks");
+  assert.equal((await ask("from=2026-09-07&days=0")).calendar.days.length, 7, "no length is a week");
+});
+
+test("the board's services are the services as Settings keeps them: how long each takes, and which need a consultation first", async () => {
+  // Pinned as week.ts's text in calendar.test.mjs until 26 Nov 2026.
+  for (const url of [null, "https://cal.example/services.ics"]) {
+    answers.set("https://cal.example/services.ics", { body: ONE });
+    forgetFeeds();
+    const t = tables(url);
+    t.tenant_config[0].config.brain.profile = {
+      ...profile,
+      services: [{ name: "Balayage", duration_min: 90 }, { name: "Color correction" }],
+      booking_rules: { ...profile.booking_rules, consult_first: ["color correction"] },
+    };
+    const week = await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+    assert.deepEqual(
+      week.services,
+      [
+        { name: "Balayage", duration_min: 90, consult_first: false },
+        { name: "Color correction", duration_min: null, consult_first: true },
+      ],
+      url ? "with a calendar" : "and with none",
+    );
+  }
 });
 
 test("the save refuses an address every fetch would refuse, in the same words", () => {
@@ -1169,6 +1225,67 @@ test("POST calendar/visits/:id: a Missed says what it sets going (decision 0119)
     (await follows({ appointment: visit({ starts_at: "2026-09-08T18:00:00.000Z" }) })).when,
     "tomorrow 9:00 AM",
   );
+});
+
+test("the board's open times are the receptionist's: the feed's busy time and the record's taken time left out, from the one read Ask's openings answer from", async () => {
+  // Pinned as week.ts's, items.ts's and parsed-feed.ts's text in calendar.test.mjs until 26 Nov 2026.
+  const url = "https://cal.example/taken.ics";
+  answers.set(url, { body: ONE });
+  /** Booked by email for Wednesday 10-11 in New York: on no calendar, and still the slot is taken (00345). */
+  const emailed = {
+    id: "b-wed",
+    tenant_id: T,
+    source: "booking_email",
+    tool: "booksy",
+    external_id: "bk-wed",
+    status: "booked",
+    starts_at: "2026-09-09T14:00:00.000Z",
+    ends_at: "2026-09-09T15:00:00.000Z",
+    all_day: false,
+    title: null,
+    service: "Balayage",
+    staff: null,
+    price: null,
+    note: null,
+    client_name: "Bea Lin",
+    client_phone: null,
+    client_email: null,
+    contact_id: null,
+    vanished_at: null,
+  };
+  const wednesdayOf = async (rows) => {
+    forgetFeeds();
+    const t = tables(url);
+    t.appointments = rows;
+    const week = await getCalendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+    return { t, windows: week.days.find((d) => d.key === "2026-09-09").windows, tue: week.days[1] };
+  };
+  const at = (windows, iso) =>
+    windows.some((w) => Date.parse(w.start) <= Date.parse(iso) && Date.parse(iso) < Date.parse(w.end));
+  const open = await wednesdayOf([]);
+  assert.ok(at(open.windows, "2026-09-09T14:30:00.000Z"), "no booking: Wednesday 10:30 is open");
+  const { t, windows, tue } = await wednesdayOf([emailed]);
+  assert.ok(
+    !at(windows, "2026-09-09T14:00:00.000Z") && !at(windows, "2026-09-09T14:30:00.000Z"),
+    "the emailed booking's hour is left out",
+  );
+  assert.ok(
+    at(windows, "2026-09-09T13:30:00.000Z") && at(windows, "2026-09-09T15:00:00.000Z"),
+    "the hours either side stay",
+  );
+  assert.ok(
+    !at(tue.windows, "2026-09-08T18:30:00.000Z"),
+    "and the feed's own appointment, Tuesday 2-3:30, is taken too",
+  );
+  // Ask's openings come from the same read: the feed the board just read is asked nothing again.
+  const before = fetched.length;
+  const said = await getOpenings(T, { day: "2026-09-09", service: null }, NOW, {
+    timezone: TZ,
+    config: t.tenant_config[0].config,
+    taken: async () => [{ start: Date.parse(emailed.starts_at), end: Date.parse(emailed.ends_at) }],
+  });
+  assert.equal(said.state, "ok");
+  assert.equal(fetched.length, before, "one read for the board and the receptionist alike");
 });
 
 test("the week reads the record: a cancelled booking is drawn struck and keeps the feed's copy of it off the board, and a feed event carries its row's word", async () => {

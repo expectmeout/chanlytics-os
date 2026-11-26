@@ -121,7 +121,7 @@ export function peopleListActs({
   const exportBlocked =
     activeSaved && activeSaved.unknown ? activeSaved.unknown : listGone ? `${listGone.title}. ${listGone.body}` : null;
   const exportHref = exportLink(
-    exportName ? (activeSaved ? `list:${activeSaved.id}` : `seg:${(activeList as SmartList).id}`) : undefined,
+    !exportName ? undefined : activeSaved ? `list:${activeSaved.id}` : activeList ? `seg:${activeList.id}` : undefined,
   );
   const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
   // One list open at a time: it is the page's title, so two open at once would be a title over a table it does not
@@ -173,47 +173,51 @@ interface PhoneActsArgs {
   onOpenProfile: (id: string) => void;
 }
 
+/** The open list deleted from the phone's sheet, as the desk's Delete does it. */
+async function listDeleteGo(a: PhoneActsArgs, saved: SavedList, closePhoneSheet: () => void): Promise<void> {
+  const answer = await plDeleteList(saved);
+  if (!answer.ok) {
+    a.setListDraft((x) => ({ ...x, busy: false, error: answer.error }));
+    return;
+  }
+  if (answer.archived) a.plFlash({ msg: plArchivedWords(saved.name, answer) });
+  closePhoneSheet();
+  a.setSavedId(null);
+}
+
+/** The open list renamed from the phone's sheet, as the desk's Rename does it. */
+async function listRenameGo(a: PhoneActsArgs, saved: SavedList, n: string, closePhoneSheet: () => void): Promise<void> {
+  const answer = await plRenameList(saved, n);
+  if (!answer.ok) {
+    a.setListDraft((x) => ({ ...x, busy: false, error: answer.error }));
+    return;
+  }
+  closePhoneSheet();
+  a.plFlash({
+    msg: (
+      <>
+        Renamed to <b>{n}</b>
+      </>
+    ),
+  });
+}
+
 /** The open list's acts on a phone (the more-menu's): the desktop's doors, the page's draft, the desktop's words. */
 function listActGoOf(a: PhoneActsArgs, closePhoneSheet: () => void) {
-  const { listAct, listDraft, setListDraft, activeSaved, viewRule, shownIds, openMade, setSavedId, plFlash } = a;
+  const { listAct, listDraft, setListDraft, activeSaved, viewRule, shownIds, openMade, plFlash } = a;
   return async () => {
     const d = listDraft;
     if (d.busy) return;
     const n = d.name.trim();
     if (listAct !== "delete" && !n) return;
     if (listAct !== "save" && !activeSaved) return;
-    if (listAct === "rename" && n === (activeSaved as SavedList).name) {
+    if (listAct === "rename" && activeSaved && n === activeSaved.name) {
       closePhoneSheet();
       return;
     }
     setListDraft({ ...d, busy: true, error: null });
-    if (listAct === "delete") {
-      const r = await plDeleteList(activeSaved as SavedList);
-      if (!r.ok) {
-        setListDraft((x) => ({ ...x, busy: false, error: r.error }));
-        return;
-      }
-      if (r.archived) plFlash({ msg: plArchivedWords((activeSaved as SavedList).name, r) });
-      closePhoneSheet();
-      setSavedId(null);
-      return;
-    }
-    if (listAct === "rename") {
-      const r = await plRenameList(activeSaved as SavedList, n);
-      if (!r.ok) {
-        setListDraft((x) => ({ ...x, busy: false, error: r.error }));
-        return;
-      }
-      closePhoneSheet();
-      plFlash({
-        msg: (
-          <>
-            Renamed to <b>{n}</b>
-          </>
-        ),
-      });
-      return;
-    }
+    if (listAct === "delete" && activeSaved) return listDeleteGo(a, activeSaved, closePhoneSheet);
+    if (listAct === "rename" && activeSaved) return listRenameGo(a, activeSaved, n, closePhoneSheet);
     if (viewRule && ((d.mode || "rule") === "rule" || shownIds.length === 0)) {
       const r = await plMakeRuleList(n, viewRule);
       if (!r.ok) {

@@ -14,6 +14,7 @@ import { canDo, navigate } from "../frame-verbs";
 import { fn, windowValue, object, type Flash } from "../shell-doors";
 import { provided } from "@/bridge/provided";
 import type { TabMemory } from "@/bridge/tab-memory";
+import { isObjectRecord } from "@chanlytics/contracts";
 
 /* The role gate and the toast are the doors every surface shares (shell-doors.ts). */
 export { canDo, navigate };
@@ -134,7 +135,12 @@ export interface SeededLead {
 /** The demo's leads, whose stage a verdict changes; none where the seed is not loaded. */
 export function seededLeads(): SeededLead[] {
   const l = windowValue("LEADS");
-  return Array.isArray(l) ? (l as SeededLead[]) : [];
+  return Array.isArray(l) ? l.filter(isSeededLead) : [];
+}
+
+/** Whether a seed's entry is a lead the flow can move: an id and a stage. */
+function isSeededLead(value: unknown): value is SeededLead {
+  return isObjectRecord(value) && typeof value.id === "string" && typeof value.stage === "string";
 }
 
 /** A deal on the demo's board. */

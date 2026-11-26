@@ -254,9 +254,9 @@ function stepsByPlace(
 /** The rail's titles: each email's subject as this lead reads it, else what the step is. */
 const titlesOf = (emails: ReadonlyMap<number, LeadCardStepVM>): Map<number, string> =>
   new Map(
-    [...emails].flatMap(([place, s]) => {
+    [...emails].flatMap(([place, s]): [number, string][] => {
       const t = subjectWords(s.subject);
-      return t ? [[place, t] as [number, string]] : [];
+      return t ? [[place, t]] : [];
     }),
   );
 

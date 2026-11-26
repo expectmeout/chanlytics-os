@@ -2,7 +2,6 @@
  * What happens to the words: the veto window and the confidence dial (steps.ts holdPlan), the reply held as a
  * draft, the hold that could not be written, and the send, told apart by what the wire answered.
  */
-import type { Json } from "@chanlytics/db/types";
 import { causeOf } from "../deliver/cause";
 import { holdPlan } from "./steps";
 import { GO, type Answering } from "./context";
@@ -198,7 +197,7 @@ export async function sendNow(at: Answering, turn: Turn, hold: Hold, bodyText: s
   const { send, sink, pauseMs, tell, pauseHours, L, ingestMs, channel } = at;
   const { replyText, fallback, brainMeta, usage, escalate } = turn;
   const { replyQuality } = hold;
-  const sent = await send(replyText, fallback ? fallback.meta : (brainMeta as Record<string, Json> | undefined));
+  const sent = await send(replyText, fallback ? fallback.meta : brainMeta);
   const tSent = Date.now();
   if (sent.outcome === "sent") {
     // The door recorded the row; what is left is the usage and the handoff.

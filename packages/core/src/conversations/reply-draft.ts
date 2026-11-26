@@ -254,12 +254,13 @@ function draftKeptOf(
 ): { state: "ready" | "failed" | "pitch"; words: Json; used?: readonly string[]; whyFailed?: string } {
   if ("why" in written) return { state: "failed", words: draftWordsOf({}), whyFailed: written.why };
   // A call back: no notes, only whether it reads as someone selling, which its sheet says (his calls D13, D14).
-  if (kind === "brief" && "selling" in written)
-    return written.selling
-      ? { state: "pitch", words: draftWordsOf({ pitch: written.selling }), used: written.used }
+  if ("selling" in written) {
+    const pitch = kind === "brief" ? written.selling : null;
+    return pitch
+      ? { state: "pitch", words: draftWordsOf({ pitch }), used: written.used }
       : { state: "ready", words: draftWordsOf({}), used: written.used };
-  const reply = written as Extract<ReplyWritten, { text: string }>;
-  return { state: "ready", words: draftWordsOf({ text: reply.text, subject: reply.subject }), used: reply.used };
+  }
+  return { state: "ready", words: draftWordsOf({ text: written.text, subject: written.subject }), used: written.used };
 }
 
 type WriteReplyDraftOutcome = "kept" | "failed" | "set_aside" | "not_owed" | "older" | "gone";

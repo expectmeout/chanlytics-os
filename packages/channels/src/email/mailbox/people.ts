@@ -7,7 +7,7 @@
 import { fetchFromProvider, type ProviderReply } from "../../shared/provider-fetch";
 import { MAILBOX_READ_MS } from "./read";
 import { GRAPH_API } from "./graph";
-import { recordOrNull } from "@chanlytics/contracts";
+import { recordOrNull, listOrEmpty, valueAt } from "@chanlytics/contracts";
 
 const PEOPLE_API = "https://people.googleapis.com/v1";
 /** People a page: Google's most is a thousand, Graph's contacts a hundred is plenty for a part. */
@@ -83,28 +83,25 @@ export async function listGraphContacts(token: string, link: string | null, deps
     deps,
   );
   if (response.outcome !== "ok") return { ok: false, reply: response };
-  const json = response.json as {
-    value?: Array<{
-      displayName?: unknown;
-      emailAddresses?: Array<{ address?: unknown }>;
-      mobilePhone?: unknown;
-      businessPhones?: unknown[];
-      homePhones?: unknown[];
-    }>;
-    "@odata.nextLink"?: unknown;
-  } | null;
+  const json = response.json;
+  const next = valueAt(json, "@odata.nextLink");
   const words = (v: unknown): string[] => (typeof v === "string" && v.trim() ? [v.trim()] : []);
   return {
     ok: true,
-    people: (json?.value ?? []).map((c) => ({
-      name: typeof c.displayName === "string" && c.displayName.trim() ? c.displayName.trim() : null,
-      emails: (c.emailAddresses ?? []).flatMap((e) => words(e.address).map((a) => a.toLowerCase())),
-      phones: [
-        ...words(c.mobilePhone),
-        ...(c.businessPhones ?? []).flatMap(words),
-        ...(c.homePhones ?? []).flatMap(words),
-      ],
-    })),
-    next: typeof json?.["@odata.nextLink"] === "string" ? json["@odata.nextLink"] : null,
+    people: listOrEmpty(valueAt(json, "value")).map((contact) => {
+      const name = valueAt(contact, "displayName");
+      return {
+        name: typeof name === "string" && name.trim() ? name.trim() : null,
+        emails: listOrEmpty(valueAt(contact, "emailAddresses")).flatMap((e) =>
+          words(valueAt(e, "address")).map((a) => a.toLowerCase()),
+        ),
+        phones: [
+          ...words(valueAt(contact, "mobilePhone")),
+          ...listOrEmpty(valueAt(contact, "businessPhones")).flatMap(words),
+          ...listOrEmpty(valueAt(contact, "homePhones")).flatMap(words),
+        ],
+      };
+    }),
+    next: typeof next === "string" ? next : null,
   };
 }

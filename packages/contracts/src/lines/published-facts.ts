@@ -13,7 +13,7 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import type { BusinessRecordDto } from "./business-record";
-import { keysOf, recordOrEmpty } from "../shared/unknown";
+import { keysOf, recordOrEmpty, isOneOf } from "../shared/unknown";
 
 /** A column of the business on record that an owner fills (the row's own clock is not one). */
 export type BusinessRecordColumn = Exclude<keyof BusinessRecordDto, "updated_at">;
@@ -151,20 +151,18 @@ export interface RecordSavedDto {
   filed_name: string | null;
 }
 
-const FILINGS: readonly string[] = RECORD_FILINGS;
-
 /** The save's answer, read off the edge's: null from an edge that does not say (one deployed before this). */
 export function recordSavedOf(raw: unknown): RecordSavedDto | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const item = recordOrEmpty(raw);
   if (typeof item.first !== "boolean" || !Array.isArray(item.changed) || typeof item.filing !== "string") return null;
-  if (!FILINGS.includes(item.filing)) return null;
+  if (!isOneOf(RECORD_FILINGS, item.filing)) return null;
   const changed: unknown[] = item.changed;
   const name = typeof item.filed_name === "string" ? item.filed_name.trim() : "";
   return {
     first: item.first,
     changed: RECORD_COLUMNS.filter((c) => changed.includes(c)),
-    filing: item.filing as RecordFiling,
+    filing: item.filing,
     filed_name: name || null,
   };
 }

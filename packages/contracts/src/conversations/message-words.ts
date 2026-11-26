@@ -7,7 +7,7 @@ import type { MessageDto } from "./thread-dto";
 import { MEDIA_LABEL, mediaKind } from "./message-media";
 import { emailFromNameOf, emailPartsOf, emailSubjectOf } from "./message-email";
 import { isChatMessage, writtenChannelOf } from "./thread-channel";
-import { recordOrNull } from "../shared/unknown";
+import { recordOrNull, nonEmptyOrNull, valueAt } from "../shared/unknown";
 import { WINDOW_CLOSED_WORDS } from "./window-words";
 
 /** What an email's `delivered` receipt says: their mail server took it, which is as far as an email can be followed. */
@@ -339,8 +339,7 @@ export function messageText(message: MessageDto): string {
   if (message.type === "media") {
     // "Photo: the caption" over "[image attachment]": the thread draws the
     // attachment itself now, and this line is what sits above it.
-    const label =
-      MEDIA_LABEL[mediaKind(message.media?.mime_type, (message.meta && (message.meta.raw_type as string)) || null)];
+    const label = MEDIA_LABEL[mediaKind(message.media?.mime_type, nonEmptyOrNull(valueAt(message.meta, "raw_type")))];
     const caption = message.media?.caption?.trim();
     return caption ? `${label}: ${caption}` : label;
   }

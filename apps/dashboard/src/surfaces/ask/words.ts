@@ -3,7 +3,7 @@
  * carries a user-facing string, but the answers' own sentences, which are contracts' (ask/answer/normalize.ts). No key symbol is drawn
  * (the Line, D17).
  */
-import { POLICY_CLASS_WORDS, type AskPressWord } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, type AskPressWord, entryOf } from "@chanlytics/contracts";
 
 /** What each press says (contracts ASK_PRESS_WORDS), in English. `n` is how many it sends to, where the card knows. */
 const PRESS_EN: Record<AskPressWord, (n: number | null) => string> = {
@@ -151,8 +151,7 @@ const PRESSING_ES: Partial<Record<AskPressWord, string>> = {
 };
 
 /** An Autonomy row's short name. */
-const rowName = (row: string): string =>
-  (POLICY_CLASS_WORDS as Record<string, { short: string } | undefined>)[row]?.short ?? row;
+const rowName = (row: string): string => entryOf(POLICY_CLASS_WORDS, row)?.short ?? row;
 
 const ASK_TEXT = {
   en: {
