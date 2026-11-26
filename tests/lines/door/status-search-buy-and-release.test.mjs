@@ -758,7 +758,7 @@ test("record validates the row it is about to write and reports the first proble
     {
       ok: false,
       error: "record_incomplete",
-      detail: "The phone networks register US and Canadian businesses only. Ours is not a door we can open.",
+      detail: "The phone networks register US and Canadian businesses only.",
     },
   ]);
   assert.equal(writes(db, "business_records").length, 0, "nothing written until it validates");
@@ -877,7 +877,7 @@ test("record: which registration is said, not inferred — a sole proprietor is 
   );
   assert.equal(ours, 400);
   assert.equal(why.error, "sole_proprietor_incomplete");
-  assert.match(why.detail, /This is the number Chanlytics answers for you\. The phone networks need YOUR handset/);
+  assert.match(why.detail, /Use your own handset, not the number Chanlytics answers/);
   assert.deepEqual(
     await answer(await knock({ op: "record", path: "sole_proprietor", record: { ...FORM, contact_phone: "" } })),
     [400, { ok: false, error: "sole_proprietor_incomplete", detail: "Your mobile is needed." }],

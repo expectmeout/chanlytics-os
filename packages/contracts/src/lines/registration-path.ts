@@ -88,7 +88,7 @@ export function soleProprietorLimits(): readonly string[] {
     `About ${log.messagesPerSecond} message a second, so a hundred texts go out over a minute or two rather than at once.`,
     `T-Mobile takes ${grouped(log.perDayTMobile)} a day from you, AT&T ${log.perMinuteAtt} a minute.`,
     `The phone networks text a code to your own mobile and you reply from that handset · there is no code to bring back here.`,
-    `That mobile can be used on ${log.mobileUsesEver} of these registrations ever, across every provider · your email and address on ${log.emailUsesEver} each. Only the phone networks can count what you have already spent.`,
+    `That mobile can file ${log.mobileUsesEver} of these ever, anywhere, and your email and address ${log.emailUsesEver} each. Only the networks count them.`,
     `It cannot be withdrawn once filed. If you get a tax id later, the standard registration is a new filing.`,
   ];
 }
@@ -135,5 +135,6 @@ export const REGISTRATION_PATH_WORDS: Record<RegistrationPath, RegistrationPathW
  */
 export const REGISTRATION_COST_WORDS: Record<RegistrationPath, string> = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
+  // screen-word: what it costs and that it can't be undone stay in full where the owner decides (docs/words.md)
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`,
 };

@@ -156,7 +156,7 @@ test("each path asks exactly what its own filing sends", () => {
   }
   assert.match(
     businessFieldsFor("standard").find((f) => f.name === "website_url").hint,
-    /the phone networks are given your public page instead/,
+    /they're given your public page instead/,
   );
 
   // SOLE PROPRIETOR: two end users and an address, and between them they send
@@ -243,7 +243,7 @@ test("the mobile the carriers text cannot be the number we answer for them", () 
   // exactly this. Checkable, so checked — before the fee, not after.
   const ours = ["+1 917 555 0123"];
   const p = businessRecordProblems(soleProp(), "sole_proprietor", { ourNumbers: ours });
-  assert.match(p.contact_phone, /YOUR handset/, "however it is punctuated");
+  assert.match(p.contact_phone, /your own handset, not the number Chanlytics answers/, "however it is punctuated");
   assert.deepEqual(
     businessRecordProblems(soleProp(), "sole_proprietor", { ourNumbers: ["+13055550100"] }),
     {},
@@ -861,7 +861,7 @@ test("the save says what it moved and what the carriers hold, in the words contr
     assert.equal(onFile.ok, true);
     assert.equal(
       onFile.message,
-      "Saved. Your public page shows it now; the phone networks still hold “Harbor Moving LLC” as you filed it.",
+      "Saved. Your public page shows it now, but the phone networks still hold “Harbor Moving LLC” as you filed it.",
     );
     assert.match(answers[0][1], /\/api\/v1\/business-record/);
     assert.equal(answers[0][0], "PUT");

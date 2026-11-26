@@ -42,6 +42,8 @@ import { notTakingSignUps } from "../consent/public-page";
  * in particular is checked almost verbatim by reviewers and by CTIA's own
  * guidance, and "standard rates" is refused because it implies premium-rate
  * messaging, which no longer exists in the US.
+ *
+ * screen-word: the carriers' own clauses, word for word as their reviewers check them (docs/words.md, "Kept on purpose")
  */
 export const SMS_CLAUSES: readonly string[] = [
   "Message and data rates may apply.",
@@ -54,6 +56,8 @@ export const SMS_CLAUSES: readonly string[] = [
  * What the program collects and what it is used for. Error 30908's remedy asks a
  * privacy policy to "document what customer data you collect and how it's used";
  * the clause above says what is NOT done with it, and this says what is.
+ *
+ * screen-word: a privacy policy's sentences to the business's customers, in full as the phone networks' review asks
  */
 function dataSentences(businessName: string): string[] {
   return [
@@ -62,7 +66,11 @@ function dataSentences(businessName: string): string[] {
   ];
 }
 
-/** The lead sentence, which is the only part that names who is sending. */
+/**
+ * The lead sentence, which is the only part that names who is sending.
+ *
+ * screen-word: the program's description to the business's customers, in full as the phone networks' review reads it
+ */
 export function smsConsentSentence(businessName: string): string {
   return `${businessName}'s customers receive text messages only when they have contacted ${businessName} first, or when they have agreed to receive messages about their own appointments. No offers or promotions are sent by text: ${businessName}'s offers and news, for customers who ask for them, go by WhatsApp.`;
 }
@@ -281,10 +289,12 @@ export function textingTermsVM(businessPageFacts: BusinessPageFacts): TextingTer
     items: [
       {
         label: "The program",
+        // screen-word: the texting terms the phone networks require, in full on a customer's page
         text: `${known} texts customers who asked for it: replies to what they write, and confirmations and reminders about their own appointments. No offers or promotions are sent by text.`,
       },
       {
         label: "How you join",
+        // screen-word: the texting terms the phone networks require, in full on a customer's page
         text: `By texting START to ${known}'s number from your own phone, by writing to ${known} first, or by ticking and signing the box on its sign-up form. Consent is not a condition of any purchase.`,
       },
       { label: "Message frequency", text: "Message frequency varies." },
@@ -293,7 +303,7 @@ export function textingTermsVM(businessPageFacts: BusinessPageFacts): TextingTer
       { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more.` },
       // screen-word: the phone networks' own disclosure on a customer's page, worded as they require it
       { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
-      { label: "Your information", text: SMS_CLAUSES[3] ?? "" },
+      { label: "Privacy", text: SMS_CLAUSES[3] ?? "" },
     ],
     privacyUrl: businessPageFacts.privacyUrl,
     closedLine: !empty && !takesSignUps(businessPageFacts.open) ? notTakingSignUps(known) : null,
@@ -311,7 +321,8 @@ export function businessPageMetadata(businessPageFacts: BusinessPageFacts | null
   if (!vm || vm.empty) return notFoundPageMetadata();
   return {
     title: vm.title,
-    description: `${vm.title} — who we are, what we do, and our text-message terms.`,
+    // screen-word: the business's own page speaks as the business, "we" included (docs/words.md, "Who reads it")
+    description: `${vm.title}: who we are, what we do, and our text-message terms.`,
     robots: { index: true, follow: true },
   };
 }
@@ -399,7 +410,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
     out.push({
       id: "name_mismatch",
       what: `The phone networks will be told this business is called “${preflightFacts.workspaceName}”, but the business on record is “${preflightFacts.tradeName?.trim() || preflightFacts.legalName}”.`,
-      fix: "Save the business's name under Settings › Details as it is on record, or put that name on record as its trading name, before filing. The name goes into the confirmation message customers receive, and that message cannot be changed after a filing without registering a new campaign.",
+      fix: "Save the name on record under Settings › Details, or make this its trading name. Once filed, it can't change.",
     });
   }
 
@@ -410,7 +421,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
     out.push({
       id: "names_differ",
       what: `AI introduces the business as “${(preflightFacts.receptionistName ?? "").trim()}”, but your sign-up page and this filing call it “${preflightFacts.workspaceName}”.`,
-      fix: "Save the name customers know you by under Settings › Details: an owner's save renames your sign-up page and your sign too, so customers read one name.",
+      fix: "Save the name customers know under Settings › Details. It renames the sign-up page and the sign too.",
     });
   }
 
@@ -420,7 +431,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
   if (!identifiesABusiness(preflightFacts)) {
     out.push({
       id: "no_identity",
-      what: "The page the phone networks will open to check who you are cannot be published: it needs your legal name and your address.",
+      what: "The page the phone networks check can't be published yet: it needs the legal name and the address.",
       fix: "Fill in the legal name and the street address above. They are the two facts a reviewer looks for first.",
     });
   }
@@ -445,7 +456,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
     out.push({
       id: "no_opt_in_number",
       what: "There is no number for customers to text to say yes, so the sign-up page has nothing to offer them.",
-      fix: "Connect WhatsApp or finish setting up the phone line first. The phone networks are told customers opt in by texting this business, and that has to be true.",
+      fix: "Connect WhatsApp or finish the phone line first: the phone networks are told customers opt in by texting you.",
     });
   }
 
@@ -456,7 +467,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
     out.push({
       id: "website_unusable",
       what: `“${site}” is not an address a reviewer can open.`,
-      fix: "Write it in full, starting with https:// — or clear it, and we will publish a page for you instead.",
+      fix: "Write it in full, starting with https://, or clear it and Chanlytics publishes a page for you.",
     });
   }
 

@@ -133,7 +133,7 @@ test("F36/F37: no alert the workspace is offered is Chanlytics' own; switching a
     new Date("2026-09-12T12:00:00Z"),
   );
   assert.ok(
-    off.healthLabel.includes("neither answered nor recorded; Chanlytics is told they are arriving, you are not"),
+    off.healthLabel.includes("neither answered nor recorded · Chanlytics is told they are arriving, you are not"),
     "the row's own sentence says what the code does (channels-vm.test.mjs and the caller-gets test run it)",
   );
 });

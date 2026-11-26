@@ -46,6 +46,7 @@ export const MERGE_WORDS = {
   pickNone: "Choose the other record",
   pickReading: "People is still being read · the other records are offered once it lands.",
   question: (kept: string, other: string) => `Merge ${other} into ${kept}?`,
+  // screen-word: what can't be undone stays in full where the owner decides (docs/words.md, "Kept on purpose")
   detail: (kept: string, other: string) =>
     `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
   /**
