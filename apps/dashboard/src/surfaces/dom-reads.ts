@@ -19,6 +19,10 @@ export const isDomNode = (value: unknown): value is Node => typeof valueAt(value
 export const isHtmlElement = (value: unknown): value is HTMLElement =>
   isElementNode(value) && typeof valueAt(value, "focus") === "function" && typeof valueAt(value, "style") === "object";
 
+/** Whether a value takes focus and lets it go: what a box handed back to the owner is asked. */
+export const takesFocus = (value: unknown): value is Pick<HTMLElement, "focus" | "blur"> =>
+  typeof valueAt(value, "focus") === "function" && typeof valueAt(value, "blur") === "function";
+
 /** Whether a value is media that plays and pauses: what one call playing asks of the one that was. */
 export const isMediaElement = (value: unknown): value is HTMLMediaElement =>
   typeof valueAt(value, "pause") === "function";

@@ -175,21 +175,21 @@ interface PhoneActsArgs {
 
 /** The open list deleted from the phone's sheet, as the desk's Delete does it. */
 async function listDeleteGo(a: PhoneActsArgs, saved: SavedList, closePhoneSheet: () => void): Promise<void> {
-  const r = await plDeleteList(saved);
-  if (!r.ok) {
-    a.setListDraft((x) => ({ ...x, busy: false, error: r.error }));
+  const answer = await plDeleteList(saved);
+  if (!answer.ok) {
+    a.setListDraft((x) => ({ ...x, busy: false, error: answer.error }));
     return;
   }
-  if (r.archived) a.plFlash({ msg: plArchivedWords(saved.name, r) });
+  if (answer.archived) a.plFlash({ msg: plArchivedWords(saved.name, answer) });
   closePhoneSheet();
   a.setSavedId(null);
 }
 
 /** The open list renamed from the phone's sheet, as the desk's Rename does it. */
 async function listRenameGo(a: PhoneActsArgs, saved: SavedList, n: string, closePhoneSheet: () => void): Promise<void> {
-  const r = await plRenameList(saved, n);
-  if (!r.ok) {
-    a.setListDraft((x) => ({ ...x, busy: false, error: r.error }));
+  const answer = await plRenameList(saved, n);
+  if (!answer.ok) {
+    a.setListDraft((x) => ({ ...x, busy: false, error: answer.error }));
     return;
   }
   closePhoneSheet();

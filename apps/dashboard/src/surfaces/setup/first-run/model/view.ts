@@ -616,9 +616,6 @@ function faceOf(options: {
   }
 }
 
-/** Which steps are done, by step. */
-type StepsDone = Record<FirstRunStepKey, boolean>;
-
 /**
  * Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step (or `find`,
  * the business step with Find asked for); `who` is who is looking, for Find: nobody may link without it.
@@ -636,21 +633,15 @@ function shownStep(
 }
 
 export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstRunWho): FirstRunVM {
-  const done: StepsDone = {
-    business: stepDone(vm, "business"),
-    receptionist: stepDone(vm, "receptionist"),
-    rehearse: stepDone(vm, "rehearse"),
-    channels: stepDone(vm, "channels"),
-    live: stepDone(vm, "live"),
-  };
-  const open = FIRST_RUN_STEPS.find((s) => !done[s.key]);
+  const done = (key: FirstRunStepKey) => stepDone(vm, key);
+  const open = FIRST_RUN_STEPS.find((s) => !done(s.key));
   const complete = !open;
   const current: FirstRunStepKey = open ? open.key : "live";
   const steps: FirstRunStepVM[] = FIRST_RUN_STEPS.map((def, i) => ({
     key: def.key,
     name: def.name,
     number: i + 1,
-    state: def.key === current && !complete ? "current" : done[def.key] ? "done" : "ahead",
+    state: def.key === current && !complete ? "current" : done(def.key) ? "done" : "ahead",
     rows: def.rows.map((id) => setupRowOf(vm, id)).filter((r): r is SetupRowVM => r !== null),
     to: def.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def.key),
   }));

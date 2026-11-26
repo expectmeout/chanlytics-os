@@ -2,8 +2,8 @@
  * How a view of Leads is asked of the read: its query for a page (GET leads), and the way the read walks for the way the page
  * says it. Apart from surface.ts, which holds what the tab has read and stands at its file limit.
  */
-import type { Input } from "@/client/api";
 import type { LeadsView } from "./surface-types";
+import type { LeadsQuery } from "@chanlytics/contracts";
 
 /** The most leads one page asks for: leads_page's own limit. */
 const LEADS_PAGE = 500;
@@ -12,7 +12,7 @@ const LEADS_PAGE = 500;
 export const readDir = ({ sort, dir }: { sort: string; dir: "asc" | "desc" }): "asc" | "desc" =>
   sort === "found" ? (dir === "asc" ? "desc" : "asc") : dir;
 
-export function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Input<"GET leads"> {
+export function queryOf(v: LeadsView, after?: { key: string; id: string } | null): LeadsQuery {
   const words = v.q ? v.q.trim() : "";
   return {
     list: v.list,

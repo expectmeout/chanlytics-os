@@ -156,7 +156,7 @@ export const BT_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const btRowsOf = (draft: unknown): Record<string, unknown>[] => listOrEmpty(draft).map(recordOrEmpty);
 
 /** The closures fold's rows: each one's date, last day and note, where it holds them as words. */
-export const btClosuresOf = (draft: unknown): ClosureRow[] =>
+const btClosuresOf = (draft: unknown): ClosureRow[] =>
   btRowsOf(draft).map((row) => ({
     ...(typeof row.date === "string" ? { date: row.date } : {}),
     ...(typeof row.until === "string" ? { until: row.until } : {}),
@@ -164,7 +164,7 @@ export const btClosuresOf = (draft: unknown): ClosureRow[] =>
   }));
 
 /** The services fold's rows: each one's name, minutes (a number as stored, words as typed), price note and amount. */
-export const btServicesOf = (draft: unknown): ServiceRow[] =>
+const btServicesOf = (draft: unknown): ServiceRow[] =>
   btRowsOf(draft).map((row) => ({
     ...(typeof row.name === "string" ? { name: row.name } : {}),
     ...(typeof row.duration_min === "number" || typeof row.duration_min === "string"
@@ -177,7 +177,7 @@ export const btServicesOf = (draft: unknown): ServiceRow[] =>
   }));
 
 /** The notes fold's rows: each one's title, words and last day, where it holds them as words. */
-export const btNotesOf = (draft: unknown): StoredNote[] =>
+const btNotesOf = (draft: unknown): StoredNote[] =>
   btRowsOf(draft).map((row) => ({
     ...(typeof row.title === "string" ? { title: row.title } : {}),
     ...(typeof row.text === "string" ? { text: row.text } : {}),
@@ -185,7 +185,7 @@ export const btNotesOf = (draft: unknown): StoredNote[] =>
   }));
 
 /** The hours fold's week: each day it holds, open or not, with its shifts' two boxes as words. */
-export const btWeekOf = (draft: unknown): Partial<Record<string, DayDraft>> => {
+const btWeekOf = (draft: unknown): Partial<Record<string, DayDraft>> => {
   const held = recordOrEmpty(draft);
   const week: Partial<Record<string, DayDraft>> = {};
   for (const d of BT_DAYS) {
@@ -198,6 +198,9 @@ export const btWeekOf = (draft: unknown): Partial<Record<string, DayDraft>> => {
   }
   return week;
 };
+
+/** Each list fold's draft, read: the closures', the services', the notes' and the hours'. */
+export const BT_READ = { closures: btClosuresOf, services: btServicesOf, notes: btNotesOf, week: btWeekOf };
 
 // The lines of a box, one rule or reason each: those with something on them, trimmed.
 export const btLines = (text: unknown) =>

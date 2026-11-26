@@ -31,7 +31,7 @@ import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
 import { gate, navigate } from "../../frame-verbs";
-import { isHtmlElement } from "../../dom-reads";
+import { takesFocus } from "../../dom-reads";
 
 type Suggestion = LeadSuggestionsDto["items"][number];
 
@@ -328,7 +328,7 @@ const AskField = ({
       e.preventDefault();
       if (!canFind) return;
       const named = e.currentTarget.elements.namedItem("words");
-      const box = isHtmlElement(named) ? named : null;
+      const box = takesFocus(named) ? named : null;
       const words = textOrEmpty(valueAt(named, "value")).trim();
       if (!words) {
         box?.focus();

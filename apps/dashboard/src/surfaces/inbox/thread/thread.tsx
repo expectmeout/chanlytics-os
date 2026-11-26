@@ -1,8 +1,7 @@
 /**
  * The Inbox's thread pane (moved from pages/inbox-thread.jsx, decision 0015): the conversation, wherever it opens.
  *
- * Inbox Thread Pane — perfectionist refinement.
- * New structure:
+ * Inbox Thread Pane — perfectionist refinement. New structure:
  *   1. Header (compact — name, channels, actions)
  *   2. Context strip (4 micro-facts the operator wants at a glance)
  *   3. Approval card v2 (only if needs/drafts) — $ impact strip, evidence expander, next-steps row

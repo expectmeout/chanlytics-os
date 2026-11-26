@@ -63,9 +63,8 @@ const usePlanPress = (
   use: { messageId?: string | null; t: LineWords; onOutcome?: OnOutcome },
 ) => {
   const { messageId, t, onOutcome } = use;
-  const A = askApi;
   const { now, keep } = usePlanCards(cards, (pid, o, kept) =>
-    recordCardOutcome({ A, messageId, onOutcome }, pid, o, kept),
+    recordCardOutcome({ A: askApi, messageId, onOutcome }, pid, o, kept),
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -82,7 +81,7 @@ const usePlanPress = (
   const undoable = (p: AskProposal, o: AskProposalOutcome) =>
     !!p.undo &&
     !!o.undo &&
-    A.undoOpen(p.kind, o.undo, o.atMs || 0, Date.now(), version ?? finiteOrNull(o.undo.version_after));
+    askApi.undoOpen(p.kind, o.undo, o.atMs || 0, Date.now(), version ?? finiteOrNull(o.undo.version_after));
   // One campaign started is paused or opened from the card; several are each their own on Campaigns.
   const started = now.filter(
     (p) => p.kind === "playbook" && p.outcome?.state === "done" && p.outcome.undo?.playbook_id,
@@ -98,9 +97,9 @@ const usePlanPress = (
     }
   };
   const goPress = async () => {
-    if (busy || !A.commitPlan) return;
+    if (busy || !askApi.commitPlan) return;
     await holding(async () => {
-      const run = await A.commitPlan(now, messageId);
+      const run = await askApi.commitPlan(now, messageId);
       const at = Date.now();
       const got: Record<string, AskProposalOutcome> = {};
       let kept = false;
@@ -117,7 +116,7 @@ const usePlanPress = (
   const goUndo = async () => {
     if (busy) return;
     await holding(async () => {
-      const run = await A.undoPlan(now, undoable, messageId);
+      const run = await askApi.undoPlan(now, undoable, messageId);
       const at = Date.now();
       const got: Record<string, AskProposalOutcome> = {};
       let kept = false;
@@ -135,7 +134,7 @@ const usePlanPress = (
     if (busy || !running?.outcome) return;
     const outcome = running.outcome;
     await holding(async () => {
-      const r = await A.pauseSend(running, paused);
+      const r = await askApi.pauseSend(running, paused);
       if (r.ok) await keep({ [running.id]: { ...outcome, paused } });
       else setErr(r.message);
     });
@@ -152,7 +151,7 @@ const usePlanPress = (
       ),
     );
   return {
-    A,
+    A: askApi,
     now,
     busy,
     err,
@@ -350,16 +349,16 @@ interface AskPlanProps {
 /** A plan's card, pressed through the bridge that read its turn: a plan is drawn only from such a turn. */
 export const AskPlan = (props: AskPlanProps) => {
   const A = askCalls();
-  return A ? <AskPlanWith {...props} A={A} /> : null;
+  return A ? <AskPlanWith {...props} askApi={A} /> : null;
 };
 
-const AskPlanWith = ({ A, cards, messageId, t, onNav, onOutcome }: AskPlanProps & { A: AskApi }) => {
-  const plan = usePlanPress(A, cards, { messageId, t, onOutcome });
+const AskPlanWith = ({ askApi, cards, messageId, t, onNav, onOutcome }: AskPlanProps & { askApi: AskApi }) => {
+  const plan = usePlanPress(askApi, cards, { messageId, t, onOutcome });
   const { now, err, landRef } = plan;
   const ordered = [...now].sort((a, b) => (a.plan?.step ?? 0) - (b.plan?.step ?? 0));
   const first = ordered.at(0);
   const head = ordered.find((p) => p.plan?.head)?.plan?.head ?? null;
-  const press = A.planPressOf(now);
+  const press = askApi.planPressOf(now);
   const said = planSaid(now, t);
   const pressedOnce = now.some((p) => p.outcome);
   const holds = [...new Set(now.filter((p) => !p.outcome).flatMap((p) => p.sheet?.holds ?? []))];

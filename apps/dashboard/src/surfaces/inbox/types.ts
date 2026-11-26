@@ -19,9 +19,6 @@ import type {
   ThreadMove,
 } from "@chanlytics/contracts";
 
-/** The states a real thread is ever in. */
-export const REAL_THREAD_STATES = ["escalated", "snoozed", "done"] as const;
-
 /** The states a seeded thread is in; a real thread is only ever escalated, snoozed or done. */
 export type ThreadState = "needs" | "watching" | "drafts" | "escalated" | "snoozed" | "done" | "aside";
 
@@ -213,7 +210,7 @@ interface ThreadBase {
 export type RealThread = Omit<InboxThreadVM, keyof ThreadBase | "state"> &
   ThreadBase & {
     real: true;
-    state: (typeof REAL_THREAD_STATES)[number];
+    state: "escalated" | "snoozed" | "done";
     /** The Inbox's read holds only its newest messages: its conversation is drawn when its own read lands (read-apart.ts). */
     partial?: true;
     approval?: undefined;
@@ -266,11 +263,6 @@ export interface SeededThread extends ThreadBase {
 }
 
 export type Thread = RealThread | SeededThread;
-
-/** What an act changes of a thread in place: what either kind holds, and a state. */
-export type ThreadPatch = Partial<Pick<ThreadBase, "timeline" | "resolution" | "unread" | "wake">> & {
-  state?: ThreadState;
-};
 
 /** A bucket the list shows: the chips over the rows. */
 export interface InboxBucket {

@@ -108,9 +108,8 @@ const DETAIL_WORD: Partial<Record<ConnectionKind, string>> = {
  */
 export const connRowPress = (event: MouseEvent<HTMLDivElement>) => {
   const row = event && event.currentTarget;
-  const target = event && answersClosest(event.target) ? event.target : null;
-  if (!row || !target || !("querySelector" in row)) return;
-  if (target.closest("button, a[href], input, select, textarea, [role='button'], .set-row-stack, .set-int-open"))
+  if (!row || !answersClosest(event.target) || !("querySelector" in row)) return;
+  if (event.target.closest("button, a[href], input, select, textarea, [role='button'], .set-row-stack, .set-int-open"))
     return;
   const picked = typeof window.getSelection === "function" ? window.getSelection() : null;
   if (picked && String(picked)) return;

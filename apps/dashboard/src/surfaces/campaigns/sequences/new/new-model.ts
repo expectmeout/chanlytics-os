@@ -46,12 +46,11 @@ import {
   type NewStep,
   type NewStepDoes,
   type NewWrittenMessage,
+  type ParamSourceKind,
   type ParamSpec,
   type SequenceMode,
   type SequenceRowDto,
   templateSlots,
-  isOneOf,
-  PARAM_SOURCES,
   paramSpecOf,
 } from "@chanlytics/contracts";
 import type { KeptSend } from "./kept-send";
@@ -299,12 +298,10 @@ function againKinds(kept: KeptSend, id: string, row: Library["rows"][number] | n
   const kinds = kept.sources?.[id] ?? [];
   const typed = kept.params?.[id] ?? [];
   return (p: ParamSpec, i: number): ParamSpec => {
-    const choices: readonly string[] = may?.[i] ?? ["text"];
+    const choices: readonly ParamSourceKind[] = may?.[i] ?? ["text"];
     const was = kinds[i] ?? p.kind;
-    const kind = choices.includes(was) ? was : (choices[0] ?? "text");
-    return isOneOf(PARAM_SOURCES, kind)
-      ? paramSpecOf(kind, was === "text" ? (typed[i] ?? "") : "")
-      : { kind: "text", value: "" };
+    const kind = choices.find((c) => c === was) ?? choices[0] ?? "text";
+    return paramSpecOf(kind, was === "text" ? (typed[i] ?? "") : "");
   };
 }
 

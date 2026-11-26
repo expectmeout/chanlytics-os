@@ -134,16 +134,16 @@ function usePlaceKeeper(
   const placeTop = useRef(0);
   const placeDue = useRef<{ view: string; top: number; q: string; fresh: boolean } | null>(null); // a scroll position waiting for its view's rows
   useEffect(() => {
-    const p = placeLoad(page, view) || {};
-    const q = typeof p.q === "string" ? p.q : "";
-    const kept = typeof p.cursor === "string" && p.cursor ? p.cursor : null;
-    const top = finiteOrZero(p.top);
-    setQ(q);
+    const place = placeLoad(page, view) || {};
+    const words = typeof place.q === "string" ? place.q : "";
+    const kept = typeof place.cursor === "string" && place.cursor ? place.cursor : null;
+    const top = finiteOrZero(place.top);
+    setQ(words);
     cursor.cursorAnswered.current = kept;
     cursor.setCursor(kept);
-    if (onPlace) onPlace(p, placeOf.current !== undefined);
+    if (onPlace) onPlace(place, placeOf.current !== undefined);
     placeTop.current = top;
-    placeDue.current = { view, top, q, fresh: true };
+    placeDue.current = { view, top, q: words, fresh: true };
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
   // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
   const extraKey = extra ? JSON.stringify(extra) : "";

@@ -38,8 +38,7 @@ import { needsYouMoved, needsYouWaitsNow, waitingRunsNow } from "../../needs-you
 import { seePerson, threadReading, threadUnread, threadWhose } from "../../seen";
 import { inboxData, IX_STORE, VW_STORE, VW_UTIL, type Decision } from "../store";
 import { threadVerbs } from "../thread/thread-verbs";
-import type { RealThread, Resolution, Thread, ThreadPatch, ThreadState, TimelineEntry, VerdictOption } from "../types";
-import { REAL_THREAD_STATES } from "../types";
+import type { RealThread, Resolution, SeededThread, Thread, ThreadState, TimelineEntry, VerdictOption } from "../types";
 import { refreshInbox } from "../verbs";
 import { isOneOf } from "@chanlytics/contracts";
 
@@ -71,11 +70,16 @@ export const snapOf = (t: Thread): Snap => ({
  * A thread with some of its fields changed: what every `{ ...x, ... }` the page wrote did, said once. A patch over a
  * real thread carries only what a real thread may hold, and the page patches a seeded thread's state onto seeded threads.
  */
-export const patched = (x: Thread, patch: ThreadPatch): Thread => {
-  const { state, ...rest } = patch;
-  if (!x.real) return { ...x, ...rest, ...(state === undefined ? {} : { state }) };
-  return { ...x, ...rest, ...(isOneOf(REAL_THREAD_STATES, state) ? { state } : {}) };
-};
+/** The states a real thread is ever in (types.ts RealThread). */
+const REAL_THREAD_STATES = ["escalated", "snoozed", "done"] as const satisfies readonly RealThread["state"][];
+
+/** What an act changes of a thread in place: what either kind holds, and a state. */
+type ThreadPatch = Partial<Pick<SeededThread, "timeline" | "resolution" | "unread" | "wake">> & { state?: ThreadState };
+
+export const patched = (x: Thread, { state, ...rest }: ThreadPatch): Thread =>
+  x.real
+    ? { ...x, ...rest, ...(isOneOf(REAL_THREAD_STATES, state) ? { state } : {}) }
+    : { ...x, ...rest, ...(state === undefined ? {} : { state }) };
 
 /** The tab a thread that is there opens in: a thread always has a state, so never nothing; archived is in none, and stands beside Handled. */
 const bucketOf = (t: Thread): string => {

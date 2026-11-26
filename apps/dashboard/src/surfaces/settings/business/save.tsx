@@ -19,6 +19,7 @@ import {
   E164,
   valueAt,
   textOrEmpty,
+  nonEmptyOrNull,
 } from "@chanlytics/contracts";
 import { isValidElement, type ReactNode } from "react";
 import type { FrameFlash } from "../../frame-verbs";
@@ -546,12 +547,8 @@ const btWorkspaceDoor = <J extends DoorJob, R extends DoorReply>({
       } catch (e) {
         sent = Promise.reject(btAsError(e));
       }
-      Promise.resolve(sent).then(
-        (r) => answered(r),
-        (e: unknown) => {
-          const message = valueAt(e, "message");
-          answered(undefined, typeof message === "string" ? message : undefined);
-        },
+      Promise.resolve(sent).then(answered, (e: unknown) =>
+        answered(undefined, nonEmptyOrNull(valueAt(e, "message")) ?? undefined),
       );
     },
     pending: () => !!out,

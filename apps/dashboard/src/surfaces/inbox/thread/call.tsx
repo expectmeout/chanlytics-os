@@ -73,14 +73,10 @@ export const tlFollowBy = (
   return Math.max(0, line.top - view.top - view.height * 0.25);
 };
 
-/** The audio element an event came from: its target, which a handler reads its moment, its length and its pause from. */
-const audioOf = (e: SyntheticEvent<HTMLAudioElement>): EventTarget => e.target;
-
-/** A number the audio says of itself (its moment, its length), or 0 where it says none. */
-const audioNumber = (audio: EventTarget, key: "currentTime" | "duration"): number => {
-  const n = valueAt(audio, key);
-  return typeof n === "number" ? n : 0;
-};
+/** A number the audio an event came from says of itself (its moment, its length), or 0: its target's, which a handler
+ * reads its moment, its length and its pause from. */
+const audioNumber = (e: SyntheticEvent<HTMLAudioElement>, key: "currentTime" | "duration") =>
+  Number(valueAt(e.target, key)) || 0;
 
 /** What the call is called and how it went. */
 interface CallWords {
@@ -282,15 +278,15 @@ function callAudio(c: CallDraw) {
         preload="none"
         onPlay={(e) => {
           // One call at a time: this one playing pauses the one that was.
-          const target = audioOf(e);
+          const target = e.target;
           if (TL_PLAYING.el && TL_PLAYING.el !== target) TL_PLAYING.el.pause();
           TL_PLAYING.el = isMediaElement(target) ? target : null;
           c.setPlaying(true);
         }}
         onPause={() => c.setPlaying(false)}
         onEnded={() => c.setPlaying(false)}
-        onTimeUpdate={(e) => c.setPos(audioNumber(audioOf(e), "currentTime"))}
-        onLoadedMetadata={(e) => c.setDur(audioNumber(audioOf(e), "duration") || (call && call.durationSec) || 0)}
+        onTimeUpdate={(e) => c.setPos(audioNumber(e, "currentTime"))}
+        onLoadedMetadata={(e) => c.setDur(audioNumber(e, "duration") || (call && call.durationSec) || 0)}
         onError={() => {
           c.setPlaying(false);
           c.setFailed("Couldn't play the recording.");
