@@ -2,12 +2,12 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { SCHEMA_SETS, DbFailure, asFailedReply } from "@chanlytics/contracts";
+import { SCHEMA_SETS, DbFailure } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 import { isMissingFunction } from "../../shared/missing-door";
 import { readAnswer } from "../../shared/read-json";
 import type { TenantId } from "@chanlytics/contracts";
-import { nullableIn } from "../../shared/answers";
+import { asFailedReply, nullableIn } from "../../shared/answers";
 
 export type Db = SupabaseClient<Database>;
 

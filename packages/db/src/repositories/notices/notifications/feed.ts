@@ -20,7 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { oneOr, type Db } from "./kept";
 import type { TenantId } from "@chanlytics/contracts";
-import { accountOf } from "../../../shared/answers";
+import { identityAccountOf } from "../../../shared/answers";
 
 /** The sources a customer's booking comes by (contracts bookingArriving): a member's own entry (`person`) is not one. */
 const BOOKING_SOURCES = BOOKING_VIAS;
@@ -275,7 +275,7 @@ export async function findMemberEmail(db: Db, userId: string): Promise<string | 
     if (userById.error.status === 404) return null;
     throw new DbFailure(userById.error, "cannot read who left");
   }
-  return accountOf(userById)?.email ?? null;
+  return identityAccountOf(userById)?.email ?? null;
 }
 
 /** How many uuids one `in` list carries: measured, about two hundred is where the URL becomes too long. */

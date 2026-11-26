@@ -8,11 +8,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 
-import { recordOrEmpty, type SchemaSet, DbFailure, asFailedReply } from "@chanlytics/contracts";
+import { recordOrEmpty, type SchemaSet, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
 import { platformWide } from "../../shared/tenant-db";
+import { asFailedReply } from "../../shared/answers";
 
 /** What mailbox_connection_connect answers: the mailbox's row, and whether this call made it. */
 const ConnectAnswer = z.object({ id: z.string(), made: z.boolean(), state: z.string() }).partial();

@@ -19,7 +19,8 @@ import type { Database, Json } from "../../types";
 import type { JsonObject } from "../events/events";
 import { isMissingDoor } from "../../shared/missing-door";
 import type { TenantId } from "@chanlytics/contracts";
-import { DbFailure, asFailedReply } from "@chanlytics/contracts";
+import { DbFailure } from "@chanlytics/contracts";
+import { asFailedReply } from "../../shared/answers";
 
 type Db = SupabaseClient<Database>;
 

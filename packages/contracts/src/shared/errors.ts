@@ -133,15 +133,7 @@ export class AppError<C extends ErrorCode = ErrorCode> extends Error {
 export interface DbReplyFailure {
   readonly message: string;
   readonly code?: string | null | undefined;
-  readonly hint?: string | null | undefined;
 }
-
-/**
- * A failed reply as it can arrive. Its client types every failure as PostgREST's own, a code and a hint always there,
- * but a body that is not PostgREST's JSON (a gateway's page, a proxy's refusal) arrives as its words alone
- * (postgrest-js, `processResponse`): only the sentence is sure, so a code or a hint read from it keeps its fallback.
- */
-export const asFailedReply = (reply: DbReplyFailure): DbReplyFailure => reply;
 
 const DB_FAILURE = Symbol.for("@chanlytics/contracts:DbFailure");
 

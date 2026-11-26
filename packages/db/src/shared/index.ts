@@ -1,7 +1,7 @@
 /**
  * What every repository stands on: `@chanlytics/db/shared`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
-export { accountOf, embedded, type NullableIn, nullableIn } from "./answers";
+export { asFailedReply, embedded, identityAccountOf, type NullableIn, nullableIn } from "./answers";
 export { asJson, type Jsonable, jsonCopyOf } from "./json";
 export { isMissingDoor, isMissingFunction, saysMissing } from "./missing-door";
 export { DB_REQUEST_HEADER, namedFetch, observeDb, touchOfCall } from "./observe";

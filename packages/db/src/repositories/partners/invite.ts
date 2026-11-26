@@ -3,8 +3,8 @@
 import type { HandoverResult, HandoverWorkspace } from "./handover";
 import type { Db } from "./partner";
 import type { TenantId } from "@chanlytics/contracts";
-import { DbFailure, asFailedReply } from "@chanlytics/contracts";
-import { accountOf, embedded } from "../../shared/answers";
+import { DbFailure } from "@chanlytics/contracts";
+import { asFailedReply, embedded, identityAccountOf } from "../../shared/answers";
 
 /** The workspace the partner joined, and whether its plan earns them a share. */
 export interface PartnerJoined extends HandoverWorkspace {
@@ -51,7 +51,7 @@ export async function getPartnerInviteMail(db: Db, tenantId: TenantId): Promise<
   if (!userId) return null;
   const userById = await db.auth.admin.getUserById(userId);
   if (userById.error) throw new DbFailure(userById.error, "getPartnerInviteMail");
-  const email = accountOf(userById)?.email;
+  const email = identityAccountOf(userById)?.email;
   if (!email) return null;
   return {
     email,

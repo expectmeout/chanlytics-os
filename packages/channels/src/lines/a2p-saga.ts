@@ -94,12 +94,12 @@ interface StepRun {
   ports: A2PPorts;
   soleProp: boolean;
   brandType: ReturnType<typeof brandTypeFor>;
-  need: (req: A2PRequest, text: string) => Promise<string>;
+  need: (request: A2PRequest, text: string) => Promise<string>;
 }
 
 /** A request that must land, said as what it was doing when it did not. */
-async function landed(ports: A2PPorts, req: A2PRequest, text: string): Promise<void> {
-  const a = await ports.send(req);
+async function requestLanded(ports: A2PPorts, request: A2PRequest, text: string): Promise<void> {
+  const a = await ports.send(request);
   if (!ok(a)) throw new Error(twilioRefusal(a, text));
 }
 
@@ -127,7 +127,7 @@ const STEP_FILINGS: Record<A2PStep, (run: StepRun) => Promise<Partial<A2PState>>
       soleProp ? starterEndUserRequest(ports.record) : businessEndUserRequest(ports.record),
       soleProp ? "recording who you are" : "recording the business",
     );
-    await landed(
+    await requestLanded(
       ports,
       assignRequest(columnWritten(state, "profileSid"), id),
       soleProp ? "attaching your details" : "attaching the business",
@@ -136,7 +136,7 @@ const STEP_FILINGS: Record<A2PStep, (run: StepRun) => Promise<Partial<A2PState>>
   },
   representative: async ({ state, ports, need }) => {
     const id = await need(representativeEndUserRequest(ports.record), "recording the person who signs");
-    await landed(ports, assignRequest(columnWritten(state, "profileSid"), id), "attaching the person who signs");
+    await requestLanded(ports, assignRequest(columnWritten(state, "profileSid"), id), "attaching the person who signs");
     return { representativeSid: id };
   },
   address: async ({ ports, need }) => ({
@@ -147,11 +147,11 @@ const STEP_FILINGS: Record<A2PStep, (run: StepRun) => Promise<Partial<A2PState>>
       supportingDocumentRequest({ legalName: ports.record.legalName, addressSid: columnWritten(state, "addressSid") }),
       "attaching the address",
     );
-    await landed(ports, assignRequest(columnWritten(state, "profileSid"), id), "attaching the address document");
+    await requestLanded(ports, assignRequest(columnWritten(state, "profileSid"), id), "attaching the address document");
     return { documentSid: id };
   },
   primary: async ({ state, ports }) => {
-    await landed(
+    await requestLanded(
       ports,
       assignRequest(columnWritten(state, "profileSid"), ports.primaryProfileSid),
       "naming us as the provider",
@@ -178,9 +178,9 @@ const STEP_FILINGS: Record<A2PStep, (run: StepRun) => Promise<Partial<A2PState>>
       soleProp ? "recording your mobile for the carriers' code" : "recording the company type",
     );
     for (const objectSid of [endUser, columnWritten(state, "profileSid")])
-      await landed(ports, trustProductAssignRequest(bundle, objectSid), "attaching to the messaging profile");
-    await landed(ports, evaluateTrustProductRequest(bundle), "checking the messaging profile");
-    await landed(ports, submitTrustProductRequest(bundle), "submitting the messaging profile");
+      await requestLanded(ports, trustProductAssignRequest(bundle, objectSid), "attaching to the messaging profile");
+    await requestLanded(ports, evaluateTrustProductRequest(bundle), "checking the messaging profile");
+    await requestLanded(ports, submitTrustProductRequest(bundle), "submitting the messaging profile");
     return { a2pProfileSid: bundle };
   },
   brand: async ({ state, ports, brandType, need }) => ({
@@ -221,7 +221,7 @@ async function submitProfile({ state, ports, soleProp }: StepRun): Promise<Parti
         [columnWritten(state, "representativeSid"), representativeAttributes(ports.record)],
       ] as const);
   for (const [endUser, a] of refresh)
-    await landed(ports, updateEndUserRequest(endUser, a), "refreshing the business on record");
+    await requestLanded(ports, updateEndUserRequest(endUser, a), "refreshing the business on record");
   const ev = await ports.send(
     evaluateRequest(
       columnWritten(state, "profileSid"),
@@ -232,7 +232,7 @@ async function submitProfile({ state, ports, soleProp }: StepRun): Promise<Parti
   if (!ok(ev)) throw new Error(twilioRefusal(ev, "checking the profile"));
   if (status !== "compliant")
     throw new Error(`the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`);
-  await landed(ports, submitProfileRequest(columnWritten(state, "profileSid")), "submitting the profile");
+  await requestLanded(ports, submitProfileRequest(columnWritten(state, "profileSid")), "submitting the profile");
   return { profileSubmitted: true };
 }
 

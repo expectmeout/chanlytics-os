@@ -23,10 +23,10 @@ import {
   type SchemaSet,
   DbFailure,
   recordOrNull,
-  asFailedReply,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { asFailedReply } from "../../../shared/answers";
 
 type Db = SupabaseClient<Database>;
 

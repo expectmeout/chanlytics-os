@@ -147,18 +147,18 @@ async function remoteRunOf(
 }
 
 /** A batch's places up to where it commits, each with what the judge said of it, or the rule that settled it. */
-function placesOf(
+function batchPlacesOf(
   round: LeadRoundRow,
   run: LeadRunRow,
   rows: BatchPlace[],
-  said: Map<Prepared, Said>,
+  judged: Map<Prepared, Said>,
   end: number,
   geo: { center: LatLng | null; radiusM: number },
 ): CollectPlace[] {
   return rows
     .filter((r) => r.prep.index < end)
     .map((item) => {
-      const { answer, judgment, model } = said.get(item.prep) ?? { answer: null, judgment: null, model: null };
+      const { answer, judgment, model } = judged.get(item.prep) ?? { answer: null, judgment: null, model: null };
       const rule =
         item.duplicateOf && !item.prep.rule
           ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" }
@@ -202,7 +202,7 @@ function sitesOf(prepared: Prepared[]): { withSite: number; read: number } {
 }
 
 /** The page a batch commits: its places and judgments, the run's counts, and what comes next for the run and its round. */
-function pageOf(
+function collectPageOf(
   round: LeadRoundRow,
   parts: {
     places: CollectPlace[];
@@ -285,7 +285,7 @@ export async function collectHeld(
     // A plan that reads sites commits only as far as they could be read: the rest is the next job's, whole.
     const end = cutAt ?? batch.end;
     const isLastOfPage = end >= items.length;
-    const places = placesOf(round, run, rows, said, end, geo);
+    const places = batchPlacesOf(round, run, rows, said, end, geo);
     // Their own marks, read from their own sites, before the page is committed with everything else about them.
     await markPlaces(
       leadPorts,
@@ -313,7 +313,7 @@ export async function collectHeld(
           Math.max(0, usage - run.usage_usd) + sites.count() * LEAD_SITE_READ_USD,
         )
       : null;
-    const page = pageOf(
+    const page = collectPageOf(
       round,
       {
         places,

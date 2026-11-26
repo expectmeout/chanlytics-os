@@ -26,4 +26,15 @@ export const embedded = <T>(row: T): T | null => row;
  * carrying the account, but a store that keeps none under the id may answer none with no error (the suite's stand-in
  * for it does), and a read of who an account is then says nobody.
  */
-export const accountOf = <U>(answer: { data: { user: U | null } }): U | null => answer.data.user;
+export const identityAccountOf = <U>(answer: { data: { user: U | null } }): U | null => answer.data.user;
+
+/**
+ * A failed reply as it can arrive. Its client types every failure as PostgREST's own, a code and a hint always there,
+ * but a body that is not PostgREST's JSON (a gateway's page, a proxy's refusal) arrives as its words alone
+ * (postgrest-js, `processResponse`): only the sentence is sure, so a code or a hint read from it keeps its fallback.
+ */
+export const asFailedReply = (reply: {
+  message: string;
+  code?: string | null;
+  hint?: string | null;
+}): { message: string; code?: string | null; hint?: string | null } => reply;

@@ -2,9 +2,9 @@
 
 import type { Db } from "./partner";
 import { saysMissing, isMissingFunction } from "../../shared/missing-door";
-import { recordOrEmpty, textOrEmpty, recordOrNull, DbFailure, asFailedReply } from "@chanlytics/contracts";
+import { recordOrEmpty, textOrEmpty, recordOrNull, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
-import { embedded } from "../../shared/answers";
+import { asFailedReply, embedded } from "../../shared/answers";
 
 /* ------------------------------------------------------------------------------------------------ handovers */
 
