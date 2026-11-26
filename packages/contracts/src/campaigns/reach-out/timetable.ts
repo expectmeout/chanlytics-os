@@ -21,7 +21,7 @@ import { DAY_MS, MIN_MS } from "../../shared/time";
 export const SEND_WINDOW_MARGIN_MIN = 30;
 /** The part of any day a cold email may arrive in, in the lead's own time (minutes after midnight): nine to five. */
 export const SEND_DAY_FRAME: OpenWindow = { from: 9 * 60, to: 17 * 60 };
-export const TIMETABLE_HORIZON_DAYS = 7;
+const TIMETABLE_HORIZON_DAYS = 7;
 
 export interface TimetableSend {
   id: string;

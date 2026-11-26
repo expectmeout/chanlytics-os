@@ -254,6 +254,31 @@ test("Meta's day for an ad: what it spent in minor units, and Meta's own counts 
     { adId: AD2, day: "2026-11-18", spendMinor: 0, impressions: 0, clicks: 0, conversations: null, leads: 2 },
   ]);
   assert.equal(after, null);
+  // A post's ad (00719): what the day did as Meta counts it, each kind it counted any of, under the ad's own words.
+  const boosted = parseMetaAdDays(
+    {
+      data: [
+        {
+          ad_id: AD1,
+          date_start: "2026-11-19",
+          spend: "4.00",
+          impressions: "900",
+          actions: [
+            { action_type: "video_view", value: "310" },
+            { action_type: "post_engagement", value: "44" },
+            { action_type: "comment", value: "3" },
+            { action_type: "post_reaction", value: "30" },
+            { action_type: "onsite_conversion.post_save", value: "2" },
+            { action_type: "post", value: "1" },
+            { action_type: "page_engagement", value: "50" },
+            { action_type: "link_click", value: "0" },
+          ],
+        },
+      ],
+    },
+    "USD",
+  ).days[0];
+  assert.deepEqual(boosted.engaged, { plays: 310, engaged: 44, comments: 3, reactions: 30, saves: 2, shares: 1 });
   assert.equal(
     parseMetaAdDays({ data: [{ ad_id: AD1, date_start: "2026-11-18", spend: "1500" }] }, "JPY").days[0].spendMinor,
     1500,
@@ -356,6 +381,19 @@ test("Meta's count of what an ad asks for follows what the ad opens, and is nobo
     rows.map((row) => row.platform_results),
     [4, 2, null],
   );
+  // What a day did is kept for every ad, whatever it opens, and left out of a day Meta counted none of it on.
+  const [counted, none] = adopt.dayRowsOf(
+    [
+      { ...day, adId: AD3, engaged: { plays: 12, comments: 1 } },
+      { ...day, adId: AD1 },
+    ],
+    new Map([
+      [AD3, "other"],
+      [AD1, "whatsapp"],
+    ]),
+  );
+  assert.deepEqual(counted.engaged, { plays: 12, comments: 1 });
+  assert.equal("engaged" in none, false);
 });
 
 test("the read's pace: how deep it looks, which days it asks for, and when the account is read next", () => {

@@ -48,7 +48,6 @@ export {
   LEAD_IMPORT_MAX_BYTES,
   LEAD_IMPORT_WORDS,
   LEAD_LIST_MAX,
-  LEAD_LIST_VIAS,
   leadChooseAnswerWords,
   leadChooseNameOf,
   leadImportAnswerWords,
@@ -66,7 +65,7 @@ export {
   websiteHostOf,
 } from "./import";
 export type { LeadChooseAnswer, LeadImportAnswer, LeadImportColumns, LeadImportRow, LeadListVia } from "./import";
-export { LeadChooseSchema, LeadImportRowSchema, LeadImportSchema } from "./import-schema";
+export { LeadChooseSchema, LeadImportSchema } from "./import-schema";
 export type { LeadChooseInput, LeadImportInput } from "./import-schema";
 export {
   JUDGE_FACT_KEYS,
@@ -390,9 +389,6 @@ export {
   cleanEmailCandidates,
   isSiteRoot,
   LEAD_JUNK_EMAIL_DOMAINS,
-  LEAD_PLACEHOLDER_LOCALS,
-  LEAD_PLATFORM_HOSTS,
-  LEAD_ROLE_LOCALS,
   leadKindKey,
   siteHost,
   stateCode,

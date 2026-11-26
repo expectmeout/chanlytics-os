@@ -137,7 +137,7 @@ export function listNamer(saved: readonly { id: string; name: string }[]): (toke
 }
 
 /** What a list needs, the lists it reads included: a list about a calendar list needs the calendar too. */
-export function listNeeds(rule: ListRule | null, lookup: ListLookup = () => null): ListNeed[] {
+function listNeeds(rule: ListRule | null, lookup: ListLookup = () => null): ListNeed[] {
   if (!rule) return [];
   const needs = new Set(ruleNeeds(rule));
   for (const token of ruleLists(rule)) {
