@@ -321,7 +321,8 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
 
 test("the Integrations pane offers the connection to an owner or says exactly why it cannot start", () => {
   // The pane is TSX now (moved from integrations-real.jsx): Connect and Keep the WhatsApp Business app are drawn and pressed,
-  // each its own flow, in workspace/settings-doors.test.mjs (pinned as pane.tsx's and row.tsx's text until 26 Nov 2026).
+  // each its own flow, in keeping-the-business-app-is-a-press-of-its-own.test.mjs beside this (pinned as pane.tsx's and
+  // row.tsx's text until 26 Nov 2026).
   // The row itself runs (contracts' connectionRows) rather than being read.
   const NOW = Date.parse("2026-09-07T15:00:00Z");
   const channel = (status) =>
