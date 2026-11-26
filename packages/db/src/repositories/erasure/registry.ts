@@ -101,6 +101,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(WITH_WORKSPACE, "name"),
     ...all(NOT_PERSONAL, "platform_id"),
   },
+  // What a day of an ad did, as the platform counts it (00719): plays, engagement, comments, reactions, saves and shares,
+  // each a whole number for the day. Counts of everyone the ad reached, never a person.
+  ad_days: { engaged: NOT_PERSONAL },
   // The model ledger (00273): which model answered and a hash of the system prompt, never a customer's turn. A shadow
   // row's question and answers are labels from the question's own options; the rows go at 400 days whatever a later
   // writer puts there. A failed call's reason (00469) is the API's error type, and its words, which name no one but go

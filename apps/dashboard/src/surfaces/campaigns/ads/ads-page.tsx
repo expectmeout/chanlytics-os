@@ -31,6 +31,7 @@ import { CmHead } from "../parts/head";
 import { AdsBar } from "./content-bar";
 import { CmSplit, type CmView, useCmPhone } from "../parts/split";
 import { PartShown } from "../parts/view-shown";
+import { saysOnlyItsHead } from "./connect/card";
 import { useAdsConnection } from "./connect/use-card";
 import { CARD } from "./connect/words";
 import { useFirstTouch } from "./first-touch";
@@ -151,10 +152,7 @@ function HeldLoading({ failed, again, card }: { failed: boolean; again: () => vo
           </p>
         )}
       </section>
-      <section className="ads-hero-side">
-        {card}
-        <p className="ads-conn-later">{CARD.later}</p>
-      </section>
+      <section className="ads-hero-side">{card}</section>
     </div>
   );
 }
@@ -203,6 +201,12 @@ export function AdsPage({ param, view }: AdsPageProps) {
   // it is (nothing connected, or its ads), or with what could not be read.
   const drawn = account.failed || (known && (!held || !!live.dto || live.failed));
   const mark = view?.shown !== false ? <PartShown page="ads" part="page" ready={drawn} /> : null;
+  // Where the card has nothing past its head to say, the page says where the account stands at its figures' end instead,
+  // and draws what its press opens (live-ads.tsx); the card itself stands only where it has something to say.
+  const quiet =
+    connect.vm && connect.parts && saysOnlyItsHead(connect.vm, null)
+      ? { vm: connect.vm, open: connect.parts.acts.open, sheets: connect.parts.sheets }
+      : null;
   if (held && live.dto)
     return (
       <>
@@ -213,7 +217,8 @@ export function AdsPage({ param, view }: AdsPageProps) {
           view={view}
           phone={phone}
           timezone={timezone}
-          card={connect.card}
+          card={quiet ? null : connect.card}
+          account={quiet}
           connect={{ word: connectWord, press: account.connect }}
           need={connect.vm?.need ?? null}
           stop={connect.stop}
@@ -252,20 +257,21 @@ export function AdsPage({ param, view }: AdsPageProps) {
             testid="ads-head"
             right={<HeadActs phone={phone} connect={connectWord} onConnect={account.connect} />}
           />
-          {/* Ads is the last of Made's views (Campaigns in three tabs): Content's bar, with Ads lit, over what it holds. */}
-          <AdsBar phone={phone} owed={false} />
+          {/* Ads is the third of Content's lists: Content's bar, with Ads lit, over what it holds (no ads read: no filter). */}
+          <AdsBar phone={phone} shown={view?.shown !== false} rows={null} />
           {!known ? (
             <AccountUnread failed={account.failed} again={account.again} />
           ) : held ? (
             <HeldLoading failed={live.failed} again={live.again} card={connect.card} />
           ) : (
             <>
-              <p className="ads-lead" data-testid="ads-lead">
-                {sentence}
-              </p>
-              <div className="ads-window" data-testid="ads-window">
-                <p className="ads-window-said">
-                  <span data-testid="ads-window-said">{vm.pane}</span>
+              {/* The page's sentence and its one quiet line, the days it counts, as the connected page says its own. */}
+              <div className="ads-sum" data-testid="ads-window">
+                <p className="ads-lead" data-testid="ads-lead">
+                  {sentence}
+                </p>
+                <p className="ads-money" data-testid="ads-window-said">
+                  {vm.pane}
                 </p>
               </div>
               <V0Page v0={vm.v0} touch={touch} card={connect.card} />

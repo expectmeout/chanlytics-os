@@ -291,7 +291,7 @@ export type RolePerm = keyof (typeof ROLE_PERMS)[Role];
  * whose own act is narrower names it: an owner's line is gated on `team`, and
  * "manage the team" is not what buying a number does.
  */
-export const PERM_DOING: Readonly<Record<RolePerm, string>> = {
+const PERM_DOING: Readonly<Record<RolePerm, string>> = {
   approve: "approve or send",
   autonomy: "change what AI may do on its own",
   disconnect: "disconnect a channel",

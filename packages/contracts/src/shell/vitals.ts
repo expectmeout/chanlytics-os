@@ -31,7 +31,7 @@ export const PAGE_VITAL_BANDS: Readonly<Record<PageVital, readonly [good: number
 };
 
 /** What each says, for a person who does not know the acronym. */
-export const PAGE_VITAL_WORDS: Readonly<Record<PageVital, string>> = {
+const PAGE_VITAL_WORDS: Readonly<Record<PageVital, string>> = {
   LCP: "Drawn",
   INP: "Answers a tap",
   CLS: "Holds still",
