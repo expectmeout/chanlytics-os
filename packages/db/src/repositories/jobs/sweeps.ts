@@ -25,9 +25,10 @@
  * Cross-workspace: the hourly sweeps page what is due across every workspace; each row carries its tenant_id.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PLAYBOOK_HOURS, type JobKind, type NumberStanding, DbFailure } from "@chanlytics/contracts";
+import { PLAYBOOK_HOURS, type JobKind, type NumberStanding, DbFailure, shaped } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
+import { readAnswer } from "../../shared/read-json";
 
 type Db = SupabaseClient<Database>;
 
@@ -79,7 +80,10 @@ export async function getDuePlaybooks(
   const rows = data ?? [];
   return {
     // The row as to_jsonb wrote it: the table's own shape, every column a JSON value.
-    rows: rows.map((r) => ({ step: r.step as StepRow, timezone: r.timezone })),
+    rows: rows.map((r) => ({
+      step: readAnswer("sequence_steps_due", shaped<StepRow>(), r.step),
+      timezone: r.timezone,
+    })),
     remaining: remainingOf(rows),
   };
 }

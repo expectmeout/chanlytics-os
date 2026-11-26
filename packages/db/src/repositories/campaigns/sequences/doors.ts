@@ -21,7 +21,7 @@ import {
 import type { Db } from "./reads";
 import { z } from "zod";
 import { readAnswer } from "../../../shared/read-json";
-import { DbFailure } from "@chanlytics/contracts";
+import { DbFailure, shaped } from "@chanlytics/contracts";
 
 /** How many ids one `in` list carries: two hundred keeps the URL short (the run reader's own chunk). */
 const REPLIES_IN_CHUNK = 200;
@@ -73,7 +73,7 @@ export async function getSequencePeople(
     ...(params.limit ? { p_limit: params.limit } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read who is in the sequence");
-  const result = (data ?? {}) as Partial<SequencePeopleDto>;
+  const result = readAnswer("sequence_people", shaped<Partial<SequencePeopleDto>>(), data ?? {});
   const rows = Array.isArray(result.rows) ? result.rows : [];
   // Each lead added and not planned says why no batch takes it (decision 0131), beside the openings of those waiting.
   const [opened, why] = await Promise.all([
@@ -90,7 +90,7 @@ export async function getSequencePeople(
 export async function findSequencePlace(db: Db, tenantId: TenantId, leadId: string): Promise<SequencePlaceDto | null> {
   const { data, error } = await db.rpc("sequence_place", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new DbFailure(error, "cannot read where the lead stands");
-  const result = data as SequencePlaceDto | null;
+  const result = readAnswer("sequence_place", shaped<SequencePlaceDto>().nullable(), data ?? null);
   if (!result || !result.sequence || !result.place) return null;
   const place = { ...result, sends: Array.isArray(result.sends) ? result.sends : [] };
   const [row] = await withOneLeadsOpening(db, tenantId, await withPlaceWhyNot(db, tenantId, leadId, place));
@@ -107,7 +107,9 @@ export async function listSequencePlaces(
   const { data, error } = await db.rpc("sequence_places_of", { p_tenant_id: tenantId, p_lead_ids: [...leadIds] });
   if (error) throw new DbFailure(error, "cannot read where the leads stand");
   const rows: unknown = data;
-  return Array.isArray(rows) ? withListedWhyNot(db, tenantId, rows as SequencePlaceOfDto[]) : [];
+  return Array.isArray(rows)
+    ? withListedWhyNot(db, tenantId, readAnswer("sequence_places_of", z.array(shaped<SequencePlaceOfDto>()), rows))
+    : [];
 }
 
 /** What a sequence sent, a batch a row, newest first (00442 sequence_history). */
@@ -122,7 +124,7 @@ export async function getSequenceHistory(
     ...(params.limit ? { p_limit: params.limit } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read what the sequence sent");
-  const result = (data ?? {}) as Partial<SequenceHistoryDto>;
+  const result = readAnswer("sequence_history", shaped<Partial<SequenceHistoryDto>>(), data ?? {});
   return { batches: Array.isArray(result.batches) ? result.batches : [], more: result.more === true };
 }
 

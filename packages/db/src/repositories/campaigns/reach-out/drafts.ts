@@ -10,7 +10,8 @@ import type { DraftLeadFacts, TenantId, ContactId } from "@chanlytics/contracts"
 import type { Database, Json } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
 import { answer, type DoorResult } from "./leads";
-import { DbFailure } from "@chanlytics/contracts";
+import { DbFailure, shaped } from "@chanlytics/contracts";
+import { readAnswer } from "../../../shared/read-json";
 
 type Db = SupabaseClient<Database>;
 
@@ -84,7 +85,7 @@ export async function loadChainDraft(
 export async function draftFactsOf(db: Db, tenantId: TenantId, leadId: string): Promise<DraftLeadFacts | null> {
   const { data, error } = await db.rpc("reach_out_draft_facts", { p_tenant_id: tenantId, p_lead_id: leadId });
   if (error) throw new DbFailure(error, "cannot read the draft's lead");
-  return (data as DraftLeadFacts | null) ?? null;
+  return readAnswer("reach_out_draft_facts", shaped<DraftLeadFacts>().nullable(), data ?? null);
 }
 
 /** A draft waiting for its owner, with its lead's facts (null for a lead gone). */
@@ -118,7 +119,10 @@ export async function listDraftsWaiting(
     ...(params.after ? { p_after_at: params.after.drafted_at, p_after_id: params.after.id } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the drafts waiting");
-  return (data ?? []).map((r) => ({ ...r, facts: (r.facts as DraftLeadFacts | null) ?? null }));
+  return (data ?? []).map((r) => ({
+    ...r,
+    facts: readAnswer("reach_out_drafts_waiting", shaped<DraftLeadFacts>().nullable(), r.facts ?? null),
+  }));
 }
 
 /** What a lead's story says of a send its owner sends (00429): the run a draft waits in, and whether it went on their word. */

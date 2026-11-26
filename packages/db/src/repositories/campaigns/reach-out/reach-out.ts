@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import { withdrawQueued } from "../../conversations/control";
-import { heldContactId, recordOrEmpty, textOrEmpty, DbFailure } from "@chanlytics/contracts";
+import { heldContactId, recordOrEmpty, textOrEmpty, DbFailure, shaped } from "@chanlytics/contracts";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../../shared/read-json";
@@ -177,7 +177,7 @@ export async function listReachOutFollowers(
     p_limit: params.limit,
   });
   if (error) throw new DbFailure(error, "cannot read who a step may write to");
-  const rows = (data ?? []) as FollowerLead[];
+  const rows = readAnswer("reach_out_followers", z.array(shaped<FollowerLead>()), data ?? []);
   // The door's facts without the one it added last read as a failed read, as getOutreachFacts does (00181).
   for (const r of rows)
     if (typeof r.facts?.wrote_back !== "boolean")
@@ -205,7 +205,7 @@ export async function listQueuedOutcomes(db: Db, limit: number, tenantId?: Tenan
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the queued sends");
-  return (data ?? []) as QueuedOutcome[];
+  return readAnswer("sequence_queued_outcomes", z.array(shaped<QueuedOutcome>()), data ?? []);
 }
 
 /** Claims older than `before`, oldest first: a writer that died mid-send left them. */
@@ -254,7 +254,11 @@ export async function listClosedRunSends(
     ...(tenantId ? { p_tenant_id: tenantId } : {}),
   });
   if (error) throw new DbFailure(error, "cannot read the closed runs' sends");
-  return (data ?? []) as Array<{ send: ReachOutSendRow; email_status: string | null }>;
+  return readAnswer(
+    "sequence_closed_sends",
+    z.array(shaped<{ send: ReachOutSendRow; email_status: string | null }>()),
+    data ?? [],
+  );
 }
 
 /** Reach-out runs that go ahead with nothing left open (00186 reach_out_finishable). */

@@ -8,7 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../../types";
 import { leadSends, type ReachOutSendRow } from "./reach-out";
 import type { TenantId } from "@chanlytics/contracts";
-import { DbFailure } from "@chanlytics/contracts";
+import { DbFailure, shaped } from "@chanlytics/contracts";
+import { readAnswer } from "../../../shared/read-json";
 
 type Db = SupabaseClient<Database>;
 
@@ -95,7 +96,7 @@ export async function listUncheckedSends(
   });
   if (error) throw new DbFailure(error, "cannot read the sends to check");
   return (data ?? []).map((item) => {
-    const send = item.send as ReachOutSendRow;
+    const send = readAnswer("sequence_unchecked", shaped<ReachOutSendRow>(), item.send);
     return {
       send,
       check_gen: Number(item.check_gen ?? send.check_gen ?? 0),
