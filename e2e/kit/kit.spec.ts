@@ -241,6 +241,16 @@ const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegEx
     failure:
       /^(?:btn-touch|btn-thread|notice)[a-z-]*: .* min-height: planting --control-h-touch changed nothing \(min-height at 44px\)/,
   },
+  {
+    by:
+      "settings.css, `:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm`: Settings' sheets keep the " +
+      "pane's small press (`.settings .btn-sm`, --set-hint), 12.5px on a desk where the kit's reads --text-label's 12 " +
+      "(seen since kit.css's .btn-sm read a token, 26 Nov 2026; it wrote 12px before)",
+    until: "Phase 4's Settings step (0015), where Settings' presses take the kit's size or a variant of it",
+    runs: /^desk /,
+    failure:
+      /^rec-fold-sheet: .* button\.btn\.btn-sm[.\w-]* font-size: planting --text-label changed nothing \(font-size at 12\.5px\)/,
+  },
 ];
 /**
  * Where a control's focus draws no ring by design, each with the decision that made it so: a failure one of these
