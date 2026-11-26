@@ -9,8 +9,8 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../_source.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 globalThis.window ??= globalThis;
 globalThis.location ??= { pathname: "/w/bayside", hash: "" };

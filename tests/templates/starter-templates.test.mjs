@@ -450,9 +450,9 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   // operator's, counted with the settings changes, and refuses nothing to add in its words (playbooks/routes/); one
   // already on file is left alone and its email and text versions are filed beside it (template-versions.test.mjs); a
   // new one is held to the check a hand-written template passes, submitted through the create door, and one the
-  // number's account already holds is synced in, not refused (what-meta-holds-is-asked-of-the-edge.test.mjs). The verb is
+  // number's account already holds is synced in, not refused (routes/what-meta-holds-is-asked-of-the-edge.test.mjs). The verb is
   // the bridge's, through the client, which Campaigns' verbs hand on and Settings › Business presses, and the library
-  // reaches the pages by import (the-library-s-verbs-ask-their-routes.test.mjs).
+  // reaches the pages by import (routes/the-library-s-verbs-ask-their-routes.test.mjs).
   const refreshMap = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");
   assert.deepEqual(
     refreshMap.AFTER["POST templates/starter"]().map((o) => o.key),
@@ -663,7 +663,7 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   // The sync hiding Meta's sample on first sight only, and the create door
   // keeping the words a person gave each slot, are run in templates-doors.test.mjs.
   // Put away is an item of the message's one menu (drawn in templates/sheet/), and its verb asks PUT templates/[id] with
-  // { hidden: true }, back with { hidden: false } (the-library-s-verbs-ask-their-routes.test.mjs). A run under the veto
+  // { hidden: true }, back with { hidden: false } (routes/the-library-s-verbs-ask-their-routes.test.mjs). A run under the veto
   // window is a row of Today's day, at its time, with its Stop (decision 0064): runs-honest.test.mjs presses it.
   // Presence, the bell and the theme are one group: the theme's button is drawn in the frame's top bar in
   // shell/surfaces/status/the-page-and-the-shell-s-doors.test.mjs. The group's rule is the stylesheet's, read here.
@@ -689,7 +689,7 @@ test("a template's title: the workspace's own words, set through its door, shown
   // through the route in playbooks/routes/ ("one template: hidden or titled through the definer doors"); a title past
   // sixty refused on the stack (templates/template-versions.db.test.mjs). Pinned as the route's text until 25 Nov 2026.
   // The rename asks PUT templates/[id] with { title }, and a name is looked up among the workspace's rows
-  // (the-library-s-verbs-ask-their-routes.test.mjs). The rename's own field and its Save, read until they are drawn:
+  // (routes/the-library-s-verbs-ask-their-routes.test.mjs). The rename's own field and its Save, read until they are drawn:
   const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
   for (const id of ["template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   // Rename, like Hide, is an item of the pane's kit Menu: its test id rides the item's `gate`.

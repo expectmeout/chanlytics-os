@@ -12,8 +12,8 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { TEMPLATE_SAME_NAME_WORDS } from "@chanlytics/contracts";
-import { fakeDb } from "../_fake-db.mjs";
-import { importSrc } from "../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { importSrc } from "../../_source.mjs";
 
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 // A deployment that may reach its providers: the guard the routes suite stops at is open here.

@@ -250,9 +250,9 @@ test("the table says where a template came from: Meta or written here, and nothi
 
 // The routes: what Meta refuses is refused first, in the person's words, and a duplicate name is a conflict
 // (TEMPLATE_SAME_NAME_WORDS) -- run through POST templates in playbooks/routes/ and, with the guard open, in
-// what-meta-holds-is-asked-of-the-edge.test.mjs, where Meta's own reason reaches the person and the create door is asked
+// routes/what-meta-holds-is-asked-of-the-edge.test.mjs, where Meta's own reason reaches the person and the create door is asked
 // with the words; a template a send or a running playbook still uses cannot go (playbooks/routes/), and one nothing uses
-// goes through the edge's delete door by its own id (what-meta-holds-is-asked-of-the-edge.test.mjs); the draft is a
+// goes through the edge's delete door by its own id (routes/what-meta-holds-is-asked-of-the-edge.test.mjs); the draft is a
 // draft, counted against the assistant's bucket (its policy, playbooks/routes/), its words and their check run below.
 // Pinned as the routes' and the services' text until 26 Nov 2026.
 test("the duplicate's sentence is contracts', since Ask's message card says it too", () => {
@@ -267,7 +267,7 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // The specs and the booking-link refusal are run: broadcasts/core-campaigns/. Delete is the last item of a message's
   // name menu, drawn whole in templates/sheet/message-versions-page.test.mjs; the composer is drawn and typed into, its
   // brief drafted, its name, body and examples set and submitted, in broadcasts/page/a-broadcast-s-state.test.mjs; the
-  // verbs it presses are imported, not published, and ask their routes (the-library-s-verbs-ask-their-routes.test.mjs).
+  // verbs it presses are imported, not published, and ask their routes (routes/the-library-s-verbs-ask-their-routes.test.mjs).
   // The business name a slot is filled with falls back to the workspace's name: the one read left here, since only a
   // whole run of the job reaches it (workspaceFacts is the handler's own).
   // An approval is news the owner waits for, told with what it was approved as: run, by value, in

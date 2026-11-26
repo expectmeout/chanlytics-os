@@ -110,7 +110,7 @@ test("Meta's words into the table's: status, category, the body, the numbered va
 // The dashboard: the sync route is an operator's, counted with the other settings changes (its policy, run in
 // playbooks/routes/); it asks the edge's sync door for this workspace in production alone, and says a missing account
 // or a silent Meta in the owner's words; Settings' read carries the category, Meta's verdict and why, and when it last
-// matched (what-meta-holds-is-asked-of-the-edge.test.mjs). `?all=1` is Settings' read and the composer still sees
+// matched (routes/what-meta-holds-is-asked-of-the-edge.test.mjs). `?all=1` is Settings' read and the composer still sees
 // approved only: RUN through the route in playbooks/routes/ ("templates: the composers see the approved and unhidden")
 // and its reader in ask/readers/. Pinned as the route's, the service's and the reader's text until 26 Nov 2026.
 
