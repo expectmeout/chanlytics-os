@@ -112,6 +112,25 @@ test("the global fetch is counted, a port's or a client's method of that name is
   assert.equal(fetchesIn(sf), 2);
 });
 
+test("a reach for the global fetch by any name is counted: the window's, one handed to a client, never a key, a type or a local", () => {
+  const reached = source(
+    'await window.fetch("/api/v1/signup");',
+    "const send = deps.fetch ?? self.fetch;",
+    "makeClient(fetch, token);",
+    "export function viaDoor(fetchImpl: typeof fetch = fetch) { return fetchImpl; }",
+  );
+  assert.equal(fetchesIn(reached), 4, "window.fetch, self.fetch, fetch handed on, fetch as a default");
+  const named = source(
+    "const port = { fetch: async () => null };",
+    "interface Port { fetch(url: string): Promise<Response>; }",
+    'if (typeof fetch !== "function") throw new Error("no fetch");',
+    "type Send = typeof fetch;",
+  );
+  assert.equal(fetchesIn(named), 0, "a key, a method signature, typeof and a type are names");
+  const local = source("function read(fetch) { return fetch('/x'); }");
+  assert.equal(fetchesIn(local), 0, "a module's own fetch is its own");
+});
+
 test("every call out leaves through its door: no global fetch in apps or packages but where a named exception says why", () => {
   assert.deepEqual(
     fetchesBy({ exceptions: false }),

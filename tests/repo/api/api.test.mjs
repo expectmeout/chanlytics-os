@@ -58,6 +58,19 @@ test("every edge door that reads a body reads it through the door declared for i
   assert.deepEqual(wrong, []);
 });
 
+test("every declared door that takes a body reads it through readBody and its own declaration, so a wrong body is refused", () => {
+  // The other way round from the test above: a door declared with a body that its file reads by hand would take a body
+  // its declaration does not hold, where readBody answers it 400 (decision 0109). A GET declared NO_BODY reads none.
+  const edgeModules = repoFiles(["apps/edge/api", "apps/edge/lib"]).filter((f) => f.endsWith(".ts"));
+  const read = new Set(bodyReads(edgeModules).map((r) => r.door));
+  assert.deepEqual(
+    doors.filter((d) => !d.bodyless && !read.has(d.name)).map((d) => `${d.name} (${d.aud})`),
+    [],
+    "a door whose body no readBody reads",
+  );
+  assert.ok(doors.filter((d) => d.bodyless).length >= 3, "the GETs declared with NO_BODY are told apart");
+});
+
 test("every call the dashboard makes to the edge names a declared door", () => {
   const files = repoFiles(["apps/dashboard/src", "apps/dashboard/app"]).filter((f) => /\.tsx?$/.test(f));
   const calls = edgeCalls(files);

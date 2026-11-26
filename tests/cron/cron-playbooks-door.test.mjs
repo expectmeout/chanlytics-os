@@ -832,8 +832,8 @@ test("a reach-out's first run waits for its owner: one pending run, its sends pl
   );
   assert.deepEqual(w.tables.broadcast_recipients, []);
   assert.deepEqual(
-    w.tables.notifications.map((n) => [n.route, n.subject_type, n.subject_id]),
-    [[`campaigns/sequences/${run.id}/runs/${run.id}`, "broadcast", run.id]],
+    w.tables.notifications.map((n) => [n.kind, n.route, n.subject_type, n.subject_id]),
+    [["playbook", `campaigns/sequences/${run.id}/runs/${run.id}`, "broadcast", run.id]],
     "its owner is told where to approve it: the row opens the run itself",
   );
   assert.equal(w.tables.playbooks[0].last_run_for, today, "the step remembers the day");

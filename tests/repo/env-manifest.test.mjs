@@ -118,6 +118,22 @@ for (const m of MANIFESTS) {
   });
 }
 
+test("every dashboard address the edge's manifest tells an operator to register with a provider is a route the dashboard serves", () => {
+  // Moved here on 26 Nov 2026 from google/profile/connecting-reviews-and-the-mirror.test.mjs, which read the Google
+  // redirect's line for its address: a rule of the manifest, held over every callback it names (Google's, a mailbox's,
+  // a file source's), since an operator copies the address as written.
+  const edge = MANIFESTS.find((m) => m.name === "apps/edge/.env.example");
+  const named = [
+    ...fs.readFileSync(edge.file, "utf8").matchAll(/https:\/\/app\.chanlytics\.com\/api\/v1\/([a-z0-9/_-]+)/g),
+  ].map((m) => m[1]);
+  assert.ok(named.includes("google/callback"), "the Google redirect is written where the operator sets it");
+  for (const route of named)
+    assert.ok(
+      fs.existsSync(path.join(ROOT, "apps/dashboard/app/api/v1", route, "route.ts")),
+      `no route answers ${route}`,
+    );
+});
+
 test("the dashboard holds no model or provider key: Ask's model and every provider are reached through the edge's doors, which alone read them", () => {
   // Moved here on 25 Nov 2026 from the behaviour tests that read one module each for the name (ask/line/ for the
   // model's key, google.test.mjs for the Places key, billing.test.mjs for Stripe's, and on 26 Nov whatsapp-connect.test.mjs for Meta's app secret): a rule of the repository, held over
