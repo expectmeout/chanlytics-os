@@ -33,7 +33,12 @@ export function heldViews<T>(max: number): HeldViews<T> {
       const at = scoped(key);
       held.delete(at);
       held.set(at, value);
-      while (held.size > max) held.delete(held.keys().next().value as string);
+      for (
+        let oldest = held.keys().next().value;
+        held.size > max && oldest !== undefined;
+        oldest = held.keys().next().value
+      )
+        held.delete(oldest);
     },
     forget() {
       held.clear();
