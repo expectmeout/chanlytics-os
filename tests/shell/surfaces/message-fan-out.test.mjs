@@ -64,7 +64,7 @@ const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
 const registry = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
-/** Every surface the shell registers (FrameApp.tsx), from the module it imports each from: the shell's own list, no copy. */
+/** Every surface the shell registers (bridge/boot/surfaces.ts), from the module it imports each from: the shell's own list, no copy. */
 const REAL = [];
 for (const { name, file } of registeredSurfaces()) REAL.push((await importSrc(file))[name]);
 

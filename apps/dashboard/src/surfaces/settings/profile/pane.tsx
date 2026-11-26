@@ -291,7 +291,7 @@ function DeleteAccountRow() {
         refused
           ? refused
           : armed
-            ? `Removes you from every workspace and deletes your sign-in. A workspace you alone were in ends: ${WORKSPACE_ENDED_WORDS}. Its records are kept until hi@chanlytics.com is asked to delete it.`
+            ? `Removes you from every workspace and deletes your sign-in. A workspace you alone were in ends: ${WORKSPACE_ENDED_WORDS}. Its records are kept until hi@chanlytics.com is asked to delete it.` // screen-word: what can't be undone stays in full (docs/words.md)
             : "Yours to do here, any time. A workspace with other members needs another owner first."
       }
     />
