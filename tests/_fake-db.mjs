@@ -1950,6 +1950,92 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       });
       return true;
     },
+    /** A message sent to WhatsApp, kept over its key with template.submitted (00722 template_submitted_keep); its id. */
+    template_submitted_keep: ({ p_tenant_id, p_row, p_by = null }) => {
+      const fault = faults["templates.upsert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = { ...p_row, tenant_id: p_tenant_id, channel: p_row.channel ?? "whatsapp" };
+      const all = (tables.templates ??= []);
+      const was = all.find(
+        (t) =>
+          t.tenant_id === p_tenant_id &&
+          t.channel === row.channel &&
+          t.name === row.name &&
+          t.language === row.language,
+      );
+      if (was) Object.assign(was, row);
+      const kept = was ?? insertRow("templates", row);
+      seen.push({
+        table: "templates",
+        op: "upsert",
+        values: [row],
+        conflict: ["tenant_id", "channel", "name", "language"],
+      });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.submitted",
+        category: "message",
+        subject_type: "template",
+        subject_id: kept.id,
+        data: { name: row.name, language: row.language, by: p_by },
+      });
+      return kept.id;
+    },
+    /** A WhatsApp message's new words with template.submitted (00722 template_words_keep); false where not the workspace's. */
+    template_words_keep: ({ p_tenant_id, p_template_id, p_words, p_by = null, p_before = null }) => {
+      const fault = faults["templates.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.templates ?? []).find(
+        (t) => t.id === p_template_id && t.tenant_id === p_tenant_id && t.channel === "whatsapp",
+      );
+      if (!row) return false;
+      const values = { ...p_words, meta_status: "pending", rejected_reason: null, synced_at: stampOf(tables) };
+      Object.assign(row, values);
+      seen.push({ table: "templates", op: "update", values, filters: [["eq", "id", p_template_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.submitted",
+        category: "message",
+        subject_type: "template",
+        subject_id: p_template_id,
+        data: { name: row.name, language: row.language, by: p_by, ...(p_before ? { before: p_before } : {}) },
+      });
+      return true;
+    },
+    /** A Library message deleted with template.removed naming it (00722 template_remove); false where it was gone. */
+    template_remove: ({ p_tenant_id, p_template_id, p_by = null }) => {
+      const fault = faults["templates.delete"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const all = tables.templates ?? [];
+      const row = all.find((t) => t.id === p_template_id && t.tenant_id === p_tenant_id);
+      if (!row) return false;
+      all.splice(all.indexOf(row), 1);
+      seen.push({ table: "templates", op: "delete", filters: [["eq", "id", p_template_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.removed",
+        category: "message",
+        subject_type: "template",
+        subject_id: p_template_id,
+        data: { name: row.name, language: row.language, by: p_by },
+      });
+      return true;
+    },
+    /** Ask's new words for a refused message, kept on the ledger (00722 template_fix_keep); false where not the workspace's. */
+    template_fix_keep: ({ p_tenant_id, p_template_id, p_words, p_reason }) => {
+      const fault = faults["events.insert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      if (!(tables.templates ?? []).some((t) => t.id === p_template_id && t.tenant_id === p_tenant_id)) return false;
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.fix_written",
+        category: "message",
+        subject_type: "template",
+        subject_id: p_template_id,
+        data: { words: p_words, reason: p_reason ?? "", by: opts.userId ?? null },
+      });
+      return true;
+    },
     /** The owner's echo's pause and its event (00721 conversation_owner_echo_keep); false where the thread is not theirs. */
     conversation_owner_echo_keep: ({ p_tenant_id, p_conversation_id, p_patch, p_until }) => {
       const fault = faults["conversations.update"];

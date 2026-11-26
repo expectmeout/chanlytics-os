@@ -230,7 +230,9 @@ test("a template no send uses is deleted through the edge's delete door, by its 
   );
   const r = await template.DELETE.run(send("DELETE"), w.ctx({ id: TPL }));
   assert.deepEqual([r.deleted, r.id, r.name, r.language, r.at_meta], [true, TPL, "fall_hours", "en_US", true]);
-  assert.deepEqual(asked, [{ path: "/api/admin/whatsapp/templates-delete", body: { tenant_id: T, template_id: TPL } }]);
+  assert.deepEqual(asked, [
+    { path: "/api/admin/whatsapp/templates-delete", body: { tenant_id: T, template_id: TPL, user_id: USER } },
+  ]);
 
   // A run still sending it: nothing reaches the edge.
   const busy = world({

@@ -128,10 +128,11 @@ export async function createWhatsappTemplate(
     source: "chanlytics" as const,
     created_by: userId,
   };
-  const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
-  if (error || !saved) return refuseFailure(503, "write_failed", error);
+  // The row and template.submitted, with who sent it, in one transaction (00722): the dashboard is told it is said.
+  const { data: savedId, error } = await saveTemplateRow(db, tenantId, row, userId);
+  if (error || !savedId) return refuseFailure(503, "write_failed", error);
   log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
-  return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
+  return json(200, { ok: true, id: savedId, meta_id: created.data.id, meta_status: status, told: true });
 }
 
 /** A template's values as its words number them, each with the words a person gave it and its example. */
@@ -162,6 +163,8 @@ export async function editWhatsappTemplate(
     body?: unknown;
     examples?: unknown;
     labels?: unknown;
+    user_id?: unknown;
+    before?: unknown;
   }>,
 ): Promise<Response> {
   const log = logger();
@@ -198,14 +201,21 @@ export async function editWhatsappTemplate(
     });
     return refuse(502, "meta_refused", edited.error);
   }
-  const { error } = await keepTemplateWords(db, tenantId, row.id, {
-    components: jsonCopyOf(components),
-    body_preview: text,
-    variables: jsonCopyOf(variablesOf(text, labels, examples)),
-  });
+  // The words and template.submitted, with who and what they replace, in one transaction (00722).
+  const { error } = await keepTemplateWords(
+    db,
+    tenantId,
+    row.id,
+    {
+      components: jsonCopyOf(components),
+      body_preview: text,
+      variables: jsonCopyOf(variablesOf(text, labels, examples)),
+    },
+    { by: personFor(auth, body.user_id), before: typeof body.before === "string" ? body.before : null },
+  );
   if (error) return refuseFailure(503, "write_failed", error);
   log.info("wa_template_edited", { tenant_id: tenantId, name: row.name, language: row.language });
-  return json(200, { ok: true, id: row.id, meta_status: "pending" });
+  return json(200, { ok: true, id: row.id, meta_status: "pending", told: true });
 }
 
 /**
@@ -219,7 +229,7 @@ export async function editWhatsappTemplate(
  */
 export async function deleteWhatsappTemplate(
   auth: Admitted,
-  body: Partial<{ tenant_id?: unknown; template_id?: unknown }>,
+  body: Partial<{ tenant_id?: unknown; template_id?: unknown; user_id?: unknown }>,
 ): Promise<Response> {
   const log = logger();
   const ws = workspaceFor(auth, body.tenant_id);
@@ -267,10 +277,11 @@ export async function deleteWhatsappTemplate(
     });
     return refuse(502, "meta_refused", gone.error);
   }
-  const { error } = await deleteTemplateRow(db, tenantId, row.id);
+  // The row goes with template.removed naming it, in one transaction (00722).
+  const { error } = await deleteTemplateRow(db, tenantId, row.id, personFor(auth, body.user_id));
   if (error) return refuseFailure(503, "write_failed", error);
   log.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
-  return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
+  return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok, told: true });
 }
 
 /** Meta's own samples: on file, never offered. */

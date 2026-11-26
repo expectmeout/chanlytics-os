@@ -401,6 +401,7 @@ export {
   deleteTemplateRow,
   findTemplateWords,
   findWhatsAppTemplate,
+  keepTemplateFix,
   keepTemplateWords,
   listSlowReviews,
   listWhatsAppTemplateKeys,

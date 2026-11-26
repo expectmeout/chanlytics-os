@@ -15952,7 +15952,34 @@ export type Database = {
         Args: { p_actor: string; p_tenant_id: string }
         Returns: undefined
       }
+      template_fix_keep: {
+        Args: {
+          p_reason: string
+          p_template_id: string
+          p_tenant_id: string
+          p_words: string
+        }
+        Returns: boolean
+      }
+      template_remove: {
+        Args: { p_by?: string; p_template_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       template_sends: { Args: { p_tenant_id: string }; Returns: Json }
+      template_submitted_keep: {
+        Args: { p_by?: string; p_row: Json; p_tenant_id: string }
+        Returns: string
+      }
+      template_words_keep: {
+        Args: {
+          p_before?: string
+          p_by?: string
+          p_template_id: string
+          p_tenant_id: string
+          p_words: Json
+        }
+        Returns: boolean
+      }
       tenant_config_read: {
         Args: { p_tenant_id: string }
         Returns: {

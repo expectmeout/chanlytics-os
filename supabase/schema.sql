@@ -47149,6 +47149,73 @@ end $$;
 
 
 --
+-- Name: template_fix_keep(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.template_fix_keep(p_tenant_id uuid, p_template_id uuid, p_words text, p_reason text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if coalesce(btrim(p_words), '') = '' or char_length(p_words) > 4000 or char_length(coalesce(p_reason, '')) > 1000 then
+    raise exception 'template_fix_keep: words of at most 4,000 characters, a reason of at most 1,000' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.templates t where t.tenant_id = p_tenant_id and t.id = p_template_id) then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'template.fix_written', 'message', 'template', p_template_id,
+          jsonb_build_object('words', p_words, 'reason', coalesce(p_reason, ''), 'by', v_by));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION template_fix_keep(p_tenant_id uuid, p_template_id uuid, p_words text, p_reason text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.template_fix_keep(p_tenant_id uuid, p_template_id uuid, p_words text, p_reason text) IS 'Ask''s new words for WhatsApp''s refusal of a message, kept on the ledger as template.fix_written (00722), which the Library''s editor reads back: the words, the refusal they answer, and the member who asked. A member who may act in the workspace, on their own session; the service role too. False where the message is not the workspace''s.';
+
+
+--
+-- Name: template_remove(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.template_remove(p_tenant_id uuid, p_template_id uuid, p_by uuid DEFAULT NULL::uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.templates;
+begin
+  delete from public.templates t where t.id = p_template_id and t.tenant_id = p_tenant_id returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  -- Its row is gone, so the ledger names it: a broadcast or a playbook that sent it still says the name.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'template.removed', 'message', 'template', p_template_id,
+          jsonb_build_object('name', v_row.name, 'language', v_row.language, 'by', p_by));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION template_remove(p_tenant_id uuid, p_template_id uuid, p_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.template_remove(p_tenant_id uuid, p_template_id uuid, p_by uuid) IS 'A Library message deleted, with template.removed in the same transaction (00722): its name and language, which stay on the ledger when the row is gone, and who deleted it. False where it was gone already. The service role''s: the edge''s template door.';
+
+
+--
 -- Name: template_sends(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -47184,6 +47251,87 @@ $$;
 --
 
 COMMENT ON FUNCTION public.template_sends(p_tenant_id uuid) IS 'How many times each message went out (a person a run marked sent; a template the Inbox sent that WhatsApp took, its wamid) and when the latest did, by name; a message never sent is absent. What Settings'' templates say (00374). Security invoker: row security decides what is read.';
+
+
+--
+-- Name: template_submitted_keep(uuid, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.template_submitted_keep(p_tenant_id uuid, p_row jsonb, p_by uuid DEFAULT NULL::uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.templates;
+  v_id uuid;
+begin
+  if p_tenant_id is null or jsonb_typeof(p_row) is distinct from 'object' then
+    raise exception 'template_submitted_keep: a message is a workspace''s' using errcode = '22004';
+  end if;
+  v_row := jsonb_populate_record(null::public.templates, p_row || jsonb_build_object('tenant_id', p_tenant_id));
+  insert into public.templates as t (tenant_id, channel, name, language, meta_status, category, meta_id, components,
+                                     body_preview, variables, rejected_reason, synced_at, source, created_by)
+  values (p_tenant_id, coalesce(v_row.channel, 'whatsapp'), v_row.name, v_row.language,
+          coalesce(v_row.meta_status, 'pending'), v_row.category, v_row.meta_id, v_row.components, v_row.body_preview,
+          coalesce(v_row.variables, '[]'::jsonb), v_row.rejected_reason, coalesce(v_row.synced_at, now()),
+          coalesce(v_row.source, 'chanlytics'), coalesce(v_row.created_by, p_by))
+  on conflict (tenant_id, channel, name, language) do update set
+    meta_status = excluded.meta_status, category = excluded.category, meta_id = excluded.meta_id,
+    components = excluded.components, body_preview = excluded.body_preview, variables = excluded.variables,
+    rejected_reason = excluded.rejected_reason, synced_at = excluded.synced_at, source = excluded.source,
+    created_by = excluded.created_by
+  returning t.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'template.submitted', 'message', 'template', v_id,
+          jsonb_build_object('name', v_row.name, 'language', v_row.language, 'by', p_by));
+  return v_id;
+end $$;
+
+
+--
+-- Name: FUNCTION template_submitted_keep(p_tenant_id uuid, p_row jsonb, p_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.template_submitted_keep(p_tenant_id uuid, p_row jsonb, p_by uuid) IS 'A message sent to WhatsApp for approval, kept over its key (workspace, channel, name, language) with template.submitted in the same transaction (00722): its name, language and who sent it. Its id. The service role''s: the edge''s template door, after Meta took it.';
+
+
+--
+-- Name: template_words_keep(uuid, uuid, jsonb, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.template_words_keep(p_tenant_id uuid, p_template_id uuid, p_words jsonb, p_by uuid DEFAULT NULL::uuid, p_before text DEFAULT NULL::text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row public.templates;
+begin
+  if jsonb_typeof(p_words) is distinct from 'object' then
+    raise exception 'template_words_keep: the words are an object' using errcode = '22023';
+  end if;
+  update public.templates t
+     set components = p_words -> 'components',
+         body_preview = p_words ->> 'body_preview',
+         variables = coalesce(p_words -> 'variables', t.variables),
+         meta_status = 'pending', rejected_reason = null, synced_at = now()
+   where t.id = p_template_id and t.tenant_id = p_tenant_id and t.channel = 'whatsapp'
+  returning * into v_row;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'template.submitted', 'message', 'template', p_template_id,
+          jsonb_build_object('name', v_row.name, 'language', v_row.language, 'by', p_by)
+            || case when p_before is null then '{}'::jsonb else jsonb_build_object('before', p_before) end);
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION template_words_keep(p_tenant_id uuid, p_template_id uuid, p_words jsonb, p_by uuid, p_before text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.template_words_keep(p_tenant_id uuid, p_template_id uuid, p_words jsonb, p_by uuid, p_before text) IS 'A WhatsApp message''s new words, sent to Meta again, kept with template.submitted in the same transaction (00722): who sent them, and the approved words they replaced (p_before) so a refusal can go back to them. False where it is not the workspace''s WhatsApp message. The service role''s: the edge''s template door.';
 
 
 --
@@ -76815,12 +76963,45 @@ GRANT ALL ON FUNCTION public.team_take_turn(p_tenant_id uuid, p_actor uuid) TO s
 
 
 --
+-- Name: FUNCTION template_fix_keep(p_tenant_id uuid, p_template_id uuid, p_words text, p_reason text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.template_fix_keep(p_tenant_id uuid, p_template_id uuid, p_words text, p_reason text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.template_fix_keep(p_tenant_id uuid, p_template_id uuid, p_words text, p_reason text) TO authenticated;
+GRANT ALL ON FUNCTION public.template_fix_keep(p_tenant_id uuid, p_template_id uuid, p_words text, p_reason text) TO service_role;
+
+
+--
+-- Name: FUNCTION template_remove(p_tenant_id uuid, p_template_id uuid, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.template_remove(p_tenant_id uuid, p_template_id uuid, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.template_remove(p_tenant_id uuid, p_template_id uuid, p_by uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION template_sends(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.template_sends(p_tenant_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.template_sends(p_tenant_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.template_sends(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION template_submitted_keep(p_tenant_id uuid, p_row jsonb, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.template_submitted_keep(p_tenant_id uuid, p_row jsonb, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.template_submitted_keep(p_tenant_id uuid, p_row jsonb, p_by uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION template_words_keep(p_tenant_id uuid, p_template_id uuid, p_words jsonb, p_by uuid, p_before text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.template_words_keep(p_tenant_id uuid, p_template_id uuid, p_words jsonb, p_by uuid, p_before text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.template_words_keep(p_tenant_id uuid, p_template_id uuid, p_words jsonb, p_by uuid, p_before text) TO service_role;
 
 
 --
