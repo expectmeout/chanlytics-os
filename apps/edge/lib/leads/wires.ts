@@ -80,14 +80,21 @@ const portJudgeClient = (): LeadJudgeClient => ({
   beta: {
     messages: {
       async create(params, call) {
-        const { model, betas, ...body } = params as { model?: string; betas?: string[] } & Record<string, unknown>;
-        const r = await callModel(
-          { purpose: "lead_judge", body, ...(typeof model === "string" ? { model } : {}), ...(betas ? { betas } : {}) },
+        const { model, betas, ...body } = params;
+        const answer = await callModel(
+          {
+            purpose: "lead_judge",
+            body,
+            ...(typeof model === "string" ? { model } : {}),
+            ...(Array.isArray(betas)
+              ? { betas: betas.filter((beta): beta is string => typeof beta === "string") }
+              : {}),
+          },
           { tenantId: call?.tenantId ?? null, subjectId: call?.roundId ?? null },
         );
-        if (!r || r.outcome === "held") throw new Error("lead judge: no model to ask");
-        if (r.outcome !== "ok") throw Object.assign(new Error(r.error), { status: r.status });
-        return r.message;
+        if (!answer || answer.outcome === "held") throw new Error("lead judge: no model to ask");
+        if (answer.outcome !== "ok") throw Object.assign(new Error(answer.error), { status: answer.status });
+        return answer.message;
       },
     },
   },

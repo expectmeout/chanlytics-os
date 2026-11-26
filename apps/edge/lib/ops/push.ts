@@ -32,21 +32,26 @@ export const RECEIPTS_BATCH = 1000;
 export const PUSH_BATCH = 100;
 const TIMEOUT_MS = 10_000;
 
-interface ExpoTicket {
-  status: "ok" | "error";
-  id?: string;
-  message?: string;
-  details?: { error?: string };
+/** What Expo says of one message, its ticket or its receipt: whether it went, its id, and why it did not. */
+function expoTicketOf(value: unknown): { ok: boolean; id: string | null; error: string } {
+  const id = valueAt(value, "id");
+  const detail = valueAt(value, "details", "error");
+  const message = valueAt(value, "message");
+  return {
+    ok: valueAt(value, "status") === "ok",
+    id: typeof id === "string" && id ? id : null,
+    error: typeof detail === "string" ? detail : typeof message === "string" ? message : "unknown",
+  };
 }
-type ExpoReceipt = Omit<ExpoTicket, "id">;
 
 /** The tickets of one batch, one per message in the batch's order. */
-function ticketsOf(batch: PushMessage[], body: { data?: ExpoTicket[] }): PushReceipt[] {
+function ticketsOf(batch: PushMessage[], body: unknown): PushReceipt[] {
+  const tickets = listOrEmpty(valueAt(body, "data"));
   return batch.map((m, k) => {
-    const t = body.data?.[k];
-    return t?.status === "ok"
+    const t = expoTicketOf(tickets[k]);
+    return t.ok
       ? { to: m.to, status: "ok", ...(t.id ? { id: t.id } : {}) }
-      : { to: m.to, status: "error", error: t?.details?.error ?? t?.message ?? "unknown" };
+      : { to: m.to, status: "error", error: t.error };
   });
 }
 
@@ -103,7 +108,7 @@ export function expoPush(fetchImpl?: typeof fetch): PushPort {
         const batch = messages.slice(index, index + PUSH_BATCH);
         const result = await post(EXPO_PUSH_URL, batch);
         if (result.outcome === "ok") {
-          receipts.push(...ticketsOf(batch, result.json as { data?: ExpoTicket[] }));
+          receipts.push(...ticketsOf(batch, result.json));
           continue;
         }
         if (result.outcome === "unknown") {
@@ -137,7 +142,7 @@ export function expoPush(fetchImpl?: typeof fetch): PushPort {
             sub.forEach((m) => grouped.add(m.to));
             if (!sub.length) continue;
             const rr = await post(EXPO_PUSH_URL, sub);
-            if (rr.outcome === "ok") receipts.push(...ticketsOf(sub, rr.json as { data?: ExpoTicket[] }));
+            if (rr.outcome === "ok") receipts.push(...ticketsOf(sub, rr.json));
             else receipts.push(...refused(sub, `push_rejected ${rr.status || "unreachable"}`));
           }
           receipts.push(
@@ -164,12 +169,9 @@ export function expoPush(fetchImpl?: typeof fetch): PushPort {
           const detail = text(result);
           throw new Error(`push_receipts_rejected ${result.status || result.error} ${detail.slice(0, 200)}`.trim());
         }
-        const { data } = (result.json ?? {}) as { data?: Record<string, ExpoReceipt> };
-        for (const [id, rc] of Object.entries(data ?? {})) {
-          out[id] =
-            rc.status === "ok"
-              ? { status: "ok" }
-              : { status: "error", error: rc.details?.error ?? rc.message ?? "unknown" };
+        for (const [id, value] of Object.entries(recordOrEmpty(valueAt(result.json, "data")))) {
+          const rc = expoTicketOf(value);
+          out[id] = rc.ok ? { status: "ok" } : { status: "error", error: rc.error };
         }
       }
       return out;
