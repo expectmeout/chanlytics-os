@@ -166,13 +166,13 @@ export const CHANNEL_ANSWERED: ReadonlySet<string> = new Set(["whatsapp", "voice
 const KIND_META: Record<string, { name: string; what: string; icon: ChannelVM["icon"]; noun: string }> = {
   whatsapp: {
     name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
-    what: "Customers text this number; AI answers",
+    what: "Customers text this number · AI answers",
     icon: "chat",
     noun: "message",
   },
   voice: {
     name: CHANNEL_KIND_WORDS.voice,
-    what: "Customers call this number; AI picks up",
+    what: "Customers call this number · AI picks up",
     icon: "phone",
     noun: "call",
   },
@@ -208,7 +208,7 @@ export function toChannelVM(dto: ChannelDto, now: Date, tz: string): ChannelVM {
     // value's (caller-gets.ts), which Live, Start and Today say too; who is
     // told is this row's own.
     health = "off";
-    healthLabel = `Switched off · ${lineOffGets(dto.kind, meta.noun).gets}; Chanlytics is told${dto.kind === "voice" ? "" : " they are arriving"}, you are not`;
+    healthLabel = `Switched off · ${lineOffGets(dto.kind, meta.noun).gets} · Chanlytics is told${dto.kind === "voice" ? "" : " they are arriving"}, you are not`;
   } else if (last === null) {
     health = "unused";
     healthLabel = `On · no ${meta.noun} has arrived yet`;
