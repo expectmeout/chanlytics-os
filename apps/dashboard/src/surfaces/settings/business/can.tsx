@@ -108,7 +108,7 @@ const BtcRow = ({
       data-testid={`rec-can-${a.id}`}
       data-ready={a.ready ? "true" : "false"}
       // The tip only where the sentence is not on screen: drawn, it IS the row's description.
-      title={a.missing ? undefined : a.detail}
+      data-tip={a.missing ? undefined : a.detail}
     >
       <span className="rec-row-key">{a.title}</span>
       <span className="bt-can-chips">
@@ -227,7 +227,7 @@ const BtcCallText = ({
 
 /** One thing the receptionist cannot do: a line, and what it is instead, kept where the abilities keep theirs. */
 const BtcCannotRow = ({ limit }: { limit: Limit }) => (
-  <div className="rec-row bt-cannot-row" data-testid={`rec-cannot-${limit.id}`} title={limit.detail}>
+  <div className="rec-row bt-cannot-row" data-testid={`rec-cannot-${limit.id}`} data-tip={limit.detail}>
     <span className="rec-row-key">{limit.title}</span>
     <span className="bt-can-says">{limit.detail}</span>
   </div>

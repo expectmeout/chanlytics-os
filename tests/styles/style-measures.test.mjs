@@ -146,7 +146,10 @@ test("a style prop counts on an element or a component; another prop, a style ke
 test("the measures see the dashboard's stylesheets and the shell's markup, and leave the tokens alone", () => {
   const components = "apps/dashboard/src/styles/components.css";
   const { values: v, classes } = cssOf(components);
-  assert.ok(v.font > 0 && v.radius > 0, "components.css parsed, and its written sizes were found");
+  assert.ok(
+    Object.values(v).some((n) => n > 0),
+    "components.css parsed, and the literal values it still writes were found",
+  );
   assert.ok(classes.btn > 0, "its selectors were read");
   const measure = (name) => MEASURES.find((m) => m.name === name).measure();
   const styleValues = measure("literal style values");

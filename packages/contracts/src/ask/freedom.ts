@@ -25,30 +25,28 @@ import type { AskCardOrigin, AskProposal } from "./thread-words";
 export type FreedomAnswer = "run" | "hold" | "ask" | "no";
 
 /** Why, as a key each language says in its own words (surfaces/ask/words.ts `why`) and an action's record keeps. */
-export const FREEDOM_REASONS = [
-  "at_once",
-  "role",
-  "stopped",
-  "locked",
-  "idea",
-  "follow_up",
-  "strangers",
-  "new_words",
-  "many",
-  "switch_off",
-  "keep",
-  "row_auto",
-  "row_veto",
-  "row_ask",
-  "row_never",
-  "no_row",
-  "closed",
-  "day_limit",
-  "undos",
-  "moved",
-  "no_way_back",
-] as const;
-export type FreedomReason = (typeof FREEDOM_REASONS)[number];
+export type FreedomReason =
+  | "at_once"
+  | "role"
+  | "stopped"
+  | "locked"
+  | "idea"
+  | "follow_up"
+  | "strangers"
+  | "new_words"
+  | "many"
+  | "switch_off"
+  | "keep"
+  | "row_auto"
+  | "row_veto"
+  | "row_ask"
+  | "row_never"
+  | "no_row"
+  | "closed"
+  | "day_limit"
+  | "undos"
+  | "moved"
+  | "no_way_back";
 
 /** What the check is asked against, read once for a card. */
 export interface FreedomWorld {
@@ -79,7 +77,7 @@ export interface FreedomWorld {
 /** The most Ask does alone in a day, past which it asks. A starting value, to tune once real numbers exist. */
 export const ASK_ALONE_DAY_MAX = 50;
 /** Undos in a week past which it stops running alone until someone looks: it is getting things wrong. */
-export const ASK_ALONE_UNDOS_MAX = 2;
+const ASK_ALONE_UNDOS_MAX = 2;
 
 const freedomAnswer = (a: FreedomAnswer, why: FreedomReason, row: PolicyClass | null = null) => ({
   answer: a,

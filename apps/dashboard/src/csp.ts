@@ -82,6 +82,11 @@ const META = [
 const META_BUSINESS = "https://business.facebook.com";
 const GOOGLE_PHOTOS = "https://*.googleusercontent.com";
 /**
+ * Meta's own picture of an ad made in Meta, as its read keeps it (the creative's `thumbnail_url`, an fbcdn address): drawn on
+ * the Ads page's row and drawer so an owner sees which ad is which (Ruben, 25 Nov 2026). Images only.
+ */
+const META_PICTURES = "https://*.fbcdn.net";
+/**
  * The voice agent (docs/decisions/0026): the browser's WebSocket to ElevenLabs for a conversation's events, and the
  * WebRTC signalling the vendor's client opens on the vendor's own LiveKit hosts (@elevenlabs/client 1.26.0:
  * `wss://livekit.rtc.elevenlabs.io`, and `livekit.rtc.<region>.residency.elevenlabs.io` for a residency; the API's
@@ -162,6 +167,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
         "blob:",
         ...(supabase ? [supabase] : []),
         GOOGLE_PHOTOS,
+        META_PICTURES,
         ...STRIPE.img,
         ...(leadMap ? [leadMap] : []),
       ],

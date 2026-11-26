@@ -105,6 +105,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
       );
     if (!setup.templates.approved)
       missing.push(
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "No approved WhatsApp message: nothing but a reply can go on WhatsApp (sequences with action messages).",
       );
   }

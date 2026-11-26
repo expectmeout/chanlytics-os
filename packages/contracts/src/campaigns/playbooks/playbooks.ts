@@ -252,12 +252,7 @@ export function visitFactsFor(
  * night goes at nine the next morning, and "tomorrow at 2:00 PM" said then is
  * the wrong day; the send's moment is what the words must be relative to.
  */
-export function visitDayWord(
-  visit: Pick<VisitDto, "start">,
-  tz: string,
-  sendAt: Date | undefined,
-  assumed: string,
-): string {
+function visitDayWord(visit: Pick<VisitDto, "start">, tz: string, sendAt: Date | undefined, assumed: string): string {
   if (!sendAt) return assumed;
   const visitDay = localDate(tz, new Date(visit.start));
   const sendDay = localDate(tz, sendAt);

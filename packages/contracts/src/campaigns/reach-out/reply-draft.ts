@@ -15,7 +15,7 @@ import { isOneOf } from "../../shared/unknown";
  *  - may_not_spend: the workspace may not spend (billing, Part 4's one reading);
  *  - not_drafted: the receptionist handed it to a person, refused, or failed. Never the holding words in its place.
  */
-export const DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"] as const;
+const DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"] as const;
 export type DraftWhy = (typeof DRAFT_WHYS)[number];
 export const isDraftWhy = (value: unknown): value is DraftWhy => isOneOf(DRAFT_WHYS, value);
 
@@ -27,7 +27,7 @@ export const isDraftWhy = (value: unknown): value is DraftWhy => isOneOf(DRAFT_W
 export const DRAFT_NEEDS_MS = 25_000;
 
 /** How much of a draft the notice quotes. */
-export const DRAFT_NOTICE_MAX = 240;
+const DRAFT_NOTICE_MAX = 240;
 
 /** The policy mode under which the receptionist says nothing (contracts POLICY_MODES). */
 const SILENT_MODE = "never";

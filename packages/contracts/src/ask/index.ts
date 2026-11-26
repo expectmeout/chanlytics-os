@@ -45,7 +45,7 @@ export type { AskContextRowKind, PageContext, PageContextRow } from "./context";
 export { LLM_DOOR } from "./edge-doors";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./fast-paths";
 export type { AskIntent, FastCall } from "./fast-paths";
-export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./freedom";
+export { ASK_ALONE_DAY_MAX, freedomOf, rowOf } from "./freedom";
 export type { FreedomAnswer, FreedomReason, FreedomVerdict, FreedomWorld } from "./freedom";
 export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./language";
 export type { AskLanguage } from "./language";
@@ -85,7 +85,6 @@ export {
 } from "./model";
 export type { AskModelProfile } from "./model";
 export {
-  ASK_NOTICE_ORDER,
   ASK_NOTICES_SENT,
   NOTICE_SAID_BY_RIGHT_NOW,
   noticeOf,
