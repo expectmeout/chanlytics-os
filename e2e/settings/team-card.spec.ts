@@ -122,6 +122,8 @@ test.describe("the chrome tells the truth", () => {
     const workspaces: { id: string; name: string }[] = listed?.data?.workspaces ?? [];
     const active = (workspaces.find((t) => t.id === id) ?? workspaces[0])?.name ?? null;
     test.skip(!active, "no workspace resolved");
-    await expect(page.locator(".sb-team-name")).toHaveText(active!);
+    // The frame's own sidebar, never the outline's: the outline stands until the frame is drawn and holds a name's room
+    // twice (open and as a rail, outline.tsx), so the name is asked of the frame and waited for until it is there.
+    await expect(page.locator(".app-root:not(.frame-outline) .sb-team-name")).toHaveText(active!);
   });
 });
