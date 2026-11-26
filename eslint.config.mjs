@@ -450,6 +450,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/ask/memory",
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/ask/skills",
+  "packages/contracts/src/calendar",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
   "packages/contracts/src/jobs",
@@ -503,7 +504,9 @@ export const LIMITED_TREES = [
  * wire, the zone, the day, the Autonomy rows and who reads it). Ask's two trees joined on 1 November 2026, the day they
  * were held: 17 functions there take five or six (the act tools' card builders, the tools' context, the voice door).
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
- * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert).
+ * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). Contracts'
+ * calendar joined on 25 November 2026, the day its week and its feed's reader were split: five take five (a block, the
+ * rule's occurrences, a run's day, a person's visit facts, a freed time).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -513,6 +516,7 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
+  "packages/contracts/src/calendar",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
   "apps/dashboard/src/bridge/mascot",
