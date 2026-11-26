@@ -629,7 +629,7 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   assert.deepEqual(t2.r.raw.told, []);
   await keep(ctx, "And tomorrow?", t2.r);
 
-  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 });
   const t3 = await nextTurn(ctx, [ROUND([answer("Noted.")])]);
   assert.equal(t3.r.shape.replay, "live", "a reply's approval leaves system as it was");
   const lines = wordsLines(t3.s.requests[0]);
@@ -648,7 +648,7 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
     scope: undefined,
     answering: null,
   });
-  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Unsent", atMs: 2_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Unsent", at_ms: 2_000 });
   const s5 = sentAs([ROUND([answer("Fine.")])]);
   const r5 = await runAskTurn(
     turn(ctx, { text: "And?", history: running.history, chain: running.chain }).input,
@@ -662,7 +662,7 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   await keep(ctx, "And?", t6.r);
 
   // Approved again after its undo: the same card and state as the first approval, another record -- told again.
-  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa again", atMs: 3_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa again", at_ms: 3_000 });
   const t7 = await nextTurn(ctx, [ROUND([answer("Fine.")])]);
   assert.equal(wordsLines(t7.s.requests[0])[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa again.`);
   assert.deepEqual(t7.r.raw.told, ["p-1:done:3000"]);
@@ -671,8 +671,8 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   // Undone, then let go (an approved card is only undone after, decision 0070), and asked cold (another role): the chain
   // had it to tell, but a rebuilt turn tells nothing in its words -- its lines carry the outcome (PR 5.5) -- and keeps
   // what they said as its `told`, which no live turn after it tells.
-  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Unsent", atMs: 3_500 });
-  await setProposalOutcome(ctx, first, "p-1", { state: "dismissed", receipt: "Not now", atMs: 4_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Unsent", at_ms: 3_500 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "dismissed", receipt: "Not now", at_ms: 4_000 });
   const cold = await nextTurn(ctx, [ROUND([answer("Fine.")])], {
     role: "owner",
     personLabel: "ada@example.com (owner)",
@@ -721,8 +721,8 @@ test("what happened since is told oldest first, by the turn that proposed each c
   const t2 = await nextTurn(ctx, [ROUND([draft, answer("A reply to Sam.")])], {}, { propose });
   assert.equal(t2.r.shape.replay, "live");
   const second = await keep(ctx, "And Sam?", t2.r);
-  await setProposalOutcome(ctx, second, "p-2", { state: "done", receipt: "Sent to Sam", atMs: 1_000 });
-  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 2_000 });
+  await setProposalOutcome(ctx, second, "p-2", { state: "done", receipt: "Sent to Sam", at_ms: 1_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", at_ms: 2_000 });
   const t3 = await nextTurn(ctx, [ROUND([answer("Both sent.")])]);
   assert.equal(
     wordsLines(t3.s.requests[0])[1],
@@ -739,7 +739,7 @@ test("what happened since survives a refusal of the page's data (the Phase 5 pla
     ports(sentAs([ROUND([draft, answer("A reply to Rosa.")])]).round, { propose: proposing(replyCard("p-1", "Rosa")) }),
   );
   const first = await keep(ctx, "Who needs me?", r1);
-  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 });
   const { r, s } = await nextTurn(
     ctx,
     [

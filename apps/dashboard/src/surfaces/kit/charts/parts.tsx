@@ -3,13 +3,13 @@
  * whole from legacy/components/chart-core.jsx, decision 0015). There is no React context: the node test stub renders
  * children before their parents, so a chart that needs the labels takes the same `config` as a prop.
  */
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Icon } from "../icon/icon";
 import { ckTipSide } from "./geometry";
 import type { ChartConfig, ChartRow, ChartWords } from "./geometry";
+import { customProperties } from "../variants";
 
 /** The series key drawn in a legend and a tooltip: a colour set on the element as `--k`. */
-const keyStyle = (color: string): CSSProperties => ({ "--k": color }) as CSSProperties;
 
 // The y axis: a solid hairline per tick (the baseline a step stronger), its label to the left, in ink.
 export function CkYAxis({
@@ -124,7 +124,7 @@ export function ChartLegend({
           <span key={k} className="ck-legend-item">
             <i
               className={`ck-key ${series?.shape || "rect"}`}
-              style={keyStyle(`var(--color-${k})`)}
+              style={customProperties({ "--k": `var(--color-${k})` })}
               aria-hidden="true"
             />
             {series?.icon && <Icon name={series.icon} size={11} className="ck-legend-icon" />}
@@ -141,16 +141,20 @@ export function ChartLegend({
 // stroke of its colour: a tooltip is never a legend, so never a box.
 export function ChartTooltipContent({ title = null, rows = [], note = null }: ChartWords) {
   return (
-    <div className="ck-tip-inner">
-      {title && <div className="ck-tip-title">{title}</div>}
-      {rows.map((r) => (
-        <div className="ck-tip-row" key={r.key}>
-          <i className="ck-key line" style={keyStyle(r.color || `var(--color-${r.key})`)} aria-hidden="true" />
-          <b className="ck-tip-value">{r.value}</b>
-          <span className="ck-tip-label">{r.label}</span>
+    <div className="ck-readout-inner">
+      {title && <div className="ck-readout-title">{title}</div>}
+      {rows.map((row) => (
+        <div className="ck-readout-row" key={row.key}>
+          <i
+            className="ck-key line"
+            style={customProperties({ "--k": row.color || `var(--color-${row.key})` })}
+            aria-hidden="true"
+          />
+          <b className="ck-readout-value">{row.value}</b>
+          <span className="ck-readout-label">{row.label}</span>
         </div>
       ))}
-      {note && <div className="ck-tip-note">{note}</div>}
+      {note && <div className="ck-readout-note">{note}</div>}
     </div>
   );
 }
@@ -160,8 +164,8 @@ export function ChartTooltip({ x, width, children }: { x: number | null; width: 
   const side = ckTipSide(x, width);
   return (
     <div
-      className={`ck-tip ${side} panel panel-pop`}
-      style={side === "pin" ? undefined : { left: `${x}px` }}
+      className={`ck-readout ${side} panel panel-pop`}
+      style={customProperties({ "--x": side === "pin" ? undefined : `${x}px` })}
       role="presentation"
     >
       {children}

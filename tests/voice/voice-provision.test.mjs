@@ -30,7 +30,7 @@ import {
   HANDOFF_VAR,
 } from "@chanlytics/channels/voice";
 import { EVENT_KINDS, RETELL_MODELS } from "@chanlytics/contracts";
-import { readCode, readRaw, ROOT } from "../_source.mjs";
+import { importSrc, ROOT } from "../_source.mjs";
 
 const S = { fnSecret: "sealed-secret" };
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
@@ -204,30 +204,91 @@ test("the request is checked before anything is planned", () => {
   ]);
 });
 
-test("the receptionist is made once, in the lib both line paths share: the shell, the agent over it, the first version published, a resumed id read from the provider first; the endpoint has more than the default budget", () => {
+test("the receptionist is made once, in the lib both line paths share: the shell, the agent over it, the first version published, a resumed id read from the provider first; the endpoint has more than the default budget", async () => {
   // The endpoint itself -- the knock, the dry run before any provider write,
   // the bodies on the wire, the row after the number, the bell and the event,
   // secrets never echoed, the read-back planning nothing -- is run in
   // voice-doors.test.mjs.
-  const agent = readCode("apps/edge/lib/lines/voice-agent.ts");
-  for (const pin of [
-    "createRetellLlm(cfg, voiceLlmCreateBody(secrets, fnUrl))",
-    "voiceAgentCreateBody({ llmId, llmVersion, agentName: options.agentName }, secrets, fnUrl)",
-    'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")',
-  ]) {
-    assert.ok(agent.includes(pin), pin);
+  // Run with the provider at the network (pinned as voice-agent.ts's text until 26 Nov 2026).
+  const { createVoiceAgent } = await importSrc("apps/edge/lib/lines/voice-agent.ts");
+  const real = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    const u = new URL(String(url));
+    calls.push(`${init?.method ?? "GET"} ${u.pathname}`);
+    const reply = (body, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    if (u.pathname === "/create-retell-llm") return reply({ llm_id: "llm_new", version: 0 }, 201);
+    if (u.pathname === "/create-agent")
+      return reply(
+        {
+          agent_id: "agent_new",
+          version: 0,
+          is_published: false,
+          webhook_url: "https://edge/api/retell-webhook?key=SECRET",
+        },
+        201,
+      );
+    if (u.pathname.startsWith("/publish-agent-version/")) return reply({});
+    if (u.pathname === "/get-agent/agent_left")
+      return reply({
+        agent_id: "agent_left",
+        version: 4,
+        is_published: true,
+        response_engine: { type: "retell-llm", llm_id: "llm_left", version: 2 },
+      });
+    if (u.pathname === "/get-retell-llm/llm_left") return reply({ llm_id: "llm_left", version: 2 });
+    return reply({ error: "not found" }, 404);
+  };
+  try {
+    const made = await createVoiceAgent({ apiKey: "k" }, { fnSecret: "s" }, { agentName: "Harbor Moving front desk" });
+    assert.equal(made.ok, true);
+    assert.deepEqual(
+      calls,
+      ["POST /create-retell-llm", "POST /create-agent", "POST /publish-agent-version/agent_new"],
+      "the shell, the agent over it, its first version published",
+    );
+    assert.deepEqual([made.agent.agentId, made.agent.llmId, made.agent.published], ["agent_new", "llm_new", true]);
+    assert.ok(!JSON.stringify(made).includes("key=SECRET"), "a success never echoes the webhook URL with its key");
+
+    calls.length = 0;
+    const adopted = await createVoiceAgent(
+      { apiKey: "k" },
+      { fnSecret: "s" },
+      { agentName: "x", agentId: "agent_left" },
+    );
+    assert.deepEqual(
+      calls,
+      ["GET /get-agent/agent_left"],
+      "a resumed id is read from the provider first, and nothing is made",
+    );
+    assert.deepEqual(
+      [adopted.agent.agentId, adopted.agent.llmId, adopted.agent.llmVersion],
+      ["agent_left", "llm_left", 2],
+    );
+
+    calls.length = 0;
+    const reused = await createVoiceAgent({ apiKey: "k" }, { fnSecret: "s" }, { agentName: "x", llmId: "llm_left" });
+    assert.deepEqual(
+      calls.slice(0, 2),
+      ["GET /get-retell-llm/llm_left", "POST /create-agent"],
+      "a kept shell read, then the agent over it",
+    );
+    assert.equal(reused.agent?.llmId, "llm_left", "and the agent is made over that shell, not a new one");
+
+    calls.length = 0;
+    const gone = await createVoiceAgent({ apiKey: "k" }, { fnSecret: "s" }, { agentName: "x", agentId: "agent_gone" });
+    assert.deepEqual(
+      [gone.ok, gone.step, gone.status],
+      [false, "agent", 404],
+      "an id the key cannot read is not trusted",
+    );
+  } finally {
+    globalThis.fetch = real;
   }
-  // Resume reads the provider before trusting an id.
-  assert.ok(
-    agent.includes("await getAgentRaw(cfg, options.agentId)") && agent.includes("await getRetellLlm(cfg, llmId)"),
-  );
   assert.ok(EVENT_KINDS.includes("voice.provisioned"));
-  assert.ok(!agent.includes("...w.body"), "a success body echoes the webhook URL with its key");
-  assert.ok(
-    readRaw("apps/edge/vercel.json").includes('"api/admin/voice-provision.ts"'),
-    "several provider calls need more than the default budget",
-  );
-  assert.ok(!/key_[0-9a-f]{16}/.test(agent), "no literal provider key");
+  // Several provider calls need more than the default budget: every door's limit is in apps/edge/vercel.json, sized to
+  // its slowest path (repo/ops-hygiene.test.mjs).
 });
 
 test("the laptop script is retired: the key lives on the edge and nowhere else", async () => {
@@ -235,19 +296,32 @@ test("the laptop script is retired: the key lives on the edge and nowhere else",
     !fs.existsSync(path.join(ROOT, "tooling/scripts/setup_voice.py")),
     "the Python provisioning script is gone",
   );
-  const adapter = ["packages/channels/src/voice/retell/calls.ts", "packages/channels/src/voice/retell/agents.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  for (const fn of ["createRetellLlm", "createAgent", "createPhoneNumber", "updatePhoneNumber", "getPhoneNumber"]) {
-    assert.ok(
-      adapter.includes(`export function ${fn}(`) || adapter.includes(`export async function ${fn}(`),
-      `${fn} is the adapter's`,
-    );
+  // The provider's calls are the adapter's, each on its own path (pinned as calls.ts's and agents.ts's text until 26 Nov
+  // 2026): run here with the provider at the network.
+  const voice = await import("@chanlytics/channels/voice");
+  const real = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url, init) => {
+    asked.push(`${init?.method ?? "GET"} ${new URL(String(url)).pathname}`);
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const cfg = { apiKey: "k" };
+    await voice.createRetellLlm(cfg, {});
+    await voice.createAgent(cfg, {});
+    await voice.createPhoneNumber(cfg, { area_code: 305 });
+    await voice.updatePhoneNumber(cfg, "+13055550100", { nickname: "x" });
+    await voice.getPhoneNumber(cfg, "+13055550100");
+  } finally {
+    globalThis.fetch = real;
   }
-  assert.ok(
-    adapter.includes('"/create-phone-number"') &&
-      adapter.includes("/update-phone-number/${encodeURIComponent(number)}"),
-  );
+  assert.deepEqual(asked, [
+    "POST /create-retell-llm",
+    "POST /create-agent",
+    "POST /create-phone-number",
+    "PATCH /update-phone-number/%2B13055550100",
+    "GET /get-phone-number/%2B13055550100",
+  ]);
   // The package hands the edge every value the provisioning module exports: its barrel names each one.
 
   const channels = await import("@chanlytics/channels/voice");

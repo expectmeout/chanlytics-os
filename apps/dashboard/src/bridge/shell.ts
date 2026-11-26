@@ -237,7 +237,7 @@ export const SURFACE_LABELS: Readonly<Record<string, string>> = {
   google: "Google",
   billing: "Billing",
   partner: "Partner",
-  alerts: "Your alerts",
+  alerts: "Alerts",
 };
 
 /**

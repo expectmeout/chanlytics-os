@@ -133,7 +133,7 @@ test("a card that answers a search's question, or is no search, draws as any car
 test("a new search card sets aside the one still waiting above it: one search card in a thread can be pressed", () => {
   const earlier = [
     turn("m1", [places({ id: "old" })]),
-    turn("m2", [places({ id: "pressed", outcome: { state: "done", receipt: "Finding", atMs: 1 } })]),
+    turn("m2", [places({ id: "pressed", outcome: { state: "done", receipt: "Finding", at_ms: 1 } })]),
     turn("m3", [{ ...places({ id: "note" }), kind: "note" }]),
   ];
   assert.deepEqual(searchCardsReplaced(earlier, [places({ id: "new" })]), [{ messageId: "m1", proposalId: "old" }]);
@@ -145,7 +145,7 @@ test("a new search card sets aside the one still waiting above it: one search ca
   assert.deepEqual(landed[0].proposals[0].outcome, {
     state: "dismissed",
     receipt: SEARCH_CARD_REPLACED,
-    atMs: 42,
+    at_ms: 42,
     undo: null,
   });
   assert.equal(landed[1].proposals[0].outcome.state, "done", "a card already pressed stays as it is");

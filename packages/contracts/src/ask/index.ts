@@ -27,7 +27,7 @@ export { answerFromV1, ASK_ANSWER_CAPS, callsAnswer, clip, needsAnswer, oneDoor,
 export { ASK_LIST_STYLES } from "./answer/shape";
 export type { AskAnswer, AskBreakdown, AskBreakdownPart, AskFigure, AskItem, AskOpen, AskSource } from "./answer/shape";
 export { ASK_ATTACHED_MAX, ASK_SCOPE_KINDS, ASK_SURFACES, scopeFromRoute } from "./ask";
-export type { AskScope, AskSurface, AskThreadVM, MessageRead } from "./ask";
+export type { AskScope, AskSurface, AskThreadDto, MessageRead } from "./ask";
 export type { AskScopeKind } from "./ask";
 export { askCallOutcome, callJumpSub } from "./calls";
 export {
@@ -41,7 +41,7 @@ export {
 } from "./citations";
 export type { AskCitation, AskCitationKind, AskReadSet, AskRowRef } from "./citations";
 export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./context";
-export type { AskContextRowKind, PageContext, PageContextRow } from "./context";
+export type { AskContextRowKind, PageContextDto, PageContextRow } from "./context";
 export { LLM_DOOR } from "./edge-doors";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./fast-paths";
 export type { AskIntent, FastCall } from "./fast-paths";
@@ -149,7 +149,7 @@ export type {
   AskAttached,
   AskCardOrigin,
   AskCardSheet,
-  AskMessageVM,
+  AskMessageDto,
   AskPlanHead,
   AskPlanStamp,
   AskProposal,

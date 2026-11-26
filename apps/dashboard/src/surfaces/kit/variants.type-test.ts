@@ -11,7 +11,7 @@
  * bundle reaches it, and the calls are in a function nothing calls.
  */
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import { cx, variants } from "./index";
+import { customProperties, cx, variants } from "./index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
 function _drawsTheKitsClasses(open: boolean): void {
@@ -60,4 +60,10 @@ function _drawsTheKitsClasses(open: boolean): void {
     // @ts-expect-error a default for a prop the map does not have is no variant of this component
     defaults: { size: "sm" },
   });
+  // A style prop of custom properties: a `--name` and its value, a name built from a key, or nothing where it has none.
+  customProperties({ "--w": "40%", "--i": 2, [`--color-${String(open)}`]: "var(--ink)", "--x": undefined });
+  // @ts-expect-error a property of its own is a value no look can reach: only custom properties pass
+  customProperties({ width: "40%" });
+  // @ts-expect-error nor beside custom properties
+  customProperties({ "--w": "40%", background: "red" });
 }

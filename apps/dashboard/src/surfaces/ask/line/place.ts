@@ -2,7 +2,7 @@
  * What the Line reads of where it stands: the route under it, a scope's name, a phone or a desk, where the three come from
  * as it opens, and what stands over the page. Pure of its state.
  */
-import type { AskMessageVM, AskScope } from "@chanlytics/contracts";
+import type { AskMessageDto, AskScope } from "@chanlytics/contracts";
 import { askOnScreenKey } from "@/bridge/ask/on-screen";
 import { AH_OPEN_OVER } from "../hooks";
 import { askKindGlyph } from "../card-parts";
@@ -49,7 +49,7 @@ export const arFailed = (id: string, text: string) =>
     followups: [],
     proposals: [],
     atMs: Date.now(),
-  }) as Partial<AskMessageVM> as AskMessageVM;
+  }) as Partial<AskMessageDto> as AskMessageDto;
 
 /** The newest question's key: the thread stands it at the top once each (the spec 2026-09-27-ask-chat-on-a-phone, D5). */
 export const arNowKey = (active: Conversation | null, quick: QuickTurn | null) => {

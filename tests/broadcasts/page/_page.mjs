@@ -149,7 +149,7 @@ export const playbook = (over = {}) => ({
   next: "tomorrow 10:00",
   candidates: 4,
   held: 0,
-  totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
+  totals: { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, last_run: null, waiting: null, history: [] },
   ...over,
 });
 

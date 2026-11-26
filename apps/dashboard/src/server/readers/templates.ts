@@ -194,14 +194,14 @@ async function templatesOf(rc: ReaderContext, all: boolean) {
     const fix = kept?.fix && kept.fix.reason === (t.rejected_reason ?? "") ? kept.fix.words : null;
     return { ...t, approved_before: kept?.before ?? null, fix_words: fix };
   });
-  return { templates: withBefore, held, messages, booking, usedBy, sends };
+  return { templates: withBefore, held, messages, booking, used_by: usedBy, sends };
 }
 
 /** GET templates' answer: the rows and their messages, and for Settings (`all`) what sends each and how many went out. */
 export type TemplatesRead = Awaited<ReturnType<typeof templatesOf>>;
 
 /** Settings' answer (`all`): every row, and what sends each, beside the messages. */
-type LibraryRead = Extract<TemplatesRead, { usedBy: unknown }>;
+type LibraryRead = Extract<TemplatesRead, { used_by: unknown }>;
 
 /**
  * The library whole, as Ask reads it before it writes a message (campaigns with action messages; contracts MessageRead):
@@ -214,7 +214,7 @@ type LibraryRead = Extract<TemplatesRead, { usedBy: unknown }>;
  */
 export function messageReadsOf(read: LibraryRead, whole: (name: string) => boolean = () => false): MessageRead[] {
   const rows = new Map(read.templates.map((t) => [t.id, t]));
-  const usedBy = new Map(Object.entries(read.usedBy));
+  const usedBy = new Map(Object.entries(read.used_by));
   return read.messages.map((message) => {
     const row = rows.get(message.versions.whatsapp?.id ?? message.anchor.id);
     return {

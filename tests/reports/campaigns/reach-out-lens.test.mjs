@@ -257,7 +257,7 @@ test("emails and businesses are counted apart, and each outcome is a share of bu
   ]);
   assert.equal(
     businesses.line,
-    "Of 25 businesses written to in these 30 days: 24% wrote back and 12% were interested. Each counts once, at the last email that wrote to it · a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.",
+    "Of 25 businesses written to in these 30 days: 24% wrote back and 12% were interested. Each counts once, at its last email, a question as interested, and what came of it as it stands now.",
   );
   assert.equal(businesses.empty, null);
   // The bars measure against the largest in their own list: a unit never mixes in one list.

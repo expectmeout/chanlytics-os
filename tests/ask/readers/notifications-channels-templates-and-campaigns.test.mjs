@@ -400,7 +400,7 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
       "&all=1",
       true,
       ["hello_world", "offer", "visit_reminder"],
-      ["templates", "held", "messages", "booking", "usedBy", "sends"],
+      ["templates", "held", "messages", "booking", "used_by", "sends"],
       TEMPLATES_ALL_ASKED,
     ],
     ["&all=0", false, ["visit_reminder", "offer"], ["templates", "held", "messages", "booking"], ["templates.select"]],
@@ -452,7 +452,7 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
   const u = await kernel.load(turnIn(usage, B), templatesReader, { all: true });
   assert.deepEqual(u.data, await templatesRoute.GET.run(req(`?workspace=${B}&all=1`), dayCtx(usageWorld())));
   assert.deepEqual(
-    [u.data.usedBy.winback_offer.playbooks.map((p) => [p.name, p.paused]), u.data.usedBy.winback_offer.broadcasts],
+    [u.data.used_by.winback_offer.playbooks.map((p) => [p.name, p.paused]), u.data.used_by.winback_offer.broadcasts],
     [
       [
         ["Win-back", false],
@@ -462,8 +462,8 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
     ],
     "both playbooks, which is paused, and the one run a person sent: a playbook's own run is not a second broadcast",
   );
-  assert.deepEqual(u.data.sends.winback_offer, { count: 2, lastAt: "2026-09-17T14:00:00Z" });
-  assert.equal(u.data.usedBy.elsewhere, undefined, "another workspace's are not this one's");
+  assert.deepEqual(u.data.sends.winback_offer, { count: 2, last_at: "2026-09-17T14:00:00Z" });
+  assert.equal(u.data.used_by.elsewhere, undefined, "another workspace's are not this one's");
 });
 
 test("GET templates names the call's text it finds among every WhatsApp row, a hidden one too, as the edge texts it: Campaigns' home keeps today's lookup without Settings' read", async () => {
@@ -594,7 +594,7 @@ test("the booking message is chosen among WhatsApp rows alone: an email named li
     ownRow(EM1, "email", { name: "call_text", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }),
     tplRow(TP4, B, { name: KEPT, variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }),
   ];
-  const { usedBy } = await messagesOfRead(world, true);
+  const { used_by: usedBy } = await messagesOfRead(world, true);
   assert.deepEqual(
     Object.entries(usedBy).map(([name, u]) => [name, u.booking]),
     [[KEPT, true]],
@@ -603,7 +603,7 @@ test("the booking message is chosen among WhatsApp rows alone: an email named li
   // With a WhatsApp row of that name it is the one chosen, as it always was.
   const both = await messagesOfRead([...world, tplRow(TP3, B, { name: "call_text", variables: [] })], true);
   assert.deepEqual(
-    Object.entries(both.usedBy).map(([name, u]) => [name, u.booking]),
+    Object.entries(both.used_by).map(([name, u]) => [name, u.booking]),
     [["call_text", true]],
   );
 });

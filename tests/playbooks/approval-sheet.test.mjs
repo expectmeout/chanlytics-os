@@ -251,13 +251,13 @@ test("a paused workspace is said instead of the button, in the words every campa
 const kept = (over = {}) => ({
   pool: 312,
   will: 186,
-  noNumber: 0,
+  no_number: 0,
   stopped: 0,
-  noYes: 94,
-  heardThis: 0,
-  heardAny: 32,
-  overCap: 0,
-  overLimit: 0,
+  no_yes: 94,
+  heard_this: 0,
+  heard_any: 32,
+  over_cap: 0,
+  over_limit: 0,
   ...over,
 });
 const counted = (reach, o = opts()) =>
@@ -289,12 +289,12 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
   assert.equal(vm.of.lines[1].door, null);
   // The week's breath is two-sided: a message sent or due within a week of the run, and one person hears.
   assert.deepEqual(
-    counted(kept({ noYes: 0, heardAny: 1 })).of.lines.map((l) => l.words),
+    counted(kept({ no_yes: 0, heard_any: 1 })).of.lines.map((l) => l.words),
     ["1 hears from you within a week of it"],
   );
   // A reminder's yes is to hearing from you, and one person is one person.
   const visit = counted(
-    kept({ pool: 5, will: 3, noYes: 1, heardAny: 0, noNumber: 1 }),
+    kept({ pool: 5, will: 3, no_yes: 1, heard_any: 0, no_number: 1 }),
     opts({ playbook: { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30, word: "visit" } }),
   );
   assert.deepEqual(
@@ -304,7 +304,17 @@ test("a run that kept who it left out says the board's card: 186 of 312, the wai
   );
   // Every reason a run keeps has its words, the gap and the cap the playbook's own.
   const all = counted(
-    kept({ pool: 20, will: 7, noYes: 0, heardAny: 0, noNumber: 2, stopped: 3, heardThis: 4, overCap: 1, overLimit: 3 }),
+    kept({
+      pool: 20,
+      will: 7,
+      no_yes: 0,
+      heard_any: 0,
+      no_number: 2,
+      stopped: 3,
+      heard_this: 4,
+      over_cap: 1,
+      over_limit: 3,
+    }),
     opts({ playbook: { trigger: "quiet_30", cap_per_run: 8, gap_days: 90, cadence_days: 30, word: "visit" } }),
   );
   assert.deepEqual(
@@ -331,9 +341,9 @@ test("the month's allowance: people it already holds are in the held line and ou
   const reach = kept({
     pool: 20,
     will: 10,
-    noYes: 6,
-    heardAny: 2,
-    overCap: 0,
+    no_yes: 6,
+    heard_any: 2,
+    over_cap: 0,
     by_channel: { whatsapp: 4, sms: 0, email: 6 },
   });
   const vm = C.toApprovalVM(
@@ -392,7 +402,7 @@ test("the month's allowance: people it already holds are in the held line and ou
 test("a run's reasons name everyone it counted and left out: no address, an address that stopped and no channel each have their line, one person or many", () => {
   // The run counted them (playbookRunReach) and the sheet said none of the three: the bar was shorter than the list.
   const lines = (over) =>
-    counted(kept({ pool: 40, will: 20, noYes: 0, heardAny: 0, ...over })).of.lines.map((l) => [
+    counted(kept({ pool: 40, will: 20, no_yes: 0, heard_any: 0, ...over })).of.lines.map((l) => [
       l.words,
       l.tone,
       l.door,
@@ -416,18 +426,18 @@ test("a run's reasons name everyone it counted and left out: no address, an addr
   assert.deepEqual(lines({}), []);
   // They are not time's (the amber), so they do not move the bar's held.
   assert.equal(
-    counted(kept({ pool: 40, will: 20, noYes: 0, heardAny: 0, no_address: 5, address_stopped: 3, no_channel: 2 })).of
+    counted(kept({ pool: 40, will: 20, no_yes: 0, heard_any: 0, no_address: 5, address_stopped: 3, no_channel: 2 })).of
       .held,
     0,
   );
   // And they sort with the rest, the most first.
-  assert.equal(lines({ noYes: 9, no_address: 5, heardAny: 0 })[0][0], "9 never said yes to offers");
+  assert.equal(lines({ no_yes: 9, no_address: 5, heard_any: 0 })[0][0], "9 never said yes to offers");
 });
 
 test("the run's rules say what each person was asked on the channel they are reached on: a yes for WhatsApp and a text, not for an email about a visit, a yes or a relationship for an offer by email", () => {
   const runBy = (by_channel, trigger, will = 10) =>
     counted(
-      kept({ pool: 20, will, noYes: 0, heardAny: 0, by_channel }),
+      kept({ pool: 20, will, no_yes: 0, heard_any: 0, by_channel }),
       opts({ playbook: { trigger, cap_per_run: 25, gap_days: 90, cadence_days: 30, word: "visit" } }),
     ).rules;
   // WhatsApp alone, or no count of channels: the sentence every run said.

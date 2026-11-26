@@ -423,7 +423,7 @@ test("the page context's call lines say a dial we placed 'not_connected', and a 
       { kind: "call", id: K_MISSED },
       { kind: "call", id: K_PLACED },
     ],
-    askedAt: 1,
+    asked_at: 1,
   });
   const lines = b.blocks.map(pageText);
   assert.match(lines.find((l) => l.includes(K_MISSED)) ?? "", /· missed ·/);
@@ -512,7 +512,7 @@ test("inbox.list held: a draft still inside its hold window, and no queued draft
       { kind: "thread", id: C_WAITS },
       { kind: "thread", id: C_PAST },
     ],
-    askedAt: 1,
+    asked_at: 1,
   });
   const texts = b.blocks.map(pageText);
   assert.match(texts[0], /· held: 1 ·/);

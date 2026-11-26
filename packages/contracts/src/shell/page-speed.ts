@@ -419,7 +419,7 @@ function speedSentence(at: Lookup): string {
   const load = at("READY", null, "", "load");
   const days = PAGE_SPEED_READ.days;
   if (move && load)
-    return `Of ${countWords(move.samples, "move")} in the last ${days} days, three in four drew their page within ${msWords(move.p75)}; of ${countWords(load.samples, "page load")}, within ${msWords(load.p75)}.`;
+    return `Of ${countWords(move.samples, "move")} in the last ${days} days, three in four drew their page within ${msWords(move.p75)}, and of ${countWords(load.samples, "page load")}, within ${msWords(load.p75)}.`;
   if (move)
     return `Of ${countWords(move.samples, "move")} in the last ${days} days, three in four drew their page within ${msWords(move.p75)}.`;
   if (load)

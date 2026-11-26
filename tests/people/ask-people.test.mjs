@@ -206,7 +206,7 @@ const page = (rows, view = "all") => ({
   view,
   focus: null,
   rows,
-  askedAt: 1,
+  asked_at: 1,
 });
 const onScreen = [P1, P2, P3, P4, P5, PB].map((id) => ({ kind: "person", id }));
 
@@ -1052,7 +1052,7 @@ function tabOver(world) {
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
   return { client, win, sent, events, t };
 }
-const doneWith = (r) => ({ state: "done", receipt: r.receipt, atMs: 1, undo: r.undo });
+const doneWith = (r) => ({ state: "done", receipt: r.receipt, at_ms: 1, undo: r.undo });
 
 test("a note card, walked end to end: the model's call makes it, Approve writes the note through the notes route with who reads it and tells the person's page, and Undo takes that very note away by the id the route answered", async () => {
   const world = cardWorld();

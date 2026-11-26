@@ -295,7 +295,7 @@ export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts | null)
  * (00398), and the kind it is of.
  */
 export function leadMonthPlanFacts(
-  month: { left: number; renewsOn: string; widens?: boolean },
+  month: { left: number; renews_on: string; widens?: boolean },
   count: number,
   nearby: readonly LeadArea[],
   prior: { of: string; counts: LeadPlanFacts["prior"] } | null,
@@ -306,7 +306,7 @@ export function leadMonthPlanFacts(
     bound: month.left < count ? "allowance" : null,
     prior: prior ? prior.counts : null,
     priorOf: prior && prior.counts ? prior.of : null,
-    renewsOn: month.renewsOn,
+    renewsOn: month.renews_on,
     nearby: [...nearby],
     ...(month.widens ? { widens: true } : {}),
   };

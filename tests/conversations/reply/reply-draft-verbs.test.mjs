@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REPLY_DRAFT_RULES } from "@chanlytics/contracts";
-import { importSrc } from "../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 
 const core = await importSrc("packages/core/src/conversations/index.ts");
 const { askReplyDraft, markNotACustomer, replyAnyway, rewriteReplyDraft, writeReplyDraft } = core;

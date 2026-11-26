@@ -24,6 +24,7 @@ import http from "node:http";
 import { normalizeCall, liveTurns, fetchRecording, getCall } from "@chanlytics/channels/voice";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
 import { readRaw, importSrc } from "../../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -395,25 +396,24 @@ test("Today: a dial that never connected is not a call worth an ear", () => {
 
 /* --------------------------- the halves, by source ------------------------ */
 
-test("the upsert is forward-only and tells the caller when it declined", () => {
-  const sql = readRaw("supabase/migrations/00031_call_lifecycle.sql");
-  assert.ok(sql.includes("where public.call_status_rank(excluded.status) >= public.call_status_rank(calls.status)"));
-  assert.ok(sql.includes("'skipped', true"));
-  assert.ok(sql.includes("check (status in ('registered', 'ongoing', 'ended', 'error', 'not_connected'))"));
-  // Usage is metered when the duration first becomes known, not only on insert.
-  assert.ok(sql.includes("and (not v_had_row or v_prev_duration is null)"));
-  // The three readers of call counts all exclude the dial that never connected.
-  assert.equal((sql.match(/<> 'not_connected'/g) ?? []).length, 5, "metrics (2), people (1), reports (2)");
-});
-
-test("a copy given up on stops waking the edge, and the copy's own bound agrees", async () => {
-  // The sweep's half -- pending copies retried on its own budget, the count
-  // advanced on a timeout, the third attempt the last -- runs in
-  // cron/doors-b/. This holds the trigger and the library to one number.
-  const sql = readRaw("supabase/migrations/00031_call_lifecycle.sql");
-  assert.ok(sql.includes("coalesce((recording->>'attempts')::int, 0) < 3"), "a copy given up on stops waking the edge");
+test("a call's status is one the database holds, and the copy gives up at the clock's own number", async () => {
+  // Run on the stack, where 00031's text was pinned until 26 Nov 2026: the row only moves forward and a delivery it
+  // declines says so (voice/rows/a-call-is-one-row-in-every-order.db.test.mjs), its seconds metered once whatever the
+  // order the duration arrives in (the same suite); the readers of call counts leave out a dial that never connected
+  // (reports/report-answers.db, reports/receptionist/receptionist-series.db, people/people-came-from.db); and the calls
+  // clock stops asking about a copy given up on at its third try (ops/sweep-registry.db.test.mjs).
+  const db = fakeDb({ calls: [] });
+  const put = (status, n) =>
+    db
+      .from("calls")
+      .insert({ tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", retell_call_id: `call_${n}`, status })
+      .select("id")
+      .single();
+  for (const [n, status] of ["registered", "ongoing", "ended", "error", "not_connected"].entries())
+    assert.equal((await put(status, n)).error, null, status);
+  assert.equal((await put("missed", 9)).error?.code, "23514", "and no other");
   const { RECORDING_MAX_ATTEMPTS } = await importSrc("apps/edge/lib/voice/call-recording.ts");
-  assert.equal(RECORDING_MAX_ATTEMPTS, 3, "the copy gives up at the trigger's own number");
+  assert.equal(RECORDING_MAX_ATTEMPTS, 3, "the copy gives up at the clock's own number");
 });
 
 test("the Conversations viewer runs a real live call's clock from its start, and no longer offers to 'listen in'", () => {

@@ -4,7 +4,7 @@ import {
   PageContextSchema,
   type AskLanguage,
   type AskScope,
-  type PageContext,
+  type PageContextDto,
   listOrEmpty,
   recordOrEmpty,
   recordOrNull,
@@ -104,11 +104,11 @@ export function scopeAsked(raw: unknown): AskScope | null | undefined {
 }
 
 /**
- * The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the schema
+ * The page the question was asked on (contracts PageContextDto): identities and words, read by its one schema. One the schema
  * refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a context is a help
  * to the answer, not a condition of it. The turn reads the page again from these identities.
  */
-export function contextAsked(raw: unknown, tenantId: TenantId): PageContext | null {
+export function contextAsked(raw: unknown, tenantId: TenantId): PageContextDto | null {
   if (raw === undefined || raw === null) return null;
   const read = PageContextSchema.safeParse(raw);
   if (read.success) return read.data;

@@ -145,7 +145,7 @@ async function readBroadcast(toolContext: ToolContext, input: { broadcast_id: st
 export async function readMessages(toolContext: ToolContext, input: { name?: string | undefined } = {}) {
   const read = await load(toolContext.rc, templatesReader, { all: true });
   const library = read.data;
-  if (library.usedBy === undefined) throw new Error("templates: Settings' read came back without what sends each");
+  if (library.used_by === undefined) throw new Error("templates: Settings' read came back without what sends each");
   // One message asked for by its name (or what the business calls it) is read with its words whole, and alone.
   const wanted = input.name?.trim().toLowerCase() ?? "";
   const named = (m: { name: string; title: string }) =>

@@ -610,7 +610,7 @@ test("Approve sends the card's body to POST templates/message, marked as a card'
     ],
     whatsapp: "pending",
   });
-  const u = await undoProposal(win, p, { state: "done", receipt: r.receipt, atMs: 1, undo: r.undo }, client);
+  const u = await undoProposal(win, p, { state: "done", receipt: r.receipt, at_ms: 1, undo: r.undo }, client);
   assert.equal(u.ok, true, u.message);
   assert.equal(u.receipt, PROPOSAL_SPECS.message.undo.receipt(null, r.undo));
   assert.deepEqual(
@@ -714,7 +714,7 @@ test("an undo refused part-way says what is already deleted, then the refusal; p
     },
     { settings: null },
   );
-  const outcome = { state: "done", receipt: "r", atMs: 1, undo: kept };
+  const outcome = { state: "done", receipt: "r", at_ms: 1, undo: kept };
   const first = await undoProposal(win, p, outcome, client);
   assert.equal(first.ok, false);
   assert.equal(first.message, `Its email version is deleted · its text version is not: ${STILL_USED}`);

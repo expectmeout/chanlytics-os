@@ -39,12 +39,4 @@
 
 /* ---------- Detail ---------- */
 
-/* Cards */
-.fl-card {
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-  min-width: 0;
-}
 .fl-perm-hint { font-size: var(--text-2xs); color: var(--ink-dim); font-style: italic; }

@@ -31,9 +31,10 @@ const registry = [...json.classes, ...(json.modifiers ?? [])];
 const classesOf = (html) => [...html.matchAll(/\bclass="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean));
 const entriesOf = (families) => families.flatMap((f) => f.entries);
 
-/** Where the registry and the kit entries part: a name drawn by none, a name no list allows, an unlisted line gone stale. */
-function coverage(families, names, unlisted) {
-  const drawn = new Set(entriesOf(families).flatMap((e) => (e.source ? [] : classesOf(e.html))));
+/** Where the registry and the kit entries part: a name drawn by none, a name no list allows, an unlisted line gone stale.
+ *  `around` is what the gallery's page itself carries, as the app's does (its <html>'s frame-on). */
+function coverage(families, names, unlisted, around = []) {
+  const drawn = new Set([...around, ...entriesOf(families).flatMap((e) => (e.source ? [] : classesOf(e.html)))]);
   const listed = new Set(names);
   return {
     undrawn: names.filter((n) => !drawn.has(n)),
@@ -85,7 +86,10 @@ function shape(families, names) {
 
 test("every class in classes.json is drawn by a kit entry, and a kit entry names the registry's, the gallery's or an unlisted name", () => {
   assert.ok(registry.length > 0 && FAMILIES.length > 0, "the registry and the gallery were read");
-  assert.deepEqual(coverage(FAMILIES, registry, UNLISTED), { undrawn: [], foreign: [], stale: [] });
+  // The gallery's page is the shell's root, as the app's is: <html class="frame-on">, where the kit's touch floor stands.
+  const around = classesOf(/<html\b[^>]*>/.exec(galleryDocument())?.[0] ?? "");
+  assert.ok(around.includes("frame-on"), "the gallery's page carries the shell's root class");
+  assert.deepEqual(coverage(FAMILIES, registry, UNLISTED, around), { undrawn: [], foreign: [], stale: [] });
   // The checks, where each must find what it looks for.
   const one = (entries) => [{ family: "Fixture", about: "", entries }];
   const btn = { id: "btn", html: '<button class="btn">Save</button>' };
@@ -126,7 +130,11 @@ test("each entry is its own, a twin names a source, a source is a twin's and dra
   // The checks, on a family of twins where each must find what it looks for.
   const one = (entries) => [{ family: "Fixture", about: "", entries }];
   const panel = { id: "panel", html: '<section class="panel">…</section>', twin: "src-fl-card" };
-  const source = { id: "src-fl-card", source: "styles/fleet.css:170", html: '<section class="fl-card">…</section>' };
+  const source = {
+    id: "src-fl-card",
+    source: "styles/fleet.css:42",
+    html: '<section class="fl-perm-hint">…</section>',
+  };
   assert.deepEqual(shape(one([panel, source]), ["panel"]), {
     twice: [],
     twins: [],
@@ -137,10 +145,10 @@ test("each entry is its own, a twin names a source, a source is a twin's and dra
   const found = shape(
     one([
       panel,
-      { ...source, html: '<section class="fl-card pl-card"><span class="pill">Live</span></section>' },
+      { ...source, html: '<section class="fl-perm-hint pl-card"><span class="pill">Live</span></section>' },
       { id: "panel", html: "" },
       { id: "face", html: "", twin: "panel" },
-      { id: "src-lonely", source: "styles/fleet.css:170", html: "" },
+      { id: "src-lonely", source: "styles/fleet.css:42", html: "" },
       { id: "meter", html: "", twin: "src-lonely", width: "tablet", except: ["display"], boxes: true },
       { id: "sheet", html: "", stage: "modal" },
     ]),
@@ -151,7 +159,7 @@ test("each entry is its own, a twin names a source, a source is a twin's and dra
   assert.deepEqual(found.orphans, [], "src-lonely is meter's twin");
   assert.deepEqual(
     found.undeclared,
-    ["src-fl-card: styles/fleet.css:170 declares no .pl-card"],
+    ["src-fl-card: styles/fleet.css:42 declares no .pl-card"],
     "a class its sheet lacks",
   );
   assert.deepEqual(found.fields, ["meter", "sheet"], "a width and a stage the spec does not know");

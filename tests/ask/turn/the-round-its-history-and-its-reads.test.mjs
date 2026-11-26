@@ -141,7 +141,7 @@ test("report says the Reach-outs section as the page does (the Campaigns lens, C
     },
     businesses: {
       rows: ["Written to: 25", "Wrote back: 6", "Interested: 3", "Booked: 1", "Said no: 2"],
-      line: "Of 25 businesses written to in these 7 days: 24% wrote back and 12% were interested. Each counts once, at the last email that wrote to it · a question counts as interested. Who wrote back, was interested, booked or said no is as it stands now.",
+      line: "Of 25 businesses written to in these 7 days: 24% wrote back and 12% were interested. Each counts once, at its last email, a question as interested, and what came of it as it stands now.",
     },
     angles: {
       rows: ["their rating: 2 of 8  25%", "mid-session calls: 2 of 4"],

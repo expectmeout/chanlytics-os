@@ -887,3 +887,116 @@ test("with run_counts on the database, a list of runs is its answer, asked once 
   const folded = await listRuns({ supabase: before00362(tables()) }, TID);
   assert.equal(JSON.stringify(counted), JSON.stringify(folded), "the same bytes the fold says");
 });
+
+test("delivered comes from the receipts, never from the send: a message nobody's phone has said it reached is sent, not delivered", async () => {
+  // Pinned as replied.ts's and broadcasts.ts's text in broadcasts.test.mjs until 26 Nov 2026: the route's fold, on a
+  // database before 00374, and the database's own count.
+  const people = ["sent", "delivered", "read"].map((status, i) => ({
+    tenant_id: TID,
+    broadcast_id: "r1",
+    contact_id: `r1-${i}`,
+    state: "sent",
+    reason: null,
+    sent_at: at(i * 1000),
+    messages: { conversation_id: `cv-r1-${i}`, status, meta: {} },
+  }));
+  const tables = () => ({ broadcasts: [broadcast("r1")], broadcast_recipients: people, messages: [] });
+  for (const [how, db] of [
+    ["the route's fold", before00362(tables())],
+    ["the database's count", fakeDb(tables())],
+  ]) {
+    const [run] = (await listBroadcasts({ supabase: db }, TID)).broadcasts;
+    assert.deepEqual([run.counts.sent, run.counts.delivered, run.counts.read], [3, 2, 1], how);
+  }
+});
+
+test("a run's detail names each person as the sheet says them: their name, else their WhatsApp name, number or address; a stand-in, or a name the engine set that nobody settled, is greeted by none", async () => {
+  // Pinned as the detail's reads' text (sent.ts's columns, broadcasts.ts) in broadcasts.test.mjs until 26 Nov 2026.
+  const on = (id, contacts) => ({
+    tenant_id: TID,
+    broadcast_id: "b1",
+    contact_id: id,
+    state: "sent",
+    reason: null,
+    sent_at: at(0),
+    contacts: {
+      display_name: null,
+      wa_profile_name: null,
+      phone_e164: null,
+      email: null,
+      erased_at: null,
+      merged_into_contact_id: null,
+      name_source: null,
+      name_settled_at: null,
+      ...contacts,
+    },
+    messages: { conversation_id: `cv-${id}`, status: "delivered", meta: {} },
+  });
+  const db = capped({
+    broadcasts: [broadcast("b1", { recipient_count: 6 })],
+    broadcast_recipients: [
+      on("k1", { display_name: "Ana Reyes", phone_e164: "+13055550101" }),
+      on("k2", { wa_profile_name: "Dani", phone_e164: "+13055550102" }),
+      on("k3", { phone_e164: "+13055550103" }),
+      on("k4", { email: "lee@example.com" }),
+      on("k5", { display_name: "Harbor Moving", name_source: "lead", phone_e164: "+13055550105" }),
+      on("k6", { display_name: "Sam Ortiz", name_source: "signature", email: "sam@example.com" }),
+    ],
+    messages: [],
+  });
+  const d = await getBroadcast({ supabase: db }, TID, "b1");
+  assert.deepEqual(
+    d.recipients.map((r) => [r.contact_id, r.name, r.first_name, r.phone]),
+    [
+      ["k1", "Ana Reyes", "Ana", "+13055550101"],
+      ["k2", "Dani", "Dani", "+13055550102"],
+      ["k3", "+1 (305) 555-0103", null, "+13055550103"],
+      ["k4", "lee@example.com", null, null],
+      ["k5", "Harbor Moving", null, "+13055550105"],
+      ["k6", "Sam Ortiz", null, null],
+    ],
+  );
+});
+
+test("an audience's chip is the length of the list its preview walks, for each purpose, and the preview keeps five it reaches and two it holds back", async () => {
+  // Pinned as audiences-shape.ts's text in broadcasts.test.mjs until 26 Nov 2026: never a second count.
+  // Seven who can be sent anything, and one who said yes to both and has no number: said yes is eight, sending seven.
+  wire({
+    people: [
+      ...Array.from({ length: 7 }, (_, i) =>
+        row({ id: `p${i}`, display_name: `Person ${i}`, phone_e164: `+1786555${String(110 + i).padStart(4, "0")}` }),
+      ),
+      row({ id: "p-none", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: null, channels: [] }),
+    ],
+  });
+  await audiencesOverride.apply();
+  const { audiences } = surfaceValue("audiences");
+  for (const a of audiences)
+    for (const purpose of ["conversational", "marketing"]) {
+      const walked = a.preview[purpose];
+      assert.equal(a.counts[purpose], walked.sending, `${a.kind} ${a.id}: ${purpose}`);
+      assert.equal(walked.sending, walked.split.reached);
+      assert.ok(walked.people.filter((x) => !x.refusal).length <= 5, `${a.kind} ${a.id}: a few it reaches, not all`);
+      assert.ok(walked.people.filter((x) => x.refusal).length <= 2, `${a.kind} ${a.id}: and a couple it holds back`);
+    }
+  const everyone = audiences.find((a) => a.kind === "everyone");
+  const kept = everyone.preview.marketing.people;
+  assert.deepEqual(
+    [everyone.counts.marketing, everyone.preview.marketing.saidYes, kept.filter((x) => !x.refusal).length],
+    [7, 8, 5],
+    "the chip is who the send reaches, never who said yes",
+  );
+  assert.deepEqual(
+    kept.filter((x) => x.refusal).map((x) => x.id),
+    ["p-none"],
+    "and the one held back is shown as held",
+  );
+});
+
+test("Sent's surface says why a person on a run is held, in the run's own words", async () => {
+  // Pinned as surface.ts's text in broadcasts.test.mjs until 26 Nov 2026.
+  const { HELD_REASONS } = await import("@chanlytics/contracts");
+  wire();
+  await broadcastsOverride.apply();
+  assert.deepEqual(surfaceValue("broadcasts").heldReasons, HELD_REASONS);
+});

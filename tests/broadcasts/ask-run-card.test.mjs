@@ -577,7 +577,7 @@ function tabOver(tables) {
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ);
   return { client, win, sent, events, t };
 }
-const doneWith = (r) => ({ state: "done", receipt: r.receipt, atMs: 1, undo: r.undo });
+const doneWith = (r) => ({ state: "done", receipt: r.receipt, at_ms: 1, undo: r.undo });
 /** A world whose waiting run was made for the business's today by the real clock, as approveRun judges it. */
 function todays() {
   const tables = world();

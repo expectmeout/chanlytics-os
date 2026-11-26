@@ -40,7 +40,7 @@ import {
   heldNoticeWords,
   vetoRunNotice,
 } from "@chanlytics/contracts";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { middayZone } from "../shared/_midday-zone.mjs";
 import { installStubReact, fresh as freshTree, all, find, byTestId, textOf } from "../_stub-react.mjs";
@@ -331,47 +331,86 @@ test("the view model: delivered and read over sent, open while scheduled or send
   assert.equal(whenLabel("2026-09-12T15:30:00-04:00", ZONE, now), "Sep 12 · 3:30 PM");
 });
 
-test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {
-  // The job is broadcast-send.ts (Reach out Part 2.5); that the dispatch map names it is store-retired.test.mjs's.
-  const h = readCode("packages/jobs/src/handlers/broadcast-send.ts");
-  // The person's row as the run reads it is packages/db's (decision 0111).
-  const people = readCode("packages/db/src/repositories/campaigns/broadcast-run.ts");
-  // The batch is db's read now (campaigns/channels.ts listQueuedRecipients, run against the database in memory by
-  // before-the-channel-columns.test.mjs), a page of the chunk's size.
-  assert.ok(
-    h.includes("batch: (id, limit, only) => listQueuedRecipients(db, { tenantId, broadcastId: id, limit, ...only })"),
+test("the job: its rules are run (core-broadcast/); the adapter reads a chunk at a time, the person's row with what the run needs, the message whole, and finishes the run with a tally it counted", async (t) => {
+  // Run to its end over the database in memory, where broadcast-send.ts's and broadcast-run.ts's text was read until
+  // 26 Nov 2026. That the dispatch map names the job is store-retired.test.mjs's; that no port answers from a read whose
+  // error it dropped, the next test's. A June weekday at 14:00 UTC is inside the day's sending hours by any clock.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-06-10T14:00:00Z") });
+  /**
+   * A run of these people, each queued. A thread says what its person's row says of their answers, as one database
+   * does; an erasure is the row's alone to say here, the run's own read.
+   */
+  const crowd = (people, category = "marketing") => {
+    const w = world();
+    w.tenants[0].timezone = "UTC";
+    w.templates[0].category = category;
+    w.broadcasts[0].recipient_count = people.length;
+    w.contacts = people.map((over, i) => ({
+      ...w.contacts[0],
+      id: `k${i + 1}`,
+      phone_e164: `+1555123${String(i + 1).padStart(4, "0")}`,
+      ...over,
+    }));
+    w.broadcast_recipients = w.contacts.map((c) => ({ ...w.broadcast_recipients[0], contact_id: c.id }));
+    w.conversations = w.contacts.map((c, i) => ({
+      id: `c${i + 1}`,
+      tenant_id: TID,
+      contact_id: c.id,
+      paused_until: null,
+      contacts: { consent: c.consent, dnc: c.dnc, marketing_consent: c.marketing_consent, erased_at: null },
+      tenants: { status: "active" },
+    }));
+    return w;
+  };
+  /** The job run until the run ends (or five batches): every number it sent to, and the run's tally on the ledger. */
+  const runToTheEnd = async (w, opts) => {
+    const tried = [];
+    const next = [{ broadcast_id: "b1" }];
+    const db = fakeDb(w, {}, {}, opts);
+    for (let i = 0; i < 5 && next.length; i++)
+      await dispatchJob(
+        {
+          db,
+          wire: { whatsapp: async (to) => (tried.push(to), { ok: true, wamid: `wamid.${tried.length}`, status: 200 }) },
+          alert: async () => {},
+          schedule: async (_kind, _at, payload) => void next.push(payload),
+          deadline: Date.now() + 60_000,
+        },
+        { id: `j${i}`, tenant_id: TID, kind: "broadcast_send", payload: next.shift() },
+      );
+    return { tried, tally: w.events.find((e) => e.kind === "broadcast.sent")?.data ?? null };
+  };
+
+  // A chunk at a time: thirty people are two batches, the first of BROADCAST_CHUNK.
+  const thirty = crowd(Array.from({ length: 30 }, () => ({})));
+  const first = [];
+  await dispatchJob(
+    {
+      db: fakeDb(thirty),
+      wire: { whatsapp: async (to) => (first.push(to), { ok: true, wamid: `wamid.${first.length}`, status: 200 }) },
+      alert: async () => {},
+      schedule: async () => {},
+      deadline: Date.now() + 60_000,
+    },
+    { id: "j0", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } },
   );
-  assert.ok(BROADCAST_CHUNK === 25);
-  assert.ok(
-    // The message is db's read too (templates.ts listMessageVersionRows, run against the database in memory by
-    // message-version-rows.test.mjs): every row of its name and language, whatever its channel, with the category and the
-    // components an email version keeps its subject in.
-    h.includes("message: (name, language) => listMessageVersionRows(db, job.tenant_id, { name, language })"),
-    "the message is read whole: its category decides which yes the send needs",
-  );
-  assert.ok(
-    // (The list is long enough to stand on its own lines, and ends with their answer about offers by email: an offer's
-    // foot says whether they asked for it or are a customer.)
-    people.includes('"id, phone_e164, consent, dnc, marketing_consent, erased_at') &&
-      people.includes("wa_profile_name, email, email_marketing"),
-    "the person's row still carries what the run needs",
-  );
-  // The run marked sent and its broadcast.sent with the tally, in one transaction (00527 finish_broadcast, decision 0089).
-  assert.ok(h.includes("finishBroadcast(db, job.tenant_id, id, tally)"));
-  // Not one port answers from a read whose error it dropped. Every one of them
-  // is a question the run then acts on, and `{ data }` alone turns a read that
-  // failed into a confident wrong answer -- always in the direction of a real
-  // message to a real person, or of a broadcast failed over a blip.
-  assert.ok(!/const \{ data \} = await db\./.test(h), "a broadcast port never answers from a dropped error");
-  // And its numbers are COUNTED: PostgREST caps a plain select at max_rows, so
-  // a tally read from a page of rows undercounts the big ones and is then
-  // written to the permanent record and read out to the owner.
-  assert.ok(
-    people.includes('{ count: "exact", head: true }') &&
-      h.includes("countBroadcastSends(") &&
-      !h.includes('.select("state").eq("broadcast_id"'),
-    "the tally is a count, not a page of rows",
-  );
+  assert.equal(BROADCAST_CHUNK, 25);
+  assert.equal(first.length, BROADCAST_CHUNK, "one batch is one chunk");
+
+  // The person's row carries what the run needs: a number on do-not-contact, a person erased, and one with no yes to
+  // offers are each held back. The run is marked sent with
+  // its tally on the ledger in one statement (00527 finish_broadcast), and the tally is COUNTED: a database that answers
+  // two rows a read still counts all four.
+  const four = crowd([{}, { dnc: true }, { erased_at: "2026-05-01T00:00:00Z" }, { marketing_consent: "unknown" }]);
+  const offer = await runToTheEnd(four, { maxRows: 2 });
+  assert.deepEqual(offer.tried, ["+15551230001"], "only the person whose own row lets them be sent an offer");
+  assert.equal(four.broadcasts[0].state, "sent");
+  assert.deepEqual(offer.tally, { sent: 1, held: 3 }, "counted, not tallied from a page of rows");
+  // The message is read whole: its category decides which yes the send needs, so a notice reaches the one with no yes to
+  // offers too.
+  const notice = await runToTheEnd(crowd([{}, { marketing_consent: "unknown" }], "utility"));
+  assert.deepEqual(notice.tried, ["+15551230001", "+15551230002"]);
+  assert.deepEqual(notice.tally, { sent: 2, held: 0 });
 });
 
 const TID = "11111111-1111-1111-1111-111111111111";
@@ -427,6 +466,47 @@ const world = () => ({
   messages: [],
   events: [],
   jobs: [],
+});
+
+test("a slot for the business's name is filled with the name the business gave, else the workspace's own name", async (t) => {
+  // Pinned as broadcast-send.ts's text in templates/templates-made-here.test.mjs until 26 Nov 2026: only a whole run of
+  // the job reaches it (workspaceFacts is the handler's own).
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-06-10T14:00:00Z") });
+  const filledFor = async (config) => {
+    const w = world();
+    w.tenants[0].timezone = "UTC";
+    w.tenant_config = [{ tenant_id: TID, config }];
+    w.broadcasts[0].params = [{ kind: "business_name" }];
+    w.conversations = [
+      {
+        id: "c1",
+        tenant_id: TID,
+        contact_id: "k1",
+        paused_until: null,
+        contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_in", erased_at: null },
+        tenants: { status: "active" },
+      },
+    ];
+    const sent = [];
+    await dispatchJob(
+      {
+        db: fakeDb(w),
+        wire: { whatsapp: async (_to, p) => (sent.push(p), { ok: true, wamid: "wamid.1", status: 200 }) },
+        alert: async () => {},
+        schedule: async () => {},
+        deadline: Date.now() + 60_000,
+      },
+      { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } },
+    );
+    return sent.map((p) => p.template?.params);
+  };
+  const { newReceptionistDefaults } = await import("@chanlytics/contracts");
+  assert.deepEqual(await filledFor({}), [["Marisa's"]], "no name of the business's own: the workspace's");
+  assert.deepEqual(
+    await filledFor({ brain: { ...newReceptionistDefaults("Marisa's"), business_name: "Marisa Beauty Bar" } }),
+    [["Marisa Beauty Bar"]],
+    "the name the business gave in Settings",
+  );
 });
 
 test("the job's ports fail CLOSED: a read that did not happen never answers 'not paused', 'Meta withdrew it' or 'they have not been messaged'", async () => {
@@ -725,16 +805,8 @@ test("the routes: a message, values its slots take, an audience crossed with who
       `picked by ${id}`,
     );
   assert.deepEqual(await ports.message(OTHER), [], "another workspace's version names nothing here");
-  const l = [
-    "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
-    "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    l.includes('if (status === "delivered" || status === "read") count.delivered += 1;'),
-    "delivered comes from the receipts, never from the send",
-  );
+  // Delivered comes from the receipts, never from the send: run in broadcast-counts-are-whole.test.mjs, where the two
+  // modules' text was read until 26 Nov 2026.
   const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
   assert.deepEqual(RATE.broadcast, { limit: 10, windowMs: 60_000, noun: "broadcasts" });
 });
@@ -833,25 +905,10 @@ test("the surface and the page: Broadcasts is real, and fed by the same rules", 
   assert.equal(sent.broadcastsOverride.key, "broadcasts");
   // Who each audience reaches is a surface of its own beside Sent's runs (the Inbox's run review, 18 Oct 2026), and how
   // each is counted a chunk of its own beside the surface's reads (audiences-shape.ts, the loadability review, 19 Oct 2026).
-  const s = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-shape.ts");
-  // BOTH sizes per audience, because there is no one number any more: the chip's
-  // count depends on the purpose of the template the composer has selected, which
-  // the surface cannot know when it loads. A single count computed here promised an
-  // audience the route would then refuse.
-  // One pass per purpose now keeps a few of the rows as well as counting them, so
-  // the composer can show one of the people the number is a length of.
-  // And one per set of channels a send may tick (One message, every channel, step 3): the default, WhatsApp alone, is the
-  // pair every audience carries, and the others are its `by`, read by the composer as the owner ticks.
-  // Each reading says what a broadcast is about, the business's own news (decision D1): by email it asks a yes or dealings.
-  assert.ok(
-    s.includes('audiencePreview(rows, kind, id, ids, purpose, { channels, ready, about: "ours" }, 5, touches)'),
-  );
-  assert.ok(s.includes('conversational: reading("conversational", DEFAULT_CAMPAIGN_CHANNELS)'));
-  assert.ok(s.includes('marketing: reading("marketing", DEFAULT_CAMPAIGN_CHANNELS)'));
-  assert.ok(
-    s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"),
-    "the chip's number is the length of the list the preview walks -- never a second count",
-  );
+  // BOTH sizes per audience, because there is no one number any more: the chip's count depends on the purpose of the
+  // template the composer has selected, which the surface cannot know when it loads. Each is the length of the list its
+  // preview walks, a few of whose people it keeps, never a second count: run in broadcast-counts-are-whole.test.mjs
+  // (pinned as audiences-shape.ts's text until 26 Nov 2026).
   // What the surface offers is made of the settings read by one function (parts/channels.ts cmOfferedFrom), run here: the purpose is
   // stamped there, from the message's own category (contracts), never decided in the page, and a message is offered by the channels
   // it goes by -- an email version alone is a message; one WhatsApp is still checking is one too, since what sends it
@@ -932,26 +989,10 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", async () => {
   // The detail route answers getBroadcast's own answer: run through its reader in ask/readers/.
-  const s = [
-    "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
-    "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
-    // The reads themselves, packages/db's (decision 0111).
-    "packages/db/src/repositories/campaigns/sequences/sent.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  // With the two columns that say whether the person stands (00403's rule, contracts answersToRuns): an erased person answers
-  // nothing. And the two that say where the name came from (0052): a stand-in named for their business is greeted by no name.
-  assert.ok(
-    s.includes(
-      "contacts(display_name, wa_profile_name, phone_e164, email, erased_at, merged_into_contact_id, name_source, name_settled_at)",
-    ),
-    "names come with the rows",
-  );
-  assert.ok(s.includes("replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),"));
+  // Each person named as the sheet says them, and each who wrote back saying so on their own line: run through
+  // getBroadcast in broadcast-counts-are-whole.test.mjs (pinned as the detail's reads' text until 26 Nov 2026).
   // The number's refusals are run: broadcasts/core-campaigns/. Its quality, read from the row's config, is run through the
   // channels route in reads-routes.test.mjs ("the channels read") and through its reader in ask/readers/.
-  const sd = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/surface.ts");
   // The number is the channels read's now (S10-9): its health is made where every composer's is, from the active
   // WhatsApp line's quality, its last quality event and its messaging limit (parts/channels.ts cmNumberOf).
   const { cmNumberOf } = await importSrc("apps/dashboard/src/surfaces/campaigns/parts/channels.ts");
@@ -962,7 +1003,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
     cmNumberOf([{ ...line, status: "disconnected" }]).health,
     numberHealth({ quality: null, event: null, limit: null }),
   );
-  assert.ok(sd.includes("heldReasons: HELD_REASONS,"));
+  // Why a person on a run is held, in the run's own words: run through the surface in broadcast-counts-are-whole.test.mjs.
   // bc-detail, bc-person and bc-open-who are a run's and the ledger's (run.tsx, ledger.tsx);
   // broadcasts-honest and runs-honest draw them.
   // The thread says which one-off send, or which campaign ("a one-off send (Spring offer)", "the Win-back campaign"):
@@ -970,9 +1011,11 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   // timeline.tsx's text until 25 Nov 2026.
   // Nothing re-reads Sent behind a window hook any more (the refresh map names its surface, and the composer's messages are the
   // settings read's): the verbs publish themselves and no function to read the surface again.
-  const verbs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");
-  assert.ok(verbs.includes('provide("broadcasts", broadcasts);'));
-  assert.equal(verbs.includes("__refreshBroadcasts"), false, "the hook went with the template rows' calls to it");
+  const verbs = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/verbs.ts");
+  const { provided } = await importSrc("apps/dashboard/src/bridge/provided.ts");
+  verbs.installBroadcasts();
+  assert.equal(provided("broadcasts"), verbs.broadcasts, "the verbs publish themselves");
+  assert.equal(globalThis.__refreshBroadcasts, undefined, "the hook went with the template rows' calls to it");
 });
 
 test("getting their yes while the workspace is paused: the card stays where its doors land, says why, and hands out no code, sign or link; with no number there is no card (the wiring's second audit, X4-1)", async () => {
@@ -1002,6 +1045,7 @@ test("getting their yes while the workspace is paused: the card stays where its 
 
 test("getting their yes: an unambiguous phrase the ingest records, a link that opens WhatsApp with it, a QR of that link, and a receptionist that thanks them", async () => {
   const { OPT_IN_PATTERN, OFFERS_OPT_IN_PHRASES, optInLink } = await import("@chanlytics/contracts");
+  const { offersAnswerRule } = await importSrc("packages/contracts/src/config/workspace-config/offers-ask.ts");
   assert.equal(OFFERS_OPT_IN_PHRASES.en, "YES OFFERS");
   for (const w of ["YES OFFERS", "yes offers", "Sí ofertas!", "si ofertas", "START"])
     assert.ok(OPT_IN_PATTERN.test(w), w);
@@ -1011,18 +1055,10 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   assert.equal(optInLink("+13055550188", OFFERS_OPT_IN_PHRASES.es), "https://wa.me/13055550188?text=SI%20OFERTAS");
   assert.equal(optInLink(null), null);
   assert.equal(optInLink("12"), null);
-  assert.ok(
-    readCode("packages/contracts/src/config/workspace-config/offers-ask.ts").includes(
-      "If a message is only the words YES OFFERS or SI OFERTAS",
-    ),
-    "the receptionist thanks them and asks nothing else",
-  );
-  const q = readCode("apps/dashboard/app/api/v1/consent/qr/route.ts", "apps/dashboard/src/server/people/consent-qr.ts");
-  assert.ok(
-    q.includes("const link = optInLink(ch?.number_e164);") &&
-      q.includes('"content-type": "image/svg+xml; charset=utf-8"'),
-    "the code encodes one link and nothing a caller chooses",
-  );
+  // The receptionist thanks them and asks nothing else: the rule is said under "Rules you must follow" in chat
+  // (receptionist/prompt/prompt-sections.test.mjs), and the code encodes one link and nothing a caller chooses
+  // (the-yes-code-is-the-number-s-own-link.test.mjs); both were read as their modules' text until 26 Nov 2026.
+  assert.match(offersAnswerRule(true), /^If a message is only the words YES OFFERS or SI OFERTAS.*ask nothing else\.$/);
   // The card's code is the code's address only while there is a link: run in broadcast-counts-are-whole.test.mjs, for an
   // open, a paused and an ended workspace and an older server's answer.
   // broadcasts/get-yes, where every "nobody has said yes" door lands: its pane beside Sequences' list (decision 0060, D3).
@@ -1109,15 +1145,16 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:
   // executed in ask-commit.test.mjs ("a broadcast and a playbook", "an undo names the decision it reverses"), over
   // the typed client, from the broadcast's spec (contracts ask/proposals/campaigns.ts).
-  const prompt = [
+  // The words a broadcast is spoken of in are defined in the system block every turn is sent (pinned as
+  // stable-system.ts's and prompt.ts's text until 26 Nov 2026).
+  const { ASK_DEFINITIONS, stableSystem, workspaceFacts } = await importSrc(
     "apps/dashboard/src/server/ask/prompt/stable-system.ts",
-    "apps/dashboard/src/server/ask/prompt/prompt.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    prompt.includes('"said yes":') && /\n\s+"?broadcast"?:\s*\n/.test(prompt) && prompt.includes('"held back":'),
   );
+  const told = stableSystem(workspaceFacts("Northside Studio", ZONE, {}, new Date("2026-09-14T14:00:00Z")), true);
+  for (const word of ["said yes", "broadcast", "held back"]) {
+    assert.ok(ASK_DEFINITIONS[word], `"${word}" is defined`);
+    assert.ok(told.includes(ASK_DEFINITIONS[word]), `and the turn is told what "${word}" means`);
+  }
   // The rule that described one tool lives in that tool since PR 3.3 (D9): the registry's own description says it.
   assert.ok(
     ACT_TOOLS.find((t) => t.name === "propose_campaign").description.includes("never propose a send to nobody"),

@@ -107,11 +107,11 @@ test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4)
   );
   // What the person did with each card, in their words: never "done".
   const cards = [
-    cardOf("p-1", "Reply to Rosa", { state: "done", receipt: "Sent to Rosa", atMs: 1 }),
-    cardOf("p-2", "Autonomy: reply", { state: "dismissed", receipt: "Not now", atMs: 2 }, "policy"),
-    cardOf("p-3", "Invite Sam", { state: "failed", receipt: "Sam is already a member", atMs: 3 }, "invite"),
-    cardOf("p-4", "Snooze Rosa", { state: "undone", receipt: "Woken again", atMs: 4 }, "thread_verb"),
-    cardOf("p-5", "Reply to Sam", { state: "done", receipt: "", atMs: 5 }),
+    cardOf("p-1", "Reply to Rosa", { state: "done", receipt: "Sent to Rosa", at_ms: 1 }),
+    cardOf("p-2", "Autonomy: reply", { state: "dismissed", receipt: "Not now", at_ms: 2 }, "policy"),
+    cardOf("p-3", "Invite Sam", { state: "failed", receipt: "Sam is already a member", at_ms: 3 }, "invite"),
+    cardOf("p-4", "Snooze Rosa", { state: "undone", receipt: "Woken again", at_ms: 4 }, "thread_verb"),
+    cardOf("p-5", "Reply to Sam", { state: "done", receipt: "", at_ms: 5 }),
   ];
   assert.equal(
     answerLine(answered({ answer: shaped("Five cards."), proposals: cards }), TURN_CHARS),
@@ -184,7 +184,7 @@ test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4)
   const full = answered({
     answer: shaped(long(160), { items: ids.map((id) => itemOf("conversation", id, long(60), `conversations/${id}`)) }),
     proposals: [1, 2, 3, 4].map((i) =>
-      cardOf(`p-${i}`, long(80), { state: "done", receipt: long(80), atMs: i }, "person_details"),
+      cardOf(`p-${i}`, long(80), { state: "done", receipt: long(80), at_ms: i }, "person_details"),
     ),
   });
   const line = answerLine(full, TURN_CHARS);
@@ -341,7 +341,7 @@ test("the rebuild is frozen, and knows what it told (the Phase 5 plan, PR 5.5): 
     over: { answer: r1.answer, ...v1FromAnswer(r1.answer) },
     created_at: iso(Date.now() - 10 * 60_000),
   });
-  await setProposalOutcome(ctx, first, "p-2", { state: "dismissed", receipt: "Not now", atMs: 500 });
+  await setProposalOutcome(ctx, first, "p-2", { state: "dismissed", receipt: "Not now", at_ms: 500 });
 
   // Turn 2, cold: its lines say what they say now, and it keeps them and every outcome they said.
   const t2 = await nextTurn(ctx, [ROUND([answer("Rosa asked about Saturday.")])], { text: "What did Rosa ask?" });
@@ -360,7 +360,7 @@ test("the rebuild is frozen, and knows what it told (the Phase 5 plan, PR 5.5): 
 
   // Rosa's card approved; turn 3 at once goes live over turn 2, whose line still says not pressed yet: it is replayed
   // as it was sent, and turn 3's words tell the approval, once. The dismissal, which the line said, is never told.
-  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 });
   const t3 = await nextTurn(ctx, [ROUND([answer("It went.")])], { text: "Did it go?" });
   assert.equal(t3.r.shape.replay, "live");
   const sent2 = t2.s.requests.at(-1);
@@ -395,7 +395,7 @@ test("what a rebuild told is what it read (the Phase 5 plan, PR 5.5): an outcome
   // Approved after turn 2 read the thread and before it was saved: its lines say not pressed yet, and so does `told`.
   const racing = await aCard();
   const read = await threadNow(racing.ctx, "And?");
-  await setProposalOutcome(racing.ctx, racing.first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  await setProposalOutcome(racing.ctx, racing.first, "p-1", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 });
   const s2 = sentAs([ROUND([answer("Fine.")])]);
   const r2 = await runAskTurn(
     turn(racing.ctx, { text: "And?", history: read.history, chain: read.chain, told: read.told }).input,
@@ -411,7 +411,7 @@ test("what a rebuild told is what it read (the Phase 5 plan, PR 5.5): an outcome
   // A words base kept before this PR (no `told`): only the chain's own rows' cards are told -- turn 1's, older than the
   // base, is not, though it was approved and no turn told it.
   const before = await aCard();
-  await setProposalOutcome(before.ctx, before.first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  await setProposalOutcome(before.ctx, before.first, "p-1", { state: "done", receipt: "Sent to Rosa", at_ms: 1_000 });
   const cold = await nextTurn(before.ctx, [ROUND([answer("Fine.")])]);
   assert.equal(cold.r.shape.replay, "rebuilt");
   const base = await keep(before.ctx, "And?", cold.r);

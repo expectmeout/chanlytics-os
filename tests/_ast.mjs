@@ -445,15 +445,43 @@ export function castsIn(sf) {
   return Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
 }
 
+/** A property's name that is a custom property's: a string `"--w"`, or a template that starts `--` (`[`--color-${k}`]`). */
+const customName = (name) => {
+  if (ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)) return name.text.startsWith("--");
+  if (!ts.isComputedPropertyName(name)) return false;
+  const e = bare(name.expression);
+  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return e.text.startsWith("--");
+  return ts.isTemplateExpression(e) && e.head.text.startsWith("--");
+};
+
+/**
+ * A style prop that sets custom properties and nothing else: an object whose every key is a `--name`, or the kit's
+ * `customProperties(…)`, whose type admits no other key (surfaces/kit/variants.ts). A value that changes as the page
+ * runs (a bar's width, a series' colour, where a point stands) reaches the page so, and a class decides what it does:
+ * the look is still the stylesheet's (the coordinator's call, 26 Nov 2026).
+ */
+const setsOnlyCustomProperties = (attr) => {
+  const init = attr.initializer;
+  if (!init || !ts.isJsxExpression(init) || !init.expression) return false;
+  const e = bare(init.expression);
+  if (ts.isCallExpression(e)) return ts.isIdentifier(e.expression) && e.expression.text === "customProperties";
+  return (
+    ts.isObjectLiteralExpression(e) &&
+    e.properties.length > 0 &&
+    e.properties.every((p) => ts.isPropertyAssignment(p) && customName(p.name))
+  );
+};
+
 /**
  * The `style` props a module's markup carries: `style={{ … }}` or `style={value}`, on an element or a component. A
  * prop is a value no look can reach (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, rule 1); a class that
- * reads tokens can. A `style` key in an object, or a string that says `style=`, is not one.
+ * reads tokens can. A `style` key in an object, or a string that says `style=`, is not one; nor is a prop that sets
+ * custom properties alone (setsOnlyCustomProperties), and one that sets any other property beside them still is.
  */
 export function inlineStyles(sf) {
   let n = 0;
   const visit = (m) => {
-    if (ts.isJsxAttribute(m) && ts.isIdentifier(m.name) && m.name.text === "style") n++;
+    if (ts.isJsxAttribute(m) && ts.isIdentifier(m.name) && m.name.text === "style" && !setsOnlyCustomProperties(m)) n++;
     ts.forEachChild(m, visit);
   };
   visit(sf);

@@ -63,10 +63,10 @@ const pool = (candidates, more = {}) => ({
   candidates,
   held: 0,
   pool: candidates,
-  noYes: 0,
+  no_yes: 0,
   stopped: 0,
-  noNumber: 0,
-  saidYes: candidates,
+  no_number: 0,
+  said_yes: candidates,
   no_address: 0,
   address_stopped: 0,
   no_channel: 0,
@@ -77,14 +77,14 @@ const POOLS = {
   visited: pool(6),
   quiet_30: pool(14, { pool: 15, stopped: 1 }),
   // Walk-ins: five on it, not one said yes to offers.
-  "seg:walkins": pool(0, { pool: 5, noYes: 5, saidYes: 0 }),
+  "seg:walkins": pool(0, { pool: 5, no_yes: 5, said_yes: 0 }),
   // Regulars: three said yes, none with a number, nor (by email too) an address.
   "list:regulars": pool(0, {
     pool: 4,
-    noYes: 1,
-    noNumber: 3,
-    saidYes: 3,
-    by: [{ ...pool(0, { pool: 4, noYes: 1, saidYes: 3, no_address: 3 }), channels: ["whatsapp", "email"] }],
+    no_yes: 1,
+    no_number: 3,
+    said_yes: 3,
+    by: [{ ...pool(0, { pool: 4, no_yes: 1, said_yes: 3, no_address: 3 }), channels: ["whatsapp", "email"] }],
   }),
   // VIP clients: 38 who said yes by WhatsApp, and no other set the workspace could tick for an offer (none by email).
   "seg:vip": pool(38),
@@ -182,7 +182,7 @@ test("who it reaches is the count's for the channels it goes by; why nobody can 
   const both = newReachOf(REGULARS, COUNTS, how({ channels: ["whatsapp", "email"] }));
   assert.deepEqual([both.nobody, both.said_yes], ["no_reach", 3]);
   // Everyone it reaches heard from you this week: the breath, never a missing yes.
-  const heard = { ...COUNTS, pools: { everyone_monthly: pool(0, { held: 3, pool: 3, saidYes: 3 }) } };
+  const heard = { ...COUNTS, pools: { everyone_monthly: pool(0, { held: 3, pool: 3, said_yes: 3 }) } };
   assert.deepEqual(newReachOf({ kind: "everyone", label: "everyone" }, heard, how()), {
     can: 0,
     of: 3,
@@ -197,15 +197,15 @@ test("REGRESSION: a closed channel takes back no one's yes -- no channel it goes
   // An offer ticked to go by email alone where the workspace counts no email set for offers: everyone is held for the
   // channel, and the 38 who said yes are still the 38 (readingFor's fallback said 0, so New offered their yes again).
   const r = readingFor(POOLS["seg:vip"], ["email"]);
-  assert.deepEqual([r.candidates, r.no_channel, r.saidYes], [0, 38, 38]);
+  assert.deepEqual([r.candidates, r.no_channel, r.said_yes], [0, 38, 38]);
   const vip = newReachOf(VIP, COUNTS, how({ channels: ["email"] }));
   assert.deepEqual([vip.can, vip.nobody, vip.said_yes], [0, "no_channel", 38]);
   // Meta's pause on offers to US numbers: the count by WhatsApp alone holds the 26 who said yes for the channel.
-  const paused = { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 26, saidYes: 26, no_channel: 26 }) } };
+  const paused = { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 26, said_yes: 26, no_channel: 26 }) } };
   const everyone = newReachOf({ kind: "everyone", label: "everyone" }, paused, how());
   assert.deepEqual([everyone.can, everyone.nobody, everyone.said_yes], [0, "no_channel", 26]);
   // No channel, and nobody said yes either: said as no channel, with no count of a yes.
-  const none = { ...COUNTS, pools: { "seg:walkins": pool(0, { pool: 5, noYes: 5, saidYes: 0, no_channel: 5 }) } };
+  const none = { ...COUNTS, pools: { "seg:walkins": pool(0, { pool: 5, no_yes: 5, said_yes: 0, no_channel: 5 }) } };
   const walkins = newReachOf(WALKINS, none, how());
   assert.deepEqual([walkins.nobody, "said_yes" in walkins], ["no_channel", false]);
 });
@@ -314,7 +314,7 @@ test("no channel can carry it: Connect a channel the message holds that isn't co
   });
   // Meta's pause on offers to US numbers: everyone, by WhatsApp alone, the one way it holds, so no door; 26 said yes.
   const usPause = reads({
-    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 26, saidYes: 26, no_channel: 26 }) } },
+    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 26, said_yes: 26, no_channel: 26 }) } },
   });
   const waOnly = { ...OFFER, channels: ["whatsapp"] };
   const everyone = once(M.everyoneOf(true), waOnly, { r: usPause });
@@ -324,7 +324,7 @@ test("no channel can carry it: Connect a channel the message holds that isn't co
   });
   // No channel, and nobody said yes: the channel is still what is missing, said without a count of a yes.
   const none = reads({
-    counts: { ...COUNTS, pools: { "seg:walkins": pool(0, { pool: 5, noYes: 5, saidYes: 0, no_channel: 5 }) } },
+    counts: { ...COUNTS, pools: { "seg:walkins": pool(0, { pool: 5, no_yes: 5, said_yes: 0, no_channel: 5 }) } },
   });
   assert.equal(M.nobodyOf(once(WALKINS, waOnly, { r: none }), ws()).words, noChannelWords("“Walk-ins”", "marketing"));
 });
@@ -366,14 +366,14 @@ test("REGRESSION: an offer whose one way is WhatsApp, not connected, ticks nothi
 
 test("everyone heard from you this week is said as the week's breath, with no door; everyone is named Everyone", () => {
   const heard = reads({
-    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { held: 3, pool: 3, saidYes: 3 }) } },
+    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { held: 3, pool: 3, said_yes: 3 }) } },
   });
   const d = once(M.everyoneOf(true), OFFER, { r: heard });
   assert.equal(d.who.label, NEW_WORDS.draft.everyoneOffers, "the draft says who it is by the yes");
   assert.deepEqual(M.nobodyOf(d, ws()), { words: allLeftOutWords(EVERYONE_LABEL, 3), door: null });
   // Nobody of everyone said yes to offers: their yes, by the list's own name.
   const noYes = reads({
-    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 9, noYes: 9, saidYes: 0 }) } },
+    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 9, no_yes: 9, said_yes: 0 }) } },
   });
   assert.deepEqual(M.nobodyOf(once(M.everyoneOf(true), OFFER, { r: noYes }), ws()), {
     words: noYesWords(`“${EVERYONE_LABEL}”`, "marketing"),
@@ -562,7 +562,7 @@ test("REGRESSION: a text never carries an offer -- an offer with a text version 
   // Meta's pause on offers to US numbers, texting not connected: connecting it would carry no offer, so no door.
   const usPause = reads({
     ready: ["whatsapp"],
-    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 26, saidYes: 26, no_channel: 26 }) } },
+    counts: { ...COUNTS, pools: { everyone_monthly: pool(0, { pool: 26, said_yes: 26, no_channel: 26 }) } },
   });
   const everyone = once(M.everyoneOf(true), withText, { ready: ["whatsapp"], r: usPause });
   assert.equal(M.nobodyOf(everyone, ws(["whatsapp"])).door, null);

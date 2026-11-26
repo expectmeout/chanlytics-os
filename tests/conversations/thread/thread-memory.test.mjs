@@ -23,9 +23,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { fakeDb } from "../_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { readPgThread } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/inbound/persist.ts")).href);
 const { isThreadUnknown } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/thread.ts")).href);
 
