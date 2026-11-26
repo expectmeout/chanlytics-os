@@ -65,7 +65,7 @@ export interface VoiceShellTarget {
  * live tool's headers are carried over untouched, and a tool with none is
  * reported rather than silently created secret-less.
  */
-export function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, string> | null): RetellTool[] {
+function voiceShellTools(fnUrl: string, bookingHeaders?: Record<string, string> | null): RetellTool[] {
   return [
     {
       type: "end_call",

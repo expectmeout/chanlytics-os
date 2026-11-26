@@ -137,10 +137,7 @@ export function yieldOf(judged: number, usable: number): number {
  * search's main phase at about half the places its count needed. A search made for calls counts either (decision 0010):
  * a phone that dials, or a candidate email.
  */
-export function hasContact(
-  place: { phone: string | null; email: string | null },
-  contact: LeadContactStandard,
-): boolean {
+function hasContact(place: { phone: string | null; email: string | null }, contact: LeadContactStandard): boolean {
   if (contact === "email") return place.email !== null;
   return leadPhoneState(place.phone) === "ok" || place.email !== null;
 }

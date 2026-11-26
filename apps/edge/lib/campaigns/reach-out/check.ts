@@ -101,7 +101,6 @@ export {
   siteReaderOf,
   type AskModel,
   type CheckBudget,
-  type CheckWorkspace,
 } from "./check-one.js";
 
 type Db = SupabaseClient<Database>;

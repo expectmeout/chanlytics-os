@@ -23,7 +23,7 @@ const idOf = (value: unknown): string | null => {
   return /^\d{3,40}(?:_\d{3,40})?$/.test(text) ? text : null;
 };
 /** A Page's address as Meta gives it: whole, or a path on facebook.com (a reel's may be). */
-const addressOf = (value: unknown): string | null => {
+const facebookUrlOf = (value: unknown): string | null => {
   const text = metaText(value).trim();
   if (/^https:\/\//.test(text)) return text;
   return text.startsWith("/") ? `https://www.facebook.com${text}` : null;
@@ -53,7 +53,7 @@ const pagePostOf = (o: Record<string, unknown>): PagePost | null => {
   if (!id) return null;
   return {
     id,
-    permalink: addressOf(valueAt(o, "permalink_url")),
+    permalink: facebookUrlOf(valueAt(o, "permalink_url")),
     createdTime: metaText(valueAt(o, "created_time")) || null,
     message: metaText(valueAt(o, "message")) || null,
   };
@@ -121,7 +121,7 @@ export const parsePageStories = (json: unknown): PageStory[] =>
         up: metaText(valueAt(o, "status")).toUpperCase() === "PUBLISHED",
         // Meta gives a story's time as seconds since 1970, or as a date: either is kept as a date.
         createdTime: typeof at === "number" ? new Date(at * 1000).toISOString() : metaText(at) || null,
-        url: addressOf(valueAt(o, "url")),
+        url: facebookUrlOf(valueAt(o, "url")),
       },
     ];
   });
@@ -181,7 +181,7 @@ export function parsePageReel(json: unknown): PageReel {
   const state = reelStateOf(status);
   return {
     state,
-    permalink: addressOf(valueAt(o, "permalink_url")),
+    permalink: facebookUrlOf(valueAt(o, "permalink_url")),
     createdTime: metaText(valueAt(o, "created_time")) || null,
     fault: state === "failed" ? faultOf(status) : null,
   };

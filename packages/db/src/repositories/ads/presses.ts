@@ -5,7 +5,7 @@
  * not run the migration answers `no_door`, where nothing is written and nothing is wrong (either deploy order).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, nonEmptyOrNull, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
 import type { Database, Json } from "../../types";
@@ -40,7 +40,6 @@ const OUTCOMES = [
   "not_made",
   "not_found",
 ] as const;
-const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 
 /** An owner's press (ad_set_intent, 00652): kept with its decision and its event, in one transaction. */
 export async function setAdIntent(
@@ -73,9 +72,9 @@ function pressKeptOf(data: unknown, door: string): AdPressKept {
     version: typeof answer.version === "number" ? answer.version : null,
     tell: answer.tell === true,
     pending: answer.pending === true,
-    accountId: text(answer.account_id),
-    platformAdId: text(answer.platform_ad_id),
-    toldAt: text(answer.told_at),
+    accountId: nonEmptyOrNull(answer.account_id),
+    platformAdId: nonEmptyOrNull(answer.platform_ad_id),
+    toldAt: nonEmptyOrNull(answer.told_at),
   };
 }
 
@@ -106,7 +105,10 @@ export async function pauseAdsKept(
   if (answer.outcome !== "kept" || !Array.isArray(answer.ads)) throw new Error("ad_pause_all answered no outcome");
   return {
     outcome: "kept",
-    ads: answer.ads.map((one) => ({ adId: text(recordOrEmpty(one).ad_id) ?? "", ...pressKeptOf(one, "ad_pause_all") })),
+    ads: answer.ads.map((one) => ({
+      adId: nonEmptyOrNull(recordOrEmpty(one).ad_id) ?? "",
+      ...pressKeptOf(one, "ad_pause_all"),
+    })),
   };
 }
 
@@ -136,7 +138,10 @@ export async function pauseAdsForStop(
   if (answer.outcome !== "kept" || !Array.isArray(answer.ads)) throw new Error("ad_pause_all answered no outcome");
   return {
     outcome: "kept",
-    ads: answer.ads.map((one) => ({ adId: text(recordOrEmpty(one).ad_id) ?? "", ...pressKeptOf(one, "ad_pause_all") })),
+    ads: answer.ads.map((one) => ({
+      adId: nonEmptyOrNull(recordOrEmpty(one).ad_id) ?? "",
+      ...pressKeptOf(one, "ad_pause_all"),
+    })),
   };
 }
 
@@ -176,7 +181,7 @@ export async function resumeStoppedAds(
     outcome: "kept",
     ads: answer.ads.map((one): AdResumedKept => {
       const ad = recordOrEmpty(one);
-      const adId = text(ad.ad_id) ?? "";
+      const adId = nonEmptyOrNull(ad.ad_id) ?? "";
       if (ad.outcome === "not_stopped")
         return { adId, outcome: "not_stopped", version: typeof ad.version === "number" ? ad.version : null };
       return { adId, ...pressKeptOf(one, "ad_resume_stopped") };

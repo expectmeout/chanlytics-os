@@ -38,6 +38,7 @@ import {
   type AskSource,
 } from "./shape";
 import { isOneOf, recordOrEmpty } from "../../shared/unknown";
+import { UUID } from "../../shared/identity";
 
 /**
  * The openings route's days, as the palette reads them (bridge/ask/api.ts `openings`). The route's `text` is
@@ -172,8 +173,11 @@ export function sayAsDrawn(say: { headline?: unknown; detail?: unknown }): { hea
 
 const finiteOrNaN = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
 
-/** Every id in what the model spelled: global, so a route that carries two is read whole (groundRef takes the last). */
-const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+/**
+ * Every id in what the model spelled: contracts' one UUID, its anchors taken off, and global, so a route that carries two is
+ * read whole (groundRef takes the last).
+ */
+const UUIDS_SPELLED = new RegExp(UUID.source.slice(1, -1), "gi");
 
 /** The twelve kinds of row, in the grammar's order: a row not read as the kind written is looked for under each. */
 const ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
@@ -203,7 +207,7 @@ function groundRef(value: unknown, read: AskReadSet): AskSource | null {
   const label = words(obj.label, C.label) || spelled;
   // The row is the route's LAST id: every row's route carries one, but a lead's on a search's view carries the search's
   // first (leadsRoute: `clients/leads:s-<search>:p-<lead>`, the open lead last), and the lead is the row it names.
-  const ids = spelled.match(UUID);
+  const ids = spelled.match(UUIDS_SPELLED);
   const row = ids?.[ids.length - 1]?.toLowerCase();
   // A row's route with an id cut short or misspelled names no row read, and is no page either.
   const page = row || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }];

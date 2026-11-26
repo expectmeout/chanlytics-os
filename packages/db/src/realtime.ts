@@ -462,7 +462,7 @@ export interface ToldNotice {
 }
 
 /** The most notices one catch-up answers: past it the tab reads everything again, as before step 4. */
-export const CATCH_UP_MOST = 200;
+const CATCH_UP_MOST = 200;
 
 /**
  * The notices told on a workspace's topic since `since` (ISO 8601), read as the member (00508; decision 0019 step 4): what
