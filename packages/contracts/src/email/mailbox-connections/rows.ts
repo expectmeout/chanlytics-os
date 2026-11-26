@@ -319,8 +319,8 @@ function spfNote(
   const many = mailboxConnection.spf_record.split(SPF_RECORDS_JOIN).length;
   const change =
     many > 1
-      ? `Your domain has ${many} SPF records, and with more than one none of them counts: replace them all with this one, which keeps every sender they name and adds ${person}.`
-      : `Your domain has an SPF record already, and it may have only one: change it to this, which keeps every sender it names and adds ${person}.`;
+      ? `Your domain has ${many} SPF records, so none counts. Replace them all with this one: it keeps every sender and adds ${person}.`
+      : `Your domain may have one SPF record only. Change it to this: it keeps every sender and adds ${person}.`;
   // The edge counted the record with the provider's include in it, the include's own lookups and all.
   const after = mailboxConnection.spf_lookups === null || many > 1 ? null : mailboxConnection.spf_lookups;
   return after !== null && after > SPF_LOOKUPS_MAX
@@ -439,11 +439,11 @@ export function mailboxRecordStateWords(mailbox: Pick<MailboxRecordRow, "key" | 
 export function mailboxesFootWords(count: number): string {
   if (count >= MAILBOX_CONNECTIONS_MAX) return `${MAILBOX_CONNECTIONS_MAX} is the most. Remove one to add another.`;
   if (count === 0)
-    return `Email people write to your mailbox comes into your Inbox, and cold email goes from it through Google, so every email is yours and every reply comes back to it. A mailbox on the domain your customers write to sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to leads · for more, use a second domain such as get<yourbusiness>.com.`;
+    return "Email to your mailbox comes into your Inbox, and cold email goes from it through Google, so replies come back here.";
   return "Email people write to it comes into your Inbox · cold email goes from it, and its replies come back here.";
 }
 
 /** The note shown once a mailbox on the customer domain is connected. */
 export function customerDomainWords(host: string): string {
-  return `Your customers write to ${host}, so this mailbox sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail and bookings safe. For more, connect a mailbox on a second domain, such as get${host}.`;
+  return `Customers write to ${host}, so it sends ${CUSTOMER_DOMAIN_DAILY_MAX} a day at most to keep their mail safe. For more, add a second domain like get${host}.`;
 }

@@ -23,7 +23,7 @@ export interface CallEndingForOwner {
 }
 
 /** An ending of ours, as the owner reads it: never the provider's account, its credit or its error's name. */
-const OURS = { owner: "The phone service had a problem on our side", needsEar: true } as const;
+const OURS = { owner: "Chanlytics' phone service had a problem", needsEar: true } as const;
 
 /** Every ending the provider names, as of its call-object reference (October 2026), and the two Live's controls make. */
 export const CALL_ENDINGS_FOR_OWNERS = {

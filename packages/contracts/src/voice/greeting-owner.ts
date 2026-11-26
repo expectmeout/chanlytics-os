@@ -237,7 +237,7 @@ export function greetingNotes(input: {
     notes.push({
       key: "no_recording",
       words:
-        "The standard greeting says calls are recorded; yours doesn't. In some places callers have to be told first.",
+        "The standard greeting says calls are recorded, and yours doesn't. In some places callers have to be told first.",
     });
   }
   const spoken = greetingOf({ name, stored: raw, paused: false }).text;
@@ -245,7 +245,7 @@ export function greetingNotes(input: {
   if (words > GREETING_LONG_WORDS) {
     notes.push({
       key: "long",
-      words: `About ${Math.round(words * SECONDS_PER_WORD)} seconds before a caller can speak. Callers hang up during long greetings; under 7 seconds keeps more of them.`,
+      words: `About ${Math.round(words * SECONDS_PER_WORD)} seconds before a caller can speak. Under 7 seconds keeps more callers on the line.`,
     });
   }
   if (LINK.test(result)) notes.push({ key: "link", words: "A web address is read out letter by letter on a call." });
