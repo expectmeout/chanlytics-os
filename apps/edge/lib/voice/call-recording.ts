@@ -117,7 +117,7 @@ export async function purgeExpiredRecordings(
   const cutoff = new Date(ports.now.getTime() - RECORDING_RETENTION_DAYS * DAY_MS).toISOString();
   const { data, error } = await listRecordingsToPurge(db, cutoff, limit);
   if (error) return { candidates: 0, purged: 0, error: error.message };
-  const rows = (data ?? []) as {
+  const rows = data as {
     id: string;
     tenant_id: TenantId;
     recording: { storage_path?: string; mime?: string | null } | null;

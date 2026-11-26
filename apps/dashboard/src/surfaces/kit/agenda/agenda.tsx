@@ -67,7 +67,7 @@ export function AgendaItem({
     <button
       className={`ag-item ${phase}${flag ? " flagged" : ""}`}
       onClick={onOpen}
-      title={hint || undefined}
+      data-tip={hint || undefined}
       data-testid={testid || undefined}
       data-phase={phase}
       data-struck={struck || undefined}

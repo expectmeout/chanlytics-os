@@ -62,9 +62,9 @@
 
   /* Overlays always clear the drawer */
   .ask-overlay { z-index: 320; }
-  /* A scrim darkens what is behind it, in both themes. This was the INK at 35%, and the ink inverts: near-black
-     over a light page (right), near-WHITE over a dark one (wrong). Black at 45%, as every other overlay here
-     (.lp-backdrop, the thread pane's .more-backdrop).
+  /* The wash behind the drawer is the veil every phone sheet stands over (tokens.css --surface-veil; the kit's
+     .sheet-backdrop on a phone), which the drawer's own rule below already drew over this one's black at 45%. It was
+     the INK at 35% before that, and the ink inverts: near-white over a dark page.
      The backdrop-filter is for the browser's bar, not the page. A childless, see-through, viewport-sized fixed
      box is what Safari on iOS 26 calls a dimming layer, and it paints its status-bar strip with that colour
      blended over the page: a grey band while the drawer is open. A fixed box with a backdrop-filter it paints in
@@ -79,7 +79,7 @@
     position: fixed;
     inset: 0 0 var(--foot-clear, 0px);
     z-index: 210;
-    background: rgb(0 0 0 / 0.45);
+    background: var(--surface-veil);
     backdrop-filter: blur(0);
     mask-image: var(--foot-fade, none);
     animation: wash-in 160ms var(--ease-out);

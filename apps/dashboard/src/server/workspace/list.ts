@@ -300,7 +300,7 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
   // or grant went missing would be told the zone was saved and see the old one
   // on the next read.
   const subject = zone ? "That workspace's timezone" : "What that workspace calls a booking";
-  if (!data?.length) throw new AppError("forbidden", `${subject} could not be changed.`, 403);
+  if (!data?.length) throw new AppError("forbidden", `${subject} can't be changed from here.`, 403);
   // On the ledger as every other setting is (settings-write.ts): which of the two moved and who by, never the value.
   // They live on the tenant's row, not in its config, so a save of them left no trace. As the service role: a session
   // may not insert into events.
@@ -350,7 +350,7 @@ export async function renameWorkspace(
   if (!was || was.name === cleaned.name) return null;
   const { data, error } = await writeOwnFields(ctx, member.tenantId, { name: cleaned.name });
   if (error) throw new DbFailure(error);
-  if (!data?.length) throw new AppError("forbidden", "That workspace's name could not be changed.", 403);
+  if (!data?.length) throw new AppError("forbidden", "That workspace's name can't be changed from here.", 403);
   await emitWorkspaceEvent(member.tenantId, "settings.changed", "workspace", member.tenantId, {
     fields: ["name"],
     by: ctx.userId,

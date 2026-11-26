@@ -21,16 +21,16 @@ import { useMoved } from "../shell";
  * workspace's word (Today's read's), else the playbooks surface's, as Campaigns says it: no read more.
  */
 function dayVmOf(
-  C: CalendarSurface | undefined,
-  P: PlaybooksSurface | undefined,
+  calendar: CalendarSurface | undefined,
+  playbooks: PlaybooksSurface | undefined,
   word: AppointmentWord | null,
 ): TodayDayVM | null {
-  if (!C || !C.vm || C.vm.feed.state !== "ok") return null;
+  if (!calendar || !calendar.vm || calendar.vm.feed.state !== "ok") return null;
   // Every entry of the day, never the old card's five: the zone draws its own lines and folds what is over ("3 earlier"),
   // which a cut list would undercount (the 3 Nov audit); Listen's brief and the closing read the whole day too.
   const vm = TODAY_HELPERS.day(
-    C.vm as CalendarLike,
-    P ? { rows: P.rows, word: word ?? P.shape.word } : null,
+    calendar.vm as CalendarLike,
+    playbooks ? { rows: playbooks.rows, word: word ?? playbooks.shape.word } : null,
     word ? { rows: [], word } : null,
     Number.POSITIVE_INFINITY,
   );

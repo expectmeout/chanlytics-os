@@ -73,8 +73,8 @@ export function medianCenter(points: LatLng[]): LatLng | null {
   return { lat: median(points.map((p) => p.lat)), lng: median(points.map((p) => p.lng)) };
 }
 
-export const RADIUS_MIN_M = 5_000;
-export const RADIUS_MAX_M = 60_000;
+const RADIUS_MIN_M = 5_000;
+const RADIUS_MAX_M = 60_000;
 
 /** A radius from the spread: twice the distance within which three quarters of the probe's places fall, clamped. */
 export function radiusFromSpread(center: LatLng, points: LatLng[]): number {

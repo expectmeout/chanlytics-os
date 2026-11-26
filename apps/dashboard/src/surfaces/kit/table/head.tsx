@@ -159,7 +159,7 @@ export function tableHead(p: HeadProps) {
               }}
               onChange={onToggleAll}
               aria-label={words.all}
-              title={words.all}
+              data-tip={words.all}
               data-testid="select-all"
             />
           </th>

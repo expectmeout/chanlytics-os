@@ -63,10 +63,10 @@
 .lm-row-trail, .lm-head-trail { font-weight: var(--weight-regular); color: var(--ink-dim); }
 /* The one number on the row that moves: it carries the accent, the way a reply about to send does. */
 .lm-row-clock { margin-left: auto; flex-shrink: 0; font-size: var(--text-xs); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
-.lm-row-said { font-size: 11.5px; line-height: 1.35; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lm-row-said { font-size: var(--text-xs); line-height: 1.35; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lm-row-said.is-waiting { color: var(--ink-dim); }
 .lm-row-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
-.lm-row-since { font-size: 10.5px; color: var(--ink-dim); }
+.lm-row-since { font-size: var(--text-2xs); color: var(--ink-dim); }
 
 /* The door to every call. It was the list's footnote under a "Recent" table of the same calls. */
 .lm-list-door {
@@ -76,7 +76,7 @@
   padding: 12px 14px;
   border: none; border-top: 1px solid var(--line);
   background: transparent; color: var(--ink-muted);
-  font: inherit; font-size: 12px; line-height: 1.45; text-align: left;
+  font: inherit; font-size: var(--text-label); line-height: 1.45; text-align: left;
   cursor: pointer;
 }
 .lm-list-door b { color: var(--ink); font-weight: 500; }
@@ -113,30 +113,6 @@
 .lm-dot { width: 6px; height: 6px; }
 .lm-dot[data-quiet] { opacity: 0.35; animation: none; }
 .lm-dot-warn { background: var(--warn); }
-
-.lm-tbl tbody tr { cursor: pointer; }
-/* A row takes the keyboard; its ring sits inside it, where the scrolling list cannot clip it. */
-.lm-tbl tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.lm-tbl tbody tr.active {
-  background: var(--bg-raised);
-  box-shadow: inset 2px 0 0 var(--ink);
-}
-.lm-from {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  color: var(--ink);
-  white-space: nowrap;
-}
-.lm-list-foot {
-  margin-top: auto;
-  padding: 12px 14px;
-  border-top: 1px solid var(--line);
-  font-size: var(--text-xs);
-  color: var(--ink-dim);
-  line-height: 1.5;
-}
 .lm-link {
   background: none;
   border: none;
@@ -193,7 +169,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 6px;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   margin-top: 3px;
 }
@@ -211,7 +187,6 @@
   .lm-head-who::after { inset: -12px -6px -2px; }
   .lm-head-tel::after { inset: -2px -6px -12px; }
 }
-.lm-callid { font-size: 10.5px; color: var(--ink-faint); }
 /* The controls are a row that can wrap -- the confirmation "End the call? … Yes, end it" is wider than a
    phone's line. It was an unstyled block of inline buttons that would not shrink, which is what pushed the
    titles into their column. */
@@ -243,22 +218,12 @@ a.lm-head-door:active { opacity: 0.72; }
   align-items: center;
   gap: 10px;
   padding: 12px 24px 0;
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-dim);
   flex-shrink: 0;
-}
-.lm-paused-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--warn);
-  font-weight: 500;
 }
 .lm-scroll {
   flex: 1 1 auto;
@@ -268,28 +233,6 @@ a.lm-head-door:active { opacity: 0.72; }
   scrollbar-color: var(--line-strong) transparent;
 }
 .lm-thread { padding: 0; }
-
-.lm-tone {
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  color: var(--accent);
-}
-
-.lm-injected {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: var(--text-xs);
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: var(--radius-full);
-  padding: 4px 12px;
-  width: fit-content;
-  margin: 2px auto;
-  animation: route-in 200ms var(--ease-out);
-}
-.lm-takeover-line { justify-content: center; }
 .lm-listening-line { display: flex; justify-content: flex-end; padding-right: 8px; }
 
 /* Take-over banner */
@@ -302,33 +245,10 @@ a.lm-head-door:active { opacity: 0.72; }
   border-radius: var(--radius-sm);
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: 12px;
+  font-size: var(--text-label);
   font-weight: 500;
   flex-shrink: 0;
 }
-
-/* Inject context */
-.lm-inject {
-  display: flex;
-  gap: 8px;
-  margin: 0 24px 10px;
-  flex-shrink: 0;
-}
-.lm-inject-input {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  padding: 7px 11px;
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--ink);
-  outline: none;
-  transition: border-color 120ms, background 120ms;
-}
-.lm-inject-input:focus { border-color: var(--ink-faint); background: var(--bg); }
-.lm-inject-input::placeholder { color: var(--ink-faint); }
 
 /* Control bar */
 .lm-controls {
@@ -341,7 +261,7 @@ a.lm-head-door:active { opacity: 0.72; }
   flex-shrink: 0;
 }
 .lm-controls-who {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   flex: 1;
   min-width: 0;
@@ -350,45 +270,8 @@ a.lm-head-door:active { opacity: 0.72; }
   text-overflow: ellipsis;
 }
 .lm-controls-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.lm-listening {
-  color: var(--accent);
-  border-color: oklch(from var(--accent) l c h / 0.4);
-  background: var(--accent-soft);
-}
-.lm-end { color: var(--danger); }
-@media (hover: hover) { .lm-end:hover { background: var(--danger-soft); border-color: var(--danger); } }
-.lm-ended-chip { font-size: 11.5px; color: var(--ink-dim); }
-
-/* Ended call note */
-.lm-ended-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin: 20px 24px;
-  padding: 16px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-md);
-  color: var(--ink-dim);
-}
-.lm-ended-title {
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  margin-bottom: 10px;
-  line-height: 1.5;
-}
-
-/* Live Listen EQ — three bars, honest signal that audio is flowing */
-.lm-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 10px; margin-left: 6px; }
-.lm-eq span {
-  width: 2.5px;
-  border-radius: 1px;
-  background: var(--accent);
-  height: 4px;
-}
+.lm-ended-chip { font-size: var(--text-xs); color: var(--ink-dim); }
 @media (prefers-reduced-motion: no-preference) {
-  .lm-eq span { animation: lm-eq-bounce 900ms ease-in-out infinite; }
-  .lm-eq span:nth-child(2) { animation-delay: 150ms; }
-  .lm-eq span:nth-child(3) { animation-delay: 320ms; }
   @keyframes lm-eq-bounce {
     0%, 100% { height: 3px; }
     45% { height: 10px; }
@@ -396,15 +279,10 @@ a.lm-head-door:active { opacity: 0.72; }
   }
 }
 
-/* Your lines while taken over */
-.lm-you-bubble { border-color: var(--accent); }
-.lm-you-bubble .tl-msg-meta span:first-child { color: var(--accent); font-weight: 600; }
-
 /* ---------- The real page (live-monitor-real.jsx) ---------- */
-.lm-section-head { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
 .lm-line-note {
   padding: 2px 14px 12px;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   line-height: 1.5;
 }
@@ -434,7 +312,7 @@ a.lm-head-door:active { opacity: 0.72; }
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 /* How the call ended and what to do next, under what the caller wanted. */
@@ -471,8 +349,8 @@ a.lm-head-door:active { opacity: 0.72; }
 .lm-whisper-more { padding: 0 4px; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
 
 /* A whisper inside the transcript: the owner's words, where they landed. */
-.lm-whisper-line { display: flex; gap: 8px; align-items: baseline; justify-content: center; margin: 6px 0; padding: 6px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); font-size: 12px; color: var(--ink-muted); }
-.lm-whisper-line-label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+.lm-whisper-line { display: flex; gap: 8px; align-items: baseline; justify-content: center; margin: 6px 0; padding: 6px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); font-size: var(--text-label); color: var(--ink-muted); }
+.lm-whisper-line-label { font-size: var(--text-2xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
 .lm-whisper-line-text { color: var(--ink); }
 
 /* Hold to talk: the button is the microphone. */
@@ -499,7 +377,7 @@ a.lm-head-door:active { opacity: 0.72; }
     top: calc(var(--row-pad-y) + var(--row-face) - 9px);
     z-index: 1;
     height: auto;
-    border-radius: 50%;
+    border-radius: var(--radius-circle);
     /* The page's ground behind it, so the dot reads against the face it sits on. */
     box-shadow: 0 0 0 2px var(--bg);
     background: var(--bg);

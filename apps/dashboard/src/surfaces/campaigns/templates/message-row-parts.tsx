@@ -537,7 +537,7 @@ export function openRow(
       {/* Why it needs you, on WhatsApp's tab, where WhatsApp's no is about: the list's own sentence for it, two lines at
           most, and whole on a tap on where it stands. */}
       {around.need ? (
-        <p className="bc-excl-hint warn tpl-need-line" data-testid="template-need" title={around.need}>
+        <p className="bc-excl-hint warn tpl-need-line" data-testid="template-need" data-tip={around.need}>
           {around.need}
         </p>
       ) : null}

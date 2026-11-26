@@ -221,7 +221,7 @@ test("how a visit stands is the kit's pill in the tone its state wears; nothing 
   assert.equal(textOf(pill), "Past");
   assert.ok(classes(pill).includes("pill"), "the kit's pill");
   assert.equal(
-    pill.props.title,
+    pill.props["data-tip"],
     "Not marked yet",
     "and what it is on hover, where a word alone would leave the owner guessing",
   );

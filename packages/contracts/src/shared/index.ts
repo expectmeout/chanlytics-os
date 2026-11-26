@@ -150,7 +150,15 @@ export {
 } from "./time";
 export { isoMs, numberFormat } from "./time";
 export type { SpanUnits } from "./time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./unknown";
+export {
+  finiteOrNull,
+  finiteOrZero,
+  lineOrNull,
+  nonBlankOrNull,
+  nonEmptyOrNull,
+  recordOrNull,
+  trimmedOrNull,
+} from "./unknown";
 export {
   entryOf,
   type GlobalSlot,
