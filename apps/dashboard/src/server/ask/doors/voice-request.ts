@@ -56,18 +56,19 @@ export function asked(body: Record<string, unknown> | null, tenantId: TenantId):
   };
 }
 
-/** The edge's no, in the words the Line already knows: the gateway's refusals, answered the same way. */
-export function refusalOf(edgeAnswer: EdgeAnswer): AppError {
+/** What a person is told when a call with AI could not be started. */
+export const VOICE_UNREACHED = "Couldn't start a call with AI just now. Try again in a moment.";
+
+/**
+ * The edge's no to a voice door (a call with AI, AI's voice reading a reply), in the words the Line already knows: the
+ * gateway's refusals, answered the same way, and `unreached` where the vendor could not be asked.
+ */
+export function voiceRefusalOf(edgeAnswer: EdgeAnswer, unreached: string): AppError {
   if (edgeAnswer.status === 402) {
     return new AppError("payment_required", edgeRefusalWords(edgeAnswer.body) ?? VOICE_IS_OFF, 402);
   }
   const reason = edgeReasonOf(edgeAnswer);
-  return new AppError(
-    "upstream_voice",
-    reason === "no_provider_key"
-      ? "Voice is not set up yet."
-      : "Couldn't start a call with AI just now. Try again in a moment.",
-    503,
-    { reason },
-  );
+  return new AppError("upstream_voice", reason === "no_provider_key" ? "Voice is not set up yet." : unreached, 503, {
+    reason,
+  });
 }

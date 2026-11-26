@@ -143,7 +143,6 @@ export {
   MIN_MS,
   SECOND_MS,
   spanLabel,
-  spanUnits,
   timezoneCity,
   VIEW_CHANGE_MS,
   waitedLabel,
@@ -151,7 +150,15 @@ export {
 } from "./time";
 export { isoMs, numberFormat } from "./time";
 export type { SpanUnits } from "./time";
-export { finiteOrNull, finiteOrZero, lineOrNull, nonBlankOrNull, recordOrNull, trimmedOrNull } from "./unknown";
+export {
+  finiteOrNull,
+  finiteOrZero,
+  lineOrNull,
+  nonBlankOrNull,
+  nonEmptyOrNull,
+  recordOrNull,
+  trimmedOrNull,
+} from "./unknown";
 export {
   entryOf,
   type GlobalSlot,
@@ -191,13 +198,4 @@ export {
   zoneMidnight,
 } from "./zone/day-keys";
 export type { DayWord, WeekdayKey } from "./zone/day-keys";
-export {
-  clockInZone,
-  dayInZone,
-  dayPlusInZone,
-  localToUtcMs,
-  usableZone,
-  WEEKDAY_KEYS,
-  zoneOffsetMs,
-  zoneParts,
-} from "./zone/math";
+export { clockInZone, dayInZone, dayPlusInZone, localToUtcMs, usableZone, WEEKDAY_KEYS, zoneParts } from "./zone/math";

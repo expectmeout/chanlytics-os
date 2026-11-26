@@ -61,6 +61,8 @@ export function proposalChannelsWords(
 /**
  * Why a new campaign's card is not made (propose_sequence's action moment), said to the model with what to do about
  * it. `from` is the call that names what the workspace holds, its messages and its lists, as the tool calls it.
+ *
+ * screen-word: said to the model, never shown on a page.
  */
 export const PLAYBOOK_CARD_REFUSALS = {
   /** A typed slot the proposal gave no words for: a question for the person. */

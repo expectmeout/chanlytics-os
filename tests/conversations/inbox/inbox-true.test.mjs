@@ -392,10 +392,7 @@ test("the pane: a reply that didn't send says why under its words, once, from th
   const bubble = all(tree, hasClass("tl-msg")).find((b) => textOf(b).includes("See you at 3"));
   const why = all(bubble, byTestId("tl-msg-failed-why"));
   assert.equal(why.length, 1, "one line, in the bubble that did not leave");
-  assert.match(
-    textOf(why[0]).trim(),
-    /^WhatsApp wouldn't send it: more than 24 hours have passed since they last replied/,
-  );
+  assert.match(textOf(why[0]).trim(), /^WhatsApp wouldn't send it: they haven't written in 24 hours/);
   assert.doesNotMatch(textOf(why[0]).trim(), /\d{4,}|\berror\b/i, "no error's number reaches the owner");
 
   // A failure whose row says nothing readable draws no line, and a bubble that arrived never does.

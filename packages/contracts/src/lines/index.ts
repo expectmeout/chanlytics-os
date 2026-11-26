@@ -15,7 +15,6 @@ export type { BusinessIndustry, BusinessType, CompanyType } from "./a2p-enums";
 export {
   businessPageMetadata,
   businessPageVM,
-  dataSentences,
   publishesBusinessPage,
   registrationPreflight,
   SMS_CLAUSES,
@@ -31,7 +30,6 @@ export type {
   TextingTermsVM,
 } from "./business-page";
 export {
-  ABOUT_MAX,
   ABOUT_MIN,
   businessFieldsFor,
   businessGroupWordsFor,
@@ -43,14 +41,7 @@ export {
 export type { BusinessFieldVM, BusinessRecordDto, RecordCheckFacts } from "./business-record";
 export { callerSentence, lineOffGets, PHONE_LINE_OFF, WORKSPACE_ENDED_WORDS, WORKSPACE_PAUSED } from "./caller-gets";
 export type { CallerGets } from "./caller-gets";
-export {
-  CHANNEL_ANSWERED,
-  CHANNEL_KIND_WORDS,
-  channelFor,
-  channelKindWords,
-  channelNoun,
-  toChannelVM,
-} from "./channels";
+export { CHANNEL_ANSWERED, channelFor, channelKindWords, channelNoun, toChannelVM } from "./channels";
 export type { ChannelDto, ChannelHealth, ChannelPickable, ChannelVM } from "./channels";
 export { LINE_CODES_EVERY_MS, LINE_CODES_MAX, LINE_CODES_WITHIN_MS } from "./codes";
 export { codeNotes } from "./codes";

@@ -92,6 +92,8 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
     "blob:",
     "https://mwwy.supabase.co",
     "https://*.googleusercontent.com",
+    // Meta's own picture of an ad made in Meta, on the Ads page (images only).
+    "https://*.fbcdn.net",
     "https://*.stripe.com",
   ]);
   // The phone voices' samples are the provider's own recordings, on its public bucket: contracts names the one host.

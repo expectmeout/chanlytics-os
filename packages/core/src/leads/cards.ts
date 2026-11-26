@@ -75,7 +75,7 @@ export const MAPS_FIELDS = [
   "rank",
   "url",
 ] as const;
-export const CHECKER_FIELDS = ["email", "status", "is_catch_all"] as const;
+const CHECKER_FIELDS = ["email", "status", "is_catch_all"] as const;
 /** This actor refuses a cap under $0.50 (PRD §10.1). */
 export const MAPS_CAP_FLOOR_USD = 0.5;
 /** A run may hold the provider this long before the sweep aborts it (PRD §12.5). */

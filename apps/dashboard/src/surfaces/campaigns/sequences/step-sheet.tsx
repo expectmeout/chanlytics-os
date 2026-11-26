@@ -179,7 +179,7 @@ function TestPress({
       onClick={() => void test()}
       disabled={testing}
       aria-busy={testing}
-      title={T.tip}
+      data-tip={T.tip}
       data-testid={`sq-step-test-${step.place}`}
       {...gate("approve")}
     >

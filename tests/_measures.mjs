@@ -1213,8 +1213,8 @@ export const TS_ONLY_EVENTS = {
 /* ---- Appointment words written in (journey/journey.test.mjs holds what the count reads) ---- */
 
 /**
- * Each place a person reads "visit" in a sentence or a label the code writes in (_ast.mjs visitsWrittenIn), by file:
- * when it reaches zero, "visit" joins trade-neutral's banned words.
+ * Each place a person reads "visit" in a sentence or a label the code writes in (_ast.mjs visitsWrittenIn), by file.
+ * It reached zero on 25 Nov 2026, and journey.test.mjs holds it there.
  */
 export function appointmentWordsWrittenIn() {
   const out = {};

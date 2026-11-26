@@ -10,7 +10,7 @@ import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What a call is read with: the dashboard maps it (toCallDto), and the recording's URL never leaves the server. */
-export const CALL_COLUMNS =
+const CALL_COLUMNS =
   "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164, consent, dnc, erasing_since)";
 
 /** One of the workspace's calls, or none. */

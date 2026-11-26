@@ -150,7 +150,7 @@ export function wordsPencil(onEdit: () => void, testid = "template-words-edit") 
       className="tpl-read-pen"
       onClick={onEdit}
       aria-label={WORDS.changeWords}
-      title={WORDS.changeWords}
+      data-tip={WORDS.changeWords}
       data-testid={testid}
     >
       <Icon name="pencil" size={13} />

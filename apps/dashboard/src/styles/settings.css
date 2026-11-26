@@ -195,7 +195,6 @@
 /* Upright, and a size a person reads: the sentence under a label is most of the
    words on this surface, and it was 10.5px italic. */
 .set-row-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
-.set-row-control { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
 /* The acts a record row offers under its words (Billing's doors, a form's Save and Cancel): one line that wraps. */
 /* A choice made with a switch and the words that say what it is (Partner's letters and terms). */
 .set-check { display: flex; align-items: center; gap: 8px; }
@@ -225,27 +224,16 @@
 /* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
 /* A control is identified by its edge, so the edge is not a hairline. The dots
    in the policy matrix have no fill to tell them apart at all. */
-.settings .set-input, .settings .sd-input, .settings .biz-input, .setup-rows .setup-area { border-color: var(--line-strong); }
+.settings .set-input, .setup-rows .setup-area { border-color: var(--line-strong); }
 .settings .pol-dot { border-color: color-mix(in oklab, var(--ink) 45%, var(--bg-raised)); }
 /* Something happens under a finger. There is no hover on a phone, and tapping a
    dot, a chip, a path or a switch gave nothing back. */
 .settings .pol-dot:active, .settings .cl-attn-cta:active, .setup-rows .cl-attn-cta:active,
 .settings .cl-bucket-link:active, .setup-rows .setup-path:active, .settings .biz-choice:active,
 .setup-rows .setup-number:active { transform: scale(0.97); }
-.settings .set-switch:active { filter: brightness(0.96); }
-@media (hover: hover) { .settings .set-switch:hover { background: color-mix(in oklab, var(--ink) 12%, var(--line-strong)); } }
-@media (hover: hover) { .settings .set-switch.on:hover { background: var(--ink-muted); } }
 @media (hover: hover) { .setup-rows .setup-path:hover, .setup-rows .setup-number:hover { border-color: var(--line-strong); } }
 .set-pane a:not([class]) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .set-pane a:not([class]):hover { text-decoration-color: currentColor; }
-
-/* One input on this surface. The invite box and the alert-address box are
-   `.sd-input` from the shared sheet: a smaller radius, 13px type, and
-   `outline: none` on focus with only a border-colour change to stand in --
-   which a keyboard user cannot see. Scoped, so nothing outside Settings moves. */
-.settings .sd-input { min-height: 36px; padding: 8px 11px; font-size: var(--set-label); border-radius: var(--radius-sm); margin-bottom: 0; }
-@media (hover: hover) { .settings .sd-input:hover { border-color: var(--line-strong); } }
-.settings .sd-input::placeholder { color: var(--ink-dim); }
 /* Setup's state word carries the row's tone; on white, ok read 3.42. The
    colour is a 6px mark rather than the whole word: ten rows saying "Ready" in
    green made the finished ones shout and left the one that wants you level
@@ -267,7 +255,6 @@
 .setup-rows .cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info-ink); }
 .setup-rows .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
 .setup-rows .cl-attn-row.tone-accent .cl-attn-status .lead { color: var(--accent-ink); }
-.settings .sd-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 
 /* Facts in two columns (the Business pane, the activity ledger): the name of a
    fact, then the fact. The list is the person's page's, where the key is a word
@@ -452,41 +439,10 @@
   .set-filters.open { display: flex; }
   .set-filters > div, .set-filters > input[type="date"], .set-filter-person { flex: 1 1 100%; max-width: none; width: auto; }
 }
-.settings .st-bullets { margin: 4px 0 12px; gap: 9px; }
-.settings .st-bullets li { font-size: var(--set-label); }
-
-/* Switch */
-.set-switch {
-  width: 36px; height: 20px;
-  border-radius: var(--radius-full);
-  background: var(--line-strong);
-  border: none;
-  position: relative;
-  cursor: pointer;
-  transition: background 160ms var(--ease-out);
-  padding: 0;
-}
-/* Ink, not green, as the record kit's switch is (record.css, 24 Sep): a switch is a control, and green is the state
-   dot's. On, the knob takes the raised ground so it reads on the ink in either theme; off, the knob token. No shadow. */
-.set-switch.on { background: var(--ink); }
-.set-knob {
-  position: absolute;
-  top: 2px; left: 2px;
-  width: 16px; height: 16px;
-  border-radius: var(--radius-full);
-  background: var(--knob);
-  transition: transform 160ms var(--ease-out), background 160ms var(--ease-out);
-}
-.set-switch.on .set-knob { background: var(--bg-raised); }
 /* A switch is a 36x20 pill. The 44px touch floor (bridge/frame.css)
    applies to every button, so on a phone it became a 36x44 capsule with the
    knob pinned 26px above its own bottom -- twelve of them down the Hours block.
    The finger gets its 44px from the space around it, as the policy dots do. */
-@media (pointer: coarse) {
-  html.frame-on .settings .set-switch { min-height: 0; }
-  html.frame-on .settings .set-switch::after { content: ""; position: absolute; inset: -12px; }
-}
-.set-switch.on .set-knob { transform: translateX(16px); }
 
 /* Team / connection rows: the same row with something in front of it. */
 .set-team-row, .set-int-row {
@@ -590,7 +546,7 @@
 /* A row's phone pieces (row.tsx ConnectionRow): a desktop keeps its button in the group's column. A row whose button
    is Settings is that button's press at every width, as a record row is. The ⋯ and the detail beside a name are the
    Ad accounts card's (ad-accounts.tsx, a demo's), whose rows still carry two acts. */
-.set-int-chev, .set-int-more { display: none; }
+.set-int-chev { display: none; }
 .set-conn .set-int-row[data-offers="one"] { cursor: pointer; }
 /* On a phone a connection is a row of People's kind (25 Sep; they were 77 to 145px): the tile, its name, its state,
    and its button behind the row -- a Settings row is its press with a chevron, which turns as it opens -- never a
@@ -599,8 +555,6 @@
 @media (max-width: 720px) {
   .set-conn .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
   .set-conn .set-int-row > .set-int-tile { align-self: start; }
-  .set-int-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--set-hint); line-height: 1.45; }
-  .set-int-sep { display: none; }
   /* A connected row is its name, what it is attached to and its state: the sentence under it (last message 3d ago)
      is a desktop's. A row that wants something keeps its sentence, which says what. */
   .set-conn .set-int-row[data-state="connected"] .set-team-mail,
@@ -636,7 +590,6 @@
   .set-conn .set-int-row :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
   .set-conn .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
   .set-conn .set-int-row[data-open="true"] > .set-int-chev { rotate: 90deg; }
-  .set-conn .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
   .set-conn .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }
   .set-conn .set-int-row[data-child="true"] { min-height: 48px; }
   .set-team-mail.set-int-why { display: block; }
@@ -726,42 +679,6 @@
   .set-table-row > :nth-child(5) { grid-column: 3; grid-row: 2; }
 }
 
-/* Billing */
-.set-usage { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
-.set-usage-track {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-.set-usage-fill {
-  display: block;
-  height: 100%;
-  background: var(--ink-muted);
-  opacity: 0.55;
-  border-radius: 3px;
-  transition: width 0.5s var(--ease-out);
-}
-.set-usage-note { font-size: var(--text-xs); color: var(--ink-dim); }
-.set-billing-actions { display: flex; gap: 8px; margin-top: 14px; }
-
-/* Billing: pace tick + per-agent spend rows */
-.set-usage-track { position: relative; }
-.set-usage-tick {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--ink-muted);
-  opacity: 0.7;
-}
-.set-spend-row { width: 100%; text-align: left; cursor: pointer; transition: background 100ms; }
-@media (hover: hover) { .set-spend-row:hover { background: var(--bg-hover); } }
-.set-spend-roi { font-size: 11.5px; color: var(--ink-dim); }
-.set-spend-roi.ok { color: var(--ok); font-weight: 500; }
-
 /* ---------- Team & roles (audit U3; redesigned 9 Oct 2026) ---------- */
 /* A member's row is the settings row with the kit's face in front (above): the face, the name and the words under it,
    the role (a picker where it may change, the word elsewhere), and ⋯. Every face is the kit's: the same fill and ink
@@ -813,10 +730,6 @@
   border-top: 1px solid var(--line);
 }
 .set-team-ask-owner { margin: 0; font-size: var(--set-hint); color: var(--ink-dim); text-wrap: pretty; }
-
-/* An address and its act on one line (Notifications' recipients): the kit's field takes what the row leaves. */
-.set-invite { display: flex; align-items: center; gap: 8px; padding: var(--set-row-y) 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
-.set-invite > :first-child { flex: 1; min-width: 180px; }
 
 /* What each role can do: the table opens under the card's foot. */
 .set-team-compare { margin: 10px 0 0; overflow-x: auto; }
@@ -902,7 +815,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .pol-phone-group{padding:18px 0 4px;font-size:var(--text-xs);font-weight:600;color:var(--ink)}
 .pol-cell{text-align:center}
 .pol-label{display:block;font-size:var(--set-label);font-weight:500;line-height:1.35;color:var(--ink)}
-.pol-note{display:block;margin-top:3px;font-size:var(--set-hint);line-height:1.5;color:var(--ink-dim);max-width:58ch;text-wrap:pretty}
 .pol-dot{width:22px;height:22px;border-radius:var(--radius-full);border:1px solid var(--line);background:var(--bg-raised);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0}
 @media (hover: hover) { .pol-dot:hover{border-color:var(--ink)} }
 .pol-dot.on{background:var(--ink);border-color:var(--ink);color:var(--bg-raised)}
@@ -946,16 +858,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   html.frame-on .settings .pol-dot { position: relative; width: 30px; height: 30px; min-height: 0; }
   html.frame-on .settings .pol-dot::after { content: ""; position: absolute; inset: -8px; }
 }
-
-.pol-evidence{display:block;font-size:var(--text-xs);color:var(--ink-dim);margin-top:3px}
-
-.set-sec { padding: 20px 0; border-top: 1px solid var(--line); }
-.set-sec:first-of-type { border-top: none; padding-top: 8px; }
-
-/* A section of the form: its name, and under it what it is for. They shared a
-   baseline, so a long "for" wrapped back under the name at a different size. */
-.set-sec-head { display: grid; gap: 3px; margin-bottom: 12px; }
-.set-sec-title { font-size: var(--set-label); font-weight: 600; color: var(--ink); }
 .set-sec-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
 
 .set-input {
@@ -1000,13 +902,13 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
    title and the line under it, one group with its own gap inside the card's. */
 .cw-head { display: grid; gap: 6px; }
 .cw-head .cw-lede { margin: 0; }
-.cw-kicker { margin: 0; font-size: 12px; font-weight: 500; color: var(--ink-dim); }
+.cw-kicker { margin: 0; font-size: var(--text-label); font-weight: 500; color: var(--ink-dim); }
 .cw-title { margin: 0; font-size: var(--text-2xl); font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
-.cw-lede { margin: -8px 0 4px; font-size: 13px; color: var(--ink-dim); line-height: var(--leading-relaxed); }
+.cw-lede { margin: -8px 0 4px; font-size: var(--text-aside); color: var(--ink-dim); line-height: var(--leading-relaxed); }
 .cw-field { display: grid; gap: 6px; }
 /* A yes beside its sentence: the partner a link brought (0012). */
 .cw-check { grid-template-columns: auto 1fr; align-items: start; gap: 8px; }
-.cw-label { font-size: 12px; color: var(--ink-dim); }
+.cw-label { font-size: var(--text-label); color: var(--ink-dim); }
 .cw-input {
   width: 100%;
   background: var(--bg-sunken);
@@ -1014,13 +916,13 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   border-radius: var(--radius-md);
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-title);
   padding: 9px 12px;
 }
 .cw-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 .cw-hint { font-size: var(--text-xs); color: var(--ink-faint); }
 .cw-error {
-  font-size: 13px;
+  font-size: var(--text-aside);
   color: var(--ink);
   background: var(--danger-soft, var(--accent-soft));
   border: 1px solid var(--danger, var(--accent));
@@ -1035,7 +937,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   border-radius: var(--radius-md);
   padding: 11px 16px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-title);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1043,7 +945,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .cw-submit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .cw-foot {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--ink-faint);
   line-height: var(--leading-normal);
 }
@@ -1054,7 +956,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--ink-faint);
 }
 .cw-legal a,
@@ -1071,10 +973,10 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   }
 }
 .cw-legal a:focus-visible,
-.cw-link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 2px; }
+.cw-link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-dot); }
 
 /* Settings truth: a broken configuration lists what the parser refused. */
-.set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: 12px; line-height: 1.5; color: var(--ink-muted); }
+.set-broken-issues { margin: 10px 0 0; padding-left: 18px; font-family: var(--mono, ui-monospace, monospace); font-size: var(--text-label); line-height: 1.5; color: var(--ink-muted); }
 .set-broken-issues li { margin: 2px 0; }
 
 /* Settings › Notifications (decision 0040). Where alerts reach you: the bell and this browser say their state beside
@@ -1109,30 +1011,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 
 /* Setup's rows, wherever they are drawn: the first run (first-run.jsx) and Today's card. The rows are the attention
    row People and Today share (attention-bits.jsx). A row put off for later fades. */
-/* The rows are the attention row Today and People share (attention-bits.jsx), so
-   everything here is scoped to Setup and those two are untouched. What it takes
-   from the rest of Settings: the row's height and gutter, the leading tile, the
-   three sizes of type, and one emphasized act in the whole list.
-   The sentence and the state line no longer run to an ellipsis: a row's details
-   are the content -- "Ready · Transfers to +1 (305) 555-0108 when a caller
-   insists on a person · Last call 2h ago · A…" was cut mid-word on a 1280
-   screen, and on a phone the same line lost everything after the first fact. */
-/* How far the setup is, as a figure and as a length. */
-.setup-meter {
-  height: 4px;
-  margin: 12px 0 18px;
-  border-radius: var(--radius-full);
-  background: var(--line);
-  overflow: hidden;
-}
-.setup-meter-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--ink);
-  transition: width var(--duration-slow) var(--ease-out);
-}
-@media (prefers-reduced-motion: reduce) { .setup-meter-fill { transition: none; } }
 
 .setup-rows { padding: 6px 0; }
 .setup-rows .tq-list > div + div > .cl-attn-row { border-top: 1px solid var(--line); }
@@ -1142,7 +1020,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   height: auto;
   padding: var(--set-row-y) 24px;
 }
-.setup-rows .cl-attn-avatar { width: var(--set-lead); height: var(--set-lead); border-radius: 10px; }
+.setup-rows .cl-attn-avatar { width: var(--set-lead); height: var(--set-lead); border-radius: var(--radius-inset); }
 .setup-rows .cl-attn-body { gap: 3px; }
 .setup-rows .cl-attn-name { font-size: var(--set-label); line-height: 1.35; }
 .setup-rows .cl-attn-sentence { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty; display: block; -webkit-line-clamp: none; }
@@ -1167,7 +1045,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   .setup-rows .cl-attn-acts { grid-column: 2; justify-self: end; }
   /* A row that is ready is its name and its state on a phone: its sentence and its details are a desktop's. The rows
      that want a person keep every word. */
-  .setup-rows .cl-attn-row.tone-ok .cl-attn-sentence, .setup-rows .cl-attn-row.tone-ok .cl-attn-note { display: none; }
+  .setup-rows .cl-attn-row.tone-ok .cl-attn-sentence { display: none; }
 }
 
 /* The line chooser under the line row: three paths, then the area code, the
@@ -1217,29 +1095,19 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .setup-fw-code { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .setup-fw-dial { font-size: var(--text-2xl); font-weight: 600; letter-spacing: .02em; color: var(--ink); text-decoration: none; }
 @media (hover: hover) { .setup-fw-dial:hover { text-decoration: underline; } }
-.setup-fw-notes { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.45; color: var(--ink-muted); display: grid; gap: 4px; }
+.setup-fw-notes { margin: 0; padding-left: 18px; font-size: var(--text-label); line-height: 1.45; color: var(--ink-muted); display: grid; gap: 4px; }
 .setup-fw-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: var(--text-sm); }
 .setup-fw-ok { color: var(--ink); }
 .setup-fw-off { color: var(--ink-muted); }
 .setup-fw-note { margin: 0; font-size: var(--text-sm); color: var(--warn); }
 
 /* You, on the team card: the name you go by. */
-/* Your name sits in a SetRow's control slot now, so it carries the input and
-   its Save and nothing else: the row supplies the label, the hint and the rule
-   above it, the same as every other control on this surface. It used to draw
-   its own uppercase label and its own bottom border inside the TEAM card,
-   which is what made it read as an orphan pasted above other people's rows. */
-/* retired: .set-you */
-.set-you-retired { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.set-you-input { width: 240px; max-width: 100%; }
 
 /* Profile: who is signed in, stated once, at the top of the first thing you
    see -- rather than only inside a popover over a page about a salon. */
-/* A value a row states rather than edits. */
-.set-me-static { font-size: var(--set-label); color: var(--ink-muted); overflow-wrap: anywhere; }
 
 /* Back, when the create screen was opened from the workspace menu. */
-.cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: 13px; color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
+.cw-back { margin-top: 8px; align-self: center; font: inherit; font-size: var(--text-aside); color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
 @media (hover: hover) { .cw-back:hover { color: var(--ink); } }
 .set-row-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 
@@ -1255,33 +1123,10 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .biz-group-sub { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
 .biz-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
 @media (max-width: 720px) { .biz-fields { grid-template-columns: 1fr; } }
-.biz-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 /* One cell of the form's grid holds one kit field (the box, its label, its hint or what is wrong); a few sentences,
    not a word, take the whole row. */
 .biz-cell { min-width: 0; }
 .biz-cell-wide { grid-column: 1 / -1; }
-.biz-label { font-size: var(--set-hint); color: var(--ink-muted); }
-.biz-input {
-  width: 100%;
-  min-height: 36px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 8px 11px;
-  font: inherit;
-  font-size: var(--set-label);
-  color: var(--ink);
-}
-@media (hover: hover) { .biz-input:hover:not(:disabled) { border-color: var(--line-strong); } }
-.biz-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
-.biz-input:disabled { opacity: 0.6; }
-.biz-bad { border-color: var(--danger); }
-/* A box whose value is half of something: the address before the @, with the rest said beside it rather than typed.
-   An input's automatic minimum is its twenty-character default, which pushed the rest onto a line of its own on a
-   phone: the box gives way instead, down to twelve characters, and only then does the rest wrap. */
-.biz-affix { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
-.biz-affix .biz-input { flex: 1 1 12ch; width: auto; min-width: 0; }
-.biz-affix-text { font-size: var(--set-label); color: var(--ink-muted); overflow-wrap: anywhere; }
 .biz-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
 
 /* The fork: which of the two carrier registrations this business is on. Two
@@ -1310,22 +1155,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
    list rather than a paragraph somebody skims. */
 .biz-limits { display: flex; flex-direction: column; gap: 5px; margin: 0; padding-left: 18px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); }
 .biz-answer { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-
-/* The back office. Borrows the settings card and the attention row wholesale --
-   the only new shapes are the find box, a line's two states, and the trail. */
-.pf-find { max-width: 220px; }
-/* What this page can do sits directly above rows whose Open reveals a button
-   that hands a customer’s number back for good. It is not a footnote. */
-.pf-warn {
-  display: flex; align-items: baseline; gap: 7px;
-  margin: 0 0 4px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--set-hint); line-height: 1.5;
-  color: var(--ink-muted);
-  max-width: 68ch; text-wrap: pretty;
-}
-.pf-warn .icon { flex: none; align-self: center; color: var(--ink-dim); }
 
 [data-testid="platform-rows"] .cl-attn-sentence {
   white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty;
@@ -1367,9 +1196,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
     font-size: var(--row-facts); line-height: var(--row-facts-line); color: var(--ink-dim);
   }
   [data-testid="platform-rows"] .cl-attn-acts { display: none; }
-  .pf-find-row .set-row-info { display: none; }
-  .pf-find-row .pf-find { max-width: none; width: 100%; }
-  .pf-warn { padding-bottom: 10px; }
 }
 
 /* ---- One line, on a workspace support has opened -----------------------
@@ -1736,7 +1562,6 @@ html.frame-on .bt-link { position: relative; }
 /* ---- How it answers (pages/business-tab-answers.jsx) ---- */
 /* The voice's three starting points: a row of presses after the words that name them. */
 .bt-presets { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
-.bt-presets-key { font-size: var(--text-sm); color: var(--ink-dim); }
 /* The languages: the chosen ones as tokens, each with its remove, over the one box that adds another. The box yields
    to its hidden attribute once the list is full. */
 .bt-languages { display: flex; flex-direction: column; gap: 8px; }
@@ -1812,12 +1637,9 @@ html.frame-on .bt-link { position: relative; }
 .ro-learned-head { font-size: var(--text-xs); color: var(--ink-dim); }
 .ro-learned-none { color: var(--ink-dim); }
 /* Its rows' own lists: the lines learned from how the owner writes, the rules it keeps, and the lock on a row of code's. */
-.ro-lines { display: flex; flex-direction: column; gap: 2px; }
 .ro-rules { display: flex; flex-direction: column; margin: 0; padding: 0 0 6px; list-style: none; }
 .ro-rules > li { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); color: var(--ink-muted); }
 .ro-rules > li > svg { flex: none; color: var(--ok-ink); }
-.ro-always, .ro-always-lock { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-dim); }
-.ro-always-lock { margin-inline-start: auto; align-self: center; font-size: var(--text-xs); }
 /* Try it's email (decision 0113): the line written from their listing and each claim marked where they stand. */
 .ro-try-lead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; }
 .ro-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
@@ -1943,7 +1765,7 @@ html.frame-on .bt-link { position: relative; }
 .set-domains {
   margin: 6px 0 10px calc(var(--set-lead) + var(--set-lead-gap));
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-inset);
   background: var(--bg);
   overflow: hidden;
 }
@@ -1968,14 +1790,14 @@ html.frame-on .bt-link { position: relative; }
   gap: 1px;
 }
 .set-dom .t b {
-  font-size: 13px;
+  font-size: var(--text-aside);
   font-weight: 500;
   color: var(--ink);
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
 .set-dom .t > span {
-  font-size: 12px;
+  font-size: var(--text-label);
   line-height: 1.45;
   color: var(--ink-dim);
   text-wrap: pretty;
@@ -2048,9 +1870,6 @@ html.frame-on .bt-link { position: relative; }
 @media (max-width: 720px) {
   .set-mbx-two { grid-template-columns: minmax(0, 1fr) 112px; }
 }
-/* The group across the form: its name, the choice at its own width, then what it signs with across the row. */
-.set-mbx-signs-group { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
-.set-mbx-signs-group > :last-child { align-self: stretch; }
 .set-mbx-signs {
   display: flex;
   flex-direction: column;
@@ -2071,83 +1890,6 @@ html.frame-on .bt-link { position: relative; }
   margin: 0;
   font-size: var(--text-xs);
   color: var(--ink-dim);
-}
-/* The records to publish, as a registrar's form asks for them: what each is for, its type, the part before the
-   domain, the value, the priority. Each name and value copies on its own; a quiet dot says whether it reads yet. */
-.set-records {
-  padding: 10px 14px 12px 54px;
-  color: var(--ink-muted);
-  border-top: 1px dashed var(--line);
-  background: var(--bg-sunken);
-}
-.set-records-intro {
-  margin: 0 0 10px;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  max-width: 76ch;
-  text-wrap: pretty;
-}
-.set-records-intro .dim {
-  color: var(--ink-dim);
-}
-.set-records-table {
-  display: grid;
-  /* What it is (its type and priority beside it), its name, its value: a name is short ("send",
-     "resend._domainkey") and keeps its line, and the value takes the room. */
-  grid-template-columns: max-content max-content minmax(0, 1fr);
-  gap: 7px 16px;
-  align-items: baseline;
-  font-size: 12px;
-}
-.set-records-row {
-  display: contents;
-}
-.set-records-head > span {
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
-.set-records .k {
-  color: var(--ink);
-  white-space: nowrap;
-}
-.set-records .n,
-.set-records .v {
-  min-width: 0;
-}
-.set-records code {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.set-records .rec-copy {
-  margin-left: 8px;
-}
-/* What to do with a value that is not simply added (an SPF record the domain has already): under the value. */
-.set-records .set-records-note {
-  display: block;
-  padding-top: 4px;
-}
-.set-records .ty-inline {
-  color: var(--ink-dim);
-}
-.set-records .rec-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 7px;
-  border-radius: 50%;
-  vertical-align: 1px;
-  background: var(--line-strong);
-}
-.set-records .rec-dot[data-found="yes"] {
-  background: var(--ok);
-}
-/* The add form sits inside the block's border: its fields keep their own inner edge. */
-.set-domain-add {
-  padding: 12px 14px 14px 54px;
 }
 @media (max-width: 720px) {
   .set-domains {
@@ -2170,28 +1912,6 @@ html.frame-on .bt-link { position: relative; }
     grid-column: 2 / -1;
     grid-row: 3;
     justify-content: flex-start;
-  }
-  .set-domain-add {
-    padding: 12px 12px 14px;
-  }
-  .set-records-table {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
-  }
-  /* On a phone each record is a card of its own lines: what it is (its type and priority beside it), then its
-     name and its value, each with its Copy. The column heads have nothing to head. */
-  .set-records-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-    padding: 9px 0;
-    border-top: 1px solid var(--line);
-  }
-  .set-records-row.set-records-head {
-    display: none;
-  }
-  .set-records {
-    padding-left: 14px;
   }
 }
 /* A form's own buttons, side by side: the press and its way back (Settings › Partner, 0016). */
@@ -2244,15 +1964,6 @@ html.frame-on .bt-link { position: relative; }
    A platform's row is the connection row above (.set-int-row, in the group's columns); what stands under it starts where its
    words do (.set-conn > .set-row-stack). The dot rows are Ads' standing's (ads.css: .ads-dots, .ads-dotline), and an amber
    one says the step that mends it on a line of its own, under the dot's words. */
-.set-ads-facts { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
-.set-ads-note { margin-bottom: var(--space-3); }
-.set-ads-stack { gap: var(--space-2); }
-.set-ads-ready { padding-top: var(--space-1); }
-.set-ads-ready .ads-dotline { flex-wrap: wrap; row-gap: 0; }
-.set-ads-fix { flex: 1 1 100%; padding-left: calc(7px + var(--space-2)); font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
-/* Disconnect while an ad runs is refused: what to do first, then its two quiet words. */
-.set-ads-refused { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--warn-ink); }
-.set-ads-choose { display: flex; flex-direction: column; gap: var(--space-2); }
 
 /* Settings › Business, the Colour row (00490): its swatch, its editor, and the email it previews. */
 .bt-look-swatch { display: inline-flex; align-items: center; gap: 8px; }

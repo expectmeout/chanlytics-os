@@ -5,7 +5,9 @@
  * unanswered keeps AI's draft for an answer after all; a post's
  * numbers are kept a read at a time, a missing one with no value; a post's link is one, and an open counts; a visit
  * asked for in the conversation a post's touch is in records what it answered; an erased person's touches keep only
- * that they happened. Each table's rows: a member of the workspace reads them, another workspace sees none.
+ * that they happened; a comment left on an ad is kept by the ad Meta names, even on a post made by hand, and the Ads
+ * page's reads name who commented and sum what its days did (00719). Each table's rows: a member of the workspace reads
+ * them, another workspace sees none.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -13,6 +15,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { findComment, findCommentForWork, listComments } from "@chanlytics/db/content";
+import { readAdCommenters, readAdsEngaged } from "@chanlytics/db/ads";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -134,6 +137,7 @@ after(async () => {
   for (const table of ["jobs", "comment_answers", "touches", "post_observations", "link_days", "links", "appointments"])
     await db.from(table).delete().in("tenant_id", all);
   await db.from("posts").delete().in("tenant_id", all);
+  for (const table of ["ad_days", "ads", "ad_accounts"]) await db.from(table).delete().in("tenant_id", all);
   await db.from("files").delete().in("tenant_id", all);
   await db.from("conversations").delete().in("tenant_id", all);
   await db.from("contact_identities").delete().in("tenant_id", all);
@@ -389,3 +393,80 @@ test("an erased person's touches keep only that they happened, of what and when"
     assert.ok(t.kind && t.subject_id, "that it happened, and of what, stays");
   }
 });
+
+test(
+  "a comment left on an ad is kept by the ad, even on a post made by hand, and the Ads page names who and sums the days",
+  { skip },
+  async () => {
+    // Workspace B, whose owner is `stranger` to A: its own world, so nothing above it counts B's rows.
+    const account = ok(
+      await db
+        .from("ad_accounts")
+        .insert({
+          tenant_id: B,
+          platform: "meta",
+          external_id: `13${Date.now()}`,
+          name: "B ads",
+          currency: "USD",
+          timezone: "UTC",
+          status: "connected",
+          standing: { account: "active", funding: "ok" },
+          config: {},
+        })
+        .select("id")
+        .single(),
+      "the ad account",
+    ).id;
+    const AD = `1202${Date.now()}`;
+    ok(
+      await db.rpc("ads_read_keep", {
+        p_tenant_id: B,
+        p_account_id: account,
+        p_read: {
+          account: {},
+          next_read_at: new Date(Date.now() + 3_600_000).toISOString(),
+          ads: [
+            {
+              platform_ad_id: AD,
+              name: "Boost",
+              door: "other",
+              budget_kind: "total",
+              budget_minor: 500,
+              platform_state: "ACTIVE",
+              intent: "on",
+            },
+          ],
+          days: [
+            { platform_ad_id: AD, day: "2026-11-24", spend_minor: 250, engaged: { plays: 300, comments: 2 } },
+            { platform_ad_id: AD, day: "2026-11-25", spend_minor: 250, engaged: { plays: 20, saves: 1 } },
+          ],
+        },
+      }),
+      "the read",
+    );
+    const adId = ok(
+      await db.from("ads").select("id").eq("tenant_id", B).eq("platform_ad_id", AD).single(),
+      "the ad",
+    ).id;
+    const onAd = (id, from, over = {}) =>
+      keepComment(id, `hand-${stamp}`, { p_tenant_id: B, p_from: from, p_ad_id: AD, ...over });
+    const first = ok(await onAd(`ad1-${stamp}`, "990000000004001"), "on the ad");
+    assert.deepEqual([first.kept, first.ad_id, "post_id" in first], [true, adId, false]);
+    ok(await onAd(`ad2-${stamp}`, "990000000004002"), "a second person");
+    ok(await onAd(`ad3-${stamp}`, "990000000004001"), "the first again, on another comment");
+    assert.equal(ok(await onAd(`ad4-${stamp}`, "990000000004003", { p_ad_id: null }), "no ad").why, "not_ours");
+    const drafts = ok(await db.from("jobs").select("id").eq("tenant_id", B).eq("kind", "comment_reply"), "drafts");
+    assert.equal(drafts.length, 0, "no draft for a post Chanlytics did not send");
+
+    const since = new Date(Date.now() - 3_600_000).toISOString();
+    const commenters = await readAdCommenters(as.stranger.client, B, since);
+    assert.equal(commenters?.get(adId)?.count, 2, "two people, one of them twice");
+    assert.ok(
+      commenters?.get(adId)?.people.every((p) => p.contact && typeof p.at === "string"),
+      "each with their row",
+    );
+    assert.equal((await readAdCommenters(as.owner.client, B, since))?.size, 0, "another workspace's member reads none");
+    const engaged = await readAdsEngaged(as.stranger.client, B, "2026-11-24");
+    assert.deepEqual(engaged?.get(adId), { plays: 320, comments: 2, saves: 1 });
+  },
+);

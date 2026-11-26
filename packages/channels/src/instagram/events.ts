@@ -92,6 +92,11 @@ export interface InstagramComment {
   commentId: string;
   mediaId: string;
   mediaKind: string | null;
+  /**
+   * The ad it was left on, where it was left on one: Meta's id for the ad (`media.ad_id`, "included if the comment was
+   * on an ad post", the webhooks' comments field), which a workspace that holds the ad keeps it by (00719). Null otherwise.
+   */
+  adId: string | null;
   parentId: string | null;
   text: string | null;
   atIso: string | null;
@@ -153,6 +158,7 @@ function instagramChangeOf(account: string, time: unknown, change: Record<string
     commentId,
     mediaId,
     mediaKind: trimmed(media?.media_product_type) || null,
+    adId: /^\d{5,32}$/.test(trimmed(media?.ad_id)) ? trimmed(media?.ad_id) : null,
     parentId,
     text: trimmed(value.text) || null,
     atIso: entryAtIso(time),

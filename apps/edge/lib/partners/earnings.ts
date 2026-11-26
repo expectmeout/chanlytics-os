@@ -19,7 +19,7 @@ import {
   reversePartnerEarning,
 } from "@chanlytics/db/partners";
 import type { TenantId } from "@chanlytics/contracts";
-import { DbFailure } from "@chanlytics/contracts";
+import { DbFailure, valueAt } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -102,7 +102,7 @@ export async function earnFromInvoice(
     throw new DbFailure(error, "partner_earn");
   }
   if (!data) return null;
-  const earned = Number((data as { earned_cents?: number }).earned_cents ?? 0);
+  const earned = Number(valueAt(data, "earned_cents") ?? 0);
   log.info("partner_earned", { tenant_id: tenantId, invoice: inv.id, earned_cents: earned });
   return { earned };
 }
@@ -149,7 +149,7 @@ export async function reverseForInvoice(
     throw new DbFailure(error, "partner_reverse");
   }
   if (!data) return null;
-  const earned = Number((data as { earned_cents?: number }).earned_cents ?? 0);
+  const earned = Number(valueAt(data, "earned_cents") ?? 0);
   log.info("partner_reversed", { invoice: invoiceId, kind, earned_cents: earned });
   return { earned };
 }

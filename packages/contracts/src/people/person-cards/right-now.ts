@@ -297,6 +297,7 @@ export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLas
           text: messageText(message),
           at: `${stamp(result).time} ${stamp(result).day}`,
           // A person's reply is the team's (message-author.ts): the row does not say which member sent it.
+          // screen-word: "Your team" tells the owner's people from AI and the customer (docs/words.md, The voice 5)
           who: message.sender === "ai" ? "AI" : "Your team",
         };
       }

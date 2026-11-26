@@ -86,7 +86,11 @@ function visit(id: string, title: string, at: number, dayOffset: number): VisitD
   };
 }
 
-/** The people, as a small salon's front desk would see them on a Tuesday: two who need the owner, and the usual mix. */
+/**
+ * The people, as a small salon's front desk would see them on a Tuesday: two who need the owner, and the usual mix.
+ *
+ * screen-word: what made-up customers wrote, in their own voice, and no page imports this file
+ */
 function sampleRows(nowMs: number): PersonRowDto[] {
   const ago = (min: number) => new Date(nowMs - min * MIN_MS).toISOString();
   const calendar = (next: VisitDto | null, last: VisitDto | null): PersonVisitsDto => ({

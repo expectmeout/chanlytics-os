@@ -29,7 +29,7 @@ export function handoffChatWords(input: { hasEscalateWhen: boolean; pauseHours: 
     ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it`
     : `When ${HANDED_OVER_ANYWAY}, it`;
   const pause = heldFor(hardLimitsWords({ pause_hours: input.pauseHours }).hours);
-  return `${when} stops answering, the conversation turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
+  return `${when} stops answering, the conversation turns Needs you and alerts go out. It holds off for ${pause}, then answers again.`;
 }
 
 /**
@@ -39,7 +39,7 @@ export function handoffChatWords(input: { hasEscalateWhen: boolean; pauseHours: 
  */
 export function transferWords(hasHandoffNumber: boolean): string {
   return hasHandoffNumber
-    ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message."
+    ? "During opening hours it rings the number you gave and stays on until someone picks up. Otherwise it takes a message."
     : "No number yet, so it takes a message.";
 }
 

@@ -171,6 +171,9 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     entry: "picker-kit-none",
     bring: async (p) => {
       await p.getByTestId("picker-none-open").click();
+      // The keys go to what holds focus: typed before the list's field took it, they went nowhere and the empty line
+      // never drew (nightly kit runs 45726843993 and 45727213634, each green on a second try).
+      await met(p, () => !!document.activeElement?.matches(".rec-combo-pop .rec-combo-input"), null);
       await p.keyboard.type("Birthday");
     },
     ready: ".rec-combo-pop .rec-combo-empty:not(:empty)",
