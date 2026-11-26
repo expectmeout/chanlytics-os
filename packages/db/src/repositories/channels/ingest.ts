@@ -267,7 +267,7 @@ export async function getOrCreateContact(
     .eq("tenant_id", tenantId)
     .eq("id", created.contact_id)
     .single();
-  if (error || !data) throw new DbFailure(error ?? { message: "no answer" }, "get_or_create_contact reselect");
+  if (error) throw new DbFailure(error, "get_or_create_contact reselect");
   return data;
 }
 
@@ -394,16 +394,16 @@ async function threadOf(
     // indistinguishable, to the customer, from the person they are talking to.
     .select("id, paused_until, last_inbound_on_whatsapp")
     .single();
-  if (cErr || !conv) throw new Error(`resolve_outbound_target conversation: ${cErr?.message}`);
+  if (cErr) throw new DbFailure(cErr, "resolve_outbound_target conversation");
 
   return {
     contactId: contact.id,
     conversationId: conv.id,
     pausedUntil: conv.paused_until ?? null,
     waInboundAt: conv.last_inbound_on_whatsapp ?? null,
-    consent: contact.consent ?? null,
-    dnc: contact.dnc ?? false,
-    marketing_consent: contact.marketing_consent ?? null,
+    consent: contact.consent,
+    dnc: contact.dnc,
+    marketing_consent: contact.marketing_consent,
     consent_channels: contact.consent_channels ?? null,
     marketing_channels: contact.marketing_channels ?? null,
   };
@@ -554,7 +554,7 @@ export async function recordStatusByExternalId(
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
     throw new DbFailure(error, "record_status");
   }
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -636,7 +636,7 @@ export async function pauseConversation(
     });
     return false;
   }
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }

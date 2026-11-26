@@ -30,7 +30,7 @@ export async function recordActivation(
     dbLog().error("activation_read_failed", { tenant_id: tenantId, milestone, error: error.message });
     return false;
   }
-  if (data && data.length) return false;
+  if (data.length) return false;
   const result = await recordEvent(db, tenantId, "workspace.activated", "workspace", tenantId, { milestone, via });
   if (result.error)
     dbLog().error("emit_event_failed", { tenant_id: tenantId, kind: "workspace.activated", error: result.error });
@@ -64,7 +64,7 @@ export interface DeliveryRow {
 export async function relayEvents(db: Db, limit: number): Promise<number> {
   const { data, error } = await db.rpc("relay_events", { p_limit: limit });
   if (error) throw new DbFailure(error, "relay_events");
-  return data ?? 0;
+  return data;
 }
 
 /** The event a delivery is about; null when the ledger no longer holds it (the evidence purge, 00115). */
@@ -148,7 +148,7 @@ export async function failOpenDelivery(
     .eq("state", "scheduled")
     .select("event_id");
   if (error) throw new DbFailure(error, "event_deliveries");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**

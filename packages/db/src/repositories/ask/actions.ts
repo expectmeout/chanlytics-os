@@ -132,5 +132,5 @@ export async function listAskActions(db: Db, tenantId: TenantId, since: string, 
     if (isMissing(error)) return [];
     throw new DbFailure(error, "ask_actions");
   }
-  return data ?? [];
+  return data;
 }

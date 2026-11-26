@@ -57,7 +57,9 @@ export async function applyBilling(
   },
 ): Promise<boolean> {
   const row: Record<string, Json> = {};
-  for (const [k, v] of Object.entries(params.row)) if (v !== undefined) row[k] = v;
+  // A field left out may still be there as undefined: JSON leaves it out, so the row does too.
+  const fields: [string, Json | undefined][] = Object.entries(params.row);
+  for (const [k, v] of fields) if (v !== undefined) row[k] = v;
   const { data, error } = await db.rpc("billing_apply", {
     p_tenant_id: params.tenantId,
     p_row: row,

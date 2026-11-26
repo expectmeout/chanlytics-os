@@ -264,7 +264,7 @@ function peoplePorts(
     contacts: async (ids) => {
       const { data, error } = await listBatchPeople(db, tenantId, ids);
       if (error) throw new DbFailure(error, "broadcast_send: cannot read the people");
-      return new Map((data ?? []).map((c) => [c.id, c]));
+      return new Map(data.map((c) => [c.id, c]));
     },
     // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
     appointments: (keys) => getAppointmentStates(db, tenantId, keys),

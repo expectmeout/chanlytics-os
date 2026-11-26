@@ -125,14 +125,14 @@ export function dayWordIn(text: string): DayWord | null {
   const words = text.toLowerCase().split(/[^\p{L}]+/u);
   let near: "today" | "tomorrow" | null = null;
   let weekday: WeekdayKey | null = null;
-  words.forEach((w, i) => {
+  for (const [i, w] of words.entries()) {
     if (w === "mañana" || w === "manana") {
       if (words[i - 1] === "esta") near ??= "today";
       else if (words[i - 1] !== "la") near = "tomorrow";
     } else if (w === "tomorrow") near = "tomorrow";
     else if (w === "today" || w === "hoy") near ??= "today";
     else weekday ??= weekdayNamed(w);
-  });
+  }
   return near ?? weekday;
 }
 

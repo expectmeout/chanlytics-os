@@ -165,7 +165,7 @@ async function noteMailboxTrouble(
     logger().error("mailbox_trouble_not_marked", { tenant_id: tenantId, mailbox_id: mailboxId, error: error.message });
     return { mailbox: "failed" };
   }
-  return { mailbox: data && data.length > 0 ? "marked" : "gone" };
+  return { mailbox: data.length > 0 ? "marked" : "gone" };
 }
 
 /** How many fresh runs this job is already the result of. Absent reads as none. */
@@ -214,7 +214,7 @@ async function failBroadcast(
   if (error) return [{ what: "broadcast", changed: false, ...far, error: `${reason}; then ${error.message}` }];
   // No row means it finished by itself between the read and here, and there is
   // nothing to tell anyone about work that completed.
-  if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
+  if (!data.length) return [{ what: "broadcast", changed: false, ...far }];
   // On the ledger as every stopped run is (broadcast.stopped), best effort: never a reason this settlement throws.
   await emitEvent(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
     failure: "run_interrupted",

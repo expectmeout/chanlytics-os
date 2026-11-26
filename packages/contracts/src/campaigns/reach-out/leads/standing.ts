@@ -23,6 +23,7 @@ import {
   type ReachOutTimelineReadingDto,
   writtenWords,
 } from "./lines";
+import { entryOf } from "../../../shared/unknown";
 
 /**
  * The line under a lead's stage while a reach-out writes (H8), or null when the chain has done nothing with it. The
@@ -334,12 +335,12 @@ function leftOutWords(reachOutAdd: ReachOutAddDto): string[] {
   const named = reachOutAdd.leads.filter((l) => l.why === "elsewhere" && l.chain_name);
   const one = named.length === 1 ? named.at(0)?.chain_name : null;
   return Object.entries(reachOutAdd.left_out)
-    .filter(([, n]) => (n ?? 0) > 0)
-    .sort((x, y) => (y[1] ?? 0) - (x[1] ?? 0) || x[0].localeCompare(y[0]))
+    .filter(([, n]) => n > 0)
+    .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))
     .map(([why, n]) =>
       why === "elsewhere" && n === 1 && one
         ? `1 with “${one}”`
-        : `${n} ${REACH_OUT_WHY_NOT_WORDS[why as ReachOutWhyNot] ?? why}`,
+        : `${n} ${entryOf(REACH_OUT_WHY_NOT_WORDS, why) ?? why}`,
     );
 }
 
@@ -349,7 +350,7 @@ export function reachOutAddWords(
   chainName: string,
 ): { text: string; tone: "good" | "warn" | "plain" } {
   const joined = reachOutAdd.dry ? (reachOutAdd.would_add ?? 0) : reachOutAdd.added;
-  const left = Object.values(reachOutAdd.left_out).reduce<number>((n, x) => n + (x ?? 0), 0);
+  const left = Object.values(reachOutAdd.left_out).reduce<number>((n, x) => n + x, 0);
   const head =
     joined === 0
       ? `None can be added to “${chainName}”`

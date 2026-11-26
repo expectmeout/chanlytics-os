@@ -41,7 +41,7 @@ export function defaultSlotKinds(target: { name: string; variables: unknown }): 
     return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
   }
   return vars.map((v) =>
-    guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null),
+    guessSlotKind(typeof v.label === "string" ? v.label : null, typeof v.example === "string" ? v.example : null),
   );
 }
 
@@ -150,8 +150,8 @@ export function slotLabels(target: { name: string; language?: string | null; var
     if (vars.length === 0 || vars.length === labels.length) return labels;
   }
   return vars.map((v, i) => {
-    const label = typeof v?.label === "string" ? v.label.trim() : "";
-    const n = typeof v?.position === "number" ? v.position : i + 1;
+    const label = typeof v.label === "string" ? v.label.trim() : "";
+    const n = typeof v.position === "number" ? v.position : i + 1;
     return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
   });
 }

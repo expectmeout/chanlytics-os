@@ -7,7 +7,7 @@ import { planMinutes } from "./cards";
 import { LEAD_REACH_CHOICE_MILES, LEAD_REACH_MILE_M } from "./caps";
 import { type LeadArea, type LeadSearchPlan, US_STATES, reachOf } from "./plan";
 
-const isLowerLetter = (ch: string) => ch !== undefined && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+const isLowerLetter = (ch: string) => ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 /** Lowercases the first letter only when the second is itself lowercase, so an acronym ("CVS") keeps its own case. */
 export const lowerFirst = (text: string) =>
   text && isLowerLetter(text[1] ?? "") ? text.charAt(0).toLowerCase() + text.slice(1) : text;

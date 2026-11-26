@@ -43,7 +43,7 @@ export async function listWebPushOf(
     .in("user_id", [...users])
     .limit(max);
   if (error) throw new DbFailure(error, "reading who to tell");
-  return data ?? [];
+  return data;
 }
 
 /** The addresses a push service says have gone: forgotten here too. */

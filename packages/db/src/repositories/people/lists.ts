@@ -252,9 +252,9 @@ export async function addToList(
   contactIds: readonly ContactId[],
   userId: string,
 ): Promise<{ error: WriteError | null }> {
-  const rows = contactIds.map((contact_id) => ({
+  const rows = contactIds.map((contactId) => ({
     segment_id: list.id,
-    contact_id,
+    contact_id: contactId,
     tenant_id: list.tenant_id,
     added_by: userId,
   }));
@@ -315,7 +315,7 @@ export async function listPlaybooksOnList(
     if (missingColumn(error.message, "list_id")) return [];
     throw new DbFailure(error, "playbooks");
   }
-  return data ?? [];
+  return data;
 }
 
 /** A list and its member rows. `count` says whether anything was removed: a delete that removed nothing is no delete. */

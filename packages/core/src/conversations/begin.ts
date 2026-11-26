@@ -184,9 +184,9 @@ export async function beginConversation(ports: BeginPorts, cmd: BeginCommand): P
   // The message is queued and is the member's own, so the hold a reply takes is let go at once: what the person
   // writes back is the receptionist's to answer, by the workspace's own rules. A hand-back that fails never makes a
   // queued message read as one that failed: the thread stays the member's, and the receipt says so.
-  const handed_back = await handBack(ports.handBack, { conv: { ...conv, paused_until: null } }).then(
+  const handedBack = await handBack(ports.handBack, { conv: { ...conv, paused_until: null } }).then(
     () => true,
     () => false,
   );
-  return { ...receipt, conversation_id: conv.id, handed_back, ...noted };
+  return { ...receipt, conversation_id: conv.id, handed_back: handedBack, ...noted };
 }

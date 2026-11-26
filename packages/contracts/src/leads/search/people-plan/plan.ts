@@ -208,9 +208,9 @@ export function peoplePlanAsk(
   month: PeopleMonth | null,
 ): { count: number; label: string; covers: string | null } {
   const binds = !!month && month.left < plan.count;
-  const count = binds && month ? Math.max(0, month.left) : plan.count;
+  const count = binds ? Math.max(0, month.left) : plan.count;
   const label = count < 1 ? "No leads left this month" : `Find ${count} ${peopleNoun(plan, count)}`;
-  if (!binds || !month) return { count, label, covers: null };
+  if (!binds) return { count, label, covers: null };
   return {
     count,
     label,

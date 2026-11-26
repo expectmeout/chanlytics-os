@@ -153,7 +153,7 @@ export const heldByCheckWords = (held: number): string => `${plural(held, "email
  */
 export function okSendsNothing(sequenceNeeds: SequenceNeedsDto): boolean {
   const toLeads =
-    sequenceNeeds.batches.length > 0 && sequenceNeeds.batches.every((b) => b.audience?.kind === "reach_out");
+    sequenceNeeds.batches.length > 0 && sequenceNeeds.batches.every((b) => b.audience.kind === "reach_out");
   const ready = sequenceNeeds.batches.reduce((sum, b) => sum + b.people, 0);
   return toLeads && batchOkSendsNothing(ready, sequenceNeeds.held);
 }

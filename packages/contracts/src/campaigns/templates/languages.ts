@@ -174,13 +174,14 @@ export function templateLanguage(code: string | null | undefined): TemplateLangu
 export function languageName(code: string): string {
   const known = templateLanguage(code);
   if (known) return known.name;
-  const base = String(code ?? "").split(/[-_]/)[0];
+  const base = code.split(/[-_]/)[0];
   try {
     // A browser without Intl.DisplayNames throws here, and the catch says the code as it came.
     const name = base ? new Intl.DisplayNames(["en"], { type: "language" }).of(base) : undefined;
-    return name && name !== base ? name : String(code ?? "");
+    return name && name !== base ? name : code;
   } catch {
-    return String(code ?? "");
+    // No Intl.DisplayNames in this browser: the code as it came.
+    return code;
   }
 }
 
@@ -208,14 +209,8 @@ export function languageLabel(code: string): string {
  * beside "EN-GB" and a lone "EN" never carries a place nobody asked about.
  */
 export function languageTag(code: string, among: readonly string[] = []): string {
-  const [base = "", region = ""] = String(code ?? "").split(/[-_]/);
-  const clash = among.some(
-    (c) =>
-      keyOf(c) !== keyOf(code) &&
-      String(c ?? "")
-        .split(/[-_]/)[0]
-        ?.toLowerCase() === base.toLowerCase(),
-  );
+  const [base = "", region = ""] = code.split(/[-_]/);
+  const clash = among.some((c) => keyOf(c) !== keyOf(code) && c.split(/[-_]/)[0]?.toLowerCase() === base.toLowerCase());
   return clash && region ? `${base.toUpperCase()}-${region.toUpperCase()}` : base.toUpperCase();
 }
 
@@ -233,7 +228,7 @@ export function findLanguages<T extends TemplateLanguage>(
   query: string,
   list: readonly T[] = WHATSAPP_LANGUAGES as readonly T[],
 ): T[] {
-  const result = fold(String(query ?? "").trim()).replace(/-/g, "_");
+  const result = fold(query.trim()).replace(/-/g, "_");
   if (!result) return [...list];
   const scored: Array<{ l: T; score: number; at: number }> = [];
   list.forEach((line, at) => {

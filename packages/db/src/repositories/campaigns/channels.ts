@@ -110,7 +110,7 @@ export async function findPlaybookForChannels(
     .eq("state", "pending_approval")
     .limit(1);
   if (waiting.error) throw new DbFailure(waiting.error, "playbook_for_channels");
-  return { ...data, run_waits: (waiting.data ?? []).length > 0 };
+  return { ...data, run_waits: waiting.data.length > 0 };
 }
 
 type PlaybookRowOf = Database["public"]["Tables"]["sequence_steps"]["Row"];
@@ -166,7 +166,7 @@ export async function findPlaybookForChange(
     .eq("state", "pending_approval")
     .limit(1);
   if (waiting.error) throw new DbFailure(waiting.error, "playbook_for_change");
-  const [w] = waiting.data ?? [];
+  const [w] = waiting.data;
   // Its sequence's mode (decision 0064): what a change of it is judged against, and what a resume says.
   const mode = (await getSequenceModes(db, tenantId, [data.sequence_id])).get(data.sequence_id) ?? "ask";
   return { ...data, mode, waiting: w ? { id: w.id, recipient_count: w.recipient_count } : null };
@@ -186,7 +186,7 @@ export async function listRunningPlaybookIds(db: Db, tenantId: TenantId): Promis
     .eq("state", "running")
     .is("after_step_id", null);
   if (error) throw new DbFailure(error, "sequence_steps");
-  return (data ?? []).map((r) => r.id);
+  return data.map((r) => r.id);
 }
 
 export async function listRunningTwins(
@@ -208,7 +208,7 @@ export async function listRunningTwins(
     .eq("template_id", on.templateId);
   if (error) throw new DbFailure(error, "running_twins");
   // The same list, or none on both: a moment's playbooks name no list, a list's name exactly one of the two.
-  return (data ?? [])
+  return data
     .filter((p) => (p.list_id ?? null) === on.listId && (p.list_key ?? null) === on.listKey)
     .map((p) => ({ id: p.id, name: p.name }));
 }
@@ -231,7 +231,7 @@ export async function followUpOnFile(
     .eq("trigger", trigger)
     .limit(1);
   if (error) throw new DbFailure(error, "follow_up_on_file");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -286,7 +286,7 @@ export async function listQueuedRecipients(
     .limit(params.limit);
   if (error) throw new DbFailure(error, "queued_recipients");
   // A customer's send names its person (sequence_sends_someone).
-  return (data ?? []).flatMap((r) => (r.contact_id ? [{ ...r, contact_id: r.contact_id }] : []));
+  return data.flatMap((r) => (r.contact_id ? [{ ...r, contact_id: r.contact_id }] : []));
 }
 
 /**

@@ -166,7 +166,7 @@ export async function pageTheDomain(
         ? `Tenant ${run.tenantId}, broadcast ${run.id} stopped, everyone not yet sent still queued: ${how.cause}.`
         : `Tenant ${run.tenantId}, broadcast ${run.id}: its offers and news by email are skipped person by person while this lasts, and the run goes on for everyone else: ${how.cause}.`,
     )
-    ?.catch(logAndGoOn("paging the platform"));
+    .catch(logAndGoOn("paging the platform"));
 }
 
 /**

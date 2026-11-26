@@ -2,7 +2,7 @@
  * What connecting a mailbox says, on Cold email and on New, the two places a sequence to leads needs one. Apart from the
  * page's words, since a contracts module rides whole into every page that imports it. Its numbers are the ramp's.
  */
-import { MAILBOX_RAMP } from "../../email/mailbox-standing";
+import { MAILBOX_RAMP } from "../../../email/mailbox-standing";
 
 export const COLD_EMAIL_CONNECT_WORDS = {
   /** Where Google Workspace is got: a personal address's sheet and Not on Google Workspace? point there. */

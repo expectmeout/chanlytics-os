@@ -18,6 +18,6 @@ export async function wake(
     throw new AppError("conflict", "This conversation is not snoozed.", 409);
   if (!(await ports.wake(conv.id)))
     throw new AppError("conflict", "Couldn't wake this conversation. Reload and try again.", 409);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "wake", {});
-  return { state: "open", decision_id };
+  const decisionId = await ports.record(conv.tenant_id, "conversation", conv.id, "wake", {});
+  return { state: "open", decision_id: decisionId };
 }

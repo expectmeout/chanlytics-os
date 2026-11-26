@@ -123,13 +123,13 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
   const foreign: string[] = [];
   const dropped: CleanedEmails["dropped"] = [];
   for (const raw of emails) {
-    const fixed = String(raw ?? "")
+    const fixed = raw
       .trim()
       .replace(/^mailto:/i, "")
       .replace(/@www\./i, "@");
     const address = normalizeEmail(fixed);
     if (!address) {
-      dropped.push({ email: String(raw ?? ""), why: "malformed" });
+      dropped.push({ email: raw, why: "malformed" });
       continue;
     }
     if (seen.has(address)) {
