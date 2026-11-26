@@ -54,7 +54,7 @@ export const FOOTAGE_SETUP = {
     title: "Connect Google Drive",
     body: "Chanlytics opens only the folder you choose next. It never changes, moves or deletes a file in your Drive.",
     bodyPasted: "Chanlytics opens only the folder you pasted. It never changes, moves or deletes a file in your Drive.",
-    fine: "Google's own screen says “See and download all your Google Drive files”. That is how Google words it for any app that looks inside a folder.",
+    fine: "Google's screen says “See and download all your Google Drive files”: its words for any app that reads a folder.",
     press: "Connect",
     again: "Connect again",
     retry: "Try again",
@@ -119,7 +119,7 @@ export const FOOTAGE_SETUP = {
     inside: "Folders inside it too",
     first: "Comes in first",
     firstSaid: `The newest ${FOOTAGE_NUMBERS.firstItems} of the last ${FOOTAGE_NUMBERS.firstDays} days`,
-    fine: "New photos and videos come in by themselves, and AI watches each one. They are yours, so they go straight into the Library. Originals stay in Drive, untouched.",
+    fine: "New photos and videos come straight into the Library by themselves, and AI watches each one. Originals stay in Drive.",
     press: "Watch folder",
     another: "Choose another",
     starting: "Starting…",
@@ -159,9 +159,9 @@ export const FOOTAGE_SETUP = {
     title: "Disconnect Google Drive?",
     drops: "Chanlytics drops its access to your Drive right away. Nothing new comes in, and what came in stays.",
     away: (clips: number) =>
-      `${clipsAre(clips)} kept in Drive right now. After this ${clips === 1 ? "it" : "they"} can't be played here. ${clips === 1 ? "Its" : "Their"} pictures, sound and what AI wrote stay.`,
+      `${clipsAre(clips)} kept in Drive right now, and after this ${clips === 1 ? "it" : "they"} can't be played here. ${clips === 1 ? "Its" : "Their"} pictures, sound and what AI wrote stay.`,
     google:
-      "Google's own list of connected apps still shows Drive for Chanlytics while Gmail or your Business Profile is connected here.",
+      "Google's list of connected apps still shows Drive for Chanlytics while Gmail or your Business Profile is connected.",
     press: "Disconnect",
     keep: "Keep",
     done: "Google Drive is disconnected. What came in stays.",
@@ -182,5 +182,5 @@ export const FOOTAGE_SETUP = {
       `${removed === 1 ? "1 photo or video" : `${removed.toLocaleString("en-US")} photos and videos`} left your Library.`,
   },
   /** A press that did not go through, where the edge gave no words of its own. */
-  notDone: "That didn't go through. Nothing changed. Try again.",
+  notDone: "That didn't go through, and nothing changed. Try again.",
 } as const;

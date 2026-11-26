@@ -22,11 +22,9 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { frameDrawn, hearPartReady, installPageSpeed, type SpeedShell } from "@/client/page-speed";
+import { frameDrawn } from "@/client/page-speed";
 import { askOwnRoute } from "@/client/own-route";
 import { FIRST_RUN_ROUTE, LIFECYCLE_WORDS, MIN_MS, type Theme, type LookPref } from "@chanlytics/contracts";
-// The live feed's own entry: the package's index is the server's repositories, and reached the browser whole for this.
-import { authErrorInHash } from "@/auth/hash-error";
 import { paintThemeColor } from "./theme-color";
 import { FrameHead } from "@/surfaces/kit/head/frame-head";
 import { NewConversationHost } from "@/surfaces/inbox/new-conversation/host";
@@ -37,82 +35,25 @@ import "./manifest";
 // frame.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import { readIsOut, workspaceOverride, switchWorkspace } from "./surface-data";
+// What the frame installs as it loads, and the surfaces it reads (bridge/boot): after the manifest, as they always were.
+import { bootFrame } from "./boot/installs";
+import { FRAME_SURFACES } from "./boot/surfaces";
+import { switchWorkspace } from "./surface-data";
 import type { Workspace } from "./who";
-import { conversationsOverride } from "@/surfaces/inbox/conversations-surface";
-import { inboxOverride } from "@/surfaces/inbox/surface";
-import { todayOverride } from "@/surfaces/today/override";
-import { readTodaySoon } from "@/surfaces/today/first-draw-read";
-import { settingsOverride } from "./surfaces/settings";
-import { policiesNow } from "@/surfaces/settings/business/shell";
-import { channelsOverride } from "@/surfaces/channels/surface";
-import { peopleOverride } from "@/surfaces/people/surface";
-import { reportsOverride } from "@/surfaces/reports/surface";
-import { reportsHeadlineOverride } from "@/surfaces/reports/headline";
-import { reviewsOverride } from "@/surfaces/reports/reviews-surface";
-import { receptionistOverride } from "@/surfaces/reports/receptionist-surface";
-import { reportsPeopleOverride } from "@/surfaces/reports/people-surface";
-import { reportsCampaignsOverride } from "@/surfaces/reports/campaigns-surface";
 import { SURFACE_ROUTES } from "@/surfaces/routes";
-import { liveOverride } from "@/surfaces/live/surface";
-import { broadcastsOverride } from "@/surfaces/campaigns/broadcasts/surface";
-import { audiencesOverride } from "@/surfaces/campaigns/broadcasts/audiences-surface";
-import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
-import { warmCampaignsCode, warmCampaignsSoon } from "@/surfaces/campaigns/home/campaigns-code";
-import { campaignsOpensOn } from "@/surfaces/campaigns/home/opening";
-import { campaignsLensOpensOn } from "@/surfaces/reports/campaigns-one-code";
-import { warmSequenceRoute } from "@/surfaces/campaigns/sequences/verbs";
-import { calendarOverride } from "@/surfaces/calendar/surface";
-import { calendarRunsOverride, readRunsSoon } from "@/surfaces/calendar/runs-surface";
-import { todayPinsOverride } from "@/surfaces/today/pins-surface";
-import { askMorningOverride } from "@/surfaces/today/ask-morning-surface";
-import { replyDraftsOverride } from "@/surfaces/today/need-you/drafts-surface";
-import { askMemoryOverride } from "@/surfaces/settings/memory/surface";
-import { filesOverride } from "@/surfaces/files/surface";
-import { contentOverride } from "@/surfaces/campaigns/content/surface";
-import { weekOverride } from "@/surfaces/campaigns/content/week/surface";
-import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
   getSurfaceStatuses,
   isSurfaceReady,
-  markHydrated,
   onSurfaceStatusChange,
-  refreshSurfaces,
   startSurfaces,
 } from "./surface-runner";
 import { catchUpLiveFeed, joinLiveFeed } from "./hearing/live-feed";
-import { installFreshnessReports } from "./hearing/freshness";
-import { hydrateSurfaceCache } from "./surface-cache";
-import { hearSurfaces, surfaceHook } from "./surface-status";
-import { installInboxVerbs } from "./inbox-verbs";
-import { installPeopleCourier, personOverride, warmPersonOnScreen } from "@/surfaces/people/people-detail";
-import { settingsPaneOnScreen } from "@/surfaces/settings/frame/pane-reads";
-import { leadsOverride } from "@/surfaces/leads/override";
-import { installLeadMap } from "@/surfaces/leads/map/lead-map";
-import { installTabMemory } from "./tab-memory";
-import { installPolicyStore } from "./policy-store";
-import { installNotifications } from "./notifications";
-import { installAsk } from "./ask";
-import { installBroadcasts } from "@/surfaces/campaigns/broadcasts/verbs";
-import { installPlaybooks } from "@/surfaces/campaigns/playbooks/verbs";
-import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/override";
-import { sequencesOverride } from "@/surfaces/campaigns/sequences/surface";
-import { installReplies, repliesOverride } from "./reach-out/replies";
-import { installCalendar } from "@/surfaces/calendar/verbs";
-import { installArrival } from "./arrival";
-import { installAppBridge } from "./app-bridge";
-import { installSetup, setupOverride } from "@/surfaces/setup/override";
-import { googleOverride } from "./google";
-import { installBilling, billingOverride } from "@/surfaces/settings/billing/surface";
-import { alertsOverride } from "@/surfaces/settings/notifications/surface";
-import { partnerOverride } from "@/surfaces/settings/partner/surface";
-import { installIdentity } from "./identity";
+import { surfaceHook } from "./surface-status";
 import { fillDoors } from "../surfaces/frame-doors";
 import { ChanlyticsApp } from "@/surfaces/frame/app-shell";
-import { installFirstRows, useFirstRowsLetGo } from "@/surfaces/frame/first-rows";
-import { SURFACE_LABELS, installShell, publishShellStatus, shellStatusOf } from "./shell";
-import { installClock } from "./zone";
+import { useFirstRowsLetGo } from "@/surfaces/frame/first-rows";
+import { SURFACE_LABELS, publishShellStatus, shellStatusOf } from "./shell";
 // The handover, which the shell asks on every boot, is its own small module; the create screen is fetched as it is drawn.
 import { useHandoverAsk } from "./invitations/handover";
 import { codeOnce } from "@/lib/code-once";
@@ -121,8 +62,11 @@ import { FailedRead } from "@/surfaces/kit/empty/empty";
 import { JoinedNote } from "./invitations/joined-note";
 import { PRIMARY_PART, valueAt, vitalsPageOf } from "@chanlytics/contracts";
 import { whoIsLooking } from "./who";
-import { provide } from "./provided";
-import { publicEnv } from "@/lib/public-env";
+import { routeGateOpen, routePartsOf, routeSurfaces } from "./surface-registry";
+import { routeOnScreen } from "./workspace";
+import { pageDrawn } from "./hearing/page-waits";
+import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
+import { SeeOverMount } from "@/surfaces/see/see-mount";
 
 /**
  * The create screen as the frame draws it (FrameApp): for an account with no workspace yet, and from the workspace menu
@@ -145,101 +89,9 @@ function CreateWorkspace(props: ComponentProps<typeof import("./CreateWorkspace"
   );
 }
 
-// Before anything below asks for it: a boot is coming (workspace.ts bootComing), so what waits for the boot waits for the one
-// the runner starts in its effect, not for none.
-bootComing();
-// And the page on screen will say when it is drawn: what other pages read waits for that too (hearing/page-waits.ts). A
-// page with a first part (contracts PRIMARY_PART) is drawn once that part's rows are, the moment its READY is measured from:
-// its gate opened a beat before its rows were on the screen (the Calendar's board 0.15 s after its frame).
-drawComing();
-hearPartReady((page, part) => {
-  if (PRIMARY_PART[page] === part) pageDrawn();
-});
-// First: every page says a time by the workspace's clock (zone.ts), from the first paint.
-installClock();
-// What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
-installTabMemory();
-installInboxVerbs();
-installPeopleCourier();
-// The streets under the lead map, when the product hosts a basemap (surfaces/leads/map/lead-map.ts); unset, the page keeps its square.
-installLeadMap(publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE);
-// After the manifest (which seeds window.POLICY) and before React: the
-// approval chips and the matrix read the workspace's real modes from the
-// first paint, including from the cache.
-installPolicyStore(window, policiesNow);
-// The bell: fed by the rows the surfaces already hold, read state on this
-// device, and a system alert when something new needs the owner while the
-// app is in the background. Listens for the surface events, so it must be
-// installed before the first fetch resolves.
-installNotifications();
-installAsk();
-installBroadcasts();
-installPlaybooks();
-installReplies();
-installCalendar();
-// The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
-// On a phone the three take a page in as it arrives and notice what comes for you (arrival.ts).
-installArrival();
-// Inside the native shell the page speaks the bridge (app-bridge.ts): its route, its needs, the shell's asks.
-installAppBridge();
-installSetup();
-installBilling();
-installIdentity();
-installShell();
-// The installable shell's service worker (public/sw.js). It caches nothing
-// and answers nothing — the workspace is live data — and exists so a phone
-// can add the app to its home screen. Production only: a worker on a dev
-// origin outlives the dev server and confuses the next session.
-if (typeof window !== "undefined" && "serviceWorker" in navigator && publicEnv.productionBuild) {
-  navigator.serviceWorker.register("/sw.js").catch(() => {});
-}
-
-// Runs at module scope — AFTER the manifest has installed its seeds, and
-// BEFORE React renders anything. That ordering is the whole point: a refresh
-// paints real data from the previous visit instead of a frame of mockup
-// numbers that get corrected a moment later.
-markHydrated(hydrateSurfaceCache());
-// A tab opened on a person's page asks for them now, ahead of every surface's boot: the page is their read alone.
-warmPersonOnScreen();
-// And one opened on a pane of Settings, what that pane draws that is no surface (Team's partner, the log, the doors).
-settingsPaneOnScreen();
-
-/** A route as the registry reads it (surface-registry.ts routePartsOf): its page, and every word after it. */
-const routeParts = (route: string): [string, string | null] => {
-  const { page, param } = routePartsOf(route);
-  return [page, param];
-};
-
-/**
- * What the page's measures read of the shell (client/page-speed.ts, decision 0053): the address and its moves, the
- * surfaces a page is drawn from and whether each is read, and the gate the frame draws by.
- */
-const speedShell: SpeedShell = {
-  route: () => routeOnScreen(),
-  hearRoute: (fn) => hearAddress(fn),
-  hearAsked: onRouteAsked,
-  surfacesOf: (route) => routeSurfaces(...routeParts(route)),
-  ownSurface: (route) => routeSurfaceFor(...routeParts(route)),
-  isRead: (key) => getSurfaceStatuses().has(key),
-  isReady: isSurfaceReady,
-  gateOpen: (route) => routeGateOpen(...routeParts(route)),
-  hearSurfaces: onSurfaceStatusChange,
-};
-// Where each page's time goes: the document's visit begins at its start, and each move of the address from the press
-// that asked for it. After the cache has been restored, so a page drawn from it is said to have drawn held rows; on a
-// workspace's page alone (the home sends the tab on). Only a deployed build reports: a production build run on a laptop
-// has no commit ("dev") and would file its numbers beside the people's.
-if (getActiveWorkspace()) {
-  installPageSpeed(speedShell, {
-    build: publicEnv.NEXT_PUBLIC_BUILD_SHA,
-    report: publicEnv.productionBuild && publicEnv.NEXT_PUBLIC_BUILD_SHA !== "dev",
-  });
-  // What the tab could not hear or read goes beside its page speed (hearing/freshness.ts; the page-open PRD, L7).
-  installFreshnessReports();
-  // A phone's screen kept as it is put away, for the next visit's first paint, and what stands of the last let go in time
-  // (surfaces/frame/first-rows.ts).
-  installFirstRows();
-}
+// The boot (bridge/boot/installs.ts): every part the frame installs, the cache restored and the route gate and the
+// registry made, in the order each needs, before React draws anything.
+bootFrame();
 
 /** How often a tab asks which build the site runs, beside every return to it and every return online. */
 const VERSION_CHECK_MS = 15 * MIN_MS;
@@ -250,196 +102,8 @@ const VERSION_CHECK_MS = 15 * MIN_MS;
 // read's, which no page waits on to mount (X6-1).
 const REQUIRED = ["CHANLY", "POLICY"] as const;
 
-// leadsOverride rides beside peopleOverride: Leads is the other scope of that page.
-const SURFACES = [
-  workspaceOverride,
-  conversationsOverride,
-  inboxOverride,
-  todayOverride,
-  settingsOverride,
-  // The channels the workspace is reached on, read once for Connections, the Library, Live and the composers (surfaces/channels).
-  channelsOverride,
-  peopleOverride,
-  leadsOverride,
-  reportsOverride,
-  // Today's week line and Ask found's leaks: one small read of the period Reports shows (surfaces/reports/headline.ts).
-  reportsHeadlineOverride,
-  // The Reviews lens's own read, folded once: its figures, its cards and its head (surfaces/reports/reviews-surface.ts).
-  reviewsOverride,
-  // The Receptionist lens's own read, as the route gave it: the page folds it (surfaces/reports/receptionist-surface.ts).
-  receptionistOverride,
-  // The People lens's own read, as the route gave it: the page folds it (surfaces/reports/people-surface.ts).
-  reportsPeopleOverride,
-  // The Campaigns lens's own reads, each as its route gave it: the page folds them (surfaces/reports/campaigns-surface.ts).
-  reportsCampaignsOverride,
-  liveOverride,
-  broadcastsOverride,
-  playbooksOverride,
-  // Who each audience a broadcast offers reaches, read where a composer is drawn (surfaces/campaigns/broadcasts/audiences-surface.ts).
-  audiencesOverride,
-  // A reach-out's chains and their emails (Part 4 PR 8): Playbooks' rows and Templates' email rows.
-  reachOutsOverride,
-  // Campaigns › Sequences (decision 0060): its list, read where its view is drawn (surfaces/campaigns/sequences/surface.ts).
-  sequencesOverride,
-  repliesOverride,
-  // The partner's account (0012): on the person, read once, beside the rest.
-  partnerOverride,
-  // What reaches this member's phones: read where Settings › Notifications is drawn (ROUTE_DRAWS).
-  alertsOverride,
-  // Campaigns over the Calendar's days, read where the Calendar draws them (surfaces/calendar/runs-surface.ts).
-  calendarRunsOverride,
-  // The counts of the lists pinned to Today, read where Today draws them (surfaces/today/pins-surface.ts; R10).
-  todayPinsOverride,
-  // Ask's morning, read where Today draws its ideas in Need you, and what Ask remembers, where Settings › Memory is drawn (decision 0070).
-  askMorningOverride,
-  askMemoryOverride,
-  filesOverride,
-  // What Ask made, read where Campaigns › Content is drawn (surfaces/campaigns/content/surface.ts).
-  contentOverride,
-  // The Week, read where it or Settings › Content is drawn (surfaces/campaigns/content/week/surface.ts).
-  weekOverride,
-  // The drafts Ask kept for the rows of Need you, read with Today's own first reads (surfaces/today/need-you/drafts-surface.ts).
-  replyDraftsOverride,
-  calendarOverride,
-  notificationsOverride,
-  setupOverride,
-  googleOverride,
-  billingOverride,
-  // A person's page: the one person on screen, read again when what the page draws of them changes (people-detail.ts).
-  personOverride,
-];
-/**
- * Each surface's own signal (surface-status.ts): its events counted against its key, before React draws anything. The
- * pages redraw on it through `useSurface` (seed-globals.ts), and this component on the workspace's.
- */
-hearSurfaces(SURFACES);
+/** The workspace's own surface, which FrameApp draws again on (surface-status.ts surfaceHook): the pages hear their own. */
 const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
-// What a page draws and has not read is read once as it comes on screen (surface-registry.ts readWhatWasMissed): a surface that
-// let a message pass while its page was elsewhere (onlyOnItsPage) or that a pass left for its page (keepForItsPage), and one read
-// only where it is drawn (onDemand) that was never read or has aged. One of those whose read is out already (the press's reach
-// started it, warmWhatItDraws below) takes that read: queued behind it, a second read the same rows again, and the page drew
-// them twice (Ruben, 12 Nov 2026: Content "refreshed" as it was pressed, where Sequences and Messages did not).
-readWhatWasMissed(
-  SURFACES,
-  (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key) && !(o.onDemand && readIsOut(o)))),
-);
-// And one somebody is reaching for (a pointer at its row, the phone's drawer opening) reads the same now, so the press finds
-// it in or on its way (surface-registry.ts warmWhatItDraws): Reports, which no other page's boot reads. Its code too, where
-// the page is a chunk of its own the boot does not carry: Campaigns' Sequences, its sheets and the Library's pane
-// (campaigns-code.tsx). And a sequence's record, which its row under the pointer reads as People's rows read a person.
-const warmItsReads = warmWhatItDraws(
-  SURFACES,
-  (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key))),
-);
-onRouteReachedFor((route) => {
-  warmItsReads(route);
-  warmCampaignsCode(route);
-  warmSequenceRoute(route);
-});
-// Campaigns, reached for once the frame is idle: a door on every page whose list the boot does not read and whose code it
-// does not carry, so the first press finds its page, its list and its code in, as the Inbox's are.
-warmCampaignsSoon(reachFor);
-// The Calendar's campaigns, read off the Calendar once its page has its own reads, so they come in with its weeks, which
-// every boot reads: its rows of campaigns came half a second after its meetings and pushed them down (runs-surface.ts readRunsSoon).
-// The read alone, not the reach: the Calendar's code is a press's to fetch.
-readRunsSoon(() => void refreshSurfaces([calendarRunsOverride]));
-// And what Today's first draw waits for that no other page reads (Google's reviews, the drafts kept for its rows, the
-// period's headline, its cards' own reads), off Today once its page has its own reads, so a press to Today draws at once
-// (today/first-draw-read.ts readTodaySoon). Its read is out already where a press began it: that one is taken.
-readTodaySoon(
-  (keys) => void refreshSurfaces(SURFACES.filter((o) => keys.includes(o.key) && !(o.onDemand && readIsOut(o)))),
-);
-// The page the address opens as it loads, where it is Campaigns: its code fetched now, beside the frame's own, not once the
-// page has drawn and asked for it; and a sequence's record, the reads the document's head started for it, taken into the
-// record's caches now. The record mounts only once Sequences' chunk is in, after the boot's first pass has let go of what
-// the head started and nobody took (api.ts dropPrefetched), and it asked for both again (19 Oct 2026, a local build:
-// started at 44 ms, asked again at 976 and 1,260).
-if (typeof window !== "undefined") {
-  const opened = routeOnScreen();
-  warmCampaignsCode(opened);
-  // And the view it opens on, Sequences or another, its first draw held for its code (campaigns/home/opening.ts).
-  campaignsOpensOn(opened);
-  // And Reports' Campaigns lens, whose scope's row is a chunk of its own (reports/campaigns-one-code.ts).
-  campaignsLensOpensOn(opened);
-  warmSequenceRoute(opened);
-}
-
-// Which flipped surface backs each route, and which routes are real at all —
-// both live in surface-registry.ts so the classification and the wiring cannot
-// drift apart. Routes absent from ROUTE_SURFACE are seeded by design and are
-// always "ready" — the registry decides separately whether they may RENDER.
-import {
-  installRouteGate,
-  installSurfaceRegistry,
-  readWhatWasMissed,
-  routeGateOpen,
-  routePartsOf,
-  routeSurfaceFor,
-  routeSurfaces,
-  warmWhatItDraws,
-} from "./surface-registry";
-import {
-  bootComing,
-  getActiveWorkspace,
-  hearAddress,
-  onRouteAsked,
-  onRouteReachedFor,
-  reachFor,
-  routeOnScreen,
-} from "./workspace";
-import { drawComing, pageDrawn } from "./hearing/page-waits";
-import { LeadOverMount } from "@/surfaces/leads/sheet/over-mount";
-import { SeeOverMount } from "@/surfaces/see/see-mount";
-import { pageReport } from "@/client/page-report";
-
-/**
- * The shell's route gate, installed at MODULE SCOPE — not in an effect.
- *
- * surfaces/frame/shell-hooks.ts computes `routeLoading`'s INITIAL state during its first
- * render, and it is a child of this component: children render before parent
- * effects run, so a gate installed in one was undefined at the only moment it
- * mattered (surface-registry.ts installRouteGate, which says what that painted).
- */
-installRouteGate();
-/**
- * A page's Retry: re-read ONE surface through the runner, by its key, so the
- * cache, the status and the pill agree with what is on screen. The pages'
- * FailedRead presses this; a whole-page reload was the Team card's way.
- */
-function installSurfaceRefresh(): void {
-  provide("refreshSurface", async (key) => {
-    const o = SURFACES.find((s) => s.key === key);
-    if (o) await refreshSurfaces([o]);
-  });
-}
-installSurfaceRefresh();
-/**
- * A refused sign-in is not a route.
- *
- * Supabase returns a failed provider sign-in in the URL fragment, and the
- * browser carries it through the callback's redirect AND through the
- * middleware's bounce off /login when the person does have a session. It
- * arrives here. The shell once read it as a route and drew `No surface at
- * "error=server_error&error_code=..."` -- a sign-in failure wearing a routing
- * error's clothes. A route always begins "#/" now (contracts routeOfHash), so
- * the address cannot mistake it, and it is still taken out of the address so
- * nothing else reads it.
- *
- * Module scope for the same reason as the route gate above: anything that
- * runs in an effect is already too late, and the page would draw with the
- * fragment in its address for a frame. Replaced rather than pushed, because
- * that address is not somewhere to go Back to.
- */
-function installAuthHashScrub(): void {
-  const refused = authErrorInHash(window.location.hash);
-  if (!refused) return;
-  pageReport.warn("oauth_provider_refused", JSON.stringify(refused));
-  window.history.replaceState(null, "", window.location.pathname + window.location.search);
-}
-installAuthHashScrub();
-// Same ordering argument as the route gate: the shell decides real-vs-demo
-// during its FIRST render, so the classification must exist before React does.
-installSurfaceRegistry();
 
 /**
  * This browser's storage, where this device's preferences are kept (device-prefs.ts), looked up at each read and
@@ -498,7 +162,7 @@ const useRouteMoved = surfaceHook({ useCallback, useSyncExternalStore }, routeSu
  * a gate opened by one alone drew the page and said nothing (the Settings load lane, 28 Oct 2026).
  */
 function SpeedFrame({ route }: { route: string | null }) {
-  const [page, param] = routeParts(route ?? routeOnScreen());
+  const { page, param } = routePartsOf(route ?? routeOnScreen());
   useRouteMoved({ page, param });
   const [, statusMoved] = useState(0);
   useEffect(() => onSurfaceStatusChange(() => statusMoved((n) => n + 1)), []);
@@ -622,7 +286,7 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
   // Surface flips: one runner owns retries, realtime, debounce, and status. A status that changed, or the connection,
   // is the line's to say; it draws nothing here.
   useEffect(() => {
-    const stop = startSurfaces(SURFACES, joinLiveFeed, catchUpLiveFeed);
+    const stop = startSurfaces(FRAME_SURFACES, joinLiveFeed, catchUpLiveFeed);
     const off = onSurfaceStatusChange(publishStatus);
     return () => {
       stop();

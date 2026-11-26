@@ -181,7 +181,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   post_stopped: {
     ends: "news",
-    why: "A post that did not go is told once; Content's Needs you holds it, with why, until it is sent again or let go.",
+    why: "A post that did not go is told once. Content's Needs you holds it, with why, until it is sent again or let go.",
   },
   post_down: {
     ends: "news",
@@ -203,7 +203,7 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
   },
   ad_account: {
     ends: "news",
-    why: "An ad account signed out by its platform, or one it cannot charge, is told once when it turns. Campaigns › Ads and the account's card say it for as long as it lasts, with the one thing to do.",
+    why: "An ad account that's signed out or can't be charged is told once. Campaigns › Ads says so while it lasts.",
   },
   // Closed by the database itself the moment it is mended (00657 media_sources_ring, source_connections_ring,
   // source_items_ring_full): connected again, the folder readable again, the second look settled, room made, or let go.
