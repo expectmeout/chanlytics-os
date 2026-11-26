@@ -107,6 +107,7 @@ export {
   VOICE_SHELL_PROMPT,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
+  wordsTableOf,
 } from "./shell/tools";
 export type { LiveVoiceLlm, RetellTool, VoiceConvergencePlan, VoiceShellTarget } from "./shell/tools";
 export { webCallBody, webCallMadeOf } from "./web-call";

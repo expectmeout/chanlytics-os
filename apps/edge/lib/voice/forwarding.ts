@@ -21,13 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
-import {
-  FIRST_RUN_ROUTE,
-  forwardingMatch,
-  forwardingProof,
-  formatPhoneDisplay,
-  type ForwardingFacts,
-} from "@chanlytics/contracts";
+import { FIRST_RUN_ROUTE, forwardingMatch, forwardingProof, formatPhoneDisplay } from "@chanlytics/contracts";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { logger, errField } from "../shared/log.js";
 import { listLinesAwaitingForwarding, saveForwardingVerified } from "@chanlytics/db/lines";
@@ -55,9 +49,7 @@ export async function markForwardingVerified(
     if (error || !data.length) return false;
     const now = new Date().toISOString();
     for (const row of data) {
-      const facts = (
-        row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : {}
-      ) as ForwardingFacts & Record<string, unknown>;
+      const facts = row.facts && typeof row.facts === "object" && !Array.isArray(row.facts) ? row.facts : {};
       if (!forwardingMatch(facts, call)) continue;
       const proof = forwardingProof(row.e164, call.diverted ?? null);
       log.info("forwarding_evidence", {

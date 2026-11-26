@@ -1,9 +1,9 @@
 /** Activity: words. */
 
 import { LEAD_ENDING_WORDS } from "../../leads/search/endings";
-import type { LeadRoundEnding } from "../../leads/search/sets";
 import { WHOLE_SENTENCE, humanize, numberAt, settingsChangedWords, textAt } from "./kinds";
 import { WORDS } from "./dtos";
+import { entryOf, recordOrEmpty } from "../../shared/unknown";
 
 /**
  * What an export took: the workspace's file is its records, and says what it leaves out (contracts EXPORT_OF; the wiring's
@@ -112,7 +112,8 @@ function leadRoundBits(item: ActivityItem): string[] {
       : [];
   const bits = ["finished"];
   const ending = textAt(item, "ending");
-  if (ending && ending in LEAD_ENDING_WORDS) bits.push(LEAD_ENDING_WORDS[ending as LeadRoundEnding]);
+  const endingWords = entryOf(LEAD_ENDING_WORDS, ending);
+  if (endingWords) bits.push(endingWords);
   const counted = numberAt(item, "counted");
   if (counted !== null) bits.push(`${counted} found`);
   return bits;
@@ -179,10 +180,7 @@ const ACTIVITY_BITS: ReadonlyMap<string, (item: ActivityItem) => string[]> = new
  * reader wants and nothing else of the payload.
  */
 export function activityWords(kind: string, payload: unknown): string {
-  const item = (payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {}) as Record<
-    string,
-    unknown
-  >;
+  const item = recordOrEmpty(payload);
   const base = baseWords(kind, item);
   // A kind whose sentence is its own, not the kind's words and a field or two.
   const whole = WHOLE_SENTENCE.get(kind);
