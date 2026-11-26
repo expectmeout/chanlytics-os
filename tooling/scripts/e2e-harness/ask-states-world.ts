@@ -14,9 +14,9 @@ import {
   answerText,
   planGroupOf,
   type AskAnswer,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskProposal,
-  type AskThreadVM,
+  type AskThreadDto,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import { askPalette } from "@/bridge/ask/palette";
@@ -31,7 +31,7 @@ export interface AskSeed {
 /** The moment every message of the page is stamped with: an hour before the clock the recorder stands the page at. */
 const AT_MS = Date.UTC(2026, 8, 28, 19, 2, 0);
 
-const message = (id: string, role: "user" | "assistant", said: string, more: Partial<AskMessageVM> = {}) =>
+const message = (id: string, role: "user" | "assistant", said: string, more: Partial<AskMessageDto> = {}) =>
   ({
     id,
     role,
@@ -48,7 +48,7 @@ const message = (id: string, role: "user" | "assistant", said: string, more: Par
     latency_ms: null,
     failed: false,
     ...more,
-  }) as AskMessageVM;
+  }) as AskMessageDto;
 
 const source = (label: string, to: string, kind = "person", door = true) => ({ label, kind, to, door });
 
@@ -198,7 +198,7 @@ const longer = Array.from({ length: 6 }, (_, k) => [
   message(`a-${k}`, "assistant", "", answered({ headline: `Answer ${k + 1}, in a line of its own.` })),
 ]).flat();
 
-const thread = (id: string, title: string, messages: AskMessageVM[]) => ({
+const thread = (id: string, title: string, messages: AskMessageDto[]) => ({
   thread: { id, title, scope: null, last_at_ms: AT_MS, createdAtMs: AT_MS },
   messages,
 });
@@ -217,7 +217,7 @@ const THREADS = {
     message("a-3", "assistant", "", { ...receipt, proposals: DECIDED }),
   ]),
   "th-long": thread("th-long", "This week", longer),
-} as Record<string, { thread: AskThreadVM; messages: AskMessageVM[] }>;
+} as Record<string, { thread: AskThreadDto; messages: AskMessageDto[] }>;
 
 const LISTED = Object.values(THREADS).map((t) => t.thread);
 

@@ -111,12 +111,6 @@ export function runReachDto(kept: RunReach | RunReachDto): RunReachDto {
 /** Who a broadcast is for, as the wire says it: its run's reach in the wire's names. */
 export type AudienceDto = Omit<Audience, "reach"> & { reach?: RunReachDto };
 
-/** A broadcast's audience as it is kept, said as the wire says it (`runReachDto`). */
-export function audienceDto(kept: Audience): AudienceDto {
-  const { reach, ...rest } = kept;
-  return reach ? { ...rest, reach: runReachDto(reach) } : rest;
-}
-
 /** The moment a run's audience names, or null for a broadcast and a run that kept none (`Audience.trigger`). */
 export function audienceTrigger(audience: unknown): string | null {
   const t = audience && typeof audience === "object" ? valueAt(audience, "trigger") : null;

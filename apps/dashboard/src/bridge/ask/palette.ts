@@ -34,7 +34,7 @@ import {
   videoPreviewOf,
   type AskAnswer,
   type AskLanguage,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskOpeningsView,
   type AskScope,
   type AskSuggestion,
@@ -276,7 +276,7 @@ export function askPalette(win: Window, storage: Storage | null) {
     intent: (question: string) => askIntent(question, Date.now(), timezone()),
     callsToday: () => callsToday(calls(), Date.now(), timezone()),
     /** What an answer shows, decided once: the Line's answer (plan 3) or today's read back, with one door per place. */
-    answer: (m: AskMessageVM): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
+    answer: (m: AskMessageDto): { answer: AskAnswer; cardOpen: Record<string, boolean> } =>
       // A card's Open is its spec's, which the Line has fetched before it draws an answer (line.tsx).
       oneDoor(
         m.answer ?? answerFromV1(m),
@@ -307,7 +307,7 @@ export function askPalette(win: Window, storage: Storage | null) {
      * A turn the person stopped, as the Line draws it the moment Stop is pressed: what its Say had written under the
      * words that say it stopped, the answer the server keeps on the thread (contracts stoppedAnswer).
      */
-    stoppedTurn: (said: { headline: string; detail: string } | null, lang?: AskLanguage): AskMessageVM => {
+    stoppedTurn: (said: { headline: string; detail: string } | null, lang?: AskLanguage): AskMessageDto => {
       const answer = stoppedAnswer(said, lang ?? lastLanguage());
       const at = new Date();
       return {

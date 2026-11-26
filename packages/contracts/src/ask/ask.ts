@@ -15,7 +15,7 @@ import { UUID } from "../shared/identity";
 /** The most files one question goes with. */
 export const ASK_ATTACHED_MAX = 10;
 
-export interface AskThreadVM {
+export interface AskThreadDto {
   id: string;
   title: string;
   last_at_ms: number;

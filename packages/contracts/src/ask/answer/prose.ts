@@ -1,6 +1,6 @@
 /** Answer: prose. */
 
-import { ASK_CAPS, type AskMessageVM } from "../thread-words";
+import { ASK_CAPS, type AskMessageDto } from "../thread-words";
 import { answerText, cleanAnswer } from "../answer-text";
 import type { AskLanguage } from "../language";
 import { noList, structured, type AskAnswer, type AskSource } from "./shape";
@@ -32,9 +32,9 @@ export function proseAnswer(text: string, language: AskLanguage): AskAnswer {
  */
 export function v1FromAnswer(
   askAnswer: AskAnswer,
-): Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups"> {
+): Pick<AskMessageDto, "text" | "citations" | "navigate" | "followups"> {
   const seen = new Set<string>();
-  const citations: AskMessageVM["citations"] = [];
+  const citations: AskMessageDto["citations"] = [];
   const add = (s: AskSource | null) => {
     if (!s || seen.has(`${s.kind}:${s.id}`)) return;
     seen.add(`${s.kind}:${s.id}`);

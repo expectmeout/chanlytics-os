@@ -383,7 +383,7 @@ export const BUILT = {
   warm: "hit",
 };
 
-/** A page context as the tab sends it (contracts PageContext). */
+/** A page context as the tab sends it (contracts PageContextDto). */
 export const PAGE = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], asked_at: 1 };
 
 export const ports = (round, extra = {}) => ({

@@ -17,7 +17,7 @@ import {
   listOrEmpty,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
-import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
+import type { AskColumn, AskMessageDto, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
 import { oneLine } from "../context/rows";
 import { AD_SCOPE_LINE, CONTENT_LINE, adsLine } from "../prompt-rules";
 import type { WorkspaceFacts } from "./stable-system";
@@ -61,7 +61,7 @@ interface TurnFacts {
   timezone: string;
   closures: WorkspaceFacts["closures"];
   now?: Date;
-  /** The view the page says it is set to (PageContext.view): a word of the tab's, which picks a line and is believed for nothing else. */
+  /** The view the page says it is set to (PageContextDto.view): a word of the tab's, which picks a line and is believed for nothing else. */
   pageView?: string | null;
   /** The page's data rode in before these words (context.ts). */
   context?: boolean;
@@ -85,7 +85,7 @@ interface TurnFacts {
    */
   replayedAt?: readonly number[];
   /**
-   * The row their words point at, as the tab read them (PageContext.focus, the Phase 5 plan, D7): an earlier answer's
+   * The row their words point at, as the tab read them (PageContextDto.focus, the Phase 5 plan, D7): an earlier answer's
    * item by its place in an open thread, or the page's row by its place or its name; said when it is not the scope.
    */
   focus?: AskScope | null;
@@ -374,7 +374,7 @@ const listLine = (name: string, parts: string[], more: number): string =>
  * no room for goes whole into "and N more", so an id is never cut. An answer of words alone, one line of 160 characters
  * at most, is the words as they were.
  */
-export function answerLine(askMessage: AskMessageVM, max: number): string {
+export function answerLine(askMessage: AskMessageDto, max: number): string {
   const answer = askMessage.answer ?? answerFromV1(askMessage);
   const cards = askMessage.proposals
     .slice(0, LINE_CAPS.cards)

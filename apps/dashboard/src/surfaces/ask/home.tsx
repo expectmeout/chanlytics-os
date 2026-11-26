@@ -12,7 +12,7 @@ import {
   type AskScope,
   type AskSuggestion,
   type AskSurface,
-  type AskThreadVM,
+  type AskThreadDto,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import type { FrameFlash } from "../frame-verbs";
@@ -30,7 +30,7 @@ export interface LineRow {
   meta?: string;
   q?: string;
   to?: string;
-  th?: AskThreadVM;
+  th?: AskThreadDto;
   compose?: boolean;
   following?: string;
   /** What Ask noticed, by its key: the row Not now rests a week. */
@@ -56,7 +56,7 @@ interface LineRowsAsk {
   query: string;
   surface: AskSurface;
   scope: AskScope | null;
-  threads: AskThreadVM[];
+  threads: AskThreadDto[];
   view: string;
   /** The page's own questions (ownAsksOf), read once by the Line for the rows and for the home's title. */
   own: readonly AskSuggestion[];
@@ -154,7 +154,7 @@ export const buildLineRows = ({
 }: LineRowsAsk): LineSection[] => {
   const q = query.trim();
   // A conversation is one 36px line: its question, and its time at the right (spec 4.3).
-  const thread = (th: AskThreadVM): LineRow => ({ type: "thread", label: th.title, meta: ahAgo(th.last_at_ms), th });
+  const thread = (th: AskThreadDto): LineRow => ({ type: "thread", label: th.title, meta: ahAgo(th.last_at_ms), th });
   // Earlier: every conversation, or the ones whose question has the words typed.
   if (view === "earlier") {
     const list = q ? threads.filter((th) => th.title.toLowerCase().includes(q.toLowerCase())) : threads;
@@ -275,7 +275,7 @@ export const AskNowPills = ({
  */
 function rowEnd(
   it: LineRow,
-  { t, onRest, onDelete }: { t: LineWords; onRest?: (key: string) => void; onDelete: (th: AskThreadVM) => void },
+  { t, onRest, onDelete }: { t: LineWords; onRest?: (key: string) => void; onDelete: (th: AskThreadDto) => void },
 ) {
   const rest = it.rest;
   const th = it.th;
@@ -321,7 +321,7 @@ export const AskRows = ({
   sel: number;
   setSel: (i: number) => void;
   onActivate: (it: LineRow) => void;
-  onDelete: (th: AskThreadVM) => void;
+  onDelete: (th: AskThreadDto) => void;
   /** Not now, on what Ask noticed: it rests a week. */
   onRest?: (key: string) => void;
   t: LineWords;

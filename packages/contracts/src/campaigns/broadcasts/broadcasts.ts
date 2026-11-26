@@ -32,7 +32,6 @@ export {
   audienceMembers,
   audiencePreview,
   audienceTrigger,
-  audienceDto,
   runReachDto,
 } from "./audience";
 

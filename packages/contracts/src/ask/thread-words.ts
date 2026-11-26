@@ -346,7 +346,7 @@ export function askCardLapsed(askProposal: Pick<AskProposal, "made_at" | "plan">
   return Number.isFinite(created) && nowMs - created > (askProposal.plan ? ASK_PLAN_FRESH_MS : ASK_CARD_FRESH_MS);
 }
 
-export interface AskMessageVM {
+export interface AskMessageDto {
   id: string;
   role: AskRole;
   text: string;

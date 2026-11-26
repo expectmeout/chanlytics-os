@@ -5,7 +5,7 @@
  * waiting in a thread as the model is told it. Derived here once, for the Line that draws the card, the route that saves
  * the turn and the turn that is told it. Pure, and read in the browser.
  */
-import type { AskCardSheet, AskMessageVM, AskProposal, AskProposalOutcome } from "../../ask/thread-words";
+import type { AskCardSheet, AskMessageDto, AskProposal, AskProposalOutcome } from "../../ask/thread-words";
 import { rec } from "../../ask/proposals/spec";
 import type { LeadPlanFacts } from "../dtos";
 import { leadPlanAsk, leadPlanFactLine } from "../plan";
@@ -172,7 +172,7 @@ export const replacedOutcome = (atMs: number): AskProposalOutcome => ({
  * change said to Ask made a second card while the first could still start its own search).
  */
 export function searchCardsReplaced(
-  earlier: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>,
+  earlier: ReadonlyArray<Pick<AskMessageDto, "id" | "proposals">>,
   created: ReadonlyArray<Pick<AskProposal, "kind" | "payload" | "plan">>,
 ): Array<{ messageId: string; proposalId: string }> {
   const search = created.some(startsSearch);
@@ -223,7 +223,7 @@ function subjectOf(p: Pick<AskProposal, "kind" | "payload">): string | null {
  * however it was changed in Ask before it started (the ideas' own measure of whether they are followed, 00398).
  */
 export function withIdeaCarried<P extends Pick<AskProposal, "kind" | "payload" | "plan">>(
-  earlier: ReadonlyArray<Pick<AskMessageVM, "proposals">>,
+  earlier: ReadonlyArray<Pick<AskMessageDto, "proposals">>,
   created: readonly P[],
 ): P[] {
   const fromIdea = earlier.some((m) =>
@@ -238,7 +238,7 @@ export function withIdeaCarried<P extends Pick<AskProposal, "kind" | "payload" |
 }
 
 /** A conversation's turns with the answer that landed after them, the cards it replaced set aside (searchCardsReplaced). */
-export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals">>(
+export function withAnswerLanded<M extends Pick<AskMessageDto, "id" | "proposals">>(
   messages: readonly M[],
   landed: M,
   atMs: number,
@@ -246,7 +246,7 @@ export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals"
   const gone = new Set(searchCardsReplaced(messages, landed.proposals ?? []).map((r) => r.proposalId));
   // What this turn pressed on a yes (D18 of the answers canvas) is drawn on its own card, up the thread.
   const pressed = new Map(
-    ((landed as { pressed?: AskMessageVM["pressed"] }).pressed ?? []).map((r) => [r.proposal_id, r.outcome]),
+    ((landed as { pressed?: AskMessageDto["pressed"] }).pressed ?? []).map((r) => [r.proposal_id, r.outcome]),
   );
   const kept =
     gone.size || pressed.size

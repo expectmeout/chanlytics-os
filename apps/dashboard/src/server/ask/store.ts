@@ -7,11 +7,11 @@ import {
   type AskAnswer,
   type AskCitation,
   type AskIntent,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskProposal,
   type AskProposalOutcome,
   type AskScope,
-  type AskThreadVM,
+  type AskThreadDto,
   DAY_MS,
   citationRoute,
   storedAnswer,
@@ -71,7 +71,7 @@ const MESSAGES_CAP = 60;
 type NamedFiles = ReadonlyMap<string, AttachedFile>;
 const NONE_NAMED: NamedFiles = new Map();
 
-function toThreadVM(thread: ThreadRow): AskThreadVM {
+function toThreadVM(thread: ThreadRow): AskThreadDto {
   return {
     id: thread.id,
     title: thread.title || "Untitled",
@@ -100,7 +100,7 @@ const isStoredCitation = (value: unknown): value is AskCitation & { to?: string 
   typeof value.kind === "string" &&
   typeof value.id === "string" &&
   typeof value.label === "string";
-const isStoredNavigate = (value: unknown): value is NonNullable<AskMessageVM["navigate"]> =>
+const isStoredNavigate = (value: unknown): value is NonNullable<AskMessageDto["navigate"]> =>
   isObjectRecord(value) && typeof value.to === "string" && typeof value.label === "string";
 const isStoredCard = (value: unknown): value is AskProposal =>
   isObjectRecord(value) && typeof value.id === "string" && typeof value.kind === "string";
@@ -124,7 +124,7 @@ export const storedCards = (value: unknown): AskProposal[] => listOrEmpty(value)
  * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
  * spec 7.6); one made before has the v1 fields only, and the Line reads it through answerFromV1.
  */
-export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
+export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageDto {
   const content = recordOrEmpty(message.content);
   const cites = listOrEmpty(content.citations).filter(isStoredCitation);
   const files = fileIdsOf(content.files);
@@ -156,7 +156,7 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
  * thread's morning, read beside it only where it was made before then, must be none (an anti-join the database does,
  * so a year of mornings is left out as surely as one).
  */
-export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promise<AskThreadVM[]> {
+export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promise<AskThreadDto[]> {
   const { data, error } = await listAskThreads(
     ctx.supabase,
     tenantId,
@@ -200,8 +200,8 @@ export async function readThread(
   ctx: RouteContext,
   id: string,
 ): Promise<{
-  thread: AskThreadVM;
-  messages: AskMessageVM[];
+  thread: AskThreadDto;
+  messages: AskMessageDto[];
   /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
   turns: Array<{ role: "user" | "assistant"; text: string }>;
   /** Each row's history kind (replayOf), beside `messages`: where a live replay's chain begins (memory.ts). */
@@ -257,7 +257,7 @@ export async function createThread(
   tenantId: TenantId,
   title: string,
   scope: AskScope | null,
-): Promise<AskThreadVM> {
+): Promise<AskThreadDto> {
   const { data, error } = await insertAskThread(ctx.supabase, {
     tenant_id: tenantId,
     user_id: ctx.userId,

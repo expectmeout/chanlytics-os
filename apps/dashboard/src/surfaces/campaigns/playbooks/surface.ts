@@ -34,7 +34,7 @@ import { cmBusinessOf, cmNumberOf, cmOfferedFrom, cmSameBusiness, type CmOffered
 
 /* ------------------------------- Playbooks ------------------------------- */
 
-export interface PlaybookTotalsVM {
+export interface PlaybookCardTotalsDto {
   runs: number;
   sent: number;
   delivered: number;
@@ -69,7 +69,7 @@ export interface PlaybookTotalsVM {
 export interface PlaybookCardVM extends PlaybookDto {
   /** The key of the count this playbook's reach is read from (`pools`): its moment's, its list's, or its own where its message is stricter. */
   poolKey: string;
-  totals: PlaybookTotalsVM;
+  totals: PlaybookCardTotalsDto;
   /** The trigger's words: "Win-back", "Nothing heard in 30 days". */
   triggerLabel: string;
   triggerHint: string;

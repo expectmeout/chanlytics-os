@@ -423,7 +423,7 @@ export const cmdJ = () => {
   return e;
 };
 
-/** A conversation as the Ask routes list it (contracts' AskThreadVM). */
+/** A conversation as the Ask routes list it (contracts' AskThreadDto). */
 export const TH = (n) => ({
   id: `aaaaaaaa-aaaa-4aaa-8aaa-00000000000${n}`,
   title: `Question ${n}`,
@@ -431,7 +431,7 @@ export const TH = (n) => ({
   scope: null,
 });
 
-/** An answer as the routes return one (contracts' AskMessageVM). */
+/** An answer as the routes return one (contracts' AskMessageDto). */
 export const said = (id, text) => ({
   id,
   role: "assistant",
