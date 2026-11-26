@@ -352,6 +352,9 @@
      strong ink, never the accent, so a row in use is never taken for the red a problem rings its group in (Add people,
      20 Oct 2026). */
   --focus-row: inset 0 0 0 1.5px var(--line-strong);
+  /* A row of a list or a table that holds the keys, or is the one open: a 2px stripe of the accent at its start, inside
+     the row (the kit's table, kit.css .dtable tr.focused). */
+  --focus-stripe: inset 2px 0 0 var(--accent);
 
   /* Surfaces: the page; a pane of content; an inset inside one (a segmented control's track, a note); what pops over
      the page (a menu, a toast, a tip); the wash behind a sheet. */
@@ -367,6 +370,8 @@
   --surface-veil: color-mix(in oklab, var(--surface-scrim) 36%, transparent);
   /* The ring that stands a small mark clear of the raised ground it rides (the dot on Ask's ✦). */
   --shadow-rim: 0 0 0 2px var(--bg-raised);
+  /* The house's tip, lifted off what it names: a soft drop of the ink under it (kit.css .ui-tip). */
+  --tip-depth: 0 8px 24px -6px oklch(from var(--ink) l c h / 0.35);
   /* The wash behind a sheet or a dialog: the scrim on a desk, the veil on a phone (below, at 900px). */
   --surface-wash: var(--surface-scrim);
   /* Where the three pools of light stand (the canvases' glow). They stand still here; on a desk each is a layer of its

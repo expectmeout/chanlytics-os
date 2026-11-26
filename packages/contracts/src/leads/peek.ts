@@ -347,80 +347,149 @@ const leadTileOf = (r: LeadRowDto) => ({
   logo: r.mark_url ?? null,
 });
 
+/** The chip the peek says the lead's fit with, and its class. */
+function peekFitOf(
+  member: LeadRowDto["member"],
+  search: LeadSearchDto | null,
+): Pick<LeadPeekVM["fit"], "word" | "cls"> {
+  if (member.class === "qualified")
+    return { word: member.fit ? LEAD_FIT_WORDS[member.fit] : LEAD_FIT_WORDS.look, cls: member.fit ?? "look" };
+  // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
+  if (member.class === "review") return { word: LEAD_REVIEW_WORD, cls: "review" };
+  return { word: `${LEAD_LEFT_OUT_WORD} — ${leadExclusionWord(search, member.excluded_by)}`, cls: "out" };
+}
+
+/** What the email row says of the address: checked and when, being checked, gone, its state's word, or none at all. */
+function peekEmailNote(lead: LeadRowDto, tz: string, now: Date): string {
+  if (!lead.email) return LEAD_NO_EMAIL_LINE;
+  if (lead.email_state === "ok")
+    return `${LEAD_MAILBOX_WORDS.ok} · checked ${dayIn(tz, lead.email_checked_at, now) || "on finding it"}`;
+  if (lead.email_state === "checking") return LEAD_MAILBOX_WORDS.checking;
+  if (lead.email_state === "invalid") return `${LEAD_MAILBOX_WORDS.invalid}. Call instead.`;
+  return LEAD_MAILBOX_WORDS[lead.email_state];
+}
+
+/**
+ * The email's tip. Each note ends as a sentence, so two of them read as two. A state leads its tip only where the note
+ * does not say it already: "Unconfirmed." before "Their server accepts every address", never "Checked." before
+ * "Mailbox exists".
+ */
+function peekEmailTip(lead: LeadRowDto, emailNote: string, standard: string): string {
+  const stop = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
+  const stated =
+    !!lead.email &&
+    (lead.email_state === "catch_all" || lead.email_state === "unknown" || lead.email_state === "invalid");
+  return [
+    ...(stated ? [LEAD_EMAIL_WORDS[lead.email_state]] : []),
+    emailNote,
+    ...(lead.email_state === "ok" ? [] : [standard]),
+  ]
+    .map(stop)
+    .join(" ");
+}
+
+type PeekChecks = LeadPeekVM["groups"][number]["checks"];
+
+/** The lead's checks, as the peek groups them: what was seen, and what was read. */
+function peekChecksOf(
+  member: LeadRowDto["member"],
+  search: LeadSearchDto | null,
+  mailboxLabel: string,
+): { seen: PeekChecks; read: PeekChecks } {
+  const seen: PeekChecks = [];
+  const read: PeekChecks = [];
+  for (const c of member.checks) {
+    const label = peekCheckLabel(c, search, mailboxLabel);
+    (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
+  }
+  return { seen, read };
+}
+
+/** The other addresses their site shows, and which one was picked and why; none where it shows one. */
+function peekOthersOf(member: LeadRowDto["member"]): LeadPeekVM["others"] {
+  const count = member.other_emails.length;
+  if (!count) return null;
+  return {
+    summary: `${count} other address${count === 1 ? "" : "es"} on their site`,
+    picked: member.checks.find((c) => c.key === "own_address")?.reason ?? null,
+    items: member.other_emails,
+  };
+}
+
+/** The listing's facts, each where the listing says it: its kind, price, rating, claim, rank and other listings. */
+function peekFactsOf(lead: LeadRowDto, rated: LeadPeekVM["rated"], term: string | null): LeadPeekVM["facts"] {
+  const claimed =
+    lead.claimed === true
+      ? [{ k: "Listing", v: "Claimed by the owner" }]
+      : lead.claimed === false
+        ? [{ k: "Listing", v: "Not claimed by the owner" }]
+        : [];
+  return [
+    ...(lead.category ? [{ k: "Kind", v: lead.category }] : []),
+    ...(lead.price ? [{ k: "Price", v: lead.price }] : []),
+    ...(rated ? [{ k: "Rated", v: `${rated.score} from ${rated.reviews}` }] : []),
+    ...claimed,
+    ...(term && lead.rank ? [{ k: "Found at", v: `#${lead.rank} for “${term}”` }] : []),
+    ...(lead.places > 1 ? [{ k: "Other listings", v: `${lead.places} listings for this business` }] : []),
+  ];
+}
+
+/** The number, as the peek offers it: marked wrong, the same on Maps and their site, or on Maps alone. */
+function peekPhoneOf(lead: LeadRowDto): LeadPeekVM["reach"]["phone"] {
+  if (!lead.phone) return null;
+  const wrong = "You marked this number wrong.";
+  return {
+    value: formatPhoneDisplay(lead.phone) ?? lead.phone,
+    note: lead.phone_wrong
+      ? wrong
+      : lead.phone_agrees
+        ? "The same number on Google Maps and their website"
+        : "On their Google Maps listing only, so not confirmed",
+    tip: lead.phone_wrong
+      ? wrong
+      : lead.phone_agrees
+        ? "The same number on Google Maps and their website."
+        : "On their Google Maps listing only · their website doesn't show it, so it isn't confirmed.",
+    tel: lead.phone_wrong ? null : `tel:${lead.phone}`,
+    wrong: lead.phone_wrong,
+  };
+}
+
+/** Their places on the web, each where the lead holds it. */
+function peekLinksOf(lead: LeadRowDto): LeadPeekVM["links"] {
+  const host = lead.website;
+  return {
+    website: host ? { label: host, href: `https://${host}` } : null,
+    instagram: lead.instagram ? { label: "Instagram", href: lead.instagram } : null,
+    facebook: lead.facebook_url ? { label: "Facebook", href: lead.facebook_url } : null,
+    linkedin: lead.linkedin_url ? { label: "LinkedIn", href: lead.linkedin_url } : null,
+    tiktok: lead.tiktok_url ? { label: "TikTok", href: lead.tiktok_url } : null,
+    maps: lead.maps_url ? { label: "Google Maps", href: lead.maps_url } : null,
+  };
+}
+
 export function toLeadPeekVM(lead: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
   const member = lead.member;
   const area = [lead.city, lead.state].filter(Boolean).join(", ");
   const sub =
     [lead.category, lead.price ?? null, area].filter(Boolean).join(" · ") +
     (lead.places > 1 ? ` · ${lead.places} locations` : "");
-  const fitWord =
-    member.class === "qualified"
-      ? member.fit
-        ? LEAD_FIT_WORDS[member.fit]
-        : LEAD_FIT_WORDS.look
-      : // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
-        member.class === "review"
-        ? LEAD_REVIEW_WORD
-        : `${LEAD_LEFT_OUT_WORD} — ${leadExclusionWord(search, member.excluded_by)}`;
-  const fitCls = member.class === "qualified" ? (member.fit ?? "look") : member.class === "review" ? "review" : "out";
+  const fit = peekFitOf(member, search);
   const { standard, term } = peekPlanOf(search);
-  const emailNote = lead.email
-    ? lead.email_state === "ok"
-      ? `${LEAD_MAILBOX_WORDS.ok} · checked ${dayIn(tz, lead.email_checked_at, now) || "on finding it"}`
-      : lead.email_state === "checking"
-        ? LEAD_MAILBOX_WORDS.checking
-        : lead.email_state === "invalid"
-          ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.`
-          : LEAD_MAILBOX_WORDS[lead.email_state]
-    : LEAD_NO_EMAIL_LINE;
+  const emailNote = peekEmailNote(lead, tz, now);
   const mailboxLabel = LEAD_MAILBOX_WORDS[lead.email_state];
-  // Each note ends as a sentence, so two of them read as two. A state leads its tip only where the note does not say
-  // it already: "Unconfirmed." before "Their server accepts every address", never "Checked." before "Mailbox exists".
-  const stop = (s: string) => (/[.!?]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
-  const emailTip = [
-    ...(lead.email &&
-    (lead.email_state === "catch_all" || lead.email_state === "unknown" || lead.email_state === "invalid")
-      ? [LEAD_EMAIL_WORDS[lead.email_state]]
-      : []),
-    emailNote,
-    ...(lead.email_state === "ok" ? [] : [standard]),
-  ]
-    .map(stop)
-    .join(" ");
-  const seen: LeadPeekVM["groups"][number]["checks"] = [];
-  const read: LeadPeekVM["groups"][number]["checks"] = [];
-  for (const c of member.checks) {
-    const label = peekCheckLabel(c, search, mailboxLabel);
-    (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
-  }
-  const others = member.other_emails.length
-    ? {
-        summary: `${member.other_emails.length} other address${member.other_emails.length === 1 ? "" : "es"} on their site`,
-        picked: member.checks.find((c) => c.key === "own_address")?.reason ?? null,
-        items: member.other_emails,
-      }
-    : null;
-  const host = lead.website;
+  const emailTip = peekEmailTip(lead, emailNote, standard);
+  const { seen, read } = peekChecksOf(member, search, mailboxLabel);
+  const others = peekOthersOf(member);
   const where = foundWords(lead, term);
   // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
   const checksSummary = checksSummaryOf(member.checks);
   const week = leadWeekBars(lead.hours ?? [], tz, now);
   const rated = leadRated(lead);
-  const facts: LeadPeekVM["facts"] = [
-    ...(lead.category ? [{ k: "Kind", v: lead.category }] : []),
-    ...(lead.price ? [{ k: "Price", v: lead.price }] : []),
-    ...(rated ? [{ k: "Rated", v: `${rated.score} from ${rated.reviews}` }] : []),
-    ...(lead.claimed === true
-      ? [{ k: "Listing", v: "Claimed by the owner" }]
-      : lead.claimed === false
-        ? [{ k: "Listing", v: "Not claimed by the owner" }]
-        : []),
-    ...(term && lead.rank ? [{ k: "Found at", v: `#${lead.rank} for “${term}”` }] : []),
-    ...(lead.places > 1 ? [{ k: "Other listings", v: `${lead.places} listings for this business` }] : []),
-  ];
+  const facts = peekFactsOf(lead, rated, term);
   return {
     id: lead.id,
-    searchId: lead.search_id ?? null,
+    searchId: lead.search_id,
     mark: initialsOf(lead.business_name),
     tile: leadTileOf(lead),
     rated,
@@ -449,25 +518,9 @@ export function toLeadPeekVM(lead: LeadRowDto, search: LeadSearchDto | null, tz:
     })),
     canStage: member.class !== "excluded",
     notFitWord: LEAD_CLOSED_WORDS.not_a_fit,
-    fit: { word: fitWord, cls: fitCls, sentence: member.reason },
+    fit: { word: fit.word, cls: fit.cls, sentence: member.reason },
     reach: {
-      phone: lead.phone
-        ? {
-            value: formatPhoneDisplay(lead.phone) ?? lead.phone,
-            note: lead.phone_wrong
-              ? "You marked this number wrong."
-              : lead.phone_agrees
-                ? "The same number on Google Maps and their website"
-                : "On their Google Maps listing only, so not confirmed",
-            tip: lead.phone_wrong
-              ? "You marked this number wrong."
-              : lead.phone_agrees
-                ? "The same number on Google Maps and their website."
-                : "On their Google Maps listing only · their website doesn't show it, so it isn't confirmed.",
-            tel: lead.phone_wrong ? null : `tel:${lead.phone}`,
-            wrong: lead.phone_wrong,
-          }
-        : null,
+      phone: peekPhoneOf(lead),
       email: {
         value: lead.email ?? "No email on their site",
         note: emailNote,
@@ -501,14 +554,7 @@ export function toLeadPeekVM(lead: LeadRowDto, search: LeadSearchDto | null, tz:
       },
     ],
     worked: { outcome: lead.last_outcome, note: lead.last_note, at: lead.contacted_at },
-    links: {
-      website: host ? { label: host, href: `https://${host}` } : null,
-      instagram: lead.instagram ? { label: "Instagram", href: lead.instagram } : null,
-      facebook: lead.facebook_url ? { label: "Facebook", href: lead.facebook_url } : null,
-      linkedin: lead.linkedin_url ? { label: "LinkedIn", href: lead.linkedin_url } : null,
-      tiktok: lead.tiktok_url ? { label: "TikTok", href: lead.tiktok_url } : null,
-      maps: lead.maps_url ? { label: "Google Maps", href: lead.maps_url } : null,
-    },
+    links: peekLinksOf(lead),
     version: lead.version,
   };
 }

@@ -86,13 +86,17 @@ const attnTone = (tone: string): string => {
   return own === "plain" ? stateOf("standing", tone).tone : own;
 };
 
-/** The row's one or two buttons: its second verb quiet, then its first. Called, not drawn, so the tree has no part of its own for it. */
+/**
+ * The row's one or two buttons, the kit's small ones: its second verb quiet, then its first, primary where the page says
+ * so. Called, not drawn, so the tree has no part of its own for it.
+ */
 function attnActs(cta: AttnAct | null, also: AttnAct | null, ctaTestid: string) {
   return (
     <span className="cl-attn-acts" role="presentation" onClick={(e) => e.stopPropagation()}>
       {also && (
         <button
-          className="cl-attn-cta ghost"
+          type="button"
+          className="btn btn-sm btn-ghost cl-attn-act"
           onClick={also.onClick}
           disabled={!!also.busy}
           aria-busy={also.busy ? true : undefined}
@@ -104,7 +108,8 @@ function attnActs(cta: AttnAct | null, also: AttnAct | null, ctaTestid: string) 
       )}
       {cta && (
         <button
-          className={`cl-attn-cta ${cta.kind || "primary"}`}
+          type="button"
+          className={`btn btn-sm ${cta.kind === "ghost" ? "btn-ghost" : "btn-primary"} cl-attn-act cl-attn-go`}
           onClick={cta.onClick}
           disabled={!!cta.busy}
           aria-busy={cta.busy ? true : undefined}
@@ -126,7 +131,7 @@ function noteMark(note: string) {
   return (
     <button
       type="button"
-      className="set-mark"
+      className="rec-tip cl-attn-note"
       data-tip={note}
       aria-label={`What else is known: ${note}`}
       onClick={(e) => {
@@ -252,7 +257,10 @@ function attnSentence(
 function attnFace(person: FacePerson | undefined, glyph: string | null, initials: string | undefined) {
   if (person) return <Face person={person} className="cl-attn-pic" />;
   return (
-    <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} data-tip={glyph === "phone" ? "No name yet" : undefined}>
+    <div
+      className={`face cl-attn-pic${glyph ? " face-glyph" : ""}`}
+      data-tip={glyph === "phone" ? "No name yet" : undefined}
+    >
       {glyph ? <Icon name={glyph} size={12} /> : initials}
     </div>
   );

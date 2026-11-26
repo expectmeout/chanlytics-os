@@ -4,15 +4,15 @@
  * which nobody waits on. Apart from the queue (queue.ts) so each holds one thing: the queue orders and counts, and
  * these say what a form's row is. Pure.
  */
-import { BOOKING_REQUEST_WORDS, slotShort } from "../calendar/visit/booking-request";
-import { formatWaited } from "../conversations/thread-clock";
-import { initialsOf } from "../conversations/thread-contact";
-import { formsRouteOf, requestAddress } from "../forms/address";
-import type { FormHeldDto, FormOpenRequestDto } from "../forms/dtos";
-import { NEED_YOU_WORDS } from "../need-you/words";
-import { DAY_MS } from "../shared/time";
-import type { TodayFacts } from "./facts";
-import type { TodayQueueRowVM } from "./vm";
+import { BOOKING_REQUEST_WORDS, slotShort } from "../../calendar/visit/booking-request";
+import { formatWaited } from "../../conversations/thread-clock";
+import { initialsOf } from "../../conversations/thread-contact";
+import { formsRouteOf, requestAddress } from "../../forms/address";
+import type { FormHeldDto, FormOpenRequestDto } from "../../forms/dtos";
+import { NEED_YOU_WORDS } from "../../need-you/words";
+import { DAY_MS } from "../../shared/time";
+import type { TodayFacts } from "../facts";
+import type { TodayQueueRowVM } from "../vm";
 
 /**
  * A request sent through a form that nobody has answered (00680): who asked, in their own words, how long ago and

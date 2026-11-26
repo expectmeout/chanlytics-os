@@ -13,9 +13,9 @@
     "dependencies": "error",
     "devDependencies": "error",
     "optionalPeerDependencies": "off",
-    "unlisted": "off",
+    "unlisted": "error",
     "unresolved": "off",
-    "binaries": "off",
+    "binaries": "error",
     "catalog": "error"
   },
   "workspaces": {
@@ -74,7 +74,8 @@
     },
     "tests": {
       "entry": ["**/*.mjs"],
-      "project": ["**/*.mjs"]
+      "project": ["**/*.mjs"],
+      "ignoreDependencies": ["expo"]
     }
   }
 }
