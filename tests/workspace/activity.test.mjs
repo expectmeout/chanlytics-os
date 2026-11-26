@@ -1038,7 +1038,10 @@ test("every kind either ledger holds has a family, and the picker says each kind
   const groups = activityKindGroups(ACTIVITY_KINDS);
   const calls = groups.find((g) => g.family === "calls");
   assert.ok(calls.kinds.some((k) => k.kind === "open_recording" && k.label === "Listened to a call's recording"));
-  assert.equal(groups.flatMap((g) => g.kinds).length, ACTIVITY_KINDS.length, "each kind once");
+  // The picker lists only the kinds that show a row (Ruben, 26 Nov 2026): a kept record is no choice of it.
+  const shown = ACTIVITY_KINDS.filter((k) => !isActivityNoise(k));
+  assert.equal(groups.flatMap((g) => g.kinds).length, shown.length, "each kind that shows a row, once");
+  assert.ok(!groups.some((g) => g.kinds.some((k) => k.kind === "post.moved" || k.kind === "ingest.unroutable")));
   for (const g of groups)
     for (const k of g.kinds) assert.ok(!/^[a-z_]+(\.[a-z_]+)?$/.test(k.label), `${k.kind} is said in words`);
   assert.ok(ACTIVITY_PROBLEM_KINDS.includes("message.send_failed") && ACTIVITY_PROBLEM_KINDS.includes("snooze"));
