@@ -145,8 +145,8 @@ export interface MetaAd {
   said: { headline?: string; body?: string; thumbnail?: string; image?: string; post?: string; permalink?: string };
 }
 
-/** An address Meta gave that a page may draw or open: https, and short enough to be one. */
-const addressOf = (value: unknown): string | null => {
+/** An address Meta gave for an ad's creative, its picture or its post, that a page may draw or open: https, and short. */
+const creativeAddressOf = (value: unknown): string | null => {
   const text = metaText(value);
   return /^https:\/\//.test(text) && text.length <= 2000 ? text : null;
 };
@@ -155,10 +155,10 @@ const addressOf = (value: unknown): string | null => {
 function saidOf(creative: Record<string, unknown> | null): MetaAd["said"] {
   const headline = metaText(valueAt(creative, "title")).slice(0, 300);
   const body = metaText(valueAt(creative, "body")).slice(0, 2000);
-  const thumbnail = addressOf(valueAt(creative, "thumbnail_url"));
-  const image = addressOf(valueAt(creative, "image_url"));
+  const thumbnail = creativeAddressOf(valueAt(creative, "thumbnail_url"));
+  const image = creativeAddressOf(valueAt(creative, "image_url"));
   const post = metaText(valueAt(creative, "effective_instagram_media_id"));
-  const permalink = addressOf(valueAt(creative, "instagram_permalink_url"));
+  const permalink = creativeAddressOf(valueAt(creative, "instagram_permalink_url"));
   return {
     ...(headline ? { headline } : {}),
     ...(body ? { body } : {}),
