@@ -226,10 +226,10 @@ export function unreadFeed(base: CalendarFeedDto, feed: ParsedRead): CalendarFee
 
 /**
  * The record's rows over the span and the notices' health line, read beside the feed: the bookings that arrived by
- * email (00345). Asked for in one order (ask/readers.test.mjs pins
- * it) and waited for together: none needs another's answer, and one after the other they were four round trips the
- * board stood behind (9 Oct 2026). A failed read is an empty board side and a logged line, never a board that fails to
- * draw the feed.
+ * email (00345). Asked for in one order (ask/readers/the-calendar-and-the-receptionist-and-people-lenses.test.mjs
+ * pins it) and waited for together: none needs another's answer, and one after the other they were four round trips
+ * the board stood behind (9 Oct 2026). A failed read is an empty board side and a logged line, never a board that
+ * fails to draw the feed.
  */
 export async function recordOverSpan(
   ctx: Pick<RouteContext, "supabase">,
