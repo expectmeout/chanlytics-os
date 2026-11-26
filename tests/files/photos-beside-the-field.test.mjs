@@ -44,11 +44,11 @@ const out = await build({
       'export { arSubmitter } from "../../apps/dashboard/src/surfaces/ask/line/turns.tsx";\n' +
       'export { AskQuestion } from "../../apps/dashboard/src/surfaces/ask/turn.tsx";\n' +
       'export { AskPostCard, usePostCard } from "../../apps/dashboard/src/surfaces/ask/card-post.tsx";\n' +
-      'export { PostEdit } from "../../apps/dashboard/src/surfaces/files/post-edit.tsx";\n' +
+      'export { PostEdit } from "../../apps/dashboard/src/surfaces/files/post/edit.tsx";\n' +
       'export { openFile } from "../../apps/dashboard/src/surfaces/files/file-asked.ts";\n' +
       'export { notifyAddress } from "../../apps/dashboard/src/bridge/workspace.ts";\n' +
-      'export { drawnKeyOf, keepDrawn, pictureDrawn } from "../../apps/dashboard/src/surfaces/files/post-drawn.ts";\n' +
-      'export { postFileOf, sharePostFile, sharesPictures } from "../../apps/dashboard/src/surfaces/files/post-share.ts";\n' +
+      'export { drawnKeyOf, keepDrawn, pictureDrawn } from "../../apps/dashboard/src/surfaces/files/post/drawn.ts";\n' +
+      'export { openShareSheet, readPostFile, sharesPictures } from "../../apps/dashboard/src/surfaces/files/post/share.ts";\n' +
       'export { askText } from "../../apps/dashboard/src/surfaces/ask/words.ts";\n' +
       'export { fileVerbs } from "../../apps/dashboard/src/surfaces/files/verbs.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
@@ -429,14 +429,14 @@ test("the sheet opens in the tap's own turn, since Safari refuses one that waite
   });
   try {
     const file = photo("a.jpg");
-    const went = S.sharePostFile(file);
+    const went = S.openShareSheet(file);
     assert.equal(shared.length, 1, "asked before anything was waited for");
     assert.deepEqual(shared[0].files, [file]);
     assert.equal(await went, "went");
     answer = () => Promise.reject(new DOMException("closed", "AbortError"));
-    assert.equal(await S.sharePostFile(file), "closed");
+    assert.equal(await S.openShareSheet(file), "closed");
     answer = () => Promise.reject(new DOMException("no gesture", "NotAllowedError"));
-    assert.equal(await S.sharePostFile(file), "failed", "said, never a press that did nothing");
+    assert.equal(await S.openShareSheet(file), "failed", "said, never a press that did nothing");
   } finally {
     delete navigator.share;
   }
@@ -451,11 +451,11 @@ test("the picture for the sheet comes once a tab under a name a person can read,
     return bytes;
   };
   try {
-    assert.equal(await S.postFileOf(FILE(3), "now-booking", "story"), null, "nothing came");
+    assert.equal(await S.readPostFile(FILE(3), "now-booking", "story"), null, "nothing came");
     bytes = new Blob(["jpeg"]);
-    const file = await S.postFileOf(FILE(3), "now-booking", "story");
+    const file = await S.readPostFile(FILE(3), "now-booking", "story");
     assert.deepEqual([file.name, file.type], ["now-booking-story.jpg", "image/jpeg"]);
-    assert.equal(await S.postFileOf(FILE(3), "now-booking", "story"), file);
+    assert.equal(await S.readPostFile(FILE(3), "now-booking", "story"), file);
     assert.deepEqual(asked, [
       [FILE(3), "story"],
       [FILE(3), "story"],

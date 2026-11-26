@@ -55,6 +55,7 @@ import {
   DbFailure,
   PREVIEW_LIMITS,
   causedBy,
+  recordOrEmpty,
   recordOrNull,
 } from "@chanlytics/contracts";
 import { readSide } from "./console";
@@ -131,7 +132,8 @@ function isHealthParts(value: unknown): value is HealthPartsDto {
     "google",
     "mailboxes",
   ];
-  return lists.every((k) => Array.isArray((value as Record<string, unknown>)[k]));
+  const parts = recordOrEmpty(value);
+  return lists.every((k) => Array.isArray(parts[k]));
 }
 
 async function partsRead(office: BackOffice, days: number): Promise<HealthPartsDto> {

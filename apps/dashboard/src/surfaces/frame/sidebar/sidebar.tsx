@@ -42,80 +42,38 @@ function RowBadge({ item, badge, collapsed }: { item: NavItem; badge: string | n
 interface RowProps {
   item: NavItem;
   active: string;
-  parentActive: string | null;
   onNavigate: (to: string) => void;
-  depth?: number;
-  expanded?: boolean;
-  onToggle: (id: string) => void;
   badges?: Badges;
   collapsed?: boolean;
 }
 
-/** An expandable row's open children, under it. */
-function RowChildren({ item, active, onNavigate }: Pick<RowProps, "item" | "active" | "onNavigate">) {
-  return (
-    <>
-      {item.children?.map((c) => (
-        <div
-          key={c.id}
-          className={`nav-item nav-sub ${active === c.id ? "active" : ""}`}
-          onClick={() => onNavigate(c.id)}
-        >
-          <span>{c.label}</span>
-          {c.badge && <span className="nav-badge tally">{c.badge}</span>}
-        </div>
-      ))}
-    </>
-  );
-}
-
-function SidebarRow({
-  item,
-  active,
-  parentActive,
-  onNavigate,
-  depth = 0,
-  expanded,
-  onToggle,
-  badges = {},
-  collapsed = false,
-}: RowProps) {
+/** A place of the nav: no place has rows under it (the folding rows and their chevron went, never drawn, 25 Nov 2026). */
+function SidebarRow({ item, active, onNavigate, badges = {}, collapsed = false }: RowProps) {
   const Glyph = frameGlyph();
   const badge = badges[item.id] !== undefined ? badges[item.id] : item.badge;
   const tip = collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined;
-  const open = !collapsed && item.expandable;
   // A place is a door (frame-doors.ts routeDoor): Tab reaches it, Enter opens it, and a middle press or a new tab opens its
   // address. Every row was a div that only a pointer could press (27 Oct 2026). The shell's own way there stays the press.
-  const route = item.expandable ? null : NAV_ROUTE[item.id] || null;
+  const route = NAV_ROUTE[item.id] || null;
   const door = route ? routeDoor(route, () => onNavigate(item.id)) : null;
   return (
-    <>
-      <a
-        className={`nav-item ${active === item.id ? "active" : ""} ${parentActive === item.id ? "parent-active" : ""} ${item.urgent ? "urgent" : ""}`}
-        style={collapsed ? undefined : { paddingLeft: 10 + depth * 16 }}
-        href={door ? door.href : undefined}
-        onClick={door ? door.onClick : () => onToggle(item.id)}
-        onFocus={door ? door.onFocus : undefined}
-        aria-label={tip}
-        data-tip={tip}
-        data-tip-side="right"
-        aria-current={active === item.id ? "page" : undefined}
-        data-nav={item.id}
-      >
-        {item.icon && <Glyph name={item.icon} />}
-        {!collapsed && <span>{item.label}</span>}
-        {!collapsed && item.hint && <span className="nav-hint">{item.hint}</span>}
-        {badge ? <RowBadge item={item} badge={badge} collapsed={collapsed} /> : null}
-        {open && (
-          <Glyph
-            name="chevron"
-            size={11}
-            className={`nav-chev${badge ? " nav-chev-after" : ""}${expanded ? " nav-chev-open" : ""}`}
-          />
-        )}
-      </a>
-      {open && expanded && <RowChildren item={item} active={active} onNavigate={onNavigate} />}
-    </>
+    <a
+      className={`nav-item ${active === item.id ? "active" : ""} ${item.urgent ? "urgent" : ""}`}
+      style={collapsed ? undefined : { paddingLeft: 10 }}
+      href={door ? door.href : undefined}
+      onClick={door ? door.onClick : undefined}
+      onFocus={door ? door.onFocus : undefined}
+      aria-label={tip}
+      data-tip={tip}
+      data-tip-side="right"
+      aria-current={active === item.id ? "page" : undefined}
+      data-nav={item.id}
+    >
+      {item.icon && <Glyph name={item.icon} />}
+      {!collapsed && <span>{item.label}</span>}
+      {!collapsed && item.hint && <span className="nav-hint">{item.hint}</span>}
+      {badge ? <RowBadge item={item} badge={badge} collapsed={collapsed} /> : null}
+    </a>
   );
 }
 
@@ -132,8 +90,6 @@ function SidebarNav({
   collapsed: boolean;
 }) {
   const effActive = placeLit(active);
-  const expanded: Record<string, boolean> = {};
-  const toggle = () => {};
   const renderGroup = (items: readonly NavItem[], label?: string) => (
     <div className="sidebar-section">
       {label && !collapsed && <div className="sidebar-label">{label}</div>}
@@ -142,10 +98,7 @@ function SidebarNav({
           key={it.id}
           item={it}
           active={effActive}
-          parentActive={null}
           onNavigate={onNavigate}
-          expanded={expanded[it.id]}
-          onToggle={toggle}
           badges={badges}
           collapsed={collapsed}
         />

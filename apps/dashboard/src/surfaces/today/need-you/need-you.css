@@ -624,9 +624,6 @@
 .ny-sk-short {
   width: 60%;
 }
-.ny-editor {
-  min-width: 0;
-}
 
 /* One line that says what the situation is: amber what waits on you, red what was refused, green what is already done. */
 .ny-note {
@@ -719,9 +716,4 @@
 .ny-done-words {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-/* Read, beside whose words they are, where the row is drawn short of them (a phone's card): at the head's right. */
-.ny-read {
-  margin-left: auto;
 }

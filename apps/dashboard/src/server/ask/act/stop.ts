@@ -27,6 +27,7 @@ import {
   adLeftOn,
   adStateOfRow,
   parseTenantConfigResult,
+  recordOrEmpty,
   type AskStopped,
   type ProposalCall,
   type TenantId,
@@ -57,8 +58,8 @@ async function writeAskKey(
   // A teammate's save between the read and the write loses the race once: read it again, once.
   for (let tries = 0; tries < 2; tries++) {
     const { data: row } = await findConfigRowVersioned(db, tenantId);
-    const stored = (row?.config ?? {}) as Record<string, unknown>;
-    const ask = { ...((stored.ask as Record<string, unknown> | undefined) ?? {}) };
+    const stored = recordOrEmpty(row?.config);
+    const ask = { ...recordOrEmpty(stored.ask) };
     if (value === null) delete ask[key];
     else ask[key] = value;
     const result = await putTenantConfig(db, tenantId, { ...stored, ask }, row?.version ?? 0, userId);

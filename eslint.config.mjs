@@ -753,9 +753,10 @@ export default [
       // The two rules by name, not the plugin's `recommended`: from v7 that
       // preset also carries the React Compiler's lints (set-state-in-effect,
       // purity, refs, immutability), which read the patterns the pages brought
-      // from the shell as errors. Adopting those is a decision of its own, not a bump.
+      // from the shell as errors. Adopting those is a decision of its own, not a bump. exhaustive-deps was a warning
+      // while the pages held findings of it, and is an error since their last (the frame's route effect, 25 Nov 2026).
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "error",
     },
   },
 

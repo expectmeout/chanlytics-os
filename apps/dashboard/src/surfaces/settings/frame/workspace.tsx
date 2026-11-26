@@ -62,7 +62,7 @@ export function WorkspaceData() {
                 href={href}
                 download
                 data-testid="set-export-all"
-                title="Your workspace's records as one JSON file"
+                data-tip="Your workspace's records as one JSON file"
                 {...gate("export", "download the workspace's data")}
               >
                 Download (JSON)

@@ -25,16 +25,18 @@
  * oauth-callback.ts.
  */
 
+import type { CookieOptions } from "@supabase/ssr";
+
 /** One cookie as @supabase/ssr hands it over. Options are its own; we do not read them. */
 interface AuthCookie {
   name: string;
   value: string;
-  options?: unknown;
+  options?: CookieOptions;
 }
 
 /** The part of a NextResponse this needs: somewhere for cookies, somewhere for headers. */
 interface CookieSink {
-  cookies: { set: (name: string, value: string, options?: never) => unknown };
+  cookies: { set: (name: string, value: string, options?: CookieOptions) => unknown };
   headers: { set: (name: string, value: string) => unknown };
 }
 
@@ -44,8 +46,7 @@ export function writeAuthCookies(
   headers?: Record<string, string> | null,
 ): void {
   for (const { name, value, options } of cookies) {
-    // What the auth library hands is what a response's cookies take, and neither names the other's type.
-    sink.cookies.set(name, value, options as never);
+    sink.cookies.set(name, value, options);
   }
   for (const [name, value] of Object.entries(headers ?? {})) {
     sink.headers.set(name, value);
