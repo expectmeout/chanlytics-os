@@ -21,6 +21,9 @@
  *   7. The record the check reads: why it fits and what was asked fall back to where the lead was found, and the
  *      listing's review spread and claim mark ride along to the check (reach_out_unchecked).
  *   8. Who may call what: the doors are a signed-in member's, the predicate and the lines the service role's alone.
+ *   9. A lead's story (reach_out_lead_timeline): what the lead is and where it came from, its chain found through the
+ *      search a list was chosen from before any send, a moved email no write, a held one written with what its check
+ *      flagged, its place in the reach-out, and its own email none of the reach-out's (00430, 00455, 00457, 00459, 00540).
  *
  * Local stack only: it makes workspaces, people, leads and runs.
  */
@@ -710,3 +713,113 @@ test("the doors are a signed-in member's; the predicate, the lines and the recor
   );
   assert.deepEqual(idx, { unique: true, valid: true });
 });
+
+test(
+  "a lead's story says what the lead is, where it stands and what held an email, and finds its chain through the search it draws from",
+  { skip },
+  async () => {
+    // Pinned as 00430's, 00455's, 00457's, 00459's and 00540's text in leads/lists/lead-lists.db.test.mjs (each migration's
+    // body the one before it with one change) until 26 Nov 2026; each change is run here instead. A reach-out fed by a
+    // list chosen from a search finds a lead the search holds, before anything is written to it (00459).
+    const found = await search("Studios · Austin", "pilates studios");
+    const x = await lead({
+      email: at("x"),
+      email_state: "ok",
+      kind: "company",
+      source: "people_at_companies",
+      place_id: null,
+      source_key: `fixture-company-${stamp}`,
+    });
+    await member(found, x);
+    const z = await lead({ email: at("z"), email_state: "ok" });
+    await member(found, z);
+    const list = ok(
+      await as.owner.c.rpc("lead_search_choose", { p_tenant_id: A, p_name: `Studios list ${stamp}`, p_lead_ids: [z] }),
+    ).search_id;
+    const root = await one(
+      db.from("sequence_steps").insert({
+        tenant_id: A,
+        kind: "reach_out",
+        name: "Studios",
+        trigger: "lead_first",
+        policy_class: "outreach",
+        state: "running",
+        lead_search_id: list,
+        source_search_id: found,
+        gap_minutes: 12,
+        template_id: W.template,
+        template_language: "en_US",
+        template_name: "fixture_add_1",
+      }),
+    );
+    const story = async () => ok(await as.owner.c.rpc("reach_out_lead_timeline", { p_tenant_id: A, p_lead_id: x }));
+
+    let s = await story();
+    assert.deepEqual(
+      [s.kind, s.source, s.chain?.root_id, s.chain?.fed_by, s.search?.id, s.can_stop, s.place],
+      ["company", "people_at_companies", root, "search", found, false, null],
+      "what it is and where it came from (00430); its chain through the search the list was chosen from, named, before any send (00459)",
+    );
+
+    // A run plans its email; held by its check, the email is written, and says what the check flagged (00457). The
+    // send's moves are its guard's (sequence_sends_guard): planned, then held, then skipped.
+    const run = await planRun(root, found, day(), [x]);
+    const flagged = "Names a second business in the same email";
+    ok(
+      await db
+        .from("sequence_sends")
+        .update({ state: "held", reason: "chain", hold_detail: flagged })
+        .eq("batch_id", run)
+        .eq("lead_id", x),
+    );
+    s = await story();
+    assert.deepEqual(
+      [s.can_stop, s.sends.map((e) => [e.state, e.reason, e.hold_detail])],
+      [true, [["held", "chain", flagged]]],
+      "held, and why",
+    );
+
+    // Their place in it (00455), the one record of where they stand: the run entered them, one place a lead.
+    const next = new Date(Date.now() + 2 * 86_400_000).toISOString();
+    const [place] = ok(
+      await db
+        .from("sequence_enrollments")
+        .update({ next_at: next })
+        .eq("tenant_id", A)
+        .eq("sequence_id", root)
+        .eq("lead_id", x)
+        .select("id"),
+    );
+    s = await story();
+    assert.deepEqual(
+      [s.place?.id, s.place?.state, Date.parse(s.place?.next_at)],
+      [place?.id, "in", Date.parse(next)],
+      "where they stand in it",
+    );
+
+    // A lead's own email, newer, is a send of no reach-out: the chain is still the one written to (00540).
+    await one(db.from("sequence_sends").insert({ tenant_id: A, lead_id: x, state: "queued", channel: "email" }));
+    s = await story();
+    assert.deepEqual(
+      [s.chain?.root_id, s.can_stop, s.sends.length],
+      [root, true, 1],
+      "its own email leaves the reach-out where it was, and is none of its sends",
+    );
+
+    // Moved to another reach-out, the email is no write: nothing to stop, and the chain still found where the lead stands
+    // (00459).
+    ok(
+      await db
+        .from("sequence_sends")
+        .update({ state: "skipped", reason: "moved" })
+        .eq("batch_id", run)
+        .eq("lead_id", x),
+    );
+    s = await story();
+    assert.deepEqual(
+      [s.can_stop, s.chain?.root_id, s.sends.map((e) => [e.state, e.reason])],
+      [false, root, [["skipped", "moved"]]],
+      "moved, nothing written",
+    );
+  },
+);

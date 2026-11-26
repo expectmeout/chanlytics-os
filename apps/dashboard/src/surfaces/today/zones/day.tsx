@@ -38,9 +38,9 @@ import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, calendarLikeOf } from "../helpers";
 import { canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
-import { calendarLikeOf, useDayVm } from "./day-vm";
+import { useDayVm } from "./day-vm";
 import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
 

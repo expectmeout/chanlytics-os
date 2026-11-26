@@ -35,10 +35,10 @@ import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { countRolls } from "../calm/motion";
 import { todayGreetingNow } from "../chrome";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, calendarLikeOf } from "../helpers";
 import { useNeedYouLine } from "../need-you-model";
 import { useTodayOnPhone } from "../phone";
-import { calendarLikeOf, useDayVm } from "./day-vm";
+import { useDayVm } from "./day-vm";
 import { morningWaits, type TodayMorning } from "../calm/evening";
 import { listenButton, useBriefWords, useSpeech } from "./listen";
 

@@ -7,19 +7,12 @@
  * Its word for a visit is the workspace's, as Today's own read says it, before a playbook's: a workspace with playbooks
  * off never reads one (the canvas of 2 Nov 2026).
  */
-import type { AppointmentWord, CalendarLike, CalendarVM, TodayDayVM } from "@chanlytics/contracts";
+import type { AppointmentWord, TodayDayVM } from "@chanlytics/contracts";
 import type { CalendarSurface } from "@/surfaces/calendar/surface";
 import type { PlaybooksSurface } from "@/surfaces/campaigns/playbooks/surface";
 import { surfaceValue } from "../../surface-values";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, calendarLikeOf } from "../helpers";
 import { useMoved } from "../shell";
-
-/**
- * The calendar as Today's day reads it (contracts CalendarLike). Its `now` is null when today is not in its span; the
- * day reads it only on today's frame, where it is a number, and reads it as midnight elsewhere, as its comparisons
- * always took the null they were handed.
- */
-export const calendarLikeOf = (vm: CalendarVM): CalendarLike => ({ ...vm, now: vm.now ?? 0 });
 
 /**
  * The day the calendar says, or null: no feed, one that could not be read, or nothing in its span. The reminders say the
