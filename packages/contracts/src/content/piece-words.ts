@@ -167,7 +167,7 @@ export const PIECE_WORDS: PieceWords = {
   quoteFrom: { google_review: "Google review", client: "A client" },
   failed: FAILED,
   bell: {
-    ready: "Your video is ready",
+    ready: "A video is ready",
     readyBody: (name) => (name ? `${fileSaidOf(name)} · Watch it` : "Watch it"),
     versionWaits: (n) => `Version ${n} waits for your approval`,
     failed: "Couldn't make your video",

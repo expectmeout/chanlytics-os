@@ -73,11 +73,11 @@ export function leadLowShare(
 export const LEAD_NO_CARD_LINE = "I can find local businesses for now.";
 
 export const LEAD_OUTSIDE_US_LINE =
-  "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
+  "I can only find businesses in the US for now: Chanlytics follows the US rules for emailing businesses.";
 
 /** The second: what the workspace sells, in the owner's own words, or "what you do". */
 export function leadNotBusinessesLine(want: string | null): string {
-  return `I find businesses, not people at home. People who want ${want && want.trim() ? want.trim() : "what you do"} find you, and AI answers them. Businesses whose clients need you next are a good start:`;
+  return `I find businesses, not people at home: those who want ${want && want.trim() ? want.trim() : "what you do"} find you. Start with businesses whose clients need you next:`;
 }
 
 /** The third: what was asked for, named, and what the one card can do. The ask is logged as demand (§0.3). */
