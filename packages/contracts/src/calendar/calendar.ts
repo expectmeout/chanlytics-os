@@ -309,7 +309,9 @@ function assignLanes(timed: CalendarBlockVM[]): void {
 
 /** The services the open times may fit, sized by the phone tool's and the assistant's rule: a consult-first one as a consultation (C5b). */
 function servicesOf(dto: CalendarWeekDto): CalendarServiceVM[] {
-  const all = dto.services ?? [];
+  // A week built by hand (the suite's, the demo's) may come without its services: none to fit.
+  const listedIn: Partial<Pick<CalendarWeekDto, "services">> = dto;
+  const all = listedIn.services ?? [];
   const listed = all.map((s) => ({ name: s.name, duration_min: s.duration_min ?? undefined }));
   return all.map((s) => ({
     name: s.name,
