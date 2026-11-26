@@ -52,7 +52,7 @@ export async function markForwardingVerified(
   const log = logger({ tenant_id: tenantId });
   try {
     const { data, error } = await listLinesAwaitingForwarding(db, tenantId);
-    if (error || !data?.length) return false;
+    if (error || !data.length) return false;
     const now = new Date().toISOString();
     for (const row of data) {
       const facts = (
@@ -78,7 +78,7 @@ export async function markForwardingVerified(
           verified_by: proof === "carrier" ? "carrier" : "window",
         },
       });
-      if (upd.error || !upd.data?.length) continue;
+      if (upd.error || !upd.data.length) continue;
       const kept = formatPhoneDisplay(row.e164) ?? row.e164 ?? "your number";
       await recordNotification(tenantId, {
         kind: "number",

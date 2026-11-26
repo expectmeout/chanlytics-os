@@ -107,7 +107,7 @@ function TbLine({ onAsk, askLabel }: { onAsk: () => void; askLabel: string | nul
   const search = usePageSearchSaid();
   if (search) return <TbSearchLine search={search} />;
   return (
-    <button className="tb-ask" onClick={onAsk} title={BAR_LINE_WORDS.ask} data-testid="tb-ask">
+    <button className="tb-ask" onClick={onAsk} data-tip={BAR_LINE_WORDS.ask} data-testid="tb-ask">
       {tbFace()}
       {tbAskLabel(askLabel)}
     </button>
@@ -371,7 +371,7 @@ export function Topbar({
   const { next: themeNext, said: themeSaid } = themeOf(theme, themePref);
   return (
     <header className="topbar">
-      <button className="btn btn-ghost btn-icon btn-sm tb-menu" title="Menu" aria-label="Menu" onClick={onMenu}>
+      <button className="btn btn-ghost btn-icon btn-sm tb-menu" data-tip="Menu" aria-label="Menu" onClick={onMenu}>
         <Glyph name="menu" />
       </button>
       {tbCrumbs(crumbs)}
@@ -389,7 +389,7 @@ export function Topbar({
         {tbBell(bell)}
         <button
           className="btn btn-ghost btn-icon btn-sm tb-theme"
-          title={themeSaid.label}
+          data-tip={themeSaid.label}
           aria-label={themeSaid.label}
           onClick={() => onTheme(themeNext)}
         >

@@ -427,6 +427,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/shared",
   "apps/edge/lib/sms",
   "apps/edge/lib/support",
+  "apps/edge/lib/voice",
   "apps/edge/lib/website",
   "apps/edge/lib/whatsapp",
   "packages/channels/src/ads",
@@ -505,7 +506,9 @@ export const LIMITED_TREES = [
  * wire, the zone, the day, the Autonomy rows and who reads it). Ask's two trees joined on 1 November 2026, the day they
  * were held: 17 functions there take five or six (the act tools' card builders, the tools' context, the voice door).
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
- * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). Contracts'
+ * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). The edge's
+ * voice joined on 25 November 2026, the day its call start's plan was split: six take five (the call's activity, an
+ * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts). Contracts'
  * today joined on 25 November 2026, the day its figures were split: four take five to seven (the day's figures and the
  * brief, a band's words, the facts' reader). Contracts' leads joined the same day, its row and peek split: a search's
  * class takes six.
@@ -549,6 +552,7 @@ export const WIDE_PARAMS = [
   "packages/channels/src/email",
   "packages/channels/src/google",
   "packages/channels/src/shared",
+  "apps/edge/lib/voice",
   "packages/contracts/src/today",
   "packages/contracts/src/leads",
 ];
