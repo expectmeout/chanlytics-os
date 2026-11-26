@@ -1203,7 +1203,7 @@ export const ES_ROWS = [
     }),
     steps: [noteStep(1), firstSend(2, [1], { template_id: V(2), channels: ["email"] })],
     words: [
-      "Va sin WhatsApp: WhatsApp no está entregando ofertas a números de EE. UU. por ahora. Los mensajes sobre citas y las respuestas siguen saliendo.",
+      "Va sin WhatsApp: WhatsApp no entrega ofertas a números de Estados Unidos por ahora. Las citas y las respuestas siguen saliendo.",
       ES_REMINDS(),
       ES_REUSED,
       ES_NOTE,
