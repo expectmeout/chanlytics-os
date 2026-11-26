@@ -565,7 +565,7 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
       <LinkButton
         size="inherit"
         className="ix-first-email-act"
-        title={MAILBOX_SENDERS_WORDS.actHint}
+        data-tip={MAILBOX_SENDERS_WORDS.actHint}
         onClick={() => {
           carryNotAPerson(clientId);
           onOpenClient(clientId);

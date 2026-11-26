@@ -54,13 +54,13 @@ import {
 import { findLiveAdAccount, mayRunAds } from "@chanlytics/db/ads";
 import type { Database } from "@chanlytics/db/types";
 import { isTenantId, metaAdConfigOf, UUID, type TenantId } from "@chanlytics/contracts";
-import { readAdPhoto } from "./approval.js";
+import { readAdPhoto } from "./launch/approval.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { adsOfferedIn, metaAdsApp, signInOf } from "./account-ops.js";
-import { endOfDayIn } from "./launch-parts.js";
+import { endOfDayIn } from "./launch/parts.js";
 import type { MetaSignIn } from "./meta-facts.js";
 import { adsWrites } from "./tell.js";
 

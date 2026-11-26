@@ -7,7 +7,7 @@ import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { PEOPLE_LISTS } from "../../people/lists/builtin-lists";
 import { saidYesTo } from "../../people/person-consent";
 import type { PersonRowVM } from "../../people/person-row/row-facts";
-import { recordOrEmpty } from "../../shared/unknown";
+import { recordOrEmpty, valueAt } from "../../shared/unknown";
 import type { RunReach } from "../playbooks/playbooks";
 import { firstNameOf } from "../templates/params";
 import { answeredYes } from "./reach-any";
@@ -80,7 +80,7 @@ interface LateVisit {
 
 /** The moment a run's audience names, or null for a broadcast and a run that kept none (`Audience.trigger`). */
 export function audienceTrigger(audience: unknown): string | null {
-  const t = audience && typeof audience === "object" ? (audience as { trigger?: unknown }).trigger : null;
+  const t = audience && typeof audience === "object" ? valueAt(audience, "trigger") : null;
   return typeof t === "string" ? t : null;
 }
 

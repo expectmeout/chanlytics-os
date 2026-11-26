@@ -362,7 +362,7 @@ function originGroup(c: PageCtx) {
           {lead ? (
             <>
               {" "}
-              <LinkButton {...routeDoor(lead.to)} title={lead.name} data-testid="fact-lead">
+              <LinkButton {...routeDoor(lead.to)} data-tip={lead.name} data-testid="fact-lead">
                 {PERSON_ABOUT_WORDS.openLead} <Icon name="chevron" size={10} />
               </LinkButton>
             </>

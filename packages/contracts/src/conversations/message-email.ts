@@ -3,7 +3,7 @@
  * back at us. message-words.ts says an email's words with it; the Inbox's thread (inbox-thread.ts) shows the rest.
  */
 import type { MessageDto } from "./thread-dto";
-import { recordOrNull } from "../shared/unknown";
+import { recordOrNull, valueAt } from "../shared/unknown";
 
 /** An email's subject, as the intake kept it (core email-ingest.ts). */
 export function emailSubjectOf(message: MessageDto): string | null {
@@ -34,7 +34,7 @@ export function emailLeftOutOf(meta: unknown): string | null {
   const files = Array.isArray(email.attachments) ? email.attachments : [];
   const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
   const names = files
-    .map((f) => (f as { filename?: unknown } | null)?.filename)
+    .map((f) => valueAt(f, "filename"))
     .filter((n): n is string => typeof n === "string" && n.trim().length > 0 && !storageNamed(n));
   const total = files.length + unnamed;
   const lines: string[] = [];

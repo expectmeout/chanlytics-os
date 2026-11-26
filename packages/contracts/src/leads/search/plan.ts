@@ -21,6 +21,7 @@
 
 import { CONTROL_CHARS } from "../../shared/words";
 import { LEAD_REACH_DEFAULT_MILES, LEAD_REACH_MAX_M, LEAD_REACH_MILE_M } from "./caps";
+import { recordOrEmpty } from "../../shared/unknown";
 
 export type LeadContactStandard = "phone" | "email";
 /** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
@@ -173,7 +174,7 @@ function stableStringify(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
   if (v && typeof v === "object") {
     const keys = Object.keys(v).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify((v as Record<string, unknown>)[k])}`).join(",")}}`;
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(recordOrEmpty(v)[k])}`).join(",")}}`;
   }
   return JSON.stringify(v);
 }

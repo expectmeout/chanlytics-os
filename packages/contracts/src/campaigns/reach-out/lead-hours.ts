@@ -15,7 +15,7 @@ import { DAYS } from "../../config/workspace-config/config-rules";
 import type { GooglePeriod } from "../../google/listing";
 import { leadCalledByOf } from "../../leads/search/called-by";
 import type { WrittenOpening } from "./words/opening";
-import { textOrEmpty } from "../../shared/unknown";
+import { textOrEmpty, valueAt } from "../../shared/unknown";
 
 export interface OpenWindow {
   from: number;
@@ -109,9 +109,9 @@ export function weekHoursOf(hours: unknown): { week: WeekHours; read: boolean } 
   let readAny = false;
   for (const e of hours) {
     // A day this cannot name could be any of the seven: the week is not read.
-    const day = e && typeof e === "object" ? dayNameOf((e as { day?: unknown }).day) : null;
+    const day = e && typeof e === "object" ? dayNameOf(valueAt(e, "day")) : null;
     if (!day) return { week: DEFAULT_WEEK, read: false };
-    const sentence = (e as { hours?: unknown }).hours;
+    const sentence = valueAt(e, "hours");
     const windows = typeof sentence === "string" ? dayWindowsOf(sentence) : null;
     // A day whose words do not read keeps the default week's hours for it: a guess of nine to five, never a day closed.
     week[day] = windows ?? DEFAULT_WEEK[day];
@@ -139,8 +139,8 @@ export function listingPeriodsOf(hours: unknown): GooglePeriod[] | null {
   const byDay = new Map<WeekdayKey, OpenWindow[]>();
   for (const e of hours) {
     if (!e || typeof e !== "object") return null;
-    const day = dayNameOf((e as { day?: unknown }).day);
-    const words = (e as { hours?: unknown }).hours;
+    const day = dayNameOf(valueAt(e, "day"));
+    const words = valueAt(e, "hours");
     const windows = day && typeof words === "string" ? dayWindowsOf(words) : null;
     if (!day || !windows) return null;
     byDay.set(day, windows);
@@ -197,8 +197,8 @@ function saidWeekOf(hours: unknown): SaidDay[] | null {
   const byDay = new Map<WeekdayKey, SaidDay>();
   for (const e of hours) {
     if (!e || typeof e !== "object") return null;
-    const day = dayNameOf((e as { day?: unknown }).day);
-    const words = (e as { hours?: unknown }).hours;
+    const day = dayNameOf(valueAt(e, "day"));
+    const words = valueAt(e, "hours");
     const saidDay = day && typeof words === "string" ? saidDayOf(dayWindowsOf(words)) : null;
     if (!day || !saidDay) return null;
     byDay.set(day, saidDay);

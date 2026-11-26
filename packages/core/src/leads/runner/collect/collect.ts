@@ -153,10 +153,10 @@ async function collectCheck(
     const answers = (email: string): boolean =>
       last || (state === "succeeded" ? byEmail.has(email) : given ? given.has(email) : again);
     const results = waiting
-      .filter((m) => answers(m.email as string))
+      .filter((m) => answers(m.email))
       .map((m) => ({
         lead_id: m.lead_id,
-        email_state: byEmail.get(m.email as string) ?? ("unknown" as const),
+        email_state: byEmail.get(m.email) ?? ("unknown" as const),
         checked_at: iso(leadPorts.now()),
       }));
     const commit = await leadPorts.db.collectCommit(

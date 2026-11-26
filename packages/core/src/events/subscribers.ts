@@ -254,8 +254,7 @@ function draftHoldOfEvent(event: DeliveredEvent): { conversationId: string } | {
 
 /** The reason a hold's event says it holds for: an opened hold's, or the one a change moved it to. */
 function reasonOfEvent(event: DeliveredEvent): unknown {
-  const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : {};
-  return (data as Record<string, unknown>)[event.kind === "escalation.changed" ? "to" : "reason"];
+  return recordOrEmpty(event.data)[event.kind === "escalation.changed" ? "to" : "reason"];
 }
 
 /**

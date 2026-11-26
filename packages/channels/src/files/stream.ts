@@ -7,7 +7,7 @@
  * key (`kid`, `sub` the video, `exp`), so no call to Stream is spent on one; `downloadable` lets it fetch the audio download.
  * Stream's webhook (one per account) is signed with an HMAC over `time.body`. Nothing here knows a row, a workspace or a page.
  */
-import { isObjectRecord } from "@chanlytics/contracts";
+import { isObjectRecord, recordOrEmpty } from "@chanlytics/contracts";
 import { createHmac, createPrivateKey, sign as signWith, timingSafeEqual } from "node:crypto";
 import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import type { ModelDeps } from "../ai/anthropic";
@@ -342,7 +342,7 @@ export function streamTokenOf(
     ...(claims.downloadable ? { downloadable: true } : {}),
   };
   const head = `${base64UrlOf(JSON.stringify(header))}.${base64UrlOf(JSON.stringify(payload))}`;
-  const jwk = JSON.parse(Buffer.from(signing.jwk, "base64").toString("utf8")) as Record<string, unknown>;
+  const jwk = recordOrEmpty(JSON.parse(Buffer.from(signing.jwk, "base64").toString("utf8")));
   const key = createPrivateKey({ key: jwk, format: "jwk" });
   return `${head}.${base64UrlOf(signWith("sha256", Buffer.from(head), key))}`;
 }

@@ -10,6 +10,7 @@
  */
 import { ROLE_WORDS } from "../shell/identity";
 import type { JobNews } from "../today/notifications/feed-input";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** Where Settings > Team opens: the pane the invitation lived on, and where the new seat's role is changed. */
 const TEAM_ROUTE = "admin/team";
@@ -61,7 +62,7 @@ export function memberLeftBy(
   if (event.kind !== "member.left") return null;
   const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
   if (!data) return null;
-  const { by, how, had_role: hadRole } = data as Record<string, unknown>;
+  const { by, how, had_role: hadRole } = recordOrEmpty(data);
   if (typeof by !== "string" || (how !== "left" && how !== "account_deleted")) return null;
   return { by, how, hadRole: typeof hadRole === "string" ? hadRole : null };
 }

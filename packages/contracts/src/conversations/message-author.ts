@@ -7,7 +7,7 @@
  */
 import { replyWhy, type ReplyWhyVM } from "../config/brain";
 import type { MessageDto } from "./thread-dto";
-import { textOrEmpty } from "../shared/unknown";
+import { textOrEmpty, recordOrEmpty } from "../shared/unknown";
 
 export interface MessageAuthor {
   kind: "receptionist" | "team" | "broadcast" | "playbook";
@@ -17,7 +17,7 @@ export interface MessageAuthor {
 
 /** A key of a message's meta, read without trusting its shape (the column is free JSON). */
 const metaKey = (meta: unknown, key: string): unknown =>
-  meta !== null && typeof meta === "object" ? (meta as Record<string, unknown>)[key] : undefined;
+  meta !== null && typeof meta === "object" ? recordOrEmpty(meta)[key] : undefined;
 
 /**
  * The sources of a send written as a person's (`sender: 'human'`) that no person made: a broadcast's or a playbook's

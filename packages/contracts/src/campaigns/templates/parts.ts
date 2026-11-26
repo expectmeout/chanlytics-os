@@ -4,7 +4,7 @@
  * (sendableTemplates).
  */
 import { starterByName, starterText } from "./starter-lookup";
-import { listOrEmpty, recordOrEmpty, textOrEmpty } from "../../shared/unknown";
+import { listOrEmpty, recordOrEmpty, textOrEmpty, valueAt } from "../../shared/unknown";
 
 /**
  * The line under a message's words, from the components Meta holds.
@@ -77,7 +77,7 @@ const componentOf = (components: unknown, type: string): Record<string, unknown>
   if (!Array.isArray(components)) return null;
   for (const c of components) {
     if (c && typeof c === "object" && textOrEmpty(recordOrEmpty(c).type).toUpperCase() === type)
-      return c as Record<string, unknown>;
+      return recordOrEmpty(c);
   }
   return null;
 };
@@ -103,7 +103,7 @@ export function templateParts(components: unknown): TemplateParts {
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
     const kind = BUTTON_KIND[textOrEmpty(recordOrEmpty(b).type).toUpperCase()];
-    const text = typeof (b as { text?: unknown }).text === "string" ? (b as { text: string }).text.trim() : "";
+    const text = typeof valueAt(b, "text") === "string" ? (b as { text: string }).text.trim() : "";
     if (kind && text) buttons.push({ text, kind });
   }
   return {
@@ -140,7 +140,7 @@ export function templateBlocked(target: { blocked?: string | null; components?: 
   if (!Array.isArray(components)) return null;
   // A part the send has no values for (a carousel of cards, a limited-time offer): Meta refuses it for every recipient.
   const unfilled = components.some((c) => {
-    const type = c && typeof c === "object" ? (c as { type?: unknown }).type : null;
+    const type = c && typeof c === "object" ? valueAt(c, "type") : null;
     return !(typeof type === "string" && FILLED_PARTS.includes(type.toUpperCase()));
   });
   if (unfilled) return "a part Chanlytics cannot fill";

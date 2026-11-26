@@ -13,7 +13,7 @@ import {
   mailboxRampShare,
   type MailboxHold,
 } from "../mailbox-standing";
-import { isOneOf } from "../../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../../shared/unknown";
 
 /* ------------------------------------------------------------------------------------------------ the closed sets */
 
@@ -175,7 +175,7 @@ export function mailboxConnectionDtoOf(
   gmailWords: string | null = null,
 ): MailboxConnectionDto {
   const dns: Partial<Record<MailboxDnsRecord, DnsRecordState>> = {};
-  const raw = row.dns && typeof row.dns === "object" ? (row.dns as Record<string, unknown>) : {};
+  const raw = recordOrEmpty(row.dns);
   for (const k of MAILBOX_DNS_RECORDS) {
     const v = raw[k];
     if (v === "found" || v === "missing") dns[k] = v;

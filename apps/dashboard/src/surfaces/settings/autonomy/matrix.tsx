@@ -209,7 +209,7 @@ function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
           className={`pol-dot ${r.mode === m ? "on" : ""}`}
           aria-label={`${r.label}: ${String(polMode(m).head)}`}
           aria-pressed={r.mode === m}
-          title={(r.hints && r.hints[m]) || polMode(m).does || undefined}
+          data-tip={(r.hints && r.hints[m]) || polMode(m).does || undefined}
           disabled={busy === r.cls}
           onClick={() => put(r, m.toLowerCase())}
           {...gate("autonomy")}

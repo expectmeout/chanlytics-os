@@ -10,6 +10,7 @@ import { messageRoute, runRoute, sequenceRoute } from "../campaigns/sequences/ad
 import { CONTENT_LIBRARY_ROUTE } from "../content/address";
 import { requestAddress } from "../forms/address";
 import type { RecordKind } from "./record-kinds";
+import { recordOrEmpty } from "../shared/unknown";
 
 /**
  * Where each kind of record opens, written once (decision 0047; wiring/records-not-pages, task 4.1; findings A1, A2g and
@@ -171,7 +172,7 @@ export interface JobRecord {
  */
 export function jobRecordOf(kind: string, payload: unknown): JobRecord | null {
   const named = (key: string): string | null => {
-    const v = payload && typeof payload === "object" ? (payload as Record<string, unknown>)[key] : null;
+    const v = payload && typeof payload === "object" ? recordOrEmpty(payload)[key] : null;
     return typeof v === "string" && v ? v : null;
   };
   if (kind === "outbound_send") {

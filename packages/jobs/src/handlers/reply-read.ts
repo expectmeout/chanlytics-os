@@ -16,6 +16,7 @@ import {
   replySubject,
   type ReadingPlan,
   type ReplyAhead,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { readReply, type DraftMark, type DraftState, type KeptReading, type ReplyFacts } from "@chanlytics/core";
 import {
@@ -71,8 +72,7 @@ function keptReadingOf(row: ReplyReadingRow): KeptReading {
   if (row.unread !== null && !isUnread(row.unread))
     throw new Error(`reply_read: a reading was not read for ${row.unread}`);
   const plan = row.plan && typeof row.plan === "object" && !Array.isArray(row.plan) ? row.plan : {};
-  if (!DRAFT_STATES.includes(row.draft_state as DraftState))
-    throw new Error(`reply_read: a draft is ${row.draft_state}`);
+  if (!isOneOf(DRAFT_STATES, row.draft_state)) throw new Error(`reply_read: a draft is ${row.draft_state}`);
   return {
     intent: row.intent,
     summary: row.summary,
@@ -82,7 +82,7 @@ function keptReadingOf(row: ReplyReadingRow): KeptReading {
     told: row.told_at !== null,
     undone: row.undone_at !== null,
     draft: plan.draft === "answer" || plan.draft === "thanks" ? plan.draft : null,
-    draftState: row.draft_state as DraftState, // one of DRAFT_STATES, checked above
+    draftState: row.draft_state, // one of DRAFT_STATES, checked above
     signerOffered: row.signer_state === "offered" ? row.signer_name : null,
     draftText: row.draft,
     ahead: aheadOf(plan),

@@ -81,7 +81,7 @@ export function Segmented<V extends string>(props: SegmentedProps<V>) {
             nativeButton
             render={<button type="button" />}
             data-testid={option.testid}
-            title={option.title}
+            data-tip={option.title}
             aria-labelledby={ids?.label}
             aria-describedby={ids?.hint}
           >

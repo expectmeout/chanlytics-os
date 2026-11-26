@@ -30,6 +30,8 @@ import {
   type LeadPeoplePlan,
   type LeadSearchPlan,
   type PlaceFacts,
+  textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -106,8 +108,10 @@ interface RawResponse {
 
 /** The API refused the REQUEST's beta or format, not the content: a 400 that names it. */
 function betaRejected(e: unknown): boolean {
-  const err = e as { status?: number; message?: string } | null;
-  return err?.status === 400 && /fallback|beta|output_config|json_schema|format/i.test(err.message ?? "");
+  return (
+    valueAt(e, "status") === 400 &&
+    /fallback|beta|output_config|json_schema|format/i.test(textOrEmpty(valueAt(e, "message")))
+  );
 }
 
 /** What one structured call answered, before its parser reads it: the JSON, the model that answered, and its tokens. */

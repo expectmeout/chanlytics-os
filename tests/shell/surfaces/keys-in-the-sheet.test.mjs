@@ -16,7 +16,7 @@ import { SHORTCUTS } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { keysDrawn } from "../../_keys.mjs";
-import { bridgeHolds } from "../_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 
 bridgeHolds({
   who: {
@@ -167,4 +167,39 @@ test("the sheet is the one place a key is drawn: every key the app answers to, t
   const outside = draw();
   assert.equal(byTestId(outside, "shortcuts-sheet"), null, "closed until asked");
   assert.deepEqual(keysDrawn(outside), [], "and with it closed, the shell draws no key");
+});
+
+test("the menus' doors are the shell's: a workspace pressed is switched to, the new one is the shell's door, and Sign out signs out", () => {
+  // Each menu draws its doors over the bridge's shell (frameShell, provided by bridge/shell.ts installShell), so a
+  // press reaches the shell's verb and nothing of the page's own. The verbs themselves run in sign-out-seals.test.mjs.
+  const kept = provided("shell");
+  const asked = [];
+  bridgeHolds({
+    parts: {
+      shell: {
+        ...kept,
+        switchWorkspace: (id) => asked.push(["switch", id]),
+        createWorkspace: () => asked.push(["create"]),
+        signOut: () => asked.push(["sign out"]),
+      },
+    },
+  });
+  try {
+    let tree = draw();
+    press(byTestId(tree, "sb-workspace"));
+    tree = redraw();
+    const items = all(byTestId(tree, "sb-workspace-menu"), (n) => n.props?.["data-testid"] === "sb-ws-item");
+    press(items[1]);
+    tree = draw();
+    press(byTestId(tree, "sb-workspace"));
+    tree = redraw();
+    press(byTestId(byTestId(tree, "sb-workspace-menu"), "sb-ws-new"));
+    tree = draw();
+    press(byTestId(tree, "sb-account"));
+    tree = redraw();
+    press(byTestId(byTestId(tree, "sb-account-menu"), "sb-signout"));
+    assert.deepEqual(asked, [["switch", "w2"], ["create"], ["sign out"]]);
+  } finally {
+    bridgeHolds({ parts: { shell: kept } });
+  }
 });

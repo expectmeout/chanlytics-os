@@ -8,6 +8,7 @@ import type { Hours } from "../config/workspace-config/business-profile";
 import { DAYS, dayProblems } from "../config/workspace-config/config-rules";
 import { WEEKDAY_KEYS } from "../shared/zone/math";
 import { normalizePhone } from "../shared/phone";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** A moment in Google's week: day 0 is Sunday. */
 export type GooglePoint = {
@@ -46,7 +47,7 @@ export type GoogleListingFacts = {
 
 /** A moment of Google's week as stored, or null for anything else. */
 const pointOf = (v: unknown): GooglePoint | null => {
-  const p = v !== null && typeof v === "object" ? (v as Record<string, unknown>) : null;
+  const p = v !== null && typeof v === "object" ? recordOrEmpty(v) : null;
   return p && typeof p.day === "number" && typeof p.hour === "number" && typeof p.minute === "number"
     ? { day: p.day, hour: p.hour, minute: p.minute }
     : null;
@@ -60,12 +61,12 @@ const pointOf = (v: unknown): GooglePoint | null => {
  */
 export function listingFactsOf(raw: unknown): GoogleListingFacts | null {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const item = raw as Record<string, unknown>;
+  const item = recordOrEmpty(raw);
   if (!Object.keys(item).length) return null;
   const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
   const hours = Array.isArray(item.hours)
     ? item.hours.flatMap((p: unknown): GooglePeriod[] => {
-        const q = p !== null && typeof p === "object" ? (p as Record<string, unknown>) : null;
+        const q = p !== null && typeof p === "object" ? recordOrEmpty(p) : null;
         const open = q ? pointOf(q.open) : null;
         if (!q || !open) return [];
         if (q.close == null) return [{ open, close: null }];

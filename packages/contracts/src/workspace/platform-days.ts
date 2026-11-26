@@ -10,6 +10,7 @@
  */
 import { DAY_MS, HOUR_MS, MIN_MS } from "../shared/time";
 import type { Tone } from "../shell/tone";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** How many days the back office reads: a week, newest first. */
 export const PLATFORM_DAYS_READ = { days: 7 } as const;
@@ -315,7 +316,7 @@ function breachesOf(name: PlatformNumberName, platformTarget: PlatformTarget, va
     return value > most ? [{ number: name, key: null, value: value, most }] : [];
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-  return Object.entries(value as Record<string, unknown>)
+  return Object.entries(recordOrEmpty(value))
     .sort(([a], [b]) => a.localeCompare(b))
     .flatMap(([key, x]) => {
       const most = mostFor(platformTarget, key);

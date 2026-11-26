@@ -22,6 +22,7 @@ import {
   type Within,
   type SchemaSet,
   DbFailure,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import type { Database } from "../../../types";
 import type { TenantId } from "@chanlytics/contracts";
@@ -225,7 +226,7 @@ export interface VersionRef {
 type VersionDoor = { ok: true; version: VersionRef } | { ok: false; error: { code: string | null; message: string } };
 
 function versionRefOf(data: unknown): VersionRef | null {
-  const v = data as Partial<Record<keyof VersionRef, unknown>> | null;
+  const v = recordOrNull(data);
   return v &&
     typeof v.id === "string" &&
     typeof v.channel === "string" &&

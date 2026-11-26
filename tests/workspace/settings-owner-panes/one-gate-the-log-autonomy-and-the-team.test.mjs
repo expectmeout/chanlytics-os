@@ -569,7 +569,7 @@ test("a control says what it will do, in the words above it", () => {
     "REGRESSION: a screen reader heard the filing word",
   );
   assert.equal(
-    dots[1].props.title,
+    dots[1].props["data-tip"],
     POLICY_MODE_WORDS.veto.does,
     "the whole sentence is still there, on the control rather than the heading",
   );

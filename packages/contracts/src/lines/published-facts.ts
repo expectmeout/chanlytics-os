@@ -13,7 +13,7 @@
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import type { BusinessRecordDto } from "./business-record";
-import { keysOf } from "../shared/unknown";
+import { keysOf, recordOrEmpty } from "../shared/unknown";
 
 /** A column of the business on record that an owner fills (the row's own clock is not one). */
 export type BusinessRecordColumn = Exclude<keyof BusinessRecordDto, "updated_at">;
@@ -156,7 +156,7 @@ const FILINGS: readonly string[] = RECORD_FILINGS;
 /** The save's answer, read off the edge's: null from an edge that does not say (one deployed before this). */
 export function recordSavedOf(raw: unknown): RecordSavedDto | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const item = raw as Record<string, unknown>;
+  const item = recordOrEmpty(raw);
   if (typeof item.first !== "boolean" || !Array.isArray(item.changed) || typeof item.filing !== "string") return null;
   if (!FILINGS.includes(item.filing)) return null;
   const changed: unknown[] = item.changed;
