@@ -299,7 +299,7 @@ function clientsRow(setupInputs: SetupInputs): SetupRowDraft | null {
   if (!setupInputs.imports) return null;
   const row = setupInputs.imports.find((r) => r.source === "clients_file") ?? null;
   const details: string[] = [];
-  const base = { id: "clients", icon: "users", title: "Your clients", required: false, details };
+  const base = { id: "clients", icon: "users", title: "Customers", required: false, details };
   if (row?.state === "done")
     return {
       ...base,

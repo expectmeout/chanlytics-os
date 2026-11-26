@@ -220,7 +220,7 @@ test("a mailbox that could not take an email in says so on Connections, and keep
     domain: "mail.chanlytics.com",
     mailbox: { ...MAILBOX, last_error: TROUBLE },
   });
-  assert.deepEqual([hurt.state, hurt.stateWords, hurt.detail], ["attention", "Waiting on us", MAILBOX.address]);
+  assert.deepEqual([hurt.state, hurt.stateWords, hurt.detail], ["attention", "Waiting on Chanlytics", MAILBOX.address]);
   assert.equal(
     hurt.sentence,
     `${TROUBLE} Customers write to this address and you reply from the Inbox, as Best Movers. Last email 2h ago.`,

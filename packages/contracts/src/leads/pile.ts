@@ -58,7 +58,7 @@ export const LEAD_PILE_WORDS = {
   /** The end of the pile, with a sequence its adds went to: the way to it. */
   openTarget: (target: string) => `Open “${target}”`,
   /** The reason a Not a fit was last given, marked among the five. */
-  lastWhy: "Your last reason",
+  lastWhy: "Last reason",
   /** The pile's one line for a screen reader and the eye, after each press: what was done, and who is up. */
   next: (name: string) => `Next: ${name}`,
   lastOne: "That was the last one.",

@@ -132,7 +132,7 @@ test("the head: how many messages to how many people over how many runs, and how
 
 test("the head without the ledger says the sends alone", () => {
   // The sources' runs (12 + 2) and the days' answered messages (50); the ledger's people are not there to say.
-  const alone = "240 messages over 14 runs; people wrote back to 50 of them.";
+  const alone = "240 messages over 14 runs, and people wrote back to 50 of them.";
   assert.equal(fold({ ledger: null }).head, alone, "the ledger failed");
   assert.equal(fold({ ledger: dtoWith(null) }).head, alone, "the database has no campaign_ledger");
   // Under five messages, a share of them is not said.
@@ -142,7 +142,7 @@ test("the head without the ledger says the sends alone", () => {
   );
   assert.equal(
     fold({ ledger: null, campaigns: campaignsOf({ sent: REPORT_MIN_N, replied: 2 }) }).head,
-    "5 messages over 1 run; people wrote back to 2 of them.",
+    "5 messages over 1 run, and people wrote back to 2 of them.",
   );
 });
 
@@ -1152,7 +1152,7 @@ test("a count the ledger did not send is not said as a zero", () => {
   );
   // The people sent to: the sends alone are said.
   const noSentTo = without(["people", "now", "sent_to"]);
-  assert.equal(noSentTo.head, "240 messages over 14 runs; people wrote back to 50 of them.");
+  assert.equal(noSentTo.head, "240 messages over 14 runs, and people wrote back to 50 of them.");
   assert.ok(!noSentTo.strip.some((t) => t.metric === "people_sent_to" || t.metric === "people_wrote_back"));
   // The period before's people: nothing to set this one against.
   const noBefore = without(["people", "before", "wrote_back"]);

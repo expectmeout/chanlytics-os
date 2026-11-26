@@ -280,7 +280,7 @@ export type SetupState = "not_started" | "waiting_you" | "waiting_them" | "ready
 export const SETUP_STATE_WORDS: Record<SetupState, string> = {
   not_started: "Not started",
   waiting_you: "Waiting on you",
-  waiting_them: "Waiting on us",
+  waiting_them: "Waiting on Chanlytics",
   ready: "Ready",
 };
 

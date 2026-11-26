@@ -273,7 +273,7 @@ test("Find is the business step for an owner while Google can be searched and no
   assert.equal(fr.find, true);
   assert.equal(fr.shown.key, "business");
   assert.equal(fr.heading, "Is this Harbor Moving?", "the name typed at sign-up");
-  assert.equal(fr.lead, "We looked you up on Google with the name you signed up with.");
+  assert.equal(fr.lead, "Chanlytics looked you up on Google with the name you signed up with.");
   assert.equal(fr.primaryRow, null, "Find's rows are not drawn, so none of them carries the coral button");
   assert.equal(fr.findDone, null, "the plain address: Find goes by itself once Google is put off");
   assert.equal(
@@ -284,7 +284,11 @@ test("Find is the business step for an owner while Google can be searched and no
   assert.equal(firstRunOf(setupSteps(g(), NOW)).find, false, "and nobody is an owner unless the page says so");
   const named = firstRunOf(setupSteps(g(), NOW), null, { ...owner, receptionistName: "Harbor Moving & Storage" });
   assert.equal(named.heading, "Is this Harbor Moving & Storage?", "AI's own name first");
-  assert.equal(named.lead, "We looked you up on Google with the name and address on record.", "as the search asks it");
+  assert.equal(
+    named.lead,
+    "Chanlytics looked you up on Google with the name and address on record.",
+    "as the search asks it",
+  );
   const putOff = setupSteps(g({ later: ["google"] }), NOW);
   assert.equal(firstRunOf(putOff, null, owner).find, false, "said: not on Google");
   const asked = firstRunOf(putOff, "find", owner);
@@ -663,7 +667,7 @@ test("a payment that failed after setting up is said as the plan, never as a ste
   });
   // Billing is the phone step's need, so the card read "Your receptionist is answering · Next: your phone".
   const failed = setupCardOf(setupSteps(live({ billing: billing("past_due") }), NOW));
-  assert.equal(failed.title, "Your plan");
+  assert.equal(failed.title, "Plan");
   assert.equal(failed.left, "Needs you");
   assert.equal(failed.start, null);
   assert.deepEqual(ids(failed.rows), ["billing"]);

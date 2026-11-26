@@ -211,6 +211,7 @@ export const LEAD_DRAFT_JSON_SCHEMA = {
 
 /** The foot every draft carries: the business's postal address and a way to say no (CAN-SPAM). */
 export function leadDraftFooter(business: string, address: string): string {
+  // screen-word: words a lead reads, in the business's own voice (docs/words.md, "Who reads it")
   return `\n\n—\n${business} · ${address}\nNot interested? Reply "no thanks" and I won't write again.`;
 }
 
