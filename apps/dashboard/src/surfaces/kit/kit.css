@@ -4648,9 +4648,10 @@ a.list-row {
    (data-leaving) is not one a toast has to clear: the toast a save raises would otherwise start over where the sheet's
    foot was and drop as the sheet went. The sheet says it is open on the document's root as it opens
    (kit/motion/root-flags.ts, data-sheet-open), written twice: the rule weighs what its `:has()` did, which every
-   change on the page had the browser read again. */
-:root[data-sheet-open][data-sheet-open] .pp-toast-stack {
-  bottom: calc(184px + env(safe-area-inset-bottom));
+   change on the page had the browser read again. On a phone the lift is said where the stack reads where it rests
+   (--toast-foot, below), so the shell's open bell, said the same way after it, still sets it down at the foot. */
+:root[data-sheet-open][data-sheet-open] {
+  --toast-foot: calc(184px + env(safe-area-inset-bottom));
 }
 @media (width > 900px) {
   :root[data-sheet-open][data-sheet-open] .pp-toast-stack {

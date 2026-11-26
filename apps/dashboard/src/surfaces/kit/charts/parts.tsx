@@ -143,15 +143,15 @@ export function ChartTooltipContent({ title = null, rows = [], note = null }: Ch
   return (
     <div className="ck-readout-inner">
       {title && <div className="ck-readout-title">{title}</div>}
-      {rows.map((r) => (
-        <div className="ck-readout-row" key={r.key}>
+      {rows.map((row) => (
+        <div className="ck-readout-row" key={row.key}>
           <i
             className="ck-key line"
-            style={customProperties({ "--k": r.color || `var(--color-${r.key})` })}
+            style={customProperties({ "--k": row.color || `var(--color-${row.key})` })}
             aria-hidden="true"
           />
-          <b className="ck-readout-value">{r.value}</b>
-          <span className="ck-readout-label">{r.label}</span>
+          <b className="ck-readout-value">{row.value}</b>
+          <span className="ck-readout-label">{row.label}</span>
         </div>
       ))}
       {note && <div className="ck-readout-note">{note}</div>}

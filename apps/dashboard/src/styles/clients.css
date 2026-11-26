@@ -1741,15 +1741,16 @@
      the strip changed (the strips review, 18 Oct 2026: 17 ms a swap on a phone's CPU, 3.6 so). */
   .pl-table tbody tr.pl-card-row > td:first-child:has(> input:focus-visible) ~ td > .pl-card > span:first-child { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* A toast rises over the docked row rather than covering it: its Undo and the row's ✕ are both a thumb's. From 721
-     to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). */
-  :where(:root)[data-bulk-docked][data-bulk-docked] body .pp-toast-stack { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+     to 900px the row stands at the screen's foot, where toasts sat 14px up (mobile.css). Said as where the stack rests
+     (--toast-foot, kit.css), under an open sheet's lift and the open bell's, as it stood. */
+  :where(:root)[data-bulk-docked][data-bulk-docked] { --toast-foot: calc(78px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (max-width: 720px) {
   /* At 720px and under the row stands on the tab bar (.phone-places, 64px), which clears the home bar for it, and
      toasts sat 76px up (mobile.css): ON the row. Measured on production, 22 Sep: the row 687-748, the tabs 754-812. */
   .cl-bulk.pp-bulk { padding-bottom: 6px; }
-  :where(:root)[data-bulk-docked][data-bulk-docked] body .pp-toast-stack { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+  :where(:root)[data-bulk-docked][data-bulk-docked] { --toast-foot: calc(140px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (max-width: 900px) {

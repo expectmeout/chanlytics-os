@@ -17,7 +17,6 @@ import {
   RPT_CHANNEL_COLORS,
   RadarChart,
   RptStrip,
-  Segmented,
   card,
   cls,
   factOf,
@@ -481,7 +480,9 @@ test("the channels' colours are kept by channel, in contracts' order, and the sa
 test("when they reach you, as a table: the seven days, then the twenty-four hours", () =>
   inLens(2, () => {
     let tree = pageOnce();
-    find(card(tree, "chart-rhythm"), (n) => n.type === Segmented).props.onValueChange("table");
+    find(card(tree, "chart-rhythm"), (n) =>
+      n.props?.options?.some?.((o) => o.testid === "card-table"),
+    ).props.onValueChange("table");
     tree = redraw();
     const rows = all(card(tree, "chart-rhythm"), (n) => n.type === "tr")
       .slice(1)

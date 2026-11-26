@@ -17,9 +17,10 @@ const { ckNice, ckNiceSeconds, ckSecondsLabel, ckMonotone, ckRuns, ckEvery, ckHe
   await import(`${K}/geometry.ts`);
 const { CkXLabels, ChartLegend, ChartTooltip } = await import(`${K}/parts.tsx`);
 const { ChartCard, SegmentBar } = await import(`${K}/card.tsx`);
-const { Segmented } = await import(`${K}/../segmented/segmented.tsx`);
-/** The card's Chart/Table switch, the kit's Segmented: a press there chooses its value. */
-const showAs = (tree, value) => find(tree, (n) => n.type === Segmented).props.onValueChange(value);
+/** The card's Chart/Table switch, the kit's Segmented (loaded as the card draws): found by its options, a press there
+ *  chooses its value. */
+const isSwitch = (n) => Array.isArray(n.props?.options) && n.props.options.some((o) => o.testid === "card-table");
+const showAs = (tree, value) => find(tree, isSwitch).props.onValueChange(value);
 const { BarChart, BarList } = await import(`${K}/bar.tsx`);
 const { LineChart } = await import(`${K}/line.tsx`);
 const { DotPlot } = await import(`${K}/dot.tsx`);
@@ -276,7 +277,7 @@ test("a card switches to its table twin and back; a twin can be made from the ch
     children: "a table already",
   });
   assert.ok(
-    byTestId(listed, "card-csv") && !find(listed, (n) => n.type === Segmented),
+    byTestId(listed, "card-csv") && !find(listed, isSwitch),
     "a table's card keeps the CSV and drops the switch",
   );
 });
