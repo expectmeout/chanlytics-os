@@ -125,7 +125,7 @@ const CHECK_GATE_WAIT_MS = HOUR_MS;
 /** The most of what a site said a send keeps (00505 sequence_sends_website_says_shape). */
 const WEBSITE_SAYS_KEPT_MAX = 800;
 /** A check_unavailable hold with no rule broken goes back to be checked this long after it was held (R4). */
-export const CHECK_RELEASE_AFTER_MS = HOUR_MS;
+const CHECK_RELEASE_AFTER_MS = HOUR_MS;
 
 /**
  * What a written opening stores, within the columns' bounds (00197), or null when it does not fit them. checkOpening

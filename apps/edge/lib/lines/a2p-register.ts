@@ -423,7 +423,8 @@ function recordAsFiled(o: Filing): BusinessRecord {
   // brand, the campaign and the profile must all name the same URL, and three
   // places deciding that separately is three places to disagree.
   const base = businessRecordFrom(o.record);
-  const record = base.websiteUrl.trim() ? base : { ...base, websiteUrl: o.hostedUrl ?? base.websiteUrl };
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- a test reads this line as written
+  const record = base.websiteUrl?.trim() ? base : { ...base, websiteUrl: o.hostedUrl ?? base.websiteUrl };
   return record;
 }
 

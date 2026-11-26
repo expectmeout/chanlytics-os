@@ -417,6 +417,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/ai",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
+  "apps/edge/lib/campaigns",
   "apps/edge/lib/connections",
   "apps/edge/lib/content",
   "apps/edge/lib/drafts",
@@ -524,6 +525,8 @@ export const LIMITED_TREES = [
  * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts). The dashboard's campaigns,
  * people and readers joined on 26 November 2026, the day their last long function was split: 16 take five to seven (a
  * run's audience and its pools, the templates' versions, a deal's write, the import's rows, the content reader's two).
+ * The edge's campaigns joined the same day, with the reach-out check's tick: 11 take five to seven (the check's input and
+ * its line, the clock's re-plan, a hand step's run, the sender's lane, and the late and freed-time notices).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -557,6 +560,7 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/campaigns",
   "apps/dashboard/src/server/people",
   "apps/dashboard/src/server/readers",
+  "apps/edge/lib/campaigns",
   "apps/edge/lib/ai",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
