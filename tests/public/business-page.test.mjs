@@ -21,13 +21,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  businessFieldsFor,
   businessPageVM,
+  businessRecordProblems,
   smsConsentSentence,
   registrationPreflight,
+  retentionWords,
   SMS_CLAUSES,
   textingTermsVM,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import {
+  FILING,
+  LINE,
+  RECORD,
+  VAULT,
+  answer,
+  form,
+  knock,
+  unfiled,
+  use,
+  wire,
+  withEnv,
+  world,
+} from "../lines/door/_door.mjs";
 import { campaignFactsFor } from "../../apps/edge/lib/lines/a2p-campaign-facts.ts";
 
 const salon = {
@@ -113,8 +131,8 @@ test("a record too thin to identify anybody publishes nothing", () => {
     assert.equal(businessPageVM({ ...salon, ...missing }).empty, true, JSON.stringify(missing));
   }
   assert.equal(businessPageVM(salon).empty, false);
-  const page = readCode("apps/dashboard/app/b/[slug]/page.tsx");
-  assert.ok(page.includes("if (vm.empty) notFound();"), "and the page refuses to render it");
+  // And the page refuses to render it: run by its slug in public/the-pages-answer-for-their-slug.test.mjs (no legal name,
+  // no street, no city: Not found, and the tab says so).
 });
 
 test("what they do, from what they already told the receptionist", () => {
@@ -142,8 +160,7 @@ test("the page is on the same domain as the opt-in page, which is what 30907 wan
   // DASHBOARD_ORIGIN.
 });
 
-test("a business with no website of its own files the page we publish", () => {
-  const a2p = readCode("apps/edge/lib/lines/a2p-register.ts");
+test("a business with no website of its own files the page we publish", async () => {
   // The privacy policy the phone networks are given identifies the BUSINESS. Ours
   // identifies Chanlytics, which is the wrong answer to 30919's question.
   const privacyFiled = (hostedUrl) =>
@@ -156,63 +173,91 @@ test("a business with no website of its own files the page we publish", () => {
     }).privacyPolicyUrl;
   assert.equal(privacyFiled("https://app.example.com/b/marisas"), "https://app.example.com/b/marisas");
   assert.equal(privacyFiled(null), "https://app.example.com/privacy", "ours only when no page is hosted for them");
-  // And the website on the brand's own end user is substituted ONCE, before any
-  // request is built -- the brand, the campaign and the profile must all name
-  // the same URL.
-  assert.match(
-    a2p,
-    /const record = base\.websiteUrl\?\.trim\(\) \? base : \{ \.\.\.base, websiteUrl: o\.hostedUrl \?\? base\.websiteUrl \}/,
+  // And the website on the brand's own end user is substituted ONCE, before any request is built -- the brand, the
+  // campaign and the profile must all name the same URL. The edge's register door, run over the carriers' wire
+  // (lines/door/_door.mjs): a business with no website files its page here, and one with a site of its own keeps it.
+  const filedWebsite = async (website_url) => {
+    const tables = world({ lines: [unfiled()], business_records: [{ ...RECORD, website_url }] });
+    use(tables, VAULT);
+    let n = 0;
+    const carrier = wire((req) => {
+      if (req.url.endsWith("/Evaluations")) return { status: 201, body: { status: "compliant" } };
+      return { status: 201, body: { sid: `XX${String(++n).padStart(4, "0")}` } };
+    });
+    try {
+      await withEnv(FILING, async () => {
+        const [status, body] = await answer(await knock({ op: "register", line_id: LINE }));
+        assert.equal(status, 200, JSON.stringify(body));
+      });
+    } finally {
+      carrier.restore();
+    }
+    const business = carrier.seen.find(
+      (r) => r.url.endsWith("/EndUsers") && form(r).get("Type") === "customer_profile_business_information",
+    );
+    const campaign = form(carrier.seen.at(-1));
+    return {
+      website: JSON.parse(form(business).get("Attributes")).website_url,
+      policy: campaign.get("PrivacyPolicyUrl"),
+    };
+  };
+  assert.deepEqual(
+    await filedWebsite(""),
+    { website: "https://dash.test/b/harbor-moving", policy: "https://dash.test/b/harbor-moving" },
+    "no website: the page we publish is the business's website and its policy, one URL",
   );
-  assert.ok(
-    a2p.indexOf("const record = base.websiteUrl") < a2p.indexOf("const ports: A2PPorts"),
-    "before anything is composed from it",
-  );
+  assert.equal((await filedWebsite("https://harbormoving.example")).website, "https://harbormoving.example");
 
-  // Which is only safe because the form no longer demands a URL it cannot get.
-  const rec = readRaw("packages/contracts/src/lines/business-record.ts");
-  assert.match(rec, /\{ name: "website_url", required: false \}/);
-  assert.ok(rec.includes("We publish `/b/<slug>`"), "and says why, where the next person will read it");
+  // Which is only safe because the form no longer demands a URL it cannot get: for a company and for a person trading
+  // under a name alike, a record with no website lacks nothing.
+  for (const path of ["standard", "sole_proprietor"]) {
+    assert.equal(
+      businessFieldsFor(path).find((f) => f.name === "website_url").required,
+      false,
+      `${path}: the website is asked, never required`,
+    );
+    assert.equal(
+      businessRecordProblems({ website_url: "" }, path).website_url,
+      undefined,
+      `${path}: a record with no website lacks nothing for it`,
+    );
+  }
 });
 
-test("the wiring: public, indexed, reads by slug, writes nothing", () => {
-  const page = readCode("apps/dashboard/app/b/[slug]/page.tsx");
-  assert.ok(page.includes("const facts = await findBusinessPage(slug);") && page.includes("if (!facts) notFound();"));
-  // INDEXED, unlike the opt-in page: a business a reviewer cannot look up is
-  // exactly what 30919 was complaining about.
+// The wiring, public, indexed, reads by slug and writes nothing: the page asks its reader for the slug and is Not found
+// for a workspace that has no page; INDEXED, unlike the opt-in page, since a business a reviewer cannot look up is exactly
+// what 30919 was complaining about. Both pages are run by their slug in public/the-pages-answer-for-their-slug.test.mjs,
+// their tabs held to contracts' rule; the reader (fixtures and ended workspaces have no page, nor a business that has not
+// said who it is; only selects; the identity from business_records' public columns and the services from the
+// receptionist's profile) is run in a-paused-workspace-asks-nobody-for-a-yes.test.mjs.
+
+test("Chanlytics' own policy and a workspace's page cannot drift", async () => {
+  // The policy as it is served (app/privacy/page.tsx), drawn on a server's React: the words it says.
+  globalThis.React ??= (await import("react")).default;
+  const { default: PrivacyPage } = await import("../../apps/dashboard/app/privacy/page.tsx");
+  const words = (n) =>
+    n == null || typeof n === "boolean"
+      ? ""
+      : typeof n !== "object"
+        ? String(n)
+        : Array.isArray(n)
+          ? n.map(words).join("")
+          : typeof n.type === "function"
+            ? words(n.type(n.props))
+            : words(n.props?.children);
+  const privacy = words(PrivacyPage());
   assert.ok(
-    page.includes("return businessPageMetadata(await findBusinessPage(slug));"),
-    "indexed by contracts' rule, which public-page-titles.test.mjs runs",
-  );
-  assert.ok(
-    readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes(
-      "return consentPageMetadata(await findConsentPage(slug));",
+    privacy.includes(
+      `${retentionWords()} An owner can download a copy of a workspace’s records from Settings › Billing:`,
     ),
-    "and the opt-in page still is not",
+    "the page prints the contract's retention paragraph, not its own numbers",
   );
-  // The reader (fixtures and ended workspaces have no page, nor a business that has not said who it is; only selects; the
-  // identity from business_records' public columns and the services from the receptionist's profile) is run in
-  // a-paused-workspace-asks-nobody-for-a-yes.test.mjs.
-});
-
-test("Chanlytics' own policy and a workspace's page cannot drift", () => {
-  const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
-  assert.ok(
-    privacy.includes('import { retentionWords, SMS_CLAUSES } from "@chanlytics/contracts";'),
-    "the clauses, and the retention it prints, from contracts",
-  );
-  assert.ok(
-    /<p>\s*\{retentionWords\(\)\} \{DOWNLOAD_WORDS\}/.test(privacy) &&
-      privacy.includes('"An owner can download a copy of a workspace’s records from Settings › Billing:'),
-    "the page prints the contract's paragraph, not its own numbers",
-  );
-  assert.ok(privacy.includes('{SMS_CLAUSES.join(" ")}'), "the policy renders them rather than repeating them");
+  assert.ok(privacy.includes(SMS_CLAUSES.join(" ")), "the policy renders the clauses rather than repeating them");
   // The sentence that is NOT shared is the one that names who is sending: the
   // policy speaks about businesses in general, a workspace's page names one.
-  assert.ok(privacy.includes("A business&rsquo;s customers receive texts only when"));
-  assert.ok(
-    !privacy.includes("No mobile information will be shared with third parties or affiliates for marketing"),
-    "REGRESSION: a second copy of a compliance clause",
-  );
+  assert.ok(privacy.includes("A business’s customers receive texts only when"));
+  for (const clause of SMS_CLAUSES)
+    assert.equal(privacy.split(clause).length - 1, 1, `REGRESSION: a second copy of a compliance clause: ${clause}`);
 });
 
 /* -------------------------------------------------------------------------- *
@@ -326,52 +371,86 @@ test("a website that is not a website is worse than none", () => {
   }
 });
 
-test("nothing is filed until they are answered, and the words reach the row", () => {
-  const edge = readCode("apps/edge/lib/lines/a2p-register.ts");
-  // Same moment as the record check, and before anything is created: on a real
-  // filing each of these is a week of waiting and a fee already spent.
-  assert.match(edge, /for \(const item of registrationPreflight\(\{/);
-  // WHICH function checks, not merely whether the file mentions it anywhere. This
-  // used to compare whole-FILE indices -- `registrationPreflight({` before
-  // `const send = async` -- which is trivially true of a file where one sender
-  // checks and another does not, and that is exactly what the file was: the refile
-  // path reached the carriers through `resubmitRejectedCampaign`, which asked
-  // nothing. a2p-refile.test.mjs now slices each sender and asks of each.
-  assert.match(
-    edge,
-    /export async function listFilingProblems\(/,
-    "one decider, so both senders can ask the same question",
-  );
-  const inRegister = edge.slice(edge.indexOf("export async function registerLine("));
-  assert.ok(
-    inRegister.indexOf("listFilingProblems(") < inRegister.indexOf("const send = async"),
-    "before a single call is made",
-  );
-  assert.match(
-    edge,
-    /problems\.push\(`\$\{item\.what\} \$\{item\.fix\}`\)/,
-    "what is wrong AND what to do, on the row the page reads",
-  );
-  // And they REACH the owner. The sentences used to be stored and then dropped:
-  // the edge returned a token, the dashboard passed the token through, and the
-  // bridge printed `record_incomplete` at the person who pressed the button.
-  assert.ok(
-    inRegister.slice(0, inRegister.indexOf("const send = async")).includes("problems,"),
-    "returned as well as stored",
-  );
-  const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.match(owner, /body\.error === "record_incomplete" \|\| body\.error === "sole_proprietor_incomplete"/);
-  assert.match(owner, /problems\.length\s*\?\s*problems\.join\(" "\)/, "and become the refusal the owner reads");
-  assert.ok(
-    !owner.includes("sole_proprietor_unsupported"),
-    "REGRESSION: a refusal for an error nothing can return since gate 7",
-  );
-  // The workspace's name is what the campaign will say, so it is what gets
-  // checked -- not the record's, which is what the brand says.
-  assert.match(edge, /workspaceName: filing\.workspaceName,/);
-  // And the door tells it whether anybody can say yes -- run in
-  // lines/door/: a line with no number and no active texting row is
-  // refused with the sentence, and an active row beside it is enough.
+test("nothing is filed until they are answered, and the words reach the row", async () => {
+  // The edge: the pre-flight is asked at the same moment as the record check, before anything is created, by every door
+  // that talks to the carriers, and what is wrong AND what to do lands on the row the page reads and in the answer. Run
+  // over the carriers' wire in lines/door/register-and-its-status.test.mjs (a name the campaign would say that the record
+  // does not, and a line nobody can say yes on: 409 with the sentences, nothing sent, the row needs the record) and
+  // lines/filing/a2p-refile.test.mjs ("EVERY door that talks to the carriers asks first"). The workspace's name is what
+  // the campaign will say, so it is what is checked there.
+  //
+  // And they REACH the owner. The sentences used to be stored and then dropped: the edge returned a token, the dashboard
+  // passed the token through, and the bridge printed `record_incomplete` at the person who pressed the button. The
+  // owner's route (lines/register), run over an edge that refuses so.
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaab01";
+  const OWNER = "u-owner";
+  const env = { EDGE_CALL_SECRET: "edge-secret-for-this-file", EDGE_PROVIDERS: "live" };
+  const kept = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  const register = await importSrc("apps/dashboard/app/api/v1/lines/register/route.ts");
+  const owner = {
+    supabase: fakeDb({
+      memberships: [
+        {
+          user_id: OWNER,
+          tenant_id: T,
+          role: "owner",
+          tenants: { slug: "harbor" },
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      tenants: [{ id: T, slug: "harbor", name: "Harbor Moving", status: "active", timezone: "America/New_York" }],
+      billing_accounts: [{ tenant_id: T, mode: "stripe", status: "trialing" }],
+    }),
+    userId: OWNER,
+    email: "ada@example.com",
+    aal: "aal2",
+    params: {},
+  };
+  const wasFetch = globalThis.fetch;
+  /** The owner's press, over an edge whose register answers 409 with `refusal`: what the owner is told. */
+  const told = async (refusal) => {
+    setRateStore(memoryStore());
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ ok: false, ...refusal }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      });
+    const press = new Request(`http://localhost/api/v1/lines/register?workspace=${T}`, {
+      method: "POST",
+      body: JSON.stringify({ line_id: "22222222-2222-4222-8222-222222222222" }),
+    });
+    try {
+      await register.POST.run(press, owner);
+    } catch (e) {
+      return { code: e.code, message: e.message };
+    }
+    assert.fail("the route answered where it should have refused");
+  };
+  try {
+    const problems = [
+      'The texts will say "Harbor Moving" but the business on record is "Billing probe". Use one name in both.',
+      "Nowhere for a customer to say yes yet. Connect a number they can text first.",
+    ];
+    for (const error of ["record_incomplete", "sole_proprietor_incomplete"])
+      assert.deepEqual(
+        await told({ error, problems }),
+        { code: "conflict", message: problems.join(" ") },
+        `${error}: the pre-flight's sentences become the refusal the owner reads`,
+      );
+    assert.match(
+      (await told({ error: "record_incomplete", problems: [" ", 7] })).message,
+      /^Something on your business record is not ready/,
+      "and with none it can read, a sentence that says where to look, never the token",
+    );
+  } finally {
+    globalThis.fetch = wasFetch;
+    setRateStore(null);
+    for (const [k, v] of Object.entries(kept))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  }
 });
 
 test("what the program keeps and what for, on the page filed as the privacy policy", () => {
