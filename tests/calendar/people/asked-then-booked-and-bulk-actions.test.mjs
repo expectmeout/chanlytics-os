@@ -5,7 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toPersonVM, personActs, PEOPLE_LISTS } from "@chanlytics/contracts";
-import { importSrc, readCode } from "../../_source.mjs";
+import { importSrc } from "../../_source.mjs";
+import { DESK, PHONE, cascadeOf, declared, element } from "../../_css.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { logLineOf } from "../../_log-lines.mjs";
 import { fresh, again, all, byTestId, classes, find, press, textOf } from "../../_stub-react.mjs";
@@ -199,11 +200,36 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   // (reports/page/periods-reviews-and-every-state.test.mjs, "asked, then booked"), and its Receptionist lens the chart
   // (reports/lenses/reports-lens-page.test.mjs); Leads and the Deal board retired into People, where the old addresses
   // land (shell/surfaces/surface-registry.test.mjs, surfaceRetiredTo).
-  const shell = readCode("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
-  assert.ok(
-    shell.includes("if (retiredTo) shellAddress().go(retiredTo, { replace: true });"),
-    "a real workspace lands on People",
-  );
+  // The frame moves a real workspace there, in place (pinned as shell-hooks.ts's text until 26 Nov 2026): the route
+  // resolved as the frame resolves it, over the registry's own answer, and its move handed to the bridge's address.
+  await peopleHarness();
+  const { bridgeHolds } = await import("../../shell/_bridge-holds.mjs");
+  const { surfaceRetiredTo } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
+  const { routeAt } = await importSrc("apps/dashboard/src/surfaces/frame/shell-routes.ts");
+  const { useRouteMoves } = await importSrc("apps/dashboard/src/surfaces/frame/shell-hooks.ts");
+  const moves = [];
+  bridgeHolds({
+    parts: {
+      surfaceRetired: surfaceRetiredTo,
+      shell: { route: () => "today", href: (r) => r, go: (r, o) => moves.push([r, o]), hear: () => () => {} },
+    },
+  });
+  try {
+    for (const page of ["leads", "pipeline"]) {
+      moves.length = 0;
+      fresh();
+      again(() => (useRouteMoves(routeAt({ page, param: null })), null));
+      const to = surfaceRetiredTo(page, null);
+      assert.match(to, /^clients(\/|$)/, `${page} retired into People`);
+      assert.deepEqual(moves, [[to, { replace: true }]], `${page}: a real workspace lands there, in place`);
+    }
+    moves.length = 0;
+    fresh();
+    again(() => (useRouteMoves(routeAt({ page: "clients", param: null })), null));
+    assert.deepEqual(moves, [], "and People itself stays");
+  } finally {
+    bridgeHolds({ parts: { surfaceRetired: undefined, shell: undefined } });
+  }
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
   const { drawn } = await peopleHarness();
   const page = drawn().tree;
@@ -608,23 +634,37 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
     PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
   );
 
-  assert.ok(
-    (() => {
-      // Who each audience reaches is its own surface since #1713, and how each is counted its shape (audiences-shape.ts).
-      const bs = readCode("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-shape.ts");
-      return (
-        bs.includes("(!l.needsCalendar || has.calendar)") && bs.includes('calendar: people.calendar?.state === "ok"')
-      );
-    })(),
-    "a calendar list is an audience only with a calendar",
+  // A calendar list is an audience only with a calendar to read it from. Who each audience reaches is its own surface
+  // since #1713, and how each is counted its shape (audiences-shape.ts), run here over People's read with a calendar
+  // and without (pinned as its text until 26 Nov 2026).
+  const { audiencesOf } = await importSrc("apps/dashboard/src/surfaces/campaigns/broadcasts/audiences-shape.ts");
+  const listsOffered = (calendar) =>
+    audiencesOf({
+      bc: { ready: null },
+      heard: { touched_at: null },
+      people: { people: [], calendar, consult_first: false, has_deals: false },
+      saved: { lists: [] },
+      tz: TZ,
+      everyone: [],
+    })
+      .audiences.filter((a) => a.kind === "list")
+      .map((a) => a.id);
+  const onlyCalendar = PEOPLE_LISTS.filter((l) => l.needsCalendar && !l.needsConsultFirst && !l.needsDeals).map(
+    (l) => l.id,
   );
-  const ports = readCode("apps/dashboard/src/server/campaigns/ports.ts");
+  assert.ok(onlyCalendar.length > 0, "the lists this pins exist");
+  const withCalendarRead = listsOffered({ state: "ok", source: "your calendar" });
   assert.ok(
-    // The pool (audience.ts) is everyone with their appointments; ask/turn/ counts past a thousand through it.
-    ports.includes("people: async (now) => (await poolAt(now)).rows,") &&
-      ports.includes("(pool ??= getAudiencePool(ctx, tenantId, await zone(), now, "),
-    "the enrol path counts what the page counted, every page of it",
+    onlyCalendar.every((id) => withCalendarRead.includes(id)),
+    "with a calendar read, its lists are audiences",
   );
+  for (const state of ["none", "unavailable"])
+    assert.ok(
+      onlyCalendar.every((id) => !listsOffered({ state, source: "your calendar" }).includes(id)),
+      `with the calendar ${state}, none of them`,
+    );
+  // The enrol path counts what the page counted, every page of it: the broadcast's ports over the pool, run in
+  // calendar/calendar-counts.test.mjs ("a broadcast's send enrols from the pool the page counts from").
 });
 
 test("asked means they reached out: the call they placed counts, a call the owner made does not", async () => {
@@ -655,13 +695,8 @@ test("asked means they reached out: the call they placed counts, a call the owne
   assert.equal(weCalled.lastContact.label.startsWith("Called them"), true, "but it is still the last contact");
   // people_list's last inbound call (00055, the function redefined since through 00680) is read on the stack by every
   // suite that lists People there (consent/email-offers.db.test.mjs, messages/a-released-person-is-tried-again.db): pinned
-  // as 00055's text until 25 Nov 2026.
-  assert.ok(
-    readCode("apps/dashboard/src/server/calendar/people-visits.ts").includes(
-      "const cands = [row.last_inbound_at, row.last_inbound_call_at ?? null]",
-    ),
-    "the report counts the same way",
-  );
+  // as 00055's text until 25 Nov 2026. The report counts the same way: run over its reader in
+  // calendar/calendar-counts.test.mjs ("the booking report: asked, then booked"), pinned here as its text until 26 Nov 2026.
 });
 
 test("bulk actions: a selection becomes people on a list, a yes on record (one request each, fifty at most, one refresh), or a file; everyone shown can be kept as a list", async () => {
@@ -694,15 +729,40 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
     "one request each, fifty at most, and the yes to offers is written to its own door",
   );
   // The single and the many both refresh through the map: none of them holds it back (a view save, which changes no
-  // surface, is the one write that does).
-  const bridge = readCode("apps/dashboard/src/surfaces/people/people-detail.ts");
-  assert.ok(
-    bridge.includes('return verbAnswer(await commitVerb("answer", { contact_id: id, purpose, ...body }));') &&
-      !bridge
-        .slice(bridge.indexOf("async function recordMany"), bridge.indexOf("export type ReceptionistMany"))
-        .includes("refresh: false"),
-    "the single and the many both refresh through the map",
-  );
+  // surface, is the one write that does). Run with the frame's runner up, which reads what the map names after a write
+  // lands (pinned as people-detail.ts's text until 26 Nov 2026).
+  const { setPersonConsent, saveView } = await importSrc("apps/dashboard/src/surfaces/people/people-detail.ts");
+  const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
+  const stop = startSurfaces([], () => () => {});
+  try {
+    const readsAfter = async (write) => {
+      const wire = await onTheWire(write);
+      const at = wire.findIndex((r) => r.method !== "GET");
+      return wire
+        .slice(at + 1)
+        .filter((r) => r.method === "GET")
+        .map((r) => r.route);
+    };
+    for (const [what, write] of [
+      ["one person's yes", () => setPersonConsent("p0", said)],
+      ["a selection's yes", () => setPersonConsentMany(["p0", "p1"], said)],
+      ["a selection's yes to offers", () => setPersonMarketingConsentMany(["p0", "p1"], said)],
+    ]) {
+      const read = await readsAfter(write);
+      // What the map names for a yes, where it is drawn: the threads, Today, Reports (People itself is read where its page is).
+      assert.ok(
+        read.includes("conversations") && read.includes("today"),
+        `${what}: the map's surfaces read again: ${read.join(", ")}`,
+      );
+    }
+    assert.deepEqual(
+      await readsAfter(() => saveView("people", { sort: "name" })),
+      [],
+      "a view save reads nothing again",
+    );
+  } finally {
+    stop();
+  }
   // The page selects: a box for each row and one for all of them, for whoever may act on a selection (a member who may
   // edit lists, or export) -- and for nobody else.
   const owner = drawn();
@@ -925,12 +985,23 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     "the conversation it names takes it, by its route or its id",
   );
   assert.equal(carriedReply.takeCarriedReply("th-c9"), null, "and only once");
-  const composer = readCode("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
-  assert.ok(
-    composer.includes("takeCarriedReply(threadId)") &&
-      composer.includes("setText((cur) => (cur && cur.trim() ? cur : said));"),
-    "the composer takes it, and only into an empty box",
-  );
+  // The composer takes it, and only into an empty box: the Inbox's reply box drawn (thread/composer.tsx), the state its
+  // effect sets drawn again, as React draws it (pinned as its text until 26 Nov 2026).
+  const { Composer } = await importSrc("apps/dashboard/src/surfaces/inbox/thread/composer.tsx");
+  const thread = { id: "th-c9", real: true, who: "Maria", primaryChannel: "whatsapp", hasChat: true, windowOpen: true };
+  const boxOf = (reply) => {
+    ui.LR.fresh();
+    ui.LR.again(() => Composer({ thread, reply }));
+    return ui.LR.find(
+      ui.LR.again(() => Composer({ thread, reply })),
+      (n) => n.type === "textarea",
+    ).props.value;
+  };
+  carriedReply.carryReply("inbox/th-c9", "Here is the link to book.");
+  assert.equal(boxOf(""), "Here is the link to book.", "an empty box takes the words carried in");
+  carriedReply.carryReply("inbox/th-c9", "Here is the link to book.");
+  assert.equal(boxOf("We open at 9."), "We open at 9.", "a box with words in it keeps them");
+  assert.equal(carriedReply.takeCarriedReply("th-c9"), null, "the words carried are taken either way, once");
   // The profile carries the workspace's own booking link, from its settings, trimmed; none set, or a blank one, is no
   // link to send. Run.
   const linked = await profileOf({
@@ -947,11 +1018,39 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     const none = await profileOf({ tenant_config: [{ tenant_id: HARBOR, config: { brain } }] });
     assert.equal(none.person.booking_link, null, "no link to send");
   }
-  assert.ok(
-    /const all = allVisitsIn\(index, person\)\s*\.flatMap\(\(x\) => toVisitDto\(x\) \?\? \[\]\)\s*\.slice\(-60\);/.test(
-      readCode("apps/dashboard/src/server/calendar/person-visits.ts"),
-    ),
-  );
+  // The timeline's visits are every one of theirs the season holds, oldest first, the latest sixty of them: a daily
+  // appointment of Maria's since 2025 is a season of them (pinned as person-visits.ts's text until 26 Nov 2026).
+  const daily = [
+    "BEGIN:VCALENDAR",
+    "BEGIN:VEVENT",
+    "UID:daily",
+    "SUMMARY:Maria Lopez - Blow-dry",
+    "DESCRIPTION:+1 305 555 0134",
+    "DTSTART:20250101T150000Z",
+    "DTEND:20250101T160000Z",
+    "RRULE:FREQ=DAILY",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(daily, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    const { person } = await profileOf({
+      tenant_config: [
+        { tenant_id: HARBOR, config: { brain: BRAIN, calendar: { ical_url: "https://cal.example/daily.ics" } } },
+      ],
+    });
+    const starts = person.visits.all.map((v) => Date.parse(v.start));
+    assert.equal(starts.length, 60, "the latest sixty");
+    assert.deepEqual(
+      starts,
+      [...starts].sort((a, b) => a - b),
+      "oldest first",
+    );
+    assert.ok(starts[0] > Date.now() - 60 * 86_400_000, "the latest of the season, not its first");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 test("the table: identity that says who, Offers where First contact was, Visits that never go blank, actions on hover, keyboard rows, a header that sticks, cards when narrow", async () => {
@@ -1093,22 +1192,66 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   const day = booked.nextVisit.toLowerCase().split(" · ")[0];
   assert.ok(plMatcher(day)(booked), "the day they are coming");
   assert.ok(!plMatcher(day)({ ...booked, nextVisit: null }), "and only that: the day is the row's own");
-  const css = readCode("apps/dashboard/src/styles/clients.css");
-  // The header that sticks is the kit's table's (kit.css, the gallery's Table family holds it); the cards are People's.
-  assert.ok(
-    css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'),
+  // The header that sticks is the kit's table's (kit.css, the gallery's Table family holds it); the cards are People's,
+  // asked of its sheet as the build's parser reads it (tests/_css.mjs cascadeOf; pinned as clients.css's text until 26
+  // Nov 2026): at 900px and under a row is a card of three lines, and over it a table's row.
+  const areasAt = (width) =>
+    cascadeOf(["apps/dashboard/src/styles/clients.css"], { ...DESK, width }).given(element(".cl-table", "tbody", "tr"))[
+      "grid-template-areas"
+    ];
+  const card = declared('grid-template-areas: "sel name state" "sel last visits" "sel offers offers"');
+  assert.deepEqual(
+    [areasAt(PHONE.width), areasAt(900), areasAt(901)],
+    [card["grid-template-areas"], card["grid-template-areas"], undefined],
     "cards under 900px",
   );
-  // The link as the settings hold it (calendar/settings.ts findCalendar), on the list's envelope (people-visits.ts).
-  const svc = ["settings", "people-visits"]
-    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
-    .join("\n");
-  assert.ok(
-    svc.includes("booking_link: pv.bookingLink,") &&
-      svc.includes("const bookingLink = cfg?.brain?.booking_link?.trim() || null;"),
-    "the list envelope carries the link",
-  );
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/people/surface.ts").includes("bookingLink: data.booking_link ?? null,"),
-  );
+  // The link as the settings hold it, trimmed, on the list's envelope: run over its reader in
+  // calendar/calendar-counts.test.mjs ("People's list carries the workspace's own booking link"). The page holds what the
+  // envelope carried, run over People's own read (pinned as the three modules' text until 26 Nov 2026):
+  const { peopleOverride } = await importSrc("apps/dashboard/src/surfaces/people/surface.ts");
+  const { bridgeHolds, surfaceValue } = await import("../../shell/_bridge-holds.mjs");
+  // Who is looking, at which workspace, in its zone: as the workspace read holds it.
+  bridgeHolds({
+    who: {
+      workspaces: [{ id: HARBOR, slug: "harbor", name: "Harbor", status: "active", timezone: TZ }],
+      activeWorkspaceId: HARBOR,
+    },
+  });
+  const realFetch = globalThis.fetch;
+  const envelope = (booking_link) => async (url) => {
+    const path = new URL(String(url), "https://app.chanlytics.com").pathname;
+    const data =
+      path === "/api/v1/contacts"
+        ? {
+            people: [],
+            page: { q: null, offset: 0, limit: 1000, total: 0, has_more: false },
+            calendar: { state: "none", source: "your calendar" },
+            ...(booking_link === undefined ? {} : { booking_link }),
+            has_deals: false,
+          }
+        : path === "/api/v1/segments"
+          ? { lists: [] }
+          : path === "/api/v1/views"
+            ? { views: {} }
+            : null;
+    return data
+      ? new Response(JSON.stringify({ ok: true, data }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      : new Response(JSON.stringify({ ok: false, error: { code: "not_found" } }), { status: 404 });
+  };
+  try {
+    for (const [said, held] of [
+      ["https://book.example.com/marisas", "https://book.example.com/marisas"],
+      [null, null],
+      [undefined, null],
+    ]) {
+      globalThis.fetch = envelope(said);
+      await peopleOverride.apply();
+      assert.equal(surfaceValue("people").bookingLink, held, `the envelope's ${said}: the page's ${held}`);
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

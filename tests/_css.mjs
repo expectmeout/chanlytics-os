@@ -907,8 +907,11 @@ export function frameSheets() {
   ];
 }
 
-/** Where a page is drawn: a desk by default; a phone is `{ width: 390, pointer: "coarse", hover: "none" }`. */
-const DESK = {
+/**
+ * Where a page is drawn: a desk by default, at the width e2e/ opens the pages at; any other place is asked as a change to
+ * it (`{ ...DESK, width: 800 }`, `{ reducedMotion: true }`), and a phone is PHONE.
+ */
+export const DESK = Object.freeze({
   width: 1440,
   height: 900,
   reducedMotion: false,
@@ -920,7 +923,7 @@ const DESK = {
   print: false,
   ios: false,
   unsupported: [],
-};
+});
 
 /** A phone in a browser's tab, as the frame's phone rules are written for it. */
 export const PHONE = { width: 390, height: 844, pointer: "coarse", hover: "none" };
@@ -990,7 +993,8 @@ function substitute(value, get, seen = new Set()) {
 /**
  * The cascade over `files` (repo-relative stylesheets, in the order a page links them, or `{ css }`), where a page is drawn (`ctx`,
  * over a desk: `{ ...PHONE, displayMode: "standalone" }`). `style(el)` answers each property the element is drawn with,
- * custom properties too; `rules(el)` the rules that reach it, in the cascade's order; `keyframes(name)` the frames an
+ * custom properties too; `given(el)` each property's winning declaration as written, before var() and inheritance;
+ * `rules(el)` the rules that reach it, in the cascade's order; `keyframes(name)` the frames an
  * animation of that name plays, as drawn there.
  */
 export function cascadeOf(files, ctx = {}) {
@@ -1020,17 +1024,22 @@ export function cascadeOf(files, ctx = {}) {
       .filter(Boolean)
       .sort((a, b) => bySpecificity(a.specificity, b.specificity) || a.rule.order - b.rule.order);
 
-  const computed = new WeakMap();
-  const style = (el) => {
-    if (!el) return {};
-    if (computed.has(el)) return computed.get(el);
-    const parent = style(el.parent);
-    // Each property's winner: normal declarations in order, then the important ones over them.
+  /** Each property's winner, as written: normal declarations in order, then the important ones over them. */
+  const given = (el) => {
     const won = {};
     const hits = reaching(el);
     for (const important of [false, true])
       for (const { rule } of hits)
         for (const d of rule.declarations) if (d.important === important && understood(d)) won[d.prop] = d.value;
+    return won;
+  };
+
+  const computed = new WeakMap();
+  const style = (el) => {
+    if (!el) return {};
+    if (computed.has(el)) return computed.get(el);
+    const parent = style(el.parent);
+    const won = given(el);
     const out = {};
     // Custom properties first, each read against the element's own (a cycle is nothing), inherited where unset.
     const own = (name, seen) => {
@@ -1067,6 +1076,9 @@ export function cascadeOf(files, ctx = {}) {
 
   return {
     style,
+    // What the element is given, before any var() is read or anything inherited: each property's winning declaration as
+    // the build prints it, for a check that asks what a sheet says of an element (`declared()` prints the same way).
+    given: (el) => (el ? given(el) : {}),
     rules: (el) =>
       reaching(el).map(({ rule, specificity }) => ({
         file: rule.file,

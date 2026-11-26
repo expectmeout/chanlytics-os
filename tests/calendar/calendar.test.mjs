@@ -19,7 +19,8 @@ import {
   toCalendarVM,
   zoneMidnight,
 } from "@chanlytics/contracts";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { DESK, PHONE, cascadeOf, declared, element } from "../_css.mjs";
 
 // The calendar route is imported below for the policy it declares; a module that ever builds a service client reads
 // these, and nothing dials it.
@@ -313,33 +314,14 @@ test("day keys, the words, and the zone", () => {
 });
 
 test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", async () => {
-  // The calendar's server modules that hold what is checked here: the feed's parse (parsed-feed.ts), the settings that
-  // name the address (calendar/settings.ts), the board's week (calendar/week/week.ts) and the preview (feed-preview.ts).
-  const svc = ["parsed-feed", "settings", "week/week", "week/items", "feed-preview"]
-    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
-    .join("\n");
-  assert.ok(
-    svc.includes("const feed = await loadFeed(tenantId, url, opts);"),
-    "the same cache the assistant's openings use",
-  );
-  // The busy time is the feed's, and beside it the record's taken time over the days on offer (00345): a booking a
-  // tool emailed took its slot too. That the hour is left out, here and for the receptionist, is executed in
-  // ask/readers/ and availability-tool.test.mjs.
-  assert.ok(
-    svc.includes("freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy, rules, now })") &&
-      svc.includes("const busy = parsed ? [...parsed.busy, ...taken] : [];"),
-    "the windows are AI's own",
-  );
-  assert.ok(
-    svc.includes("person: matchPerson(it, people, own),") &&
-      svc.includes("contacts: { phones: found.phones, emails: found.emails },"),
-    "who it is for — by a phone in the event first, then a whole name",
-  );
-  assert.ok(!/ical_url[^\n]*\n[^\n]*return \{/.test(svc), "the address is read, never returned");
-  assert.ok(
-    svc.includes('throw new AppError("validation", feedProblemWords("not_ical")'),
-    "a preview reaches only the public internet and only iCal, by the rule and the words every fetch and the save share",
-  );
+  // Run in calendar-feed.test.mjs, where the network is scripted (pinned here as the server modules' text until 26 Nov
+  // 2026): the board's open times are the receptionist's, the feed's busy time and the record's taken time left out,
+  // from the one read Ask's openings answer from ("the board's open times are the receptionist's"); who a block is for,
+  // by a phone in the event first ("reading the week adds nobody to People ... the board links the person People
+  // holds"; a whole name after it is contracts matchPerson's, run in calendar/people/); the address read and never
+  // returned ("the board's module", "the route: the answer carries the feed's state and never its address"); a preview
+  // refused in the words every fetch and the save share ("the preview refuses in the same words"), and an operator's,
+  // never a viewer's, in the business's own zone ("POST calendar/preview").
   // The route as it declares itself: counted with the aggregate reads. Its one read and an owner's adding the people it
   // sees are run over the route: calendar-feed.test.mjs ("the route: ... a viewer's read adds nobody") and
   // ask/readers/ ("GET calendar through its reader asks what it asked at origin/main ...").
@@ -349,13 +331,12 @@ test("the doors and the page: read-only, the feed's address never in the browser
     { kind: "read", scope: "workspace", role: null, rate: "aggregate", spend: false },
     "one read, counted with the aggregates",
   );
-  const pv = readCode("apps/dashboard/app/api/v1/calendar/preview/route.ts");
-  assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
-  const reg = readCode("apps/dashboard/src/bridge/surface-registry.ts");
-  assert.ok(reg.includes('calendar: "real"') && reg.includes('calendar: "calendar"'));
-  // What the page draws, by the testids it is known by, and that it is a viewer, is executed in calendar/calendar-page/.
-  const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
-  assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
+  // The registry, asked as the shell asks it: a real page, whose gate waits for its own read.
+  const { surfaceStateFor, routeSurfaceFor } = await importSrc("apps/dashboard/src/bridge/surface-registry.ts");
+  assert.deepEqual([surfaceStateFor("calendar"), routeSurfaceFor("calendar")], ["real", "calendar"]);
+  // What the page draws, by the testids it is known by, and that it is a viewer, is executed in calendar/calendar-page/;
+  // its one override, under the Calendar's key and fed by GET calendar, in calendar-surface.test.mjs and
+  // calendar-cold-boot.test.mjs ("the weeks around today are asked for by that word").
   // The form's "Check the address" button went with the form: the Business page's calendar row states its last read
   // and its count, and says a read that failed with its Retry (the spec's "When you're open"), executed in
   // receptionist/business-tab/open/. So a save no longer previews the feed first.
@@ -412,39 +393,28 @@ test("the words from Settings on the board: hours as runs, closures ahead, servi
 test("full-fledged: month and agenda views, a date to jump to, windows that fit a service, the rules bar, Today's line, the assistant's read, and Settings saves that reach the board", async () => {
   // Executed in calendar/calendar-page/: the four views, one tab each, and every testid the page is known by; the date picker
   // following the anchor; the open times a service leaves (the assistant's rule); the steps (crStep, the-pages-say-only-what-is-true.test.mjs).
-  const svc = ["apps/dashboard/src/server/calendar/week/items.ts", "apps/dashboard/src/server/calendar/week/week.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    svc.includes("const MAX_DAYS = 63;") &&
-      svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"),
-    "the services as Settings keeps them",
-  );
-  const sd = readCode("apps/dashboard/src/surfaces/calendar/surface.ts");
-  assert.ok(
-    sd.includes("days: String(w.days)") &&
-      sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") &&
-      sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"),
-  );
+  // Run, not read (26 Nov 2026): the board's services as Settings keeps them, and at most its nine weeks, over the route in
+  // calendar-feed.test.mjs ("the board's services are the services as Settings keeps them", "the route: asked for the
+  // weeks around today"); the page's span held to the same nine weeks, its days spelled on the read, and a read for a
+  // span the page has left dropped, in calendar-cold-boot.test.mjs.
   assert.deepEqual(
     (await importSrc("apps/dashboard/src/bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key),
     ["settings", "calendar", "setup", "workspace"],
     "hours, closures, rules and services saved in Settings reach the board, and Setup (and the postal address, People's reach and the composers where a page draws them, and no page is on screen here: S4-6), and a renamed business the workspace (00439); Today's five reads draw no configuration",
   );
-  const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
-  assert.ok(
-    dayModule.includes('if (!calendar || !calendar.vm || calendar.vm.feed.state !== "ok") return null;') &&
-      !dayModule.includes('data-testid="today-day"'),
-    "Today reads the day from the calendar once, for the strip and the brief (no pane of its own since canvas E3), and a feed that is not ok is no day",
-  );
+  // Today reads the day from the calendar once, for the strip and the brief (no pane of its own since canvas E3), and a
+  // feed that is not ok is no day: run over the surfaces in today/today-day.test.mjs ("the wiring").
   // calendar.week is the registry's, and runs in ask/turn/ ("calendar.week reads the people it names"), where
-  // its result says that nothing is booked from here.
+  // its result says that nothing is booked from here. What Ask is told the calendar is, it is told on every turn:
+  const { stableSystem, workspaceFacts, ASK_DEFINITIONS } = await importSrc(
+    "apps/dashboard/src/server/ask/prompt/stable-system.ts",
+  );
+  assert.match(ASK_DEFINITIONS.calendar, /^The owner's calendar as AI reads it/);
   assert.ok(
-    /"?calendar"?:\s*"The owner's calendar as AI reads it/.test(
-      ["apps/dashboard/src/server/ask/prompt/stable-system.ts", "apps/dashboard/src/server/ask/prompt/prompt.ts"]
-        .map((p) => readCode(p))
-        .join("\n"),
+    stableSystem(workspaceFacts("Harbor", TZ, null, new Date("2026-09-08T16:00:00.000Z"), []), true).includes(
+      ASK_DEFINITIONS.calendar,
     ),
+    "in Ask's system prompt",
   );
 });
 
@@ -484,104 +454,88 @@ test("instant views: the span a view needs, the window loaded around a day, whet
 test("the page keeps a view and a day, derives the rest, and reads only when the window does not cover the view", () => {
   // The page's own half is executed in calendar/calendar-page/: a read only when the window lacks the view, the shape from dates
   // and the content from data, the arrows unless the person is typing or something is open, Today always there.
-  const bridge = readCode("apps/dashboard/src/surfaces/calendar/verbs.ts");
-  assert.ok(
-    bridge.includes("async function ensure(view: CalendarView, anchor: string)") &&
-      bridge.includes("if (coversSpan(have, need.from, need.days)) return true;"),
-  );
-  assert.ok(
-    /spanFor: spanForView,\s*windowFor,\s*covers: coversSpan,\s*frameOf,\s*shiftKey,\s*shiftMonth,\s*monthLabel: monthLabelOf,\s*clockLabel/.test(
-      bridge,
-    ),
-    "the arithmetic reaches the page, all of it",
-  );
-  assert.ok(
-    bridge.includes("async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean>"),
-    "and a refresh the board can call, fresh on request, saying whether a read landed",
-  );
-  // The first read is the window around the business's today, asked for by that word: executed in
-  // calendar-cold-boot.test.mjs (the page's half) and calendar-feed.test.mjs (the route's).
-  assert.ok(
-    ["apps/dashboard/src/server/calendar/week/items.ts", "apps/dashboard/src/server/calendar/week/week.ts"]
-      .map((p) => readCode(p))
-      .join("\n")
-      .includes("const MAX_DAYS = 63;"),
-  );
-  const css = readCode("apps/dashboard/src/styles/calendar.css");
-  assert.ok(
-    css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"),
-    "a quiet arrival, none for those who asked for none",
-  );
+  // The verbs' half, run in calendar-cold-boot.test.mjs ("the page keeps a view and a day"): a view the weeks it holds
+  // cover reads nothing, one they do not reads the weeks around its day, and the arithmetic reaches the page as contracts
+  // has it. A refresh the board can call, fresh on request, saying whether a read landed: run in
+  // calendar-page/refresh-words-and-access.test.mjs. The first read is the window around the business's today, asked
+  // for by that word, at most nine weeks: run in calendar-cold-boot.test.mjs (the page's half) and calendar-feed.test.mjs
+  // (the route's). All pinned as verbs.ts's, items.ts's and week.ts's text until 26 Nov 2026.
+  // The page's looks below are asked of its sheet as the build's parser reads it (tests/_css.mjs cascadeOf), on a phone
+  // and on a desk: what each element of the page is given there. Pinned as calendar.css's text, block by block, until
+  // 26 Nov 2026.
+  const CAL = "apps/dashboard/src/styles/calendar.css";
+  const desk = cascadeOf([CAL]);
+  const phone = cascadeOf([CAL], PHONE);
+  const still = cascadeOf([CAL], { reducedMotion: true });
   // A fade where it stands: rising 3px as well, the Calendar read on a phone as shifting as it drew (Ruben, 23 Oct 2026).
-  assert.match(css, /@keyframes cal-in \{ from \{ opacity: 0; \} \}/, "an arrival that moves nothing");
+  assert.deepEqual(desk.keyframes("cal-in"), { from: declared("opacity: 0") }, "an arrival that moves nothing");
+  assert.match(desk.given(element(".cal-body")).animation ?? "", /\bcal-in\b/, "a quiet arrival");
+  assert.equal(still.given(element(".cal-body")).animation, "none", "none for those who asked");
   // On a phone the days stand whole on the first frame: faded in, the Agenda's stood a pixel low under the bar and jumped
-  // up as the fade ended, where the bar over them stood still (Ruben's recording, 3 Nov 2026).
-  const blocksOf = (text, head) => {
-    const out = [];
-    for (let at = text.indexOf(head); at !== -1; at = text.indexOf(head, at + 1)) {
-      let depth = 0;
-      let end = at;
-      for (let i = at + head.length - 1; i < text.length; i++) {
-        if (text[i] === "{") depth++;
-        else if (text[i] === "}" && --depth === 0) {
-          end = i;
-          break;
-        }
-      }
-      out.push(text.slice(at, end + 1));
-    }
-    return out;
-  };
-  assert.ok(
-    blocksOf(css, "@media (max-width: 720px) {").some((b) =>
-      /\.main-scroll > \.calendar \.cal-body \{[^}]*animation: none;/.test(b),
-    ),
-    "on a phone the days arrive with the page, as they will stand",
-  );
-  // And nothing else moves them (spec 2026-11-03, a still Calendar on a phone): a view of the strip holds still, cut in
-  // where the deck slid it (kit/motion/view-deck.ts), and a read on its way leaves them as they are, where they faded to
-  // 45% and back; the days not read yet say so themselves. Each end of a move was a step on an iPhone (Ruben, 3 Nov 2026).
-  const still = blocksOf(css, "@media (max-width: 720px) {").join("\n");
-  assert.match(
-    still,
-    /\.main-scroll > \.calendar \.cal-body \{[^}]*transition: none;[^}]*--view-travel: none;/,
+  // up as the fade ended, where the bar over them stood still (Ruben's recording, 3 Nov 2026). And nothing else moves
+  // them (spec 2026-11-03, a still Calendar on a phone): a view of the strip holds still, cut in where the deck slid it
+  // (kit/motion/view-deck.ts), and a read on its way leaves them as they are, where they faded to 45% and back; the days
+  // not read yet say so themselves. Each end of a move was a step on an iPhone (Ruben, 3 Nov 2026).
+  const daysIn = (calendar) => element(".main-scroll", calendar, ".cal-body");
+  const days = phone.given(daysIn(".calendar"));
+  assert.equal(days.animation, "none", "on a phone the days arrive with the page, as they will stand");
+  assert.deepEqual(
+    [days.transition, days["--view-travel"]],
+    ["none", "none"],
     "a view of the strip holds still, and nothing on the days eases",
   );
-  assert.match(still, /\.main-scroll > \.calendar\[data-loading\] \.cal-body \{[^}]*opacity: 1;/, "and never dims");
-  assert.doesNotMatch(
-    css,
-    /scroll-margin-top/,
+  assert.notEqual(desk.given(daysIn(".calendar")).animation, "none", "a desk's still arrive");
+  assert.equal(phone.given(daysIn(".calendar[data-loading]")).opacity, "1", "and never dims");
+  assert.deepEqual(
+    desk
+      .every()
+      .flatMap((r) => r.declarations.map((d) => d.prop))
+      .filter((p) => p.startsWith("scroll-margin")),
+    [],
     "the page says where it stands after a change (board-dom.ts standAfter)",
   );
   // A head that holds today is as tall as one that does not: today's date is the accent's 22px circle, its head stood 3px
   // taller, and Day's and Week's hours stepped 3px as the days changed to or from today (3 Nov 2026).
-  assert.match(
-    css,
-    /\.cal-dayhead \.cal-date \{[^}]*display: inline-grid;[^}]*min-width: 22px;[^}]*height: 22px;/,
-    "every day's date stands in the today mark's box",
-  );
+  for (const [screen, cascade] of [
+    [PHONE, phone],
+    [DESK, desk],
+  ]) {
+    const date = cascade.given(element(".cal-dayhead", ".cal-date"));
+    assert.deepEqual(
+      [date.display, date["min-width"], date.height],
+      ["inline-grid", "22px", "22px"],
+      `every day's date stands in the today mark's box, ${screen.width}px wide`,
+    );
+  }
   // The week's and the month's lines stand on whole pixels: seven columns of a phone's width were 52.7px each and the
   // week's heads 52.25px tall, and the Week and the Month stepped a pixel as a slide ended, where the Day and the Agenda,
   // on whole pixels, stood still (Ruben, 3 Nov 2026). The columns are whole and the last takes what is left; the heads'
   // lines are the house's leading, rounded.
-  const phone = blocksOf(css, "@media (max-width: 720px) {").join("\n");
+  const onPhone = (parts, property) => phone.given(element(".main-scroll", ".calendar", ...parts))[property];
+  const asWritten = (property, value) => declared(`${property}: ${value}`)[property];
   const wholeColumns = (rest) => `repeat(6, round(calc(${rest} / 7), 1px)) minmax(0, 1fr)`;
-  assert.ok(
-    phone.includes(`grid-template-columns: var(--space-10) ${wholeColumns("(100% - var(--space-10))")};`),
+  assert.equal(
+    onPhone([".cal-grid"], "grid-template-columns"),
+    asWritten("grid-template-columns", `var(--space-10) ${wholeColumns("(100% - var(--space-10))")}`),
     "the week's seven days, on whole pixels",
   );
-  assert.match(
-    phone,
-    new RegExp(
-      `\\.main-scroll > \\.calendar :is\\(\\.cal-month-head, \\.cal-month-row\\) \\{[^}]*grid-template-columns: ${wholeColumns("100%").replace(/[()]/g, "\\$&")};`,
-    ),
-    "the month's seven days, on whole pixels",
+  assert.notEqual(
+    onPhone([".cal-grid.cal-grid-day"], "grid-template-columns"),
+    onPhone([".cal-grid"], "grid-template-columns"),
+    "and the Day's one column is its own",
   );
-  assert.match(
-    phone,
-    /\.cal-grid:not\(\.cal-grid-day\) :is\(\.cal-dow, \.cal-date\) \{[^}]*line-height: round\(calc\(var\(--leading-normal\) \* 1em\), 1px\);/,
-    "the week's heads, whole pixels tall",
-  );
+  for (const row of [".cal-month-head", ".cal-month-row"])
+    assert.equal(
+      onPhone([row], "grid-template-columns"),
+      asWritten("grid-template-columns", wholeColumns("100%")),
+      `the month's seven days, on whole pixels (${row})`,
+    );
+  for (const head of [".cal-dow", ".cal-date"])
+    assert.equal(
+      onPhone([".cal-grid", head], "line-height"),
+      asWritten("line-height", "round(calc(var(--leading-normal) * 1em), 1px)"),
+      `the week's heads, whole pixels tall (${head})`,
+    );
 });
 
 test("the board drawn right: overlapping blocks take lanes, a block outside the hours widens the grid, and a person's thread rides with the block", () => {

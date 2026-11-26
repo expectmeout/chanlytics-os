@@ -311,7 +311,7 @@ test("a committed card's undo is offered exactly where it was at a993b71d, for e
 
 /* ------------------------------------------------------------------ the Open */
 
-const done = (undo) => ({ state: "done", receipt: "r", atMs: T, undo });
+const done = (undo) => ({ state: "done", receipt: "r", at_ms: T, undo });
 /** A card's payload and, where it was acted on, its outcome. */
 const CASES = [
   [undefined, undefined],
@@ -327,7 +327,7 @@ const CASES = [
   [{}, done({ search_id: "" })],
   [{ amends: { search_id: "s9" } }, done({ search_id: "s1" })],
   [{}, done(null)],
-  [{}, { state: "failed", receipt: "r", atMs: T, undo: { search_id: "s1" } }],
+  [{}, { state: "failed", receipt: "r", at_ms: T, undo: { search_id: "s1" } }],
 ];
 /**
  * cardOpenRoute at a993b71d, per kind: one answer per entry of CASES, or one answer for them all. A person's note and
@@ -1287,7 +1287,7 @@ test("a list (D10): the name and the rule to the lists route, a list that keeps 
   // Open: People before it is made, the list itself once it is (the commit kept its id), People again once undone.
   assert.equal(cardOpenRoute(p), "clients");
   assert.equal(cardOpenRoute({ ...p, outcome: done(kept) }), `clients/list:${L1}`);
-  assert.equal(cardOpenRoute({ ...p, outcome: { state: "undone", receipt: "r", atMs: T, undo: null } }), "clients");
+  assert.equal(cardOpenRoute({ ...p, outcome: { state: "undone", receipt: "r", at_ms: T, undo: null } }), "clients");
   // A route that answered no id keeps no undo; a card with no rule, or no name, is never sent (a list kept by hand is
   // made on People, where its people are picked).
   assert.equal(spec.undo.record(p, {}, TAB), null);

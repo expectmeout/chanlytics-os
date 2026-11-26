@@ -320,7 +320,7 @@ function answerTo(messages: ThreadMessages, text: string, since: number): Thread
     const m = messages[i];
     const q = messages[i - 1];
     if (m?.role !== "assistant" || q?.role !== "user") continue;
-    if (q.atMs < since) return null;
+    if (q.at_ms < since) return null;
     if (sameWords(q.text) === text) return m;
   }
   return null;

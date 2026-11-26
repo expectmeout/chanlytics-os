@@ -24,7 +24,7 @@ import { todayBriefWords } from "../../apps/dashboard/src/surfaces/today/brief-w
 import { todayPeriodLine } from "../../apps/dashboard/src/surfaces/today/period.ts";
 import { todayLeaks } from "../../apps/dashboard/src/surfaces/today/leaks.ts";
 import { withReplies } from "../../apps/dashboard/src/surfaces/campaigns/reach-out/reply-today.ts";
-import { readCode, readRaw } from "../_source.mjs";
+import { cssOf } from "../_css.mjs";
 import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 import { bootRunsOneNamed } from "../shell/boot/_frame-boot.mjs";
@@ -395,7 +395,7 @@ const draw = (Comp) => {
   return globalThis.React.createElement(Comp, {});
 };
 
-test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
+test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", async () => {
   // The helpers (surfaces/today/helpers.ts), as contracts' own functions and in this order; installed, not re-listed.
   assert.deepEqual(
     Object.keys(TODAY_HELPERS),
@@ -492,30 +492,57 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   // The helpers are the page's by import, and nothing publishes them on the window (window.__today had no reader).
   assert.equal(globalThis.__today, undefined, "no window name for the helpers");
   assert.ok(!bootRunsOneNamed("installToday"), "the frame's boot installs nothing of Today's");
-  const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
-  for (const s of [
-    // The day's one derivation (dayVmOf), which the strip and the brief both read: a feed that is not ok is no day.
-    'if (!calendar || !calendar.vm || calendar.vm.feed.state !== "ok") return null;',
-    "export function useDayVm()",
-  ])
-    assert.ok(dayModule.includes(s), s);
-  // And no pane: the day is folded into the strip and the brief (canvas E3), and the steps due are rows of the queue.
-  for (const gone of [
-    "export const DayZone ",
-    "TodaySteps",
-    'data-testid="today-day',
-    "agendaItems",
-    "TODAY_HELPERS.steps",
-  ])
-    assert.ok(!dayModule.includes(gone), `${gone} is not drawn from day.tsx`);
-  assert.match(
-    dayModule,
-    /TODAY_HELPERS\.day\(\s*calendar\.vm[^,]*,\s*playbooks \? \{ rows: playbooks\.rows, word: word \?\? playbooks\.shape\.word \} : null,\s*word \? \{ rows: \[\], word \} : null,\s*Number\.POSITIVE_INFINITY,?\s*\)/,
-    "the page composes the module: the calendar, the playbooks' rows, and the workspace's word as Today's read says it " +
-      "before a playbook's, every entry of the day (the zone folds what is over itself); who is coming is the board's " +
-      "own read's (calendar-person-facts.ts), so People's book is no read of the day's",
-  );
-  assert.ok(!dayModule.includes("__PEOPLE"), "Today in three zones reads no People for its day");
+  // The day's one derivation (day-vm.ts), which the strip and the brief both read, run over the surfaces the page holds
+  // (pinned as day-vm.ts's text until 26 Nov 2026). No pane of its own: the day is folded into the strip and the brief
+  // (canvas E3), and the steps due are rows of the queue.
+  const dayModule = await import("../../apps/dashboard/src/surfaces/today/zones/day-vm.ts");
+  assert.deepEqual(Object.keys(dayModule).sort(), ["useDayVm", "useTodayWord"], "a derivation, and nothing drawn");
+  let dayVm;
+  function DayProbe() {
+    dayVm = dayModule.useDayVm();
+    return null;
+  }
+  const dayOf = () => (draw(DayProbe), dayVm);
+  const readsOfPeople = [];
+  Object.defineProperty(globalThis.window, "__PEOPLE", {
+    configurable: true,
+    get() {
+      readsOfPeople.push("read");
+      return undefined;
+    },
+  });
+  const board = cal([day("2026-09-06", { today: true, blocks: [block("b1", 10, "10 – 11 AM", "Balayage")] })]);
+  const rows = [{ id: "pb-1", moment: "visit_reminder", on: true }];
+  try {
+    setSurfaceValue("today", { ...toTodayVM(busyMetrics(), [], [], [], NOW), word: "lesson" });
+    setSurfaceValue("playbooks", { rows, shape: { calendar: "feed", hasDeals: false, word: "session" } });
+    for (const [calendar, why] of [
+      [undefined, "no calendar read yet"],
+      [{ vm: null }, "a calendar with no view"],
+      [{ vm: { ...board, feed: { ...board.feed, state: "unavailable" } } }, "a feed that is not ok"],
+      [{ vm: { ...board, feed: { ...board.feed, state: "none" } } }, "no feed"],
+    ]) {
+      setSurfaceValue("calendar", calendar);
+      assert.equal(dayOf(), null, `${why} is no day`);
+    }
+    setSurfaceValue("calendar", { vm: board });
+    assert.deepEqual(
+      dayOf(),
+      TODAY_HELPERS.day(board, { rows, word: "lesson" }, { rows: [], word: "lesson" }, Number.POSITIVE_INFINITY),
+      "the page composes the module: the calendar, the playbooks' rows, and the workspace's word as Today's read says " +
+        "it before a playbook's, every entry of the day (the zone folds what is over itself)",
+    );
+    assert.equal(dayOf().word, "lesson");
+    setSurfaceValue("today", { ...toTodayVM(busyMetrics(), [], [], [], NOW), word: null });
+    assert.equal(dayOf().word, "session", "with Today's word unsaid, the playbooks'");
+    // Who is coming is the board's own read's (calendar-person-facts.ts), so People's book is no read of the day's.
+    assert.deepEqual(readsOfPeople, [], "Today in three zones reads no People for its day");
+  } finally {
+    delete globalThis.window.__PEOPLE;
+    setSurfaceValue("calendar", undefined);
+    setSurfaceValue("playbooks", undefined);
+    setSurfaceValue("today", undefined);
+  }
   // The hero and the page over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
   // from): the day's numbers are one line of what it came to, not a sentence or a strip of stat cards; no calendar line.
   setSurfaceValue("today", toTodayVM(busyMetrics(), [], [], [], NOW));
@@ -548,10 +575,12 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   );
   setSurfaceValue("calendar", undefined);
   setSurfaceValue("today", undefined);
-  const css = readRaw("apps/dashboard/src/styles/dashboard-a-v2.css");
   // The zones' one column below a desk's width is a browser's to see: e2e/today/today.spec.ts measures the bento's tracks.
-  assert.ok(
-    !css.includes(".td-") && !dayModule.includes("cal-agenda"),
+  // The classes Today's sheet names, as the build's parser reads its selectors (tests/_css.mjs cssOf; pinned as the
+  // sheet's text until 26 Nov 2026).
+  assert.deepEqual(
+    Object.keys(cssOf("apps/dashboard/src/styles/dashboard-a-v2.css").classes).filter((c) => c.startsWith("td-")),
+    [],
     "the old pane's rules (.td-day*, .td-frame*, .td-step*) went with it",
   );
 });

@@ -29,7 +29,15 @@ const TID = "t-studio";
 
 // Setup's input and a line, as setup.test.mjs builds them from the route's own shapes.
 const empty = (over = {}) => ({
-  business: { name: null, hours: false, services: 0, bookingLink: false, address: false, handoff: null, broken: false },
+  business: {
+    name: null,
+    hours: false,
+    services: 0,
+    booking_link: false,
+    address: false,
+    handoff: null,
+    broken: false,
+  },
   channels: {
     whatsapp: { present: false, active: false, number: null, quality: null, last_inbound_at: null },
     voice: { present: false, active: false, number: null, last_inbound_at: null },
@@ -46,7 +54,7 @@ const facts = {
   name: "Northside Movers",
   hours: true,
   services: 4,
-  bookingLink: true,
+  booking_link: true,
   address: true,
   handoff: "+13055550100",
   broken: false,

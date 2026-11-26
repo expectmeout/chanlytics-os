@@ -252,7 +252,7 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
       name: "Luna",
       hours: true,
       services: 3,
-      bookingLink: true,
+      booking_link: true,
       address: true,
       handoff: null,
       broken: false,

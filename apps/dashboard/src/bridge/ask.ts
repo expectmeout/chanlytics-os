@@ -24,7 +24,7 @@ import {
   type AskAnswer,
   type AskProposal,
   type AskProposalOutcome,
-  type PageContext,
+  type PageContextDto,
   ASK_VOICE_TOKEN_MIN_MS,
 } from "@chanlytics/contracts";
 import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
@@ -116,7 +116,7 @@ export type AskApi = ReturnType<typeof askPalette> &
       route: { page: string; param: string | null },
       words?: string,
       thread?: ReadonlyArray<ThreadMessage> | null,
-    ): PageContext;
+    ): PageContextDto;
   };
 
 /**

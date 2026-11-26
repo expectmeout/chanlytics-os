@@ -524,7 +524,7 @@ function rowOf(q, rep, turn, r, warmed, j) {
     proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),
     citations: r.final?.citations ?? [],
     language: r.final?.language ?? null,
-    latency_ms: r.final?.latencyMs ?? r.ms,
+    latency_ms: r.final?.latency_ms ?? r.ms,
     first_ms: r.firstMs,
     first_trace_ms: r.firstTraceMs,
     final_ms: r.ms,

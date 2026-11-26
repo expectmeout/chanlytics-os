@@ -16,12 +16,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { transform } from "lightningcss";
-import { ROOT } from "../../_source.mjs";
+import { PHONE, cascadeOf, element, frameSheets } from "../../_css.mjs";
 import { again, fresh, installStubReact } from "../../_stub-react.mjs";
 
 installStubReact();
@@ -116,42 +114,22 @@ test("the dock comes up only once the head's acts have scrolled away up, never a
   assert.deepEqual(told, [false, true, false], "across: no dock; up: the dock; back on screen: none");
 });
 
-/** Each style rule of a sheet, its selectors as the parser reads them. */
-const rulesOf = (sheet) => {
-  const rules = [];
-  const { warnings } = transform({
-    filename: sheet,
-    code: fs.readFileSync(path.join(ROOT, sheet)),
-    errorRecovery: true,
-    visitor: {
-      Rule: {
-        style(rule) {
-          rules.push(rule.value);
-        },
-      },
-    },
-  });
-  assert.deepEqual(warnings, [], `${sheet} is read whole`);
-  return rules;
-};
-
 test("no dock takes the tab bar or Ask's circle down under a page carried back to its list", () => {
-  for (const [sheet, bar] of [
-    ["apps/dashboard/src/styles/mobile.css", "phone-places"],
-    ["apps/dashboard/src/surfaces/ask/ask.css", "phone-ask"],
+  // The frame's sheets on a phone (tests/_css.mjs cascadeOf): a dock is asked of the document's root since 25 Nov 2026
+  // (data-dock-frame, data-dock-up: kit/motion/root-flags.ts), and a page carried back is too (data-carrying). Docked, the
+  // bar and the circle go; docked under a carried page, they stand. Asked of each element as drawn, so a rule written
+  // another way, or one more that takes a bar down for a dock, is weighed with the rest.
+  const phone = cascadeOf(frameSheets(), PHONE);
+  const down = (drawn) => drawn.visibility === "hidden" || drawn.opacity === "0";
+  for (const [flag, parts, what] of [
+    ["data-dock-frame", [".app-root", "nav.phone-places"], "the tab bar"],
+    ["data-dock-up", [".phone-ask"], "Ask's circle"],
   ]) {
-    let hides = 0;
-    for (const rule of rulesOf(sheet)) {
-      const takesDown = (rule.declarations.declarations ?? []).some((d) => /^(visibility|opacity)$/.test(d.property));
-      if (!takesDown) continue;
-      for (const selector of rule.selectors) {
-        const s = JSON.stringify(selector);
-        // A dock is asked of the document's root since 25 Nov 2026 (data-dock-frame, data-dock-up: kit/motion/root-flags.ts).
-        if (!/"name":"data-dock(?:-frame|-up)?"/.test(s) || !s.includes(`"name":"${bar}"`)) continue;
-        hides += 1;
-        assert.ok(s.includes('"name":"data-carrying"'), `${sheet}: a dock takes .${bar} down under a carried page`);
-      }
-    }
-    assert.ok(hides > 0, `${sheet} still takes .${bar} down for a dock: this test would otherwise prove nothing`);
+    assert.ok(!down(phone.style(element("html", ...parts))), `${what} stands on a page with no dock`);
+    assert.ok(down(phone.style(element(`html[${flag}]`, ...parts))), `a dock takes ${what} down`);
+    assert.ok(
+      !down(phone.style(element(`html[${flag}][data-carrying]`, ...parts))),
+      `and ${what} stands under a page carried back`,
+    );
   }
 });

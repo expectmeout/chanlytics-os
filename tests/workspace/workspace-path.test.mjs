@@ -74,7 +74,7 @@ test("the home sends a tab to the last workspace used, else to the one the serve
       { id: "id-a", slug: "acme" },
       { id: "id-b", slug: "bayside" },
     ],
-    activeWorkspaceId: "id-b",
+    active_workspace_id: "id-b",
   };
   assert.equal(homeHref("acme", answer, "#/today"), "/w/acme/today", "the last one used wins");
   assert.equal(
@@ -82,7 +82,7 @@ test("the home sends a tab to the last workspace used, else to the one the serve
     "/w/bayside/settings/billing?billing=success",
     "else the server's active one",
   );
-  assert.equal(homeHref(null, { workspaces: [], activeWorkspaceId: null }), null, "nowhere: the create screen");
+  assert.equal(homeHref(null, { workspaces: [], active_workspace_id: null }), null, "nowhere: the create screen");
   assert.equal(homeHref(null, null), null, "and nowhere when the server could not be asked");
 });
 

@@ -74,7 +74,11 @@ by notes merged or in open pull requests (#1205, #1244, #1206, #1253).
    Setup, Settings and the back office; then playbooks, broadcasts and templates. Each renames in the type and every
    reader, answers both spellings for a release where a field decides something, and banks the fall.
 3. **A release later, the old spellings go**: the policies route's old names once Ask's autonomy card
-   (`packages/contracts/src/ask-proposals/workspace.ts`, which sends `minConfidence`) says `min_confidence`.
+   (`packages/contracts/src/ask-proposals/workspace.ts`, which sends `minConfidence`) says `min_confidence`. The page
+   context's `askedAt` and a card outcome's `atMs` (#2672, 26 Nov 2026, the bank's last 21 names) go in the first
+   change merged after #2672 is live on both hosts: `withOldNames` leaves `PageContextSchema` and
+   `AskProposalOutcomeSchema`. A card kept before then still holds `atMs`, which the store's read keeps reading as
+   `at_ms` (`apps/dashboard/src/server/ask/store.ts` `keptOutcome`) for as long as such a card is kept.
 4. **Ask's and the partner program's routes** when those programs close. The bank is then empty, its file is deleted,
    and the test holds the wire with no bank.
 5. **The edge's doors** get a check of their own; nothing reads them yet.

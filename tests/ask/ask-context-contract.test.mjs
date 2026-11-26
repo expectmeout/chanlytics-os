@@ -10,9 +10,11 @@ import {
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
   LIFECYCLE_WORDS,
+  AskProposalOutcomeSchema,
   PageContextSchema,
   buildAskSuggestions,
   scopeFromRoute,
+  withOldNames,
 } from "@chanlytics/contracts";
 
 const T1 = "11111111-1111-4111-8111-111111111111";
@@ -29,7 +31,7 @@ const ok = {
   view: "needs_you",
   focus: { kind: "thread", id: T1, label: "Rosa" },
   rows: [{ kind: "thread", id: T1 }],
-  askedAt: 1_758_880_000_000,
+  asked_at: 1_758_880_000_000,
 };
 
 test("a page context: identities and words, never facts, forty rows at most", () => {
@@ -69,12 +71,30 @@ test("a page context: identities and words, never facts, forty rows at most", ()
     false,
     "an id is something",
   );
-  assert.equal(PageContextSchema.safeParse({ ...ok, askedAt: -1 }).success, false);
+  assert.equal(PageContextSchema.safeParse({ ...ok, asked_at: -1 }).success, false);
   assert.equal(
     PageContextSchema.safeParse({ ...ok, focus: { kind: "deal", id: "x", label: "a deal" } }).success,
     false,
     "the focus is a scope, of a scope's kinds",
   );
+});
+
+test("for one release a context's asked_at and an outcome's at_ms are read by their old names too, the new one first", () => {
+  // A tab opened before #2672's deploy sends askedAt and atMs, and a voice session kept before it holds askedAt
+  // (decision 0022, rule 3). Both are read until the first change after #2672 is live, which drops the old names.
+  const { asked_at: at, ...rest } = ok;
+  assert.equal(PageContextSchema.parse({ ...rest, askedAt: at }).asked_at, at, "the old name, read as the new");
+  assert.equal(PageContextSchema.parse({ ...ok, askedAt: 1 }).asked_at, at, "a body that says both is read by the new");
+  assert.equal(
+    PageContextSchema.safeParse({ ...rest, askedAt: -1 }).success,
+    false,
+    "the old name holds the new's rule",
+  );
+  const outcome = { state: "done", receipt: "Sent to Rosa", undo: null };
+  assert.equal(AskProposalOutcomeSchema.parse({ ...outcome, atMs: 1_700 }).at_ms, 1_700);
+  assert.equal(AskProposalOutcomeSchema.parse({ ...outcome, at_ms: 2_000, atMs: 1_700 }).at_ms, 2_000);
+  assert.ok(!("atMs" in AskProposalOutcomeSchema.parse({ ...outcome, atMs: 1_700 })), "and nothing answers the old");
+  assert.deepEqual(withOldNames({ a: "b" })("not a body"), "not a body", "anything but a plain object as it came");
 });
 
 test("thirteen surfaces, each said once, Conversations and Live among them; each is offered questions", () => {

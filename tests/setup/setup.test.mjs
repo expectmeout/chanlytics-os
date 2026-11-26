@@ -36,7 +36,7 @@ const empty = (over = {}) => ({
     name: null,
     hours: false,
     services: 0,
-    bookingLink: false,
+    booking_link: false,
     address: false,
     handoff: null,
     broken: false,
@@ -58,7 +58,7 @@ const facts = {
   name: "Northside Movers",
   hours: true,
   services: 4,
-  bookingLink: true,
+  booking_link: true,
   address: true,
   handoff: HANDOFF,
   broken: false,
@@ -661,7 +661,7 @@ test("business facts: partly there says what is missing; a broken config is its 
   const broken = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
   assert.equal(row(broken, "facts").state, "waiting_you");
   assert.match(row(broken, "facts").sentence, /couldn't be read/);
-  const noLink = setupSteps(empty({ business: { ...facts, bookingLink: false } }), NOW);
+  const noLink = setupSteps(empty({ business: { ...facts, booking_link: false } }), NOW);
   assert.ok(row(noLink, "facts").details.includes("No booking link · AI answers, but cannot send one"));
 });
 

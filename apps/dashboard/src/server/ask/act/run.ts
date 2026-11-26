@@ -206,7 +206,7 @@ async function failedAnswer(
   const outcome: AskProposalOutcome = {
     state: "failed",
     receipt: words.message.slice(0, 280),
-    atMs: Date.now(),
+    at_ms: Date.now(),
     undo: null,
     ...(words.moved ? { moved: true } : {}),
   };
@@ -305,7 +305,7 @@ async function recordFirst(
 }
 
 /** Nothing was sent and nothing is kept: the browser walks it the way it always went (AskActAnswer.walkHere). */
-const WALK_HERE: AskActAnswer = { ok: false, message: "", outcome: null, calls: [], forward: null, walkHere: true };
+const WALK_HERE: AskActAnswer = { ok: false, message: "", outcome: null, calls: [], forward: null, walk_here: true };
 
 /**
  * The card as its press settled it: the keys its spec says a card's own steps settle in the browser (`settles`: AI's
@@ -391,7 +391,7 @@ export async function runAct(
   const outcome: AskProposalOutcome = {
     state: "done",
     receipt: spec.receipt(filled, data, then),
-    atMs: Date.now(),
+    at_ms: Date.now(),
     undo: spec.undo?.record(filled, data, tab) ?? null,
     made: madeId ? { kind: card.kind, id: madeId } : null,
   };
@@ -439,7 +439,7 @@ export async function undoAct(
   const outcome: AskProposalOutcome = {
     state: "undone",
     receipt: spec.undo.receipt(sent.answers.at(-1), record),
-    atMs: Date.now(),
+    at_ms: Date.now(),
     undo: null,
   };
   await setProposalOutcome(ctx, input.messageId, input.proposalId, outcome).catch((e: unknown) =>

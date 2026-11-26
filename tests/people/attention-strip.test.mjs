@@ -8,7 +8,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toPersonRowVM } from "@chanlytics/contracts";
 import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
-import { importSrc, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { cascadeOf, declared, element } from "../_css.mjs";
 
 // The name cell a People row draws its words in (surfaces/people/cells/columns.tsx), run rather than read.
 const { plNameCell } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
@@ -291,11 +292,20 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
   }
   // Today's queue, Setup and the back office still draw AttnRow, so the row's
   // own rules stay; only the strip's container, footer and empty state went. Its verbs are the kit's small buttons,
-  // the one primary the kit's coral (attn-row.tsx); where they stand in the row is the row's.
-  const css = readRaw("apps/dashboard/src/styles/clients.css");
-  assert.ok(
-    css.includes(".cl-attn-act { align-self: center; white-space: nowrap; }"),
+  // the one primary the kit's coral (attn-row.tsx); where they stand in the row is the row's, asked of People's sheet as
+  // the build's parser reads it (tests/_css.mjs cascadeOf; pinned as clients.css's text until 26 Nov 2026).
+  const CLIENTS = "apps/dashboard/src/styles/clients.css";
+  const desk = cascadeOf([CLIENTS]);
+  const act = desk.given(element(".cl-attn-row", ".cl-attn-act"));
+  assert.deepEqual(
+    { "align-self": act["align-self"], "white-space": act["white-space"] },
+    declared("align-self: center; white-space: nowrap"),
     "the row's verbs stand where they stood",
   );
-  assert.ok(css.includes("@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }"));
+  assert.match(desk.given(element(".cl-attn-list")).animation ?? "", /\bcl-attn-in\b/, "the list arrives");
+  assert.equal(
+    cascadeOf([CLIENTS], { reducedMotion: true }).given(element(".cl-attn-list")).animation,
+    "none",
+    "and stands still for a person who asked for less motion",
+  );
 });
