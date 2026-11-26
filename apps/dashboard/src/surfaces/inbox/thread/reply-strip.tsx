@@ -9,7 +9,7 @@
  * (`gate("approve")`).
  */
 import { useEffect, useReducer, useRef, useState } from "react";
-import { gate, shellRefusalToast, useToast } from "../shell";
+import { gate, ixRefusalToast, useToast } from "../shell";
 import { detailField, repliesDoor } from "./shell-thread";
 import type { Thread } from "../types";
 import { Button } from "../../kit/button/button";
@@ -64,7 +64,7 @@ export const ReplyStrip = ({ thread }: { thread: Thread }) => {
     if (busy) return;
     setBusy(true);
     const r = await R.undo(reading.message_id).finally(() => setBusy(false));
-    flash(r && r.ok ? { tone: "ok", msg: "Undone: it no longer reads as a no." } : shellRefusalToast(r));
+    flash(r && r.ok ? { tone: "ok", msg: "Undone: it no longer reads as a no." } : ixRefusalToast(r));
   };
   return (
     <div className="ix-th-reply" data-intent={reading.intent} data-testid="ix-th-reply">

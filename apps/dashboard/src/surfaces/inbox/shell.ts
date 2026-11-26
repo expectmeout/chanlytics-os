@@ -46,10 +46,7 @@ export function currentRoute(): string {
  * A door as a link (frame-doors.ts `routeDoor`): its address in the href, the app's own way there on a plain press. Nothing
  * where the shell has none, and the caller then draws no link.
  */
-export function shellRouteDoor(
-  to: string,
-  go?: ((to: string) => void) | null,
-): HTMLAttributes<HTMLAnchorElement> | null {
+export function ixRouteDoor(to: string, go?: ((to: string) => void) | null): HTMLAttributes<HTMLAnchorElement> | null {
   const door = fn<[string, ((to: string) => void) | null | undefined], HTMLAttributes<HTMLAnchorElement>>("routeDoor");
   return door ? door(to, go) : null;
 }
@@ -60,13 +57,13 @@ export function hasRouteDoor(): boolean {
 }
 
 /** A key handler that runs `run` on Enter and Space (kit/focus/keys.ts `keyPress`). */
-export function shellKeyPress(run: () => void): HTMLAttributes<HTMLElement>["onKeyDown"] {
+export function ixKeyPress(run: () => void): HTMLAttributes<HTMLElement>["onKeyDown"] {
   const k = fn<[() => void], HTMLAttributes<HTMLElement>["onKeyDown"]>("keyPress");
   return k ? k(run) : undefined;
 }
 
 /** A thumb carries a pane away (kit/motion/swipe.ts `touchSwipe`): the props to spread on it, none without the shell. */
-export function shellTouchSwipe(opts: {
+export function ixTouchSwipe(opts: {
   onBack: () => void;
   when: () => boolean;
   onGrab: (el: Element | null, on: boolean) => void;
@@ -79,7 +76,7 @@ export function shellTouchSwipe(opts: {
 }
 
 /** A refusal as a toast (frame/flash.tsx `refusalToast`). */
-export function shellRefusalToast(r: unknown, what?: string | null): Flash {
+export function ixRefusalToast(r: unknown, what?: string | null): Flash {
   const f = fn<[unknown, string | null | undefined], Flash>("refusalToast");
   return f ? f(r, what) : { tone: "danger", msg: "That didn't go through." };
 }
@@ -110,7 +107,7 @@ export function clockZone(): string {
 /* --------------------------------- people --------------------------------- */
 
 /** A person's own sheet: the one deal sheet, asked for by the person and the move (people-globals.ts `openDealSheet`). */
-export function shellOpenDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
+export function ixOpenDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
   fn<[typeof ask], void>("openDealSheet")?.(ask);
 }
 

@@ -24,16 +24,7 @@ import { StoppedMark } from "../../kit/pill/stopped-mark";
 import { Face } from "../../kit/face/face";
 import { refreshSurface, routeDoor } from "../../frame-verbs";
 import { HUMAN_BEFORE, ROUTES } from "../constants";
-import {
-  clockZone,
-  gate,
-  hasDealSheet,
-  navigate,
-  shellOpenDealSheet,
-  seededLeads,
-  useToast,
-  type Flash,
-} from "../shell";
+import { clockZone, gate, hasDealSheet, navigate, ixOpenDealSheet, seededLeads, useToast, type Flash } from "../shell";
 import { dealKit, hasHref, hrefOf, personNotes, usePeopleMoved } from "./shell-thread";
 import type { Thread } from "../types";
 import { ixBandCallBack } from "./band";
@@ -235,7 +226,7 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
             square: true,
             onSelect: () => {
               toActions();
-              shellOpenDealSheet({
+              ixOpenDealSheet({
                 personId: clientId,
                 mode: a.mode ?? "",
                 dealId: a.mode === "propose" || !person.deal ? null : person.deal.id,
