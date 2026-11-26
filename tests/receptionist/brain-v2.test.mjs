@@ -282,50 +282,22 @@ test("the brain asks for the record, reads it through the parse, and keeps the o
 });
 
 test("the handler keeps the record on the row, holds a reply below the dial, and tells the escalation why", () => {
-  // The turn (model-turn.ts) and what it leaves on the draft and the escalation (dispatch.ts).
-  const wa = ["model-turn", "dispatch"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
-  const steps = readCode("packages/core/src/inbound/steps.ts");
-  assert.ok(wa.includes("let brainMeta: BrainMeta | undefined;"));
-  assert.ok(wa.includes("brainMeta = item.meta;"));
-  assert.ok(
-    /meta: \{\s*source: draftArgs\.source,\s*delay_ms: draftArgs\.delayMs,\s*\.\.\.\(draftArgs\.brainMeta \?\? \{\}\),\s*\.\.\.\(draftArgs\.extra \?\? \{\}\),\s*to,?\s*\}/.test(
-      readCode("apps/edge/lib/ai/draft-queue.ts"),
-    ),
-    "the draft row remembers",
-  );
+  // Run, not read (pinned as model-turn's, dispatch's, steps' and draft-queue's text until 26 Nov 2026): a reply held
+  // below the dial waits in the configured window, and its source says why it waited (holdPlan, in
+  // whatsapp/whatsapp-steps.test.mjs); the draft row remembers the model's record and the message it answers, its address
+  // last; an escalation carries the model's reason beside the customer's words (receptionist/prompt/what-it-knows-and-how-sure-it-was.test.mjs).
+  // The sent row names the message it answers, through the send door: read until the sink's send is run.
   assert.ok(
     readCode("apps/edge/lib/inbound/persist.ts").includes("meta: { ...meta, reply_to: ing.message_id },"),
     "so does the sent row, through the door, naming the message it answers",
-  );
-  assert.ok(
-    /replyMode === "auto" &&\s*minConfidence > 0 &&\s*typeof brainMeta\?\.confidence === "number" &&\s*brainMeta\.confidence < minConfidence;/.test(
-      steps,
-    ),
-  );
-  assert.ok(
-    steps.includes('delayMs = replyDelayMs("veto", replyLimits);'),
-    "held in the configured window, not a made-up one",
-  );
-  assert.ok(
-    steps.includes('source: heldForConfidence ? "low_confidence" : "veto_window"') &&
-      /plan\.source,\s*brainMeta,\s*channel,?\s*\)/.test(wa),
-    "the draft remembers why it waited",
-  );
-  assert.equal(
-    (wa.match(/brainMeta\?\.reason\s*\? `\$\{brainMeta\.reason\} — "\$\{bodyText\}"`\s*: bodyText/g) ?? []).length,
-    2,
-    "both escalation paths carry the reason",
   );
 });
 
 // The route's side runs in workspace/settings-routes.test.mjs: the dial taken by its row's name (and, for one release,
 // its old one), kept to two places, a dial edit keeping the row's mode.
 test("the dial reaches the policy row through the pane and the bridge", async () => {
-  assert.ok(
-    readCode("apps/dashboard/src/bridge/inbox-verbs.ts").includes(
-      "if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;",
-    ),
-  );
+  // The bridge sends the dial by the row's own name, alone on the wire: run in workspace/settings-truth.test.mjs (F50),
+  // where inbox-verbs.ts's text was pinned here until 26 Nov 2026.
   // The pane's dial, pressed: workspace/settings-owner-panes/ ("F50: ... a dial sends itself alone") sends 75% as
   // { minConfidence: 0.75 } on the reply row, and no mode.
   const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
