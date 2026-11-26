@@ -17,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import { listFilePosts, movePostTime, pullPost, type FileMemberRow } from "@chanlytics/db/files";
 import { readInstagramPostable } from "@/server/connections/meta";
-import { postDtoOf, type MemberPostRead } from "@/server/readers/content";
+import { postDtoOf, type MemberPostRead } from "@/server/readers/content/content";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { approvePlacements, prepareApproval } from "./approve";

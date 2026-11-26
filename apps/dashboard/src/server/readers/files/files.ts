@@ -29,9 +29,9 @@ import {
   listFilesTallied,
   type FileMemberRow,
 } from "@chanlytics/db/files";
-import { load, readerStamp, type Reader } from "../shared/reader";
+import { load, readerStamp, type Reader } from "../../shared/reader";
 import { logAndGoOn } from "@chanlytics/log";
-import { readContentSources } from "../files/found";
+import { readContentSources } from "../../files/found";
 
 /** Who the look counted, as the row keeps it; null until it has, or where it could not say. */
 function filePeopleOf(raw: unknown): FilePeople | null {

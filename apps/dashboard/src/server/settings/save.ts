@@ -25,7 +25,7 @@ import { findFiledNames } from "@chanlytics/db/lines";
 import { putTenantConfig } from "@chanlytics/db/workspace";
 import { findConfigRow } from "@/server/workspace/config-row";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
-import { feedVisibleTo, getKnownFacts, withHiddenFeed } from "@/server/readers/settings";
+import { feedVisibleTo, getKnownFacts, withHiddenFeed } from "@/server/readers/settings/settings";
 import { renameWorkspace } from "@/server/workspace/list";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";

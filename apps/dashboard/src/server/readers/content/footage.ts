@@ -22,9 +22,9 @@ import {
 } from "@chanlytics/db/files";
 import { readTeamRoster } from "@chanlytics/db/workspace";
 import { logAndGoOn } from "@chanlytics/log";
-import { isDriveOffered } from "../files/sources";
-import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
-import { config as configReader } from "./facts";
+import { isDriveOffered } from "../../files/sources";
+import { load, readerStamp, type Reader, type ReaderContext } from "../../shared/reader";
+import { config as configReader } from "../facts";
 
 /**
  * Who connected an account, by the name the roster says; null where they are no longer one of the workspace's members

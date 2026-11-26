@@ -1,8 +1,8 @@
 import "server-only";
 import { addressOf, callerName, type CallDto, type SchemaSet, DbFailure } from "@chanlytics/contracts";
-import { listedCall, toCallDto } from "../conversations/dto";
-import { readerStamp, type Reader, type RowRef } from "../shared/reader";
-import { isGoing } from "../people/going";
+import { listedCall, toCallDto } from "../../conversations/dto";
+import { readerStamp, type Reader, type RowRef } from "../../shared/reader";
+import { isGoing } from "../../people/going";
 import { listCallRows } from "@chanlytics/db/voice";
 
 /** A search's words as an ILIKE pattern that matches them anywhere, its own wildcards taken as the characters they are. */

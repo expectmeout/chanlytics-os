@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BRING_IN_WORDS, FOOTAGE_NUMBERS, FOOTAGE_SETUP, bringInOf, videoPreviewOf } from "@chanlytics/contracts";
 import { listSourceItemsPassed } from "@chanlytics/db/files";
 import { nameSourceFolder } from "../../../../files/sources";
-import { footage } from "../../../../readers/footage";
+import { footage } from "../../../../readers/content/footage";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";

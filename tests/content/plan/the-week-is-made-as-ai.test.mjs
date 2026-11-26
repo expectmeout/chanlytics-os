@@ -380,7 +380,7 @@ test("a picture drawn ahead is reused only while its slot still shows the footag
 });
 
 test("a week says it goes up by itself only while its rung holds it and its time is not long past", async () => {
-  const { weekAsHeld } = await import(at("apps/dashboard/src/server/readers/week-today.ts"));
+  const { weekAsHeld } = await import(at("apps/dashboard/src/server/readers/content/week-today.ts"));
   const goesAt = "2026-12-07T13:00:00.000Z";
   const at8 = Date.parse(goesAt);
   const week = { plan: { id: PLAN, week_of: WEEK, status: "ready", goes_at: goesAt }, slots: [] };
