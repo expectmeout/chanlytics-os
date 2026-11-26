@@ -339,10 +339,10 @@ export function leadPlanAsk(
   facts: LeadPlanFacts | null,
 ): { count: number; label: string; covers: string | null } {
   const binds = !!facts && facts.bound !== null && facts.leadsLeft < plan.count;
-  const count = binds && facts ? Math.max(0, facts.leadsLeft) : plan.count;
+  const count = binds ? Math.max(0, facts.leadsLeft) : plan.count;
   // None left is said on the button, which cannot be pressed, rather than "Find 0 leads".
   const label = count < 1 ? "No leads left this month" : `Find ${count} lead${count === 1 ? "" : "s"}`;
-  if (!binds || !facts) return { count, label, covers: null };
+  if (!binds) return { count, label, covers: null };
   const planAudience = planWho(plan);
   const covers =
     facts.bound === "budget"
