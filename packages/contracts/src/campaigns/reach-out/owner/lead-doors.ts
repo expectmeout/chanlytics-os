@@ -63,8 +63,7 @@ export const REACH_OUT_SAID_WORDS = {
 export const REACH_OUT_STOP_WORDS = {
   door: "Stop writing to them",
   ask: (business: string) => `Stop writing to ${business}?`,
-  detail:
-    "No campaign writes to them again: an email not yet with the mail provider is held back too. They stay in your leads, and you can still write to them yourself from the Inbox.",
+  detail: "No campaign writes to them again, and an unsent email is held. They stay in your leads for you to write to.",
   yes: "Stop writing",
   done: (business: string) => `Stopped: nothing more will be written to ${business}`,
   already: (business: string) => `${business} was already stopped`,

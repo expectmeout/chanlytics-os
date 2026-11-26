@@ -964,14 +964,20 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const { readTodayPeople } = await importSrc(`${S}/surfaces/today/people-read.ts`);
   // And what Campaigns › Ads opens on, the ad account and its ads, which its first draw waits for where the tab opens on Ads:
   // asked as the settings read is (bridge/surfaces/ads-first-reads.ts, as bridge/surfaces/settings.ts asks them; 21 Nov 2026).
-  const { readAdsOpening } = await importSrc(`${S}/bridge/surfaces/ads-first-reads.ts`);
+  const { readAdsBesideContent, readAdsOpening } = await importSrc(`${S}/bridge/surfaces/ads-first-reads.ts`);
   const { read: bridgeRead } = await importSrc("apps/dashboard/src/bridge/api.ts");
   const readAdsFirst = () => readAdsOpening({ read: bridgeRead, route: "campaigns/ads", workspace: "harbor" });
+  // And the same two beside Content's own where Ads is drawn, which Content's first draw waits for, so the Ads tab's figure
+  // stands with Made's and the Library's (readAdsBesideContent, as bridge/surfaces/settings.ts asks them; 26 Nov 2026).
+  const readAdsBeside = (route) => () => readAdsBesideContent({ read: bridgeRead, route, workspace: "harbor" });
   // And Forms' list, read as a load there begins (campaigns/forms/opening.ts, as campaigns/home/opening.ts asks it).
   const { readFormsOpening } = await importSrc(`${S}/surfaces/campaigns/forms/opening.ts`);
   const pageReads = {
     "campaigns/sequences/new": [readSources],
     "campaigns/ads": [readAdsFirst],
+    "campaigns/content": [readAdsBeside("campaigns/content")],
+    "campaigns/content/library": [readAdsBeside("campaigns/content:library")],
+    "campaigns/content/week": [readAdsBeside("campaigns/content:week")],
     "campaigns/forms": [readFormsOpening],
     today: [readColdEmailNote, readContentToday, readTodayPeople],
   };

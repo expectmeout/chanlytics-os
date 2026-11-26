@@ -255,8 +255,8 @@ test("REGRESSION: a broadcast to nobody is refused with the cause it has -- AI c
   assert.ok(!regulars.includes("has said yes"), `REGRESSION: the model was told nobody had said yes: ${regulars}`);
   // Nobody on Walk-ins said yes to offers: the QR is where that is got, and it is in Sent -- Ask is no page.
   const walkIns = await refusal(S_WALK);
-  assert.ok(walkIns.includes("Nobody there has said yes to offers yet"), walkIns);
-  assert.ok(walkIns.includes("or get their yes with the phrase and the QR in Sent."), walkIns);
+  assert.ok(walkIns.includes("Nobody there has said yes to offers."), walkIns);
+  assert.ok(walkIns.includes("or ask with the QR in Sent."), walkIns);
   assert.ok(!walkIns.includes("on this page"), `REGRESSION: ${walkIns}`);
 });
 

@@ -205,7 +205,7 @@ export const BEFORE_NINE = Date.parse("2026-09-11T20:58:00Z");
  * playbook's, which nobody sends again. Each said "send it again" after its cause.
  */
 export const VISIT_RUN_NEXT =
-  "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
+  "It doesn't run again today: a reminder belongs to its day, so the people it missed aren't sent it later.";
 
 /** A message about their visit: Meta's row, and the text and email versions beside it, each filling the same slots. */
 export const VISIT_WORDS = "Hi {{1}}, your visit is {{2}}.";

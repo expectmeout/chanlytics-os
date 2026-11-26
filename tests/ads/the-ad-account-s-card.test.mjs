@@ -65,7 +65,7 @@ test("nothing connected: what connecting does, who is charged, and Connect for t
     owner.says.map((said) => [said.text, said.strong]),
     [
       [
-        "Chanlytics reads your ads and what they cost, and pauses one when you press it. It makes an ad only when you press Turn on.",
+        "Chanlytics reads your ads and their cost, and pauses one when you press it. It makes an ad only when you press Turn on.",
         false,
       ],
       ["Meta charges your card, never Chanlytics.", true],

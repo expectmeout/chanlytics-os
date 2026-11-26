@@ -616,7 +616,7 @@ test("AI's note and the doors to the yes are drawn only where there is a number 
   const t = home().reach;
   assert.equal(
     t.yes.note,
-    "AI now asks for it. Once a person, inside a conversation they started. At the desk, the code or the phrase does the same.",
+    "AI now asks for it once a person, in a conversation they started. At the desk, the code or phrase does the same.",
   );
   assert.deepEqual(
     t.yes.code,
@@ -951,7 +951,7 @@ test("a run waiting on you is approved or skipped where it waits: who gets it, a
   const gone = row(waitingRun({ run_for: "2026-09-30" }));
   assert.equal(
     gone.waiting.refusal,
-    "This run was made for Sep 30 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.",
+    "This run was made for Sep 30 and that day has passed. Skip it · the next run reads the calendar again.",
   );
   assert.equal(gone.why, gone.waiting.refusal);
   // A visit's run made for today, approved after the last sending hour (it is 9:44 PM), would go tomorrow morning: refused too.

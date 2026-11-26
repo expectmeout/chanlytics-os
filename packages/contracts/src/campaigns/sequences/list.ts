@@ -16,7 +16,7 @@ export const SEQUENCE_LIST_WORDS = {
     label: "Type",
     all: "All types",
     // The groups' own names (SEQUENCE_WORDS.groups), one set of names (decision 0128).
-    customers: "Your customers",
+    customers: "Customers",
     leads: "Cold email",
     once: "One-off sends",
   },

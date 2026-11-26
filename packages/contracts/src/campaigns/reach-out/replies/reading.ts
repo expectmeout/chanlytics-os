@@ -299,6 +299,7 @@ function subjectOf(p: { intent: ReplyIntent; business: string; automatic: boolea
 }
 
 /** What the platform may be told of a reading: its intent, never the business or their words. */
+// screen-word: a line for the platform's staff, where the code's words are allowed
 function redactedReadAs(intent: ReplyIntent, unread: Unread | null): string {
   if (unread) return "; the reply couldn't be read yet";
   return intent === "other" ? "" : `, read as ${REPLY_INTENT_WORDS[intent]}`;

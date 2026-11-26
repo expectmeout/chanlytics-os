@@ -803,7 +803,7 @@ test("a playbook's run that stops is never told to send it again: every stop say
   // page sends a run again. The stops for the workspace said so (stoppedRunFix); the wire's, the limit's and the day's
   // hours' told its owner to "send it again later".
   const NEXT =
-    "It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.";
+    "It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice.";
   const moment = () =>
     broadcast({
       playbook_id: "p1",
@@ -826,13 +826,13 @@ test("a playbook's run that stops is never told to send it again: every stop say
   assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "tomorrow"), NEXT);
   assert.match(
     playbookRunNext({ playbook_id: "p1", trigger: "visit_tomorrow" }, "tomorrow"),
-    /a reminder belongs to its day, so the people it did not reach will not be sent it later\.$/,
+    /a reminder belongs to its day, so the people it missed aren't sent it later\.$/,
   );
   // The run's own page, for every failure a run can stop with: how many got it, what there is to do, what becomes of it.
   const { BROADCAST_FAILURES } = await import("@chanlytics/contracts");
   // A stop that may outlast tomorrow and is nobody's to end promises no tomorrow: the month's limit met tomorrow's run too.
   const LATER =
-    "It does not run again today · the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+    "It doesn't run again today · the next run reaches the people this one missed, and nobody gets it twice.";
   assert.equal(playbookRunNext({ playbook_id: "p1", trigger: "everyone_monthly" }, "when_it_can"), LATER);
   const outlasts = new Set(["provider_limit", "template_not_approved", "whatsapp_wait_ended"]);
   for (const code of BROADCAST_FAILURES) {

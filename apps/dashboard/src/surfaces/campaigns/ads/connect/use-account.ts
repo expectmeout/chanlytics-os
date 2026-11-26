@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HOUR_MS, type AdAccountDto } from "@chanlytics/contracts";
 import { api, read } from "@/bridge/api";
-import { adsFirstAnswer } from "@/bridge/surfaces/ads-first-reads";
+import { adsFirstAnswer, firstAnswerStands } from "@/bridge/surfaces/ads-first-reads";
 import { getActiveWorkspace } from "@/bridge/workspace";
 import type { Disconnected } from "./disconnect-sheet";
 import { DISCONNECT } from "./words";
@@ -175,18 +175,22 @@ function returnsOf(io: LookIo): { leave: () => void; back: () => void } {
 }
 
 /**
- * What the card starts from: the account the Ads view opened on, where the boot read it (bridge/surfaces/ads-first-reads.ts),
- * drawn at once so the page is the one it is from its first frame, and whether it stands with no read behind it (one read
- * this recently does; one older is read again behind it).
+ * What the card starts from: the account the Ads view opened on, where the boot read it or Content read it ahead of the
+ * tab's press (bridge/surfaces/ads-first-reads.ts), drawn at once so the page is the one it is from its first frame, and
+ * when it was read (0 where none was).
  */
-function openingAccount(on: boolean): { dto: AdAccountDto | null; stands: boolean } {
-  const first = on ? adsFirstAnswer(Date.now(), getActiveWorkspace()) : null;
-  return { dto: first?.held.account ?? null, stands: first?.recent === true };
+function openingAccount(on: boolean): { dto: AdAccountDto | null; readAt: number } {
+  const first = on ? adsFirstAnswer(getActiveWorkspace()) : null;
+  return { dto: first?.account ?? null, readAt: first?.fetchedAt ?? 0 };
 }
 
-/** Whether the card reads now: once it is drawn, unless what it opened on stands and nothing has asked since. */
-const accountReadsNow = (on: boolean, askedCount: number, stands: boolean): boolean =>
-  on && (askedCount > 0 || !stands);
+/**
+ * Whether the card reads now: once it is shown, unless what it opened on still stands and nothing has asked since. Asked
+ * as it reads, never as it is drawn: a page drawn hidden ahead of its press is shown later, and an answer aged by then is
+ * drawn at once and read again behind it.
+ */
+const accountReadsNow = (on: boolean, askedCount: number, opening: { dto: AdAccountDto | null; readAt: number }) =>
+  on && (askedCount > 0 || opening.dto === null || !firstAnswerStands(opening.readAt, Date.now()));
 
 /** The workspace's ad account, where `on` says the page draws its card. */
 export function useAdAccount(on: boolean): AdAccountHere {
@@ -206,7 +210,7 @@ export function useAdAccount(on: boolean): AdAccountHere {
   }, [on]);
 
   useEffect(() => {
-    if (!accountReadsNow(on, asked, opening.stands)) return undefined;
+    if (!accountReadsNow(on, asked, opening)) return undefined;
     let live = true;
     read("GET ads/account").then(
       (answer) => {
@@ -224,7 +228,7 @@ export function useAdAccount(on: boolean): AdAccountHere {
     return () => {
       live = false;
     };
-  }, [on, asked, opening.stands]);
+  }, [on, asked, opening]);
 
   const again = useCallback(() => setAsked((count) => count + 1), []);
 

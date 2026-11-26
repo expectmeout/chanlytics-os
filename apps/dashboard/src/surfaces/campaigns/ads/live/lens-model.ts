@@ -6,7 +6,8 @@
 import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { counted, type LiveClock } from "./ai-line";
-import { allBroughtOf, backLineOf, besideOf, eachOf, liveModel, shown, type FigureVM } from "./model";
+import { allBroughtOf, backLineOf, besideOf, eachOf, liveModel, type FigureVM } from "./model";
+import { shown } from "./listed";
 import { LENS, LIVE, SHEET } from "./words";
 import { worthOf, type WorthVM } from "./worth-model";
 

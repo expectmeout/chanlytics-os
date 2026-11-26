@@ -464,7 +464,7 @@ test("the door's refusals are said in contracts' words: a search with a chain is
 test("a chain ending in a call reaches the door with its hand, an email with none; 00228's refusals are said (G20)", async () => {
   const asked = serviceSave();
   edge();
-  const hand = { kind: "call", words: "Ask whether our quote suited them" };
+  const hand = { kind: "call", words: "Ask whether the quote suited them" };
   const body = CHAIN({ steps: [CHAIN().steps[0], { subject: null, body: "", after_days: 5, hand }] });
   const out = await chain.PUT.run(send("PUT", body), ctxFor(tables(), { id: ROOT_ID }));
   assert.equal(out.root_id, ROOT_ID);

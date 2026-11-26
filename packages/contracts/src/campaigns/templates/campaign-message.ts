@@ -477,5 +477,5 @@ export const MESSAGE_BEGIN_WORDS = {
    * kind of message is written beside it, and "write it the same way" would be no way out.
    */
   heldAuthentication:
-    "This name is on file in another language as a code for signing in, which no campaign sends. Give this message another name.",
+    "This name is on file in another language as a sign-in code, which no campaign sends. Give this message another name.",
 } as const;

@@ -323,6 +323,7 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
         slots: [
           FIRST,
           BUSINESS,
+          // screen-word: words a customer reads, in the business's own voice (docs/words.md, "Who reads it")
           { kind: "text", label: "The note", example: "we're open late on Thursdays this month." },
         ],
       },
