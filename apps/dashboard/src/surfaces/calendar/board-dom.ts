@@ -4,6 +4,7 @@
  * browser's.
  */
 import { documentScroller, isDocumentScroller, scrollerOf, viewTop, windowTo } from "../kit/motion/page-scroll";
+import { isHtmlElement } from "../dom-reads";
 
 /** A phone opens on the agenda: a week grid is four times a phone's width. */
 export const crPhone = (): boolean => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
@@ -16,7 +17,7 @@ export const crTyping = (): boolean => {
     (el.tagName === "INPUT" ||
       el.tagName === "TEXTAREA" ||
       el.tagName === "SELECT" ||
-      (el instanceof HTMLElement && el.isContentEditable))
+      (isHtmlElement(el) && el.isContentEditable))
   );
 };
 

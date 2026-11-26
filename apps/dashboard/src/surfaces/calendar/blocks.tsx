@@ -25,6 +25,7 @@ import { crPhone } from "./board-dom";
 import { DayMarks, RunMark, markLook } from "./marks";
 import type { CalendarFrame } from "./types";
 import { crWhen, fitDeskHourPx, fitHourPx } from "./words";
+import { isHtmlElement } from "../dom-reads";
 
 type Hours = CalendarVM["hours"];
 type Fit = (w: CalendarWindowVM) => boolean;
@@ -417,7 +418,7 @@ function useHourFit(
   useLayoutEffect(() => {
     const el = scroller.current;
     const grid = el?.firstElementChild;
-    if (!el || !(grid instanceof HTMLElement)) return undefined;
+    if (!el || !isHtmlElement(grid)) return undefined;
     const fit = () => {
       const box = getComputedStyle(el);
       const heads = grid.querySelector<HTMLElement>(".cal-corner")?.offsetHeight ?? 0;

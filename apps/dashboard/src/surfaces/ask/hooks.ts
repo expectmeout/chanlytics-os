@@ -8,6 +8,7 @@ import { isTypingTarget, type SpeechPurpose } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import { useHoldToTalk } from "../kit/talk/use-hold-to-talk";
 import { mediaSays } from "../frame-verbs";
+import { answersClosest, isDomNode, isElementNode, isHtmlElement } from "../dom-reads";
 
 // Hold to talk is the kit's (surfaces/kit/talk/use-hold-to-talk.ts, imported): press starts the
 // browser's own recogniser, release stops it, and what was heard is handed back on its own, interim words as they come,
@@ -405,7 +406,7 @@ export const ahSlide = (from: SlideFrom | null, stage: HTMLElement | null, hero:
     const dy = now.top - from.stage.top;
     if (Math.abs(dy) > 1) {
       const ghost = stage.cloneNode(true);
-      if (!(ghost instanceof HTMLElement)) return;
+      if (!isHtmlElement(ghost)) return;
       ghost.setAttribute("aria-hidden", "true");
       ghost.removeAttribute("data-testid");
       ghost.querySelectorAll("[id], [data-testid]").forEach((el) => {
@@ -520,7 +521,7 @@ export const useAskPressAway = (
     const onDown = (e: PointerEvent) => {
       const box = boxRef.current;
       const at = e.target;
-      if (!box || !(at instanceof Element) || box.contains(at) || at.closest(over)) return;
+      if (!box || !(isDomNode(at) && answersClosest(at)) || box.contains(at) || at.closest(over)) return;
       close.current();
     };
     document.addEventListener("pointerdown", onDown, true);
@@ -535,7 +536,7 @@ export const useAskAway = (on: boolean, boxRef: RefObject<HTMLElement | null>, a
     away.current = false;
     const onIn = (e: FocusEvent) => {
       const box = boxRef.current;
-      away.current = !!(box && e.target instanceof Node && !box.contains(e.target));
+      away.current = !!(box && isDomNode(e.target) && !box.contains(e.target));
     };
     document.addEventListener("focusin", onIn);
     return () => document.removeEventListener("focusin", onIn);
@@ -546,7 +547,7 @@ export const useAskAway = (on: boolean, boxRef: RefObject<HTMLElement | null>, a
 export const useAskGiveBack = (on: boolean, boxRef: RefObject<HTMLElement | null>) => {
   useEffect(() => {
     if (!on || typeof document === "undefined") return undefined;
-    const from = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const from = isHtmlElement(document.activeElement) ? document.activeElement : null;
     const box = boxRef.current;
     return () => {
       const at = document.activeElement;
@@ -606,8 +607,8 @@ export const useAskEscBeside = (on: boolean) => {
     if (!on || typeof document === "undefined") return undefined;
     const read = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      const from = e.target instanceof Element ? e.target : document.activeElement;
-      const typing = !!from && isTypingTarget(from.tagName, from instanceof HTMLElement && from.isContentEditable);
+      const from = isElementNode(e.target) ? e.target : document.activeElement;
+      const typing = !!from && isTypingTarget(from.tagName, isHtmlElement(from) && from.isContentEditable);
       const field = typing && !(from && from.closest && from.closest(".tb-line"));
       free.current = !field && !document.querySelector(AH_OPEN_OVER);
     };

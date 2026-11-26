@@ -7,6 +7,7 @@
  */
 import { LEAD_PILE_UNDO_KEY, isOneOf } from "@chanlytics/contracts";
 import { PL_CONTROL, PL_OVERLAY, plTyping } from "../words";
+import { isElementNode } from "../../dom-reads";
 
 /**
  * A sheet or a menu that is not one of the page's own overlays (its peek, Leads' plan panel, which this listener closes):
@@ -133,7 +134,7 @@ function rowKey(k: KeyDoors, e: KeyboardEvent, from: Element | null): void {
 export function onPageKey(k: KeyDoors | null, e: KeyboardEvent): void {
   // Where the key was pressed, not where focus is now: React hears it first, and a field's own Esc can close the field and
   // take focus with it, so the body had focus by the time this heard an Esc typed in the list's name.
-  const from = e.target instanceof Element ? e.target : document.activeElement;
+  const from = isElementNode(e.target) ? e.target : document.activeElement;
   // A key an earlier listener took (the ? sheet's Esc) is not the page's.
   if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
   // An Esc pressed inside a sheet or a menu over the page is that one's own (the deal sheet a row's peek opened, a row's

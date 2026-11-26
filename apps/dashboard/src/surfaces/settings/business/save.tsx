@@ -274,7 +274,7 @@ const btTried = (config: Config, job: SaveJob): Tried => {
 /** What the server holds, as far as this tab knows: its answer to the last save it took, or the settings read when that is newer. */
 const btHeldOf = (last: Held | null): Held | null => {
   const read = settingsNow() || null;
-  const r = read && read.config ? { config: read.config, version: read.version } : null;
+  const r = read && read.config ? { config: read.config as Config, version: read.version } : null;
   return last && (!r || last.version > r.version) ? last : r;
 };
 

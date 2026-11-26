@@ -7,6 +7,7 @@
  * business and so only reads the row.
  */
 import { useSyncExternalStore } from "react";
+import { isHtmlElement } from "../../dom-reads";
 
 interface BookingToolAsk {
   open: boolean;
@@ -33,7 +34,7 @@ const neverAsked = (): BookingToolAsk => NEVER;
 /** Open the sheet: what the door's verb asks of the host (frame-verbs.ts openBookingTool). */
 export function askBookingTool(): void {
   const on = document.activeElement;
-  opener = on instanceof HTMLElement ? on : null;
+  opener = isHtmlElement(on) ? on : null;
   toolAsked = { open: true, session: toolAsked.session + 1 };
   tellAsked();
 }

@@ -435,7 +435,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
   const matrix = rows
     .filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls) && !AUT_MOVED_WITH.has(r.cls) && !AUT_CONTENT.has(r.cls))
     .map((r) => (r.cls === "campaign" ? { ...r, ...AUT_MANY_ROW } : r));
-  const ask = read.settings?.config?.ask;
+  const ask = valueAt(read.settings?.config, "ask");
 
   return (
     <>

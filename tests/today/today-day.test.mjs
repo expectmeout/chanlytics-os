@@ -510,7 +510,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
     assert.ok(!dayModule.includes(gone), `${gone} is not drawn from day.tsx`);
   assert.match(
     dayModule,
-    /TODAY_HELPERS\.day\(\s*calendar\.vm[^,]*,\s*playbooks \? \{ rows: playbooks\.rows, word: word \?\? playbooks\.shape\.word \} : null,\s*word \? \{ rows: \[\], word \} : null,\s*Number\.POSITIVE_INFINITY,?\s*\)/,
+    /TODAY_HELPERS\.day\(\s*(?:calendarLikeOf\()?calendar\.vm[^,]*,\s*playbooks \? \{ rows: playbooks\.rows, word: word \?\? playbooks\.shape\.word \} : null,\s*word \? \{ rows: \[\], word \} : null,\s*Number\.POSITIVE_INFINITY,?\s*\)/,
     "the page composes the module: the calendar, the playbooks' rows, and the workspace's word as Today's read says it " +
       "before a playbook's, every entry of the day (the zone folds what is over itself); who is coming is the board's " +
       "own read's (calendar-person-facts.ts), so People's book is no read of the day's",

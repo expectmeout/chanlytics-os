@@ -23,6 +23,7 @@ import { menuGroups, moreButton } from "../menu-groups";
 import { PipelineTrack } from "./row";
 import { P } from "./pipe";
 import type { PipelineSection } from "./pipe";
+import { isDomNode } from "../../dom-reads";
 
 /** A card in hand: who, the column it left, and its row. */
 interface BoardDrag {
@@ -160,7 +161,7 @@ const pipeLeftColumn = (e: DragEvent<HTMLElement>) =>
     e.relatedTarget &&
     e.currentTarget &&
     e.currentTarget.contains &&
-    e.relatedTarget instanceof Node &&
+    isDomNode(e.relatedTarget) &&
     e.currentTarget.contains(e.relatedTarget)
   );
 

@@ -103,7 +103,7 @@ const btDoorFrom =
 /** The page that holds the fact most worth adding while one is missing (contracts' businessGap), else null: the rail's mark. */
 export const businessGapPane = (): string | null => {
   const settings = settingsNow() || null;
-  const config = settings && settings.config;
+  const config = settings && (settings.config as Config | null);
   const brain = (config && config.brain) || null;
   if (!brain) return null;
   const gap = BUSINESS_TAB.businessGap(brain);
@@ -473,7 +473,7 @@ export const BusinessTab = ({
   // sheet itself is the one thing that comes and goes, in the slot (BtSheetSlot).
   const prompt = useBtPromptSheet();
   const settings = settingsNow() || null;
-  const config = settings && settings.config;
+  const config = settings && (settings.config as Config | null);
   const brain = pageBrainOf(config, parts);
   const canEdit = canDo("settings");
   const outreach = useCode(outreachCode, parts.includes("outreach"));
@@ -547,7 +547,7 @@ export const BusinessLimitRows = ({ flash, open = null }: { flash: Flash; open?:
   const saver = businessTabSave.saver;
   useBtPageSubscriptions(saver);
   const settings = settingsNow() || null;
-  const config = settings && settings.config;
+  const config = settings && (settings.config as Config | null);
   const brain = (config && config.brain) || null;
   const canEdit = canDo("settings");
   useBtOpenRow(open, !!(settings && config && brain), canEdit);

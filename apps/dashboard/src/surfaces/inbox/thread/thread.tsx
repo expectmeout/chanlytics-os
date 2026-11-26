@@ -64,6 +64,7 @@ import { hasVeto, HeldDraft } from "./veto";
 import { tlCallFor } from "./call";
 import { useCallLinesFirst } from "./call-turns";
 import { conversationsData } from "../store";
+import { answersClosest } from "../../dom-reads";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
@@ -341,7 +342,7 @@ function openOnTap(foot: RefObject<HTMLDivElement | null>, setFolded: (v: boolea
       const field = foot.current?.querySelector<HTMLTextAreaElement>("textarea.ix-composer-text");
       // A glance that offers a draft puts it in (composer.tsx foldedGlance), and the keys stay down: it may be sent as it is.
       if (!field || field === document.activeElement) return;
-      if (!(e.target instanceof Element && e.target.closest(".ix-composer-glance:not([data-offers])"))) return;
+      if (!(answersClosest(e.target) && e.target.closest(".ix-composer-glance:not([data-offers])"))) return;
       field.focus({ preventScroll: true });
       field.setSelectionRange(0, 0);
     },

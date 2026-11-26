@@ -16,6 +16,7 @@ import { recFolds } from "../../kit/record/registry";
 import { canDo, navigate, refreshSurface } from "../../frame-verbs";
 import type { FrameFlash } from "../../frame-verbs";
 import { BtBookingTool, BOOKING_TOOL_FOLD } from "../business/open-bookings";
+import type { Config } from "../business/save";
 import { businessTabSave } from "../business/saver";
 import { calendarNow, settingsNow } from "../business/shell";
 
@@ -64,7 +65,7 @@ export function BookingToolSheet({ onClosed, flash }: { onClosed: () => void; fl
   useBookingToolDraws();
   const read = useBookingToolReads();
   const settings = (read && settingsNow()) || null;
-  const config = settings ? settings.config : null;
+  const config = settings ? (settings.config as Config | null) : null;
   const brain = (config && config.brain) || null;
   const opened = useRef(false);
   // Read, and nothing here to edit: Settings says what stands in the row's place.

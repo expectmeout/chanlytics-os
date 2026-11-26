@@ -7,6 +7,7 @@
 import type { PointerEvent } from "react";
 import { warmLeadPlace } from "../../campaigns/sequences/verbs";
 import type { LeadAim } from "./use-aim";
+import { answersClosest } from "../../dom-reads";
 
 /** How long a pointer rests on a row before it counts: a sweep down the list reads nothing. */
 const REST_MS = 90;
@@ -14,7 +15,7 @@ const REST_MS = 90;
 const LEAD_ROW = /^lead-([0-9a-f-]{36})$/;
 
 const leadUnder = (e: PointerEvent<HTMLElement>): string | null => {
-  const row = e.target instanceof Element ? e.target.closest('[id^="lead-"]') : null;
+  const row = answersClosest(e.target) ? e.target.closest('[id^="lead-"]') : null;
   const at = row ? LEAD_ROW.exec(row.id) : null;
   return at ? (at[1] ?? null) : null;
 };

@@ -11,7 +11,7 @@
  * tree it was; its hooks stay in `ThreadCall`, in the order they were.
  */
 import { useEffect, useRef, useState, type RefObject, type SyntheticEvent } from "react";
-import { CALL_TRANSCRIPT, callAttemptWords, callNoteLines, mmss, stateOf } from "@chanlytics/contracts";
+import { CALL_TRANSCRIPT, callAttemptWords, callNoteLines, mmss, stateOf, valueAt } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Meter } from "../../kit/meter/meter";
@@ -22,6 +22,7 @@ import { conversationsData } from "../store";
 import type { CallLine, ConversationLine } from "../types";
 import { useCallTurns } from "./call-turns";
 import { threadScroller, threadShown } from "./scroll/scroller";
+import { isMediaElement } from "../../dom-reads";
 
 // The call a note stands for, from the calls Conversations reads: one GET calls page, which every surface boots with.
 // A call older than that page is drawn from its note alone.
@@ -57,7 +58,7 @@ const tlLineAt = (lines: Array<{ start?: number | null }>, pos: number) => {
   return at;
 };
 // One call plays at a time: the one playing, which the next to play pauses.
-const TL_PLAYING: { el: HTMLAudioElement | null } = { el: null };
+const TL_PLAYING: { el: HTMLMediaElement | null } = { el: null };
 // How far the thread moves to keep the line being said in view, or 0. `view.top` is where reading starts, below the
 // player. A line under the player comes out just below it: pressing ▶ puts the player above the call's first line, the
 // browser's scroll anchoring slides it over that line, and bringing the line to a quarter of the pane moved the call's
@@ -73,7 +74,13 @@ export const tlFollowBy = (
 };
 
 /** The audio element an event came from: its target, which a handler reads its moment, its length and its pause from. */
-const audioOf = (e: SyntheticEvent<HTMLAudioElement>): HTMLAudioElement => e.currentTarget;
+const audioOf = (e: SyntheticEvent<HTMLAudioElement>): EventTarget => e.target;
+
+/** A number the audio says of itself (its moment, its length), or 0 where it says none. */
+const audioNumber = (audio: EventTarget, key: "currentTime" | "duration"): number => {
+  const n = valueAt(audio, key);
+  return typeof n === "number" ? n : 0;
+};
 
 /** What the call is called and how it went. */
 interface CallWords {
@@ -276,14 +283,14 @@ function callAudio(c: CallDraw) {
         onPlay={(e) => {
           // One call at a time: this one playing pauses the one that was.
           const target = audioOf(e);
-          if (TL_PLAYING.el && TL_PLAYING.el !== target && TL_PLAYING.el.pause) TL_PLAYING.el.pause();
-          TL_PLAYING.el = target;
+          if (TL_PLAYING.el && TL_PLAYING.el !== target) TL_PLAYING.el.pause();
+          TL_PLAYING.el = isMediaElement(target) ? target : null;
           c.setPlaying(true);
         }}
         onPause={() => c.setPlaying(false)}
         onEnded={() => c.setPlaying(false)}
-        onTimeUpdate={(e) => c.setPos(audioOf(e).currentTime)}
-        onLoadedMetadata={(e) => c.setDur(audioOf(e).duration || (call && call.durationSec) || 0)}
+        onTimeUpdate={(e) => c.setPos(audioNumber(audioOf(e), "currentTime"))}
+        onLoadedMetadata={(e) => c.setDur(audioNumber(audioOf(e), "duration") || (call && call.durationSec) || 0)}
         onError={() => {
           c.setPlaying(false);
           c.setFailed("Couldn't play the recording.");

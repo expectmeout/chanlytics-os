@@ -32,6 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, gate, navigate } from "../../frame-verbs";
+import { answersClosest } from "../../dom-reads";
 
 /** Each verb's test id where it has one of its own; any other is the row's (`connection-<kind>-verb`). */
 const VERB_TESTID: Record<string, string> = {
@@ -107,7 +108,7 @@ const DETAIL_WORD: Partial<Record<ConnectionKind, string>> = {
  */
 export const connRowPress = (event: MouseEvent<HTMLDivElement>) => {
   const row = event && event.currentTarget;
-  const target = event && event.target instanceof Element ? event.target : null;
+  const target = event && answersClosest(event.target) ? event.target : null;
   if (!row || !target || !("querySelector" in row)) return;
   if (target.closest("button, a[href], input, select, textarea, [role='button'], .set-row-stack, .set-int-open"))
     return;
