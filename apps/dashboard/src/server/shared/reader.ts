@@ -89,7 +89,7 @@ export function stableJson(value: unknown): string {
   );
 }
 
-export const READER_CACHE_CAP = 500;
+const READER_CACHE_CAP = 500;
 
 /** Across turns, per instance: only readers with a ttl, keyed by workspace, person, reader and arguments. */
 class ReaderCache {

@@ -33,7 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import type { SetupRowVM, SetupVM } from "@chanlytics/contracts";
 
-export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "@chanlytics/contracts";
+export { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "@chanlytics/contracts";
 
 interface FirstRunStepDef {
   key: FirstRunStepKey;

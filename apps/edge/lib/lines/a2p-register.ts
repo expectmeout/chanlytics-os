@@ -60,7 +60,7 @@ export type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];
 export const TWILIO_TIMEOUT_MS = 20000;
 
 /** Chanlytics' own approved primary customer profile; without it nothing may be filed. */
-export function primaryProfileSid(): string | null {
+function primaryProfileSid(): string | null {
   return env.TWILIO_PRIMARY_PROFILE_SID || null;
 }
 

@@ -17,7 +17,7 @@ type WaitingRowVM = PlatformQueueVM["rows"][number];
  * One person waiting. The only action arms first, like every other action on this page -- and unlike them it is not
  * undoable from here, so a mis-click leaves somebody waiting for a mail nobody will write.
  */
-export function WaitingRow({
+function WaitingRow({
   row,
   P,
   role,

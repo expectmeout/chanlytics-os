@@ -206,7 +206,7 @@ type Cell = CsvCell;
 /** One CSV cell: contracts' rule (csvCell), the same one the page's export of a selection spells (clients-a.jsx plCsv). */
 export { csvCell };
 
-export const PEOPLE_COLUMNS: ReadonlyArray<readonly [string, (r: PersonRowDto, tz: string) => Cell]> = [
+const PEOPLE_COLUMNS: ReadonlyArray<readonly [string, (r: PersonRowDto, tz: string) => Cell]> = [
   ["name", (r) => r.display_name],
   ["whatsapp_name", (r) => r.wa_profile_name],
   ["phone", (r) => r.phone_e164],

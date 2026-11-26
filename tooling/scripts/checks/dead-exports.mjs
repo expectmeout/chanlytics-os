@@ -28,6 +28,12 @@
  * (.husky/pre-commit), esbuild is loaded as the root's by the tooling's scripts, and the phone app's expo-font and
  * expo-symbols are its SDK's native modules, which wait for the phone app (removing one changes its build).
  *
+ * The suite loads many modules through a helper that takes the path as a string (`importSrc("apps/…")`, `at("…")`),
+ * which knip cannot follow: an export a test or a script names, in a file that names its module's path, is a seam the
+ * suite stands on, not a dead one, and is not counted (readByPath), nor is a module only such a seam imports
+ * (seamModules). Since 26 November 2026: until then the edge's 58 were 57 such seams and one dead name, and the
+ * whole count 143 held some 115 of them.
+ *
  * A finding is a bug report, not an instruction: an export knip cannot see a
  * use of may be read through a string, a dynamic import or a test double. Look
  * before deleting; hold the count without looking.
@@ -86,6 +92,60 @@ export function packagePass() {
   return now;
 }
 
+/** The suite's and the scripts' text, each file once: what readByPath reads. */
+function suiteTexts() {
+  return repoFiles(["tests", "e2e", "tooling/scripts"])
+    .filter((f) => /\.(mjs|js|ts)$/.test(f))
+    .map((f) => fs.readFileSync(path.join(ROOT, f), "utf8"));
+}
+
+/**
+ * Whether a test or a script reads `name` of `file` by the module's path: a text that names the path by at least its
+ * last two parts (`${S}/calendar/sample.ts` names it so), with or without its extension, and the name as a word. With no
+ * name, whether any text names the path: a module only the suite loads.
+ */
+export function readByPath(file, name, texts) {
+  const tail = file
+    .replace(/\.(tsx?|mjs|js)$/, "")
+    .split("/")
+    .slice(-2)
+    .join("/");
+  const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const at = new RegExp(`[/"'\`]${escape(tail)}(\\.(tsx?|mjs|js))?["'\`]`);
+  const word = name === null ? null : new RegExp(`(^|[^\\w$])${escape(name)}($|[^\\w$])`);
+  return texts.some((text) => at.test(text) && (word === null || word.test(text)));
+}
+
+/** The modules a module imports by a relative path, as the repository's paths each could be. */
+function relativeImportsOf(file) {
+  const text = fs.readFileSync(path.join(ROOT, file), "utf8");
+  const out = [];
+  for (const m of text.matchAll(/from\s+["'](\.{1,2}\/[^"']+)["']/g)) {
+    const base = path.posix.join(path.posix.dirname(file), m[1]).replace(/\.js$/, "");
+    out.push(`${base}.ts`, `${base}.tsx`, `${base}/index.ts`);
+  }
+  return out;
+}
+
+/**
+ * The modules nothing imports that the suite stands on: each one a test or a script names by its path, and, module by
+ * module, what those import that nothing else does (the calendar's sample reads its day and its clock).
+ */
+export function seamModules(unreferenced, texts) {
+  const left = new Set(unreferenced);
+  const seams = new Set(unreferenced.filter((f) => readByPath(f, null, texts)));
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const seam of [...seams])
+      for (const f of relativeImportsOf(seam))
+        if (left.has(f) && !seams.has(f)) {
+          seams.add(f);
+          grew = true;
+        }
+  }
+  return seams;
+}
+
 /** `{ file: n }`: knip's findings and the packages' pass, the bundles built first (their public names are read). */
 export function deadExports() {
   execFileSync(process.execPath, [path.join(ROOT, "tooling/scripts/package-build.mjs")], {
@@ -107,10 +167,13 @@ export function deadExports() {
     if (!raw) throw new Error("knip did not run", { cause: e });
   }
   const report = JSON.parse(raw);
+  const texts = suiteTexts();
   const now = {};
-  for (const f of report.files ?? []) now[`${f} (unreferenced module)`] = 1;
+  const seams = seamModules(report.files ?? [], texts);
+  for (const f of report.files ?? []) if (!seams.has(f)) now[`${f} (unreferenced module)`] = 1;
   for (const issue of report.issues ?? []) {
-    const n = (issue.exports?.length ?? 0) + (issue.types?.length ?? 0);
+    const names = [...(issue.exports ?? []), ...(issue.types ?? [])].map((x) => x.name);
+    const n = names.filter((name) => !readByPath(issue.file, name, texts)).length;
     if (n > 0) now[issue.file] = n;
     const unused =
       (issue.dependencies?.length ?? 0) + (issue.devDependencies?.length ?? 0) + (issue.catalog?.length ?? 0);

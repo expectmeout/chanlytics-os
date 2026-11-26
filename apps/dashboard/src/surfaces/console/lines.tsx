@@ -43,7 +43,7 @@ const setupTone = (state: string) => stateOf("setup", state).tone;
  * $19.50 that cannot be undone. Which one this line is offering, and what it costs, comes from the contract; the page
  * only reads it out. A role that may not take the act is not offered it (staffMay); the route refuses it all the same.
  */
-export function PlatformLine({
+function PlatformLine({
   line,
   tenantId,
   role,

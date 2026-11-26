@@ -335,7 +335,7 @@ const btOpenRow = (id: string) => {
  * is and moves no cell after it. Both can be on the page because only one can be open: the registry opens one editor
  * or sheet at a time, so a row's sheet and this slot's never stand on screen together (business-tab-page.test.mjs).
  */
-export const BtSheetSlot = ({
+const BtSheetSlot = ({
   prompt,
   brain,
   canEdit,

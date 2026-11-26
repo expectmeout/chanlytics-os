@@ -110,7 +110,7 @@ const statusDetail = (status: string): string =>
  * One partner and one currency of what they earned (0012, P5). Recording a payout sent by hand arms, asks for the
  * payment's reference and why, and SENDS NOTHING -- the money left from the bank, and this is the record of it.
  */
-export function PartnerRow({
+function PartnerRow({
   row,
   P,
   role,
