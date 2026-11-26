@@ -20,3 +20,10 @@ export const nullableIn = <T, K extends keyof T>(rows: T[], ..._columns: readonl
 
 /** A row embedded through a foreign key, as a reader on a session can receive it: null where its policies hide it. */
 export const embedded = <T>(row: T): T | null => row;
+
+/**
+ * The account the platform's identity store answers for an id, or none. Its client types an answer with no error as
+ * carrying the account, but a store that keeps none under the id may answer none with no error (the suite's stand-in
+ * for it does), and a read of who an account is then says nobody.
+ */
+export const accountOf = <U>(answer: { data: { user: U | null } }): U | null => answer.data.user;

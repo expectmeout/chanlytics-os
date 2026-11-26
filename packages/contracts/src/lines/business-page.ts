@@ -86,11 +86,11 @@ export interface BusinessPageFacts {
    * What the business does, in the owner's words (`business_records.about`). A list of
    * services says what can be booked, not what the business is. The ninth refusal of
    * the live campaign (30919, 22 Sep 2026) asked for "the products, services, and
-   * industry", and the services alone could not say it.
+   * industry", and the services alone could not say it. Left out of a page drawn from a record before it: none.
    */
-  about: string;
-  /** Twilio's vertical, as the brand was registered with it: `PROFESSIONAL_SERVICES`. */
-  industry: string;
+  about?: string;
+  /** Twilio's vertical, as the brand was registered with it: `PROFESSIONAL_SERVICES`; left out, none. */
+  industry?: string;
   /**
    * A business on record with no tax id: one person, filed as a sole proprietor, whose street is often their home. The
    * page says where by city, state and ZIP alone (the wiring's second audit, X4-5; Ruben, 15 October 2026); the carriers
@@ -150,14 +150,15 @@ function identifiesABusiness(f: { legalName: string; street: string; city: strin
 
 /** The same rule over the record's own columns: whether a saved record publishes the page (the form's note and link). */
 export function publishesBusinessPage(
-  business: Pick<BusinessRecordDto, "legal_name" | "street" | "city"> | null | undefined,
+  // A record read before a part was filled may leave it out: a part left out is none.
+  business: Partial<Pick<BusinessRecordDto, "legal_name" | "street" | "city">> | null | undefined,
 ): boolean {
   return (
     !!business &&
     identifiesABusiness({
-      legalName: business.legal_name,
-      street: business.street,
-      city: business.city,
+      legalName: business.legal_name ?? "",
+      street: business.street ?? "",
+      city: business.city ?? "",
     })
   );
 }
@@ -185,7 +186,7 @@ export function businessPageVM(businessPageFacts: BusinessPageFacts): BusinessPa
   if (legal)
     identity.push({ label: "Legal name", value: trade && trade !== legal ? `${legal}, trading as ${trade}` : legal });
   // The vertical the brand was registered under, so the page and the filing say one industry.
-  const industry = businessPageFacts.industry.trim();
+  const industry = (businessPageFacts.industry ?? "").trim();
   if (industry) identity.push({ label: "Industry", value: industryWords(industry) });
   const where = addressLine(businessPageFacts);
   if (where) identity.push({ label: "Address", value: where });
@@ -216,7 +217,7 @@ export function businessPageVM(businessPageFacts: BusinessPageFacts): BusinessPa
       ? "To say yes, or to see exactly what you would be agreeing to, open"
       : "To see exactly what you would be agreeing to, open",
     identity,
-    about: businessPageFacts.about.trim() || null,
+    about: (businessPageFacts.about ?? "").trim() || null,
     services: businessPageFacts.services.slice(0, 40).map((s) => ({
       name: s.name,
       detail:
@@ -362,8 +363,8 @@ export interface PreflightFacts {
   city: string;
   /** Their own site, when they gave one. */
   websiteUrl: string | null;
-  /** What the business does, in the owner's words. */
-  about: string;
+  /** What the business does, in the owner's words; left out, none. */
+  about?: string;
   /** Whether a customer has any way to say yes: a number the opt-in page can name. */
   hasOptInNumber: boolean;
 }
@@ -429,7 +430,7 @@ export function registrationPreflight(preflightFacts: PreflightFacts): Preflight
   // reviewer reads "appointments" and "replies" and cannot tell what the business sells or to whom, which
   // is what the ninth refusal of the live campaign said (30919, 22 Sep 2026: "verify the operational
   // business model ... describe the products, services, and industry clearly").
-  if (preflightFacts.about.trim().length < ABOUT_MIN) {
+  if ((preflightFacts.about ?? "").trim().length < ABOUT_MIN) {
     out.push({
       id: "no_about",
       what: "The phone networks can't tell what this business does: your page and your registration have no description of it.",

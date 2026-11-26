@@ -165,8 +165,11 @@ export function addProposalSpecs(specs: Readonly<Record<AskOnlyKind, ProposalSpe
  * its payload names, as a thread card does; before the kinds only Ask's cards commit are in, a kind not a page's has
  * none.
  */
-export function cardOpenRoute(askProposal: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
-  const card = { payload: askProposal.payload };
+/** A card as its Open is asked for: one its table froze, or a test's, may carry no payload. */
+type CardOpening = Pick<AskProposal, "kind" | "outcome"> & Partial<Pick<AskProposal, "payload">>;
+
+export function cardOpenRoute(askProposal: CardOpening): string | null {
+  const card = { payload: askProposal.payload ?? {} };
   const spec = proposalSpec(askProposal.kind) ?? proposalSpec("thread_verb");
   return spec ? spec.open(card, askProposal.outcome ?? null) : null;
 }

@@ -122,8 +122,18 @@ export type AskAnswerAsStored = Omit<AskAnswer, "show"> & {
   show: Omit<AskAnswer["show"], "list" | "chart"> & { list?: AskList; chart?: AskChart | AskChartBefore };
 };
 
+/** An answer that may have been kept before the list part, read where it is drawn or said: its chart as it is now. */
+export type AskAnswerMaybeListless = Omit<AskAnswer, "show"> & {
+  show: Omit<AskAnswer["show"], "list"> & { list?: AskList };
+};
+
+/** Whether a kept answer is whole already: its list there, and its chart, if it has one, in series. */
+const isWhole = (askAnswer: AskAnswerAsStored): askAnswer is AskAnswer =>
+  !!askAnswer.show.list && (!askAnswer.show.chart || !!askAnswer.show.chart.series);
+
 /** An answer as it was stored, whole: one stored before the list part has none, and reads as having no list. */
 export function storedAnswer(askAnswer: AskAnswerAsStored): AskAnswer {
+  if (isWhole(askAnswer)) return askAnswer;
   const { chart, list, ...show } = askAnswer.show;
   return { ...askAnswer, show: { ...show, ...(chart ? { chart: storedChart(chart) } : {}), list: list ?? noList() } };
 }
@@ -195,7 +205,7 @@ function nextQuestions(next: string[], places: string[]): string[] {
  * its Open goes (contracts cardOpenRoute), from its caller: the cards' specs come with the Line, Ask's answers with every page.
  */
 export function oneDoor(
-  askAnswer: AskAnswer,
+  askAnswer: AskAnswerMaybeListless,
   cards: ReadonlyArray<{ id: string; open: string | null }> = [],
 ): { answer: AskAnswer; cardOpen: Record<string, boolean> } {
   const offered = new Set<string>();
@@ -226,7 +236,7 @@ export function oneDoor(
   return {
     answer: {
       ...askAnswer,
-      show: { figures, items, breakdown, ...chart, list: askAnswer.show.list },
+      show: { figures, items, breakdown, ...chart, list: askAnswer.show.list ?? noList() },
       do: { open, next: nextQuestions(askAnswer.do.next, [...offered]) },
     },
     cardOpen,

@@ -220,7 +220,7 @@ function balanceRows(balance: PartnerLetterNews["balance"]): PartnerBalanceRow[]
  * The subject names the change that matters most. Every figure is a sum partner_letters_due read; nothing is promised.
  */
 export function partnerLetter(
-  news: PartnerLetterNews,
+  news: NewsAsKept,
   opts: { origin: string; since: string; nowMs?: number },
 ): { subject: string; body: string } {
   const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
@@ -239,14 +239,18 @@ export function partnerLetter(
   return { subject: letterSubject(news), body };
 }
 
-const sharesOf = (news: PartnerLetterNews) => news.written.filter((w) => w.kind === "share");
+const sharesOf = (news: NewsAsKept) => news.written.filter((w) => w.kind === "share");
 
 const countsTotal = (rows: readonly { count: number }[]): number => rows.reduce((k, w) => k + w.count, 0);
 
 const nonZero = <T extends { cents: number }>(rows: readonly T[]): T[] => rows.filter((r) => r.cents !== 0);
 
 /** One line per change, in the order the letter says them: the account, the money that moved, then the workspaces. */
-function letterLines(news: PartnerLetterNews): string[] {
+/** The news as a letter reads it: one written before 0016 has no accepted or declined workspaces. */
+type NewsAsKept = Omit<PartnerLetterNews, "accepted" | "declined"> &
+  Partial<Pick<PartnerLetterNews, "accepted" | "declined">>;
+
+function letterLines(news: NewsAsKept): string[] {
   const lines: string[] = [];
   if (news.status) lines.push(statusLine(news.status));
   for (const p of news.paid)
@@ -269,16 +273,16 @@ function letterLines(news: PartnerLetterNews): string[] {
   for (const s of news.standing) lines.push(standingLine(s));
   for (const b of news.brought)
     lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
-  // A news object written before 0016 has neither, which its schema reads as none: nothing to say.
-  for (const a of news.accepted)
+  // A news object written before 0016 has neither: nothing to say.
+  for (const a of news.accepted ?? [])
     lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
-  for (const d of news.declined)
+  for (const d of news.declined ?? [])
     lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
   return lines;
 }
 
 /** The subject names the change that matters most: the first of these that holds. */
-const LETTER_SUBJECTS: readonly [(news: PartnerLetterNews) => boolean, (news: PartnerLetterNews) => string][] = [
+const LETTER_SUBJECTS: readonly [(news: NewsAsKept) => boolean, (news: NewsAsKept) => string][] = [
   [(n) => n.status?.status === "closed", () => "Your Chanlytics partner account is closed"],
   [(n) => n.status?.status === "paused", () => "Your Chanlytics partner account is paused"],
   [(n) => n.paid.length > 0, (n) => `Chanlytics paid you ${money(n.paid)}`],
@@ -287,12 +291,12 @@ const LETTER_SUBJECTS: readonly [(news: PartnerLetterNews) => boolean, (news: Pa
     () => "A workspace you brought is not eligible for a share",
   ],
   [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
-  [(n) => n.declined.length > 0, () => "A business declined the workspace you set up"],
-  [(n) => n.accepted.length > 0, () => "A business took over the workspace you set up"],
+  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
+  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
   [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`],
 ];
 
-function letterSubject(news: PartnerLetterNews): string {
+function letterSubject(news: NewsAsKept): string {
   const rule = LETTER_SUBJECTS.find(([holds]) => holds(news));
   return rule ? rule[1](news) : "What changed in your partner account";
 }
