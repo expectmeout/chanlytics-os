@@ -13,6 +13,7 @@ import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const { PaneWorkspace } = await import("../../../apps/dashboard/src/surfaces/settings/frame/workspace.tsx");
 const { PaneMemory } = await import("../../../apps/dashboard/src/surfaces/settings/memory/pane.tsx");
 const { PaneBillingReal } = await import("../../../apps/dashboard/src/surfaces/settings/billing/pane.tsx");
+const { PaneIntegrationsReal } = await import("../../../apps/dashboard/src/surfaces/settings/connections/pane.tsx");
 
 /** The panes the page drew for `tab`, by the component each is. */
 const panesOf = (tab) => all(settings(tab), (n) => n.type === PaneWorkspace || n.type === PaneMemory);
@@ -40,6 +41,12 @@ test("Billing and Memory are real panes, and neither says it is not built", () =
   assert.equal(all(billing, (n) => n.type === PaneBillingReal).length, 1, "Billing draws the real pane");
   assert.doesNotMatch(textOf(billing), /There is no billing in the product yet/);
   assert.doesNotMatch(textOf(settings("memory")), /does not learn rules on its own yet/);
+  // Connections is its own pane, imported, drawn for its tab: the page renders it, it does not contain it.
+  assert.equal(
+    all(settings("integrations"), (n) => n.type === PaneIntegrationsReal).length,
+    1,
+    "Connections draws its pane",
+  );
 });
 
 test("Settings derives its tab on every draw: the same page, drawn again with another tab, draws that tab's pane", () => {
