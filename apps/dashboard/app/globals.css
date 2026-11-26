@@ -713,7 +713,7 @@ html.in-app .auth-or {
   margin: 0 0 12px;
   padding: 10px 12px;
   border-radius: var(--radius-mark);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-inset-fill);
   border: 1px dashed var(--auth-line);
   color: var(--auth-muted);
 }
@@ -755,7 +755,7 @@ html.in-app .auth-or {
 .yes-btn {
   flex: none;
   background: var(--auth-teal);
-  color: #06231d;
+  color: var(--accent-fg);
   font-weight: 600;
   font-size: 0.9rem;
   text-decoration: none;
@@ -771,7 +771,7 @@ html.in-app .auth-or {
 }
 .yes-qr-code {
   display: inline-block;
-  background: #fff;
+  background: var(--mark-plate);
   padding: 10px;
   border-radius: var(--radius-lg);
   line-height: 0;
@@ -846,7 +846,7 @@ html.in-app .auth-or {
 /* Specificity, deliberately: the link rule above is (0,1,1) and would
    otherwise paint the button's label teal on teal — invisible. */
 .yes a.yes-btn {
-  color: #06231d;
+  color: var(--accent-fg);
   text-decoration: none;
 }
 /* The paper form, /yes/<slug>/form. Printed and signed by hand: every ask its own
@@ -875,7 +875,7 @@ html.in-app .auth-or {
   height: 18px;
   margin-top: 2px;
   border: 1.5px solid var(--auth-ink);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .yes-paper-sign {
   display: grid;
