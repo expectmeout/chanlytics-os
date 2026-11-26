@@ -641,23 +641,23 @@ html.in-app .auth-or {
   line-height: 1.6;
 }
 .legal h1 {
-  font-size: 1.6rem;
+  font-size: var(--text-2xl);
   margin: 0 0 4px;
   text-wrap: balance;
 }
 .legal .legal-meta {
   color: var(--auth-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   margin: 0 0 28px;
 }
 .legal h2 {
-  font-size: 1.05rem;
+  font-size: var(--text-title);
   margin: 28px 0 8px;
 }
 .legal p,
 .legal li {
   color: var(--auth-ink);
-  font-size: 0.95rem;
+  font-size: var(--text-aside);
   margin: 0 0 12px;
 }
 .legal ul {
@@ -678,13 +678,13 @@ html.in-app .auth-or {
   line-height: 1.55;
 }
 .yes h1 {
-  font-size: 1.45rem;
+  font-size: var(--text-heard);
   margin: 0 0 8px;
   text-wrap: balance;
 }
 .yes-lead {
   color: var(--auth-muted);
-  font-size: 0.95rem;
+  font-size: var(--text-aside);
   margin: 0 0 26px;
 }
 /* Two asks, visibly separate — which is the point the carriers are checking.
@@ -699,17 +699,17 @@ html.in-app .auth-or {
   background: var(--auth-surface);
 }
 .yes-ask-title {
-  font-size: 1.05rem;
+  font-size: var(--text-title);
   font-weight: 600;
   margin: 0 0 6px;
 }
 .yes-ask-lead {
   color: var(--auth-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   margin: 0 0 10px;
 }
 .yes-ask-optional {
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   margin: 0 0 12px;
   padding: 10px 12px;
   border-radius: var(--radius-mark);
@@ -745,11 +745,11 @@ html.in-app .auth-or {
   gap: 3px;
 }
 .yes-way-title {
-  font-size: 0.95rem;
+  font-size: var(--text-aside);
   font-weight: 600;
 }
 .yes-way-sentence {
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--auth-muted);
 }
 .yes-btn {
@@ -757,7 +757,7 @@ html.in-app .auth-or {
   background: var(--auth-teal);
   color: var(--accent-fg);
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   text-decoration: none;
   border-radius: var(--radius-mark);
   padding: 10px 16px;
@@ -783,7 +783,7 @@ html.in-app .auth-or {
 }
 .yes-qr-note {
   color: var(--auth-muted);
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   margin: 10px 0 0;
 }
 .yes-terms {
@@ -792,7 +792,7 @@ html.in-app .auth-or {
   border: 1px solid var(--auth-line);
   border-radius: var(--radius-lg);
   color: var(--auth-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 .yes-terms li {
   margin: 0 0 7px;
@@ -807,7 +807,7 @@ html.in-app .auth-or {
   padding: 18px;
   border: 1px solid var(--auth-line);
   border-radius: var(--radius-row);
-  font-size: 0.88rem;
+  font-size: var(--text-label);
 }
 .yes-who ul {
   margin: 0 0 16px;
@@ -830,11 +830,11 @@ html.in-app .auth-or {
 }
 .yes-who-more {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 .yes-foot {
   color: var(--auth-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   margin: 22px 0 0;
   text-align: center;
 }
@@ -859,7 +859,7 @@ html.in-app .auth-or {
 .yes-paper-line {
   border-bottom: 1px solid var(--auth-muted);
   padding: 22px 0 4px;
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   color: var(--auth-muted);
 }
 .yes-paper-box {
@@ -885,7 +885,7 @@ html.in-app .auth-or {
 }
 .yes-paper-office {
   color: var(--auth-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   margin: 22px 0 0;
 }
 @media print {
@@ -946,14 +946,14 @@ html.in-app .auth-or {
 .sign-bar p {
   margin: 0;
   color: var(--auth-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   text-wrap: balance;
 }
 .sign-print {
   border: 0;
   cursor: pointer;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: var(--text-label);
   font-weight: 600;
 }
 .sign-sheet {
@@ -1072,11 +1072,11 @@ html.in-app .auth-or {
   margin-top: 36px;
   padding-top: 16px;
   color: var(--auth-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 .auth-card .error {
   color: var(--auth-danger);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   margin-top: 10px;
 }
 .auth-card .hint {

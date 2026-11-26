@@ -55,7 +55,7 @@ export const SetupCardRow = ({
   ctaTestid = "setup-verb",
 }: SetupCardRowProps) => (
   <div className="setup-card-row" data-testid={testid}>
-    <span className="setup-card-dot" data-tone={tone} role="img" aria-label={stateWords} title={stateWords} />
+    <span className="setup-card-dot" data-tone={tone} role="img" aria-label={stateWords} data-tip={stateWords} />
     <div className="setup-card-body">
       <span className="setup-card-name">
         {nameShort ? (

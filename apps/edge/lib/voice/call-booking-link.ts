@@ -450,7 +450,7 @@ export async function sendBookingLinkOnCall(request: Request): Promise<Response>
     // has set to Never is someone the receptionist stays away from — on
     // WhatsApp, and when they phone and ask for a text. Looked up per call,
     // never cached; a failed lookup keeps the workspace mode.
-    const workspaceMode = rt.policy?.reply?.mode ?? "ask";
+    const workspaceMode = rt.policy.reply?.mode ?? "ask";
     const personMode = await findPersonReplyMode(db, routed.tenantId, contact.contactId).catch((e: unknown) => {
       log.error("retell_fn_person_mode_failed", { error: errField(e) });
       return null;

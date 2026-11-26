@@ -578,7 +578,7 @@ test("a version that cannot be filed is said and stops nothing: the rest are fil
     ["quick_note", "en_US", "exists", ["email:saved"]],
   ]);
   assert.equal(r.results[0].versions[0].detail, "A subject is at most 60 characters.");
-  assert.equal(r.results[0].versions[1].detail, "The version could not be saved. Add the set again to retry.");
+  assert.equal(r.results[0].versions[1].detail, "Couldn't save the version. Add the set again to retry.");
   assert.deepEqual([r.versions_saved, r.versions_failed], [1, 2]);
   // Added again, the two that failed are tried again and the one that was saved is left.
   const again = await post(w, { keys: ["visit_reminder", "quick_note"], languages: ["en_US"] });

@@ -798,7 +798,7 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
       "REGRESSION: from Dark the button went to Light, and System could not be reached from the top bar",
     );
     assert.equal(dark.props["aria-label"], "Theme: Dark. Switch to System");
-    assert.equal(dark.props.title, "Theme: Dark. Switch to System");
+    assert.equal(dark.props["data-tip"], "Theme: Dark. Switch to System");
     themeButton("system", "dark").props.onClick();
     assert.equal(chosen.at(-1), "light", "System, whatever it shows, goes on to Light");
     themeButton("light", "light").props.onClick();
@@ -898,7 +898,7 @@ test("REGRESSION: the top bar's Ask button says Ask Chanlytics and draws no key 
     });
     const ask = find(tree, (n) => n.props?.["data-testid"] === "tb-ask");
     assert.equal(textOf(ask), "Ask Chanlytics", "a real door, never a Soon tag");
-    assert.equal(ask.props.title, "Ask Chanlytics");
+    assert.equal(ask.props["data-tip"], "Ask Chanlytics");
     assert.deepEqual(keysDrawn(ask), []);
     ask.props.onClick();
     assert.equal(asked, 1, "pressed, it opens AI (pinned as topbar.tsx's text in ask.test.mjs until 25 Nov 2026)");
