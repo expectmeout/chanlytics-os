@@ -398,7 +398,7 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   assert.equal(mock.state, "attention", "joined, not working");
   assert.equal(mock.stateWords, "Waiting on Chanlytics");
   assert.match(mock.sentence, /nothing is delivered/);
-  assert.match(mock.sentence, /a person at Chanlytics is filing it/);
+  assert.match(mock.sentence, /A person at Chanlytics files it/);
   assert.ok(!/switches itself on/.test(mock.sentence), "a rehearsal never switches itself on");
   assert.ok(
     !/switches itself on/.test(words("registering", { reg_mock: true }).sentence),

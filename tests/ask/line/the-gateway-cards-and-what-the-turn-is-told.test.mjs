@@ -525,7 +525,7 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
   const acts = withActs.filter((s) => s.kind === "act");
   assert.ok(acts.length >= 3 && acts.length <= 4, "a few cards, never a wall");
   assert.ok(
-    acts.some((s) => s.label === "Tell Rosa we're running late" && !s.compose && /15 minutes late/.test(s.q)),
+    acts.some((s) => s.label === "Tell Rosa I'm running late" && !s.compose && /15 minutes late/.test(s.q)),
     "a scoped person gets a card to send",
   );
   assert.ok(

@@ -557,14 +557,14 @@
 .dec, .fl-agent, .cal-appt {
   animation: arrive-in 0.26s var(--ease-out) backwards;
 }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(2) { animation-delay: 0.03s; }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(3) { animation-delay: 0.06s; }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(4) { animation-delay: 0.09s; }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(5) { animation-delay: 0.12s; }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(6) { animation-delay: 0.15s; }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(7) { animation-delay: 0.18s; }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(8) { animation-delay: 0.21s; }
-:is(.dec, .fl-agent, .st-card, .pp-card, .cl-decision, .fcard, .cal-appt):nth-child(n+9) { animation-delay: 0.24s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(2) { animation-delay: 0.03s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(3) { animation-delay: 0.06s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(4) { animation-delay: 0.09s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(5) { animation-delay: 0.12s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(6) { animation-delay: 0.15s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(7) { animation-delay: 0.18s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(8) { animation-delay: 0.21s; }
+:is(.dec, .fl-agent, .cl-decision, .cal-appt):nth-child(n+9) { animation-delay: 0.24s; }
 
 /* --- Pane entrances --- */
 .ix-thread-pane { animation: route-in 0.24s var(--ease-out); }
@@ -872,7 +872,6 @@
    focus and press, so they look unavailable without taking the hover and press
    states of a control that works. */
 .btn[data-gated], [data-gated]{opacity:.55;cursor:not-allowed}
-.cl-attn-cta[data-gated]:hover { filter: none; }
 
 /* Confidence as language, not dots */
 .conf-word { font-size: var(--text-2xs); font-weight: 600; letter-spacing: 0.02em; padding: 2px 8px; border-radius: var(--radius-full); white-space: nowrap; flex-shrink: 0; }

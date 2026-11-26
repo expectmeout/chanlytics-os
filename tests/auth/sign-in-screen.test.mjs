@@ -308,7 +308,7 @@ test("the code door never makes an account, and reaches the code step whether or
   await codeInstead();
   assert.deepEqual(asked, [["signInWithOtp", { email: "ann@luna.example", options: { shouldCreateUser: false } }]]);
   assert.equal(heading(), "Check your email");
-  assert.equal(lead(), "We sent a one-time code to your work email.");
+  assert.equal(lead(), "Check your work email for a one-time code.");
   assert.equal(alerts(), "");
 });
 

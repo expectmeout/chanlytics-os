@@ -607,7 +607,7 @@ const partsHtml = (parts, tag, cls) =>
   parts
     .map(
       ([, share, colour]) =>
-        `<${tag}${cls ? ` class="${cls}"` : ""} style="flex-grow: ${share}; background: var(${colour})"></${tag}>`,
+        `<${tag}${cls ? ` class="${cls}"` : ""} style="--share: ${share}; --part-color: var(${colour})"></${tag}>`,
     )
     .join("");
 /** A meter of a chart's parts, as the kit draws it; `size` is "", " meter-lg" or " meter-sm". */
@@ -2724,13 +2724,7 @@ export const FAMILIES = [
       "to, but for what that rule sets of its own page's: a card's shrinking in a grid, Confirm's column and entrance, " +
       "the tip card's width, the bell's place and entrance.",
     entries: [
-      {
-        id: "panel",
-        html: `<section class="panel">${PANE_WORDS}</section>`,
-        twin: "src-fl-card",
-        except: ["min-width"],
-      },
-      { id: "src-fl-card", source: "styles/fleet.css:170", html: `<section class="fl-card">${PANE_WORDS}</section>` },
+      { id: "panel", html: `<section class="panel">${PANE_WORDS}</section>` },
       { id: "panel-flush", html: `<section class="panel panel-flush">${PANE_ROWS}</section>`, twin: "src-card" },
       { id: "src-card", source: "styles/components.css:437", html: `<section class="card">${PANE_ROWS}</section>` },
       {
@@ -2940,47 +2934,47 @@ export const FAMILIES = [
         id: "meter-sm",
         html:
           `<div class="meter meter-sm" role="img" aria-label="12 will get it, 3 held back">` +
-          `<span class="meter-part meter-ok" style="flex-grow: 12"></span>` +
-          `<span class="meter-part meter-warn" style="flex-grow: 3"></span>` +
+          `<span class="meter-part meter-ok" style="--share: 12"></span>` +
+          `<span class="meter-part meter-warn" style="--share: 3"></span>` +
           `<span class="meter-part meter-rest"></span></div>`,
       },
       {
         id: "meter-read",
         html:
           `<div class="meter meter-sm" role="img" aria-label="3 of 5 checks seen, 1 read, 1 couldn't tell">` +
-          `<span class="meter-part meter-ok" style="flex-grow: 3"></span>` +
-          `<span class="meter-part meter-read" style="flex-grow: 1"></span>` +
-          `<span class="meter-part meter-warn" style="flex-grow: 1"></span></div>`,
+          `<span class="meter-part meter-ok" style="--share: 3"></span>` +
+          `<span class="meter-part meter-read" style="--share: 1"></span>` +
+          `<span class="meter-part meter-warn" style="--share: 1"></span></div>`,
       },
       {
         id: "meter-open",
         html:
           `<div class="meter meter-apart" role="img" aria-label="2 ready, 7 held, 3 being checked">` +
-          `<span class="meter-part meter-ok" style="flex-grow: 2"></span>` +
-          `<span class="meter-part meter-warn" style="flex-grow: 7"></span>` +
-          `<span class="meter-part meter-open" style="flex-grow: 3"></span></div>`,
+          `<span class="meter-part meter-ok" style="--share: 2"></span>` +
+          `<span class="meter-part meter-warn" style="--share: 7"></span>` +
+          `<span class="meter-part meter-open" style="--share: 3"></span></div>`,
       },
       {
         id: "meter-mark",
         html:
           `<div class="meter" role="img" aria-label="Today: 4 visits done, one under way, 2 to come; now 4:12 PM">` +
-          `<span class="meter-part meter-rest" style="flex-grow: 4"></span>` +
-          `<span class="meter-part meter-ground" style="flex-grow: 1"></span>` +
+          `<span class="meter-part meter-rest" style="--share: 4"></span>` +
+          `<span class="meter-part meter-ground" style="--share: 1"></span>` +
           `<span class="meter-mark" aria-hidden="true"></span>` +
-          `<span class="meter-part meter-ink" style="flex-grow: 2"></span>` +
-          `<span class="meter-part meter-ground" style="flex-grow: 1"></span>` +
-          `<span class="meter-part meter-open" style="flex-grow: 2"></span></div>`,
+          `<span class="meter-part meter-ink" style="--share: 2"></span>` +
+          `<span class="meter-part meter-ground" style="--share: 1"></span>` +
+          `<span class="meter-part meter-open" style="--share: 2"></span></div>`,
       },
       {
         id: "meter-day",
         html:
           `<div class="meter meter-lg" role="img" aria-label="Today: 1 visit done, one under way, 4 to come, open 4:30 to 6 PM; now 10:14 AM">` +
-          `<span class="meter-part meter-went" style="flex-grow: 1"></span>` +
-          `<span class="meter-part meter-now" style="flex-grow: 0.25"></span>` +
+          `<span class="meter-part meter-went" style="--share: 1"></span>` +
+          `<span class="meter-part meter-now" style="--share: 0.25"></span>` +
           `<span class="meter-mark" aria-hidden="true"></span>` +
-          `<span class="meter-part meter-now" style="flex-grow: 0.75"></span>` +
-          `<span class="meter-part meter-ahead" style="flex-grow: 2.5"></span>` +
-          `<span class="meter-part meter-free" style="flex-grow: 0.5"></span></div>`,
+          `<span class="meter-part meter-now" style="--share: 0.75"></span>` +
+          `<span class="meter-part meter-ahead" style="--share: 2.5"></span>` +
+          `<span class="meter-part meter-free" style="--share: 0.5"></span></div>`,
       },
     ],
   },
@@ -2996,19 +2990,19 @@ export const FAMILIES = [
         id: "spark",
         html:
           `<span class="spark" role="img" aria-label="Last 30 days: 30 messages, 24 answered by AI">` +
-          `<span class="spark-col" style="height: 25%"><span class="spark-part" style="height: 100%"></span></span>` +
-          `<span class="spark-col" style="height: 50%"><span class="spark-part" style="height: 50%"></span></span>` +
-          `<span class="spark-col" style="height: 100%"><span class="spark-part" style="height: 75%"></span></span>` +
-          `<span class="spark-col spark-now" style="height: 75%"><span class="spark-part" style="height: 100%"></span></span></span>`,
+          `<span class="spark-col" style="--col-h: 25%"><span class="spark-part" style="--part-h: 100%"></span></span>` +
+          `<span class="spark-col" style="--col-h: 50%"><span class="spark-part" style="--part-h: 50%"></span></span>` +
+          `<span class="spark-col" style="--col-h: 100%"><span class="spark-part" style="--part-h: 75%"></span></span>` +
+          `<span class="spark-col spark-now" style="--col-h: 75%"><span class="spark-part" style="--part-h: 100%"></span></span></span>`,
       },
       {
         id: "spark-sm",
         html:
           `<span class="spark spark-sm" role="img" aria-label="Last 7 days of calls, today 9">` +
-          `<span class="spark-col" style="height: 50%"></span>` +
-          `<span class="spark-col" style="height: 100%"></span>` +
+          `<span class="spark-col" style="--col-h: 50%"></span>` +
+          `<span class="spark-col" style="--col-h: 100%"></span>` +
           `<span class="spark-col"></span>` +
-          `<span class="spark-col spark-now" style="height: 75%"></span></span>`,
+          `<span class="spark-col spark-now" style="--col-h: 75%"></span></span>`,
       },
     ],
   },

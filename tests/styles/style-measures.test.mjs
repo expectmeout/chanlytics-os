@@ -143,6 +143,21 @@ test("a style prop counts on an element or a component; another prop, a style ke
   assert.equal(inlineStyles(sf), 2);
 });
 
+test("a style prop of custom properties alone does not count; one with any other property beside them does", () => {
+  const count = (line) =>
+    inlineStyles(ts.createSourceFile("fixture.tsx", line, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX));
+  assert.equal(count('const a = <i style={{ "--w": `${p}%` }} />;'), 0, "a custom property");
+  assert.equal(count('const a = <i style={{ "--i": i } as CSSProperties} />;'), 0, "cast, as React's types ask");
+  assert.equal(count("const a = <i style={{ [`--color-${k}`]: c }} />;"), 0, "a custom property's name built");
+  assert.equal(count("const a = <i style={customProperties(ckVars(config))} />;"), 0, "the kit's typed helper");
+  assert.equal(count('const a = <i style={{ "--w": w, width: w }} />;'), 1, "REGRESSION: a mixed prop still counts");
+  assert.equal(count("const a = <i style={{ ...vars }} />;"), 1, "a spread says nothing of its keys");
+  assert.equal(count("const a = <i style={vars} />;"), 1, "nor does a name");
+  assert.equal(count("const a = <i style={ckVars(config)} />;"), 1, "nor any other call");
+  assert.equal(count("const a = <i style={{}} />;"), 1, "an empty object is a prop all the same");
+  assert.equal(count("const a = <i style={{ [name]: v }} />;"), 1, "a key it cannot read");
+});
+
 test("the measures see the dashboard's stylesheets and the shell's markup, and leave the tokens alone", () => {
   const components = "apps/dashboard/src/styles/components.css";
   const { values: v, classes } = cssOf(components);

@@ -742,15 +742,30 @@ test("this workspace's own row is kept, and one switched off by a release is swi
 });
 
 test("a number nobody holds is written for this workspace; the voice row follows the same rule", async () => {
-  const tables = { tenant_channels: [] };
+  // Another workspace's row of another kind under the same key is not this number's texting row: a row is its kind and
+  // its key together (sms.test.mjs read the routing read's text for it until 26 Nov 2026).
+  const voiceOfAnother = {
+    id: "ag-other",
+    tenant_id: "t-other",
+    kind: "voice",
+    external_id: "+13055550100",
+    status: "active",
+    config: {},
+  };
+  const tables = { tenant_channels: [voiceOfAnother] };
   const made = await portsOver(fakeDb(tables)).smsChannel.ensure({
     e164: "+13055550100",
     lineId: LINE_ID,
     serviceSid: "MG1",
   });
   assert.equal(made.created, true);
-  assert.equal(tables.tenant_channels[0].tenant_id, "t1");
-  assert.equal(tables.tenant_channels[0].status, "active");
+  const [sms] = tables.tenant_channels.filter((c) => c.kind === "sms");
+  assert.deepEqual(
+    [sms.tenant_id, sms.status, sms.external_id],
+    ["t1", "active", "+13055550100"],
+    "keyed on the number a text is sent to, which is what the text's door resolves",
+  );
+  assert.deepEqual(tables.tenant_channels[0], voiceOfAnother, "and the other workspace's row is not touched");
 
   const theirs = {
     tenant_channels: [
@@ -762,6 +777,18 @@ test("a number nobody holds is written for this workspace; the voice row follows
       portsOver(fakeDb(theirs), "t-new").channel.ensure({ agentId: "agent-1", e164: "+13055550100", lineId: LINE_ID }),
     /belongs to another workspace/,
   );
+});
+
+test("a line's two webhooks are built from the one address the edge answers at: the texts' door and the calls', the calls' with the functions' key", () => {
+  // A provider is never told an address baked into a shared package (edgeFnUrl, run in edge/env/edge-boot.test.mjs);
+  // sms.test.mjs read lines.ts's text for it until 26 Nov 2026.
+  const ports = portsOver(fakeDb({}));
+  const sms = new URL(ports.smsInboundUrl);
+  const voice = new URL(ports.inboundWebhookUrl);
+  assert.equal(sms.origin, voice.origin, "one address for both");
+  assert.equal(sms.pathname, "/api/inbound-sms");
+  assert.equal(voice.pathname, "/api/retell-inbound");
+  assert.equal(voice.searchParams.get("key"), "s", "the calls' door is opened by the functions' secret");
 });
 
 /* ---- what a released line switches off, and what it must not ---- */

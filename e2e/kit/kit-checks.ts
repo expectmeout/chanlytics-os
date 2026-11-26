@@ -143,8 +143,10 @@ export function kitChecks(ask: KitAsk): KitAnswer {
   const otherWidth = (f: HTMLElement) => "width" in ask && !!f.dataset.width && f.dataset.width !== ask.width;
 
   if (ask.check === "classes") {
+    // The page's own root is the shell's, as the app's is (<html class="frame-on">), where the kit's touch floor stands.
+    const around = document.documentElement.classList;
     answer.missing = ask.classes.filter(
-      (name) => !kitFigures.some((f) => stageOf(f)?.querySelector(`.${CSS.escape(name)}`)),
+      (name) => !around.contains(name) && !kitFigures.some((f) => stageOf(f)?.querySelector(`.${CSS.escape(name)}`)),
     );
     answer.failures = answer.missing.map((name) => `.${name} is drawn by no entry`);
     return answer;

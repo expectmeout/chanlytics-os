@@ -107,8 +107,10 @@ export function coldBatchGoesNotice(name: string, emails: number, when: string):
  * its words are new: a skip leaves both as they were. One approval ends the wait of new words, and under Ask me every
  * batch waits (batchModeOf), so it says both.
  */
-const NEXT_BATCH_WAITS =
-  "its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask";
+const NEXT_BATCH_WAITS = "its sends wait for your first approval, and each one while “Before each send” says to ask";
+
+/** What a skip that nothing later sends says of its people, and the one thing to do: write to them by hand. */
+const UNSENT = "it didn’t reach them, and nothing later sends it: open it to write to them yourself.";
 
 /**
  * What the owner is told when the sweep skips a customer's batch that waited for an OK past its day (decision 0064):
@@ -134,7 +136,7 @@ export function skippedRunNotice(
   if (approvalEndsWithSendingHours(trigger))
     return {
       subject,
-      body: `${phrase} waited for your approval until ${SENDING_HOURS_WORDS.end}, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “${name}” waits for your approval too, until ${SENDING_HOURS_WORDS.end}: ${NEXT_BATCH_WAITS}.`,
+      body: `${phrase} waited for your approval until ${SENDING_HOURS_WORDS.end}, so ${UNSENT} The next day’s waits too: ${NEXT_BATCH_WAITS}.`,
     };
   return {
     subject,
@@ -154,18 +156,16 @@ export function lateReminderSkippedNotice(
   trigger: string | null,
 ): { subject: string; body: string } {
   const subject = `“${name}” didn’t go: nobody approved it`;
-  const unsent =
-    "it didn’t reach them, and no later send goes in its place. Open it to see who, and write to them yourself.";
   // An occasion's waits only while its words are new (contracts sequenceModesFor: it never asks for each).
   if (triggerOf(trigger ?? "")?.kind === "occasion")
     return {
       subject,
-      body: `The message made for ${plural(people, "person", "people")} waited for your approval until it was too late to send: ${unsent} The next “${name}” waits for your approval too, until you approve one.`,
+      body: `Its time for ${plural(people, "person", "people")} passed while it waited, so ${UNSENT} The next “${name}” waits too, until you approve one.`,
     };
-  const after = `${unsent} The next “${name}” waits for your approval too: ${NEXT_BATCH_WAITS}.`;
+  const after = `${UNSENT} The next “${name}” waits too: ${NEXT_BATCH_WAITS}.`;
   return {
     subject,
-    body: `${plural(people, "person", "people")} booked after the day’s reminders went, and the reminder made for them waited for your approval until it was too late to send: ${after}`,
+    body: `${plural(people, "person", "people")} booked after the day’s reminders went, and their reminder waited too long, so ${after}`,
   };
 }
 
@@ -179,7 +179,7 @@ export function lateReminderSkippedNotice(
 export function leftBehindNotice(name: string, people: number): { subject: string; body: string } {
   return {
     subject: `“${name}” is skipping people while it waits for your approval`,
-    body: `${plural(people, "person’s message", "people’s messages")} didn’t go: “${name}” still waits for your first approval of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.`,
+    body: `${plural(people, "person’s message", "people’s messages")} didn’t go: their time passed while “${name}” waited for you. Approve or skip it in your Inbox or Today, or more are skipped.`,
   };
 }
 

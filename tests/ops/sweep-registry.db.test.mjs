@@ -499,3 +499,61 @@ test(
     assert.equal(byName.get("lines-sweep")?.schedule, "8,23,38,53 * * * *", "never onto the health check's own grid");
   },
 );
+
+test(
+  "the calls clock asks about a call that ended without its thread's line once its grace is up, and not before",
+  { skip },
+  () => {
+    // The trigger's half of a call the provider never analysed (00034, 00530): the sweep's half -- the line written after
+    // the grace -- runs in cron/doors-b/. Pinned as 00034's text in voice/calls/calls-hardening.test.mjs until 26 Nov 2026.
+    const seen = rolledBack(`
+    declare
+      t uuid; c uuid; v uuid;
+      tag text := substr(md5(random()::text), 1, 8);
+    begin
+      delete from vault.secrets where name = 'edge_base_url';
+      perform vault.create_secret('http://edge.invalid', 'edge_base_url');
+      -- Nothing else owed in this transaction (it never commits): only this file's call can make the clock ask.
+      delete from public.calls;
+      insert into public.tenants (slug, name) values ('calls-owed-' || tag, 'Calls owed') returning id into t;
+      insert into public.contacts (tenant_id) values (t) returning id into c;
+      insert into public.conversations (tenant_id, contact_id) values (t, c) returning id into v;
+      insert into public.calls (tenant_id, retell_call_id, status, started_at, ended_at, conversation_id)
+           values (t, 'calls-owed-' || tag, 'ended', now() - interval '16 minutes', now() - interval '14 minutes', v);
+      seen := jsonb_build_object('within_grace', public.trigger_call_reconcile());
+      update public.calls set ended_at = now() - interval '16 minutes' where tenant_id = t;
+      seen := seen || jsonb_build_object('past_grace', public.trigger_call_reconcile());
+    end;
+  `);
+    assert.equal(seen.within_grace, null, `a line still within its grace owes nothing yet (${JSON.stringify(seen)})`);
+    assert.equal(typeof seen.past_grace, "number", "past it, the clock asks the edge to write the thread's line");
+  },
+);
+
+test("the calls clock stops asking about a recording copy given up on, at the copy's own third try", { skip }, () => {
+  // Pinned as 00031's text in voice/calls/call-lifecycle.test.mjs until 26 Nov 2026; the copy gives up at the same number
+  // (RECORDING_MAX_ATTEMPTS, held to this in that file).
+  const seen = rolledBack(`
+    declare
+      t uuid;
+      tag text := substr(md5(random()::text), 1, 8);
+    begin
+      delete from vault.secrets where name = 'edge_base_url';
+      perform vault.create_secret('http://edge.invalid', 'edge_base_url');
+      delete from public.calls;
+      insert into public.tenants (slug, name) values ('calls-copy-' || tag, 'Calls copy') returning id into t;
+      -- updated_at is set as the row is written: calls_set_updated_at stamps now() on every update.
+      insert into public.calls (tenant_id, retell_call_id, status, started_at, ended_at, updated_at, recording)
+           values (t, 'calls-copy-2-' || tag, 'ended', now() - interval '20 minutes', now() - interval '19 minutes',
+                   now() - interval '6 minutes', jsonb_build_object('fetch_state', 'pending', 'attempts', 2));
+      seen := jsonb_build_object('second_try', public.trigger_call_reconcile());
+      delete from public.calls where tenant_id = t;
+      insert into public.calls (tenant_id, retell_call_id, status, started_at, ended_at, updated_at, recording)
+           values (t, 'calls-copy-3-' || tag, 'ended', now() - interval '20 minutes', now() - interval '19 minutes',
+                   now() - interval '6 minutes', jsonb_build_object('fetch_state', 'pending', 'attempts', 3));
+      seen := seen || jsonb_build_object('third_try', public.trigger_call_reconcile());
+    end;
+  `);
+  assert.equal(typeof seen.second_try, "number", `a copy still owed a try wakes the edge (${JSON.stringify(seen)})`);
+  assert.equal(seen.third_try, null, "one given up on does not");
+});

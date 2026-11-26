@@ -297,7 +297,7 @@ test("the name the phone networks are told, against the name the brand registers
   assert.equal(p.id, "name_mismatch");
   assert.match(p.what, /Billing probe/);
   assert.match(p.what, /Marisa's Beauty Salon/);
-  assert.match(p.fix, /cannot be changed after a filing/, "because that is the part that costs money to get wrong");
+  assert.match(p.fix, /Once filed, it can't change/, "because that is the part that costs money to get wrong");
 
   // Either name matching is enough: a business is known by its trading name and
   // registered under its legal one.
@@ -344,7 +344,7 @@ test("the page the carriers will open has to exist", () => {
     assert.ok(ids.includes("no_identity"), JSON.stringify(missing));
   }
   const [p] = registrationPreflight(ready({ street: "" })).filter((x) => x.id === "no_identity");
-  assert.match(p.what, /cannot be published/);
+  assert.match(p.what, /can't be published/);
   assert.match(p.fix, /legal name and the street address/);
 });
 
@@ -355,7 +355,7 @@ test("the message flow must be true: somewhere for a customer to say yes", () =>
   // is a statement to a regulator that is not true.
   const [p] = registrationPreflight(ready({ hasOptInNumber: false }));
   assert.equal(p.id, "no_opt_in_number");
-  assert.match(p.fix, /has to be true/);
+  assert.match(p.fix, /told customers opt in by texting you/);
 });
 
 test("a website that is not a website is worse than none", () => {
@@ -365,7 +365,7 @@ test("a website that is not a website is worse than none", () => {
     assert.ok(ids.includes("website_unusable"), bad);
   }
   const [p] = registrationPreflight(ready({ websiteUrl: "marisas" }));
-  assert.match(p.fix, /or clear it, and we will publish a page for you/);
+  assert.match(p.fix, /or clear it and Chanlytics publishes a page for you/);
   for (const good of ["https://marisas.example", "http://marisas.example/salon", "https://www.marisas.example"]) {
     assert.deepEqual(registrationPreflight(ready({ websiteUrl: good })), [], good);
   }
@@ -497,7 +497,7 @@ test("the program's terms carry the eight things a reviewer looks for, in the bu
   );
   assert.match(by["Stop"], /Reply STOP at any time to stop/);
   assert.match(by["Carriers"], /carriers are not liable for delayed or undelivered messages/i);
-  assert.equal(by["Your information"], SMS_CLAUSES[3], "the non-sharing clause, the shared copy");
+  assert.equal(by.Privacy, SMS_CLAUSES[3], "the non-sharing clause, the shared copy");
   assert.equal(vm.privacyUrl, "/b/marisas-beauty-salon", "linked to the privacy page");
   assert.ok(!/standard rate/i.test(vm.items.map((i) => i.text).join(" ")), 'carriers refuse "standard"');
   // No number and no email: help is still HELP.

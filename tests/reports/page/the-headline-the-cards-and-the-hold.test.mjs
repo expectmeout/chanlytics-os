@@ -384,7 +384,7 @@ test("a caller's mood and the reply spread are part-bars in their own order, eac
     all(
       find(spread, (n) => classes(n).includes("ck-segbar-bar")),
       (n) => n.type === "i",
-    ).map((i) => i.props.style.background),
+    ).map((i) => i.props.style["--part-color"]),
     ["var(--color-lt15)", "var(--color-lt60)", "var(--color-lt300)", "var(--color-lt1800)", "var(--color-gte1800)"],
     "fastest first: 4, 8 and 12s; 15 and 40s; 70s; 400s; 2000s",
   );
@@ -401,7 +401,7 @@ test("with a hold set the reply card draws it: the chart's one reference is the 
     all(
       find(spread, (n) => classes(n).includes("ck-segbar-bar")),
       (n) => n.type === "i",
-    ).map((i) => i.props.style.background),
+    ).map((i) => i.props.style["--part-color"]),
     ["var(--color-atEnd)"],
     "every reply went out as the hold ended: one part",
   );
@@ -480,7 +480,9 @@ test("the channels' colours are kept by channel, in contracts' order, and the sa
 test("when they reach you, as a table: the seven days, then the twenty-four hours", () =>
   inLens(2, () => {
     let tree = pageOnce();
-    press(byTestId(card(tree, "chart-rhythm"), "card-table"));
+    find(card(tree, "chart-rhythm"), (n) =>
+      n.props?.options?.some?.((o) => o.testid === "card-table"),
+    ).props.onValueChange("table");
     tree = redraw();
     const rows = all(card(tree, "chart-rhythm"), (n) => n.type === "tr")
       .slice(1)

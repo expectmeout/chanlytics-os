@@ -920,7 +920,7 @@ test("the line row over the product's own line: get one when this deployment can
   assert.ok(!JSON.stringify(failed).includes("HTTP 422"), "the provider's words stay off the page");
   const own = setupSteps(live({ lines: withLines([lineRow({ voice_state: "answering", step: null })]) }), NOW);
   assert.equal(row(own, "line").state, "ready");
-  assert.ok(row(own, "line").details.includes("Your own number through Chanlytics"));
+  assert.ok(row(own, "line").details.includes("The number you have, through Chanlytics"));
   assert.equal(
     setupSteps(empty({ lines: withLines([lineRow({ voice_state: "failed" })], false) }), NOW).next.row,
     "facts",

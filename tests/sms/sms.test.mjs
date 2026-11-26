@@ -10,6 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { fakeDb } from "../_fake-db.mjs";
 import crypto from "node:crypto";
 import {
   smsInboundFrom,
@@ -36,7 +37,6 @@ import {
 } from "@chanlytics/channels/lines";
 import { normalizeInbound } from "@chanlytics/channels/whatsapp";
 import { ESCALATION_REASONS, LINE_STEP_WORDS } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
 
 const FORM = {
   MessageSid: "SM0001",
@@ -333,7 +333,7 @@ test("Twilio's calls, pinned: the Messaging Service, the sender pool, the messag
   assert.equal(twilioUrls.messages("AC1"), "https://api.twilio.com/2010-04-01/Accounts/AC1/Messages.json");
 });
 
-test("the wiring: proven before trusted, held before spoken, the channel on every row, a second wire", () => {
+test("the wiring: proven before trusted, held before spoken, the channel on every row, a second wire", async () => {
   assert.ok(ESCALATION_REASONS.includes(SMS_HELD_REASON));
   // The signature before the routing, only the dry provider exempt, the hold
   // and its words, the unroutable statuses: all four moved into
@@ -342,92 +342,29 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // with its line as the carrier, an empty TwiML for every answer -- is run in
   // sms-door.test.mjs. Scans deleted rather than re-pointed: a behaviour a
   // test runs does not also need a test that reads it.
-  const road = readRaw("packages/core/src/inbound/gates.ts");
-  assert.ok(
-    road.indexOf("if (carrier?.held) {") > road.indexOf("if (optedOut) {") &&
-      road.indexOf("if (carrier?.held) {") < road.indexOf("// Routing is on the NORMALIZED type"),
-    "after consent, before any branch that speaks",
-  );
-  // Every module of the message path, so "every ingest" and "no sendText" speak for all of it.
-  const code = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"]
-    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
-    .join("\n");
-  // EVERY ingest, not three of them: a count breaks whenever a legitimate new
-  // ingest is added (the unreachable-sender guard was the fourth) and says
-  // nothing about the one that might have dropped the channel.
-  assert.equal(
-    (code.match(/ports\.persist\.ingest\(/g) ?? []).length,
-    (code.match(/ports\.persist\.ingest\(\s*db,\s*tenantId,\s*n[,)]/g) ?? []).length,
-    "every ingest hands over the message, which says its own wire (and the line it came in on, as its fourth argument: run in inbound/phases/)",
-  );
-  assert.ok(
-    code.includes(
-      "...(carrier ? { [carrier.channel]: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),",
-    ) &&
-      /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
-        code,
-      ) &&
-      !code.includes("sendText("),
-    "one door out: the carrier is this message's own wire (a text's, a DM's), and the sink's door sends on it",
-  );
-  assert.ok(
-    /queueReply\(\s*db,\s*tenantId,\s*ing,\s*from,\s*wire\(replyText\),\s*delayMs,\s*L,\s*plan\.source,\s*brainMeta,\s*channel,?\s*\)/.test(
-      code,
-    ),
-    "a held draft is written for its wire",
-  );
-  const persist = readCode("apps/edge/lib/inbound/persist.ts");
-  assert.ok(
-    persist.includes('channel: InboundChannel = "whatsapp"') &&
-      /to,\s*channel,\s*sender: "ai",\s*purpose,\s*\.\.\.AN_ANSWER,/.test(persist) &&
-      // An answer, about something of theirs (contracts MessageAbout), and no playbook's run: no conversation started.
-      persist.includes('const AN_ANSWER = { proactive: false, about: "theirs", trigger: null } as const;'),
-    "the sink's door sends on this message's channel, as the receptionist",
-  );
-  // Conversational unless the caller says otherwise, which only the confirmation
-  // of a YES OFFERS does. Hardcoding it here meant the one genuinely marketing
-  // message the receptionist sends reached the door calling itself a reply, and
-  // the rules that exist for it — the marketing yes, and offers never going by
-  // text — were never asked of it.
-  assert.ok(
-    persist.includes('purpose: SendPurpose = "conversational"'),
-    "and names the purpose the caller gave it, a reply by default",
-  );
-  assert.ok(
-    readCode("packages/db/src/repositories/channels/ingest.ts").includes('channel: params.channel ?? "whatsapp",'),
-    "an outbound row says its wire",
-  );
-  const reply = readCode("packages/core/src/conversations/reply.ts");
-  // The channel and the window are rules that return values now (replyChannelOf
-  // in verbs, replyWindow in contracts), and reply-window.test.mjs runs both.
-  // What is left to pin here is the wiring: the route sends on the channel it
-  // read, under that channel's window.
-  assert.ok(
-    reply.includes("const channel = await ports.replyChannel(conv);") &&
-      reply.includes("channel,\n    sent_by: cmd.userId,") &&
-      reply.includes("const window = replyWindow(channel, windowClockOf(channel, clocks), new Date(now));"),
-    "a person replies where the customer last wrote, under that wire's own clock, with no window on a text (core-reply.test.mjs runs the texting line)",
-  );
-  const sql = readRaw("supabase/migrations/00074_texting.sql");
-  assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));
-  assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));
-  // With the routing reads it names, packages/db's (decision 0111).
-  const edge = readCode("apps/edge/lib/lines/lines.ts", "packages/db/src/repositories/lines/routing.ts");
-  assert.ok(
-    edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") &&
-      /\.eq\("kind", kind\)\s*\.eq\("external_id", externalId\)/.test(edge),
-    "the sms row is keyed on the number the text was sent to",
-  );
-  // Who that row may belong to -- refused while another workspace is still
-  // using it, taken over once they have released it -- is RUN against a
-  // database holding two workspaces' rows, in lines-saga.test.mjs.
-  // One value says where this deployment answers, so a provider is never
-  // told an address baked into a shared package: edgeFnUrl, run in
-  // edge/env/edge-boot.test.mjs.
-  assert.ok(
-    edge.includes("inboundWebhookUrl: withKey(voiceEndpoints(edgeFnUrl()).inbound"),
-    "the voice webhook is built from the same value",
-  );
+  // The rest was read as the message path's, persist.ts's, the outbound writer's, reply.ts's, lines.ts's and 00074's text
+  // until 26 Nov 2026, and is run now: the held line after consent and before anything that speaks in
+  // inbound/the-gates-run-in-their-order.test.mjs; every ingest on the text's own wire, a held draft written for it, the
+  // sink's door sending on it as the receptionist answering, and an outbound row saying its wire in
+  // a-text-is-answered-on-its-own-wire.test.mjs; the answer going out on the line's own wire and never WhatsApp's in
+  // sms-door.test.mjs; a person replying where the customer last wrote, with no window on a text, in
+  // conversations/reply/core-reply.test.mjs; the sms routing row keyed on the number the text was sent to, and the line's
+  // voice and texting webhooks built from the one address the edge answers at, in lines/lines-saga.test.mjs; the text
+  // door's time limit with every other door's in repo/ops-hygiene.test.mjs.
+  // 00074's two words, as the database in memory holds them: the line's messaging step, and the carriers' hold.
+  const db = fakeDb({ lines: [], escalations: [] });
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const step = (s) =>
+    db.from("lines").insert({ tenant_id: T, provider: "twilio", e164: "+13055550100", step: s }).select("id").single();
+  assert.equal((await step("messaging")).error, null, "a line's saga reaches the messaging step");
+  assert.equal((await step("texting")).error?.code, "23514");
+  const hold = (reason) =>
+    db
+      .from("escalations")
+      .insert({ tenant_id: T, conversation_id: "22222222-2222-4222-8222-222222222222", reason })
+      .select("id")
+      .single();
+  assert.equal((await hold(SMS_HELD_REASON)).error, null, "a text held for the carriers is a hold the database keeps");
   // The provisioner sending the same endpoints is run in voice-doors.test.mjs. The page's line, one shape from either
   // side (contracts lineDtoOf), is run in lines/forwarding.test.mjs.
 });

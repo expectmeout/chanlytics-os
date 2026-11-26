@@ -415,7 +415,7 @@ export const MESSAGE_GONE_WORDS = {
  * closed set and stays): what would carry it is another message, or another version of this one on a channel it ticks.
  */
 export const RUN_NOW_WITHOUT_VERSION_WORDS =
-  "Its message has no WhatsApp version a run can send, and nobody it would reach goes by email or text. Pick another message, or give this one an email or a text version and tick it on the campaign.";
+  "No WhatsApp version of its message can go, and nobody here takes email or text. Pick another, or tick its email or text.";
 
 /**
  * What the lines that offer a moment's own message say while it waits on WhatsApp (the send screen with nothing to send,
@@ -471,7 +471,7 @@ export const MESSAGE_BEGIN_WORDS = {
    * judges it by (consent purposeOfTemplate: a row with no category is an offer), so `purpose` is the held one's.
    */
   heldOtherwise: (purpose: AskedPurpose, slots: number) =>
-    `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this language the same way, or give it another name.`,
+    `This message is on file in another language as ${purpose === "marketing" ? "an offer or news" : `a message ${THEIRS_WORDS},`} with ${slots} value${slots === 1 ? "" : "s"}. Write this one the same way, or rename it.`,
   /**
    * A name on file in another language as a code for signing in (Meta's `authentication`): no campaign sends one, so no
    * kind of message is written beside it, and "write it the same way" would be no way out.

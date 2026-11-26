@@ -139,7 +139,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   assert.equal(skipped.subject, "“Appointment reminder” didn’t go: nobody approved it");
   assert.equal(
     skipped.body,
-    "3 people waited for your approval until 21:00, and it didn’t reach them. No later send goes in its place. Open it to see who, and write to them yourself. The next day’s “Appointment reminder” waits for your approval too, until 21:00: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
+    "3 people waited for your approval until 21:00, so it didn’t reach them, and nothing later sends it: open it to write to them yourself. The next day’s waits too: its sends wait for your first approval, and each one while “Before each send” says to ask.",
   );
   // The message the day after one ends the same way, at the same hour, in the same words.
   assert.ok(
@@ -147,7 +147,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   );
   assert.match(
     skippedRunNotice("After the appointment", 1, "visited").body,
-    /^1 person waited for your approval until 21:00, and it didn’t reach them\. No later send goes in its place\. /,
+    /^1 person waited for your approval until 21:00, so it didn’t reach them, and nothing later sends it: /,
   );
   // Every other moment's batch waits until its day ends, and its skip is drawn again on the next batch (a skipped run
   // touched nobody, 00453 gives back its places); so is a step after the first, and a run whose moment is not known. Its
@@ -173,7 +173,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
     );
     assert.equal(
       skippedRunNotice("Win-back", 3, trigger).body,
-      "3 people waited for your approval all day, so nothing was sent. They're in line for its next send: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
+      "3 people waited for your approval all day, so nothing was sent. They're in line for its next send: its sends wait for your first approval, and each one while “Before each send” says to ask.",
       String(trigger),
     );
   }

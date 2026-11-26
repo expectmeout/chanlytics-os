@@ -125,7 +125,7 @@ test("people whose visit began while the step's first OK waited are left, and th
   assert.equal(msg.subject, "“Two-hour reminder” is skipping people while it waits for your approval");
   assert.equal(
     msg.body,
-    "2 people’s messages didn’t go: “Two-hour reminder” still waits for your first approval of its words, and their time passed while it waited. Nothing later sends it in its place. Each person after them is skipped the same way until you approve or skip the one that waits, from your Inbox or Today.",
+    "2 people’s messages didn’t go: their time passed while “Two-hour reminder” waited for you. Approve or skip it in your Inbox or Today, or more are skipped.",
   );
   // Told once a waiting batch, under its own name, and its row opens that batch.
   assert.equal(msg.onceKey, `occasions-behind:${BATCH}`);

@@ -54,7 +54,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
   trial: (days: number) => (days ? `${days} days free` : "Charged today"),
   note: (days: number, firstCharge: string | null) =>
     days
-      ? `Its number, calls and WhatsApp included. First charge on ${firstCharge ?? `day ${days + 1}`}. Cancel anytime from Billing.`
+      ? `Its number, calls and WhatsApp included. First charge on ${firstCharge ?? `day ${days + 1}`}, and cancel anytime from Billing.`
       : "Its number, calls and WhatsApp included. Cancel anytime from Billing.",
   afterTitle: "After you press",
   after: {
@@ -116,16 +116,16 @@ export const FIRST_RUN_GOLIVE_WORDS = {
     keepAppSteps: (n: string | null) => [
       `In Meta's window, ${n ?? "your number"} is filled in. Copy the code it shows.`,
       "In WhatsApp Business, open the message from Facebook Business and tap Connect.",
-      "When the app asks to share your chat history, say yes: your one-to-one chats of the last 6 months come into Inbox. Group chats stay in the app.",
+      "Say yes when the app asks to share your chat history: 6 months of one-to-one chats come in, and group chats stay.",
       "Paste the code in Meta's window. Done.",
     ],
     keepAppAfter:
-      "You keep using the app. AI answers what you don't · your replies from the app show in Inbox too, and your WhatsApp contacts come into People.",
+      "Keep using the app: AI answers what you don't, and your replies and WhatsApp contacts show here too.",
     ifNot: "If you'd rather not share your chats",
     ifNotSays: [
       "WhatsApp still connects, and you keep the app.",
       "Every chat from now on comes into Inbox, and AI answers what you don't.",
-      "Your older chats stay only in the app. Meta offers the history once, while the number connects · to bring it later, WhatsApp has to be connected again from Settings.",
+      "Older chats stay in the app. Meta offers them once, as the number connects: later, connect WhatsApp again from Settings.",
     ],
     openMeta: "Open Meta's window",
     skipWhatsapp: "Skip WhatsApp for now",
@@ -185,7 +185,7 @@ export const FIRST_RUN_GOLIVE_WORDS = {
       "Usually a few minutes, sometimes a day. Nothing to do: it switches on by itself, and your chat history comes in with it.",
     whatsappLater: "WhatsApp · later",
     whatsappLaterSays:
-      "Without WhatsApp it can't send a caller your booking link: it takes their details for you, or points them to your website. Connect any time from Today · your last six months of chats come in then.",
+      "Without WhatsApp, it takes a caller's details or sends them to your website. Connect it any time from Today.",
     whatsappConnect: "Connect WhatsApp now",
     /** Chosen at Where it answers and not connected yet: everything else answers, and WhatsApp joins once approved. */
     whatsappConnectSays:
