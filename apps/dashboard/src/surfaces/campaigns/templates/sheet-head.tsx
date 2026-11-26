@@ -61,7 +61,7 @@ export function factsLine(g: TemplateGroup, facts: Facts, counted = true) {
           <LinkButton
             className="tpl-facts-door"
             onClick={() => navigate(sends.sequence ? sequenceRoute(sends.sequence) : SEQUENCES_ROUTE)}
-            title={sentByWords(sends)}
+            data-tip={sentByWords(sends)}
             data-testid="template-users"
           >
             <span className="tpl-facts-by">{sends.words}</span>

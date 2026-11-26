@@ -43,7 +43,7 @@ test("F32: a config the parser refuses closes every notifications write, and say
   const add = buttonSaying(tree, "Add");
   const box = labelled(tree, "input", ALERT_PANE_WORDS.addLabel);
   assert.equal(box.props.disabled, true, "nothing can be typed to save over the broken row");
-  assert.equal(box.props.title, why);
+  assert.equal(box.props["data-tip"], why);
   type(box, "new@northside.example");
   const typed = settle("notifications");
   assert.equal(buttonSaying(typed, "Add").props.disabled, true, "and Add stays closed with an address typed");

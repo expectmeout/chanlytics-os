@@ -176,7 +176,7 @@ function RoToSendRow({ row, L, may, busy, said, onSay, onTell, dock = false }: R
             <LinkButton
               size="inherit"
               className="ro-name"
-              title={REACH_OUT_SHEET_WORDS.openLead}
+              data-tip={REACH_OUT_SHEET_WORDS.openLead}
               {...leadOverDoor(row.leadId)}
               data-testid="ro-to-send-lead"
             >

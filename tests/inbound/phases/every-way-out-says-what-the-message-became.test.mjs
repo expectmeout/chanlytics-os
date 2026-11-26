@@ -105,6 +105,16 @@ test("a hold that cannot be written: the veto window sends now and says so; the 
   assert.equal(fine.seen.sent.length, 1);
 });
 
+test("a handoff names who wrote and the thread it is about, and reaches the owner once", async () => {
+  // One closure builds the context, so the name and the thread are said once for every handoff on the path, rather than
+  // retyped at a dozen call sites (shell/polish.test.mjs pinned the closure's text until 25 Nov 2026).
+  const w = world({ escalateAnswer: "failed" });
+  await w.run(text("hi"));
+  assert.equal(w.seen.alerts.length, 1, "told once");
+  assert.equal(w.seen.alerts[0].who, "Dana", "by the name Meta gave");
+  assert.deepEqual(w.seen.alerts[0].about, { type: "conversation", id: "conv1" }, "about the thread it is on");
+});
+
 test("a handoff names the wire the customer wrote on, and promises a pause only where one happened", async () => {
   // The email hardcoded "WhatsApp" and hardcoded the pause, so an owner with
   // both wires connected opened the wrong app, and one told "the receptionist

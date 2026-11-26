@@ -7,6 +7,7 @@
  */
 import type { AskAnswer, AskList, AskSource } from "./answer/shape";
 import type { AskLanguage } from "./language";
+import { recordOrEmpty } from "../shared/unknown";
 
 /* ------------------------------------------------------------- the answer */
 
@@ -500,13 +501,13 @@ export function answerChart(
   ground: (source: unknown) => AskSource | null,
   caps: { label: number; points: number; series: number },
 ): AskChart | null {
-  const item = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const item = recordOrEmpty(raw);
   const label = chartWords(item.label, caps.label);
   const series = chartSeries(item.series, label, caps);
   const found = ASK_CHART_KINDS.find((k) => k === item.kind);
   const kind = found === "bars" && series.length > 1 ? "columns" : found;
   const all = (Array.isArray(item.points) ? item.points : []).flatMap((p: unknown) => {
-    const q = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
+    const q = recordOrEmpty(p);
     const name = chartWords(q.label, caps.label);
     const given: unknown[] = Array.isArray(q.values) ? q.values.slice(0, series.length) : [];
     const values = given.filter(isCount);

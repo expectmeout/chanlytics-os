@@ -138,7 +138,7 @@ const MAILBOX_INTAKE_FAILED = "Couldn't take in an email. Anything since then is
 
 function idFrom(payload: unknown, key: string): string | null {
   if (typeof payload !== "object" || payload === null) return null;
-  const v = (payload as Record<string, unknown>)[key];
+  const v = recordOrEmpty(payload)[key];
   return typeof v === "string" ? v : null;
 }
 

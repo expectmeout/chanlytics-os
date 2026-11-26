@@ -237,7 +237,7 @@ function RequestCard({ thread, onDecide }: { thread: Thread; onDecide: StatusPro
             {r.holds ? W.holds : W.lapsed}
           </span>
         </span>
-        <LinkButton className="ix-request-door" {...routeDoor(r.to)} title={W.dayDoor(r.dayLong)}>
+        <LinkButton className="ix-request-door" {...routeDoor(r.to)} data-tip={W.dayDoor(r.dayLong)}>
           {W.day}
           <Icon name="chevron" size={12} />
         </LinkButton>

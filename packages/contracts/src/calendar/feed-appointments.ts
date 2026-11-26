@@ -14,6 +14,7 @@ import { matchPerson, type OwnAddresses, type PersonLike } from "./people/matchi
 import { bookingCopyTest, type BookingSighting } from "./booking-notice";
 import { appointmentKeyOf, recordIdOf } from "./appointment-key";
 import { isConsultationTitle } from "../deals/consultations";
+import { recordOrEmpty } from "../shared/unknown";
 
 /**
  * Who wrote the row: the hourly read of the feed, a booking tool's notice or its webhook, a person, or the receptionist,
@@ -213,7 +214,7 @@ export function appointmentKeysOf(rows: readonly { facts: unknown }[]): string[]
   for (const r of rows) {
     const f = r.facts;
     if (f && typeof f === "object" && !Array.isArray(f)) {
-      const k = (f as Record<string, unknown>).appointment;
+      const k = recordOrEmpty(f).appointment;
       if (typeof k === "string" && k) keys.add(k);
     }
   }

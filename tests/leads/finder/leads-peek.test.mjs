@@ -1045,7 +1045,7 @@ test("D1-lead-person-door: the name of a lead that became a person opens them in
   const door = byTestId(converted.draw().tree, "peek-name-person");
   assert.ok(door, "the name is a door");
   assert.equal(textOf(door), "Travis Heights Coaching Co.");
-  assert.equal(door.props.title, LEAD_WORDS.openPerson);
+  assert.equal(door.props["data-tip"], LEAD_WORDS.openPerson);
   await press(door);
   assert.deepEqual(opened, [PERSON], "the page's own door to a person, the one the Talking toast presses");
   reset();

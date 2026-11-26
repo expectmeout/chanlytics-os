@@ -5,6 +5,7 @@
  * facts, so setup.ts and its rows import from here and never the other way.
  */
 import { dateFormat, DAY_MS } from "../shared/time";
+import { valueAt } from "../shared/unknown";
 
 /**
  * The rows a member put off for good, as their saved Setup view keeps them (`memberships.views.setup.later`, the door
@@ -12,7 +13,7 @@ import { dateFormat, DAY_MS } from "../shared/time";
  * throw. Every row put off before a put-off could rest (25 Oct 2026) is here, so it stays put off, as it always was.
  */
 export function setupLaterOf(view: unknown): string[] {
-  const later = view && typeof view === "object" ? (view as { later?: unknown }).later : null;
+  const later = view && typeof view === "object" ? valueAt(view, "later") : null;
   if (!Array.isArray(later)) return [];
   return [...new Set(later.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 40))];
 }
@@ -92,7 +93,7 @@ const SETUP_RESTS_MAX = 20;
  * id and a moment that reads as one. Anything else is no rest, never a throw.
  */
 export function setupRestsOf(view: unknown): Record<string, string> {
-  const rests = view && typeof view === "object" ? (view as { rests?: unknown }).rests : null;
+  const rests = view && typeof view === "object" ? valueAt(view, "rests") : null;
   if (!rests || typeof rests !== "object" || Array.isArray(rests)) return {};
   const kept = Object.entries(rests).filter(
     (e): e is [string, string] =>

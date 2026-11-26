@@ -52,6 +52,7 @@ import {
   type ConsoleWhy,
   type PARTNER_STANDINGS,
   type PARTNER_STATUSES,
+  listOrEmpty,
 } from "@chanlytics/contracts";
 
 type Standing = (typeof PARTNER_STANDINGS)[number];
@@ -228,7 +229,7 @@ const platformVerbs: PlatformApi = {
       // exactly who needs to read them. Showing the token here would have
       // repeated, on the ops surface, the defect this change fixed for owners.
       const problems = Array.isArray(res?.problems)
-        ? (res.problems as unknown[]).filter((x): x is string => typeof x === "string" && !!x.trim())
+        ? listOrEmpty(res.problems).filter((x): x is string => typeof x === "string" && !!x.trim())
         : [];
       if (problems.length) return { ok: false, message: problems.join(" ") };
       // `detail` before `error`: a refusal that carries a sentence is meant to

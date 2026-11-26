@@ -1,3 +1,4 @@
+import { valueAt, nonBlankOrNull } from "@chanlytics/contracts";
 /**
  * A rehearsal's call in the browser (decision 0069, R2): the vendor's web client (retell-client-js-sdk 3.0.3), loaded on
  * the press as a chunk of its own, joined to a call our edge made. This is the one module that imports it.
@@ -82,7 +83,7 @@ export function setCallClient(f: (() => Promise<Client>) | null): void {
 
 /** Whether a failure is the microphone refused: the browser's own name for it, or the client's words. */
 const micRefused = (e: unknown): boolean => {
-  const name = (e as { name?: unknown } | null)?.name;
+  const name = valueAt(e, "name");
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";
   return name === "NotAllowedError" || name === "SecurityError" || /permission|microphone|notallowed/i.test(msg);
 };
@@ -137,7 +138,7 @@ export async function startCall(start: StartCall, hooks: CallHooks): Promise<Cal
       hooks: {
         ...(hooks.onLevel ? { onAudio: (samples: Float32Array) => hooks.onLevel?.(voiceLevelOf(samples)) } : {}),
         onStatus: (s) => hooks.onStatus(s === "live" ? "live" : s === "ended" ? "ended" : "connecting"),
-        onEnd: (e) => hooks.onEnd((e as { disconnection_reason?: string } | undefined)?.disconnection_reason ?? null),
+        onEnd: (e) => hooks.onEnd(nonBlankOrNull(valueAt(e, "disconnection_reason"))),
         onAgentStartTalking: () => hooks.onTalking?.(true),
         onAgentStopTalking: () => hooks.onTalking?.(false),
         onError: (e) => {

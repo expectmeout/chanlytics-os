@@ -9,7 +9,7 @@
  */
 import { DAY_MS, MIN_MS } from "../shared/time";
 import type { SpendWords } from "../workspace/billing/dtos";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, valueAt } from "../shared/unknown";
 
 export const REHEARSAL_KINDS = ["call", "typed", "call_review"] as const;
 export type RehearsalKind = (typeof REHEARSAL_KINDS)[number];
@@ -121,9 +121,9 @@ export function turnsOfTranscript(raw: unknown): RehearsalTurn[] {
   const out: RehearsalTurn[] = [];
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
-    const role = (item as { role?: unknown }).role;
-    const content = (item as { content?: unknown }).content;
-    const name = (item as { name?: unknown }).name;
+    const role = valueAt(item, "role");
+    const content = valueAt(item, "content");
+    const name = valueAt(item, "name");
     if (role === "tool_call_invocation" && isOneOf(REHEARSAL_SHOWN_TOOLS, name)) {
       out.push({ role: "tool", content: name });
       continue;

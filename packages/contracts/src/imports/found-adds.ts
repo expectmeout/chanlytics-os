@@ -16,6 +16,7 @@
  */
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import { FOUND_WORDS, type FoundVM, type foundOf } from "./business-reads";
+import { valueAt } from "../shared/unknown";
 
 type Profile = Record<string, unknown>;
 const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -80,7 +81,7 @@ export function withFoundNote(profile: Profile, input: { title: string; text: st
 
 /** Whether the record has room for one more of a list, by its limit. */
 const roomIn = (list: unknown, limit: number): boolean => asList(list).length < limit;
-const rulesOf = (p: Profile): unknown => ((p.booking_rules || {}) as { notes?: unknown }).notes;
+const rulesOf = (p: Profile): unknown => valueAt(p.booking_rules || {}, "notes");
 
 /** Everything found, at once, where the record has room, a service's price left out (a preview's, decision 0079). */
 export function withFoundWorn(profile: Profile, found: FoundVM): Profile {

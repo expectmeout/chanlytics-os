@@ -23,9 +23,9 @@ import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { NO_ADS_DOORS, adsOfferedIn } from "./account-ops.js";
-import { adApprovalSnapshotOf, checksumOf, readAdPhoto } from "./approval.js";
+import { adApprovalSnapshotOf, checksumOf, readAdPhoto } from "./launch/approval.js";
 import { endFixedAd } from "./change.js";
-import { endOfDayIn } from "./launch-parts.js";
+import { endOfDayIn } from "./launch/parts.js";
 import { adsWrites } from "./tell.js";
 
 /** What the owner approved, as the dashboard judged it at the press (contracts ADS_TURN_ON_DOOR). */

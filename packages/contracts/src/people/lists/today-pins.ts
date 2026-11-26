@@ -3,6 +3,7 @@
  * pins as Today draws them. Their own module, since the frame reads the tokens on every page (today/pins-surface.ts).
  */
 import { parseListToken } from "./token";
+import { valueAt } from "../../shared/unknown";
 
 /** How many lists a member may pin to Today: a row of doors, not a second rail. */
 export const TODAY_PINS_MAX = 8;
@@ -17,7 +18,7 @@ export interface TodayPin {
 
 /** The tokens a member's Today keeps (memberships.views.today.pins), in their order; anything else is left out. */
 export function pinTokens(view: unknown): string[] {
-  const pins = view && typeof view === "object" ? (view as { pins?: unknown }).pins : null;
+  const pins = view && typeof view === "object" ? valueAt(view, "pins") : null;
   return Array.isArray(pins)
     ? pins.filter((t): t is string => typeof t === "string" && parseListToken(t) !== null).slice(0, TODAY_PINS_MAX)
     : [];

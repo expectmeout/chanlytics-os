@@ -11,7 +11,7 @@
  * (MODEL_TAKES.systemMessages) is sent the words inside the person's turn before it, ahead of that turn's last block,
  * where Ask said them before (foldWordsMessages).
  */
-import { listOrEmpty } from "../shared/unknown";
+import { listOrEmpty, valueAt } from "../shared/unknown";
 
 /** A text block a words message may hold: its text, and the cache's marker where a request put one. */
 interface WordsBlock {
@@ -67,7 +67,7 @@ export function foldWordsMessages(body: Record<string, unknown>): Record<string,
       continue;
     }
     let at = out.length - 1;
-    while (at >= 0 && !(isPlainObject(out.at(at)) && (out.at(at) as { role?: unknown }).role === "user")) at--;
+    while (at >= 0 && !(isPlainObject(out.at(at)) && valueAt(out.at(at), "role") === "user")) at--;
     const turn = out.at(at);
     if (at < 0 || !isPlainObject(turn)) continue;
     const content: unknown[] = Array.isArray(turn.content)

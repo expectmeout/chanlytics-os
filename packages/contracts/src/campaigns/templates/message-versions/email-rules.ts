@@ -13,7 +13,7 @@ import {
   type OwnVersionChannel,
   type VersionChannel,
 } from "./channels";
-import { isOneOf } from "../../../shared/unknown";
+import { isOneOf, valueAt } from "../../../shared/unknown";
 
 /** A version's own words, as a page edits them. A text version has no subject. */
 export interface VersionWords {
@@ -223,7 +223,7 @@ export function versionComponents(
 function partText(components: unknown, type: string): string | null {
   if (!Array.isArray(components)) return null;
   const part = components.find((c) => {
-    const kind = !!c && typeof c === "object" ? (c as { type?: unknown }).type : null;
+    const kind = !!c && typeof c === "object" ? valueAt(c, "type") : null;
     return typeof kind === "string" && kind.toUpperCase() === type;
   }) as { text?: unknown } | undefined;
   // A part with no words in it says nothing: the row's preview, or its heading, speaks instead.
