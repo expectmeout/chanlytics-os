@@ -95,7 +95,7 @@ const FOLD_WORDS: Record<string, FoldWords> = {
       newest.text === CALL_MISSED_WORDS
         ? `${n} calls were missed`
         : newest.text === CALL_UNANSWERED_WORDS
-          ? `${n} calls we placed did not connect`
+          ? `${n} outgoing calls didn't connect`
           : `${n} calls were recorded`,
   },
   "lead.kept": subjects((n) => `${n} leads were kept from Needs review`),

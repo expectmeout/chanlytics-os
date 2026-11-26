@@ -70,7 +70,7 @@ export const LIVE = {
   updated: (when: string) => `Updated ${when}`,
   /** A read that failed keeps the last good numbers, and says so. */
   couldntUpdate: (when: string) => `Couldn't update · Updated ${when}. Chanlytics tries again by itself.`,
-  list: "Your ads",
+  list: "Ads",
   /**
    * The list's groups, the order an owner reads it in (Ruben, 25 Nov 2026: fifty ads read as People's and the Inbox's lists
    * do): what needs you, what runs, what is paused, and what has ended, folded once anything else is there.

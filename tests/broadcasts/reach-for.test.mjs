@@ -797,7 +797,7 @@ test("offers on WhatsApp from a US number are held while Meta's pause holds: the
   const emailOnly = offersNote(usOpen);
   assert.match(
     emailOnly,
-    /^Offers and news go by email only for now\. WhatsApp is not delivering offers to US numbers for now/,
+    /^Offers and news go by email only\. WhatsApp is not delivering offers to US numbers for now/,
   );
   assert.match(emailOnly, /no offer goes by text/);
   assert.match(emailOnly, /by email if you have their address/);
