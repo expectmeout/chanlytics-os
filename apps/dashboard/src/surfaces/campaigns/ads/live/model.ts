@@ -18,6 +18,7 @@ import { dayOfIso, timeOf } from "../model/vm-base";
 import { dayShort, dayWord, peopleWord } from "../model/words";
 import { changeSentenceOf, endsAlone, type ChangeSentenceVM } from "./change-model";
 import { FIX } from "./change-words";
+import { over, shown } from "./listed";
 import { ADS_MANAGER, LIVE, SHEET } from "./words";
 import {
   aiLineOf,
@@ -32,9 +33,6 @@ import { worthOf, type WorthVM } from "./worth-model";
 
 /** The standings a drawer says in its row's own line alone: nothing is running yet that money or an end would describe. */
 const LINE_ALONE: readonly AdLiveDto["state"][] = ["review", "setting-up", "couldnt-finish", "unconfirmed"];
-
-/** Whether an ad's run is over. */
-const over = (ad: Pick<AdLiveDto, "state">): boolean => ad.state === "ended" || ad.state === "finished";
 
 /** A day as an ad's lines say it: today, tomorrow or yesterday where it is one of those, its weekday and date otherwise. */
 const adDayOf = (iso: string | null, said: LiveClock): string | null => {
@@ -141,10 +139,6 @@ export interface LiveVM {
    */
   empty: string | null;
 }
-
-/** The ads a page lists: every one still running or waiting, and a finished one only while it has numbers to show. */
-export const shown = (dto: AdsLiveDto): AdLiveDto[] =>
-  dto.ads.filter((ad) => !over(ad) || ad.people > 0 || ad.spend_minor > 0);
 
 /** The cost for each person who booked, across the ads whose people are counted; null under five booked. */
 export function eachOf(

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SECOND_MS } from "@chanlytics/contracts";
 import type { AdPersonLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
-import { adsFirstAnswer } from "@/bridge/surfaces/ads-first-reads";
+import { adsFirstAnswer, firstAnswerStands } from "@/bridge/surfaces/ads-first-reads";
 import { getActiveWorkspace } from "@/bridge/workspace";
 import { firstReadOf } from "./ai-line";
 
@@ -42,18 +42,22 @@ interface PageOpening {
 const NOTHING_OPENED: PageOpening = { dto: undefined, readAt: 0, standsFor: null };
 
 /**
- * What the page starts from: the ads the Ads view opened on, where the boot read them (bridge/surfaces/ads-first-reads.ts),
- * drawn at once, and the account (`key`) they stand for with no read behind them: none where they have aged.
+ * What the page starts from: the ads the Ads view opened on, where the boot read them or Content read them ahead of the
+ * tab's press (bridge/surfaces/ads-first-reads.ts), drawn at once, and the account (`key`) they were read for.
  */
 function openingPage(key: string): PageOpening {
-  const first = adsFirstAnswer(Date.now(), getActiveWorkspace());
+  const first = adsFirstAnswer(getActiveWorkspace());
   if (!first) return NOTHING_OPENED;
-  return { dto: first.held.page, readAt: first.held.fetchedAt, standsFor: first.recent ? key : null };
+  return { dto: first.page, readAt: first.fetchedAt, standsFor: key };
 }
 
-/** Whether the page reads now: unless what it opened on stands for the account as it still is and nothing has asked. */
-const pageReadsNow = (on: boolean, askedCount: number, key: string, standsFor: string | null): boolean =>
-  on && (askedCount > 0 || key !== standsFor);
+/**
+ * Whether the page reads now: unless what it opened on stands for the account as it still is, has not aged, and nothing
+ * has asked. Asked as it reads, never as it is drawn: a page drawn hidden ahead of its press is shown later, and ads aged by
+ * then are drawn at once and read again behind them.
+ */
+const pageReadsNow = (on: boolean, askedCount: number, key: string, opening: PageOpening): boolean =>
+  on && (askedCount > 0 || key !== opening.standsFor || !firstAnswerStands(opening.readAt, Date.now()));
 
 /** The page's read, where `on` says an account's ads are the page's to draw. */
 export function useAdsLive(on: boolean, key: string): AdsLiveHere {
@@ -65,7 +69,7 @@ export function useAdsLive(on: boolean, key: string): AdsLiveHere {
   const again = useCallback(() => setAsked((count) => count + 1), []);
 
   useEffect(() => {
-    if (!pageReadsNow(on, asked, key, opening.standsFor)) return undefined;
+    if (!pageReadsNow(on, asked, key, opening)) return undefined;
     let live = true;
     read("GET ads/page").then(
       (answer) => {
@@ -82,7 +86,7 @@ export function useAdsLive(on: boolean, key: string): AdsLiveHere {
       live = false;
     };
     // `key` is the account as the card last read it: a connect, a sign-out or a disconnect reads the page again.
-  }, [on, asked, key, opening.standsFor]);
+  }, [on, asked, key, opening]);
 
   // Back on the tab after a while: the hour's numbers may be in.
   useEffect(() => {
