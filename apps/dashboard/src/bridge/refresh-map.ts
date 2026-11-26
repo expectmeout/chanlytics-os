@@ -26,7 +26,6 @@ import { notificationsOverride } from "./surfaces/notifications";
 import { peopleOverride } from "@/surfaces/people/surface";
 import { playbooksOverride } from "@/surfaces/campaigns/playbooks/surface";
 import { sequencesOverride } from "@/surfaces/campaigns/sequences/surface";
-import { headline } from "@/surfaces/reports/headline";
 import { forgetReviews, reviewsOverride } from "@/surfaces/reports/reviews-surface";
 import { settingsOverride } from "./surfaces/settings";
 import { channelsOverride } from "@/surfaces/channels/surface";
@@ -39,54 +38,57 @@ import { refreshSurfaces } from "./surface-runner";
 import { reachOutsOverride } from "@/surfaces/campaigns/reach-out/override";
 import { repliesOverride } from "./reach-out/replies";
 import {
-  audiences,
-  billing,
-  calendarIfDrawn,
-  campaignSaved,
-  channelChange,
-  composersIfDrawn,
-  consentWrite,
   draftsIfDrawn,
-  erased,
   filesAndContentIfDrawn,
   filesIfDrawn,
-  google,
   headlineIfDrawn,
   heldEmailMoves,
-  leadsAnswered,
-  leadsRead,
   memoryIfDrawn,
   morningIfDrawn,
+  postMoved,
+  receptionist,
+  reportsCampaigns,
+  reportsIfDrawn,
+  reviewsIfDrawn,
+  sequencesIfDrawn,
+  weekAndContentIfDrawn,
+  weekIfDrawn,
+} from "./refresh/lenses";
+import {
+  audiences,
+  calendarIfDrawn,
+  campaignSaved,
+  composersIfDrawn,
+  consentWrite,
   notes,
   peopleAndAudiences,
   peopleIfDrawn,
   peopleIfOwned,
   peopleRead,
   personAndThreads,
-  postMoved,
-  readiness,
-  receptionist,
-  reportsCampaigns,
-  reportsIfDrawn,
   reportsPeople,
-  reviewsIfDrawn,
   runs,
   runsAndChains,
   runsAndPeople,
   savedAndChains,
-  sequencesIfDrawn,
+  thread,
+} from "./refresh/people";
+import {
+  billing,
+  channelChange,
+  erased,
+  google,
+  leadsAnswered,
+  leadsRead,
   settingsRead,
   settingsWrite,
   setup,
   setupAndReadiness,
   setupIfDrawn,
   templateWrite,
-  thread,
   versionWrite,
   visits,
-  weekAndContentIfDrawn,
-  weekIfDrawn,
-} from "./refresh/groups";
+} from "./refresh/settings";
 
 /** Exported for the tests that hold a verb to its surfaces by running this, not by reading a courier. */
 export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
