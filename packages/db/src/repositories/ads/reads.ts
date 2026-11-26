@@ -44,6 +44,11 @@ export interface AdDayReadRow {
   impressions: number;
   clicks: number;
   platform_results: number | null;
+  /**
+   * What the day did, as the platform counts it (00719): plays, engagement, comments, reactions, saves, shares. Left out
+   * of a day it counted none of them on, which the door keeps as nothing.
+   */
+  engaged?: Partial<Record<"plays" | "engaged" | "comments" | "reactions" | "saves" | "shares", number>>;
 }
 
 /** Everything one read learned. */

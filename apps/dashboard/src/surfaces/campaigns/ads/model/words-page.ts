@@ -12,8 +12,6 @@ export const HEAD = {
   v0Read: (since: string | null) => (since === null ? "Last 30 days" : `Last 30 days · counted from ${since}`),
   newAd: "New ad",
   ask: "Ask",
-  /** Over the connected page's sentence, now that Ads is a view of Content's Made: what is paid for, and the days it covers. */
-  paid: (days: number) => `Paid · from your Meta account · last ${days} days`,
 };
 
 export const V0 = {

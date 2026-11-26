@@ -11,17 +11,17 @@ import { wordCount } from "../words/limits";
 import { REPLY_INTENTS, isReplyIntent, type ReplyIntent, type ReplyReading, type Unread, withinChars } from "./intents";
 
 /** An automatic out-of-office that names no day pauses the chain this long (G8). */
-export const REACH_OUT_AWAY_DAYS = 7;
+const REACH_OUT_AWAY_DAYS = 7;
 
 /** And no day it names pauses it longer than this. */
-export const REACH_OUT_AWAY_MAX_DAYS = 30;
+const REACH_OUT_AWAY_MAX_DAYS = 30;
 
-export const REPLY_SUMMARY_WORDS = 12;
+const REPLY_SUMMARY_WORDS = 12;
 
 /** An unread reply is read again at most this many times, within this many days of arriving (G4). */
 export const REPLY_REREADS = 3;
 
-export const REPLY_REREAD_DAYS = 7;
+const REPLY_REREAD_DAYS = 7;
 
 /** refer_to's bound, in characters. */
 export const REPLY_REFER_TO_MAX = 120;
@@ -41,7 +41,7 @@ export const REPLY_QUOTE_MAX = 280;
 export const REPLY_READ_MAX_TOKENS = 480;
 
 /** A not-now that names no day is written to again this long after (§4.7), and never sooner than a week or later than a year. */
-export const REPLY_NOT_NOW_DAYS = 90;
+const REPLY_NOT_NOW_DAYS = 90;
 
 const NOT_NOW_MIN_DAYS = 7;
 

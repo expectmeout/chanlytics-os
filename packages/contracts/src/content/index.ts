@@ -17,7 +17,7 @@ export {
 export type { ContentList, ContentPlace, ContentView } from "./address";
 export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./bring-in";
 export type { BringIn, BringInRefusal } from "./bring-in";
-export { CONTENT_IDEAS, contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady } from "./ideas";
+export { contentIdeaAsk, contentIdeaFilesOf, contentIdeasFor, contentIdeasReady } from "./ideas";
 export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
@@ -25,7 +25,7 @@ export type { PieceCaption, PieceCue } from "./making/captions";
 export { pieceCuesOf } from "./making/cues";
 export { brandKitOf, lookSaidOf, neverSaidIn, siteKitOf } from "./making/kit";
 export type { BrandKit } from "./making/kit";
-export { HOUSE_LOUDNESS, RENDITION_RULES, renditionRefusalOf } from "./making/renditions";
+export { HOUSE_LOUDNESS, renditionRefusalOf } from "./making/renditions";
 export type { MediaMeasured, RenditionRefusal, RenditionRule, RenditionWhy } from "./making/renditions";
 export { PLACE_SAFE_AREAS, unsafeBoxOf, wordBoxesOf } from "./making/safe-areas";
 export type { SafeArea, WordBox } from "./making/safe-areas";
@@ -112,13 +112,7 @@ export type {
 } from "./placements/approvals";
 export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
 export type { ContentCheck } from "./placements/check-words";
-export {
-  metaPageOf,
-  ON_FACEBOOK,
-  PAGE_POSTING_PERMISSIONS,
-  pagePostableOf,
-  placeSwitchedOn,
-} from "./placements/facebook";
+export { metaPageOf, ON_FACEBOOK, pagePostableOf, placeSwitchedOn } from "./placements/facebook";
 export type { FacebookRefusal, MetaPage } from "./placements/facebook";
 export {
   contentMarkOf,

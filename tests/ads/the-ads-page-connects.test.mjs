@@ -50,7 +50,7 @@ async function pageWith(account) {
   return { draw: () => again(draw) };
 }
 
-test("the owner sees the card and the coral Connect; the platforms that come later are one quiet line", async () => {
+test("the owner sees the card and the coral Connect", async () => {
   const page = await pageWith({ offered: true, can_connect: true, meta: null });
   const tree = page.draw();
   const card = byTestId(tree, "ads-conn");
@@ -59,7 +59,6 @@ test("the owner sees the card and the coral Connect; the platforms that come lat
   assert.match(textOf(card), new RegExp(CARD.notConnected));
   assert.match(textOf(card), new RegExp(CARD.charges));
   assert.equal(headConnect().connect, CONNECT.connect);
-  assert.equal(textOf(byTestId(tree, "ads-later")), CARD.later);
 });
 
 test("someone who is not the owner sees the same card with no button, and who can connect", async () => {
@@ -162,12 +161,21 @@ test("Connect is one press: Meta's own window opens by the app's route, and the 
     "the card to go on by itself",
   );
   said.close();
+  // Connected with every check met: the card folds to its head, and what it holds is behind its caret.
   const connected = byTestId(page.draw(), "ads-conn");
-  assert.match(textOf(connected), /Harbor · US dollars/);
-  assert.match(textOf(connected), /Harbor Nails/);
+  assert.equal(connected.props["data-folded"], true);
+  assert.equal(textOf(connected), "Facebook and InstagramConnected");
+  assert.ok(byTestId(connected, "ads-conn-caret"), "its caret opens what it holds");
+  // What the caret's sheet draws (connect/card-sheet.tsx): the card's own facts, drawn by the card's own part.
+  const { connectCard } = await import(`${S}/surfaces/campaigns/ads/connect/card-model.ts`);
+  const { CardFacts } = await import(`${S}/surfaces/campaigns/ads/connect/card.tsx`);
+  const vm = connectCard(route.account, { outcome: null, checking: false, timezone: "America/New_York" });
+  const facts = CardFacts({ facts: vm.facts });
+  assert.match(textOf(facts), /Harbor · US dollars/);
+  assert.match(textOf(facts), /Harbor Nails/);
   // Meta's limit and its door into Meta: two pieces that wrap apart, with no mark between them to hang at a line's end.
-  const limit = find(connected, (n) => n.props?.className === "ads-conn-fact-door");
-  assert.equal(textOf(limit), "NoneSet one in Meta");
+  const limit = find(facts, (n) => n.props?.className === "ads-conn-fact-door");
+  assert.equal(textOf(limit), "NoneSet in Meta");
 });
 
 test("Reports › Ads draws its four figures as every lens draws its strip: the kit's figure, four across", async () => {

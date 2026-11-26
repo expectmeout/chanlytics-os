@@ -23,7 +23,7 @@ export interface ContentIdea {
   videos: boolean;
 }
 
-export const CONTENT_IDEAS: readonly ContentIdea[] = [
+const CONTENT_IDEAS: readonly ContentIdea[] = [
   {
     key: "before_after",
     title: "A before and after",

@@ -56,7 +56,7 @@ export interface PendingWorkspace {
   preview?: string;
 }
 
-export const PendingWorkspaceSchema = z
+const PendingWorkspaceSchema = z
   .object({
     name: z.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
     // A clock Postgres would refuse is dropped here, so the owner's first Create

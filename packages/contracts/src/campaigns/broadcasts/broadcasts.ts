@@ -119,7 +119,7 @@ export const BROADCAST_HOLD_WAIT_MS = 10 * MIN_MS;
 export const BROADCAST_MAX_RECIPIENTS = 2000;
 
 /** Meta's ceiling for one body parameter. */
-export const BROADCAST_PARAM_MAX = 1024;
+const BROADCAST_PARAM_MAX = 1024;
 
 export const BROADCAST_SCHEDULE_MAX_DAYS = 30;
 

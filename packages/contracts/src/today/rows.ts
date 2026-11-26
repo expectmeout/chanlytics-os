@@ -107,7 +107,7 @@ export function todayWindowClosing(todayFacts: TodayFacts): TodayVM["windowClosi
 }
 
 /** A message with nothing back for this long is one nobody answered; the receptionist answers in seconds. */
-export const NO_REPLY_AFTER_MS = HOUR_MS;
+const NO_REPLY_AFTER_MS = HOUR_MS;
 
 /**
  * Who is waiting with nothing back: the rule says nobody has answered them (thread-move.ts `unanswered`), an hour ago or
