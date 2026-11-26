@@ -417,7 +417,7 @@ export const commentsList: Reader<undefined, CommentsDto> = {
 const WAITING_DAYS = 7;
 
 /**
- * The comments that wait on the owner's word, for Today (contracts today/comment-rows.ts): AI could not answer it safely,
+ * The comments that wait on the owner's word, for Today (contracts today/queue/comment-rows.ts): AI could not answer it safely,
  * or its answer did not go or was never told, in the last week. A comment with AI's draft ready waits in Inbox's comments.
  */
 export const commentsWaiting: Reader<undefined, CommentsDto> = {

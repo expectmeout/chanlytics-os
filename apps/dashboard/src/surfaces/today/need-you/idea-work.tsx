@@ -45,14 +45,14 @@ export function dismissedOnTurn(messageId: string | null, card: AskMorningCard):
   return keptOnTurn(messageId, card, {
     state: "dismissed",
     receipt: ASK_MORNING_WORDS.dismissed,
-    atMs: Date.now(),
+    at_ms: Date.now(),
     undo: null,
   });
 }
 
 /** A Not today taken back, kept on its turn in the same way: the idea is offered again. */
 export function restoreOnTurn(messageId: string | null, card: AskMorningCard): Promise<boolean> {
-  return keptOnTurn(messageId, card, { state: "undone", receipt: W.undo, atMs: Date.now(), undo: null });
+  return keptOnTurn(messageId, card, { state: "undone", receipt: W.undo, at_ms: Date.now(), undo: null });
 }
 
 /** What an idea's presses are handed: the card, the turn it came on, and how the row keeps its place and says things. */
@@ -97,7 +97,7 @@ export function useIdeaActs(p: IdeaPorts) {
       void keptOnTurn(messageId, card, {
         state: "failed",
         receipt: r.message,
-        atMs,
+        at_ms: atMs,
         undo: null,
         ...(r.moved ? { moved: true } : {}),
       });
@@ -110,7 +110,7 @@ export function useIdeaActs(p: IdeaPorts) {
     void keptOnTurn(messageId, card, {
       state: "done",
       receipt: r.receipt,
-      atMs,
+      at_ms: atMs,
       undo: r.undo ?? null,
       made: r.made ?? null,
     });
@@ -120,7 +120,7 @@ export function useIdeaActs(p: IdeaPorts) {
     const r = await undoVerb(card.kind, said.undo);
     if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
     setSaid(null);
-    void keptOnTurn(messageId, card, { state: "undone", receipt: r.receipt, atMs: Date.now(), undo: null });
+    void keptOnTurn(messageId, card, { state: "undone", receipt: r.receipt, at_ms: Date.now(), undo: null });
   };
   const notToday = async (when?: RestFor) => {
     if (busy) return;

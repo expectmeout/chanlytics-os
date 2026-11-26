@@ -233,6 +233,48 @@ const DAY_FACT_ENDS: Record<
   first_contact: { never: "No first contact on file", ever: "Has a first contact" },
 };
 
+/** A fact of one field, out of the union of facts. */
+type FactOf<F extends ListFact["field"]> = Extract<ListFact, { field: F }>;
+
+/** A dated fact's chip: never, ever, more than so many days ago, or within the last so many. */
+function dayFactWords(
+  listFact: FactOf<"last_visit" | "missed_visit" | "last_heard" | "first_contact">,
+  label: string,
+): string {
+  if (listFact.op === "never") return DAY_FACT_ENDS[listFact.field].never;
+  if (listFact.op === "ever") return DAY_FACT_ENDS[listFact.field].ever;
+  const days = plural(listFact.days ?? 0, "day");
+  return listFact.op === "more_than" ? `${label} more than ${days} ago` : `${label} in the last ${days}`;
+}
+
+/** The next visit's chip: this week, nothing or something ahead, within so many days, or more than so many away. */
+function nextVisitWords(listFact: FactOf<"next_visit">, label: string): string {
+  if (listFact.op === "this_week") return `${label} this week`;
+  if (listFact.op === "never") return "Nothing ahead on the calendar";
+  if (listFact.op === "ever") return "Something ahead on the calendar";
+  const days = plural(listFact.days ?? 0, "day");
+  return listFact.op === "within" ? `${label} in the next ${days}` : `${label} more than ${days} away`;
+}
+
+/** A yes to, or a way to reach them for, a purpose: said, or its "Not". */
+function purposeFactWords(listFact: FactOf<"said_yes" | "can_receive">, label: string): string {
+  return listFact.yes ? `${label} ${PURPOSE_WORDS[listFact.to]}` : `Not: ${lower(label)} ${PURPOSE_WORDS[listFact.to]}`;
+}
+
+/** The chip's opening: the field's own label where the fact is "is", else the words that say it is not. */
+const isOrNot = (op: string, label: string, not: string): string => (op === "is" ? label : not);
+
+/** At least, or at most, so many calls or conversations. */
+function countFactWords(listFact: FactOf<"calls" | "conversations">): string {
+  return `${listFact.op === "at_least" ? "At least" : "At most"} ${plural(listFact.n, listFact.field === "calls" ? "call" : "conversation")}`;
+}
+
+/** On, or not on, another list, by its name where the page knows it. */
+function inListWords(listFact: FactOf<"in_list">, listName: (token: string) => string | null): string {
+  const name = listName(listFact.list) ?? "another list";
+  return listFact.op === "is" ? `On ${name}` : `Not on ${name}`;
+}
+
 /**
  * One fact in the page's words: a chip. `listName` says a list another list reads by its name; without it the chip
  * says "another list".
@@ -244,23 +286,9 @@ export function listFactWords(listFact: ListFact, listName: (token: string) => s
     case "missed_visit":
     case "last_heard":
     case "first_contact":
-      return listFact.op === "never"
-        ? DAY_FACT_ENDS[listFact.field].never
-        : listFact.op === "ever"
-          ? DAY_FACT_ENDS[listFact.field].ever
-          : listFact.op === "more_than"
-            ? `${label} more than ${plural(listFact.days ?? 0, "day")} ago`
-            : `${label} in the last ${plural(listFact.days ?? 0, "day")}`;
+      return dayFactWords(listFact, label);
     case "next_visit":
-      return listFact.op === "this_week"
-        ? `${label} this week`
-        : listFact.op === "never"
-          ? "Nothing ahead on the calendar"
-          : listFact.op === "ever"
-            ? "Something ahead on the calendar"
-            : listFact.op === "within"
-              ? `${label} in the next ${plural(listFact.days ?? 0, "day")}`
-              : `${label} more than ${plural(listFact.days ?? 0, "day")} away`;
+      return nextVisitWords(listFact, label);
     case "booked":
     case "asked_not_booked":
     case "has_chat":
@@ -270,26 +298,22 @@ export function listFactWords(listFact: ListFact, listName: (token: string) => s
       return listFact.yes ? label : `Not: ${lower(label)}`;
     case "said_yes":
     case "can_receive":
-      return listFact.yes
-        ? `${label} ${PURPOSE_WORDS[listFact.to]}`
-        : `Not: ${lower(label)} ${PURPOSE_WORDS[listFact.to]}`;
+      return purposeFactWords(listFact, label);
     case "channel":
-      return `${listFact.op === "is" ? label : "Never reaches you by"} ${PERSON_CHANNEL_WORDS[listFact.channel]}`;
+      return `${isOrNot(listFact.op, label, "Never reaches you by")} ${PERSON_CHANNEL_WORDS[listFact.channel]}`;
     case "came_from":
-      return `${listFact.op === "is" ? label : "Did not come from"}: ${PERSON_CAME_FROM_WORDS[listFact.from]}`;
+      return `${isOrNot(listFact.op, label, "Did not come from")}: ${PERSON_CAME_FROM_WORDS[listFact.from]}`;
     case "calls":
     case "conversations":
-      return `${listFact.op === "at_least" ? "At least" : "At most"} ${plural(listFact.n, listFact.field === "calls" ? "call" : "conversation")}`;
+      return countFactWords(listFact);
     case "standing":
       return listFact.op === "is" ? STANDING_WORDS[listFact.value] : `Not: ${lower(STANDING_WORDS[listFact.value])}`;
     case "assigned":
-      return `${listFact.op === "is" ? label : "Conversation is not with"} ${ASSIGNED_WORDS[listFact.value]}`;
+      return `${isOrNot(listFact.op, label, "Conversation is not with")} ${ASSIGNED_WORDS[listFact.value]}`;
     case "deal_stage":
-      return `${listFact.op === "is" ? label : "Deal is not"}: ${DEAL_STAGE_LIST_WORDS[listFact.value]}`;
-    case "in_list": {
-      const name = listName(listFact.list);
-      return listFact.op === "is" ? `On ${name ?? "another list"}` : `Not on ${name ?? "another list"}`;
-    }
+      return `${isOrNot(listFact.op, label, "Deal is not")}: ${DEAL_STAGE_LIST_WORDS[listFact.value]}`;
+    case "in_list":
+      return inListWords(listFact, listName);
   }
 }
 

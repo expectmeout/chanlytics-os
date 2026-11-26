@@ -194,7 +194,7 @@ async function listLeads(
           },
         }
       : {}),
-    ...(page.month ? { month: { used: page.month.used, left: page.month.left, renews_on: page.month.renewsOn } } : {}),
+    ...(page.month ? { month: { used: page.month.used, left: page.month.left, renews_on: page.month.renews_on } } : {}),
     matching: vms.length,
     leads: shown.map((l) => leadLine(l, refs.get(l.id)?.route ?? leadsRoute({ peek: l.id }))),
     next_page: page.next ? `${page.next.key}|${page.next.id}` : null,

@@ -618,7 +618,7 @@ test("Spark draws the gallery's Spark family: an image of its columns, each on t
   // nothing keeps the stylesheet's stub.
   const month = drawn(h(Spark, { columns: [{ value: 1 }, { value: 100 }, { value: 0 }], "aria-label": "A month" }));
   assert.deepEqual(
-    month.props.children.map((column) => column.props.style.height),
+    month.props.children.map((column) => column.props.style["--col-h"]),
     ["10%", "100%", undefined],
     "REGRESSION: on a straight scale a day of one beside a day of a hundred was a hairline, and the month read as one bar",
   );
@@ -649,8 +649,8 @@ test("Meter draws the gallery's Meter family: an image of its parts, each share 
   assert.deepEqual(
     meter.props.children.filter(Boolean).map((part) => [part.props.className, part.props.style ?? null]),
     [
-      ["meter-part meter-ok", { flexGrow: 12, background: undefined }],
-      ["meter-part", { flexGrow: 3, background: "var(--color-sms)" }],
+      ["meter-part meter-ok", { "--share": 12, "--part-color": undefined }],
+      ["meter-part", { "--share": 3, "--part-color": "var(--color-sms)" }],
       ["meter-part meter-rest", null],
     ],
     "a part of nothing is not drawn; a share is its flex-grow, a chart's colour its ground, and the rest is the rest",

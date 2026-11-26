@@ -136,7 +136,7 @@
    what it reads a second time and is never pushed to the card's foot -- the plot above it fills instead, so there is
    no gap between the two to push across. (It was pushed for one release, and a row made tall by six handover
    reasons opened a hole through the middle of Calls.) */
-.rpt .ck-card-body > .ck-plot + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
+.rpt .ck-chart-body > .ck-plot + .ck-segbar { padding-top: 12px; border-top: 1px solid var(--line); }
 
 /* ---------- the headline ---------- */
 .rpt-hero { grid-column: span 5; flex-direction: row; align-items: center; gap: 20px; padding: 16px 20px; }
@@ -184,7 +184,7 @@ a.rpt-fact-row { text-decoration: none; }
 .rpt-hours { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
 /* A card's spare height belongs to its body, so a short card can hold its reading in the middle and anchor a
    footer to the foot instead of leaving the room under the last thing it drew. */
-.rpt .ck-card-body { flex: 1 1 auto; }
+.rpt .ck-chart-body { flex: 1 1 auto; }
 
 /* Asked, then booked: the share in the room it is given, its other side on a hairline at the foot. */
 .rpt-booked { display: flex; flex-direction: column; gap: 14px; flex: 1; }
@@ -279,7 +279,7 @@ a.rpt-cmp-send { text-decoration: none; color: inherit; }
   /* Four stay two rows of two; three are two and one that takes the row, as any odd strip is. */
   .rpt-figures.quad .rpt-cell:last-child { grid-column: auto; }
   .rpt-figures.trio { --cells: 2; }
-  .rpt .ck-card:not(.rpt-hero), .rpt-grid > .rpt-deals-lines { padding: 16px; }
+  .rpt-grid > .rpt-deals-lines { padding: 16px; }
   /* When a source last ran folds away on a phone; the row keeps its name, its counts and its door. */
   .rpt-sources th:last-child, .rpt-sources td:last-child { display: none; }
 }
@@ -288,8 +288,8 @@ a.rpt-cmp-send { text-decoration: none; color: inherit; }
 @media print {
   .rpt { height: auto; overflow: visible; }
   .rpt-head { position: static; box-shadow: none; }
-  .ck-card-actions { display: none; }
-  .ck-card { break-inside: avoid; }
+  .ck-chart-actions { display: none; }
+  .ck-chart { break-inside: avoid; }
 }
 
 /* ====================================================================

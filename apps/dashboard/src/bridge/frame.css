@@ -25,7 +25,6 @@
    does not need 44px. Padding-box sizing keeps existing borders honest. */
 @media (pointer: coarse) {
   html.frame-on button,
-  html.frame-on .btn,
   html.frame-on input,
   html.frame-on select,
   html.frame-on textarea,
@@ -33,47 +32,8 @@
   html.frame-on [role="button"] {
     min-height: 44px;
   }
-  /* A pill is words and a tally is a number: neither is pressed, so neither
-     takes a floor (every list row used to undo one on .pill). A chip that is
-     pressed keeps its 20px look and grows its target: an invisible margin
-     around each of its buttons, Ask's chips, a tile's value and door and a door in
-     the answer's words, which a floor would lift off its line, and Ask's one circle
-     at the field's end, which a floor would squash into an oval. */
-  html.frame-on .chip,
-  html.frame-on .chip > button,
-  html.frame-on .line-chip,
-  html.frame-on button.line-figure,
-  html.frame-on .line-door,
-  html.frame-on button.line-words,
-  html.frame-on .line-send {
-    min-height: 0;
-  }
-  html.frame-on button.chip,
-  html.frame-on .chip > button,
-  html.frame-on .line-chip,
-  html.frame-on button.line-figure,
-  html.frame-on .line-door,
-  html.frame-on button.line-words,
-  html.frame-on .line-send {
-    position: relative;
-  }
-  html.frame-on button.chip::after,
-  html.frame-on .chip > button::after,
-  html.frame-on .line-chip::after,
-  html.frame-on button.line-figure::after,
-  html.frame-on .line-door::after,
-  html.frame-on button.line-words::after,
-  html.frame-on .line-send::after {
-    content: "";
-    position: absolute;
-    inset: -8px -3px;
-  }
-  html.frame-on .line-door::after {
-    inset: -14px -8px;
-  }
-  html.frame-on .line-send::after {
-    inset: -6px;
-  }
+  /* The floor for the kit's own controls, a .btn that is a link among them, and what a chip and a line's doors keep of
+     their size under it, are the kit's (kit.css, "What the record kit and the shell's floor left outside it"). */
   /* Today's setup card on a phone is compact rows (canvas P9): each button keeps its small look beside the words
      and grows its target, 34px tall and 44 with the margin around it, and so do the rows' Skip and the head's Hide,
      quiet words a floor stood 44px tall, and every row with them (21 Oct 2026). The queue's See all is a link in its
@@ -83,7 +43,7 @@
   html.frame-on
     .today-setup
     :is([data-testid^="setup-later-"], [data-testid="today-setup-remind-skip"], [data-testid="today-setup-hide"]),
-  html.frame-on :is(.today-queue, .today-going) .cl-attn-cta {
+  html.frame-on :is(.today-queue, .today-going) .cl-attn-act {
     position: relative;
     min-height: 0;
   }
@@ -93,7 +53,7 @@
     inset: -6px;
   }
   html.frame-on .setup-card-btn::after,
-  html.frame-on :is(.today-queue, .today-going) .cl-attn-cta::after {
+  html.frame-on :is(.today-queue, .today-going) .cl-attn-act::after {
     content: "";
     position: absolute;
     inset: -8px -4px;

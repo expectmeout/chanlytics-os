@@ -649,7 +649,7 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
       outcome: {
         state: "done",
         receipt: "On its way to Rosa",
-        atMs: at,
+        at_ms: at,
         undo: { message_id: "m1", cancelable_until: new Date(at + 15_000).toISOString() },
       },
     };
@@ -664,7 +664,7 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
       ...sending,
       outcome: {
         ...sending.outcome,
-        atMs: at - 20_000,
+        at_ms: at - 20_000,
         undo: { message_id: "m1", cancelable_until: new Date(at - 5_000).toISOString() },
       },
     };
@@ -710,7 +710,7 @@ test("the reads say Thinking before the first and a repeat once, at its newest; 
         outcome: {
           state: "done",
           receipt: "On its way to Rosa",
-          atMs: at,
+          at_ms: at,
           undo: { message_id: "m1", cancelable_until: new Date(at + 15_000).toISOString() },
         },
       },

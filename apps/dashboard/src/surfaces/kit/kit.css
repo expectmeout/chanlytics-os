@@ -22,10 +22,10 @@
 
    The house's primitives came here from components.css and record.css in step 2.1: whole rules, with their comments,
    in the order they stood, so nothing a member sees changed. They still write some values as numbers
-   (the style-values measure counts them), which fall as the kit takes its roles. What of theirs stayed behind says
-   why where it stands: a width this sheet does not take yet (the record kit's 760px phone, 761px desk and 1140px
-   toast, the tab strip's 720px), a rule that names a page's class or the shell's (html.frame-on), and a busy Save's
-   pointer and the record kit's reduced motion, which must still come after a rule of those sheets. */
+   (the style-values measure counts them), which fall as the kit takes its roles. What of theirs stayed behind (the
+   record kit's phone and desk, its touch floor's answers, a busy Save's pointer, its reduced motion, the shell's floor
+   for the kit's controls and a toast's phone row) came on 26 Nov 2026, at the end of this sheet: "What the record kit
+   and the shell's floor left outside it". */
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -1798,7 +1798,7 @@ a.more-item {
   letter-spacing: 0.005em;
   padding: 6px 10px;
   border-radius: var(--radius-sm);
-  box-shadow: 0 8px 24px -6px oklch(from var(--ink) l c h / 0.35);
+  box-shadow: var(--tip-depth);
   opacity: 0;
   transform: translateY(3px) scale(0.98);
   transition:
@@ -4368,7 +4368,9 @@ a.list-row {
    rather than jumping (Ruben, 27 Oct 2026); a meter's first draw has nothing to glide from. */
 .meter-part {
   display: block;
+  flex-grow: var(--share, 0);
   min-width: 3px;
+  background: var(--part-color);
   transition: flex-grow var(--duration-slow) var(--ease-out);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4491,6 +4493,7 @@ a.list-row {
   flex-direction: column;
   justify-content: flex-end;
   flex: 1 1 0;
+  height: var(--col-h, auto);
   max-width: 12px;
   min-height: 2px;
   overflow: hidden;
@@ -4502,6 +4505,7 @@ a.list-row {
 }
 .spark-part {
   display: block;
+  height: var(--part-h, auto);
   background: var(--ok);
 }
 .spark-now,
@@ -7407,7 +7411,7 @@ textarea.rec-input,
 }
 .dtable tbody tr.focused {
   background: var(--bg-hover);
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: var(--focus-stripe);
 }
 /* The cursor's row holds focus (a tab stop that follows the cursor): the ring, drawn as an outline because a row paints no
    box-shadow, inside the row so the pinned cells do not cover it. */
@@ -7553,7 +7557,7 @@ textarea.rec-input,
   }
   /* The cursor's edge, on the first cell: a pinned cell paints over the row's own. */
   .dtable tbody tr.focused > td:first-child {
-    box-shadow: inset 2px 0 0 var(--accent);
+    box-shadow: var(--focus-stripe);
   }
 }
 
@@ -8586,5 +8590,280 @@ button.line-figure {
   }
   .line-send .icon {
     animation: none;
+  }
+}
+
+/* ---------- What the record kit and the shell's floor left outside it ----------
+   Moved here on 26 Nov 2026 from record.css, bridge/frame.css and mobile.css, whole and in the order they stood, once
+   the record kit's phone had the kit's one breakpoint (900px, #2605): kit.css comes first of the sheets, where those
+   came after the pages', and a rule here that a page's rule of the same weight would now outrank was checked for each
+   one; none is. */
+
+/* Save while it saves: busy, and the pointer says so (says.tsx RecordFoot). It outweighs components.css's role gate
+   (.btn[data-gated]), which comes after it now, so a Save both gated and busy says it is busy. */
+.rec-foot .btn[aria-busy="true"] {
+  cursor: progress;
+}
+
+/* The inline editor's two presses keep their 28px under the shell's touch floor. */
+html.frame-on .rec-inline-act {
+  min-height: 0;
+}
+
+/* ---------- On a touch screen ---------- */
+/* frame.css gives every button on a touch screen 44px of height. A switch keeps its shape and takes its 44px from the
+   space around it, as .set-switch does; a box with a unit grows with the box inside it (min-height, not height). */
+@media (pointer: coarse) {
+  html.frame-on .rec-switch {
+    min-height: 0;
+  }
+  html.frame-on .rec-switch::after {
+    content: "";
+    position: absolute;
+    inset: -13px -7px;
+  }
+  html.frame-on .rec-tip {
+    width: 28px;
+    height: 28px;
+    min-height: 0;
+  }
+  html.frame-on .rec-tip::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+  }
+  html.frame-on .rec-sheet-close {
+    min-width: 44px;
+  }
+}
+/* A word that is a button keeps the word's box under that 44px floor, and takes a thumb's reach from an ::after
+   instead (#748's pattern, components.css .tl-msg-why): a fold's Close, a tip card's act. Grown to 44px they swelled
+   the fold's head from 56px to 81px. A row's act is such a word wherever a row is not a phone's: there, its ::after is
+   the whole row, and its box stays where the row can hold it. */
+html.frame-on .rec-fold-close,
+html.frame-on .rec-card-tip-act {
+  position: relative;
+  min-height: 0;
+}
+html.frame-on .rec-row-act {
+  min-height: 0;
+}
+@media (width > 900px) {
+  .rec-row-act {
+    position: relative;
+  }
+  .rec-row-act::after {
+    content: "";
+    position: absolute;
+    inset: -14px -8px;
+  }
+}
+
+/* ---------- On a phone: 900px and under, the kit's one breakpoint (the record kit's own 760px until 25 Nov 2026) ---------- */
+@media (max-width: 900px) {
+  .rec-card {
+    --rec-gutter: 15px;
+    padding: 15px var(--rec-gutter) 8px;
+  }
+  /* A card's subtitle is not drawn on a phone (23 Sep): its title says what the card is, and the line under it took a
+     second and third line of every card on a screen that fits three rows. */
+  .rec-card-sub {
+    display: none;
+  }
+  /* At a phone's width the whole row is the act, and its chevron is drawn, under a mouse too. The act's own box
+     stretches over the row (its ::after), so it stays one button with one name; anything else in the row that can be
+     pressed sits above that. */
+  .rec-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 3px;
+  }
+  .rec-row-key,
+  .rec-row-val {
+    grid-column: 1;
+  }
+  .rec-row-act {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .rec-row-act::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  .rec-row-val :is(button, a, input, select, textarea, [tabindex]) {
+    position: relative;
+    z-index: 1;
+  }
+  .rec-row-act-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* A row that HAS its fact states it and stops. Its hint is a sentence about what the fact is for ("Sent instead of
+     confirming an appointment itself"), which the editor says again over the box, and which at a phone's width is a
+     second and third line under every filled row of the card. A row with NOTHING in it keeps its hint: that sentence
+     says what empty means, which is the one thing there is to read and the one thing to decide. */
+  .rec-row[data-empty="false"] .rec-row-hint {
+    display: none;
+  }
+  .rec-row-chev {
+    display: inline-flex;
+    color: var(--ink-faint);
+  }
+  .rec-row-act-icon {
+    display: none;
+  }
+  .rec-row:hover::before {
+    background: none;
+  }
+  .rec-fold-head {
+    flex-wrap: wrap;
+    row-gap: 3px;
+  }
+  .rec-fold-label {
+    flex: 1 1 auto;
+  }
+  .rec-fold-hint {
+    flex: 1 1 100%;
+    order: 3;
+  }
+  .rec-foot-note {
+    flex-basis: 100%;
+    text-align: left;
+  }
+  /* No label column beside a phone's fields: they, what saving writes and the foot start at the fold's edge. */
+  .rec-fold-inner,
+  .rec-fold[data-wide="true"] .rec-fold-inner {
+    padding-left: 4px;
+  }
+  .rec-fold[data-wide="true"] .rec-says {
+    margin-inline-start: 0;
+  }
+  .rec-fold[data-wide="true"] .rec-foot {
+    padding-inline-start: 0;
+  }
+  /* No label column beside a phone's box: the label goes above it, as a phone's row puts its value under its label,
+     with ✓ and ✕ beside the box; and what it will say stacks, as a fold's does. The box is a finger's 44px here
+     (frame.css's floor for every box on a touch screen), so the editor's own padding is all but gone and its label
+     sits 2px over the box: the editor is then 68px to the row's 65, and the rows under it hold still. */
+  .rec-inline {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "key key" "field acts";
+    row-gap: 2px;
+    padding: 1px 0;
+  }
+  .rec-inline-more {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .rec-says[data-inline="true"] .rec-says-part {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .rec-says[data-inline="true"] .rec-says-eyebrow {
+    margin-top: 0;
+  }
+}
+
+/* Under reduced motion nothing of the record kit moves. After the phone block, whose transitions it stops. */
+@media (prefers-reduced-motion: reduce) {
+  .rec-row::before,
+  .rec-row-act,
+  .rec-inline-act,
+  .rec-fold-close,
+  .rec-fold-body,
+  .rec-switch,
+  .rec-knob,
+  .rec-seg-btn,
+  .rec-tip,
+  .rec-sheet-close {
+    transition: none;
+  }
+}
+
+/* The shell's touch floor for the kit's own controls (bridge/frame.css holds it for every other button and field): 44px
+   under a finger, a .btn that is a link among them. */
+@media (pointer: coarse) {
+  html.frame-on .btn {
+    min-height: 44px;
+  }
+  /* A pill is words and a tally is a number: neither is pressed, so neither
+     takes a floor (every list row used to undo one on .pill). A chip that is
+     pressed keeps its 20px look and grows its target: an invisible margin
+     around each of its buttons, Ask's chips, a tile's value and door and a door in
+     the answer's words, which a floor would lift off its line, and Ask's one circle
+     at the field's end, which a floor would squash into an oval. */
+  html.frame-on .chip,
+  html.frame-on .chip > button,
+  html.frame-on .line-chip,
+  html.frame-on button.line-figure,
+  html.frame-on .line-door,
+  html.frame-on button.line-words,
+  html.frame-on .line-send {
+    min-height: 0;
+  }
+  html.frame-on button.chip,
+  html.frame-on .chip > button,
+  html.frame-on .line-chip,
+  html.frame-on button.line-figure,
+  html.frame-on .line-door,
+  html.frame-on button.line-words,
+  html.frame-on .line-send {
+    position: relative;
+  }
+  html.frame-on button.chip::after,
+  html.frame-on .chip > button::after,
+  html.frame-on .line-chip::after,
+  html.frame-on button.line-figure::after,
+  html.frame-on .line-door::after,
+  html.frame-on button.line-words::after,
+  html.frame-on .line-send::after {
+    content: "";
+    position: absolute;
+    inset: -8px -3px;
+  }
+  html.frame-on .line-door::after {
+    inset: -14px -8px;
+  }
+  html.frame-on .line-send::after {
+    inset: -6px;
+  }
+}
+
+/* A toast is one row on a phone (25 Sep): its words, then a 28px Undo, never two tiers under a 44px Undo disc. The
+   words wrap to three lines at most (18 Oct): cut to one, a failure lost "check whether it went through" and a
+   switch's Undo lost what it had switched; a tap besides takes the toast, so its height is not in the way for long.
+   The stack spans the screen inside the tab bar's 14px sides (the toast as wide as the bar and Ask's circle): centred
+   by `left: 50%`, it had half the screen to grow into, and words that wrap stood in a toast 201px wide. Where it rests
+   over the foot is the shell's to say (--toast-foot, mobile.css: over the home bar, over the tab bar, under an open
+   bell, over the phone app's own bar). */
+@media (max-width: 900px) {
+  .pp-toast {
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 8px 10px 8px 14px;
+    max-width: none;
+  }
+  .pp-toast-stack {
+    bottom: var(--toast-foot);
+    left: 14px;
+    right: 14px;
+    transform: none;
+  }
+  .pp-toast .pp-toast-msg {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    max-height: 3lh;
+  }
+  html.frame-on .pp-toast-cta {
+    min-height: 28px;
+    padding: 4px 12px;
   }
 }

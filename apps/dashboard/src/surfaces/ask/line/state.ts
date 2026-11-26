@@ -1,6 +1,6 @@
 /** The state of one Line, and the refs its effects and handlers share. */
 import { useRef, useState } from "react";
-import type { AskLanguage, AskScope, AskThreadVM } from "@chanlytics/contracts";
+import type { AskLanguage, AskScope, AskThreadDto } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import { useAskSpeech, type ahSlideFrom } from "../hooks";
 import type { AttachedPhoto } from "./attached";
@@ -11,7 +11,7 @@ import { useAskToast } from "../shell";
 export const useArLine = (askApi: AskApi | undefined): LineState => {
   const [query, setQuery] = useState("");
   const [attached, setAttached] = useState<AttachedPhoto[]>([]); // the photos beside the field, on their way or there (attached.tsx)
-  const [threads, setThreads] = useState<AskThreadVM[]>([]);
+  const [threads, setThreads] = useState<AskThreadDto[]>([]);
   const [active, setActive] = useState<Conversation | null>(null); // { id, title, messages, scope }
   const [live, setLive] = useState<LiveTurn | null>(null); // the turn in flight: { q, text, traces }
   const [quick, setQuick] = useState<QuickTurn | null>(null); // a quick question being read, no model: { q, pending: true }; its answer opens `active`
@@ -22,7 +22,7 @@ export const useArLine = (askApi: AskApi | undefined): LineState => {
   const [tick, setTick] = useState(0);
   const [view, setView] = useState("rows"); // "rows", or "earlier": every conversation
   // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
-  const [doomed, setDoomed] = useState<AskThreadVM | null>(null);
+  const [doomed, setDoomed] = useState<AskThreadDto | null>(null);
   // A phone's field in use (focused, so its keyboard is up): the takeover composes. The rows (Right now, Brief me, the
   // page's questions, and the words' own rows once typed) go as the field slides up over their place; the three keep
   // their size, centred in what is left with the standing pills under them, and listen, each key heard lifting them
@@ -44,7 +44,7 @@ export const useArLine = (askApi: AskApi | undefined): LineState => {
   // "Type instead" pressed while listening: what was heard stays in the field to finish, never asked (spec 5.3).
   const typing = useRef(false);
   // The thread list as it is being fetched on open: a question typed before it lands still finds its twin.
-  const threadsReady = useRef<Promise<AskThreadVM[]> | null>(null);
+  const threadsReady = useRef<Promise<AskThreadDto[]> | null>(null);
   // The current turn: a turn left behind (stopped, cleared, another opened, a later question) writes nothing.
   const turnSeq = useRef(0);
   // What the shell asked for as it opened the Line, kept until the Line is open (the wiring audit's N3).

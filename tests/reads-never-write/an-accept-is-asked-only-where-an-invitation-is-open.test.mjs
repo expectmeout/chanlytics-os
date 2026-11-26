@@ -104,13 +104,13 @@ const { workspaceOverride } = await importSrc("apps/dashboard/src/bridge/surface
 test("a boot whose list says nothing is open makes no accept, and a person in no workspace is not held for one", async () => {
   const me = { id: "u1", email: "ada@example.com", role: "owner", invited: false };
   const ws = { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" };
-  list = { workspaces: [ws], activeWorkspaceId: A, user: me };
+  list = { workspaces: [ws], active_workspace_id: A, user: me };
   await workspaceOverride.apply();
   assert.deepEqual(calls, ["GET workspaces"], "the list alone");
 
   api().forget();
   calls.length = 0;
-  list = { workspaces: [], activeWorkspaceId: null, user: me };
+  list = { workspaces: [], active_workspace_id: null, user: me };
   const began = Date.now();
   await workspaceOverride.apply();
   assert.deepEqual(calls, ["GET workspaces"], "no accept for a list that holds no workspace either");
