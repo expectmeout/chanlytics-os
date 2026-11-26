@@ -328,6 +328,5 @@ export function waitingSearchWords(waiting: readonly AskProposal[]): string | nu
   const ask =
     card.kind === "people_search" ? peopleAskOf(pl.plan) : pl.plan ? placesAskOf(pl.plan as LeadSearchPlan) : null;
   if (!ask) return null;
-  // screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
   return `A search card waits in this conversation for their press, “${card.title}” (${card.id}), planned as find would take it: ${JSON.stringify(ask)}. When they change it, call find again with this plan, changed only where they said (keep its words, place, criteria and what it leaves out otherwise · a places plan names who_one too): the new card replaces this one. Answer about it from this, without reading it again.`;
 }

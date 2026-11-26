@@ -610,8 +610,7 @@ export function fixLine(change: AskSettingsChange): string {
 
 export const FIX_WORDS = {
   label: "What should it have said?",
-  // screen-word: an example in the business's own voice, what AI should have said (docs/words.md, "Kept on purpose")
-  placeholder: "We're open till 7 on Thursdays",
+  placeholder: "Open till 7 on Thursdays",
   route: "Show me where it goes",
   routing: "Finding where it goes…",
   keep: "Keep",

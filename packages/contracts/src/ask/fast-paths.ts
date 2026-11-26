@@ -55,7 +55,6 @@ const NEEDS_RE = wholeLine(
   ],
   NOW,
 );
-// screen-word: not words, the patterns of what an owner types (docs/words.md, "Kept on purpose")
 const CALLS_RE = wholeLine(
   [
     "(?:did|has|have) (?:anyone|someone|anybody|somebody) (?:call|called|rang|rung|phoned)(?: me| us)?",

@@ -103,18 +103,15 @@ const T = {
     why: "Why was this reply held?",
     who: "Who wrote today?",
     rules: "What can you do on your own?",
-    // screen-word: the owner's own words, a question they tap (docs/words.md, "Kept on purpose")
-    hours: "What are our hours this week?",
+    hours: "What are my hours this week?",
     brief: "Brief me on today",
     next: "What should I do next?",
     can: "What can you do for me?",
     proposals: "Who has a proposal out?",
     setupLeft: "What is left to set up?",
     moreLike: "Find more like: {asked}",
-    // screen-word: the owner's own words, a request they tap (docs/words.md, "Kept on purpose")
-    actLate: "Tell {name} we're running late",
-    // screen-word: the owner's own words, a request they tap (docs/words.md, "Kept on purpose")
-    actLateQ: "Tell {name} we're running about 15 minutes late today",
+    actLate: "Tell {name} I'm running late",
+    actLateQ: "Tell {name} I'm running about 15 minutes late today",
     actDraft: "Draft a reply to {name}",
     actDraftQ: "Draft a reply to {name}: ",
     actRemember: "Remember something",

@@ -54,7 +54,6 @@ export interface LeadCardBrief {
   calibrated?: { build: string; on: string; items: number; mapped: number } | null;
 }
 
-// screen-word: each card's goodFor is said to AI and never shown; the people card's rights say in full how its people were found and what is kept (docs/words.md, "Kept on purpose")
 export const LEAD_CARDS: readonly LeadCardBrief[] = [
   {
     id: "local_businesses",
@@ -136,6 +135,7 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
       "50 owners of accounting firms in Ohio and Michigan",
       "200 office managers at dental practices in California",
     ],
+    // screen-word: the law's wording, how a contact list's people were found and what is kept of them, in full (docs/words.md)
     rights:
       "From a B2B contact list built from public professional profiles and company sites. Chanlytics never signs in anywhere to read them, keeps a person's name, title, work address and profile link only, checks each address before anything is sent, and never writes again to anyone who says no.",
     approved: true,

@@ -52,8 +52,6 @@ export type ProposalKindAboveOperator = {
  * What the model is told when the member's role may not commit this kind, by the role the kind needs: a partner's
  * card names the owner and the workspace's partner (the lead search's words since #1159, decision 0012); an owner's
  * names the owner alone. One derivation, for every kind above operator.
- *
- * screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
  */
 export function proposalBelowNeeds(kind: ProposalKindAboveOperator): string {
   const { needs, doing } = PROPOSAL_SPECS[kind];

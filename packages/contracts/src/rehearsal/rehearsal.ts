@@ -162,8 +162,6 @@ export interface RehearsalFixDto {
 /**
  * What the receptionist's tools answer on a test call (decision 0069, D4): nothing is sent and nobody is dialed, and the
  * answer says so to the model, which says it to the owner playing the customer.
- *
- * screen-word: said to AI, never shown (docs/words.md, "Kept on purpose")
  */
 export const REHEARSAL_TOOL_WORDS = {
   bookingLink:
