@@ -376,15 +376,15 @@ interface TickReads {
  */
 async function failSend(tick: CheckTick, uncheckedSend: UncheckedSend, reason: string): Promise<void> {
   const { send } = uncheckedSend;
-  const f = failedCheck(send, tick.now, tick.at, uncheckedSend.due_soon);
-  if (!(await tick.write(uncheckedSend, f.patch))) return;
-  if (!f.gaveUp) return void (tick.out.failed += 1);
+  const failure = failedCheck(send, tick.now, tick.at, uncheckedSend.due_soon);
+  if (!(await tick.write(uncheckedSend, failure.patch))) return;
+  if (!failure.gaveUp) return void (tick.out.failed += 1);
   tick.out.gave_up += 1;
   tick.log.warn("reach_out_check_held", {
     tenant_id: send.tenant_id,
     send_id: send.id,
     broadcast_id: send.batch_id,
-    tries: f.tries,
+    tries: failure.tries,
     why: reason,
   });
 }
@@ -397,7 +397,7 @@ async function keepCheck(
   tick: CheckTick,
   uncheckedSend: UncheckedSend,
   result: Extract<Awaited<ReturnType<typeof checkOne>>, { kind: "checked" }>,
-  made: {
+  checkedWith: {
     item: { subject: string | null; body: string };
     own: boolean;
     needsOpening: boolean;
@@ -412,7 +412,8 @@ async function keepCheck(
     return;
   }
   // Words of the lead's own that hold no line write none: the one the send has stands, for the step's words coming back.
-  const line = made.own && !made.needsOpening ? {} : (keep ?? { opening: null, angle: null, facts_used: [] });
+  const line =
+    checkedWith.own && !checkedWith.needsOpening ? {} : (keep ?? { opening: null, angle: null, facts_used: [] });
   const patch: Partial<ReachOutSendRow> = {
     checked_at: tick.at,
     ...line,
@@ -421,7 +422,12 @@ async function keepCheck(
     ...(result.site && result.site !== send.website_says
       ? { website_says: result.site.slice(0, WEBSITE_SAYS_KEPT_MAX) }
       : {}),
-    checked_words: checkedWordsOf(made.item, uncheckedSend.signed_by, made.ws.bookingLink !== null, made.mark),
+    checked_words: checkedWordsOf(
+      checkedWith.item,
+      uncheckedSend.signed_by,
+      checkedWith.ws.bookingLink !== null,
+      checkedWith.mark,
+    ),
     check_after: null,
     ...(result.hold ? { state: "held", reason: result.hold } : {}),
   };

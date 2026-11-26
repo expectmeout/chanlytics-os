@@ -118,8 +118,8 @@ export const GET = door(async function GET(): Promise<Response> {
   let judged: { status: number; body: HealthAnswer };
   try {
     judged = await judgeHealth(db);
-  } catch (e) {
-    logKeptGoing("health's judgement", e);
+  } catch (failure) {
+    logKeptGoing("health's judgement", failure);
     judged = {
       status: 503,
       body: {
