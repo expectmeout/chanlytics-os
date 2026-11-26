@@ -13,6 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode } from "../_source.mjs";
 import { toldFor } from "../_live-feed.mjs";
+import { listedTogether } from "../shell/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-06T16:00:00.000Z");
 const row = (over = {}) => ({
@@ -109,9 +110,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
     "repaints as the edge writes a row",
   );
   assert.ok(
-    /calendarOverride,\s*notificationsOverride,\s*setupOverride,\s*googleOverride,\s*billingOverride\b/.test(
-      readCode("apps/dashboard/src/bridge/FrameApp.tsx"),
-    ),
+    listedTogether("calendar", "notifications", "setup", "google", "billing"),
+    "read as the frame loads, beside the reads Settings draws (bridge/boot)",
   );
   assert.deepEqual(
     toldFor("notifications"),

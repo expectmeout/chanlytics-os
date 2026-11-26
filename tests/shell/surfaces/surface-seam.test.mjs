@@ -82,32 +82,12 @@ test("an unknown surface is neither ready nor failed", () => {
 
 /* --------------- 2. the gate exists before any consumer renders -------------- */
 
-test("the route gate is installed at module scope, not in an effect", () => {
-  const s = src("FrameApp.tsx");
-  const call = s.indexOf("\ninstallRouteGate();");
-  assert.notEqual(call, -1, "installRouteGate() must be called at top level");
-
-  // The frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first
-  // render, and it is a CHILD of this component — children render before
-  // parent effects run. Installing the gate in a useEffect left it undefined
-  // at the only moment it mattered: routeReady() fell back to true and a cold
-  // boot painted the seeded hero for a frame.
-  const firstEffect = s.indexOf("useEffect(");
-  assert.ok(
-    firstEffect === -1 || call < firstEffect,
-    "installRouteGate() moved below the effects — if it is now inside one, the first frame is ungated again",
-  );
-});
-
-test("the cache is hydrated at module scope, before React renders", () => {
-  const s = src("FrameApp.tsx");
-  const hydrate = s.indexOf("markHydrated(hydrateSurfaceCache())");
-  assert.notEqual(hydrate, -1, "boot must restore the cache");
-  assert.ok(
-    hydrate < s.indexOf("export default function FrameApp"),
-    "hydration moved inside the component — a refresh will show a frame of mockup data before correcting itself",
-  );
-});
+// The route gate and the cache are the boot's (bridge/boot/installs.ts), which FrameApp runs at its module scope: the
+// frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first render, and it is a CHILD
+// of FrameApp, whose effects run after it. A gate installed in a useEffect was undefined at the only moment it mattered:
+// routeReady() fell back to true and a cold boot painted the seeded hero for a frame; and a cache restored inside the
+// component showed a frame of mockup data before correcting itself. tests/shell/frame-boot.test.mjs runs the boot and
+// holds both before the first render.
 
 /* ------------- 3. loading is derived during render, not set later ------------ */
 

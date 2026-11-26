@@ -27,6 +27,7 @@ import { withReplies } from "../../apps/dashboard/src/surfaces/campaigns/reach-o
 import { readCode, readRaw } from "../_source.mjs";
 import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-react.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bootRunsOneNamed } from "../shell/_frame-boot.mjs";
 
 // The pages the wiring test draws are the TSX surface's (apps/dashboard/src/surfaces/today, decision 0015), on the stub React.
 bridgeHolds({ parts: { surfaceState: () => "live" } });
@@ -490,7 +491,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   assert.deepEqual(TODAY_HELPERS.withoutWrongPerson(waiting), waiting, "and one not read yet");
   // The helpers are the page's by import, and nothing publishes them on the window (window.__today had no reader).
   assert.equal(globalThis.__today, undefined, "no window name for the helpers");
-  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installToday"));
+  assert.ok(!bootRunsOneNamed("installToday"), "the frame's boot installs nothing of Today's");
   const dayModule = readCode("apps/dashboard/src/surfaces/today/zones/day-vm.ts");
   for (const s of [
     // The day's one derivation (dayVmOf), which the strip and the brief both read: a feed that is not ok is no day.

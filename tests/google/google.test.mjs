@@ -52,6 +52,7 @@ import {
 import { readCode, importSrc } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
+import { bootRunsOneNamed, listedTogether } from "../shell/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const KEY = "AIza-test-key-not-real";
@@ -981,8 +982,8 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   );
   // The app lists Google's surface and installs nothing for it: its verbs are imported (`googleVerbs`), its value is the
   // seam's alone, so no window door or `__GOOGLE` mirror is published.
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(/setupOverride,\s*googleOverride,\s*billingOverride\b/.test(app) && !app.includes("installGoogle"));
+  // Read between Setup's and Billing's as the frame loads (bridge/boot), and no verbs of its own installed there.
+  assert.ok(listedTogether("setup", "google", "billing") && !bootRunsOneNamed("installGoogle"));
   assert.ok(bridge.includes("export const googleVerbs: GoogleApi = {") && !bridge.includes("__GOOGLE"));
   // A review is told when it is first seen and when its answer moved (00431): Today's line and the bell close at once.
   assert.deepEqual([toldFor("google_listings"), toldFor("google_reviews")], [EVERY_EVENT, ["INSERT", "UPDATE"]]);

@@ -17,6 +17,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DECISION_SUBJECTS, DECISION_VERBS, templateTitle, toChannelVM } from "@chanlytics/contracts";
 import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 import { readCode, readRaw } from "../_source.mjs";
+import { bootRunsOneNamed } from "../shell/_frame-boot.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -192,7 +193,7 @@ test("the browser flow: Meta's SDK loaded once, the ids read only from facebook.
   // door as the tab last read it (`held`) is what the row draws in its first frame (settings/frame/pane-reads.ts).
   assert.deepEqual(Object.keys(mod.waConnect).sort(), ["config", "held", "prepare", "start"]);
   assert.ok(!src.includes("installWhatsAppConnect"));
-  assert.ok(!readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installWhatsAppConnect"));
+  assert.ok(!bootRunsOneNamed("installWhatsAppConnect"), "the frame's boot installs nothing of the connect's");
 });
 
 test("the account's own news: routed by WABA, kept as an event, alerted when it changes what the business can do", async () => {
