@@ -250,7 +250,7 @@ export function speedHoldLine(hold: ReportHoldVM): string {
     return `${hold.later} ${hold.later === 1 ? "reply" : "replies"} took longer than the hold, at most ${more} more.`;
   }
   return hold.unheld
-    ? `None waited longer than your hold; ${hold.unheld} had no hold.`
+    ? `None waited longer than your hold, and ${hold.unheld} had no hold.`
     : "None waited longer than your hold.";
 }
 

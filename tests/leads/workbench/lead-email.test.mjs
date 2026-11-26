@@ -110,9 +110,9 @@ test("each email of your own is a row on its own day: from the mailbox, or from 
 test("one on its way says so, one that did not go says why, and one taken back with Undo was never anything", () => {
   assert.deepEqual(historyOf([mail({ state: "queued" })]), ["Sending from sam@example.com"]);
   assert.deepEqual(historyOf([mail({ state: "skipped", reason: "outreach_wrote_back" })]), [
-    "Your email did not go: wrote back",
+    "The email didn't go: wrote back",
   ]);
-  assert.deepEqual(historyOf([mail({ state: "failed", reason: "send_failed" })]), ["Your email did not go"]);
+  assert.deepEqual(historyOf([mail({ state: "failed", reason: "send_failed" })]), ["The email didn't go"]);
   assert.deepEqual(historyOf([mail({ state: "skipped", reason: "canceled" })]), []);
 });
 
