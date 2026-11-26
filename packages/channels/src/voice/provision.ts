@@ -226,7 +226,11 @@ export interface VoiceProvisionPlan {
   names: { agent: string; nickname: string };
 }
 
-/** What the endpoint will do, in order. Pure: the dry run prints this; the apply follows it. */
+/**
+ * What the endpoint will do, in order. Pure: the dry run prints this; the apply follows it.
+ *
+ * screen-word: an operator's door (voice provisioning); the provider's own terms say what each step does
+ */
 export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan {
   const errors: string[] = [];
   const request = st.request;

@@ -27,7 +27,7 @@ export async function setLineForwarding(ctx: RouteContext, req: Request, member:
   const body = recordOrEmpty(await req.json().catch(() => ({})));
   const number = typeof body.number === "string" ? normalizePhone(body.number) : null;
   if (!number) throw new AppError("validation", "Give the number you keep, with its area code.", 400);
-  if (!isCarrier(body.carrier)) throw new AppError("validation", "Pick your carrier.", 400);
+  if (!isCarrier(body.carrier)) throw new AppError("validation", "Pick your phone company.", 400);
   if (!isForwardingMode(body.mode)) throw new AppError("validation", "Pick which calls to forward.", 400);
   // The loop from this side: the number the receptionist puts callers through to cannot become a number that
   // forwards to the receptionist, or a caller put through to it would come straight back.

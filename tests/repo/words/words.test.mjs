@@ -255,8 +255,12 @@ test("the ratchets say what they hold and read the tree", () => {
     "title-tooltips.json",
   ]);
   // A ratchet that has fallen to nothing is earned while it still reads its files: the customer's pages lost their last
-  // provider word on 16 Nov 2026 ("the carriers" became the phone networks).
-  const EARNED_ZERO = { "customer-words.json": () => filesReadBy("customer").length };
+  // provider word on 16 Nov 2026 ("the carriers" became the phone networks), and the server's refusals theirs on 26 Nov
+  // 2026 (what is left is staff's and operators', each marked).
+  const EARNED_ZERO = {
+    "customer-words.json": () => filesReadBy("customer").length,
+    "server-words.json": () => filesReadBy("server").length,
+  };
   for (const r of WORD_RATCHETS) {
     assert.ok(r.advice && r.name, r.file);
     assert.ok(
