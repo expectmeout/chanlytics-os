@@ -3,7 +3,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   SHARED_EVENT_VERSIONS,
-  type ActivationMilestone,
   type ActivitySubjectType,
   type ContactAddedData,
   type ContactConsentChangedData,
@@ -30,37 +29,11 @@ export type JsonObject = { [key: string]: Json | undefined };
 /** A kind that carries nothing but its subject. */
 type Nothing = Record<string, never>;
 
-type BillingData = {
-  source: string;
-  status: string;
-  subscription?: string;
-  price_id?: string | null;
-  /** The member who asked (a resume, a plan started now); absent where Stripe's own event moved it. */
-  by?: string | null;
-};
-
-/** A booking tool's email read into the calendar: where it came from, and which tool sent it. */
-type BookingData = { source: "booking_email"; tool: string };
-
-type TextingData = { e164: string | null; from: string | null; to: string; mock: boolean };
-
 /** Each kind the product writes from TypeScript, and the data it carries: the table's own kinds. */
 interface TableData {
-  "appointment.booked": BookingData;
-  "appointment.cancelled": BookingData;
-  "appointment.moved": BookingData;
-  /** Stripe's own news of a payment, and of a trial about to end: never an amount. */
-  "billing.paid": Nothing;
-  "billing.payment_failed": Nothing;
+  /** Stripe's own news of a trial about to end: never an amount. */
   "billing.trial_ending": { trial_end: string | null };
-  "billing.paused": BillingData;
-  "billing.resumed": BillingData;
-  "billing.updated": BillingData;
   "broadcast.sent": JsonObject;
-  /** Why the run stopped (a BROADCAST_FAILURES code, with its channel where it names one) and how many it reached first. */
-  "broadcast.stopped": { failure: string; sent: number | null };
-  // `changed`: the columns a save moved, never their values (contracts changedRecordFields); null on the first save.
-  "business.recorded": { legal_name: string | null; path: string; by?: string | null; changed?: string[] | null };
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
   /** A call that asked nobody (decision 0138, contracts voice/screened.ts): why, and the provider's id where it kept a call. */
   "call.screened": { reason: ScreenedReason; call_id: string | null };
@@ -87,9 +60,6 @@ interface TableData {
   /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
   "contact.added": ContactAddedData;
   "contact.consent_changed": ContactConsentChangedData;
-  "contact.email_suppressed": { reason: string };
-  /** The owner answered from the WhatsApp Business app: the receptionist is quiet on the thread until then. */
-  "conversation.owner_replied": { until: string };
   /** A thread handed to the team: why (an escalation's reason), on the conversation. Once per hold. */
   "escalation.opened": { reason: string };
   "google.connected": { email: string | null; accounts: number; locations: number; on_maps: number; by: string | null };
@@ -113,19 +83,6 @@ interface TableData {
   "member.joined": { by: string; role: string };
   /** A person left by deleting their account: who (an id no row names any more), and how. */
   "member.left": { by: string; how: "account_deleted" | "left"; had_role?: string };
-  "line.answering": { e164: string | null; provider: string; agent_id: string | null; by: string | null };
-  "line.failed": { step: string; error: string; provider: string; by: string | null };
-  "line.forwarding_verified": { from: string | null; call_id: string; proof: string };
-  "line.released": { e164: string | null; provider: string } & JsonObject;
-  "line.texting_approved": TextingData;
-  "line.texting_on": TextingData;
-  "line.texting_rejected": TextingData;
-  /** A mailbox the business writes from (00423, decision 0056): its address, never its token. */
-  "mailbox_connection.connected": { address: string; provider: string; again: boolean; by: string | null };
-  "mailbox_connection.signed_out": { address: string; provider: string };
-  "mailbox_connection.held": { address: string; why: string; sent: number; bounced: number; unsubscribed: number };
-  "mailbox_connection.resumed": { address: string; why: string | null; by: string };
-  "mailbox_connection.paused": { address: string; by: string };
   "file.added": { file_id: string; source: string; by?: string };
   /** What was said of a file, and by whom (file_change, 00551). */
   "file.changed": {
@@ -146,8 +103,6 @@ interface TableData {
   /** A delete undone in its ten minutes (00616 file_restore). */
   "file.restored": { file_id: string; by: string };
   "file.set_aside": { count: number };
-  "mailbox_connection.unpaused": { address: string; by: string };
-  "mailbox_connection.removed": { address: string; by: string | null };
   "mailbox_connection.sender_sorted": {
     kind: "address" | "domain";
     verdict: "automated" | "person" | null;
@@ -156,8 +111,6 @@ interface TableData {
   "message.send_blocked": { reason: string | null } & JsonObject;
   /** `http_status` is the send's own answer: absent when the failure came later, in the provider's receipt (reason "receipt"). */
   "message.send_failed": { http_status?: number; body: string | null; reason: string } & JsonObject;
-  "message.send_raced_cancel": { wamid: string | null };
-  "message.sent": { sender: string };
   "platform.acted": PlatformActedData;
   /** A playbook, or a reach-out's chain, edited: its name, who, and which parts moved (never their words). */
   "playbook.changed": { name: string; by: string; fields: string[] };
@@ -184,11 +137,8 @@ interface TableData {
   "template.fix_written": { words: string; reason: string; by: string };
   "usage.ask_tokens": JsonObject;
   "usage.llm_tokens": Record<string, unknown>;
-  "voice.provisioned": JsonObject & { agent_id: string; llm_id: string };
   "webhook.auth": { provider: "retell" } & JsonObject;
   "webhook.delivery": { provider: "retell" } & JsonObject;
-  /** A workspace reached one of the activation milestones for the first time (contracts ACTIVATION_MILESTONES). */
-  "workspace.activated": { milestone: ActivationMilestone; via: string };
 }
 
 /** Meta's account webhooks, one kind per field (contracts WABA_FIELDS): the payload as Meta sent it. */
@@ -201,26 +151,14 @@ export type EmittedKind = keyof EventData;
 
 /** Where each kind files in the ledger, and the version its data is written at. */
 const WRITES: { readonly [K in keyof TableData]: { category: string; version: number } } = {
-  "appointment.booked": { category: "appointment", version: 1 },
-  "appointment.cancelled": { category: "appointment", version: 1 },
-  "appointment.moved": { category: "appointment", version: 1 },
-  "billing.paid": { category: "billing", version: 1 },
-  "billing.payment_failed": { category: "billing", version: 1 },
   "billing.trial_ending": { category: "billing", version: 1 },
-  "billing.paused": { category: "billing", version: 1 },
-  "billing.resumed": { category: "billing", version: 1 },
-  "billing.updated": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
-  "broadcast.stopped": { category: "message", version: 1 },
-  "business.recorded": { category: "setup", version: 1 },
   "call.screened": { category: "call", version: 1 },
   "capability.activated": { category: "setup", version: 1 },
   "capability.deactivated": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
-  "contact.email_suppressed": { category: "contact", version: 1 },
-  "conversation.owner_replied": { category: "message", version: 1 },
   "escalation.opened": { category: "message", version: 1 },
   "google.connected": { category: "google", version: 1 },
   "google.disconnected": { category: "google", version: 1 },
@@ -234,18 +172,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "lead.emailed": { category: "lead", version: 1 },
   "member.joined": { category: "system", version: 1 },
   "member.left": { category: "system", version: 1 },
-  "line.answering": { category: "setup", version: 1 },
-  "line.failed": { category: "setup", version: 1 },
-  "line.forwarding_verified": { category: "setup", version: 1 },
-  "line.released": { category: "setup", version: 1 },
-  "line.texting_approved": { category: "setup", version: 1 },
-  "line.texting_on": { category: "setup", version: 1 },
-  "line.texting_rejected": { category: "setup", version: 1 },
-  "mailbox_connection.connected": { category: "setup", version: 1 },
-  "mailbox_connection.signed_out": { category: "setup", version: 1 },
-  "mailbox_connection.held": { category: "setup", version: 1 },
-  "mailbox_connection.resumed": { category: "setup", version: 1 },
-  "mailbox_connection.paused": { category: "setup", version: 1 },
   "file.added": { category: "setup", version: 1 },
   "file.changed": { category: "setup", version: 1 },
   "file.kept": { category: "setup", version: 1 },
@@ -254,13 +180,9 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "file.removed": { category: "setup", version: 1 },
   "file.restored": { category: "setup", version: 1 },
   "file.set_aside": { category: "setup", version: 1 },
-  "mailbox_connection.unpaused": { category: "setup", version: 1 },
-  "mailbox_connection.removed": { category: "setup", version: 1 },
   "mailbox_connection.sender_sorted": { category: "setup", version: 1 },
   "message.send_blocked": { category: "message", version: 1 },
   "message.send_failed": { category: "message", version: 1 },
-  "message.send_raced_cancel": { category: "message", version: 1 },
-  "message.sent": { category: "message", version: 1 },
   "platform.acted": { category: "platform", version: SHARED_EVENT_VERSIONS["platform.acted"] },
   "playbook.changed": { category: "message", version: 1 },
   "playbook.run": { category: "message", version: 1 },
@@ -272,10 +194,8 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
-  "voice.provisioned": { category: "setup", version: 1 },
   "webhook.auth": { category: "ingest", version: 1 },
   "webhook.delivery": { category: "ingest", version: 1 },
-  "workspace.activated": { category: "setup", version: 1 },
 };
 
 /** Meta's family files as the connection it happened to, at its own version. */

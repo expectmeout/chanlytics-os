@@ -32,7 +32,6 @@ import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { pg } from "../shared/pg.js";
 import { recordNotification } from "../shared/alerts/notify.js";
-import { emitEvent } from "@chanlytics/db/events";
 import { findVoiceAgent } from "@chanlytics/db/facts";
 import {
   FIRST_RUN_ROUTE,
@@ -65,9 +64,8 @@ import {
 } from "@chanlytics/channels/voice";
 import { env } from "../shared/env.js";
 import { secretToProvision, signatureOnly } from "../shared/door-auth.js";
-import { logger, errField, refuseFailure } from "../shared/log.js";
-import { findVoiceRow } from "@chanlytics/db/lines";
-import { insertChannelRow } from "@chanlytics/db/channels";
+import { logger, refuseFailure } from "../shared/log.js";
+import { addVoiceChannel, findVoiceRow } from "@chanlytics/db/lines";
 import { findWorkspaceCard } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -300,7 +298,7 @@ async function applyProvision(
   if (!row.ok) return fail(row);
   result.channel = { id: row.id, status: "active" };
 
-  await announceLeg(knock, row.id, agent, bound);
+  await announceLeg(knock, row.id, bound);
   const after = await readBackLeg(provider.cfg, agent);
   result.after = after;
   log.info("voice_provision", {
@@ -363,28 +361,30 @@ async function buyInAreaCode(
   return { ok: true, number: bought, numberType, bought: true, answer };
 }
 
-/** 5. The row: the line exists for the product from here on. */
+/** 5. The row: the line exists for the product from here on, with voice.provisioned in its transaction (00721). */
 async function voiceRowLeg(
   { db, tenantId }: ProvisionKnock,
   { agentId, llmId, agentVersion, pinned }: MadeAgent,
-  { number, numberType }: BoundNumber,
+  { number, numberType, bought }: BoundNumber,
 ): Promise<{ ok: true; id: string } | RefusedLeg> {
-  const ins = await insertChannelRow(db, tenantId, {
-    tenant_id: tenantId,
-    kind: "voice",
-    external_id: agentId,
-    number_e164: number,
-    status: "active",
-    config: {
-      provider: "retell",
-      llm_id: llmId,
-      agent_version: agentVersion,
-      pinned,
-      number_type: numberType,
-      provisioned_at: new Date().toISOString(),
-      provisioned_by: "voice-provision",
+  const ins = await addVoiceChannel(
+    db,
+    tenantId,
+    {
+      agentId,
+      e164: number,
+      config: {
+        provider: "retell",
+        llm_id: llmId,
+        agent_version: agentVersion,
+        pinned,
+        number_type: numberType,
+        provisioned_at: new Date().toISOString(),
+        provisioned_by: "voice-provision",
+      },
     },
-  });
+    { agent_id: agentId, llm_id: llmId, number, pinned, bought, number_type: numberType },
+  );
   if (ins.error)
     return {
       ok: false,
@@ -392,17 +392,11 @@ async function voiceRowLeg(
       status: 503,
       detail: `${ins.error.message} — the number ${number} is bound to ${agentId}; re-run with number and agent_id`,
     };
-  return { ok: true, id: ins.data.id };
+  return { ok: true, id: ins.data };
 }
 
 /** 6. Tell the workspace, and the platform. */
-async function announceLeg(
-  { db, tenantId }: ProvisionKnock,
-  channelId: string,
-  { agentId, llmId, pinned }: MadeAgent,
-  { number, numberType, bought }: BoundNumber,
-): Promise<void> {
-  const log = logger();
+async function announceLeg({ tenantId }: ProvisionKnock, channelId: string, { number }: BoundNumber): Promise<void> {
   const shown = formatPhoneDisplay(number) ?? number;
   await recordNotification(tenantId, {
     kind: "number",
@@ -411,18 +405,6 @@ async function announceLeg(
     route: FIRST_RUN_ROUTE,
     about: { type: "setup", id: channelId },
   });
-  try {
-    await emitEvent(db, tenantId, "voice.provisioned", "tenant_channel", channelId, {
-      agent_id: agentId,
-      llm_id: llmId,
-      number,
-      pinned,
-      bought,
-      number_type: numberType,
-    });
-  } catch (e) {
-    log.error("voice_provision_event_failed", { error: errField(e) });
-  }
 }
 
 /** 7. Read back: a freshly provisioned line plans nothing on either converger. */
