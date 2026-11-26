@@ -18,7 +18,7 @@ import type { Database } from "@chanlytics/db/types";
 import { DAY_MS, DbFailure } from "@chanlytics/contracts";
 import { MAX_ROWS } from "../shared/paged.js";
 import { logger, errField } from "../shared/log.js";
-import { finiteOrZero } from "@chanlytics/contracts";
+import { finiteOrZero, recordOrNull } from "@chanlytics/contracts";
 import { findLlmTokensSince, pageLlmUsage } from "@chanlytics/db/ai";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -88,7 +88,7 @@ async function* usagePages(
     const size = Math.min(MAX_ROWS, cap - from);
     const { data, error } = await pageLlmUsage(db, { tenantId, since, until, from, to: from + size - 1 });
     if (error) throw new DbFailure(error);
-    const rows = (data ?? []) as UsageRow[];
+    const rows: UsageRow[] = (data ?? []).map((r) => ({ created_at: r.created_at, data: recordOrNull(r.data) }));
     if (rows.length) yield rows;
     if (rows.length < size) return;
   }

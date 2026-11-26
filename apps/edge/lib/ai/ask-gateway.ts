@@ -48,6 +48,7 @@ import {
   recordOrNull,
   DbFailure,
   isObjectRecord,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
@@ -155,20 +156,10 @@ export function teeUsage(
       if (!line.startsWith("data:")) continue;
       const raw = line.slice(5).trim();
       if (!raw || raw === "[DONE]") continue;
-      let ev: {
-        type?: string;
-        message?: { usage?: Record<string, unknown> };
-        usage?: Record<string, unknown>;
-        delta?: { stop_reason?: string };
-      };
-      try {
-        ev = JSON.parse(raw) as typeof ev;
-      } catch {
-        // Not JSON: nothing to read.
-        continue;
-      }
-      if (ev.type === "message_start" && ev.message?.usage) {
-        const u = ev.message.usage;
+      const ev = gatewayEventOf(raw);
+      if (!ev) continue;
+      if (ev.type === "message_start" && ev.usage) {
+        const u = ev.usage;
         usage.input_tokens = finiteOrZero(u.input_tokens);
         usage.cache_read_input_tokens = finiteOrZero(u.cache_read_input_tokens);
         usage.cache_creation_input_tokens = finiteOrZero(u.cache_creation_input_tokens);
@@ -176,7 +167,7 @@ export function teeUsage(
       } else if (ev.type === "message_delta") {
         if (ev.usage) usage.output_tokens = finiteOrZero(ev.usage.output_tokens) || usage.output_tokens;
         noteSpeed(ev.usage?.speed);
-        if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason;
+        if (ev.stop) stopReason = ev.stop;
       }
     }
   };
@@ -392,6 +383,23 @@ const ceilingOf = (purpose: GatewayPurpose, effort: ModelEffort | null): number 
           : GATEWAY_MAX_TOKENS;
 
 /** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
+/** A stream event's parts the gateway counts: its type, the usage it carries, and why it stopped; null for no JSON. */
+function gatewayEventOf(
+  raw: string,
+): { type: unknown; usage: Record<string, unknown> | null; stop: string | null } | null {
+  let ev: unknown;
+  try {
+    ev = JSON.parse(raw);
+  } catch {
+    // Not JSON: nothing to read.
+    return null;
+  }
+  const type = valueAt(ev, "type");
+  const usage = recordOrNull(type === "message_start" ? valueAt(ev, "message", "usage") : valueAt(ev, "usage"));
+  const stop = valueAt(ev, "delta", "stop_reason");
+  return { type, usage, stop: typeof stop === "string" && stop ? stop : null };
+}
+
 const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });
 
 export function validateGatewayRequest(
