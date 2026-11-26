@@ -180,6 +180,7 @@ export function languageName(code: string): string {
     const name = base ? new Intl.DisplayNames(["en"], { type: "language" }).of(base) : undefined;
     return name && name !== base ? name : code;
   } catch {
+    // No Intl.DisplayNames in this browser: the code as it came.
     return code;
   }
 }
