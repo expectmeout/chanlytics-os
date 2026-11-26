@@ -476,6 +476,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
+  "packages/contracts/src/people/lists",
   "packages/contracts/src/people/person-page",
   "packages/contracts/src/people/person-row",
   "packages/contracts/src/campaigns/playbooks",
@@ -484,6 +485,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/rehearsal",
   "packages/contracts/src/reports",
   "packages/contracts/src/campaigns/sequences",
+  "packages/contracts/src/setup",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
   "packages/contracts/src/today",
@@ -520,7 +522,9 @@ export const LIMITED_TREES = [
  * a person's rows were split: a thread's view model takes five, a person's row six. Contracts' deals joined on 25
  * November 2026, the day the deal sheet was split: six take five (the pipeline's three, the deal card's two, the
  * sheet's own). Contracts' calendar joined on 25 November 2026, the day its week and its feed's reader were split: five
- * take five (a block, the rule's occurrences, a run's day, a person's visit facts, a freed time).
+ * take five (a block, the rule's occurrences, a run's day, a person's visit facts, a freed time). Contracts' setup and
+ * people's lists joined on 25 November 2026, the day a capability's status and a list's chip were split: one each takes
+ * five (the calendar's source, a list's action).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -531,6 +535,8 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
   "packages/contracts/src/calendar",
+  "packages/contracts/src/people/lists",
+  "packages/contracts/src/setup",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
   "packages/contracts/src/deals",
