@@ -56,6 +56,7 @@ import { replyAnswersAt } from "@chanlytics/db/conversations";
 import type { Database, Json } from "@chanlytics/db/types";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
 import { heldByThread, lateDraft, liveHoldOf } from "./hold";
+import { blockedEvent } from "./refusal";
 import { heldRefusal, sendingHoldOf, sendingRefusal, stopOf, type Refused } from "./stop";
 import { textRefusal } from "./text";
 import { namedFailure, putOnWire, type BoundWire } from "./wire-senders";
@@ -580,31 +581,6 @@ async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch, event: S
   return settleQueuedMessage(db, { tenantId: d.tenantId, messageId: d.messageId, patch, told: event });
 }
 
-/** What a refusal says of the person on the ledger: their consent as the door read it, and what overtook the send. */
-function blockedEvent(
-  delivery: Delivery,
-  reason: DeliveryRefusal,
-  contact: WireFacts["contact"],
-  overtakenBy: string | null,
-  extra: Record<string, Json>,
-): SendTold {
-  return {
-    kind: "blocked",
-    data: {
-      reason: reason,
-      purpose: delivery.purpose,
-      consent: contact.consent,
-      dnc: contact.dnc,
-      marketing_consent: contact.marketing_consent,
-      ...(delivery.purpose === "outreach" || delivery.purpose === "marketing"
-        ? { email_marketing: contact.email_marketing }
-        : {}),
-      ...(overtakenBy ? { after: overtakenBy } : {}),
-      ...extra,
-    },
-  };
-}
-
 export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<Delivered> {
   assertFrozenFor(delivery);
   const nowMs = (ports.now ?? Date.now)();
@@ -631,7 +607,7 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
         ports.db,
         delivery,
         { status: "canceled", error: { reason: reason } },
-        blockedEvent(delivery, reason, { ...facts.contact, ...now }, overtakenBy, extra),
+        blockedEvent(delivery.purpose, reason, { ...facts.contact, ...now }, overtakenBy, extra),
       );
     }
     return { outcome: "refused", reason: reason, messageId: delivery.messageId ?? null };
