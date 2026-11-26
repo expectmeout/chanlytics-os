@@ -11,8 +11,8 @@
  * element, draw it all.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { isDocumentScroller } from "../../kit/motion/page-scroll";
-import type { Thread } from "../types";
+import { isDocumentScroller } from "../../../kit/motion/page-scroll";
+import type { Thread } from "../../types";
 import { threadScroller } from "./scroller";
 
 /** How many of a thread's newest entries are drawn as it opens. */
