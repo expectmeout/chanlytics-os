@@ -4321,10 +4321,10 @@ COMMENT ON FUNCTION public.ask_message_words(p_content jsonb) IS 'The words of o
 
 
 --
--- Name: ask_morning_write(uuid, date, text, uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+-- Name: ask_morning_write(uuid, date, text, uuid, integer, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid DEFAULT NULL::uuid, p_cards integer DEFAULT NULL::integer) RETURNS jsonb
+CREATE FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid DEFAULT NULL::uuid, p_cards integer DEFAULT NULL::integer, p_bell jsonb DEFAULT NULL::jsonb) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -4332,6 +4332,7 @@ declare
   v_actor  uuid := auth.uid();
   v_row    public.ask_mornings%rowtype;
   v_won    boolean;
+  v_title  text;
 begin
   -- The caller is auth.uid(), read here, never a parameter (00021's rule): the morning is theirs.
   if v_actor is null then
@@ -4344,6 +4345,10 @@ begin
   -- The workspace's today, give or take the zones: never a day long past or far ahead.
   if p_day is null or p_day < current_date - 1 or p_day > current_date + 1 then
     raise exception 'ask_morning_write: the day is today, by the workspace''s clock' using errcode = '22023';
+  end if;
+  if p_bell is not null and (jsonb_typeof(p_bell) <> 'object' or coalesce(p_bell ->> 'title', '') = ''
+                             or jsonb_typeof(p_bell -> 'body') is distinct from 'string') then
+    raise exception 'ask_morning_write: the bell''s line is {title, body}' using errcode = '22023';
   end if;
   if p_act = 'claim' then
     -- The day claimed once: the winner runs the turn; a second tab, or a later arrival, reads the first's.
@@ -4369,23 +4374,34 @@ begin
     returning true into v_won;
     return jsonb_build_object('named', coalesce(v_won, false));
   elsif p_act = 'answered' then
-    -- The turn answered: how many cards wait, once a morning. The bell's line is the caller's to write when any do
-    -- (`recorded` says this call set it), through the notices' door.
+    -- The turn answered: how many cards wait, once a morning (`recorded` says this call set it). Where any wait and the
+    -- caller said the line, the member's own bell is told here (kind ask_cards, opening Today, about the morning's
+    -- thread), in the count's transaction: once a morning, and never without its count.
     update public.ask_mornings m
        set cards = greatest(coalesce(p_cards, 0), 0)
      where m.tenant_id = p_tenant_id and m.user_id = v_actor and m.day = p_day and m.cards is null
     returning * into v_row;
-    return jsonb_build_object('recorded', found, 'thread_id', v_row.thread_id, 'cards', v_row.cards);
+    if not found then
+      return jsonb_build_object('recorded', false, 'thread_id', null, 'cards', null);
+    end if;
+    if p_bell is not null and v_row.cards > 0 and v_row.thread_id is not null then
+      v_title := left(p_bell ->> 'title', 200);
+      insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id, recipient_user_id)
+      values (p_tenant_id, 'ask_cards', v_title, left(p_bell ->> 'body', 4000), 'today', 'ask_thread',
+              v_row.thread_id::text, v_actor);
+    end if;
+    return jsonb_build_object('recorded', true, 'thread_id', v_row.thread_id, 'cards', v_row.cards,
+                              'told', p_bell is not null);
   end if;
   raise exception 'act is claim, thread or answered' using errcode = '22023';
 end $$;
 
 
 --
--- Name: FUNCTION ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer, p_bell jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) IS 'A member''s morning with Ask (decision 0070), by act, the caller''s own and only for a member who acts: claim (the day, once: {claimed, thread_id, cards}; ask.morning_claimed for the winner), thread (the thread the winner made, named once: {named}), answered (how many cards wait, once: {recorded, thread_id, cards}; the caller writes the ask_cards line on the member''s own bell when any do). The day is the workspace''s, within a day of the database''s. A viewer gets {error: not_acting}.';
+COMMENT ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer, p_bell jsonb) IS 'A member''s morning with Ask (decision 0070), by act, the caller''s own and only for a member who acts: claim (the day, once: {claimed, thread_id, cards}; ask.morning_claimed for the winner), thread (the thread the winner made, named once: {named}), answered (how many cards wait, once: {recorded, thread_id, cards, told}; with p_bell {title, body}, the ask_cards line on the member''s own bell where any wait, in the count''s transaction, 00722; without it the caller writes the line, as an old dashboard does). The day is the workspace''s, within a day of the database''s. A viewer gets {error: not_acting}.';
 
 
 --
@@ -70238,12 +70254,12 @@ GRANT ALL ON FUNCTION public.ask_message_words(p_content jsonb) TO service_role;
 
 
 --
--- Name: FUNCTION ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer, p_bell jsonb); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) TO authenticated;
-GRANT ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) TO service_role;
+REVOKE ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer, p_bell jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer, p_bell jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer, p_bell jsonb) TO service_role;
 
 
 --

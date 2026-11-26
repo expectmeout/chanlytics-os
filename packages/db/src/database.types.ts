@@ -11158,6 +11158,7 @@ export type Database = {
       ask_morning_write: {
         Args: {
           p_act: string
+          p_bell?: Json
           p_cards?: number
           p_day: string
           p_tenant_id: string

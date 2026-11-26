@@ -72,7 +72,6 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_morning_lately_unread",
   "ask_morning_subjects_unread",
   "ask_morning_sweep_failed",
-  "ask_morning_told_failed",
   "ask_notice_waits_failed",
   "ask_openings_failed",
   "ask_proposal_failed",

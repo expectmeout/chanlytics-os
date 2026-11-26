@@ -1,6 +1,6 @@
 /**
  * A member's morning with Ask (decision 0070, 00470): the day claimed once through ask_morning_write, the thread the
- * turn runs in named on it, how many cards it left (the member's own bell line is the notices' door's), and what Today
+ * turn runs in named on it, how many cards it left with the member's own bell line beside the count, and what Today
  * reads back: the morning's thread and its newest answer, its Say and its cards. Every call runs as the member signed
  * in: the door checks the caller, RLS keeps the reads to their own rows.
  */
@@ -10,8 +10,14 @@ import { recordOrEmpty, type TenantId, DbFailure } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
-/** One act of the morning's door, and what it answered. */
-type AskMorningAct = { act: "claim" } | { act: "thread"; threadId: string } | { act: "answered"; cards: number };
+/**
+ * One act of the morning's door, and what it answered. The answered act carries the bell's line (`bell`): where this
+ * call records the count and any card waits, the door tells the member's own bell in the count's transaction (00722).
+ */
+type AskMorningAct =
+  | { act: "claim" }
+  | { act: "thread"; threadId: string }
+  | { act: "answered"; cards: number; bell: { title: string; body: string } };
 
 interface AskMorningDoor {
   /** claim: whether this call won the day. */
@@ -20,7 +26,7 @@ interface AskMorningDoor {
   cards?: number | null;
   /** thread: whether the thread was named. */
   named?: boolean;
-  /** answered: whether this call recorded the count (once a morning): the caller tells the member's bell when it did. */
+  /** answered: whether this call recorded the count (once a morning), and with it the member's bell line where any card waits. */
   recorded?: boolean;
   /** The door's refusal in its own word (not_acting), when it refused. */
   refused?: string;
@@ -38,7 +44,9 @@ export async function askMorningWrite(
     p_day: day,
     p_act: askMorningAct.act,
     ...(askMorningAct.act === "thread" ? { p_thread_id: askMorningAct.threadId } : {}),
-    ...(askMorningAct.act === "answered" ? { p_cards: askMorningAct.cards } : {}),
+    ...(askMorningAct.act === "answered"
+      ? { p_cards: askMorningAct.cards, p_bell: { title: askMorningAct.bell.title, body: askMorningAct.bell.body } }
+      : {}),
   });
   if (error) throw new DbFailure(error, "ask_morning_write");
   const item = recordOrEmpty(data);

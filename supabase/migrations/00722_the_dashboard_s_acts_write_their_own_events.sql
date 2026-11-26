@@ -409,3 +409,94 @@ grant execute on function public.ad_pause_for_stop(uuid) to authenticated, servi
 
 comment on function public.ad_pause_for_stop(uuid) is
   'Stop everything''s pause of the ads made here that are on (00722), as the member who pressed it: one who acts in the workspace, below the owner. The pause is ad_pause_all''s (by stop), with its answer.';
+/* -- ask_morning_write: the morning's count and its bell line in one transaction, as the member -- */
+
+-- A morning's cards counted once (answered), and the member's own bell told when any wait: the dashboard wrote that
+-- line on the all-access key after the door's count, since a member writes no bell row. The door writes it now, in the
+-- count's own transaction and only where this call recorded the count, so the line is told once a morning, as the
+-- member, and never without its count. The caller says the line's words (p_bell: {title, body}); an old dashboard
+-- passes none and writes its own, as before. The other acts are as they were.
+drop function if exists public.ask_morning_write(uuid, date, text, uuid, integer);
+
+create or replace function public.ask_morning_write(
+  p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid default null, p_cards integer default null,
+  p_bell jsonb default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_actor  uuid := auth.uid();
+  v_row    public.ask_mornings%rowtype;
+  v_won    boolean;
+  v_title  text;
+begin
+  -- The caller is auth.uid(), read here, never a parameter (00021's rule): the morning is theirs.
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- A member who acts: a viewer approves nothing, so no morning is asked for them.
+  if not public.is_acting_member(p_tenant_id) then
+    return jsonb_build_object('error', 'not_acting');
+  end if;
+  -- The workspace's today, give or take the zones: never a day long past or far ahead.
+  if p_day is null or p_day < current_date - 1 or p_day > current_date + 1 then
+    raise exception 'ask_morning_write: the day is today, by the workspace''s clock' using errcode = '22023';
+  end if;
+  if p_bell is not null and (jsonb_typeof(p_bell) <> 'object' or coalesce(p_bell ->> 'title', '') = ''
+                             or jsonb_typeof(p_bell -> 'body') is distinct from 'string') then
+    raise exception 'ask_morning_write: the bell''s line is {title, body}' using errcode = '22023';
+  end if;
+  if p_act = 'claim' then
+    -- The day claimed once: the winner runs the turn; a second tab, or a later arrival, reads the first's.
+    insert into public.ask_mornings (tenant_id, user_id, day)
+    values (p_tenant_id, v_actor, p_day)
+    on conflict on constraint ask_mornings_pkey do nothing
+    returning true into v_won;
+    select * into v_row from public.ask_mornings
+     where tenant_id = p_tenant_id and user_id = v_actor and day = p_day;
+    if coalesce(v_won, false) then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'ask.morning_claimed', 'system', 'workspace', p_tenant_id,
+              jsonb_build_object('day', p_day, 'by', v_actor));
+    end if;
+    return jsonb_build_object('claimed', coalesce(v_won, false), 'thread_id', v_row.thread_id, 'cards', v_row.cards);
+  elsif p_act = 'thread' then
+    -- The thread the winner made, its own in this workspace, named once.
+    update public.ask_mornings m
+       set thread_id = p_thread_id
+     where m.tenant_id = p_tenant_id and m.user_id = v_actor and m.day = p_day and m.thread_id is null
+       and exists (select 1 from public.ask_threads t
+                    where t.id = p_thread_id and t.tenant_id = p_tenant_id and t.user_id = v_actor)
+    returning true into v_won;
+    return jsonb_build_object('named', coalesce(v_won, false));
+  elsif p_act = 'answered' then
+    -- The turn answered: how many cards wait, once a morning (`recorded` says this call set it). Where any wait and the
+    -- caller said the line, the member's own bell is told here (kind ask_cards, opening Today, about the morning's
+    -- thread), in the count's transaction: once a morning, and never without its count.
+    update public.ask_mornings m
+       set cards = greatest(coalesce(p_cards, 0), 0)
+     where m.tenant_id = p_tenant_id and m.user_id = v_actor and m.day = p_day and m.cards is null
+    returning * into v_row;
+    if not found then
+      return jsonb_build_object('recorded', false, 'thread_id', null, 'cards', null);
+    end if;
+    if p_bell is not null and v_row.cards > 0 and v_row.thread_id is not null then
+      v_title := left(p_bell ->> 'title', 200);
+      insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id, recipient_user_id)
+      values (p_tenant_id, 'ask_cards', v_title, left(p_bell ->> 'body', 4000), 'today', 'ask_thread',
+              v_row.thread_id::text, v_actor);
+    end if;
+    return jsonb_build_object('recorded', true, 'thread_id', v_row.thread_id, 'cards', v_row.cards,
+                              'told', p_bell is not null);
+  end if;
+  raise exception 'act is claim, thread or answered' using errcode = '22023';
+end $$;
+
+revoke all on function public.ask_morning_write(uuid, date, text, uuid, integer, jsonb) from public, anon;
+grant execute on function public.ask_morning_write(uuid, date, text, uuid, integer, jsonb) to authenticated, service_role;
+
+comment on function public.ask_morning_write(uuid, date, text, uuid, integer, jsonb) is
+  'A member''s morning with Ask (decision 0070), by act, the caller''s own and only for a member who acts: claim (the day, once: {claimed, thread_id, cards}; ask.morning_claimed for the winner), thread (the thread the winner made, named once: {named}), answered (how many cards wait, once: {recorded, thread_id, cards, told}; with p_bell {title, body}, the ask_cards line on the member''s own bell where any wait, in the count''s transaction, 00722; without it the caller writes the line, as an old dashboard does). The day is the workspace''s, within a day of the database''s. A viewer gets {error: not_acting}.';
