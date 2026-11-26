@@ -18,10 +18,20 @@ import {
   buildAskSuggestions,
   POLICY_CLASS_WORDS,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../../_source.mjs";
+import { importSrc } from "../../_source.mjs";
+import { PHONE, cascadeOf, element, frameSheets } from "../../_css.mjs";
 import { fromContext } from "../../../tooling/scripts/eval-ask-context.mjs";
+import { judge } from "../../../tooling/scripts/eval-ask-judge.mjs";
 import { ACT_TOOLS, ASK_RULES, ID, ID2, NOW, READ_TOOLS, foldHistory, here } from "./_line.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import {
+  A as CTX_A,
+  RPCS as CTX_RPCS,
+  brain as contextBrain,
+  rcIn,
+  tables as contextTables,
+} from "../context/_context.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
 test("the gateway's usage tee reads the counts out of a passing stream and reports once at the end", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/ai/ask-gateway.ts")).href);
@@ -332,33 +342,44 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   // (self) is only ever this app: the headers Next serves, in auth/auth-gate.test.mjs ("the headers Next serves"). The
   // phone's ✦ opens AI, stays in the bar's row, and goes under the native app's own AI: pressed in
   // shell/surfaces/status/ ("the phone's drawer is a dialog").
-  const askCss = readRaw("apps/dashboard/src/surfaces/ask/ask.css").replace(/\s+/g, " ");
-  assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
-  // Glass is the one look: the circle's place is the rule after the base one (".phone-ask" at the end of the phone block),
-  // 62px as the tab bar's capsule is tall, 14px in from the edge and at the bar's own rest over the bottom (mobile.css,
-  // --bar-foot: 14px, or nearer the edge than the phone's inset where that is more).
-  assert.ok(askCss.includes("position: fixed;"), "fixed to the screen");
-  assert.match(
-    askCss,
-    /\.phone-ask \{\s*right: 14px;\s*bottom: var\(--bar-foot\);\s*width: 62px;\s*height: 62px;\s*\}/,
+  // The frame's sheets, run for the circle as a desk and a phone draw it (tests/_css.mjs's cascade).
+  const desk = cascadeOf(frameSheets());
+  const phone = cascadeOf(frameSheets(), PHONE);
+  const circle = element(".phone-ask");
+  assert.equal(desk.style(circle).display, "none", "a desktop has the topbar button and ⌘K");
+  // Glass is the one look: 62px as the tab bar's capsule is tall, 14px in from the edge and at the bar's own rest over
+  // the bottom (mobile.css, --bar-foot: 14px, or nearer the edge than the phone's inset where that is more).
+  const drawn = phone.style(circle);
+  assert.equal(drawn.position, "fixed", "fixed to the screen");
+  assert.deepEqual(
+    [drawn.right, drawn.bottom, drawn.width, drawn.height],
+    ["14px", drawn["--bar-foot"], "62px", "62px"],
     "in the tab bar's own row, at the thumb and over no page: it floated 126px up, over what the page drew there",
   );
-  assert.ok(
-    askCss.includes("html.in-app .phone-ask { bottom: calc(10px + var(--app-inset-bottom, 0px)); }"),
-    "and inside the native shell it lifts by the shell's tab bar, whose height the shell sets on <html>",
-  );
+  assert.ok(drawn["--bar-foot"].startsWith("max(14px, "), "the bar's rest");
+  // Inside the native shell it lifts by the shell's tab bar, whose height the shell sets on <html>.
+  const shell = cascadeOf([...frameSheets(), { css: "html.in-app { --app-inset-bottom: 34px; }" }], PHONE);
+  assert.equal(shell.style(element("html.in-app", ".phone-ask")).bottom, "calc(10px + 34px)");
   // The bar is the kit's TabBar since #1571 (kit/tab-bar/, its tabs run in shell/views/tab-bar.test.mjs): its places are
   // columns of one width, however many it holds, so the circle beside it never moves them.
-  assert.match(
-    readRaw("apps/dashboard/src/surfaces/kit/kit.css"),
-    /\.tab-bar \{[^}]*grid-auto-flow: column;[^}]*grid-auto-columns: minmax\(0, 1fr\);/,
+  const bar = phone.style(element(".tab-bar"));
+  assert.deepEqual(
+    [bar.display, bar["grid-auto-flow"], bar["grid-auto-columns"]],
+    ["grid", "column", "minmax(0, 1fr)"],
     "the five tabs keep their places",
   );
-  assert.ok(
-    !readRaw("apps/dashboard/src/styles/mobile.css").includes(".phone-ask") &&
-      !readRaw("apps/dashboard/src/styles/dashboard-a-v2.css").includes(".ask-card"),
-    "the palette's rules live in ask.css alone",
-  );
+  // The palette's rules live in ask.css alone: every rule that names the circle or a card, wherever it is drawn.
+  for (const [cascade, el, cls] of [
+    [phone, circle, "phone-ask"],
+    [desk, circle, "phone-ask"],
+    [shell, element("html.in-app", ".phone-ask"), "phone-ask"],
+    [phone, element(".ask-card"), "ask-card"],
+    [desk, element(".ask-card"), "ask-card"],
+  ]) {
+    const naming = cascade.rules(el).filter((r) => r.selectors.some((sel) => sel.includes(`.${cls}`)));
+    assert.ok(naming.length > 0, `${cls}: drawn by its rules`);
+    assert.deepEqual([...new Set(naming.map((r) => r.file))], ["apps/dashboard/src/surfaces/ask/ask.css"], cls);
+  }
   const sheets = createRequire(import.meta.url)("../../../apps/dashboard/src/styles/sheets.json");
   const sheetAt = (name) => sheets.sheets.indexOf(name);
   assert.ok(
@@ -390,12 +411,48 @@ test("the eval checks that an Open asked for is followed, and what the words dec
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
   // ask/palette/ ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
   // one button is Send alone, executed there too ("one button at the field's end").
-  const judge = readCode("tooling/scripts/eval-ask.mjs");
-  assert.ok(judge.includes("e.navigate_now"));
-  assert.ok(judge.includes("Object.entries(e.card_fields ?? {})"), "every kind a case names");
-  assert.ok(judge.includes("p.payload?.[k] !== v"), "each field of each card of that kind, compared");
-  assert.ok(judge.includes('if (!rule.includes(`"field":"${f}"`))'), "each field a list card's rule must name");
-  assert.ok(judge.includes("!!p.payload?.cannot !== e.list_card.cannot"), "and what it left out, kept or not");
+  // The judge eval-ask.mjs asks of every turn (eval-ask-judge.mjs), run on turns made up here.
+  const final = (over = {}) => ({
+    text: "Done.",
+    tools: [],
+    language: "en",
+    citations: [],
+    proposals: [],
+    navigate: null,
+    answer: null,
+    failed: false,
+    ...over,
+  });
+  const judged = (expect, over) => judge({ id: "case", expect }, { final: final(over), context: null, events: [] });
+  assert.deepEqual(judged({ navigate_now: true }).fails, ["expected the app to go there; navigate=null"]);
+  assert.equal(
+    judged({ navigate_now: true }, { navigate: { now: true, to: "inbox" } }).pass,
+    true,
+    "an Open, followed",
+  );
+  assert.equal(
+    judged({ navigate_now: true }, { navigate: { now: false, to: "inbox" } }).pass,
+    false,
+    "offered is not gone",
+  );
+  // Every card of a kind the case names, each field compared; a card of another kind is not judged.
+  const note = (team_only) => ({ id: `p-${team_only}`, kind: "note", payload: { team_only } });
+  const fields = { card_fields: { note: { team_only: true } } };
+  assert.deepEqual(judged(fields, { proposals: [note(true), note(false)] }).fails, [
+    "a note card with team_only false, where the words said true",
+  ]);
+  assert.equal(judged(fields, { proposals: [note(true), { id: "r", kind: "run", payload: {} }] }).pass, true);
+  // A list card's rule names each field the words decide, and what the fields cannot say is kept or not, as asked.
+  const list = (rule, cannot) => ({ id: "l", kind: "list", payload: { rule, cannot } });
+  const asked = { list_card: { fields: ["last_visit"], cannot: true } };
+  assert.deepEqual(judged(asked, { proposals: [list({ field: "came_from" }, false)] }).fails, [
+    'a list card whose rule names no last_visit: {"field":"came_from"}',
+    "a list card that dropped what the fields cannot say",
+  ]);
+  assert.equal(judged(asked, { proposals: [list({ all: [{ field: "last_visit", op: "before" }] }, true)] }).pass, true);
+  assert.deepEqual(judged({ list_card: { fields: [], cannot: false } }, { proposals: [list(null, true)] }).fails, [
+    "a list card that invented what the fields cannot say",
+  ]);
   const { readFile } = await import("node:fs/promises");
   const cases = JSON.parse(await readFile(path.join(here, "../../../tooling/evals/ask-cases.json"), "utf8"));
   assert.deepEqual(
@@ -448,8 +505,8 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
   // The gateway passes a known effort through and nothing else: executed in ask-model.test.mjs.
   const prompt = ASK_RULES.join("\n");
   assert.ok(prompt.includes("Answer from it when it is enough, in one round."));
-  const ev = readCode("tooling/scripts/eval-ask.mjs");
-  assert.ok(ev.includes("one-round ${oneRound}/${results.length}"), "the eval measures the one-round share");
+  // The eval's summary line says the one-round share beside the medians: a report a person reads after a run against a
+  // deployment, which no run here can make.
 });
 
 test("the cards to finish: an operator is offered cards to finish, a viewer none", async () => {
@@ -570,13 +627,60 @@ test("the speed pass: a fast model for a short answer, the autonomy modes in the
   // Run, not read (25 Nov 2026). The loop asks the deployment's profile for the model and the effort and names neither
   // itself (spec 5.11): every request ask/turn/ scripts carries ASK_MODEL and ASK_EFFORT. The saved turn names the model
   // that ran: ask/routes/ ("a question answered", the stored row's model).
-  const turn = readCode("apps/dashboard/src/server/ask/turn.ts");
-  assert.ok(
-    // Prettier breaks a call with two function arguments over lines: the shape, whatever its whitespace.
-    /load\(rc, readers\.policies, undefined\)\.then\(\s*\(r\) => r\.data,\s*\(\) => \[\],?\s*\)/.test(turn) &&
-      // At the turn's clock since a note may end (workspaceFacts' `now`), with the policies after it.
-      turn.includes("cfg?.config ?? null, rc.now, offered)"),
-    "the policies still ride in the stable block, read through the turn's cache and tolerated when they fail",
+  // The policies ride in the stable block (server/ask/turn.ts getTurnFacts), read through the turn's cache, at the
+  // turn's clock (a note may end), and a read that fails leaves the turn its facts without them.
+  const { getTurnFacts } = await importSrc("apps/dashboard/src/server/ask/turn.ts");
+  const policy = (cls, mode) => ({
+    id: `pol-${cls}`,
+    tenant_id: CTX_A,
+    class: cls,
+    mode,
+    subject_type: null,
+    subject_id: null,
+    limits: {},
+    updated_at: "2026-01-01T00:00:00Z",
+  });
+  const notes = [
+    { title: "Holiday hours", text: "Closed Monday.", until: "2026-09-13" },
+    { title: "Parking", text: "Use the side lot.", until: "2026-09-20" },
+  ];
+  const world = () =>
+    contextTables({
+      policies: [policy("reply", "ask"), policy("booking", "veto")],
+      tenant_config: [{ tenant_id: CTX_A, config: { brain: contextBrain({ profile: { notes } }) }, version: 1 }],
+    });
+  const reads = {};
+  const db = fakeDb(world(), {}, CTX_RPCS);
+  const counted = new Proxy(db, {
+    get(o, k) {
+      if (k === "from")
+        return (table) => {
+          reads[table] = (reads[table] ?? 0) + 1;
+          return o.from(table);
+        };
+      const v = Reflect.get(o, k);
+      return typeof v === "function" ? v.bind(o) : v;
+    },
+  });
+  const rc = rcIn({ supabase: counted, userId: "u1", email: "ada@example.com", params: {} });
+  const told = await getTurnFacts(rc);
+  assert.deepEqual(told.facts.autonomy, [
+    `${POLICY_CLASS_WORDS.reply.short}: ask`,
+    `${POLICY_CLASS_WORDS.booking.short}: veto`,
+  ]);
+  assert.deepEqual(
+    told.facts.notes.map((n) => n.title),
+    ["Parking"],
+    "the notes in force on the turn's day (2026-09-14): the holiday's ended the day before",
+  );
+  await getTurnFacts(rc);
+  assert.equal(reads.policies, 1, "the second ask of the turn is the turn's cache");
+  const down = fakeDb(world(), { "policies.select": { code: "XX000", message: "down" } }, CTX_RPCS);
+  const without = await getTurnFacts(rcIn({ supabase: down, userId: "u1", email: "ada@example.com", params: {} }));
+  assert.deepEqual(without.facts.autonomy, [], "tolerated when they fail: the turn keeps its other facts");
+  assert.deepEqual(
+    without.facts.notes.map((n) => n.title),
+    ["Parking"],
   );
   // The modes are facts in the stable block, each class in its own word, and only those the workspace set.
   const { workspaceFacts, factsBlock } = await importSrc("apps/dashboard/src/server/ask/prompt/stable-system.ts");
