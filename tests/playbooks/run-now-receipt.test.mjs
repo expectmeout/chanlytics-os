@@ -163,7 +163,7 @@ test("a run that goes by WhatsApp alone, whose message holds no WhatsApp version
       e.code === "conflict" &&
       e.status === 409 &&
       e.message === RUN_NOW_WITHOUT_VERSION_WORDS &&
-      /Pick another message, or give this one an email or a text version/.test(e.message) &&
+      /Pick another, or tick its email or text/.test(e.message) &&
       !/template/i.test(e.message),
   );
   // The stop stays the closed set's name; the other stops say their own words.

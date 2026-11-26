@@ -286,8 +286,8 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
   assert.ok(section, "its own section");
   assert.equal(textOf(byTestId(section, "rpt-deals-headline")), "5 proposals went out in the last 7 days.");
   const bars = byTestId(section, "rpt-deals-outcomes");
-  assert.ok(classes(bars).includes("ck-card"), "the kit's card");
-  assert.equal(textOf(cls(bars, "ck-card-title")), "What became of the proposals");
+  assert.ok(classes(bars).includes("ck-chart"), "the kit's card");
+  assert.equal(textOf(cls(bars, "ck-chart-title")), "What became of the proposals");
   const rows = all(bars, (n) => classes(n).includes("ck-barlist-row"));
   assert.deepEqual(
     rows.map((r) => [textOf(cls(r, "ck-barlist-label")), textOf(cls(r, "ck-barlist-value"))]),
@@ -299,12 +299,12 @@ test("Reports draws a Deals section where deals are on and a deal was recorded: 
   );
   const drawn = all(bars, (n) => classes(n).includes("ck-barlist-bar")).map((b) => b.props.style);
   assert.deepEqual(
-    drawn.map((s) => s.width),
+    drawn.map((s) => s["--w"]),
     ["60%", "20%", "20%"],
     "each bar out of the proposals sent, not out of the largest outcome",
   );
   assert.ok(
-    drawn.every((s) => s.background === "var(--chart-1)"),
+    drawn.every((s) => s["--k"] === "var(--chart-1)"),
     "the kit's one data hue, no colour of its own",
   );
   assert.deepEqual(

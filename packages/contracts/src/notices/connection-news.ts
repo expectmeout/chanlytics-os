@@ -50,6 +50,7 @@ export const CALENDAR_UNREADABLE_TOLD_AFTER_MS = DAY_MS;
 
 /** The calendar link's notice. The title is what its mend matches, so it is said here once. */
 export const CALENDAR_UNREADABLE_WORDS = {
+  // screen-word: the title its mend matches on the bell's rows already written (docs/words.md, "Kept on purpose")
   title: "Your calendar link stopped answering",
   body: (f: { sinceMs: number; nowMs: number }): string =>
     `Your calendar link stopped answering ${agoWords(f.sinceMs, f.nowMs)}. Until it answers again, AI ` +

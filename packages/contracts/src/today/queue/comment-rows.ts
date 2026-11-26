@@ -5,13 +5,13 @@
  * in its one count, as someone who asked through a form is. A comment with AI's answer ready waits in Inbox's comments,
  * not here; one answered or left is no row. Apart from the queue (queue.ts), as the forms' rows are. Pure.
  */
-import { formatWaited } from "../conversations/thread-clock";
-import { initialsOf } from "../conversations/thread-contact";
-import { commentAddress } from "../content/results/comment-address";
-import { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "../content/results/comment-stage";
-import type { CommentRowDto } from "../content/results/dtos";
-import type { TodayFacts } from "./facts";
-import type { TodayQueueRowVM } from "./vm";
+import { formatWaited } from "../../conversations/thread-clock";
+import { initialsOf } from "../../conversations/thread-contact";
+import { commentAddress } from "../../content/results/comment-address";
+import { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "../../content/results/comment-stage";
+import type { CommentRowDto } from "../../content/results/dtos";
+import type { TodayFacts } from "../facts";
+import type { TodayQueueRowVM } from "../vm";
 
 /** One comment's row: who, their words, how long ago and on which post, with one door, the comment in Inbox. */
 function commentRow(comment: CommentRowDto, todayFacts: TodayFacts): TodayQueueRowVM | null {

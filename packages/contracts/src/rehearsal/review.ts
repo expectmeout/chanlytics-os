@@ -256,7 +256,7 @@ export const REVIEW_WORDS = {
   /** Beside a verdict: where it came from, or what is missing. */
   because: {
     right: (block: string | null) => (block ? `From ${block}` : "From what it was told"),
-    rule: () => "Your rule",
+    rule: () => "From your rules",
     guessed: () => "Nothing it was told says this",
     didnt_know: () => "It said so: the fact is missing",
     off: () => "Right facts, wrong manner",

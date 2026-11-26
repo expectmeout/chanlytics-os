@@ -65,7 +65,7 @@ const BtaGreeting = ({ draft, update, problems, readOnly, press, brain }: Fields
         <RecordTip
           label="When callers hear the standard greeting"
           testid="rec-greeting-tip"
-          text="While billing is paused, callers hear the standard greeting, saying it can only take a message today. If your settings can't be read in time, they hear it without your name. {business} is your name."
+          text="While billing is paused, it can only take a message. If your settings can't be read in time, it leaves out your name."
         />
       </span>
       <GreetingNoteLines notes={says.notes} />

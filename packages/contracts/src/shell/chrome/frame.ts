@@ -138,7 +138,7 @@ export function shellStatusLine(shellStatus: ShellStatus | null | undefined): Sh
       tone: WORKSPACE_PAUSED.tone,
       text: "AI is paused",
       detail:
-        "It sends a holding reply and hands each new message to you in the Inbox. Write to support and we'll sort it out.",
+        "It sends a holding reply and hands each new message to you in the Inbox. Write to support, and Chanlytics sorts it out.",
       action: null,
       cta: null,
       busy: null,
@@ -149,7 +149,7 @@ export function shellStatusLine(shellStatus: ShellStatus | null | undefined): Sh
       tone: "warn",
       text: "AI is limited",
       detail:
-        "It may send a holding reply and hand some messages to you in the Inbox. Write to support and we'll sort it out.",
+        "It may send a holding reply and hand some messages to you in the Inbox. Write to support, and Chanlytics sorts it out.",
       action: null,
       cta: null,
       busy: null,

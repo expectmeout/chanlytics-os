@@ -41,11 +41,15 @@ const UNITLESS = new Set([
   "font-weight",
   "line-height",
 ]);
-/** A style's declarations, spelled as above: from a style prop, as React writes it into the attribute. */
+/**
+ * A style's declarations, spelled as above: from a style prop, as React writes it into the attribute. A custom property
+ * (`--share`) React writes as it is, its name and its number both.
+ */
 const declarationsOfProp = (style) =>
   Object.entries(style ?? {})
     .filter(([, value]) => value !== undefined && value !== null && value !== false && value !== "")
     .map(([key, value]) => {
+      if (key.startsWith("--")) return `${key}:${value}`;
       const property = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
       return `${property}:${typeof value === "number" && !UNITLESS.has(property) ? `${value}px` : value}`;
     })

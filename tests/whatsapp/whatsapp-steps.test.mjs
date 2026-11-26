@@ -8,7 +8,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode } from "../_source.mjs";
 import { formatPhoneDisplay } from "@chanlytics/contracts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -209,13 +208,12 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
   assert.match(none.details, /AI isn't set up yet/);
 });
 
-test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
-  // The webhook's GET and POST are imported and run in whatsapp/door/.
-  // The message path is a verb over ports now, and apps/edge/lib/inbound/arrival.ts
-  // is its adapter: handleInbound takes the one inbound shape (decision 0001, step 3),
-  // which whatsapp/door/ and the inbound phase tests (inbound/phases/) CALL rather than read.
-  // The verb is answer.ts's order of phases, each declared in a module beside it
-  // (decision 0001), in the order it calls them; what each one does is run there.
+test("the shape: the message path is answer.ts's phases, each the export of the module beside it, and the edge's bookkeeping and alerts their own modules'", async () => {
+  // Run where it is decided: the phases' order in inbound/the-gates-run-in-their-order.test.mjs (with every later gate's
+  // condition on as well, each still stops first), what each phase decides in inbound/phases/, the webhook's GET and POST
+  // in whatsapp/door/, the steps' decisions above. The words are checked by the steps alone (ai/money-and-prices.test.mjs
+  // runs the predicates). answer.ts's text, the steps each phase asks for, and persist.ts's and alerts.ts's were read here
+  // until 26 Nov 2026; alerts.ts reaches a person only through notify (the bell, the phones, the mail).
   const HOME = {
     openInbound: "context",
     ingestMessage: "ingest",
@@ -233,60 +231,40 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
     holdOrKeep: "dispatch",
     sendNow: "dispatch",
   };
-  const src = Object.fromEntries(
-    ["answer", ...new Set(Object.values(HOME))].map((m) => [m, readCode(`packages/core/src/inbound/${m}.ts`)]),
-  );
-  assert.ok(src.answer.includes("export async function answerInbound("));
-  const calls = Object.keys(HOME).map((f) => src.answer.indexOf(`${f}(`));
-  assert.ok(
-    calls.every((at) => at > 0),
-    "answer.ts calls every phase",
-  );
-  assert.deepEqual(
-    [...calls].sort((a, b) => a - b),
-    calls,
-    `and in this order: ${Object.keys(HOME).join(", ")}`,
-  );
+  const load = (m) => import(pathToFileURL(path.join(ROOT, m)).href);
+  assert.equal(typeof (await load("packages/core/src/inbound/answer.ts")).answerInbound, "function");
   for (const [f, m] of Object.entries(HOME))
-    assert.ok(new RegExp(`export (async )?function ${f}\\(`).test(src[m]), `${f} is ${m}.ts's`);
-  // Each phase asks the steps (steps.ts) for its decisions.
-  for (const [m, s] of [
-    ["reply-gates", "const { ageMs, verdict: age } = ageVerdict(sentAtSecondsOf(n.channelTsIso));"],
-    ["reply-gates", "const held = unattendedHold({"],
-    ["dispatch", "const plan = holdPlan(replyMode, replyLimits, brainMeta);"],
-    ["model-turn", "const two = layerTwo({"],
-    ["reply-gates", "const hold = holdCopy({"],
-  ])
-    assert.ok(src[m].includes(s), `${m}.ts: ${s}`);
-  const inbound = Object.values(src).join("\n");
-  assert.ok(
-    !inbound.includes("violatesNoPrices(") && !inbound.includes("policyAskClass("),
-    "the words are checked in one place",
+    assert.equal(typeof (await load(`packages/core/src/inbound/${m}.ts`))[f], "function", `${f} is ${m}.ts's`);
+  const persist = await load("apps/edge/lib/inbound/persist.ts");
+  for (const f of ["runPgIngest", "runPgSafe", "pgSink", "queueReply", "readPgThread"])
+    assert.equal(typeof persist[f], "function", `persist.ts: ${f}`);
+  const alerts = await load("apps/edge/lib/inbound/alerts.ts");
+  for (const f of ["alertStaff", "alertUnroutable"]) assert.equal(typeof alerts[f], "function", `alerts.ts: ${f}`);
+});
+
+test("the customer is answered on the business's own WhatsApp credentials, through the door, or on none", async () => {
+  // The ingest binds WhatsApp's wire to the workspace's own credentials (waCfgFor answers null for a workspace with nothing
+  // in the vault: edge/per-tenant-credentials.test.mjs) and every reply leaves through the sink, the door, which refuses
+  // where the wire is missing (messages/deliver/). Pinned as ingest.ts's text until 26 Nov 2026.
+  const { world, runtime, text } = await import("../inbound/_world.mjs");
+  const { answers } = await import("../inbound/phases/_fixtures.mjs");
+  const asked = [];
+  const sender = (cfg) => {
+    asked.push(cfg);
+    return async () => ({ ok: true, wamid: "wamid.x", status: 200 });
+  };
+  const w = world({ env: { modelKey: "sk-test" } });
+  await w.run(text("when do you open?"), { ...answers("We open at 9."), sender });
+  assert.deepEqual(asked, [{ phoneId: "p1", accessToken: "tok" }], "the wire is the workspace's own");
+  assert.deepEqual(
+    w.seen.sent.map((x) => x.body),
+    ["We open at 9."],
+    "and the reply leaves through the door",
   );
-  const persist = readCode("apps/edge/lib/inbound/persist.ts");
-  for (const s of [
-    "export async function runPgIngest(",
-    "export async function runPgSafe<T>(",
-    "export function pgSink(",
-    "export async function queueReply(",
-    "export async function readPgThread(",
-  ])
-    assert.ok(persist.includes(s), s);
-  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
-  for (const s of ["export async function alertStaff(", "export async function alertUnroutable("])
-    assert.ok(alerts.includes(s), s);
-  assert.ok(!alerts.includes("sendText("), "the customer is not texted from the alerts module: the door does that");
-  // The tenant's credentials or none: waCfgFor answers null for a tenant with
-  // nothing in the vault, and the door refuses rather than sending on any
-  // other (per-tenant-credentials.test.mjs runs the resolver,
-  // messages/deliver/ runs the door).
-  assert.ok(
-    src.ingest.includes("whatsapp: ports.sender(ports.waCfg(rt)),") &&
-      /const send = \(text: string, meta\?: Record<string, Json>, purpose\?: SendPurpose, kind\?: "system"\) =>\s*sink\.deliver\(from, wire\(text\), meta, purpose, kind\);/.test(
-        src.ingest,
-      ),
-    "the customer is texted on the tenant's credentials, through the door, or not at all",
-  );
+  const none = world({ env: { modelKey: "sk-test" }, rt: runtime({ waCreds: null }) });
+  asked.length = 0;
+  await none.run(text("when do you open?", "wamid.2"), { ...answers("We open at 9."), sender });
+  assert.deepEqual(asked, [null], "a workspace with nothing in the vault binds no one else's");
 });
 
 /* ---------- what a message became (K1): the one rule behind every stamp ---------- */

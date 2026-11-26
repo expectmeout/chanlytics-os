@@ -116,7 +116,7 @@ test("a source that stopped: what happened, what it kept, and Try again that ans
   let tree = drawFresh();
   assert.equal(byTestId(tree, "today-history-coming"), null, "nothing is coming in");
   const stopped = byTestId(tree, "today-history-stopped-mailbox");
-  assert.match(textOf(stopped), /^Your inbox stopped coming in130 emails keptTry again$/);
+  assert.match(textOf(stopped), /^Email stopped coming in130 emails keptTry again$/);
   const press = byTestId(tree, "today-history-again-mailbox");
   assert.equal(textOf(press), "Try again");
   press.props.onClick();
