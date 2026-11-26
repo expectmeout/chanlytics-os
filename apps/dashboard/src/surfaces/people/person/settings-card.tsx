@@ -182,9 +182,9 @@ function visitHint(c: PageCtx): string {
     return `Yes · ${consent.sub}. Reminders about their ${appointmentWords(word).many} may go to them.`;
   if (consent.state === "opted_out")
     return consent.source === "customer_message"
-      ? `${consent.sub}. Nothing goes out. Record a yes only if they ask again.`
+      ? `${consent.sub} · nothing goes out. Record a yes only if they ask again.`
       : `No · ${consent.sub}. Nothing goes out to them.`;
-  return "No answer yet. Replying to them is fine · anything we start needs their yes.";
+  return "No answer yet. Replying is fine · writing first needs their yes.";
 }
 
 /** Messages: the ask, with the words a yes is asked for in person. */

@@ -160,7 +160,7 @@ export const BtCreateCard = ({ flash = () => {} }: { flash?: (flash: FrameFlash)
             kind="card"
             glyph="agents"
             title="AI isn't set up for this workspace yet"
-            body="Nothing has been set up for it · no business name, no phone line, no booking link · so nothing is answering your customers yet."
+            body="No business name, number or booking link yet, so nothing is answering customers."
             // Offered only where there is something read to save onto, as a row's act is: the press would otherwise
             // open nothing, the fold having no draft to work out.
             action={

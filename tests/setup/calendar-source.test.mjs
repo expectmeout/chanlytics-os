@@ -135,7 +135,7 @@ test("a link that could not be read is the owner's to check, whatever else arriv
   assert.equal(s.state, "attention");
   assert.equal(s.tone, "warn");
   assert.equal(s.words, "Couldn't be read");
-  assert.equal(s.lead, "Your calendar couldn't be read.");
+  assert.equal(s.lead, "Couldn't load the calendar.");
   assert.equal(s.rest, "The address answered with an error. Booking emails still arrive.");
   assert.equal(s.times, false);
   assert.deepEqual(s.next, { label: "Check the link", to: CALENDAR_SETTING_ROUTE });

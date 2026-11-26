@@ -442,7 +442,7 @@ export const AskCardReceipt = ({
           className="ask-card-undo"
           onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo}
           aria-disabled={busy || undefined}
-          title={p.undo ?? undefined}
+          data-tip={p.undo ?? undefined}
         >
           {t.undo}
         </Button>

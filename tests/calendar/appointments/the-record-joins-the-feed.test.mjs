@@ -582,13 +582,13 @@ test("the receptionist says a caller's visits as People does: one a member cance
   try {
     const before = await said([]);
     assert.match(before, /next appointment.*\(Cut\)/);
-    assert.match(before, /last visit.*\(Colour\)/);
+    assert.match(before, /last appointment.*\(Colour\)/);
     const after = await said([
       word("w1", "ev-cut", NOW + 2 * D, "cancelled"),
       word("w2", "ev-colour", NOW - 3 * D, "missed"),
     ]);
     assert.doesNotMatch(after, /next appointment/, "a visit a member cancelled is never confirmed to the caller");
-    assert.match(after, /last visit.*\(Gloss\)/, "the last one they came to");
+    assert.match(after, /last appointment.*\(Gloss\)/, "the last one they came to");
   } finally {
     globalThis.fetch = realFetch;
     setPg(null);

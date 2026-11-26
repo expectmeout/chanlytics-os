@@ -543,7 +543,7 @@ test("the number it gives out: your line stores nothing, and a different number 
   assert.deepEqual(
     radios(tree).map((r) => [textOf(r), r.props["aria-checked"]]),
     [
-      ["Your line", true],
+      ["Your number", true],
       ["A different number", false],
     ],
   );
@@ -555,7 +555,7 @@ test("the number it gives out: your line stores nothing, and a different number 
     "+1 (305) 555-0123",
     "a different number starts from the line, as people write it",
   );
-  assert.match(textOf(byTestId(tree, "rec-inline-phone_display-note")), /That is your line/);
+  assert.match(textOf(byTestId(tree, "rec-inline-phone_display-note")), /That is your number/);
   typeInto(tree, "phone_display", "12345");
   tree = redrawTab(flash);
   saveRow(tree, "phone_display");
@@ -741,7 +741,7 @@ test("a viewer reads everything, is offered no act, and is told why once", () =>
     const serious = drawTab({ brain: { phone_display: "(212) 555-0142" }, resolved: KNOWN });
     const published = byTestId(serious, "rec-row-phone_display");
     assert.equal(published.props["data-state"], "warn");
-    assert.match(textOf(published), /which is the number it transfers to/);
+    assert.match(textOf(published), /the number it transfers to/);
     assert.equal(
       find(published, (n) => n.type === "button"),
       null,

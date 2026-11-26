@@ -197,7 +197,7 @@ test("the mix says its rows and its line", () => {
   assert.deepEqual(rows(v.firstCame), [
     ["WhatsApp", 5],
     ["Phone", 3],
-    ["Your calendar", 1],
+    ["The calendar", 1],
     ["An ad", 1],
     ["Not recorded", 2],
   ]);

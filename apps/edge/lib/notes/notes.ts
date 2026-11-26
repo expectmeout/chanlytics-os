@@ -50,6 +50,7 @@ import {
   type ActivityEventRow,
   type ActivityRowDto,
   type NoteTurn,
+  valueAt,
 } from "@chanlytics/contracts";
 import { JOURNAL_SCHEMA, checkJournal, journalSystemPrompt, journalUserContent, type JournalLine } from "./ask-journal";
 import { getActivitySubjects } from "@chanlytics/db/events";
@@ -112,6 +113,12 @@ interface NotesSweepOutcome {
   /** Why each look ended, by reason: the log's picture of how rarely a note is earned. */
   ended: Record<string, number>;
 }
+
+/** The words a door refused in, where its answer names them. */
+const doorRefusalOf = (door: unknown): string | undefined => {
+  const words = valueAt(door, "error");
+  return typeof words === "string" && words ? words : undefined;
+};
 
 /**
  * One run: a batch of looks (calls and quiet conversations, each stamped as it is handed over), the first gate, the
@@ -196,7 +203,7 @@ export async function suggestNotes(deps: {
       p_source: row.source,
       p_source_id: row.source_id,
     });
-    const refused = (door as { error?: string } | null)?.error;
+    const refused = doorRefusalOf(door);
     if (doorErr || refused) {
       end(refused ?? "door_failed");
       if (doorErr) L.error("notes_suggest_failed", { tenant_id: row.tenant_id, error: doorErr.message });

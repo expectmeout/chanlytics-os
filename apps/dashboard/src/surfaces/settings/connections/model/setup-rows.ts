@@ -104,7 +104,7 @@ const providersSaid = (providers: readonly string[]): string =>
  * greyed, saying what is coming. One held or signed out is the row's attention, said once, here.
  */
 export function mailboxRow(connectionInputs: ConnectionInputs): ConnectionDraft {
-  const base = { kind: "mailbox" as const, icon: "send", title: "Your mailbox" };
+  const base = { kind: "mailbox" as const, icon: "send", title: "Mailbox" };
   const sending = connectionInputs.email?.sending ?? null;
   const boxes = sending?.mailboxes ?? [];
   if (boxes.length > 0) {
@@ -185,7 +185,7 @@ export function instagramRow(connectionInputs: ConnectionInputs, { ig }: { ig: C
       detail,
       state: "none",
       stateWords: "Not connected",
-      sentence: "Sign in with your Instagram professional account; AI answers its DMs as it answers WhatsApp.",
+      sentence: "Sign in with your Instagram professional account · AI answers its DMs as it answers WhatsApp.",
       verb: ig ? { ...connect, label: "Connect again" } : connect,
     };
   return {
@@ -211,7 +211,7 @@ export function leavingWords(postsWaiting: number): string {
 
 const META_CONNECT_VERB: ConnectionVerb = { label: "Connect Meta", to: "verb:meta-connect", who: "owner" };
 const MOVE_TO_META =
-  "Connect Meta to move this account to one connection: its DMs keep flowing, and posting, trending sounds, comments and numbers come through it as each is built.";
+  "Connect Meta to put this account on one connection. DMs keep working, and more comes through it as it's built.";
 
 /**
  * What Meta allowed, one line: the permissions the token carries, by the five lines' words (contracts metaLinesOf). Said as
@@ -263,7 +263,7 @@ function metaRow(ig: ChannelVM | null, meta: { ready: boolean; postsWaiting: num
     state: "none",
     stateWords: "Not connected",
     sentence:
-      "Sign in with Instagram or Facebook. One connection answers your Instagram DMs now, and brings posting, trending sounds, comments and numbers as each is built.",
+      "Sign in with Instagram or Facebook. One connection answers Instagram DMs now, and brings more as it's built.",
     verb: metaReady ? (ig ? { ...META_CONNECT_VERB, label: "Connect again" } : META_CONNECT_VERB) : null,
   };
 }
@@ -450,7 +450,7 @@ export function googleListingRow(
   }: { connection: GoogleConnectionDto | null; listing: GoogleListingDto | null; nowMs: number },
 ): ConnectionDraft {
   const google = connectionInputs.google;
-  const base = { kind: "google_listing" as const, icon: "star", title: "Your listing on Google" };
+  const base = { kind: "google_listing" as const, icon: "star", title: "Listing on Google" };
   if (l) {
     return {
       ...base,
@@ -490,7 +490,7 @@ export function calendarRow(connectionInputs: ConnectionInputs): ConnectionDraft
   // its name and in its pill (seen on a real save, 8 Oct 2026).
   // A calendar read through the mailbox (decision 0073, R20) names its provider's calendar, never "link".
   const granted = connectionInputs.calendar?.granted
-    ? `${connectionInputs.calendar.source ?? "Your calendar"} · through your mailbox`
+    ? `${connectionInputs.calendar.source ?? "Calendar"} · through your mailbox`
     : null;
   const DETAIL = {
     both: `${tool} · ${granted ?? "calendar link"}`,

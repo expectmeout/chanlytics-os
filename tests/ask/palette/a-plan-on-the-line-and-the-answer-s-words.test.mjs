@@ -643,7 +643,7 @@ test("a figure's source is its value's tooltip, and Copy and Read aloud say thei
   };
   setCells(new Map());
   const tree = draw(AskAnswer, { answer, cardOpen: {}, cards: [], messageId: "m-f", t, onNav() {}, onFollow() {} });
-  assert.equal(byTestId(tree, "ask-figure").props.title, "From Reports, past 7 days");
+  assert.equal(byTestId(tree, "ask-figure").props["data-tip"], "From Reports, past 7 days");
   setCells(new Map());
   const speech = { speakingId: null, loading: null, canSpeak: true, toggle: async () => null };
   const acts = draw(AskActs, { words: "6 of 16 went unanswered.", spoken: "", speech, flash() {}, t });
