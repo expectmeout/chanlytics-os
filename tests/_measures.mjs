@@ -547,12 +547,17 @@ export function doorsWithoutEventsIn(sql, { reached = reachedFromOutside(sql) } 
         grew = true;
       }
   }
-  // A door and every function its run reaches: what it calls, and what fires on the tables any of them writes.
+  // A door and every function its run reaches: what it calls, and what fires on the tables any of them writes. Not
+  // what fires on the ledger: an event's own reactions (its outbox, its subscribers) are what a fact causes, the spine's,
+  // and a door that reaches the ledger only through a trigger that fires on a condition gains none of them as records.
   const reachOf = (n) => {
     const seen = new Set([n]);
     for (const go = [n]; go.length;) {
       const f = go.pop();
-      const next = [...(calls.get(f) ?? []), ...[...(writes.get(f) ?? [])].flatMap((t) => fired.get(t) ?? [])];
+      const next = [
+        ...(calls.get(f) ?? []),
+        ...[...(writes.get(f) ?? [])].filter((t) => t !== "events").flatMap((t) => fired.get(t) ?? []),
+      ];
       for (const g of next)
         if (!seen.has(g) && bodies.has(g)) {
           seen.add(g);

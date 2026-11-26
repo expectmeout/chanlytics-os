@@ -732,6 +732,43 @@ end $$;
   assert.deepEqual(doorsWithoutEventsIn(sql, { reached }), { "line_touch()": 1, "run_rename()": 1 });
 });
 
+test("what the ledger's own triggers write is no door's record: a door's reach stops at the events table", () => {
+  const fn = (name, body, returns = "void") =>
+    `CREATE FUNCTION public.${name}() RETURNS ${returns}
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+${body}
+end $$;
+`;
+  const table = (name) => `CREATE TABLE public.${name} (
+    id uuid
+);
+`;
+  const sql = [
+    ...["events", "lines", "event_reads", "notices"].map(table),
+    // A line's move is told on a condition, and an event's arrival is read into two tables of its own.
+    fn("lines_told", "insert into public.events (id) values (1);", "trigger"),
+    `CREATE TRIGGER lines_told AFTER UPDATE OF id ON public.lines FOR EACH ROW EXECUTE FUNCTION public.lines_told();
+`,
+    fn(
+      "events_read",
+      "insert into public.event_reads (id) values (1); insert into public.notices (id) values (1);",
+      "trigger",
+    ),
+    `CREATE TRIGGER events_read AFTER INSERT ON public.events FOR EACH ROW EXECUTE FUNCTION public.events_read();
+`,
+    fn("line_touch", "update public.lines set id = 2;"),
+  ].join(`
+`);
+  assert.deepEqual(
+    doorsWithoutEventsIn(sql, { reached: new Set(["line_touch"]) }),
+    { "line_touch()": 1 },
+    "the line is its record; what the ledger's arrival writes is the event's",
+  );
+});
+
 test("each kind named as the only thing written where it is observed is still written from TypeScript alone", () => {
   const written = emittedKinds();
   for (const [kind, why] of Object.entries(LEDGER_ONLY_KINDS)) {
