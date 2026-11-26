@@ -240,6 +240,7 @@ export {
   ADD_TO_PEOPLE_WORDS,
   addToPeopleOf,
   CALENDAR_FEED_WORDS,
+  CALENDAR_UNLOADED,
   calendarHoursLines,
   clockLabel,
   closureDatesLabel,

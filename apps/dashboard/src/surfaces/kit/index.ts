@@ -57,7 +57,7 @@ export type { SelectOption, SelectProps } from "./select/select";
 export { Sheet } from "./sheet/sheet";
 export type { SheetBack, SheetProps } from "./sheet/sheet";
 export { Spark } from "./spark/spark";
-export type { SparkColumn, SparkProps } from "./spark/spark";
+export type { SparkProps } from "./spark/spark";
 export { SubTabs } from "./sub-tabs/sub-tabs";
 export type { SubTab, SubTabsProps } from "./sub-tabs/sub-tabs";
 export { Switch } from "./switch/switch";

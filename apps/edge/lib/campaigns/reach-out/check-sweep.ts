@@ -27,7 +27,7 @@ import { env } from "../../shared/env.js";
 import { logger } from "../../shared/log.js";
 import { pg } from "../../shared/pg.js";
 import { tokenWorkspace, type Admitted, NAMES_NO_WORKSPACE } from "../../shared/admin-auth.js";
-import { REWRITE_NOW_MAX, UUID, type RewriteStep, isTenantId } from "@chanlytics/contracts";
+import { REWRITE_NOW_MAX, UUID, type RewriteStep, isTenantId, listOrEmpty } from "@chanlytics/contracts";
 import { getUncheckedWaiting } from "@chanlytics/db/campaigns";
 import { checkSends } from "./check.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
@@ -71,7 +71,7 @@ export async function checkPressedSends(
   const ids = Array.isArray(body.send_ids)
     ? body.send_ids.filter((x): x is string => typeof x === "string" && UUID.test(x))
     : [];
-  if (ids.length === 0 || ids.length > REWRITE_NOW_MAX || ids.length !== (body.send_ids as unknown[]).length)
+  if (ids.length === 0 || ids.length > REWRITE_NOW_MAX || ids.length !== listOrEmpty(body.send_ids).length)
     return refuse(400, "bad_request", `send_ids: one to ${REWRITE_NOW_MAX} email ids`);
   if (!env.ANTHROPIC_API_KEY) return refuse(503, "check_unset");
   const db = pg();

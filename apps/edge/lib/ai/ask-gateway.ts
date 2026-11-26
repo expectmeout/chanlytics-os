@@ -47,6 +47,7 @@ import {
   type ThinkingType,
   recordOrNull,
   DbFailure,
+  isObjectRecord,
 } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
 import { emitEvent } from "@chanlytics/db/events";
@@ -230,8 +231,6 @@ export interface GatewayRequest {
   betas?: string[];
 }
 
-const EFFORTS: ReadonlySet<string> = new Set(MODEL_EFFORTS);
-
 /**
  * The betas a gateway request may name; another is dropped before the key is spent. Fast mode's is the port's to add
  * for a fast request, and an effort message's for a request that carries one (contracts ai/effort.ts); each may be
@@ -337,9 +336,8 @@ function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: str
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
   if (raw === undefined) return null;
   const f = recordOrNull(raw);
-  if (!f || f.type !== "json_schema" || !f.schema || typeof f.schema !== "object" || Array.isArray(f.schema))
-    return "bad";
-  return { type: "json_schema", schema: f.schema as Record<string, unknown> };
+  if (!f || f.type !== "json_schema" || !isObjectRecord(f.schema)) return "bad";
+  return { type: "json_schema", schema: f.schema };
 }
 
 /**
@@ -434,7 +432,7 @@ export function validateGatewayRequest(
     gatewayRequest.output_config && typeof gatewayRequest.output_config === "object"
       ? gatewayRequest.output_config
       : null;
-  const effort = oc && EFFORTS.has(String(oc.effort)) ? (oc.effort as ModelEffort) : null;
+  const effort = oc && isOneOf(MODEL_EFFORTS, oc.effort) ? oc.effort : null;
   const ceiling = ceilingOf(purpose, effortInForce(gatewayRequest.messages, effort));
   const maxTokens = Math.min(ceiling, Math.max(64, Math.round(finiteOrZero(gatewayRequest.max_tokens) || 800)));
   // A format rides through for every purpose: the lead purposes answer as

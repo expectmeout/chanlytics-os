@@ -22,6 +22,9 @@ interface SearchWords {
   keepsLine: string;
 }
 
+/** The "?" beside a search that waits on the owner: its name for a screen reader, and its tip. */
+const SEARCH_WAITS_WORDS = "This search needs you";
+
 /**
  * A kept search says what was asked (§8.10). The menu closes after each item (the kit's Menu, Base UI's), and every item
  * is a route: nothing here renames or removes on the spot.
@@ -211,7 +214,7 @@ const railSearchRow = (s: RailSearch, p: RailRowsProps) => (
       s.mark === "live" ? (
         <span className="live-dot" aria-hidden="true" />
       ) : s.mark === "question" ? (
-        <span className="rail-q" title="This search needs you">
+        <span className="rail-q" role="img" aria-label={SEARCH_WAITS_WORDS} data-tip={SEARCH_WAITS_WORDS}>
           ?
         </span>
       ) : null

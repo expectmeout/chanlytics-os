@@ -284,6 +284,7 @@ export const inboxTool = defineActions({
   name: "inbox",
   description:
     "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel).",
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   tail: `Call action list to find conversations by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the conversation's row. list returns at most ${ASK_CAPS.threads} conversations, with total_matching counted before the cap, so a count is the total and never the rows shown. conversation returns the newest ${ASK_CAPS.messages} messages, or ${ASK_CAPS.messagesMore} with more true; a conversation the workspace does not hold is an error, said in words.`,
   actions: {
     list: readAction({
@@ -299,6 +300,7 @@ export const inboxTool = defineActions({
       examples: [{ conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f" }],
       label: "Reading the conversation",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why AI answered or held as it did.",
       run: getThread,
     }),
@@ -306,6 +308,7 @@ export const inboxTool = defineActions({
       input: z.object({ words: z.string(), days: z.number().optional() }),
       examples: [{ words: "parking", days: 30 }],
       label: "Searching what was said",
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       words: `Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote; what AI or the team wrote to them, sent or not; and a call's note in its conversation) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for conversations by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are looked for as they were written or said, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; "a phrase in quotes" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most ${SEARCH_HITS} hits, with shown and more_available (whether there are more), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire, who wrote it (customer, receptionist or you, as action thread says it, or call note for a call's note in its conversation) and its status as action thread says it, and a message of AI's or the team's whose status is queued (held, or not sent yet), canceled (before sending) or failed never reached the customer: say so, never that they were told it; a call says who placed it (called_by). A person's notes are not searched: people with action get reads them.`,
       run: searchSaid,
     }),

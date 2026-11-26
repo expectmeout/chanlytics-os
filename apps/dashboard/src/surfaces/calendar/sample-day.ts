@@ -94,7 +94,11 @@ function todayItems(item: SampleItem, clock: SampleClock): CalendarItemDto[] {
   });
   const dulce = sampleFacts({
     deal: { deal_stage: "proposed", deal_service: "Package", deal_proposed_at: ago(6 * 24 * 60) },
-    last: { at: ago(26 * 60), by: "Your team replied" },
+    last: {
+      at: ago(26 * 60),
+      // screen-word: "Your team" tells the owner's people from AI and the customer (docs/words.md, The voice 5)
+      by: "Your team replied",
+    },
     phone: "+15555550152",
   });
   return [

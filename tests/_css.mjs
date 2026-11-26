@@ -36,6 +36,9 @@
  * one (`calc(var(--radius-md) - 1px)`) is counted: it is a number a look cannot reach.
  * A length a page keeps in a custom property of its own (`--r: 6px`) is not seen as a
  * radius or a size: a custom property holds anything, and only its colours are read.
+ * What prints is kept as written: a value under `@media print`, or in a rule of a
+ * sheet drawn as paper on the screen too (PRINTED, the desk sign's), is counted apart in
+ * `kept`, never among the values. Print is ink, not theme.
  *
  * A class draws a primitive when the kit's registry lists it (KIT_REGISTRY, the kit's
  * own names: decision 4), when one of the words its name is made of (split on "-")
@@ -249,25 +252,71 @@ function coloursIn(property, value) {
 }
 
 /**
- * What one stylesheet writes: its literal style values by field, each class its selectors name with how many
- * selectors name it, and the parser's warnings. `text` is the stylesheet, `filename` only names it in a warning.
+ * What is printed is ink on paper, not the theme (the coordinator's call, 26 Nov 2026): a value written under
+ * `@media print`, or in a rule of a sheet drawn as paper on the screen too, is kept as written. It is counted apart, in
+ * `kept`, never among the values.
+ */
+export const KEPT_WHY = "print: ink, not theme";
+/** A sheet drawn as paper on the screen too: the desk sign's (app/globals.css, src/yes/DeskSign.tsx), black on white
+ *  whatever the theme, its words sized to the paper. Its bar and its Print press are the screen's, and are counted. */
+const PRINTED = new Set([
+  "sign-sheet",
+  "sign-body",
+  "sign-business",
+  "sign-headline",
+  "sign-how",
+  "sign-byhand",
+  "sign-fine",
+  "sign-long",
+  "sign-qr",
+  "sign-addr",
+]);
+
+/** Whether a rule is printed: a media rule for print, or a style rule one of whose selectors names a printed class. */
+function prints(rule) {
+  if (rule.type === "media") {
+    return rule.value.query.mediaQueries.some((q) => q.mediaType === "print" && q.qualifier !== "not");
+  }
+  if (rule.type === "style") {
+    return find(rule.value.selectors, (n) => n.type === "class" && PRINTED.has(n.name)).length > 0;
+  }
+  return false;
+}
+
+/**
+ * What one stylesheet writes: its literal style values by field, what of them it keeps as printed (`kept`), each
+ * class its selectors name with how many selectors name it, and the parser's warnings. `text` is the stylesheet,
+ * `filename` only names it in a warning.
  */
 export function cssFacts(text, filename = "fixture.css") {
   const values = Object.fromEntries(STYLE_VALUE_FIELDS.map((f) => [f, 0]));
+  const kept = Object.fromEntries(STYLE_VALUE_FIELDS.map((f) => [f, 0]));
   const classes = {};
+  // The rules the walk is inside, each said printed or not; a declaration inside any printed one is kept.
+  const inside = [];
+  let printed = 0;
   const { warnings } = transform({
     filename,
     code: Buffer.from(text),
     errorRecovery: true,
     visitor: {
+      Rule(rule) {
+        const yes = prints(rule);
+        inside.push(yes);
+        if (yes) printed++;
+      },
+      RuleExit() {
+        if (inside.pop()) printed--;
+      },
       Declaration(d) {
         const property = propertyOf(d);
         const value = d.value;
-        values.colour += coloursIn(property, value);
-        if (FONT.has(property) && find(value, isLength).length > 0) values.font++;
-        if (RADIUS.has(property) && find(value, isLength).length > 0) values.radius++;
-        if (SHADOW.has(property) && find(value, (n) => isLength(n) || isColour(n)).length > 0) values.shadow++;
-        if (FILTER.has(property)) values.blur += find(value, isBlur).length;
+        const into = printed > 0 ? kept : values;
+        into.colour += coloursIn(property, value);
+        if (FONT.has(property) && find(value, isLength).length > 0) into.font++;
+        if (RADIUS.has(property) && find(value, isLength).length > 0) into.radius++;
+        if (SHADOW.has(property) && find(value, (n) => isLength(n) || isColour(n)).length > 0) into.shadow++;
+        if (FILTER.has(property)) into.blur += find(value, isBlur).length;
       },
       Selector(selector) {
         for (const c of find(selector, (n) => n.type === "class" && typeof n.name === "string")) {
@@ -276,7 +325,7 @@ export function cssFacts(text, filename = "fixture.css") {
       },
     },
   });
-  return { values, classes, warnings: warnings.map((w) => `${filename}:${w.loc?.line ?? "?"}: ${w.message}`) };
+  return { values, kept, classes, warnings: warnings.map((w) => `${filename}:${w.loc?.line ?? "?"}: ${w.message}`) };
 }
 
 /** cssFacts, refusing a stylesheet the parser could not read whole rather than measuring what was left of it. */

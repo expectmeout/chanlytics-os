@@ -7,7 +7,7 @@ import { normalizeEmail } from "../../../shared/email-address";
 import { isOpeningProblem, openingProblemWords } from "./opening";
 import { isOneOf } from "../../../shared/unknown";
 
-export const CHAIN_MIN_LISTINGS = 3;
+const CHAIN_MIN_LISTINGS = 3;
 
 /**
  * Whether a business reads like a chain (§4.4, F4): three or more of the workspace's leads share its own website, or

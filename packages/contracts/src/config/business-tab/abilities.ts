@@ -156,15 +156,15 @@ function bookingLinkDetail(abilityInputs: AbilityInputs): string {
       : `${reason} On a call it offers to have someone follow up instead.`;
   }
   if (abilityInputs.bookingHeld)
-    return "Your Autonomy tab holds bookings for you to confirm, so when someone asks to book, it sends no link: it tells them someone from the team will confirm.";
+    return "Bookings wait for you to confirm, as Autonomy is set, so it sends no link: it says the team will confirm.";
   if (!abilityInputs.voiceLive) return "It sends it in the conversation.";
   if (abilityInputs.hasBookingTemplate)
     return abilityInputs.textingLine
-      ? "On a call it sends it to the caller's WhatsApp, or by text when their number has none, and says which. In chat it sends it in the conversation."
-      : "On a call it sends it to the caller's WhatsApp, when their number has one, and says so. In chat it sends it in the conversation.";
+      ? "On a call it goes to the caller's WhatsApp, or by text if they have none. In chat it goes in the conversation."
+      : "On a call it goes to the caller's WhatsApp, if they have it. In chat it goes in the conversation.";
   return abilityInputs.textingLine
-    ? "In chat it sends it in the conversation. On a call it sends it by text, until you have an approved booking-link WhatsApp message."
-    : "In chat it sends it in the conversation. On a call it can't yet: sending it to a caller's WhatsApp needs an approved booking-link message.";
+    ? "In chat it goes in the conversation. On a call it goes by text until a WhatsApp booking-link message is approved."
+    : "In chat it goes in the conversation. On a call it can't yet: that needs an approved booking-link message on WhatsApp.";
 }
 
 /** Where the booking link goes, for the rows that send it or promise it (abilityRows). */
@@ -229,7 +229,7 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
       title: "Answer from your facts",
       // facts_used is the chat brain's (brain.ts); the phone agent reports an outcome, not its facts.
       detail:
-        "Hours, address, services, your notes. In chat it also records which facts it leaned on, so you can see why it said what it said.",
+        "Hours, address, services, your notes. In chat it also notes which facts it used, so you see why it answered as it did.",
       channels: both,
       runsOn: { label: "Name and hours", row: "name" },
       ready: answering,
@@ -245,17 +245,17 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
       // says what holds on both: it has them, and a request to book gets no link.
       detail: !abilityInputs.hasCalendarFeed
         ? linkGoes
-          ? `No calendar to read, so it does not guess at open times —${inChat} it sends the link instead.`
+          ? `No calendar to read, so it doesn't guess at open times ·${inChat} it sends the link instead.`
           : "No calendar to read, so it does not guess at open times."
         : abilityInputs.bookingHeld
-          ? "It is handed the openings on a call and in chat, but your Autonomy tab holds bookings for you to confirm, so when someone asks to book, no link follows."
-          : `On a call it asks the calendar at that moment. In chat it is handed the next few days' openings with each message. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
+          ? "It has the openings on a call and in chat, but bookings wait for you to confirm, so no link follows a request."
+          : `On a call it asks the calendar at that moment · in chat it has the next few days' openings. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: {
         voice: abilityInputs.voiceLive && abilityInputs.hasCalendarFeed,
         whatsapp: chatAnswers && abilityInputs.hasCalendarFeed,
       },
       // The link or the Google calendar a connected mailbox reads (calendarFeedKeyOf), whichever the openings come from.
-      runsOn: { label: "Your calendar", row: "calendar" },
+      runsOn: { label: "Calendar", row: "calendar" },
       ready: answering && abilityInputs.hasCalendarFeed,
       missing: !abilityInputs.hasCalendarFeed,
     },
@@ -295,7 +295,7 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
         pauseHours: abilityInputs.pauseHours,
       }),
       channels: { voice: false, whatsapp: chatAnswers },
-      runsOn: { label: "Your reasons", row: "escalate_when" },
+      runsOn: { label: "Hand-over reasons", row: "escalate_when" },
       ready: chatAnswers,
       // The base triggers hold with no reasons at all, so nothing here is missing.
       missing: false,
@@ -320,8 +320,8 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
   // clause only where there is a call: a workspace on WhatsApp alone is promised nothing about one.
   const held = repliesHeld
     ? {
-        sentence: `Replies on your Autonomy tab: it ${POLICY_MODE_WORDS[abilityInputs.replyMode].chip} — ${POLICY_MODE_WORDS[abilityInputs.replyMode].sub}. Until that changes it writes no WhatsApp reply at all, so nothing here happens in chat.${abilityInputs.voiceLive ? " A call still answers, and cannot send the booking link." : ""}`,
-        door: "Your Autonomy tab",
+        sentence: `Replies on the Autonomy tab: it ${POLICY_MODE_WORDS[abilityInputs.replyMode].chip} · ${POLICY_MODE_WORDS[abilityInputs.replyMode].sub}. So it writes no WhatsApp reply, and nothing here happens in chat.${abilityInputs.voiceLive ? " A call still answers, without the booking link." : ""}`,
+        door: "Autonomy",
         to: "admin/autonomy" as const,
       }
     : null;
@@ -341,28 +341,28 @@ const CANNOT_ROWS: readonly CannotRowVM[] = [
     id: "book",
     title: "Make, move or cancel a booking",
     detail:
-      "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking: it only records the ones your booking tool reports. Your booking link does that, whichever tool is behind it.",
+      "It records the bookings your booking tool reports, and never makes, moves or cancels one. Your booking link does that.",
   },
   {
     id: "outbound_call",
     title: "Ring a customer",
     // Not "never dials out": a transfer rings the owner's number, two rows up the same card.
     detail:
-      "It answers your line and never calls a customer. The only number it rings is yours, to put a caller through. A call back is a person's, and AI tells you when one is wanted.",
+      "It never calls a customer: the only number it rings is yours, to put a caller through. AI tells you when to call back.",
   },
   {
     id: "sms",
     title: "Send a text message",
     detail:
-      "Not part of what is sold yet. It arrives with a line the phone networks have approved, and Connections will say when. Once it does, a caller whose WhatsApp can't take the booking link is sent it by text.",
+      "It comes once the phone networks approve a number. Then a caller without WhatsApp gets the booking link by text.",
     soon: true,
   },
 ];
 
 /** The two rows whose words lean on a booking link, as said where there is none (the first run's decision 2). */
 const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
-  book: "Not a setting you could switch on. Nothing in this product can make, move or cancel a booking. Your team does that, from the details it takes.",
-  sms: "Not part of what is sold yet. It arrives with a line the phone networks have approved, and Connections will say when.",
+  book: "It never makes, moves or cancels a booking. Your team does that, from the details it takes.",
+  sms: "It comes once the phone networks approve a number, and Connections will say when.",
 };
 
 /**
@@ -370,7 +370,7 @@ const CANNOT_NO_LINK: Partial<Record<CannotRowVM["id"], string>> = {
  * a customer picks waits for the owner.
  */
 const CANNOT_REQUESTS_BOOK =
-  "Not a setting you could switch on: it never makes, moves or cancels a booking itself. A time a customer picks by text waits on Today for your Booked it or Can't.";
+  "It never makes, moves or cancels a booking. A time a customer picks by text waits on Today for Booked it or Can't.";
 
 /**
  * Said here so nobody has to find out from a customer.

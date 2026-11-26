@@ -12,7 +12,7 @@ import {
   dedupeFeed,
   tzClock,
 } from "@chanlytics/contracts";
-import { readCode, importSrc } from "../_source.mjs";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -136,10 +136,16 @@ test("a campaign's answered share says its window, the one a reply is counted in
       `were answered ${REPLY_WINDOW_WORDS}`,
     ),
   );
-  // A long warning wraps beside its glyph, and a long meta in its own cell: the stylesheets' rules (zones.css'
-  // .tz-alert > span, components.css's .stat-cell-meta), drawn by the browser specs. Every closing time Today says names
-  // its day (tzClock above), in the queue's, the facts', the figures' and the rows' words: today/record/ and
-  // today/zones/need-you-acts.test.mjs draw them on a day that is tomorrow's.
+  // A long warning wraps beside its glyph, not under it: the stylesheet's own rule, read as a stylesheet is (node draws
+  // nothing).
+  assert.ok(
+    readRaw("apps/dashboard/src/surfaces/today/zones/zones.css").includes(
+      ".tz-alert > span {\n  flex: 1 1 auto;\n  min-width: 0;\n}",
+    ),
+    "a long warning wraps beside its glyph, not under it",
+  );
+  // Every closing time Today says names its day (tzClock above), in the queue's, the facts', the figures' and the rows'
+  // words: today/record/ and today/zones/need-you-acts.test.mjs draw them on a day that is tomorrow's.
   // Nothing of the workshop on a customer's screen: presence was the mockup's, and went with demo mode, and the footer
   // is the customer's. FrameApp.tsx cannot be imported in node, so its footer is still read.
   const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");

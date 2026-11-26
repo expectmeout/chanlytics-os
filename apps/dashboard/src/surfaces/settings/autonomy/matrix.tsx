@@ -196,13 +196,12 @@ export function PolPhoneRows({
 
 /** One mode's cell of a row: a dash where the class cannot honour it, else the dot that sets it. */
 function modeCell(r: UiRow, m: UiMode, put: PutMode, busy: string | null) {
+  // Why the class cannot honour this mode: the dash's name for a screen reader, which heard only "—", and its tip.
+  const reason = m === "Veto" ? "Nothing to hold for review here" : "Answered by AI or by you · there is no never";
   return (
     <td key={m} className="pol-cell" data-mode={polMode(m).head ?? undefined}>
       {r.modes && !r.modes.includes(m) ? (
-        <span
-          className="pol-dash"
-          title={m === "Veto" ? "Nothing to hold for review here" : "Answered by AI or by you · there is no never"}
-        >
+        <span className="pol-dash" role="img" aria-label={reason} data-tip={reason}>
           —
         </span>
       ) : (

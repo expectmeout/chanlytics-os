@@ -744,7 +744,7 @@ test("the pencil opens the editor on the version's own words; Remove, on the nam
   find(redraw(), (n) => n.type === Confirm).props.onYes();
   await settle();
   assert.deepEqual(calls, [["remove", `e-${VISIT}-en_US`]]);
-  assert.equal(toasts.at(-1).msg, "Visit reminder: the email version in English is removed");
+  assert.equal(toasts.at(-1).msg, "Appointment reminder: the email version in English is removed");
 });
 
 test("a role that may not write is offered nothing to write or change", () => {

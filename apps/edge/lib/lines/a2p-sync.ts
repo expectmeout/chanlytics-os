@@ -7,7 +7,7 @@
  */
 import { answerObject } from "@chanlytics/channels/shared";
 import { smsStateFor, registrationVerdict, refusalWords, requestTwilio } from "@chanlytics/channels/lines";
-import { formatPhoneDisplay, type EdgeErrorCode } from "@chanlytics/contracts";
+import { formatPhoneDisplay, type EdgeErrorCode, listOrEmpty, recordOrNull } from "@chanlytics/contracts";
 import { emitEvent } from "@chanlytics/db/events";
 import { logger } from "../shared/log.js";
 import { keepOnce } from "../shared/alerts/notify.js";
@@ -156,9 +156,7 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<Registrat
   // smsStateFor's VERIFIED branch says it was written to end. A field read one
   // level too high does not fail; it reads as "the carriers have not answered",
   // which is indistinguishable from a slow week.
-  const usa2p = Array.isArray(campaign?.compliance)
-    ? (campaign.compliance[0] as Record<string, unknown> | undefined)
-    : undefined;
+  const usa2p = recordOrNull(listOrEmpty(campaign?.compliance)[0]);
   const campaignStatus = typeof usa2p?.campaign_status === "string" ? usa2p.campaign_status : null;
   // Twilio says whether the filing it holds is a rehearsal, so it -- not our
   // column -- is the authority on it. A refile that made the campaign real is

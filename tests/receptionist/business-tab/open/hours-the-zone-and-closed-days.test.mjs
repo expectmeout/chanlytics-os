@@ -713,7 +713,7 @@ test("the timezone row says the zone and the time there, and saves through the w
     assert.deepEqual(openRows(tree), [], "taken, the editor closes");
     assert.equal(
       textOf({ props: { children: flashes.at(-1).msg } }),
-      "Your day is measured in Chicago now.",
+      "Days now run on Chicago time.",
       "the old row's words",
     );
     assert.equal(
@@ -814,7 +814,7 @@ test("the closures fold adds, edits and removes a closed day, puts a removed one
   // The one case this cannot express is the tip beside Add, never a paragraph under the list (Ruben, 10 Oct 2026).
   assert.match(
     byTestId(tree, "rec-closures-tip").props["data-tip"],
-    /^Closing early\? Set that day's hours instead\./,
+    /^Closing early\? Set that day's hours instead/,
     "the old form's note, for the one case this cannot express",
   );
   assert.match(textOf(byTestId(tree, "rec-fold-says-closures")), /Christmas/, "the closures block, as it stands");

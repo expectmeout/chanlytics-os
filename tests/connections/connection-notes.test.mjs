@@ -57,7 +57,7 @@ const CODE_NO_LINE = {
 };
 /** The same, for a workspace whose own Chanlytics line is +1 (646) 555-0100: the code shows on its Texting row. */
 const CODE_OWN_LINE = {
-  text: "Meta texts a code to the number. If it is your Chanlytics number, +1 (646) 555-0100, the code shows here on the Texting row: choose Text message, not Phone call. Keep this page open until Meta's window closes.",
+  text: "Meta texts the number a code. If it's your Chanlytics number, +1 (646) 555-0100, it shows on the Texting row: choose Text message. Keep this page open until Meta's window closes.",
 };
 /** The three notes the Connect row says before Meta's window opens: what it asks, in the order it asks, and what it costs; one line each. */
 const preflight = (code) => [
@@ -70,7 +70,7 @@ const PREFLIGHT = preflight(CODE_NO_LINE);
 const LEFT_OPEN = {
   // What happened is on the row itself, never behind its press (ConnectionNote.live).
   live: true,
-  text: "A WhatsApp sign-up was started here and did not come back to Chanlytics · if you finished it in Meta's window, press Connect WhatsApp again and choose the WhatsApp account Meta already made.",
+  text: "A WhatsApp sign-up here didn't return · if you finished it with Meta, press Connect WhatsApp and pick its account.",
 };
 
 test("the WhatsApp row that offers Connect says what Meta will ask and what WhatsApp costs, in the order the owner meets them, and to keep the page open until the window closes: three lines", () => {

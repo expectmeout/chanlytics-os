@@ -161,6 +161,7 @@ export async function searchPeople(
   const ref = listIn
     ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
     : null;
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (listIn && !ref) return { error: `list must be a list token from ${AUDIENCES_CALL}, or a People list's id` };
   // A list is counted over the audience pool (readers/audience-pool.ts, once a turn), everyone with their appointments,
   // as the People rail and the send count one (audience.ts findPoolList) -- never over one page. One of the workspace's own

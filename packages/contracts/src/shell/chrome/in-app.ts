@@ -7,7 +7,7 @@ import { DEVICE_PREFS_STORAGE } from "./theme";
  * The native shell says who it is in its WebView's User-Agent, once: "ChanlyticsApp/1.2.0 (ios)". One regex reads
  * it, here and in the script the document inlines beside the theme's (inAppBootScript), so the two cannot disagree.
  */
-export const IN_APP_UA_RE = /ChanlyticsApp\/(\S+)(?:\s*\((ios|android)\))?/i;
+const IN_APP_UA_RE = /ChanlyticsApp\/(\S+)(?:\s*\((ios|android)\))?/i;
 
 export type InAppPlatform = "ios" | "android" | "unknown";
 
@@ -97,6 +97,7 @@ const NO_OUTLINE_ROUTES: OutlineRoutes = { lit: {}, search: "(?!)" };
  */
 export function outlineBootScript(routes: OutlineRoutes = NO_OUTLINE_ROUTES): string {
   const start = JSON.stringify(FIRST_RUN_ROUTE);
+  // screen-word: the page's own script, never shown
   return [
     "try{",
     `var v=${JSON.stringify(DEFAULT_SIDEBAR_PREF)};`,

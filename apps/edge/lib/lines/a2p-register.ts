@@ -39,6 +39,8 @@ import {
   registrationPreflight,
   type EdgeErrorCode,
   DbFailure,
+  entryOf,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { platformTo } from "../shared/alerts/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -94,10 +96,7 @@ function businessRecordFrom(record: RecordRow): BusinessRecord {
 
 /** The receipts, as the row keeps them. */
 function a2pStateFrom(line: LineRow): A2PState {
-  const item = (line.facts && typeof line.facts === "object" && !Array.isArray(line.facts) ? line.facts : {}) as Record<
-    string,
-    unknown
-  >;
+  const item = recordOrEmpty(line.facts);
   return {
     profileSid: line.profile_sid,
     businessSid: typeof item.a2p_business_sid === "string" ? item.a2p_business_sid : null,
@@ -468,12 +467,12 @@ function receiptSaver(db: Db, line: LineRow, facts: Record<string, unknown>): A2
     const row: Record<string, unknown> = {};
     let touchedFacts = false;
     for (const [k, v] of Object.entries(patch)) {
-      const col = COLUMN_OF[k as keyof A2PState];
+      const col = entryOf(COLUMN_OF, k);
       if (col) {
         row[col] = v;
         continue;
       }
-      const fact = FACT_OF[k as keyof A2PState];
+      const fact = entryOf(FACT_OF, k);
       if (fact) {
         facts[fact] = v;
         touchedFacts = true;

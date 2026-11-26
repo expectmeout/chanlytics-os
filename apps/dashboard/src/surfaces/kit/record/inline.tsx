@@ -99,7 +99,7 @@ function inlineActs(props: RecordInlineProps) {
           if (onSave) onSave(e);
         }}
         aria-label={saving ? savingLabel : saveLabel}
-        title={saveLabel}
+        data-tip={saveLabel}
         aria-disabled={saving || undefined}
         aria-busy={saving || undefined}
         data-testid={`rec-inline-save-${id}`}
@@ -119,7 +119,7 @@ function inlineActs(props: RecordInlineProps) {
           if (onCancel) onCancel(e);
         }}
         aria-label={cancelLabel}
-        title={cancelLabel}
+        data-tip={cancelLabel}
         aria-disabled={saving || undefined}
         data-testid={`rec-inline-cancel-${id}`}
       >

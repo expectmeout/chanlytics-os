@@ -19,6 +19,8 @@ export { keepAdChange, listAdChanges, markAdChangeTold } from "./changes";
 export type { AdChangeKept, AdChangeRow } from "./changes";
 export { endAdDraftWriting, findAdDraft, keepAdDraft, keepAdMost, markAdDraftWriting } from "./drafts";
 export type { AdDraftKept, AdDraftRow, AdDraftWriter, AdDraftWriting } from "./drafts";
+export { readAdCommenters, readAdsEngaged } from "./engaged";
+export type { AdCommenter, AdEngagedSum } from "./engaged";
 export { keepAdEntry, readAdNamed, readAdSaid } from "./entries";
 export type { AdEntryKept, AdNamed } from "./entries";
 export {
