@@ -100,7 +100,7 @@ const AskFigure = ({ f, t, onNav }: { f: Figure; t: LineWords; onNav: (to: strin
       kind="chip"
       className="ask-tile"
       onClick={() => onNav(door.to)}
-      title={`${t.from} ${door.label}`}
+      data-tip={`${t.from} ${door.label}`}
       data-testid="ask-figure"
     >
       {words}
@@ -108,7 +108,7 @@ const AskFigure = ({ f, t, onNav }: { f: Figure; t: LineWords; onNav: (to: strin
   ) : (
     <span
       className="ask-tile plain"
-      title={f.source ? `${t.from} ${f.source.label}` : undefined}
+      data-tip={f.source ? `${t.from} ${f.source.label}` : undefined}
       data-testid="ask-tile"
     >
       {words}

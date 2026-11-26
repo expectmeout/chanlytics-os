@@ -42,7 +42,7 @@ export interface PartnerInvitationDto {
 
 export const PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
-  title: "Your partner",
+  title: "Partner",
   intro: `Someone who sets up and runs AI with you, never billing or the team. Ask one by their code · they have ${PARTNER_INVITE_DAYS} days to accept.`,
   codeLabel: "Their code or link",
   codePlaceholder: "their-code",
@@ -52,7 +52,7 @@ export const PARTNER_INVITE_WORDS = {
   withdrawing: "Taking it back…",
   /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
   notSent:
-    "Asked, but their email didn't go. It is on their Partner page when they sign in · to send the email again, take it back and ask again.",
+    "Asked, but their email didn't go. It waits on their Partner page · to email again, take it back and ask again.",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
@@ -132,7 +132,7 @@ export function partnerJoinedWords(workspace: string, earns: boolean): string {
   const name = workspace.trim() || "The workspace";
   return earns
     ? `You're ${name}'s partner. When it pays for its plan, your share is written as for a workspace you brought.`
-    : `You're ${name}'s partner. It was already paying when you joined, so it earns you no share · the owner's team is yours to help run.`;
+    : `You're ${name}'s partner. It was already paying when you joined, so it earns you no share.`;
 }
 
 /**
@@ -147,9 +147,9 @@ export function partnerInviteEmail(input: { workspace: string; expiresAt: string
   return {
     subject: `${workspace} asks you to be its partner on Chanlytics`,
     body: [
-      `${workspace} asked you to join its team as its partner: you'd set up and run AI with its owner, and never touch its billing or its team.`,
+      `${workspace} asked you to be its partner: you'd run AI with its owner, and never touch its billing or team.`,
       "",
-      "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
+      "A workspace not yet on a paid plan earns you your share once it pays. One already paying earns you none.",
       "",
       `Sign in and open Settings › Partner to join or decline: ${input.signInUrl}`,
       "",

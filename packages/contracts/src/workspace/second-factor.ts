@@ -52,12 +52,12 @@ export const SECOND_FACTOR_WORDS = {
   /** Settings › Partner. */
   title: "Protect your partner account",
   intro:
-    "Your partner account can change AI for every business you brought, so it asks for a second step when you sign in: a six-digit code from an authenticator app on your phone.",
+    "Your partner account reaches every business you brought, so signing in also asks for an authenticator app's code.",
   on: "Two-step sign-in is on. You'll be asked for a code from your authenticator app each time you sign in.",
   off: "Two-step sign-in is off.",
   start: "Set it up",
   starting: "Preparing…",
-  scan: "Scan this with your authenticator app (Google Authenticator, 1Password, Authy or any other), or type the key below into it.",
+  scan: "Scan this with your authenticator app (Google Authenticator, 1Password, Authy or another), or type in the key below.",
   keyLabel: "Key",
   codeLabel: "The six-digit code it shows",
   confirm: "Turn it on",
@@ -65,7 +65,7 @@ export const SECOND_FACTOR_WORDS = {
   cancel: "Cancel",
   done: "Two-step sign-in is on.",
   unavailable: "Two-step sign-in isn't switched on for Chanlytics yet. You'll be asked to set it up once it is.",
-  lost: "Lost your phone? Write to us: a person at Chanlytics removes the old authenticator after checking it's you, and you set up a new one at your next sign-in.",
+  lost: "Lost your phone? Write to Chanlytics: once a person checks it's you, you set up a new one at your next sign-in.",
   reading: "Reading your sign-in settings…",
   failed: "your sign-in settings",
   /** The page after the first factor. */
@@ -78,7 +78,7 @@ export const SECOND_FACTOR_WORDS = {
   resetLabel: "Reset two-step sign-in",
   resetQuestion: (code: string) => `Remove ${code}'s authenticator?`,
   resetDetail:
-    "They can sign in with their password or an email code, and set up a new authenticator on their partner page. Check it's them before you do this.",
+    "They sign in with their password or an email code, then set up a new authenticator. Check it's them first.",
   resetYes: "Yes, reset it",
   resetTyped: "why, and how you checked it's them",
   /** The refusal (M3): a partner's seat, or the partner account itself, on a session that has not shown its code. */
@@ -87,13 +87,13 @@ export const SECOND_FACTOR_WORDS = {
   /** The second step's page, for a partner account with no authenticator yet. */
   enrolTitle: "Set up two-step sign-in",
   enrolBody:
-    "Your partner account can change AI for every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
+    "Your partner account reaches every business you brought, so each sign-in needs an authenticator code. Set one up.",
   /** Settings › Partner, before becoming one. */
   becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app.",
   /** The Console (decision 0066): staff show a code every session, no grace. */
   staffRequired: "The Console asks for a code from your authenticator app. Enter it, or set the app up, and try again.",
   staffEnrolBody:
-    "The Console can act on every business on Chanlytics, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
+    "The Console reaches every business on Chanlytics, so each sign-in needs an authenticator code. Set one up.",
 } as const;
 
 /** Where the Console sends a session that has not shown its code (decision 0066): the same page, in the staff's words. */
@@ -110,7 +110,7 @@ export function secondFactorAsked(forWhom: string | null | undefined): { require
 export function enrolRefusalWords(message: string | null | undefined): { unavailable: boolean; words: string } {
   const m = String(message ?? "");
   if (/disabled|not enabled|not allowed/i.test(m)) return { unavailable: true, words: SECOND_FACTOR_WORDS.unavailable };
-  return { unavailable: false, words: "We couldn't start the setup just now. Try again in a minute." };
+  return { unavailable: false, words: "Couldn't start the setup just now. Try again in a minute." };
 }
 
 /** How a refused code reads: a wrong or stale code is the person's to try again; anything else is ours. */
@@ -119,7 +119,7 @@ export function factorCodeWords(message: string | null | undefined): string {
   if (/invalid|expired|mismatch|incorrect|wrong/i.test(m))
     return "That code didn't match. Open the app and type the code it shows now.";
   if (/rate|too many/i.test(m)) return "Too many tries. Wait a minute, then type the code the app shows now.";
-  return "We couldn't check that code just now. Try again in a minute.";
+  return "Couldn't check that code just now. Try again in a minute.";
 }
 
 /** A six-digit code, as typed: spaces dropped. */

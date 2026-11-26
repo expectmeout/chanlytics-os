@@ -47,6 +47,7 @@ import {
   rulesLine,
   shortDate,
   calendarSpanLabel,
+  CALENDAR_UNLOADED,
   type CalendarFeedHealth,
 } from "./words/labels";
 import type {
@@ -107,7 +108,7 @@ function serviceWordsOf(item: CalendarItemDto): string {
  */
 function feedLineOf(state: CalendarFeedDto["state"], feedDetail: string, noticesLine: string): string {
   if (state === "ok") return feedDetail;
-  if (state === "unavailable") return `Your calendar couldn't be read${feedDetail ? ` · ${feedDetail}` : ""}`;
+  if (state === "unavailable") return `${CALENDAR_UNLOADED}${feedDetail ? ` · ${feedDetail}` : ""}`;
   return noticesLine || "No calendar connected";
 }
 

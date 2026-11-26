@@ -30,6 +30,7 @@ import {
   siteHost,
   type MailboxHistory,
   type MailboxProvider,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import {
   buildEmailRequest,
@@ -110,7 +111,7 @@ function claimsOf(idToken: string | null): Claims {
   try {
     const payload = (idToken ?? "").split(".")[1];
     if (!payload) return none;
-    const c = JSON.parse(new TextDecoder().decode(unb64url(payload))) as Record<string, unknown>;
+    const c = recordOrEmpty(JSON.parse(new TextDecoder().decode(unb64url(payload))));
     const str = (v: unknown) => (typeof v === "string" && v ? v : null);
     // Google's samples carry email_verified as a string as often as a boolean.
     const verified = c.email_verified === true || c.email_verified === "true";

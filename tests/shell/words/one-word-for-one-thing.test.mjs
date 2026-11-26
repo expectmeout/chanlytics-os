@@ -248,7 +248,7 @@ test("D1-member-name: a decision says You for the member looking, a teammate by 
   assert.equal(said("d1"), "You snoozed the conversation");
   assert.equal(said("d2"), "Ruben snoozed the conversation", "a teammate the roster names");
   assert.equal(said("d3"), "Your team snoozed the conversation", "a member the roster does not know is not You");
-  assert.equal(said("d4"), "The system brought the conversation back");
+  assert.equal(said("d4"), "Chanlytics brought the conversation back");
   assert.equal(said("d5"), "AI snoozed the conversation");
   // Where nobody is looking (no viewer), no decision is anyone's You.
   const nobody = personFor({ decisions: [decision("d1", "snooze", 60)] }, null, null);

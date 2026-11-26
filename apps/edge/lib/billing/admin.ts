@@ -79,6 +79,9 @@ const OPS: Record<BillingOp, (c: BillingCall) => Promise<BillingOutcome | Respon
   end: (c) => endFor(c.db, c.tenantId),
 };
 
+/** Whether an op named in a body is one this door runs: a key OPS holds as its own. */
+const isBillingOp = (value: unknown): value is BillingOp => typeof value === "string" && Object.hasOwn(OPS, value);
+
 /** The slug a tenant read answered with, or null when the read did not. */
 const slugOf = (r: { data: { slug?: string | null } | null }): string | null => r.data?.slug ?? null;
 
@@ -135,7 +138,7 @@ export async function runBillingOp(auth: Admitted, body: Partial<BillingBody>): 
 
   const call = workspaceCall(body, personFor(auth, body.user_id));
   if (!call.ok) return call.response;
-  if (!Object.hasOwn(OPS, op)) return respond(UNKNOWN_BILLING_OP);
-  const item = await OPS[op as BillingOp](call.value);
-  return item instanceof Response ? item : answered(call.value, op as BillingOp, item);
+  if (!isBillingOp(op)) return respond(UNKNOWN_BILLING_OP);
+  const item = await OPS[op](call.value);
+  return item instanceof Response ? item : answered(call.value, op, item);
 }
