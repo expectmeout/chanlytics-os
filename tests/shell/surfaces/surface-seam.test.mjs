@@ -138,7 +138,7 @@ test("nothing outside the runner calls activateOverride directly", () => {
 //   fetch but the named exceptions (repo/rules/rules.test.mjs, FETCH_EXCEPTIONS, decision 0149);
 // - an auth outage is a 503, not a sign-out: getUser() returns no user for a missing session AND a network failure, and
 //   reporting 401 for the second wiped the surface cache and logged every operator out mid-sentence. The route wrapper
-//   answers 503 for a verifier it cannot reach (auth/bearer.test.mjs), the proxy answers 503 upstream_auth for a page and
+//   answers 503 for a verifier it cannot reach (auth/session/bearer.test.mjs), the proxy answers 503 upstream_auth for a page and
 //   an API path alike (auth/auth-gate.test.mjs), and both ask the one predicate (routes/doors-and-rows.test.mjs runs
 //   isRetryableAuthError).
 

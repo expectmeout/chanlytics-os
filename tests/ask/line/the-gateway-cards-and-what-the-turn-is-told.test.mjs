@@ -215,7 +215,7 @@ test("the entry points are real everywhere: the button opens AI, and the Line is
   // Run, not read (25 Nov 2026). The top bar's button is a real door, never a Soon tag, and pressed opens AI:
   // shell/surfaces/status/ draws the bar and presses it. The frame publishes the door the pages open AI
   // by (appAsk, openAsk): doors/doors.test.mjs. A card's press is marked as Ask's from its header
-  // (auth/bearer.test.mjs, through withRoute) and the ledger keeps the mark (ask-commit.test.mjs, "the card's mark
+  // (auth/session/bearer.test.mjs, through withRoute) and the ledger keeps the mark (ask-commit.test.mjs, "the card's mark
   // stays"). The frame installs the bridge at its load: the nightly's e2e/ask.spec.ts opens the Line on every page.
   // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (surfaces/ask/) everywhere, and
   // the door into Ask is the bridge's (surfaces/frame-doors.ts).
