@@ -65,7 +65,7 @@ export const CHECK: Record<AdCardCheckId, { label: string }> = {
  * with what is known of the Page's link to it (Meta shares it only when an ad is made: whatsAppLine), and the Page's
  * Instagram account where Chanlytics may read it.
  */
-export const REACH = {
+export const ACCOUNT_REACH = {
   whatsapp: "WhatsApp",
   instagram: "Instagram",
   linked: "Linked to your Page",

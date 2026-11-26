@@ -3,7 +3,7 @@
  * Google and is there, its posts on Instagram, what was heard of a video, and the plan a video Ask made was drawn by. Read as
  * the file is opened, by the file's sheet and by Campaigns › Content's open piece alike.
  *
- * Each answer is kept for the visit, by its file and what its list said of it when it was read (`keyOf`), and a press on a
+ * Each answer is kept for the visit, by its file and what its list said of it when it was read (`recordKeyOf`), and a press on a
  * piece's tile begins its read at the first touch (readRecordAhead), so the piece opens with its record already in: drawn
  * from the list alone, its line, where it stands and its coral act moved a beat after it opened, as the record landed
  * (Ruben, 25 Nov 2026: "Picture post · made Saturday" grew "from one of your photos", a caret came, Post again went).
@@ -24,11 +24,11 @@ interface Held {
 }
 
 /** How long a record read at a press is taken as the open's own, rather than read again. */
-const FRESH_MS = 30_000;
+const RECORD_FRESH_MS = 30_000;
 
 /** Every record read this visit, by its file; and the reads on their way, so a press and its open make one read. */
-const held = new Map<string, Held>();
-const asking = new Map<string, Promise<Held | null>>();
+const recordsHeld = new Map<string, Held>();
+const recordsAsking = new Map<string, Promise<Held | null>>();
 
 /** Whether a file has a record to read: a post AI made, or a video. */
 const hasRecord = (file: Pick<FileDto, "source" | "kind">): boolean => file.source === "made" || file.kind === "video";
@@ -38,40 +38,40 @@ export const postsMovedOf = (posts: readonly Pick<PostDto, "id" | "status">[]): 
   posts.map((p) => `${p.id}:${p.status}`).join();
 
 /** What a record was read for: its posts as the list had them, and what was heard of a video. */
-const keyOf = (file: Pick<FileDto, "kind" | "media_status" | "sound_said">, moved: string): string =>
+const recordKeyOf = (file: Pick<FileDto, "kind" | "media_status" | "sound_said">, moved: string): string =>
   file.kind === "video" ? `${moved}|${file.media_status}|${file.sound_said ?? ""}` : moved;
 
 /** Read a file's record, once at a time: a read already on its way is the one answered. */
 function readRecord(id: string, key: string): Promise<Held | null> {
-  const on = asking.get(id);
+  const on = recordsAsking.get(id);
   if (on) return on;
   const read = fileVerbs.record(id).then(
     (answer) => {
-      asking.delete(id);
+      recordsAsking.delete(id);
       if (!answer.ok) return null;
       const kept = { data: answer.data, key, at: Date.now() };
-      held.set(id, kept);
+      recordsHeld.set(id, kept);
       return kept;
     },
     () => {
-      asking.delete(id);
+      recordsAsking.delete(id);
       return null;
     },
   );
-  asking.set(id, read);
+  recordsAsking.set(id, read);
   return read;
 }
 
 /** The record kept for a file as its list says it now: what an open draws first. Null where none was read for it. */
-function heldOf(id: string, key: string): Held | null {
-  const kept = held.get(id);
+function recordHeldOf(id: string, key: string): Held | null {
+  const kept = recordsHeld.get(id);
   return kept && kept.key === key ? kept : null;
 }
 
 /** The same, read lately enough to stand for the open's own read; null otherwise, and the open reads it again. */
 function freshOf(id: string, key: string): Held | null {
-  const kept = heldOf(id, key);
-  return kept && Date.now() - kept.at < FRESH_MS ? kept : null;
+  const kept = recordHeldOf(id, key);
+  return kept && Date.now() - kept.at < RECORD_FRESH_MS ? kept : null;
 }
 
 /**
@@ -79,7 +79,7 @@ function freshOf(id: string, key: string): Held | null {
  * before the press opens it, and for the pieces beside the one open (content/read-ahead.ts), so a walk to them lands whole.
  */
 export function readRecordAhead(file: FileDto, posts: readonly Pick<PostDto, "id" | "status">[]): void {
-  const key = keyOf(file, postsMovedOf(posts));
+  const key = recordKeyOf(file, postsMovedOf(posts));
   if (hasRecord(file) && !freshOf(file.id, key)) void readRecord(file.id, key);
 }
 
@@ -90,7 +90,7 @@ export function readRecordAhead(file: FileDto, posts: readonly Pick<PostDto, "id
  * (`moved`: a post that landed brings its See it without a reopen).
  */
 export function usePostRecord(file: FileDto, moved = "") {
-  const key = keyOf(file, moved);
+  const key = recordKeyOf(file, moved);
   // The answer read for this file; another file's (the piece walked from) is never said for this one.
   const [read, setRead] = useState<{ id: string; data: RecordData } | null>(null);
   // Google's post, as the page says it changed before the record is read again (piece.tsx: taken off Google).
@@ -116,7 +116,7 @@ export function usePostRecord(file: FileDto, moved = "") {
     };
   }, [file.id, isRead, key, asked]);
   // This file's answer; before it, the one kept for it as its list says it now, so an open draws whole from its first frame.
-  const data = read?.id === file.id ? read.data : (heldOf(file.id, key)?.data ?? null);
+  const data = read?.id === file.id ? read.data : (recordHeldOf(file.id, key)?.data ?? null);
   const setPosted = useCallback((value: FilePosted | null) => setPostedOver({ id: file.id, posted: value }), [file.id]);
   return {
     ...recordSaysOf(data),

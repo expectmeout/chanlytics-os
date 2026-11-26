@@ -36,7 +36,7 @@ const LAYOUT_LABEL = `${VIEW_SAYS.grid} or ${VIEW_SAYS.list}`;
 const Owed = ({ on }: { on: boolean }) => (on ? <span className="cnv-owed" aria-hidden="true" /> : null);
 
 /** One way of looking at a list, with how many it holds; `owed` marks one that holds something that needs the owner. */
-export interface ViewChoice<V extends string> {
+interface ViewChoice<V extends string> {
   value: V;
   label: string;
   count: number | null;
@@ -297,6 +297,38 @@ export interface AdsTab {
  * one shown underlined, as the Inbox's buckets stand under its strip: a second capsule under Campaigns' read as more of the
  * strip over it (Ruben, 12 Nov 2026). A pick changes the address (`campaigns/content:library`), so Back returns to the one before.
  */
+const LIST_SAYS = CONTENT_WORDS.lists;
+
+/** How many a list holds, as it was last read: the Week's own count, else Content's tally; none before either. */
+function listCountOf(each: ContentList, tally: ContentTally | null, week: { count: number | null } | null) {
+  if (each === "week") return week?.count ?? undefined;
+  if (!tally) return undefined;
+  return each === "made" ? tally.made : tally.library;
+}
+
+/**
+ * What waits on the owner in a list, marked beside its name whichever list is shown (the kit's amber dot): a post that
+ * stopped was said on Made alone, and photos found online on the Library alone. The Library's are theirs to keep only where
+ * they may change the business's files.
+ */
+function listNeedOf(each: ContentList, tally: ContentTally | null): string | undefined {
+  if (!tally || each === "week") return undefined;
+  if (each === "made") return tally.needs > 0 ? LIST_SAYS.madeNeeds : undefined;
+  return tally.waiting > 0 && canDo("settings") ? LIST_SAYS.libraryWaits : undefined;
+}
+
+/** Ads' own tab, after the lists: how many it holds, and amber while one needs the owner. */
+const adsTabOf = (ads: AdsTab) => ({
+  id: "ads",
+  label: ADS_WORDS.adsTab,
+  count: ads.count ?? undefined,
+  need: ads.owed ? LIST_SAYS.adsNeeds : undefined,
+  testid: "cnv-list-ads",
+});
+
+/** The list a tab names: the Week, the Library, or Made. */
+const listOfTab = (id: string): ContentList => (id === "library" ? "library" : id === "week" ? "week" : "made");
+
 export function ContentLists({
   list,
   tally,
@@ -312,45 +344,20 @@ export function ContentLists({
   /** Ads, where the workspace runs ads (null where it does not). */
   ads?: AdsTab | null;
 }) {
-  const listSays = CONTENT_WORDS.lists;
-  const countOf = (each: ContentList) =>
-    each === "week" ? (week?.count ?? undefined) : tally ? (each === "made" ? tally.made : tally.library) : undefined;
-  // What waits on the owner in a list is marked beside its name, whichever list is shown (the kit's amber dot): a post
-  // that stopped was said on Made alone, and photos found online on the Library alone. The Library's are theirs to keep
-  // only where they may change the business's files.
-  const needOf = (each: ContentList): string | undefined => {
-    if (!tally || each === "week") return undefined;
-    if (each === "made") return tally.needs > 0 ? listSays.madeNeeds : undefined;
-    return tally.waiting > 0 && canDo("settings") ? listSays.libraryWaits : undefined;
-  };
+  const lists = listsOf(!!week).map((each) => ({
+    id: each,
+    label: LIST_SAYS[each],
+    count: listCountOf(each, tally, week),
+    need: listNeedOf(each, tally),
+    testid: `cnv-list-${each}`,
+  }));
   return (
     <SubTabs
-      label={listSays.label}
+      label={LIST_SAYS.label}
       className="cnv-lists"
       value={ads?.on ? "ads" : list}
-      onSelect={(id) =>
-        id === "ads" ? ads?.onPress() : onList(id === "library" ? "library" : id === "week" ? "week" : "made")
-      }
-      tabs={[
-        ...listsOf(!!week).map((each) => ({
-          id: each,
-          label: listSays[each],
-          count: countOf(each),
-          need: needOf(each),
-          testid: `cnv-list-${each}`,
-        })),
-        ...(ads
-          ? [
-              {
-                id: "ads",
-                label: ADS_WORDS.adsTab,
-                count: ads.count ?? undefined,
-                need: ads.owed ? listSays.adsNeeds : undefined,
-                testid: "cnv-list-ads",
-              },
-            ]
-          : []),
-      ]}
+      onSelect={(id) => (id === "ads" ? ads?.onPress() : onList(listOfTab(id)))}
+      tabs={ads ? [...lists, adsTabOf(ads)] : lists}
     />
   );
 }

@@ -25,7 +25,7 @@ import {
   OUTCOME,
   OUTCOME_OTHER,
   QUESTION,
-  REACH,
+  ACCOUNT_REACH,
   UNSETTLED,
   needOf,
   whatsAppLine,
@@ -69,7 +69,7 @@ export interface ConnectCardVM {
   says: { text: string; strong: boolean }[];
   /** Who Meta charges, the Page, and Meta's own limit, once an account is connected. */
   facts: CardFactVM[];
-  /** Where the people an ad brings reach the business (REACH), once an account is connected: the opened card's last rows. */
+  /** Where the people an ad brings reach the business (ACCOUNT_REACH), once an account is connected: the opened card's last rows. */
   reach: CardFactVM[];
   /** "2 of 3 ready", where a check is not met. */
   ready: string | null;
@@ -148,17 +148,21 @@ const checksOf = (card: AdAccountCard | null, checking: boolean): CheckVM[] =>
  * Where the people an ad brings reach the business: the number AI answers on WhatsApp, with what is known of the Page's
  * link to it, and the Page's Instagram account where Chanlytics may read it.
  */
-function reachOf(card: AdAccountCard): CardFactVM[] {
+function accountReachOf(card: AdAccountCard): CardFactVM[] {
   const number = formatPhoneDisplay(card.ai_number);
   const whatsapp =
     card.whatsapp_link === "no_number" || number === null
-      ? { value: REACH.noNumber, note: REACH.connectFirst }
-      : { value: number, note: card.whatsapp_link === "ai_number" ? REACH.linked : REACH.metaChecks };
+      ? { value: ACCOUNT_REACH.noNumber, note: ACCOUNT_REACH.connectFirst }
+      : { value: number, note: card.whatsapp_link === "ai_number" ? ACCOUNT_REACH.linked : ACCOUNT_REACH.metaChecks };
   const instagram =
-    card.instagram_handle !== null ? `@${card.instagram_handle}` : card.reads_instagram ? REACH.noInstagram : null;
+    card.instagram_handle !== null
+      ? `@${card.instagram_handle}`
+      : card.reads_instagram
+        ? ACCOUNT_REACH.noInstagram
+        : null;
   return [
-    { label: REACH.whatsapp, ...whatsapp, door: null },
-    ...(instagram === null ? [] : [{ label: REACH.instagram, value: instagram, door: null }]),
+    { label: ACCOUNT_REACH.whatsapp, ...whatsapp, door: null },
+    ...(instagram === null ? [] : [{ label: ACCOUNT_REACH.instagram, value: instagram, door: null }]),
   ];
 }
 
@@ -235,7 +239,7 @@ function cardConnected(dto: AdAccountDto, card: AdAccountCard, moment: CardMomen
     state: "connected",
     word: CARD.connected,
     facts: cardFactsOf(card),
-    reach: reachOf(card),
+    reach: accountReachOf(card),
     ready: met === card.checks.length ? null : CARD.ready(met, card.checks.length),
     need,
     checks: checksOf(card, false),

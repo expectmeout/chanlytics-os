@@ -41,7 +41,7 @@ function Figures(props: { label: string; figures: FigureVM[]; after?: ReactNode;
     <section className="ads-live-figures" aria-label={label} data-testid={testid}>
       <b>{label}</b>
       {/* Numbers to read, not to press: plain figures in a row, with no box that looks like a button. */}
-      <dl className="ads-live-tiles">
+      <dl className="ads-live-nums">
         {figures.map((figure) => (
           <Figure key={figure.label} look="compact" label={figure.label} value={figure.value} />
         ))}
@@ -375,13 +375,13 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
       testid="ads-live-sheet"
     >
       {vm ? (
-        <div className="ads-conn ads-live-sheet">
+        <div className="ads-conn ads-ad-view">
           {/* What people see of it, and where. */}
-          <div className="ads-sheet-part">
+          <div className="ads-ad-part">
             <Seen vm={vm} />
           </div>
           {/* What it spent of its total, over its days, and what changes it or stops it. */}
-          <div className="ads-sheet-part">
+          <div className="ads-ad-part">
             <Money vm={vm} />
             {vm.from ? <MadeFrom from={vm.from} onGo={onGo} /> : null}
             {vm.change ? (
@@ -424,7 +424,7 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
           </div>
           {/* Who it brought, or who commented on it, where anyone did; then what its foot does. */}
           {vm.commenters || vm.counted ? (
-            <div className="ads-sheet-part">
+            <div className="ads-ad-part">
               <Commenters vm={vm} timezone={timezone} onGo={onGo} />
               {vm.counted ? <People adId={vm.id} timezone={timezone} onGo={onGo} /> : null}
             </div>

@@ -152,7 +152,7 @@ const creativeAddressOf = (value: unknown): string | null => {
 };
 
 /** What an ad's creative shows, as the ad keeps it (said): only the parts Meta gave. */
-function saidOf(creative: Record<string, unknown> | null): MetaAd["said"] {
+function creativeSaidOf(creative: Record<string, unknown> | null): MetaAd["said"] {
   const headline = metaText(valueAt(creative, "title")).slice(0, 300);
   const body = metaText(valueAt(creative, "body")).slice(0, 2000);
   const thumbnail = creativeAddressOf(valueAt(creative, "thumbnail_url"));
@@ -244,7 +244,7 @@ function adOf(row: unknown, currency: string): MetaAd | null {
     budget: budgetOf(set, "set", currency) ?? budgetOf(campaign, "campaign", currency),
     startsAt: instantOf(valueAt(set, "start_time")),
     endsAt: instantOf(valueAt(set, "end_time")),
-    said: saidOf(creative),
+    said: creativeSaidOf(creative),
   };
 }
 

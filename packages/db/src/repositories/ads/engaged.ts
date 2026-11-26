@@ -21,7 +21,7 @@ export type AdEngagedSum = Partial<Record<EngagedKind, number>>;
 /** Postgres's word for a column a database does not have yet: one a deploy behind 00719. */
 const NO_COLUMN = "42703";
 
-const wholeOf = (value: unknown): number => (Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : 0);
+const wholeCountOf = (value: unknown): number => (Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : 0);
 
 /** The days' engagement of each ad over a window from `from` (YYYY-MM-DD), summed by kind. Null a deploy behind. */
 export async function readAdsEngaged(
@@ -44,7 +44,7 @@ export async function readAdsEngaged(
     const day = recordOrEmpty(row.engaged);
     const sum = sums.get(row.ad_id) ?? {};
     for (const kind of ENGAGED_KINDS) {
-      const n = wholeOf(day[kind]);
+      const n = wholeCountOf(day[kind]);
       if (n > 0) sum[kind] = (sum[kind] ?? 0) + n;
     }
     sums.set(row.ad_id, sum);

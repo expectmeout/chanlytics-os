@@ -10,7 +10,7 @@ import { AD_GROUPS, type AdGroup, type LiveRowVM } from "./model";
 import { LIVE } from "./words";
 
 /** What the list shows: every group, or one. */
-export type AdFilter = "all" | AdGroup;
+type AdFilter = "all" | AdGroup;
 
 /** From how many ads the list has a find line over it, as a long list of People's or the Inbox's does. */
 export const AD_FIND_FROM = 20;
@@ -23,16 +23,16 @@ interface AdsLooked {
 
 const AT_FIRST: AdsLooked = { filter: "all", about: null };
 let looked: AdsLooked = AT_FIRST;
-const hearers = new Set<() => void>();
+const lookHearers = new Set<() => void>();
 
 function hearLooked(tell: () => void): () => void {
-  hearers.add(tell);
-  return () => void hearers.delete(tell);
+  lookHearers.add(tell);
+  return () => void lookHearers.delete(tell);
 }
 
 function look(next: Partial<AdsLooked>): void {
   looked = { ...looked, ...next };
-  for (const tell of [...hearers]) tell();
+  for (const tell of [...lookHearers]) tell();
 }
 
 /** How the list is looked through now, and its two changes: a filter chosen, and words found. */
@@ -49,7 +49,7 @@ export function useAdsLooked(): AdsLooked & {
 }
 
 /** One choice of the filter: its group, its words, how many it holds, and Needs you's amber. */
-export interface AdFilterChoice {
+interface AdFilterChoice {
   value: AdFilter;
   label: string;
   count: number;
@@ -72,7 +72,7 @@ export const adFilterOf = (rows: readonly LiveRowVM[], filter: AdFilter): AdFilt
   filter !== "all" && rows.some((row) => row.group === filter) ? filter : "all";
 
 /** A group as the page draws it: its rows, and whether it starts folded under its heading. */
-export interface AdGroupVM {
+interface AdGroupVM {
   key: AdGroup;
   label: string;
   rows: LiveRowVM[];

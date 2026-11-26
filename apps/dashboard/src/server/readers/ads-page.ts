@@ -212,9 +212,9 @@ function madeFromOf(row: AdRow, pictures: PictureNames): AdLiveDto["made_from"] 
 }
 
 /** A part of what the platform said of an ad (ads.said, 00648): a string that says something, or none. */
-function saidPart(said: unknown, part: string): string | null {
-  if (!isObjectRecord(said)) return null;
-  const value = said[part];
+function saidPart(kept: unknown, part: string): string | null {
+  if (!isObjectRecord(kept)) return null;
+  const value = kept[part];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
@@ -225,8 +225,8 @@ function saidPart(said: unknown, part: string): string | null {
 function seenOf(row: AdRow): Pick<AdLiveDto, "picture" | "words" | "post_url"> {
   const fileId = adPictureFileOf(row.approved);
   const https = (part: string) => {
-    const said = saidPart(row.said, part);
-    return said && /^https:\/\//.test(said) ? said : null;
+    const address = saidPart(row.said, part);
+    return address && /^https:\/\//.test(address) ? address : null;
   };
   // The business's own file first; else Meta's whole image where the ad is one, else its small picture (64px).
   const image = https("image");

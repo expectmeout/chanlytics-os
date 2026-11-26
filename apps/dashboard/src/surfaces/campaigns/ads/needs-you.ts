@@ -14,7 +14,7 @@ import type { AdsLiveDto } from "@chanlytics/contracts";
 /** The count as the Ads page last read it on this page; null before it has. */
 let noted: number | null = null;
 /** How many ads its list holds, as the Ads page last read them, for the Ads tab's figure; null before it has. */
-let listed: number | null = null;
+let adsListed: number | null = null;
 /** Who hears the counts change: the strip, and the Ads tab. */
 const hearers = new Set<() => void>();
 
@@ -43,8 +43,8 @@ export const useAdsNeeding = (): number => useSyncExternalStore(hearAdsNeeding, 
 
 /** Kept as the Ads page reads its ads: how many its list holds, which the Ads tab says beside its name on every list. */
 export function noteAdsListed(count: number): void {
-  if (listed === count) return;
-  listed = count;
+  if (adsListed === count) return;
+  adsListed = count;
   for (const tell of [...hearers]) tell();
 }
 
@@ -52,6 +52,6 @@ export function noteAdsListed(count: number): void {
 export const useAdsListed = (): number | null =>
   useSyncExternalStore(
     hearAdsNeeding,
-    () => listed,
+    () => adsListed,
     () => null,
   );

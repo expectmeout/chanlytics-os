@@ -109,23 +109,23 @@
   font-size: var(--text-sm);
 }
 /* An ad's numbers, read and not pressed: the kit's compact figures side by side, as the page's top draws them. */
-.ads-live-tiles {
+.ads-live-nums {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-6);
   margin: 0;
 }
 /* An ad's drawer (ad-sheet.tsx): its parts, a hairline between two, room inside each. */
-.ads-live-sheet {
+.ads-ad-view {
   gap: var(--space-4);
   padding: var(--space-4);
 }
-.ads-sheet-part {
+.ads-ad-part {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
 }
-.ads-sheet-part + .ads-sheet-part {
+.ads-ad-part + .ads-ad-part {
   padding-top: var(--space-4);
   border-top: 1px solid var(--line);
 }

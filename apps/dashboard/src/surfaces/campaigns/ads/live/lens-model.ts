@@ -5,17 +5,8 @@
  */
 import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
-import {
-  allBroughtOf,
-  backLineOf,
-  besideOf,
-  counted,
-  eachOf,
-  liveModel,
-  shown,
-  type FigureVM,
-  type Said,
-} from "./model";
+import { counted, type LiveClock } from "./ai-line";
+import { allBroughtOf, backLineOf, besideOf, eachOf, liveModel, shown, type FigureVM } from "./model";
 import { LENS, LIVE, SHEET } from "./words";
 import { worthOf, type WorthVM } from "./worth-model";
 
@@ -26,7 +17,7 @@ import { worthOf, type WorthVM } from "./worth-model";
  */
 function notesOf(dto: AdsLiveDto, rows: readonly AdLiveDto[]): string[] {
   const uncounted = [...new Set(rows.filter((ad) => !counted(ad)).map((ad) => LIVE.opens[ad.opens]))];
-  return [...uncounted.map((what) => LIVE.notCountedNote(what)), ...besideOf(dto)];
+  return [...uncounted.map((door) => LIVE.notCountedNote(door)), ...besideOf(dto)];
 }
 
 /** One ad as Reports › Ads lists it: Chanlytics' count, then Meta's spend, each a column of its own. */
@@ -55,9 +46,9 @@ interface LensVM {
 const DASH = "—";
 
 /** Reports › Ads in its first form: the page's own numbers as figures and a table, over the same thirty days. */
-export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
+export function lensModel(dto: AdsLiveDto, clock: LiveClock): LensVM {
   const currency = dto.account.currency ?? ADS_DEFAULT_CURRENCY;
-  const page = liveModel(dto, said);
+  const page = liveModel(dto, clock);
   const { came, booked } = allBroughtOf(dto);
   const spent = dto.ads.reduce((sum, ad) => sum + ad.spend_minor, 0);
   const each = eachOf(dto.ads, dto, currency);
@@ -91,7 +82,7 @@ export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
       { label: LENS.spent, value: moneyOf(spent, currency) },
     ],
     back: backLineOf(dto.back, "an ad"),
-    worth: worthOf(dto.ads, dto, said.word),
+    worth: worthOf(dto.ads, dto, clock.word),
     rows: [...rows, ...unnamed],
     // The two quiet lines are rows of the table here, so they are not said twice.
     notes: [

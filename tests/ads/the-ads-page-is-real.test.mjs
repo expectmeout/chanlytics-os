@@ -19,9 +19,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { firstReadOf, liveModel, sheetModel } = await import(
-  at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts")
-);
+const { liveModel, sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { firstReadOf } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/ai-line.ts"));
 const { lensModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/lens-model.ts"));
 const { AD_FIND_FROM, adFilterChoicesOf, adFilterOf, adGroupsOf } = await import(
   at("apps/dashboard/src/surfaces/campaigns/ads/live/ad-list.ts")

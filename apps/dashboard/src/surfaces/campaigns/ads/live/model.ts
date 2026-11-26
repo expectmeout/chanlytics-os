@@ -10,30 +10,25 @@
  * before this one, are in the head's total and each on one quiet line, so the page always reconciles with Reports ›
  * People.
  */
-import {
-  AD_DOORS_COUNTED,
-  AD_PAGE_DAYS,
-  AD_WARN_STATES,
-  adChatsKeptRule,
-  adCostRule,
-  addressOf,
-  adRoute,
-  daysBetween,
-  newAdRoute,
-  waitedSince,
-} from "@chanlytics/contracts";
+import { AD_PAGE_DAYS, AD_WARN_STATES, adChatsKeptRule, adCostRule, adRoute, daysBetween } from "@chanlytics/contracts";
 import { AD_WAY_IN_SAID, contentRouteOf, fileViewOf } from "@chanlytics/contracts";
-import type { AdLiveDto, AdsLiveDto, AppointmentWord } from "@chanlytics/contracts";
+import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
 import { dayShort, dayWord, peopleWord } from "../model/words";
 import { changeSentenceOf, endsAlone, type ChangeSentenceVM } from "./change-model";
 import { FIX } from "./change-words";
-import { ADS_MANAGER, AI_LINE, LIVE, NEEDS_YOU_LINE, SHEET } from "./words";
+import { ADS_MANAGER, LIVE, SHEET } from "./words";
+import {
+  aiLineOf,
+  counted,
+  firstReadOf,
+  needsYouLineOf,
+  type AiLineVM,
+  type LiveClock,
+  type NeedsYouLineVM,
+} from "./ai-line";
 import { worthOf, type WorthVM } from "./worth-model";
-
-/** Whether Chanlytics counts the people of an ad: the tap ends in a message it receives. */
-export const counted = (ad: Pick<AdLiveDto, "opens">): boolean => AD_DOORS_COUNTED.includes(ad.opens);
 
 /** The standings a drawer says in its row's own line alone: nothing is running yet that money or an end would describe. */
 const LINE_ALONE: readonly AdLiveDto["state"][] = ["review", "setting-up", "couldnt-finish", "unconfirmed"];
@@ -41,16 +36,8 @@ const LINE_ALONE: readonly AdLiveDto["state"][] = ["review", "setting-up", "coul
 /** Whether an ad's run is over. */
 const over = (ad: Pick<AdLiveDto, "state">): boolean => ad.state === "ended" || ad.state === "finished";
 
-/** What the model reads beside the page's read: the zone its days are said in, and the moment a wait is said at. */
-export interface Said {
-  timezone: string;
-  nowMs: number;
-  /** What this workspace calls a booking (surfaces/workspace-word.ts): an appointment where the page hands none. */
-  word?: AppointmentWord;
-}
-
 /** A day as an ad's lines say it: today, tomorrow or yesterday where it is one of those, its weekday and date otherwise. */
-const adDayOf = (iso: string | null, said: Said): string | null => {
+const adDayOf = (iso: string | null, said: LiveClock): string | null => {
   const day = iso === null ? "" : dayOfIso(iso, said.timezone);
   if (day === "") return null;
   const today = dayOfIso(new Date(said.nowMs).toISOString(), said.timezone);
@@ -77,7 +64,7 @@ function standingNow(dto: AdsLiveDto, nowMs: number): AdsLiveDto {
 export type AdGroup = "needs" | "on" | "paused" | "ended";
 export const AD_GROUPS: readonly AdGroup[] = ["needs", "on", "paused", "ended"];
 
-export function adGroupOf(ad: Pick<AdLiveDto, "state" | "needs">): AdGroup {
+function adGroupOf(ad: Pick<AdLiveDto, "state" | "needs">): AdGroup {
   if (AD_WARN_STATES.includes(ad.state) || ad.needs !== null) return "needs";
   if (ad.state === "paused") return "paused";
   return over(ad) ? "ended" : "on";
@@ -123,25 +110,6 @@ export interface LiveNoticeVM {
   body: string;
   /** Meta's own page, where the notice's one act is there. */
   door: string | null;
-}
-
-/**
- * AI's one line (the Ads plan's 6.3): what it proposes, as a question its press answers. `first` opens New ad by its
- * address, where AI writes the ad and nothing runs until the owner turns it on; `extend` opens Meta's own page, where an
- * ad made there is kept going.
- */
-export type AiLineVM =
-  | { kind: "first"; text: string; route: string }
-  | { kind: "extend"; text: string; href: string }
-  /** An ad on whose chat AI can't answer: the line is its Pause, with the version it was drawn from. */
-  | { kind: "way_in"; text: string; ad: { id: string; version: number } };
-
-/** Who an ad brought and needs you now, as one amber line: how many, then who, and the press that opens them. */
-export interface NeedsYouLineVM {
-  title: string;
-  who: string;
-  /** The longest wait's conversation, which the Inbox opens in Needs you beside the rest. */
-  open: string;
 }
 
 export interface LiveVM {
@@ -199,7 +167,7 @@ export function eachOf(
  * A row's line where the account is no longer read (signed out by Meta, or let go): what the ad was doing when it last
  * was. An ad Meta was still checking was neither on nor paused, and is said as what it was.
  */
-function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said): string {
+function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock): string {
   const checking = ad.state === "review";
   if (dto.account.status === "disconnected") {
     const day = adDayOf(dto.account.disconnected_at, said) ?? "";
@@ -212,7 +180,7 @@ function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said): string {
 }
 
 /** The line a row says: where the ad stands, then what the owner needs to know of it. */
-function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
+function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock, currency: string): string {
   const ends = adDayOf(ad.ends_at, said);
   if (dto.account.status !== "connected") return stoppedLineOf(ad, dto, said);
   if (ad.state === "setting-up") return ad.launch?.cancelling ? LIVE.cancelling : LIVE.settingUp;
@@ -242,7 +210,7 @@ function stateAndFacts(line: string): Pick<LiveRowVM, "state" | "facts"> {
  * What an ad shows people, as an address an image draws: the piece of Content it was made from (the business's own file, at
  * the size it is drawn), else Meta's own small picture of it, as the read kept it. Null where neither is known.
  */
-function pictureOf(ad: Pick<AdLiveDto, "picture">, size: "small" | "large"): string | null {
+function adPictureOf(ad: Pick<AdLiveDto, "picture">, size: "small" | "large"): string | null {
   const picture = ad.picture ?? null;
   if (picture === null) return null;
   return "file_id" in picture ? `${fileViewOf(picture.file_id)}?w=${size === "small" ? 160 : 720}` : picture.url;
@@ -254,7 +222,7 @@ function toneOf(ad: AdLiveDto, dto: AdsLiveDto): LiveRowVM["tone"] {
   return AD_WARN_STATES.includes(ad.state) ? "warn" : ad.state === "on" ? "ok" : "plain";
 }
 
-function liveRowOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): LiveRowVM {
+function liveRowOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock, currency: string): LiveRowVM {
   const each = ad.booked > 0 ? eachOf([ad], dto, currency) : null;
   const stopped = dto.account.status !== "connected";
   const line = lineOf(ad, dto, said, currency);
@@ -265,7 +233,7 @@ function liveRowOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string)
     open: adRoute(ad.id),
     line,
     ...stateAndFacts(line),
-    picture: pictureOf(ad, "small"),
+    picture: adPictureOf(ad, "small"),
     badge: !stopped && ad.pending === null && ad.state === "review" ? LIVE.state.review : null,
     tone: toneOf(ad, dto),
     // The row's one number: who booked where its people are counted, else what Meta spent. Why its people are not
@@ -292,7 +260,7 @@ const namesOf = (ads: readonly AdLiveDto[]): string => {
 };
 
 /** The notice at the top, where the account is no longer connected. */
-function liveNoticeOf(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
+function liveNoticeOf(dto: AdsLiveDto, said: LiveClock): LiveNoticeVM | null {
   const on = dto.ads.filter((ad) => ad.state === "on");
   if (dto.account.status === "revoked") {
     const day = adDayOf(dto.account.revoked_at, said) ?? "";
@@ -313,7 +281,7 @@ function liveNoticeOf(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
 }
 
 /** After a disconnect: the ads left on, each as what it was. An ad Meta was checking starts once it is approved. */
-function leftOnNotice(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
+function leftOnNotice(dto: AdsLiveDto, said: LiveClock): LiveNoticeVM | null {
   const on = dto.ads.filter((ad) => ad.state === "on");
   const checking = dto.ads.filter((ad) => ad.state === "review");
   const left = [...on, ...checking];
@@ -342,87 +310,6 @@ export function allBroughtOf(dto: AdsLiveDto): { came: number; booked: number } 
   return {
     came: [...dto.ads.map((ad) => ad.people), ...beside.map((one) => one.people)].reduce((sum, n) => sum + n, 0),
     booked: [...dto.ads.map((ad) => ad.booked), ...beside.map((one) => one.booked)].reduce((sum, n) => sum + n, 0),
-  };
-}
-
-/**
- * Where an account's first read stands: `reading` while one just connected has not been read, `failed` where its first
- * read failed, null once it has been read (or where it is not connected). Until then nothing is known of its ads, and
- * the page never says Meta shows none.
- */
-export function firstReadOf(account: AdsLiveDto["account"]): "reading" | "failed" | null {
-  if (account.status !== "connected" || account.read_at !== null) return null;
-  return account.read_failed ? "failed" : "reading";
-}
-
-/** AI offers to keep an ad going that ends within this many days and brought at least this many people (0050, call 12). */
-const EXTEND_WHEN = { days: 3, people: 10 } as const;
-
-/**
- * The ad AI offers to keep going: on, ending within days, having brought people; the soonest to end, then the most.
- * Only one made in Meta, which Meta's own page keeps going: an ad made here keeps going from its drawer (the plan's 4.5),
- * and until that press is there the line would offer what no press can do.
- */
-function endingSoonOf(dto: AdsLiveDto, clock: Said): { ad: AdLiveDto; day: string } | null {
-  const soon = dto.ads.flatMap((ad) => {
-    if (!ad.made_in_platform || ad.state !== "on" || ad.pending !== null) return [];
-    if (!counted(ad) || ad.people < EXTEND_WHEN.people || ad.ends_at === null) return [];
-    const end = dayOfIso(ad.ends_at, clock.timezone);
-    const left = end === "" ? -1 : daysBetween(dto.today, end);
-    return left >= 0 && left <= EXTEND_WHEN.days ? [{ ad, end }] : [];
-  });
-  const [first] = soon.sort((one, other) => one.end.localeCompare(other.end) || other.ad.people - one.ad.people);
-  return first ? { ad: first.ad, day: dayWord(first.end) } : null;
-}
-
-/**
- * AI's one line (the Ads plan's 6.3; decision 0050, call 12): rules in code, no model asked, and it only proposes. It
- * speaks only on a connected account that has been read, and never while AI is stopped, when no ad is turned on and no
- * draft is written. First an ad spending while AI can't answer the people it brings (decision 0050, call 11), since
- * that money buys nothing, with its Pause, for the owner; then an ad worth keeping going, since its days run out; then,
- * on an account whose card is ready where no ad was made here yet, the first one. An ad Meta stopped is its own row's amber line, with Meta's
- * reason in its drawer, so AI does not say it again. A full calendar's pause waits for a read of the calendar the page
- * does not make.
- */
-function aiLineOf(dto: AdsLiveDto, clock: Said): AiLineVM | null {
-  if (dto.account.status !== "connected" || firstReadOf(dto.account) !== null || dto.stopped_at !== null) return null;
-  const closed = dto.can_press ? dto.ads.find((ad) => ad.needs === "way_in" && ad.pending === null) : undefined;
-  if (closed)
-    return { kind: "way_in", text: AI_LINE.wayIn(closed.name), ad: { id: closed.id, version: closed.version } };
-  const ending = endingSoonOf(dto, clock);
-  if (ending)
-    return {
-      kind: "extend",
-      text: AI_LINE.extend({ name: ending.ad.name, people: ending.ad.people, day: ending.day }),
-      href: ADS_MANAGER,
-    };
-  if (!dto.account.ready || dto.ads.some((ad) => !ad.made_in_platform)) return null;
-  return { kind: "first", text: AI_LINE.first(dto.ads.length > 0), route: newAdRoute() };
-}
-
-/** How long a person has waited, in the house's short form ("6d"); null where their wait has no moment kept. */
-function waitedOf(since: string | null, nowMs: number): string | null {
-  const at = since === null ? Number.NaN : Date.parse(since);
-  return Number.isFinite(at) ? waitedSince(at, nowMs) : null;
-}
-
-/**
- * Who an ad brought and needs you now (the Ads plan's 4.4): how many, then each the read names (the longest waiting)
- * with how long, and how many more. The press opens the longest wait's conversation: the Inbox opens it in Needs you,
- * where the others are listed beside it, whichever list it last showed.
- */
-function needsYouLineOf(dto: AdsLiveDto, clock: Said): NeedsYouLineVM | null {
-  const { count, people } = dto.needs_you;
-  const [longest] = people;
-  if (count === 0 || !longest) return null;
-  const rest = count - people.length;
-  return {
-    title: NEEDS_YOU_LINE.title(count),
-    who: [
-      ...people.map((person) => NEEDS_YOU_LINE.person(person.name, waitedOf(person.since, clock.nowMs))),
-      ...(rest > 0 ? [NEEDS_YOU_LINE.more(rest)] : []),
-    ].join(" · "),
-    open: addressOf({ kind: "conversation", id: longest.conversation_id }),
   };
 }
 
@@ -461,7 +348,7 @@ function figuresOf(
 }
 
 /** The page. */
-export function liveModel(read: AdsLiveDto, said: Said): LiveVM {
+export function liveModel(read: AdsLiveDto, said: LiveClock): LiveVM {
   const dto = standingNow(read, said.nowMs);
   const currency = dto.account.currency ?? ADS_DEFAULT_CURRENCY;
   const ads = shown(dto);
@@ -572,7 +459,7 @@ export interface SheetVM {
 }
 
 /** The drawer's first line: where the ad stands, when it ends, and what is left or what it may spend a day. */
-function sheetLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
+function sheetLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock, currency: string): string {
   if (dto.account.status !== "connected" || ad.pending !== null || over(ad) || LINE_ALONE.includes(ad.state))
     return lineOf(ad, dto, said, currency);
   const ends = adDayOf(ad.ends_at, said);
@@ -606,7 +493,7 @@ function launchFootOf(ad: AdLiveDto, owner: boolean): SheetFootVM | null {
 }
 
 /** What the drawer's foot offers this member for this ad. */
-function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): SheetFootVM {
+function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock, currency: string): SheetFootVM {
   if (dto.account.status === "revoked") return { kind: "none", line: SHEET.signedOut };
   if (dto.account.status === "disconnected") return { kind: "none", line: SHEET.leftInMeta };
   const launching = launchFootOf(ad, dto.can_press);
@@ -688,10 +575,10 @@ const sheetFromOf = ({ made_from: from = null }: AdLiveDto): SheetVM["from"] =>
 function sheetSeenOf(
   ad: AdLiveDto,
   dto: AdsLiveDto,
-  said: Said,
+  said: LiveClock,
   currency: string,
 ): Pick<SheetVM, "seen" | "spent" | "days" | "theirsLabel" | "metaPage" | "postUrl" | "commenters"> {
-  const large = pictureOf(ad, "large");
+  const large = adPictureOf(ad, "large");
   // Meta's 64px picture is drawn as a tile beside the ad's words; a whole image, the business's own or Meta's, large.
   const small = ad.picture !== undefined && ad.picture !== null && "url" in ad.picture && ad.picture.small === true;
   const budget = ad.budget;
@@ -722,7 +609,7 @@ function sheetSeenOf(
  * the post), then taps, and the chats or forms it started where it opens one; what it spent where its total's bar does
  * not say it already. Theirs, labelled as theirs (decision 0049, call 3).
  */
-function theirsOf(ad: AdLiveDto, currency: string, spentSaid: boolean): FigureVM[] {
+function metaFiguresOf(ad: AdLiveDto, currency: string, spentSaid: boolean): FigureVM[] {
   const engaged = ad.engaged ?? {};
   const results = ad.theirs.results;
   const whole = (n: number) => n.toLocaleString("en-US");
@@ -742,7 +629,7 @@ function theirsOf(ad: AdLiveDto, currency: string, spentSaid: boolean): FigureVM
 }
 
 /** An ad's drawer; null where the page holds no ad of that id. */
-export function sheetModel(read: AdsLiveDto, adId: string | null, said: Said): SheetVM | null {
+export function sheetModel(read: AdsLiveDto, adId: string | null, said: LiveClock): SheetVM | null {
   const dto = standingNow(read, said.nowMs);
   const ad = adId === null ? undefined : dto.ads.find((one) => one.id === adId);
   if (!ad) return null;
@@ -778,7 +665,7 @@ export function sheetModel(read: AdsLiveDto, adId: string | null, said: Said): S
         ]
       : [],
     // What it spent is said once: over its total's bar where it has one, among Meta's numbers otherwise.
-    theirs: theirsOf(ad, currency, seen.spent !== null),
+    theirs: metaFiguresOf(ad, currency, seen.spent !== null),
     chats: chatsLineOf(ad),
     back: counted(ad) ? backLineOf(ad.back, "this ad") : null,
     worth: worthOf([ad], dto, said.word),
@@ -789,7 +676,7 @@ export function sheetModel(read: AdsLiveDto, adId: string | null, said: Said): S
 }
 
 /** What an ad made here's drawer changes: its sentence where it runs, and whether End is offered. */
-function sheetChangeOf(ad: AdLiveDto, dto: AdsLiveDto, at: Said): Pick<SheetVM, "change" | "ends"> {
+function sheetChangeOf(ad: AdLiveDto, dto: AdsLiveDto, at: LiveClock): Pick<SheetVM, "change" | "ends"> {
   const change = changeSentenceOf(ad, dto, at.nowMs);
   return { change, ends: change?.ends ?? endsAlone(ad, dto) };
 }

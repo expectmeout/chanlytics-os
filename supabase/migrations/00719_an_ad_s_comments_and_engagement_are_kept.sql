@@ -18,6 +18,8 @@
 -- it still lands on this: its nine named arguments reach the new door, whose tenth has a default. The dashboard reads
 -- the new column and touches only where they are, so either order there.
 
+set local lock_timeout = '3s';
+
 /* ------------------------------------------------------------------------------------ 1. a touch may name an ad -- */
 
 alter table public.touches drop constraint if exists touches_subject_type_check;

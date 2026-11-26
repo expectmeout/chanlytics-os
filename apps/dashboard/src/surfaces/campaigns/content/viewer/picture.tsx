@@ -142,9 +142,9 @@ export function ViewerPicture({
   // A post Ask made, at the shape it is drawn in; a photo of the Library as it is. On the plain dark, with no blurred copy of
   // itself darkening the edges (Ruben, 25 Nov 2026: "no filters"). Its size is said before it loads (a post's portrait shape,
   // a photo's own), so the foot under it stands where it will stay from the first frame.
-  const made = file.source === "made";
-  const src = made ? postShapeAddress(file.id, "portrait") : `${fileViewOf(file.id)}?w=1280`;
-  const size = made ? PORTRAIT : file.width && file.height ? { width: file.width, height: file.height } : {};
+  const isMade = file.source === "made";
+  const src = isMade ? postShapeAddress(file.id, "portrait") : `${fileViewOf(file.id)}?w=1280`;
+  const size = isMade ? PORTRAIT : file.width && file.height ? { width: file.width, height: file.height } : {};
   return (
     <div className="cnv-viewer-picture" data-kind="picture" data-testid="cnv-stage">
       <img className="cnv-viewer-fit" src={src} alt={file.line ?? name} {...size} />
