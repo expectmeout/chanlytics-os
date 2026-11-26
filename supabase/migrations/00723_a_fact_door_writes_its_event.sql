@@ -3991,3 +3991,226 @@ begin
     values (p_tenant_id, 'workspace.provisioned', 'setup', 'workspace', p_tenant_id, '{}'::jsonb);
   end if;
 end $$;
+/* -- an ad's draft kept, a mailbox's connect begun, a search undone: each with its event -- */
+
+-- An ad's draft kept for its account writes ad.draft_kept; a mailbox's connect begun (its row made, or found and asked
+-- again) writes mailbox_connection.begun, before mailbox_connection_move says it stood; and a search undone within its
+-- day writes lead_search.undone, with what it took back. All are kept from Activity's rows.
+
+-- ad_draft_keep
+CREATE OR REPLACE FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor   uuid := auth.uid();
+  v_id      uuid;
+  v_at      timestamptz;
+  v_words   integer;
+  v_name    text;
+  v_service text;
+  v_rung    integer := 0;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Operators and partners may draft (0050, call 2): an acting member, a partner only once their session showed its
+  -- second factor. A viewer reads.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_draft is null or jsonb_typeof(p_draft) <> 'object' or octet_length(p_draft::text) > 20000 then
+    raise exception 'A draft is an object of at most 20,000 bytes.' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.ad_accounts a where a.id = p_account_id and a.tenant_id = p_tenant_id) then
+    return jsonb_build_object('kept', false, 'draft_id', null, 'rung', 0);
+  end if;
+  -- A keep that names the draft it read writes nothing over another kept since, nor brings back one gone since
+  -- (turned on): it says newer, and the dashboard puts what its writer made into the draft as it now stands.
+  if p_read_at is not null then
+    select d.id, d.updated_at into v_id, v_at
+      from public.ad_drafts d
+     where d.tenant_id = p_tenant_id
+       for update;
+    if (v_id is null and p_read_at <> '-infinity'::timestamptz) or (v_id is not null and v_at is distinct from p_read_at)
+    then
+      return jsonb_build_object('kept', false, 'draft_id', v_id, 'rung', 0, 'newer', true);
+    end if;
+  end if;
+  insert into public.ad_drafts as d (tenant_id, account_id, draft, kept_by)
+  values (p_tenant_id, p_account_id, p_draft, v_actor)
+  on conflict (tenant_id) do update
+     set account_id = excluded.account_id, draft = excluded.draft, kept_by = excluded.kept_by
+  returning d.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.draft_kept', 'ads', 'ad_account', p_account_id,
+          jsonb_build_object('draft_id', v_id, 'by', v_actor));
+  if public.has_permission(v_actor, p_tenant_id, 'ads') then
+    -- The owner has it now: what told them it waited is closed.
+    update public.notifications n
+       set closed_at = now()
+     where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.closed_at is null;
+    return jsonb_build_object('kept', true, 'draft_id', v_id, 'rung', 0);
+  end if;
+  v_words := case when jsonb_typeof(p_draft -> 'versions') = 'array' then jsonb_array_length(p_draft -> 'versions')
+                  else 0 end;
+  -- Left with its words, it waits for whoever may turn it on: one row each, never a second while one is open.
+  if v_words > 0 then
+    begin
+      select nullif(btrim(p.display_name), '') into v_name from public.profiles p where p.user_id = v_actor;
+      -- The service as the writer named it in a few words, where it did: a service's own name can run to a sentence.
+      v_service := coalesce(nullif(btrim(p_draft ->> 'label'), ''), nullif(btrim(p_draft ->> 'service'), ''));
+      if char_length(v_service) > 120 then
+        v_service := left(v_service, 119) || '…';
+      end if;
+      insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
+                                        recipient_user_id)
+      select p_tenant_id, 'ad_draft', coalesce(v_name, 'Someone on your team') || ' left you a draft ad',
+             coalesce('For ' || v_service || '. ', '') || 'It runs only once you turn it on.',
+             'campaigns/ads:new', 'ad_draft', v_id::text, m.user_id
+        from public.memberships m
+       where m.tenant_id = p_tenant_id
+         and m.user_id <> v_actor
+         and public.has_permission(m.user_id, p_tenant_id, 'ads')
+         and not exists (
+               select 1 from public.notifications n
+                where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.recipient_user_id = m.user_id
+                  and n.closed_at is null);
+      get diagnostics v_rung = row_count;
+    exception when others then
+      -- The bell's line never costs the draft its keeping.
+      raise warning 'ad_draft_keep: %', sqlerrm;
+    end;
+  end if;
+  return jsonb_build_object('kept', true, 'draft_id', v_id, 'rung', v_rung);
+end $$;
+
+-- mailbox_connection_connect
+CREATE OR REPLACE FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_address text := lower(btrim(p_address));
+  v_row     public.mailbox_connections;
+  v_other   uuid;
+begin
+  -- The same account, connected again (a reconnect, or the owner pressed Connect twice): its row, back to connected.
+  select * into v_row from public.mailbox_connections c
+   where c.tenant_id = p_tenant_id and c.provider = p_provider and c.provider_account = p_account
+     and c.state <> 'removed'
+   for update;
+  if found then
+    update public.mailbox_connections
+       set address = v_address, host = split_part(v_address, '@', 2), scopes = coalesce(p_scopes, '{}'),
+           customer_domain = coalesce(p_customer_domain, false),
+           state = case when state in ('reconnect') then 'connected' else state end,
+           last_error = null, last_error_at = null, connected_by = coalesce(p_user_id, connected_by),
+           connected_at = now()
+     where id = v_row.id
+     returning * into v_row;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+            jsonb_build_object('made', false, 'provider', p_provider, 'by', p_user_id));
+    return jsonb_build_object('id', v_row.id, 'made', false, 'state', v_row.state);
+  end if;
+  -- An address another workspace writes from is that workspace's.
+  select c.tenant_id into v_other from public.mailbox_connections c
+   where c.address = v_address and c.state <> 'removed' and c.tenant_id <> p_tenant_id
+   limit 1;
+  if v_other is not null then
+    raise exception 'Another workspace writes from this mailbox.' using errcode = 'P0001', hint = 'taken';
+  end if;
+  insert into public.mailbox_connections
+    (tenant_id, provider, provider_account, address, host, from_name, scopes, customer_domain, connected_by)
+  values
+    (p_tenant_id, p_provider, p_account, v_address, split_part(v_address, '@', 2),
+     left(coalesce(nullif(btrim(p_from_name), ''), split_part(v_address, '@', 1)), 80),
+     coalesce(p_scopes, '{}'), coalesce(p_customer_domain, false), p_user_id)
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+          jsonb_build_object('made', true, 'provider', p_provider, 'by', p_user_id));
+  return jsonb_build_object('id', v_row.id, 'made', true, 'state', v_row.state);
+end $$;
+
+-- lead_search_undo
+CREATE OR REPLACE FUNCTION public.lead_search_undo(p_search_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user     uuid := auth.uid();
+  s          public.lead_searches;
+  r          public.lead_rounds;
+  v_ids      uuid[] := '{}';
+  v_credit   jsonb := '{}'::jsonb;
+  v_counter  public.lead_counters;
+  v_removed  integer := 0;
+  v_credited integer := 0;
+  v_op       uuid;
+  rec        record;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into s from public.lead_searches where id = p_search_id for update;
+  -- The owner's alone (permission find): it gives leads back to the month, and
+  -- only the person who spends them may.
+  if not found or not public.has_permission(v_user, s.tenant_id, 'find') then
+    raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  if s.removed_at is not null then
+    return jsonb_build_object('error', 'removed');
+  end if;
+  select * into r from public.lead_rounds where search_id = p_search_id order by seq desc limit 1;
+  if not found or r.state <> 'ended' then
+    return jsonb_build_object('error', 'running');
+  end if;
+  if r.ended_at is null or r.ended_at < now() - interval '24 hours' then
+    return jsonb_build_object('error', 'too_late');
+  end if;
+
+  for rec in
+    select m.id as member_id, m.lead_id, m.counted, m.counted_month, l.exported_at
+      from public.lead_search_members m
+      join public.leads l on l.id = m.lead_id
+     where m.search_id = p_search_id and m.round_id = r.id and m.blanked_at is null
+       and l.erased_at is null and l.blanked_at is null
+       -- untouched, read off the work
+       and l.stage = 'ready' and l.contact_id is null and l.contacted_at is null
+       and l.last_outcome is null and not l.phone_wrong
+       and m.kept_at is null and coalesce(m.excluded_by, '') <> 'owner'
+     for update of m
+  loop
+    if rec.counted and rec.exported_at is null then
+      v_counter := public.lead_counter_take(s.tenant_id, 'allowance', rec.counted_month);
+      update public.lead_counters set used = greatest(used - 1, 0), updated_at = now() where id = v_counter.id;
+      v_credit   := v_credit || jsonb_build_object(rec.lead_id::text, rec.counted_month);
+      v_credited := v_credited + 1;
+      update public.lead_search_members
+         set blanked_at = now(), counted = false, counted_month = null, version = version + 1
+       where id = rec.member_id;
+    else
+      -- Exported, or never counted: it leaves the search and keeps its charge.
+      update public.lead_search_members set blanked_at = now(), version = version + 1 where id = rec.member_id;
+    end if;
+    v_ids     := array_append(v_ids, rec.lead_id);
+    v_removed := v_removed + 1;
+  end loop;
+
+  if v_removed = 0 then
+    -- Everything here has been worked: there is nothing to give back, and an
+    -- operation row with no leads in it is nothing to undo.
+    return jsonb_build_object('removed', 0, 'credited', 0, 'op_id', null, 'version', 1);
+  end if;
+  insert into public.lead_operations (tenant_id, kind, search_id, lead_ids, before, after, version, by)
+  values (s.tenant_id, 'undo_search', p_search_id, v_ids,
+          jsonb_build_object('removed_at', null, 'credited', v_credit),
+          jsonb_build_object('round_id', r.id, 'removed', v_removed, 'credited', v_credited), 1, v_user)
+  returning id into v_op;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead_search.undone', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('removed', v_removed, 'credited', v_credited, 'by', v_user));
+  return jsonb_build_object('removed', v_removed, 'credited', v_credited, 'op_id', v_op, 'version', 1);
+end $$;

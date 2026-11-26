@@ -1327,6 +1327,9 @@ begin
   on conflict (tenant_id) do update
      set account_id = excluded.account_id, draft = excluded.draft, kept_by = excluded.kept_by
   returning d.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.draft_kept', 'ads', 'ad_account', p_account_id,
+          jsonb_build_object('draft_id', v_id, 'by', v_actor));
   if public.has_permission(v_actor, p_tenant_id, 'ads') then
     -- The owner has it now: what told them it waited is closed.
     update public.notifications n
@@ -21304,6 +21307,9 @@ begin
           jsonb_build_object('removed_at', null, 'credited', v_credit),
           jsonb_build_object('round_id', r.id, 'removed', v_removed, 'credited', v_credited), 1, v_user)
   returning id into v_op;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead_search.undone', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('removed', v_removed, 'credited', v_credited, 'by', v_user));
   return jsonb_build_object('removed', v_removed, 'credited', v_credited, 'op_id', v_op, 'version', 1);
 end $$;
 
@@ -23373,6 +23379,9 @@ begin
            connected_at = now()
      where id = v_row.id
      returning * into v_row;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+            jsonb_build_object('made', false, 'provider', p_provider, 'by', p_user_id));
     return jsonb_build_object('id', v_row.id, 'made', false, 'state', v_row.state);
   end if;
   -- An address another workspace writes from is that workspace's.
@@ -23389,6 +23398,9 @@ begin
      left(coalesce(nullif(btrim(p_from_name), ''), split_part(v_address, '@', 1)), 80),
      coalesce(p_scopes, '{}'), coalesce(p_customer_domain, false), p_user_id)
   returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+          jsonb_build_object('made', true, 'provider', p_provider, 'by', p_user_id));
   return jsonb_build_object('id', v_row.id, 'made', true, 'state', v_row.state);
 end $$;
 
