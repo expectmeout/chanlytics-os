@@ -2728,3 +2728,103 @@ begin
    where conversation_id = p_conversation_id and tenant_id = p_tenant_id and state = 'open';
   return true;
 end $$;
+/* -- a message withdrawn, unsent by its writer, or complained of: each with its event -- */
+
+-- A queued message withdrawn before it left (a member's call back, a draft let go, a turn another reply took) writes
+-- message.withdrawn, an Instagram message its writer unsent writes message.unsent, and an email the person marked as
+-- spam writes message.complained, each in its own transaction. All are kept from Activity's rows: the thread says each.
+
+-- withdraw_queued
+CREATE OR REPLACE FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb DEFAULT NULL::jsonb) RETURNS uuid[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ids uuid[];
+begin
+  if p_tenant_id is null then
+    raise exception 'withdraw_queued: a message is withdrawn in a workspace' using errcode = '22004';
+  end if;
+  if p_reason is not null and (jsonb_typeof(p_reason) <> 'object' or nullif(p_reason->>'reason', '') is null) then
+    raise exception 'withdraw_queued: a reason is an object that names its reason' using errcode = '22023';
+  end if;
+  -- The rows, then the jobs that would send them, in this one statement: a row a run has claimed is on its way and is
+  -- left to say what became of it, and its job with it.
+  with withdrawn as (
+    update public.messages m
+       set status = 'canceled', error = coalesce(p_reason, m.error)
+     where m.tenant_id = p_tenant_id and m.id = any (coalesce(p_message_ids, '{}'::uuid[]))
+       and m.status = 'queued' and m.sending_at is null
+    returning m.id
+  ), jobs_withdrawn as (
+    update public.jobs j
+       set state = 'canceled'
+      from withdrawn w
+     where j.tenant_id = p_tenant_id and j.kind = 'outbound_send' and j.state = 'scheduled'
+       and j.payload ->> 'message_id' = w.id::text
+    returning j.id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'message.withdrawn', 'message', 'message', w.id,
+           jsonb_strip_nulls(jsonb_build_object('reason', p_reason ->> 'reason', 'by', auth.uid()))
+      from withdrawn w
+    returning 1
+  )
+  select coalesce(array_agg(w.id order by w.id), '{}'::uuid[]) into v_ids from withdrawn w;
+  return v_ids;
+end $$;
+
+-- message_unsent
+CREATE OR REPLACE FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id    uuid;
+  v_media jsonb;
+begin
+  select m.id, m.media into v_id, v_media
+    from messages m
+   where m.tenant_id = p_tenant_id and m.external_id = p_external_id
+     and m.channel = 'instagram' and m.direction = 'inbound' and m.sender = 'customer'
+   for update;
+  if v_id is null then
+    return jsonb_build_object('outcome', 'none');
+  end if;
+  update messages
+     set body = null,
+         media = null,
+         meta = coalesce(meta, '{}'::jsonb)
+                || jsonb_build_object('unsent_at', now())
+                || case when coalesce(meta, '{}'::jsonb) ? 'processed_at' then '{}'::jsonb
+                        else jsonb_build_object('processed_at', now()) end
+   where id = v_id;
+  update jobs
+     set payload = payload #- '{ig,item,message,text}' #- '{ig,item,message,attachments}'
+   where tenant_id = p_tenant_id and kind = 'inbound_answer' and payload ->> 'message_id' = v_id::text;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'message.unsent', 'message', 'message', v_id,
+          jsonb_strip_nulls(jsonb_build_object('channel', 'instagram')));
+  return jsonb_build_object('outcome', 'forgot', 'message_id', v_id, 'storage_path', v_media ->> 'storage_path');
+end $$;
+
+-- stamp_email_complaint
+CREATE OR REPLACE FUNCTION public.stamp_email_complaint(p_tenant_id uuid, p_message_id uuid, p_at timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n integer;
+begin
+  update public.messages m
+     set meta = jsonb_set(m.meta, '{email,complained_at}', to_jsonb(p_at), true)
+   where m.id = p_message_id and m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
+     and m.meta ? 'email' and not (m.meta->'email' ? 'complained_at');
+  get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'message.complained', 'message', 'message', p_message_id,
+            jsonb_strip_nulls(jsonb_build_object('at', p_at)));
+  end if;
+  return v_n > 0;
+end $$;

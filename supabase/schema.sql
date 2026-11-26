@@ -25066,6 +25066,9 @@ begin
   update jobs
      set payload = payload #- '{ig,item,message,text}' #- '{ig,item,message,attachments}'
    where tenant_id = p_tenant_id and kind = 'inbound_answer' and payload ->> 'message_id' = v_id::text;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'message.unsent', 'message', 'message', v_id,
+          jsonb_strip_nulls(jsonb_build_object('channel', 'instagram')));
   return jsonb_build_object('outcome', 'forgot', 'message_id', v_id, 'storage_path', v_media ->> 'storage_path');
 end $$;
 
@@ -47110,6 +47113,11 @@ begin
    where m.id = p_message_id and m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
      and m.meta ? 'email' and not (m.meta->'email' ? 'complained_at');
   get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'message.complained', 'message', 'message', p_message_id,
+            jsonb_strip_nulls(jsonb_build_object('at', p_at)));
+  end if;
   return v_n > 0;
 end $$;
 
@@ -49565,6 +49573,12 @@ begin
      where j.tenant_id = p_tenant_id and j.kind = 'outbound_send' and j.state = 'scheduled'
        and j.payload ->> 'message_id' = w.id::text
     returning j.id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'message.withdrawn', 'message', 'message', w.id,
+           jsonb_strip_nulls(jsonb_build_object('reason', p_reason ->> 'reason', 'by', auth.uid()))
+      from withdrawn w
+    returning 1
   )
   select coalesce(array_agg(w.id order by w.id), '{}'::uuid[]) into v_ids from withdrawn w;
   return v_ids;
