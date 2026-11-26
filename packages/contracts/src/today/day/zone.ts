@@ -323,8 +323,8 @@ export function todayZoneDay(
   const closedAllDay = today.closed.yes && today.items.length + today.more === 0;
   const tomorrow = ((close !== null && cal.now >= close) || closedAllDay) && !!next && !!nextFrame;
   const closedToday = tomorrow && closedAllDay;
-  const frame = tomorrow && next ? next : today;
-  const raw = tomorrow && nextFrame ? nextFrame : todayFrame;
+  const frame = tomorrow ? next : today;
+  const raw = tomorrow ? nextFrame : todayFrame;
   const words = appointmentWords(day.word);
   const { cells, used } = dayCellsOf(frame.items, tomorrow);
   const timed = frame.items.filter((i) => !i.allDay);

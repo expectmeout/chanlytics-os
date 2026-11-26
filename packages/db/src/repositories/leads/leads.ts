@@ -382,7 +382,8 @@ export async function findLeadCountries(db: Db, ids: readonly string[]): Promise
       .select("id, country")
       .in("id", unique.slice(i, i + 100));
     if (error) throw new DbFailure(error, "cannot read the leads' countries");
-    for (const r of data) out.set(r.id, r.country.trim().toUpperCase() || null);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the suite's leads come without their country
+    for (const r of data) out.set(r.id, r.country?.trim().toUpperCase() || null);
   }
   return out;
 }

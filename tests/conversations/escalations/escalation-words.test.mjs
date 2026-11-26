@@ -3,7 +3,7 @@
  * the operator reads first are three forms of ONE closed set, declared beside each other. Reports said "Flagged by
  * you" and "Memory was unavailable" where the Inbox said "Flagged by hand" and "The receptionist could not read
  * this thread" (the 2 Oct 2026 audit): two maps, two vocabularies, one set.
- * Run: node tooling/scripts/checks/test.mjs tests/conversations/escalation-words.test.mjs
+ * Run: node tooling/scripts/checks/test.mjs tests/conversations/escalations/escalation-words.test.mjs
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ import {
   reasonShort,
   SCHEMA_SETS,
 } from "@chanlytics/contracts";
-import { importSrc } from "../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 
 const { reasonHeld } = await importSrc("packages/contracts/src/conversations/escalations.ts");
 
