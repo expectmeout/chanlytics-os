@@ -106,6 +106,7 @@ export interface PartnerVM {
 export function partnerVM(
   dto: PartnerDto,
   origin: string,
+  zone: string,
   workspacesAsPartner: number,
   balance: readonly PartnerBalanceRow[] = [],
 ): PartnerVM {
@@ -114,7 +115,7 @@ export function partnerVM(
     link: partnerLinkFor(dto.code, origin),
     status: dto.status,
     share: shareWords(dto.share_bp),
-    since: PARTNER_WORDS.since(dto.created_at),
+    since: PARTNER_WORDS.since(dto.created_at, zone),
     brought: broughtWords(workspacesAsPartner),
     standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
     earnings: partnerEarningsWords(balance),

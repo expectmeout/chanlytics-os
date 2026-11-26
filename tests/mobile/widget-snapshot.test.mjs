@@ -127,3 +127,10 @@ test("after the bridge the shell trusts the shapes and the sizes, nothing else",
   );
   assert.equal(parseTodayWidgetSnapshot(null), null);
 });
+
+test("the workspace's zone rides with the snapshot when Intl can use it, so the widget says its time by that clock", () => {
+  const good = todayWidgetSnapshot(vm, new Date("2026-09-26T15:00:00Z"), needs());
+  assert.equal(parseTodayWidgetSnapshot({ ...good, zone: "America/Chicago" })?.zone, "America/Chicago");
+  assert.equal(parseTodayWidgetSnapshot({ ...good, zone: "Mars/Olympus" })?.zone, undefined, "a zone Intl cannot use");
+  assert.ok(!("zone" in parseTodayWidgetSnapshot(good)), "a page from before sent none, and none is made up");
+});

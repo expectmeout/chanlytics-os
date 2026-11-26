@@ -40,6 +40,7 @@ import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "@
 import { teamPartnerRead } from "../frame/pane-reads";
 import { setSurfaceValue, surfaceValue } from "../../surface-values";
 import { provided } from "@/bridge/provided";
+import { pageClock } from "@/bridge/zone";
 import { whoIsLooking, type Workspace } from "@/bridge/who";
 
 export interface PartnerSurface {
@@ -180,7 +181,8 @@ export const partnerVerbs: PartnerApi = {
   },
   offerShare: shareWords(PARTNER_SHARE_BP_DEFAULT),
   // The server's count (partner_tenants) when it sends one; the seats held, from an older server.
-  vm: (dto, balance) => partnerVM(dto, window.location.origin, dto.brought ?? brought(), balance ?? []),
+  vm: (dto, balance) =>
+    partnerVM(dto, window.location.origin, pageClock().zone(), dto.brought ?? brought(), balance ?? []),
   broughtCount: brought,
   async become(code) {
     const r = await api()("POST partner", { body: { code, terms: true } });

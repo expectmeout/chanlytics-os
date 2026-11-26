@@ -74,7 +74,7 @@ function experienceGroups(detail: string): Set<string>[] {
   }
 }
 
-export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
+export function expoPush(fetchImpl?: typeof fetch): PushPort {
   const post = async (url: string, body: unknown): Promise<ProviderReply> => {
     const token = env.EXPO_ACCESS_TOKEN;
     const item = await fetchFromProvider(
@@ -90,7 +90,7 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
         body: JSON.stringify(body),
         timeoutMs: TIMEOUT_MS,
       },
-      { fetch: fetchImpl },
+      fetchImpl ? { fetch: fetchImpl } : {},
     );
     return item;
   };

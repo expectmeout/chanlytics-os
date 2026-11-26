@@ -1,5 +1,6 @@
 import { SIGNUP_WORDS } from "@chanlytics/contracts";
 import type { SignupSchema } from "@chanlytics/contracts";
+import { askOwnRoute } from "@/client/own-route";
 
 /**
  * Joining the waitlist from the first-workspace screen (the wiring audit's N1).
@@ -39,22 +40,18 @@ export async function joinWaitlistFrom(
   const parsed = rule.safeParse({ name: input.name, email: input.email });
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? SIGNUP_WORDS.waitlistNotJoined };
   const { name, email } = parsed.data;
-  let res: Response;
-  try {
-    res = await win.fetch("/api/v1/signup", {
+  // Through the page's own-route client, on the window it was handed: no answer at all is status 0, said as unreachable.
+  const r = await askOwnRoute<{ ok?: boolean; data?: { waitlisted?: boolean }; error?: { message?: string } }>(
+    "/api/v1/signup",
+    {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify({ name, email }),
-    });
-  } catch {
-    return { ok: false, message: SIGNUP_WORDS.unreachable };
-  }
-  const answer = (await res.json().catch(() => null)) as {
-    ok?: boolean;
-    data?: { waitlisted?: boolean };
-    error?: { message?: string };
-  } | null;
-  if (!res.ok || !answer?.ok) return { ok: false, message: answer?.error?.message ?? SIGNUP_WORDS.unreachable };
+    },
+    { fetch: (url, init) => win.fetch(url, init) },
+  );
+  const answer = r.json;
+  if (!r.ok || !answer?.ok) return { ok: false, message: answer?.error?.message ?? SIGNUP_WORDS.unreachable };
   // Only the list's own answer is a yes: a sign-up that was not put on the list did not join it.
   if (!answer.data?.waitlisted) return { ok: false, message: SIGNUP_WORDS.waitlistNotJoined };
   return { ok: true, sentence: SIGNUP_WORDS.waitlistSent(email) };

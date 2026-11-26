@@ -122,7 +122,7 @@ export async function recordPagePlatformDay(
 }
 
 /** The provider's client for the watch, when this deployment holds the key; null checks nothing. */
-export function leadSourceClient(fetchImpl: typeof fetch = fetch): ApifyClient | null {
+export function leadSourceClient(fetchImpl?: typeof fetch): ApifyClient | null {
   const token = env.APIFY_TOKEN;
   return token ? apifyClient(fetchImpl, token) : null;
 }

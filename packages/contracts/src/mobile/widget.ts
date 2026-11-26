@@ -6,6 +6,7 @@
  * pulls Today's builders into the app's own compile.
  */
 import { isCount, recordOrEmpty, valueAt } from "../shared/unknown";
+import { usableZone } from "../shared/zone/math";
 
 export interface TodayWidgetSnapshot {
   /** The standing's headline: what Today says first. */
@@ -18,6 +19,11 @@ export interface TodayWidgetSnapshot {
   first: { who: string; reason: string } | null;
   /** When this was true, ISO. The widget says "as of" from it. */
   at: string;
+  /**
+   * The workspace's zone, which the widget says "as of" in, as the page says every time by it. Absent from a page
+   * before 26 Nov 2026 and from a zone Intl cannot use: the widget then says it in the phone's own.
+   */
+  zone?: string;
 }
 
 const FIGURES_MAX = 4;
@@ -48,5 +54,6 @@ export function parseTodayWidgetSnapshot(raw: unknown): TodayWidgetSnapshot | nu
     if (whoText === null || reason === null) return null;
     first = { who: whoText, reason };
   }
-  return { headline, figures, waiting, first, at };
+  const zone = typeof items.zone === "string" ? items.zone.trim() : "";
+  return { headline, figures, waiting, first, at, ...(zone && usableZone(zone) === zone ? { zone } : {}) };
 }
