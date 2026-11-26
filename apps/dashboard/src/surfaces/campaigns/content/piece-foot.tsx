@@ -1,6 +1,6 @@
 /**
  * Save, and what the presses on an open piece are handed (piece.tsx pieceActsOf). Save is the device's own share sheet where it
- * has one, as Files' post sheet hands a post over (files/post-share.ts): that is how a picture, and a video made here, reach
+ * has one, as Files' post sheet hands a post over (files/post/share.ts): that is how a picture, and a video made here, reach
  * Photos on a phone, where Instagram finds them (a download lands in Files on an iPhone). Safari opens the sheet only inside
  * the tap, so the file is fetched as the piece opens, and the tap asks for nothing. Anywhere else Save is the download.
  */
@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { CONTENT_WORDS as W, POST_WORDS, fileViewOf, type FileDto, type PostShapeName } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { postFileOf, sharePostFile, sharesPictures, sharesVideos, videoFileOf } from "../../files/post-share";
+import { openShareSheet, readPostFile, readVideoFile, sharesPictures, sharesVideos } from "../../files/post/share";
 import type { PieceNext } from "./model/piece-open";
 
 /** Save: the share sheet's press where the device has one and the picture has come, the download's address everywhere. */
@@ -26,7 +26,7 @@ export function useSave(file: FileDto, shape: PostShapeName) {
   useEffect(() => {
     if (!canShare) return undefined;
     let live = true;
-    void (video ? videoFileOf(file.id, file.name) : postFileOf(file.id, file.name, shape)).then((kept) => {
+    void (video ? readVideoFile(file.id, file.name) : readPostFile(file.id, file.name, shape)).then((kept) => {
       if (live) setReady({ shape, file: kept });
     });
     return () => {
@@ -35,7 +35,7 @@ export function useSave(file: FileDto, shape: PostShapeName) {
   }, [canShare, video, file.id, file.name, shape]);
   const shared = ready?.shape === shape ? ready.file : null;
   const share = shared
-    ? () => void sharePostFile(shared).then((outcome) => setSaid(outcome === "failed" ? POST_WORDS.shareFailed : null))
+    ? () => void openShareSheet(shared).then((outcome) => setSaid(outcome === "failed" ? POST_WORDS.shareFailed : null))
     : null;
   const href =
     video || file.source !== "made"

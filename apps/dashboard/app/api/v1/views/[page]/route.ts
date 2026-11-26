@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { Json } from "@chanlytics/db/types";
 import { AppError } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/shared/route";
 import { dbRefusal } from "@/server/shared/with-route";
@@ -29,7 +28,7 @@ export const PUT = write({
     const { data, error } = await saveMemberView(ctx, {
       p_tenant_id: member.tenantId,
       p_page: page,
-      p_view: input.view as Json,
+      p_view: input.view,
     });
     if (error) throw dbRefusal(error);
     return { views: data && typeof data === "object" && !Array.isArray(data) ? data : {} };

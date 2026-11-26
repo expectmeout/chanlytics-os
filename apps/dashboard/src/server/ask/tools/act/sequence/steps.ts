@@ -15,6 +15,7 @@ import {
   handTitleOf,
   isSequenceMode,
   plural,
+  recordOrEmpty,
   sequenceActsOf,
   sequenceRoute,
   type SequenceAct,
@@ -175,7 +176,7 @@ export async function proposeMake(
     kind: "sequence_make",
     title: `Campaign: ${name}`,
     summary: `${card.summary}${sentence.length ? ` · Then ${sentence.join("; ")}` : ""} · ${input.start ? "Starts once approved" : "Kept as a draft: nothing goes until it is started"}`,
-    payload: { first: (call as { body: Record<string, unknown> }).body, then, start: input.start, name },
+    payload: { first: recordOrEmpty(call.body), then, start: input.start, name },
   });
 }
 
@@ -314,7 +315,10 @@ export async function proposeLeave(
     kind: "sequence_leave",
     title: `Take ${plural(rows.length, "person", "people")} out of ${rec.sequence.name}`,
     summary: `${names.slice(0, 5).join(", ")}${names.length > 5 ? ` and ${names.length - 5} more` : ""}: a send of theirs not yet gone is skipped with them.`,
-    payload: { sequence_id: rec.sequence.id, enrollment_ids: rows.map((r) => r.enrollment_id as string) },
+    payload: {
+      sequence_id: rec.sequence.id,
+      enrollment_ids: rows.flatMap((r) => (r.enrollment_id ? [r.enrollment_id] : [])),
+    },
   });
 }
 

@@ -14,7 +14,18 @@ import {
   ROLE_WORDS,
   DISPLAY_NAME_MAX,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { readCode, importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { installStubReact } from "../_stub-react.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+bridgeHolds({ who: { workspaces: [], activeWorkspaceId: null } });
+installStubReact();
+const workspaces = await importSrc("apps/dashboard/app/api/v1/workspaces/route.ts");
+const { installIdentity } = await importSrc("apps/dashboard/src/bridge/identity.ts");
+const { sbWho } = await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar-who.tsx");
 
 test("the words for the signed-in person: a given name or 'Your account', initials from the name or the email, the role in a word", () => {
   assert.deepEqual(identityWords(null), { name: "Your account", email: "", initials: "?", role: "", named: false });
@@ -72,88 +83,70 @@ test("a name before it is sent: trimmed, inner spaces folded, at most 80 charact
   assert.equal(DISPLAY_NAME_MAX, 80);
 });
 
-test("the wiring: one profile row per account, written by its owner only, read by the workspaces they share; the roster carries it; the route, the bridge, the chrome, the card", () => {
-  const mig = readRaw("supabase/migrations/00068_profiles.sql");
-  for (const pin of [
-    "create table public.profiles (",
-    "user_id      uuid primary key references auth.users (id) on delete cascade,",
-    "check (char_length(display_name) <= 80)",
-    "create policy profiles_member_select on public.profiles",
-    "grant select on public.profiles to authenticated;",
-    "create or replace function public.profile_set(p_display_name text)",
-    "on conflict (user_id) do update set display_name = excluded.display_name;",
-    "revoke all on function public.profile_set(text) from public, anon;",
-    "grant execute on function public.profile_set(text) to authenticated;",
-    "drop function if exists public.team_roster(uuid);",
-    "returns table (membership_id uuid, member_user_id uuid, email text, role text, joined_at timestamptz, display_name text)",
-    "left join public.profiles p on p.user_id = m.user_id",
-    "raise exception 'Not a member of this workspace.' using errcode = '42501';",
-  ])
-    assert.ok(mig.includes(pin), pin);
-  assert.ok(
-    !mig.includes("grant insert") && !mig.includes("grant update"),
-    "no direct writes: profile_set is the door",
-  );
-
+test("the wiring: the identity the seam fetches at boot carries the name, nowhere yet and in a workspace", async () => {
+  // One profile row per account, written by its owner only through profile_set, read by the workspaces they share, and
+  // the roster carrying it: run on the replayed database in
+  // a-person-s-name-is-theirs-to-set-and-their-team-s-to-read.db.test.mjs (00068's text was pinned here until 25 Nov
+  // 2026). The roster's read carries it to the page: team-reads.test.mjs ("each member named").
   // Your name is yours alone to set, needs no workspace, is counted in its own bucket, judged by the contracts' rule
   // before the database's and saved through the one door (profile_set): run through the route in
-  // workspace/account-routes.test.mjs ("the three declare their policy", "your name"). Pinned as the route's, the door's
-  // and the limiter's text until 25 Nov 2026.
+  // workspace/account-routes.test.mjs ("the three declare their policy", "your name").
+  const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const USER = "99999999-9999-4999-8999-999999999999";
+  const tables = (memberships) => ({
+    memberships,
+    // As RLS answers the session: the workspace row only to its members.
+    tenants: memberships.length
+      ? [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }]
+      : [],
+    profiles: [{ user_id: USER, display_name: "Ada Lovelace" }],
+    invitations: [],
+  });
+  const ctx = (memberships) => ({
+    supabase: fakeDb(tables(memberships), {}, { platform_staff_state: () => "none" }),
+    userId: USER,
+    email: "ada@example.com",
+    aal: "aal2",
+    params: {},
+    headers: {},
+  });
+  const read = (memberships) => workspaces.GET.run(new Request("http://localhost/api/v1/workspaces"), ctx(memberships));
+  const seated = await read([
+    { user_id: USER, tenant_id: A, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+  ]);
+  assert.equal(seated.user.display_name, "Ada Lovelace", "in a workspace");
+  const nowhere = await read([]);
+  assert.equal(nowhere.user.display_name, "Ada Lovelace", "and a person in no workspace yet");
+});
 
-  // With the read it names, packages/db's (decision 0111).
-  const ws = readCode(
-    "apps/dashboard/app/api/v1/workspaces/route.ts",
-    "apps/dashboard/src/server/workspace/list.ts",
-    "packages/db/src/repositories/auth/account.ts",
-  );
-  assert.ok(
-    /from\("profiles"\)\s*\.select\("display_name"\)\s*\.eq\("user_id", userId\)\s*\.maybeSingle\(\)/.test(ws),
-    "the identity the seam fetches at boot carries the name",
-  );
-  assert.ok(
-    (ws.match(/display_name: displayName/g) ?? []).length === 2,
-    "on both answers: nowhere yet, and a workspace",
-  );
-
-  const service = readCode("apps/dashboard/src/server/workspace/team.ts");
-  assert.ok(
-    service.includes("display_name: m.display_name,") && service.includes("display_name: string;"),
-    "the roster carries the name",
-  );
-
-  const bridge = readCode("apps/dashboard/src/bridge/identity.ts");
+test("the wiring: the bridge names nobody on the window, and the chip and the roster say the given name, never one made from the email", () => {
   // The words are contracts', imported where they are said (decision 0151): the bridge publishes none of them.
-  assert.ok(!bridge.includes("__identity"), "no window name for the words");
-  // A new name reaches the chrome and the roster through the workspace and settings reads the write re-reads (refresh-map.ts "PUT me"),
-  // and the bridge patches nothing ahead of them: shell/hearing/channels-billing-and-rules-are-heard.test.mjs runs it.
-  assert.ok(!bridge.includes("me:changed"), "the bridge no longer announces a name of its own");
+  installIdentity(globalThis.window);
+  assert.equal("__identity" in globalThis.window, false, "no window name for the words");
+  // A new name reaches the chrome and the roster through the workspace and settings reads the write re-reads
+  // (refresh-map.ts "PUT me"), and the bridge patches nothing ahead of them or announces a name of its own:
+  // shell/hearing/channels-billing-and-rules-are-heard.test.mjs ("naming yourself is a write ...") runs it.
+  // The frame installs the identity at boot, before any page draws. FrameApp.tsx cannot be imported here (its installs
+  // need a browser), so that one line is still read.
   assert.ok(readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installIdentity();"));
-  assert.ok(
-    readCode("apps/dashboard/src/bridge/who.ts").includes("display_name?: string | null"),
-    "who is looking carries the name",
-  );
 
-  const sidebar = ["sidebar", "sidebar-who"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/sidebar/${f}.tsx`))
-    .join("\n");
-  assert.ok(sidebar.includes("identityWords(me)"), "the chip reads the same words");
+  // The sidebar's chip: the name given, else "Your account", and never the email's local part.
+  bridgeHolds({ who: { me: { email: "ana@salon.example", display_name: "", role: "owner" } } });
+  assert.deepEqual(
+    [sbWho().name, sbWho().email, sbWho().named],
+    ["Your account", "ana@salon.example", false],
+    "REGRESSION: never 'ana' dressed as a name",
+  );
+  bridgeHolds({ who: { me: { email: "ana@salon.example", display_name: "Ana Ruiz", role: "operator" } } });
+  assert.deepEqual([sbWho().name, sbWho().role, sbWho().named], ["Ana Ruiz", "Operator", true]);
+  // It redraws as who is looking is read: the one listener, still read until the chip is drawn here.
   assert.ok(
-    sidebar.includes('window.addEventListener("surface:workspace", bump);'),
+    readCode("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx").includes(
+      'window.addEventListener("surface:workspace", bump);',
+    ),
     "the chip redraws as who is looking is read",
   );
-  assert.ok(!sidebar.includes('split("@")[0]'), "never the email's local part as a name");
-
-  // A person names themselves on Profile: drawn in settings-owner-panes.test.mjs ("your name is a row on Profile"). The
-  // Team card is TSX (surfaces/settings/team, decision 0015 step 11), and reads the same words as the chip.
-  // Its roster is read in people.ts (the redesign of 9 Oct 2026) and drawn by the card's modules.
-  const team = readCode(
-    "apps/dashboard/src/surfaces/settings/team/people.ts",
-    "apps/dashboard/src/surfaces/settings/team/team.tsx",
-    "apps/dashboard/src/surfaces/settings/team/rows.tsx",
-  );
-  assert.ok(
-    team.includes("memberWords({ email: m.email, display_name: m.display_name })"),
-    "the roster reads the same words",
-  );
-  assert.ok(!team.includes('split("@")[0]'), "never the local part dressed as a name");
+  // A person names themselves on Profile: drawn in workspace/settings-owner-panes/ ("your name is a row on Profile"). The
+  // Team card reads the same words as the chip, each row its member's given name or their address, drawn in
+  // team/team-card.test.mjs ("each person is the name they gave, else their address").
 });

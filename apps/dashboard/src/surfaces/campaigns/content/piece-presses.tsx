@@ -17,8 +17,8 @@ import {
   type PostDto,
 } from "@chanlytics/contracts";
 import { canDo, type FrameFlash } from "../../frame-verbs";
-import type { usePostRecord } from "../../files/post-record";
-import { PostVersion, PostVersionActs, usePostVersion } from "../../files/post-version";
+import type { usePostRecord } from "../../files/post/record";
+import { PostVersion, PostVersionActs, usePostVersion } from "../../files/post/version";
 import { fileVerbs, postDoors, type FileChange } from "../../files/verbs";
 import type { PieceStanding } from "./model/standing";
 import { PostBoth, PostBothActs, usePostBoth, type PlaceDoors } from "./post-both";

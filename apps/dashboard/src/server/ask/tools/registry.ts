@@ -191,7 +191,9 @@ export function inputOf(tool: Tool<{ input: z.ZodObject }>, only?: readonly stri
   const branches = Object.entries(tool.actions)
     .filter(([action]) => !only || only.includes(action))
     .map(([action, d]) => d.input.extend({ action: z.literal(action) }));
-  return z.discriminatedUnion("action", branches as [(typeof branches)[number], ...typeof branches]);
+  const [first, ...rest] = branches;
+  // A tool none of whose actions are offered takes nothing.
+  return first ? z.discriminatedUnion("action", [first, ...rest]) : z.never();
 }
 
 /* ------------------------------------------------------------ the schema */
@@ -213,7 +215,7 @@ function normalise(node: unknown): unknown {
   delete record.$schema;
   if (record.minimum === Number.MIN_SAFE_INTEGER) delete record.minimum;
   if (record.maximum === Number.MAX_SAFE_INTEGER) delete record.maximum;
-  const branches = Array.isArray(record.anyOf) ? (record.anyOf as Array<Record<string, unknown>>) : null;
+  const branches = Array.isArray(record.anyOf) ? record.anyOf.map(recordOrEmpty) : null;
   if (
     branches &&
     branches.length > 0 &&
@@ -232,7 +234,7 @@ function normalise(node: unknown): unknown {
     // A shape's properties keep their own order: it is the order the model reads them in.
     out[k] =
       k === "properties"
-        ? Object.fromEntries(Object.entries(record[k] as Record<string, unknown>).map(([p, v]) => [p, normalise(v)]))
+        ? Object.fromEntries(Object.entries(recordOrEmpty(record[k])).map(([p, v]) => [p, normalise(v)]))
         : normalise(record[k]);
   };
   for (const k of KEY_ORDER) if (k in record) place(k);
@@ -296,7 +298,7 @@ function shapeOf(node: unknown): string {
 }
 
 export function toolSchema(input: z.ZodType): Record<string, unknown> {
-  return normalise(flatten(z.toJSONSchema(input))) as Record<string, unknown>;
+  return recordOrEmpty(normalise(flatten(z.toJSONSchema(input))));
 }
 
 /** The actions of a tool this role may use, in the model's order (D2): a tool with no action, its one, or none. */
@@ -445,7 +447,9 @@ function parseInput<D extends ReadDef | ActDef>(
   }
   const data = recordOrEmpty(parsed.data);
   if (!takesAction(tool)) return { ok: true, def: heldDef(tool, NO_ACTION), data };
-  const { action, ...rest } = data as { action: string };
+  const { action, ...rest } = data;
+  // The union parsed above was keyed by the action, so it holds one.
+  if (typeof action !== "string") return { ok: false, error: `${tool.name}: action is needed` };
   const stray = othersFields(tool, action, raw, offeredActions(tool, role));
   if (stray.length) return { ok: false, error: `${tool.name}: ${stray.join(", ")} not taken by action ${action}` };
   return { ok: true, def: heldDef(tool, action), data: rest };

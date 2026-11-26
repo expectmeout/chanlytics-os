@@ -62,6 +62,7 @@ import {
   type PlaybookPolicyClass,
   type StarterTemplate,
   type triggerOf,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import {
   TEMPLATE_VALUE_WORDS,
@@ -178,7 +179,7 @@ async function starterLanguageHere(ctx: RouteContext, tenantId: TenantId, starte
  * answer names the version a step sends (`template_id`, its message's anchor; null where nothing of it is on file).
  */
 export async function addStarterTemplates(ctx: RouteContext, req: Request, member: Member) {
-  const filed = await fileStarters(ctx, member.tenantId, ((await readJsonBody(req)) as StartersAsked | null) ?? {});
+  const filed = await fileStarters(ctx, member.tenantId, recordOrEmpty(await readJsonBody(req)));
   const [only] = filed.results;
   const starter = filed.results.length === 1 && only ? starterByKey(only.key) : null;
   if (!only || !starter) return { ...filed, template_id: null };
