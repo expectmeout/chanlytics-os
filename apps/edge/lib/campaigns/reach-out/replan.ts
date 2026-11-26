@@ -120,7 +120,7 @@ async function leadClocksOf(db: Db, tenantId: TenantId, sends: readonly ReachOut
   const ids = [...new Set(sends.map((s) => s.lead_id))];
   for (let i = 0; i < ids.length; i += 100) {
     const { data, error } = await listLeadClocks(db, tenantId, ids.slice(i, i + 100));
-    if (error) throw new Error(`the leads: ${error.message}`);
+    if (error) throw new DbFailure(error, "the leads");
     leads.push(...data);
   }
   return new Map(leads.map((l) => [l.id, l]));

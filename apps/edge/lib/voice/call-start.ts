@@ -404,18 +404,21 @@ function planFailed(plan: PlanSoFar, e: unknown): void {
  * told apart, as the texting door tells them apart: only the first is a switched-off channel worth paging the platform
  * for. The database and the channel, or null where the call is no workspace's (said on the plan).
  */
-async function routeCall(plan: PlanSoFar, input: CallStartInput): Promise<{ db: Db; routed: RoutedChannel } | null> {
-  const db = input.db;
+async function routeCall(
+  plan: PlanSoFar,
+  callStartInput: CallStartInput,
+): Promise<{ db: Db; routed: RoutedChannel } | null> {
+  const db = callStartInput.db;
   if (!db) {
     planFailed(plan, "no database to route the call with");
     return null;
   }
-  if (!input.agentId) {
+  if (!callStartInput.agentId) {
     plan.facts = "unrouted";
     plan.alert = true;
     return null;
   }
-  const lookup = await resolveChannelDetailed(db, "voice", input.agentId);
+  const lookup = await resolveChannelDetailed(db, "voice", callStartInput.agentId);
   const routed = lookup.channel;
   if (lookup.lookupFailed) {
     planFailed(plan, "the voice channel could not be looked up");
