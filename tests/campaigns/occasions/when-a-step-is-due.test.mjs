@@ -176,7 +176,7 @@ const daysAt = (iso) => runDaysAt(TZ, new Date(iso));
 test("a two-hour reminder that waits can be approved until its visit begins", () => {
   const run = waiting("visit_soon", { appointment: APPT, start: "2026-11-10T19:00:00.000Z", day: "2026-11-10" });
   assert.equal(runApprovalRefusal(run, daysAt("2026-11-10T18:30:00Z")), null, "half an hour before");
-  assert.match(runApprovalRefusal(run, daysAt("2026-11-10T19:05:00Z")), /too late for this reminder/);
+  assert.match(runApprovalRefusal(run, daysAt("2026-11-10T19:05:00Z")), /Too late for this reminder/);
 });
 
 test("a missed visit's message that waits ends with the day its words name, never with the visit's start", () => {
@@ -189,7 +189,7 @@ test("a missed visit's message that waits ends with the day its words name, neve
   });
   assert.equal(runApprovalRefusal(run, daysAt("2026-11-10T21:00:00Z")), null, "the visit began hours ago, and it goes");
   // Tuesday at 9:30 PM: an approval now would send it on Wednesday.
-  assert.match(runApprovalRefusal(run, daysAt("2026-11-11T02:30:00Z")), /too late for this message/);
+  assert.match(runApprovalRefusal(run, daysAt("2026-11-11T02:30:00Z")), /Too late for this message/);
 });
 
 test("an ask's follow-up that waits has no day to pass", () => {

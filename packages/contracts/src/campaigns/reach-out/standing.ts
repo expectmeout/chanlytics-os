@@ -195,7 +195,7 @@ const reconnectAnswer: Rule = (f) => {
   const senders = sendersOf(f);
   return {
     kind: "reconnect",
-    headline: senders > 0 ? "One mailbox needs reconnecting" : "Your mailbox needs reconnecting",
+    headline: senders > 0 ? "One mailbox needs reconnecting" : "The mailbox needs reconnecting",
     detail:
       senders > 0
         ? `${SIGN_IN_ASKED} Its emails wait until you do. ${othersSend(senders)}`
@@ -266,7 +266,7 @@ const noAddressAnswer: Rule = (f) => {
   return {
     kind: "no_address",
     headline:
-      held > 0 ? `${plural(held, "email is", "emails are")} waiting for your address` : "Your emails need your address",
+      held > 0 ? `${plural(held, "email is", "emails are")} waiting for your address` : "Emails need your address",
     detail: "The law asks for one in every cold email, so nothing goes out without it.",
     act: "Add your address",
     to: ADDRESS_ROUTE,
@@ -352,7 +352,7 @@ const pausedAnswer: Rule = (f) => {
   const ready = size === null ? "Emails are" : plural(size, "email is", "emails are");
   return {
     kind: "paused",
-    headline: "Your mailbox is paused",
+    headline: "The mailbox is paused",
     detail: `${run ? `${ready} ready for your approval. ` : ""}Nothing goes out until you resume it.`,
     act: "Open Connections",
     to: CONNECTIONS_PAGE,
@@ -370,7 +370,7 @@ const attentionAnswer: Rule = ({ needsLook }) => {
   if (!needsLook) return null;
   return {
     kind: "attention",
-    headline: needsLook.alone ? "Your mailbox needs a look" : "One mailbox needs a look",
+    headline: needsLook.alone ? "The mailbox needs a look" : "One mailbox needs a look",
     detail: `${needsLook.why}. ${needsLook.detail}.`,
     act: "See what to fix",
     to: CONNECTIONS_PAGE,

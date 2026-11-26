@@ -25,7 +25,7 @@ export const PLAYBOOK_TRIGGERS = [
   },
   {
     id: "phoned_only",
-    label: "Save our number",
+    label: "Save the number",
     list: "phoned_only",
     cls: "reengage",
     kind: "list",

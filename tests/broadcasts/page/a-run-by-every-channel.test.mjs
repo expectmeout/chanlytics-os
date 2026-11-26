@@ -178,7 +178,7 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     assert.equal(approve.props["aria-disabled"], true);
     assert.match(
       approve.props["data-tip"],
-      /^This run was made for .+ and that day has passed: .+ Skip it · the next run reads the calendar again\.$/,
+      /^This run was made for .+ and that day has passed\. Skip it · the next run reads the calendar again\.$/,
     );
     press(approve);
     await settle();

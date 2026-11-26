@@ -25,7 +25,7 @@ export const REACH_OUT_SHEET_WORDS = {
   checkLater: "Each email is checked before it goes. The first run waits for you.",
   noMailbox: "Connect the mailbox you'll write from first: Google Workspace, here or in Settings › Cold email.",
   /** From, when its owner sends it (00429): what they are handed, and how. */
-  ownerSends: `Each email is handed to you written and checked, to send from your own inbox: Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
+  ownerSends: `Each email comes to you written and checked, to send from Gmail, Outlook or your mail app. Up to ${REACH_OUT_DRAFTS_PER_DAY} a day.`,
   /** From, with no mailbox connected: the owner sends, and a mailbox would send for them. */
   ownerNoMailbox: "Or connect Google Workspace, and your mailbox sends them for you.",
   anotherStep: "Another step",
@@ -35,7 +35,7 @@ export const REACH_OUT_SHEET_WORDS = {
   anotherNote: "A note for you",
   handHint: "· ends the chain: each business it reaches is a step on your Today",
   handWords: "What to do",
-  handPlaceholder: "Ask whether our quote suited them",
+  handPlaceholder: "Ask whether the quote suited them",
   remove: "Remove",
   removeNote: "Only before its first email goes · after that, pause it.",
   recheck: "Check the held again",
@@ -199,6 +199,7 @@ export function sheetFootWords(params: {
 }
 
 export function stepLabel(count: number): string {
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   return count === 0 ? "Your email" : count === 1 ? "A short nudge" : `Email ${count + 1}`;
 }
 

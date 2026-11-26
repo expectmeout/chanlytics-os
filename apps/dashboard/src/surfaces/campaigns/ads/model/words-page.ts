@@ -36,7 +36,7 @@ export const V0 = {
   again: "Try again",
   notes: [
     "Ads that open WhatsApp or Instagram are counted under An ad, not under either.",
-    "When Meta names the ad in someone's first message, they're counted here. Ads that ring your phone and ads elsewhere aren't counted yet.",
+    "Someone counts here when Meta names the ad in their first message. Call ads and ads elsewhere don't count yet.",
   ],
   /** Under the empty lead, which has already said when someone is counted. */
   emptyNotes: ["Ads that ring your phone and ads elsewhere aren't counted yet."],

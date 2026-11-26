@@ -22,8 +22,7 @@ export const SEQUENCE_ACT_WORDS = {
   moreWord: "More",
   askAbout: "Ask about it",
   runNow: "Run now",
-  runNowTip:
-    "Runs its first step now, as your decision: it goes without waiting for an OK, and outside the sending hours it goes when they open",
+  runNowTip: "Runs its first step now: it goes without waiting for approval, or when the sending hours open",
   rename: "Rename",
   /** A one-off that went, sent again: New's Send once, filled with what it sent (its message, who it went to, its values). */
   sendAgain: "Send it again",

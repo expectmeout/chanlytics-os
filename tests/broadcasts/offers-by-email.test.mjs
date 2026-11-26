@@ -445,10 +445,7 @@ test("where the deployment names a campaigns domain the provider does not verify
   );
   assert.equal(stopped.w.posted.length, 0, "nothing left from any domain");
   assert.equal(stopped.later.length, 0, "stopped, not waiting");
-  assert.match(
-    stopped.news[0].body,
-    /is not verified with the mail provider right now.*Nothing is wrong with your mailbox/,
-  );
+  assert.match(stopped.news[0].body, /is not verified with the mail provider right now.*Your mailbox is fine/);
   // The same words a page gives the owner afterwards.
   const { broadcastFailureWords } = await import("@chanlytics/contracts");
   assert.match(broadcastFailureWords(closed.broadcasts[0].failure), /not verified with the mail provider/);

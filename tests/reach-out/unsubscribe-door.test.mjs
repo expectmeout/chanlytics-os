@@ -309,7 +309,7 @@ test("the page names the address the email came from; a press the database could
   assert.equal(press.status, 503);
   const html = await press.text();
   assert.match(html, /<button type="submit">Try again<\/button>/);
-  assert.match(html, /Or reply to the email and ask them to stop\./);
+  assert.match(html, /or reply to the email and ask them to stop\./);
 });
 
 test("a link names only its own workspace's email: a message of another workspace is never read for its sender", async () => {

@@ -45,7 +45,7 @@ installStubReact({
           ok: true,
           data: {
             note: {
-              headline: "Your mailbox needs reconnecting",
+              headline: "The mailbox needs reconnecting",
               act: "Reconnect",
               to: "admin/integrations",
             },
@@ -179,7 +179,7 @@ test("a mailbox needing its owner speaks up over a running sequence", async () =
     sequence_steps: [root()],
   });
   const { note } = await noteOf(ctx);
-  assert.equal(note.headline, "Your mailbox needs reconnecting");
+  assert.equal(note.headline, "The mailbox needs reconnecting");
 });
 
 test("a workspace whose only sequence a list feeds, with no search, hears it too (a search or a sequence)", async () => {
@@ -189,7 +189,7 @@ test("a workspace whose only sequence a list feeds, with no search, hears it too
     sequence_steps: [root({ lead_search_id: null })],
   });
   const { note } = await noteOf(ctx);
-  assert.equal(note.headline, "Your mailbox needs reconnecting");
+  assert.equal(note.headline, "The mailbox needs reconnecting");
   assert.equal(note.needs, "settings");
 });
 
@@ -239,7 +239,7 @@ test("the note is asked once as Today lands, again as the day moves, and at most
   const draw = drawNote;
   draw();
   await until(() => byTestId(draw(), "today-cold-email"), "the note");
-  assert.match(textOf(byTestId(draw(), "today-cold-email")), /Your mailbox needs reconnecting/);
+  assert.match(textOf(byTestId(draw(), "today-cold-email")), /The mailbox needs reconnecting/);
   assert.equal(reads(), 1);
   assert.equal(
     asked.some((u) => /settings\/reach-out(\?|$)/.test(u)),

@@ -41,14 +41,14 @@ export function emailRunStop(reason: DeliveryRefusal): EmailRunStop | null {
 const RUN_STOP_REMEDY: Record<RunStop, string> = {
   paused: "Resume from Settings › Billing",
   email_offers_paused: "Check your list for old or wrong addresses · offers by email come back on once it looks right",
-  campaigns_domain_unverified: "Nothing is wrong with your mailbox, and the platform has been told",
+  campaigns_domain_unverified: "Your mailbox is fine, and Chanlytics is on it",
 };
 
 /** A broadcast the owner made is sent again, once what stopped it is over. */
 const RUN_STOP_AGAIN: Record<RunStop, string> = {
   paused: `${RUN_STOP_REMEDY.paused} and send it again.`,
   email_offers_paused: `${RUN_STOP_REMEDY.email_offers_paused}. Send it again then.`,
-  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified}; send it again once the domain is verified.`,
+  campaigns_domain_unverified: `${RUN_STOP_REMEDY.campaigns_domain_unverified} · send it again once the domain is verified.`,
 };
 
 const isRunStop = (code: BroadcastFailure): code is RunStop => code in RUN_STOP_REMEDY;
@@ -90,10 +90,10 @@ export function playbookRunNext(
   if (triggerOf(run.trigger ?? "")?.kind === "occasion")
     return "It is not sent again by itself: it was for one person's own moment. Open it to see who, and write to them yourself.";
   if (triggerOf(run.trigger ?? "")?.kind === "visit")
-    return "It does not run again today, and a reminder belongs to its day, so the people it did not reach will not be sent it later.";
+    return "It doesn't run again today: a reminder belongs to its day, so the people it missed aren't sent it later.";
   return by === "tomorrow"
-    ? "It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice."
-    : "It does not run again today · the next run that can go reaches the people this one did not, and nobody who got it is sent it twice.";
+    ? "It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice."
+    : "It doesn't run again today · the next run reaches the people this one missed, and nobody gets it twice.";
 }
 
 /** The failures that may outlast tomorrow and are not the owner's to end, as a run's page knows them (playbookRunNext). */
@@ -145,9 +145,9 @@ export const BROADCAST_FAILURE_FIX: Record<BroadcastFailure, Words> = {
   after_hours: "Nobody got it. Send it again tomorrow, inside the day's sending hours.",
   provider_limit: "Nobody got it. The mail provider's limit resets on its own · send it again once it has.",
   campaigns_domain_unverified:
-    "Nobody got it. Nothing is wrong with your mailbox: the platform has been told. Send it again once the domain is verified.",
+    "Nobody got it. Your mailbox is fine and Chanlytics is on it · send it again once the domain is verified.",
   email_offers_paused:
-    "Nobody got it. Check your list for old or wrong addresses · offers by email come back on once it looks right. Send it again then.",
+    "Nobody got it. Fix old or wrong addresses on your list · offers by email come back on, then send it again.",
 };
 
 /** The wire's own name in the sentences of BROADCAST_FAILURE_FIX_AFTER: who stopped answering, and what they limited. */
@@ -181,9 +181,9 @@ const BROADCAST_FAILURE_FIX_AFTER: Partial<Record<BroadcastFailure, (n: number, 
   provider_limit: (n) =>
     `The first ${n === 1 ? "one" : n} got it, then the mail provider's limit was reached. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   campaigns_domain_unverified: (n) =>
-    `The first ${n === 1 ? "one" : n} got it, then the domain offers by email leave from stopped being verified. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+    `The first ${n === 1 ? "one" : n} got it, then the email domain stopped being verified. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   email_offers_paused: (n) =>
-    `The first ${n === 1 ? "one" : n} got it, then the workspace's offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+    `The first ${n === 1 ? "one" : n} got it, then offers by email were paused. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
 };
 
 /**

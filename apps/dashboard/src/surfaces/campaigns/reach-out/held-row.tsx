@@ -98,7 +98,7 @@ function HeldCardRow({ h, may, busy, said = null, onAnswer, ids, asking = null }
             <LinkButton
               size="inherit"
               className="ro-name"
-              title={REACH_OUT_SHEET_WORDS.openLead}
+              data-tip={REACH_OUT_SHEET_WORDS.openLead}
               {...leadOverDoor(h.leadId)}
               data-testid={ids.lead}
             >
@@ -148,7 +148,7 @@ export function HeldEmailRow(p: HeldRowProps) {
         h.leadId ? (
           <LinkButton
             size="inherit"
-            title={REACH_OUT_SHEET_WORDS.openLead}
+            data-tip={REACH_OUT_SHEET_WORDS.openLead}
             {...leadOverDoor(h.leadId)}
             data-testid={ids.lead}
           >

@@ -864,7 +864,7 @@ test("a run still scheduled past its time with nothing on the ledger to send it 
     );
     assert.match(
       told[1].body,
-      /tomorrow's run reaches the people this one did not/,
+      /tomorrow's run reaches the people this one missed/,
       "a playbook's run is never told to send it again",
     );
     assert.doesNotMatch(told[1].body, /send it again/i);

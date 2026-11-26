@@ -126,7 +126,7 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
   assert.equal(paused.pages.length, 0, "a gate's pause was paged where it tripped");
   const closed = await stopped("email_marketing_disabled");
   assert.equal(closed.failure, "campaigns_domain_unverified");
-  assert.match(closed.body, /not verified with the mail provider right now.*Nothing is wrong with your mailbox/);
+  assert.match(closed.body, /not verified with the mail provider right now.*Your mailbox is fine/);
   assert.deepEqual(
     closed.pages.map((p) => [p[0], p[2]]),
     [
@@ -141,14 +141,14 @@ test("a pause on offers and news by email, or a campaigns domain that cannot be 
   const playbook = await stopped("email_offers_paused", forMoment("everyone_monthly"));
   assert.match(
     playbook.body,
-    /offers by email come back on once it looks right\. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice\.$/,
+    /offers by email come back on once it looks right\. It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice\.$/,
   );
   assert.doesNotMatch(playbook.body, /send it again/i);
   // The run's own page says the same next step.
   const { broadcastFailureFix } = await import("@chanlytics/contracts");
   assert.equal(
     broadcastFailureFix("email_offers_paused", 2, { playbook_id: "p1", trigger: "everyone_monthly" }),
-    "Check your list for old or wrong addresses · offers by email come back on once it looks right. It does not run again today · tomorrow's run reaches the people this one did not, and nobody who got it is sent it twice.",
+    "Check your list for old or wrong addresses · offers by email come back on once it looks right. It doesn't run again today · tomorrow's run reaches the people this one missed, and nobody gets it twice.",
   );
   assert.match(
     broadcastFailureFix("email_offers_paused", 2, { playbook_id: null, trigger: null }),

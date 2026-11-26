@@ -537,7 +537,7 @@ test("D1-lead-person-door: a held and a ready business on the sheet each open th
     let tree = redraw();
     const held = byTestId(tree, "ro-held-lead");
     assert.equal(textOf(held), "Studio One");
-    assert.equal(held.props.title, contracts.REACH_OUT_SHEET_WORDS.openLead);
+    assert.equal(held.props["data-tip"], contracts.REACH_OUT_SHEET_WORDS.openLead);
     assert.equal(leadOf(held.props.href), LEAD_HELD, "its address, for a new tab");
     pressDoor(held);
     assert.equal(leadOf(pushed[0]), LEAD_HELD);

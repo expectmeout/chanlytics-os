@@ -122,7 +122,7 @@ function capsuleOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
             value={tab.id}
             className="rec-seg-btn"
             data-testid={tab.testid}
-            title={tab.hint}
+            data-tip={tab.hint}
             aria-controls={tab.controls}
           >
             {tab.label}
@@ -149,7 +149,7 @@ function chipsOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
             className="subtab-chip"
             data-tone={tab.tone}
             data-testid={tab.testid}
-            title={tab.hint}
+            data-tip={tab.hint}
             aria-controls={tab.controls}
           >
             {tab.label}
@@ -185,7 +185,7 @@ export function SubTabs(props: SubTabsProps) {
             className="subtab"
             data-tone={tab.tone}
             data-testid={tab.testid}
-            title={tab.hint}
+            data-tip={tab.hint}
             aria-controls={tab.controls}
             {...(tab.href ? linkTab(tab.href) : {})}
           >

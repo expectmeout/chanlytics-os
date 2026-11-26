@@ -557,7 +557,7 @@ function rulesLabel(words: string, row: string) {
       <LinkButton
         className="cal-door"
         onClick={() => navigate(businessRow(row))}
-        title="Change it in Settings › Hours & booking"
+        data-tip="Change it in Settings › Hours & booking"
         data-testid={`cal-rules-door-${row}`}
       >
         {words} <Icon name="arrow-right" size={9} />

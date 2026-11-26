@@ -24,7 +24,7 @@ export const CARD = {
   /** The caret's name, for a screen reader: what the card opens to. */
   caret: "Connected. Change the ad account or the Page, or disconnect",
   /** What connecting does, said before the press. */
-  does: "Chanlytics reads your ads and what they cost, and pauses one when you press it. It makes an ad only when you press Turn on.",
+  does: "Chanlytics reads your ads and their cost, and pauses one when you press it. It makes an ad only when you press Turn on.",
   charges: "Meta charges your card, never Chanlytics.",
   ownerOnly: "Only the owner can connect an ad account.",
   notHere: "Connecting an ad account isn't available in this workspace yet.",
@@ -146,7 +146,7 @@ export const OUTCOME: Readonly<Record<string, NeedWords>> = {
   },
   no_account: {
     title: "Meta shared no ad account",
-    line: "Ads run from an ad account. If you have one, tick it when Meta asks. If you don't, making one in Meta is free.",
+    line: "Ads run from an ad account: tick yours when Meta asks, or make one in Meta for free.",
     act: "Make one in Meta",
   },
   accounts_unreadable: {
@@ -271,5 +271,5 @@ export const DISCONNECT = {
   /** Where the owner removes Chanlytics at Meta themselves: said on the card once the account is let go. */
   removeAtMeta:
     "To remove Chanlytics at Meta too, open Business settings in Meta, then Integrations, then Connected apps.",
-  failed: "Couldn't disconnect just now. Nothing was changed. Try again.",
+  failed: "Couldn't disconnect just now, and nothing was changed. Try again.",
 } as const;

@@ -272,7 +272,7 @@ function dayHasPassed(run: { playbook_id: string | null; run_for?: string | null
  * in the business's own words (`say`) where the verb says it as the date.
  */
 function dayGoneWords(runFor: string, say: (ymd: string) => string = (ymd) => ymd): string {
-  return `This run was made for ${say(runFor)} and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.`;
+  return `This run was made for ${say(runFor)} and that day has passed. Skip it · the next run reads the calendar again.`;
 }
 
 /**
@@ -289,7 +289,7 @@ interface ApprovalDays {
 
 /** Why a freed time's batch is refused (0082): the time it offers has come by the moment an approval would send it. */
 export const FREED_TIME_PASSED_WORDS =
-  "The freed time this run offered has come by the moment it would go, so it would offer a time that is gone. Skip it · the next cancellation offers its own.";
+  "The time this run offers will have passed when it goes. Skip it · the next cancellation offers its own.";
 
 /**
  * The days a waiting run is judged by, in a business's zone: its day now, and the day of the next open sending moment
@@ -314,11 +314,11 @@ function visitRunTooLate(run: { run_for?: string | null; audience?: unknown }, d
 
 /** Why a message about a visit ahead is refused (0118, 0119): an approval now would send it too late to be a reminder. */
 const LATE_REMINDER_PASSED_WORDS =
-  "It is too late for this reminder: approved now it would arrive on a later day than its words say, or after the appointment has begun. Skip it · nothing later sends it in its place.";
+  "Too late for this reminder: it would arrive after the day its words say, or once the appointment began. Skip it.";
 
 /** Why a message about a visit behind is refused (0119, one marked missed): its words name the day. */
 const DAY_OF_WORDS_PASSED =
-  "It is too late for this message: approved now it would arrive on a later day than its words say. Skip it · nothing later sends it in its place.";
+  "Too late for this message: it would arrive after the day its words say. Skip it · nothing later sends it.";
 
 /**
  * Whether an approval now comes too late for a message about one visit (a late booking's reminder, 0118; an occasion's

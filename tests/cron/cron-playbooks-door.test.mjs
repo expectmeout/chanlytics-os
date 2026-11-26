@@ -1038,7 +1038,7 @@ test("REGRESSION: a reminder nobody approved by 21:00 is skipped, and its owner 
   ]);
   assert.deepEqual(told["run-winback"], [
     "“Win-back” didn’t go: nobody approved it",
-    "2 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
+    "2 people waited for your approval all day, so nothing was sent. They're in line for its next send: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
   ]);
 });
 
@@ -1075,7 +1075,7 @@ test("a freed time's batch nobody approved ends when its time comes (0082), told
   assert.equal(told.title, "“Fill a cancellation” didn’t go: nobody approved it");
   assert.match(
     told.body,
-    /^2 people waited for your approval until .+ came, and nothing was sent, since that time has passed\. The next cancellation offers its own time/,
+    /^2 people waited for your approval until .+, so nothing was sent\. The next cancellation offers its own time/,
   );
 });
 

@@ -118,7 +118,7 @@ test("the act says how many, and the line beside it when the send goes -- now, o
   assert.equal(expired.approve, null, "REGRESSION-IN-WAITING: a button approveRun refuses");
   assert.equal(
     expired.expired,
-    "This run was made for day 2026-09-20 and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.",
+    "This run was made for day 2026-09-20 and that day has passed. Skip it · the next run reads the calendar again.",
     "the verb's own sentence, with the day said as the page says days",
   );
   assert.equal(expired.goes, "made for day 2026-09-20");
@@ -162,7 +162,7 @@ test("the verb's refusal and the sheet's are one predicate: a run made for a day
   const day = (today, sendsOn) => ({ today, sendsOn });
   const visit = { playbook_id: "pb1", run_for: "2026-09-21", audience: { trigger: "visit_tomorrow" } };
   const sentence = (d) =>
-    `This run was made for ${d} and that day has passed: its people and its words were that day's. Skip it · the next run reads the calendar again.`;
+    `This run was made for ${d} and that day has passed. Skip it · the next run reads the calendar again.`;
   // The day has passed: runDayPassed's sentence, for every kind of run.
   assert.equal(
     C.runApprovalRefusal({ ...visit, run_for: "2026-09-20" }, day("2026-09-21", "2026-09-21")),
