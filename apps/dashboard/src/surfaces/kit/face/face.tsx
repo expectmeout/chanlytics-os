@@ -120,7 +120,7 @@ export function Face({
   );
   return (
     <span
-      {...(held.nameless ? { title: NO_NAME_YET } : {})}
+      {...(held.nameless ? { "data-tip": NO_NAME_YET } : {})}
       {...span}
       {...(priority ? { "data-priority": priority } : {})}
       {...(pick ? { "data-pick": pick } : {})}

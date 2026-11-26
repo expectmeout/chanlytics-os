@@ -27,7 +27,7 @@ import {
 } from "@chanlytics/contracts";
 
 /** One alert, as the edge mails it. */
-export interface NoticeMail {
+interface NoticeMail {
   /** The kept row's kind (null: an alert of no kind, as the platform's own). */
   kind: string | null;
   subject: string;

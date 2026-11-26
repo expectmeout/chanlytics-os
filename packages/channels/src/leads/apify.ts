@@ -15,8 +15,8 @@ import { fetchFromProvider } from "../shared/provider-fetch";
  * never in a word the product says.
  */
 
-export const APIFY_BASE = "https://api.apify.com/v2";
-export const APIFY_TIMEOUT_MS = 20_000;
+const APIFY_BASE = "https://api.apify.com/v2";
+const APIFY_TIMEOUT_MS = 20_000;
 /** How much of the provider's own words a refusal keeps: enough to say why (a build gone, a limit reached), never a page. */
 const APIFY_REFUSAL_WORDS_MAX = 200;
 /** The run endings an ad-hoc webhook fires on (https://docs.apify.com/integrations/webhooks/events). */

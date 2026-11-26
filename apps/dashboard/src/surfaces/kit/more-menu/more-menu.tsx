@@ -226,7 +226,7 @@ function moreItem(it: MoreMenuItem, i: number, d: MoreDraw) {
       className={`more-item${it.danger ? " danger" : ""}${two ? " more-item-two" : ""}`}
       role={radio ? "menuitemradio" : "menuitem"}
       aria-checked={radio ? it.checked : undefined}
-      title={it.title || undefined}
+      data-tip={it.title || undefined}
       data-value={it.value}
       data-start={it.start ? "" : undefined}
       onClick={() => run(it)}
@@ -353,7 +353,7 @@ export function MoreMenu({
       <button
         ref={btnRef}
         className={btnClass}
-        title={title}
+        data-tip={title}
         aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open}

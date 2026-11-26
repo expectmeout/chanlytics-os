@@ -111,7 +111,7 @@ async function pageOnce(ports: PagePorts, key: string, subject: string, body: st
 }
 
 /** One row of the pager's memory, as the table holds it. */
-export interface PageRow {
+interface PageRow {
   key: string;
   first_at: string;
   last_at: string;
@@ -119,7 +119,7 @@ export interface PageRow {
   alerted_at: string | null;
 }
 
-export interface PageState extends PageRow {
+interface PageState extends PageRow {
   /**
    * Whether a person heard about the LAST firing: a page went out for it, or
    * one had gone out inside the window before it (suppressed, by design). False

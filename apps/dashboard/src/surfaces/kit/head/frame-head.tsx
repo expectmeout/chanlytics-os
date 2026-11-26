@@ -200,7 +200,7 @@ function BarTitleSaid() {
       {bar ? (
         <>
           <span className="pg-bartitle-name">{bar.name}</span>
-          <span className="pg-bartitle-dot" data-tone={bar.tone} title={bar.word} />
+          <span className="pg-bartitle-dot" data-tone={bar.tone} data-tip={bar.word} />
         </>
       ) : null}
     </div>

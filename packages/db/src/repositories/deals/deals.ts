@@ -137,7 +137,7 @@ export async function recordDeal(
 }
 
 /** The columns a deal is read with (contracts DealDto): a person's read of their deals, and the deal door's answer. */
-export const DEAL_DTO_COLUMNS =
+const DEAL_DTO_COLUMNS =
   "id, contact_id, service, stage, proposed_at, decided_at, ended_at, amount_cents, per, currency, note, version, created_at, proposal_url, valid_until, lost_reason";
 
 /** A person's deals, as a DealDto reads them. */

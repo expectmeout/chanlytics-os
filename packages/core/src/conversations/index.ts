@@ -10,7 +10,6 @@ export {
   DM_WINDOW_CLOSED_REFUSAL,
   HOLD_EXPIRY_MS,
   IDEMPOTENCY_WINDOW_MS,
-  REPLY_IN_PROGRESS_REFUSAL,
   replyToConversation,
   SEND_GRACE_MS,
 } from "./reply";

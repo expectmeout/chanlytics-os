@@ -391,7 +391,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     "the page has its own styles, and the two asks are visibly separate blocks",
   );
   assert.ok(
-    /\.yes a\.yes-btn \{\s*color: #06231d;/.test(css),
+    /\.yes a\.yes-btn \{\s*color: var\(--accent-fg\);/.test(css),
     "REGRESSION: .yes a outranks .yes-btn and painted the button's label teal on teal",
   );
   // Folded in here because this test already reads the sheet: inside the native app the web's Google door and its

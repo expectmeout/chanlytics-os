@@ -56,6 +56,36 @@ const query = (params: Record<string, string>): string => new URLSearchParams(pa
 export const metaGraphUrl = (path: string, params: Record<string, string>): string =>
   `${META_GRAPH}/${path}?${query(params)}`;
 
+/** A read of the Graph with a token: the token and its proof in the address beside the query (a read carries no words). */
+export const metaReadRequest = (
+  path: string,
+  params: Record<string, string>,
+  token: string,
+  appSecret: string,
+): MetaRequest => ({ url: metaGraphUrl(path, { ...params, ...metaProofQuery(token, appSecret) }), method: "GET" });
+
+/** A write to the Graph with a token: its fields, the token and its proof in the body, so words never ride in an address. */
+export const metaWriteRequest = (
+  path: string,
+  fields: Record<string, string>,
+  token: string,
+  appSecret: string,
+): MetaRequest => ({
+  url: `${META_GRAPH}/${path}`,
+  method: "POST",
+  headers: { "content-type": "application/x-www-form-urlencoded" },
+  body: query({ ...fields, ...metaProofQuery(token, appSecret) }),
+});
+
+/** A node taken off the Graph with a token: the token and its proof in the address. */
+export const metaRemoveRequest = (path: string, token: string, appSecret: string): MetaRequest => ({
+  url: metaGraphUrl(path, metaProofQuery(token, appSecret)),
+  method: "DELETE",
+});
+
+/** Whether a string is an id as Meta writes one: digits alone. */
+export const isMetaId = (id: string): boolean => /^\d{5,32}$/.test(id);
+
 /** Facebook Login for Business's dialog with the app's configuration, and the signed state that brings the owner back. */
 export function metaDialogUrl(app: Pick<MetaApp, "clientId" | "configId" | "redirectUri">, state: string): string {
   return `${META_DIALOG}?${query({
