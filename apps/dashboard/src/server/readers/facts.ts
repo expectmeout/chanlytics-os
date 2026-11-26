@@ -86,16 +86,13 @@ export const config: Reader<
   name: "config",
   async read(rc) {
     const row = await findConfigRow(rc.ctx.supabase, rc.tenantId);
-    // When it was last changed, where the row says it: a stored row always does (its column is never null), a row
-    // handed in whole may not.
-    const stamped: Partial<Pick<NonNullable<typeof row>, "updated_at">> = row ?? {};
     return {
       data: row
         ? {
             config: row.config,
             version: row.version,
             updated_by: row.updated_by ?? null,
-            updated_at: stamped.updated_at ?? null,
+            updated_at: row.updated_at ?? null,
           }
         : null,
       rows: [],

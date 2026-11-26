@@ -47,7 +47,7 @@ async function getPerson(toolContext: ToolContext, input: { contact_id: ContactI
   const result = await readUnlessNotFound(load(toolContext.rc, person, { id }));
   if (!result) return { error: "no such person in this workspace" };
   const detail = result.data.person;
-  const vm = toPersonVM(detail, toolContext.timezone, toolContext.now, toolContext.ctx.userId);
+  const vm = toPersonVM(detail, toolContext.timezone, toolContext.now, toolContext.ctx.userId ?? null);
   // The person, their threads and calls as the reader gave them, and each thread again where Conversations opens it.
   noteRows(toolContext.read, result.rows);
   for (const c of detail.conversations) noteRow(toolContext, "conversation", c.id, vm.name, `conversations/${c.id}`);

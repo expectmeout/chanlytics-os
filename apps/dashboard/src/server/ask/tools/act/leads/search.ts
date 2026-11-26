@@ -357,7 +357,7 @@ async function proposeMore(
       `that search cannot take a new round as it is: ${plan.error.issues[0]?.path.join(".")} ${plan.error.issues[0]?.message}`,
     );
   const facts = await planFacts(toolContext.ctx, toolContext.tenantId, { now: toolContext.now });
-  const name = row.name;
+  const name = row.name ?? "The search";
   noteRow(toolContext, "search", row.id, name, `clients/leads:s-${row.id}`);
   return propose({
     kind: "lead_search_more",
@@ -406,7 +406,7 @@ async function proposeReachOutAdd(
   input: { root_id: string; lead_ids: string[] },
 ): Promise<ProposalOutcome> {
   const rootId = str(input.root_id, 40);
-  const ids = [...new Set(input.lead_ids.map((x) => str(x, 40)))].filter((x) => UUID.test(x));
+  const ids = [...new Set((input.lead_ids ?? []).map((x) => str(x, 40)))].filter((x) => UUID.test(x));
   if (!UUID.test(rootId)) return refuse("root_id must be a cold email's id a read returned");
   if (!ids.length) return refuse("lead_ids must name at least one lead a read returned");
   const root = await findReachOutRoot(toolContext.ctx.supabase, rootId);

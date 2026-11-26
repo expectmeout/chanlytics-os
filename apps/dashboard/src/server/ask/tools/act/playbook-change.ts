@@ -138,9 +138,7 @@ async function proposeChangeOnStep(
   step: number,
 ): Promise<ProposalOutcome> {
   const { playbook_id: token, state, params, until, ...rest } = input;
-  // A field left out may still be there as undefined: it is no other change.
-  const given: unknown[] = Object.values(rest);
-  const others = given.some((v) => v !== undefined);
+  const others = Object.values(rest).some((v) => v !== undefined);
   if (others || (state !== undefined && state !== "paused")) return refuse(PLAN_WORDS.stepChangeOnly(step));
   const words = params === undefined ? undefined : paramSpecsOf(params);
   if (words && "refusal" in words) return refuse(words.refusal);
