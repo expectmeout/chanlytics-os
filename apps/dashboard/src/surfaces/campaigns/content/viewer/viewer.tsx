@@ -9,7 +9,7 @@
  * address (`campaigns/content:<id>`), the takeover of the screen, the list held behind it and Back. The piece's record, its
  * presses and its drafts are the pane's own (piece.tsx ContentPiece, piece-presses.tsx), handed in.
  */
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CONTENT_WORDS as W, FILE_WORDS, fileSaidOf, type ContentMadeDto } from "@chanlytics/contracts";
 import { GOES_WORDS } from "../model/goes";
 import { Button } from "../../../kit/button/button";
@@ -54,6 +54,8 @@ interface ViewerActs extends PieceFootActs, PieceMoreActs {
 export interface ViewerHands {
   made: ContentMadeDto;
   record: ViewerRecord;
+  /** Whether its record is in (or it has none to read): what its foot says is then what it will go on saying. */
+  settled: boolean;
   takes: PieceTakes | null;
   may: boolean;
   /** "2 of 8": where it stands among the pieces the page holds; null where it is not among them. */
@@ -77,6 +79,25 @@ export const byHandOffered = (file: Pick<ContentMadeDto["file"], "kind" | "sourc
 
 /** Which of the viewer's own sheets is open. */
 type ViewerSheet = "details" | "rename" | "change" | null;
+
+/** How long the foot waits for the piece's record before it is drawn from what the list holds alone. */
+const FOOT_WAITS_MS = 600;
+
+/**
+ * Whether the foot waits for the piece's record: drawn from the list alone, its line grew, a caret came and its coral act
+ * changed a beat after the piece opened (Ruben, 25 Nov 2026). Its record is most often in already (read from the first touch
+ * of the press, files/post/record.ts), so this waits only where it is not, and never longer than FOOT_WAITS_MS. The picture
+ * is drawn at once either way.
+ */
+function useFootWaits(settled: boolean, id: string): boolean {
+  const [late, setLate] = useState<string | null>(null);
+  useEffect(() => {
+    if (settled) return undefined;
+    const wait = window.setTimeout(() => setLate(id), FOOT_WAITS_MS);
+    return () => window.clearTimeout(wait);
+  }, [settled, id]);
+  return !settled && late !== id;
+}
 
 /** A swipe across walks to the piece beside: the picture and its foot follow the finger, and let go where they were. */
 function viewerPages(acts: Pick<ViewerActs, "onBefore" | "onAfter">): (el: Element) => ViewPage {
@@ -209,6 +230,7 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
   const clock = viewerClockOf();
   const says = viewerSaidOf({ file, posts, name }, record, clock);
   const next = pieceNextOf(file, posts, hands.takes, Date.now());
+  const footWaits = useFootWaits(hands.settled, file.id);
   // A sheet or a question open over it takes Escape first; with none, Escape closes the piece.
   // × and Escape close into the piece's tile (the content canvas: "the piece shrinks back into its tile"); a thumb's drag down
   // carries the piece away itself.
@@ -232,11 +254,19 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
   });
   const playable = file.kind === "video" && file.media_status === "ready";
   const onChange = acts.onChange ?? (file.source === "made" ? () => setSheet("change") : null);
+  // "I posted it" rides More until it is said (Ruben, 25 Nov 2026: a row of its own under the acts was one row too many).
+  const onPosted = hands.may && byHandOffered(file) && !hands.byHand.kept ? hands.byHand.say : undefined;
   const footStanding = footStandingOf(hands, {
     more: hands.may ? (
       <ViewerMore
         file={file}
-        acts={{ ...acts, onChange, onRename: () => setSheet("rename"), save: { share: save.share, href: save.href } }}
+        acts={{
+          ...acts,
+          onChange,
+          onRename: () => setSheet("rename"),
+          save: { share: save.share, href: save.href },
+          onPosted,
+        }}
       />
     ) : null,
     onTold: () => undefined,
@@ -257,9 +287,10 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
       aria-label={name}
       data-testid="cnv-piece"
     >
-      <div className="cnv-viewer-slide">
+      <div className="cnv-viewer-slide" data-kind={file.kind === "video" ? "video" : "picture"}>
         <ViewerPicture file={file} name={name} sound={sound} making={hands.standing.version.making} />
         <ViewerFoot
+          waits={footWaits}
           file={file}
           posts={posts}
           next={next}
@@ -272,13 +303,8 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
           caption={file.kind === "video" ? says.words : null}
           byHand={
             <>
-              <PostedByHand
-                press={hands.byHand}
-                may={hands.may}
-                offered={byHandOffered(file)}
-                clock={clock}
-                busy={presses.busy}
-              />
+              {/* Where it stands once said; the press itself is More's (onPosted). */}
+              <PostedByHand press={hands.byHand} may={hands.may} offered={false} clock={clock} busy={presses.busy} />
               <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} whyOnly />
             </>
           }
@@ -291,6 +317,8 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
             onAsk: acts.onAsk,
             onChange,
             onDetails: () => setSheet("details"),
+            // The line to AI, in its sheet, from a round press beside More: never a row of its own under the acts.
+            onTell: footStanding.tell ? () => setSheet("change") : null,
           }}
         />
       </div>

@@ -104,7 +104,6 @@ export type { ListNeed } from "./lists/fields";
 export {
   listMembers,
   listNamer,
-  listNeeds,
   listsFor,
   listUnknownWords,
   membersOf,
@@ -132,13 +131,9 @@ export {
   asListRule,
   draftListRule,
   LIST_CONDITIONS_JSON_SCHEMA,
-  ListConditionSchema,
-  listConditionWords,
   listDraftFieldLines,
-  ListFactSchema,
   listFactWords,
   listRuleParts,
-  ListRuleSchema,
   listRuleWhy,
   ruleUndated,
 } from "./lists/rules";
@@ -226,9 +221,7 @@ export { threadHeadFactOf, threadPersonFactsOf, toPersonRowVM } from "./person-r
 export type { ThreadHeadFact, ThreadPersonFact } from "./person-row/row-vm";
 export { peopleRowOf } from "./person-row/with-follow-up";
 export {
-  attentionOf,
   holderOf,
-  NEW_WINDOW_DAYS,
   PEOPLE_TABS,
   PERSON_STATE_LABELS,
   personStanding,

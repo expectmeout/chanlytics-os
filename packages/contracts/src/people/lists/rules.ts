@@ -58,7 +58,7 @@ const Token = z.string().check(z.regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/
 
 // Strict: a fact that says anything this build does not read ("service": "balayage") is not read as a broader one.
 const fact = <T extends z.core.$ZodLooseShape>(shape: T) => z.strictObject(shape);
-export const ListFactSchema = z.discriminatedUnion("field", [
+const ListFactSchema = z.discriminatedUnion("field", [
   fact({ field: z.literal("last_visit"), ...Days }),
   fact({ field: z.literal("next_visit"), ...Days }),
   fact({ field: z.literal("missed_visit"), ...Days }),
@@ -87,7 +87,7 @@ export type ListFact = z.infer<typeof ListFactSchema>;
 const AnySchema = z.strictObject({ any: z.array(ListFactSchema).check(z.minLength(2), z.maxLength(LIST_ANY_MAX)) });
 export type ListAny = z.infer<typeof AnySchema>;
 
-export const ListConditionSchema = z.union([AnySchema, ListFactSchema]);
+const ListConditionSchema = z.union([AnySchema, ListFactSchema]);
 export type ListCondition = ListFact | ListAny;
 
 /** A fact over a count of days since or until one of a person's dates (DAY_OPS). */
@@ -112,7 +112,7 @@ function factProblem(f: ListFact): string | null {
 }
 
 /** Every condition must hold. One to LIST_RULE_MAX of them; a list of everyone is Everyone. */
-export const ListRuleSchema = z
+const ListRuleSchema = z
   // A rule that says more than this build reads ("none": [...]) is not one it reads, never a broader one it does.
   .strictObject({
     v: z.optional(z.literal(2)),
@@ -294,7 +294,7 @@ export function listFactWords(listFact: ListFact, listName: (token: string) => s
 }
 
 /** One condition in the page's words: a fact, or an "any" group's facts joined by "or". */
-export function listConditionWords(listCondition: ListCondition, listName?: (token: string) => string | null): string {
+function listConditionWords(listCondition: ListCondition, listName?: (token: string) => string | null): string {
   return "any" in listCondition
     ? listCondition.any.map((f) => listFactWords(f, listName)).join(", or ")
     : listFactWords(listCondition, listName);

@@ -265,13 +265,6 @@
   box-shadow: var(--selected-depth);
   color: var(--ink);
 }
-/* Ads, the paid view, set apart at the row's end by a hairline (three tabs, 23 Nov 2026). */
-.cnv-view-row-paid {
-  align-self: stretch;
-  width: 1px;
-  margin: 6px 6px;
-  background: var(--line);
-}
 /* A row's act at a table's end (lines-table.tsx: Don't post, Open), at the cell's end. */
 .cnv-cell-end {
   text-align: end;
@@ -640,7 +633,6 @@
   align-items: flex-start;
   justify-content: space-between;
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px 24px;
-  background: var(--viewer-top-wash);
 }
 /* "2 of 2" in the app's own type, quiet (the phone change list's A2 and D2, 25 Nov 2026: the one count in mono). */
 .cnv-viewer-of {
@@ -661,7 +653,9 @@
   }
 }
 
-/* The foot over the bottom of the picture: the name and its line, where it stands in one row, the acts, Details. */
+/* The foot over the bottom of the picture: its two lines (the name, then where it stands or what it is) and one row of acts.
+   No wash darkens the picture's edges under the top or the foot (Ruben, 25 Nov 2026): a picture post's foot stands on the
+   plain dark under it; a reel's, which fills the screen, keeps its wash so its words read over the film. */
 .cnv-viewer-foot {
   position: absolute;
   right: 0;
@@ -672,9 +666,56 @@
   flex-direction: column;
   gap: 10px;
   padding: 90px 16px calc(26px + env(safe-area-inset-bottom, 0px));
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.cnv-viewer-slide[data-kind="video"] > .cnv-viewer-foot {
   background: var(--viewer-foot-wash);
 }
+.cnv-viewer:has(> .cnv-viewer-slide[data-kind="video"]) > .cnv-viewer-top {
+  background: var(--viewer-top-wash);
+}
+/* A picture post or a photo of the Library (Ruben, 25 Nov 2026: "cleaner or bigger ... minimalistic compact no filters"):
+   the picture as large as the screen holds it, edge to edge where its shape lets it, on the plain dark under the top's row,
+   and the foot under it rather than over it, so nothing of the picture is covered and nothing around it is dimmed. */
+/* The picture right under the top's row, the screen's width where its shape lets it, its height said before it loads
+   (picture.tsx), and no taller than the screen less the foot's room; its two lines and its acts right under it, as a feed's
+   post stands. The foot never moves or sizes the picture: it is under it, and grows downward. */
+.cnv-viewer-slide[data-kind="picture"] {
+  --viewer-foot-room: calc(150px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 60px);
+}
+.cnv-viewer-slide[data-kind="picture"] > .cnv-viewer-picture {
+  position: relative;
+  inset: auto;
+  flex: none;
+}
+.cnv-viewer-slide[data-kind="picture"] .cnv-viewer-fit {
+  position: static;
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 60px - var(--viewer-foot-room));
+}
+.cnv-viewer-slide[data-kind="picture"] > .cnv-viewer-foot {
+  position: relative;
+  inset: auto;
+  flex: none;
+  gap: 8px;
+  padding-top: 14px;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+}
+/* Its record on its way (viewer.tsx useFootWaits): drawn, unseen and untouchable, so it shows once, whole. */
+.cnv-viewer-foot[data-waits] {
+  visibility: hidden;
+  opacity: 0;
+}
 .cnv-viewer-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   margin: 0;
   font-size: var(--viewer-name-size);
   line-height: var(--viewer-name-line);
@@ -687,6 +728,31 @@
   font-size: var(--text-base);
   line-height: var(--row-said-line);
   color: var(--viewer-ink-dim);
+}
+/* The foot's two lines: its name on one, where it stands or what it is on the other. */
+.cnv-viewer-said {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.cnv-viewer-said > .cnv-viewer-name {
+  -webkit-line-clamp: 1;
+}
+/* What it is and when it was made, the press that opens its Details, its caret after the words. */
+.cnv-viewer-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 28px;
+  font-size: var(--text-sm);
+  text-align: start;
+}
+.cnv-viewer-details-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* Where it stands, in one row on the glass (foot.tsx ViewerStatus): its dot and sentence, a caret where the list of places
    opens, and Don't post at its end while a post can still be stopped. */
@@ -708,17 +774,25 @@
 .cnv-desk :is(.cnv-status, .cnv-status-open) {
   min-height: var(--control-h-lg);
 }
-/* Over the picture, where it stands is a chip the size of its words, Don't post beside them where it can be (Ruben, 12 Nov
-   2026: a bar the screen's width held three words). The desk's pane keeps its row. */
+/* In the foot, where it stands is the line under the name (Ruben, 25 Nov 2026: two lines, not a chip and a row): its dot,
+   its words and the caret, the size of its words, with no glass around them; Don't post beside them where it can be. The
+   desk's pane keeps its row. */
 .cnv-viewer-foot .cnv-status {
   align-self: flex-start;
   max-width: 100%;
-  min-height: 36px;
+  min-height: 28px;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: var(--viewer-ink-dim);
 }
 .cnv-viewer-foot .cnv-status-open {
   flex: 0 1 auto;
-  min-height: 36px;
-  padding: 0 8px 0 10px;
+  min-height: 28px;
+  padding: 0;
+  font-weight: var(--weight-medium);
 }
 /* The press takes the row but Don't post: its words start at the row's start, its caret after them. */
 .cnv-status-open {

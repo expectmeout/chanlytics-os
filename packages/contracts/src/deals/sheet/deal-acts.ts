@@ -16,7 +16,7 @@ import type { FollowUpStand } from "../../campaigns/playbooks/playbooks";
 import { isOneOf } from "../../shared/unknown";
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */
-export const DEAL_SHEET_MODES = ["propose", "edit", "again", "won", "lost", "ended"] as const;
+const DEAL_SHEET_MODES = ["propose", "edit", "again", "won", "lost", "ended"] as const;
 export type DealSheetMode = (typeof DEAL_SHEET_MODES)[number];
 
 export function isDealSheetMode(text: unknown): text is DealSheetMode {

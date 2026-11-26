@@ -281,7 +281,7 @@ export function shortcutGroups(list: readonly Shortcut[] = SHORTCUTS): Array<{ g
  * ------------------------------------------------------------------------- */
 export type ToastTone = "ok" | "info" | "warn" | "danger";
 
-export const TOAST_TONES: readonly ToastTone[] = ["ok", "info", "warn", "danger"];
+const TOAST_TONES: readonly ToastTone[] = ["ok", "info", "warn", "danger"];
 
 /**
  * How long a toast stays, by tone: three seconds to read a confirmation or a note, four for a warning or a failure.
