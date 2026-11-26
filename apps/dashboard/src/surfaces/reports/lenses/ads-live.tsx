@@ -7,7 +7,7 @@
  */
 import { ADS_ROUTE, ADS_WORDS } from "@chanlytics/contracts";
 import type { AdsLiveDto } from "@chanlytics/contracts";
-import { lensModel } from "../../campaigns/ads/live/model";
+import { lensModel } from "../../campaigns/ads/live/lens-model";
 import { LENS } from "../../campaigns/ads/live/words";
 import { WorthLine } from "../../campaigns/ads/live/worth-line";
 import { EmptyState } from "../../kit/empty/empty";

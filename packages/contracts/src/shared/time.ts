@@ -118,7 +118,7 @@ export interface SpanUnits {
 }
 
 /** The largest whole unit a gap rounds to, with carry across the seams. */
-export function spanUnits(ms: number): SpanUnits {
+function spanUnits(ms: number): SpanUnits {
   const gap = Math.max(0, ms);
   if (gap < MIN_MS) return { n: Math.round(gap / 1000), unit: "s" };
   const minutes = Math.round(gap / MIN_MS);

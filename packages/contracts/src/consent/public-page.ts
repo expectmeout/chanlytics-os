@@ -165,7 +165,7 @@ export interface PolicyLinks {
  * its own refusal (30927). The business's own pages when it has them, and
  * Chanlytics' own when it has not said who it is yet.
  */
-export function policyLinks(consentPageFacts: Pick<ConsentPageFacts, "slug" | "businessPage">): PolicyLinks {
+function policyLinks(consentPageFacts: Pick<ConsentPageFacts, "slug" | "businessPage">): PolicyLinks {
   const slug = (consentPageFacts.slug ?? "").trim();
   if (slug && consentPageFacts.businessPage) return { privacy: `/b/${slug}`, terms: `/b/${slug}/terms` };
   return { privacy: "/privacy", terms: "/terms" };

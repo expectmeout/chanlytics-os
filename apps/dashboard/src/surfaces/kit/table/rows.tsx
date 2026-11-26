@@ -37,7 +37,7 @@ const placed = (td: ReactElement<{ className?: string }>, c: AnyDataColumn, pinE
     ...(c.fill ? { "data-pin": "start" } : c.key === pinEnd ? { "data-pin": "end" } : {}),
   });
 
-export interface RowProps<R extends TableRow, X> {
+interface RowProps<R extends TableRow, X> {
   row: R;
   /** Where the row stands in the list, and what measures it once drawn (kit/rows/shown-rows.ts). */
   index: number;

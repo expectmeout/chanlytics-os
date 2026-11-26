@@ -150,7 +150,7 @@ export function wholeDaysSince(atMs: number | null, nowMs: number): number | nul
 export const daysInStageWords = (days: number): string => (days === 0 ? "today" : `${days} d`);
 
 /** When the stage began: the proposal's send, the answer, or the end. */
-export function dealSinceMs(dealFacts: DealFacts): number | null {
+function dealSinceMs(dealFacts: DealFacts): number | null {
   const at =
     dealFacts.stage === "proposed"
       ? dealFacts.proposed_at

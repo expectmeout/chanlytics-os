@@ -92,6 +92,7 @@ export async function readSequences(toolContext: ToolContext): Promise<unknown> 
  */
 export async function readSequence(toolContext: ToolContext, input: { sequence_id: string }): Promise<unknown> {
   const id = str(input.sequence_id, 40);
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   if (!UUID.test(id)) return { error: "sequence_id must be an id sequences with action list returned" };
   const record = await readUnlessNotFound(load(toolContext.rc, sequence, { id }));
   if (!record) return { error: "no such campaign in this workspace" };

@@ -19,7 +19,7 @@ import {
 import { askAbout, canDo, navigate, type FrameFlash } from "../../frame-verbs";
 import { PostOnGoogle } from "../../files/places/post-google";
 import { PostOnInstagram } from "../../files/places/post-instagram";
-import { usePostRecord } from "../../files/post/record";
+import { postsMovedOf, usePostRecord } from "../../files/post/record";
 import type { PieceFootActs } from "./piece-foot";
 import { usePieceDrafts, usePiecePosts, usePiecePresses, type PieceHands, type PiecePresses } from "./piece-presses";
 import { usePieceStanding } from "./piece-standing";
@@ -148,7 +148,7 @@ export function ContentPiece({
 }) {
   const { file } = made;
   // Read again as the page says its posts moved (one landed, one stopped), so the sheet says what the tile says.
-  const record = usePostRecord(file, made.posts.map((p) => `${p.id}:${p.status}`).join());
+  const record = usePostRecord(file, postsMovedOf(made.posts));
   const hands: PieceHands = { made, record, reread, open, onClose, flash };
   const at = usePiecePosts(made, record);
   const { posts, takes } = at;
@@ -171,6 +171,7 @@ export function ContentPiece({
     made: { file, posts, by_hand: byHand },
     byHand: byHandPressOf(byHand, presses.change, flash),
     record: { made: record.made, video: record.video },
+    settled: record.settled,
     takes,
     may: canDo("settings"),
     beside,

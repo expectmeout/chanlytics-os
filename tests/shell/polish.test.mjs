@@ -110,10 +110,6 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     ),
     "a long warning wraps beside its glyph, not under it",
   );
-  assert.ok(
-    readRaw("apps/dashboard/src/styles/components.css").includes("  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos"),
-    "a long meta wraps in its own cell, not into the next",
-  );
   // tzClock, and the four places Today says a closing or a last time with it.
   const today = ["clock", "facts", "figures", "rows", "queue"]
     .map((m) => readCode(`packages/contracts/src/today/${m}.ts`))

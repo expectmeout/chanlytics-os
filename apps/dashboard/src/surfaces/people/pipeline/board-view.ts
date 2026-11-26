@@ -103,7 +103,7 @@ export function pipelineCsv(
   );
   return [head.map(csvCell).join(","), ...lines].join("\r\n");
 }
-export type PipelineSort = (typeof PIPELINE_SORTS)[number];
+type PipelineSort = (typeof PIPELINE_SORTS)[number];
 
 /** A deal's worth over a year, to order by: a month's twelve times, a year's and a one-off's as they are; null for none. */
 function yearCents(d: DealVM | null): number | null {
@@ -155,7 +155,7 @@ export function pipelineSorted<T extends PipelineSource>(
 export const PIPELINE_PASS_MAX = 50;
 
 /** A pass asked of a selection: the proposals out in it, why they passed, and those that stay as they are. */
-export interface PipelinePassManyVM {
+interface PipelinePassManyVM {
   /** The proposals out this press records, fifty at most. */
   /** Each with the row it was picked as (0029: a person's two proposals are two rows), so the selection drops it as it passes. */
   deals: { personId: string; dealId: string; rowId: string }[];

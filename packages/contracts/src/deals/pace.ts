@@ -8,7 +8,7 @@ import { quantile } from "../reports/dtos";
 import { DAY_MS, HOUR_MS } from "../shared/time";
 
 /** A yes put on file within this long of its proposal is a client entered after the fact, not a decision. */
-export const SAME_SITTING_MS = HOUR_MS;
+const SAME_SITTING_MS = HOUR_MS;
 
 /** A deal as the wait for its yes is measured: its stage and its two days. */
 export interface DealWaitRow {
