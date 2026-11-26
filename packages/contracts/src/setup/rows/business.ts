@@ -187,7 +187,7 @@ export function factsRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupR
       required: true,
       sentence: `${business.name} · hours set · ${plural(business.services, "service")} on record`,
       details: [
-        business.bookingLink ? "Booking link on record" : "No booking link · AI answers, but cannot send one",
+        business.booking_link ? "Booking link on record" : "No booking link · AI answers, but cannot send one",
         business.address ? "Address on record" : "No address yet",
       ],
       verb: { label: "Edit in Business", to: "admin/workspace" },

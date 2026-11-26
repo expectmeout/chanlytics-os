@@ -1120,11 +1120,11 @@ test("a second build within the minute reads nothing and says it was a hit; anot
     rcIn(ctx),
     page("inbox", [{ kind: "thread", id: C1 }], {
       view: "all",
-      askedAt: 999,
+      asked_at: 999,
       focus: { kind: "thread", id: C1, label: "Rosa" },
     }),
   );
-  assert.deepEqual(ctx.supabase.seen, [], "nothing read: the focus and askedAt changed, the key did not");
+  assert.deepEqual(ctx.supabase.seen, [], "nothing read: the focus and asked_at changed, the key did not");
   assert.equal(again.warm, "hit");
   assert.deepEqual(again.blocks, first.blocks);
   assert.equal(again.stamp, first.stamp, "the kept build's own stamp");

@@ -8,7 +8,7 @@
 import {
   fileSaidOf,
   type AskCitationKind,
-  type AskMessageVM,
+  type AskMessageDto,
   type AskScope,
   type AskScopeKind,
 } from "@chanlytics/contracts";
@@ -47,7 +47,7 @@ function fileNameOf(id: string): string | null {
 }
 
 /** The one thing an answer is about, or null where it names several or none. */
-export function chipOfAnswer(answer: AskMessageVM): AskScope | null {
+export function chipOfAnswer(answer: AskMessageDto): AskScope | null {
   if (answer.failed) return null;
   const named = new Map<string, AskScope>();
   for (const cited of answer.citations ?? []) {

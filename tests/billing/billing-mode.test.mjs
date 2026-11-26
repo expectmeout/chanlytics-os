@@ -195,7 +195,7 @@ test("REGRESSION (S9): Setup's billing row says test mode before anything it say
       name: "Luna",
       hours: true,
       services: 3,
-      bookingLink: true,
+      booking_link: true,
       address: true,
       handoff: null,
       broken: false,

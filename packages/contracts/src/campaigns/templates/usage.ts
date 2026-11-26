@@ -229,7 +229,7 @@ export interface TemplateSends {
   /** Messages that left with it: sent, which is not delivered and not read. */
   count: number;
   /** When the latest of them left (ISO), or null when none kept its time. */
-  lastAt: string | null;
+  last_at: string | null;
 }
 
 export interface TemplateSendSource {
@@ -246,12 +246,12 @@ export function templateSends(src: TemplateSendSource): Record<string, TemplateS
   const out: Record<string, TemplateSends> = {};
   const nameOf = new Map(src.runs.map((r) => [r.id, r.template_name]));
   const went = (name: string, at: string | null) => {
-    const s = (out[name] ??= { count: 0, lastAt: null });
+    const s = (out[name] ??= { count: 0, last_at: null });
     s.count += 1;
     // As instants, not as text: two stamps in different offsets, or one with a
     // fraction of a second and one without, do not sort by their characters.
     const ms = at === null ? NaN : Date.parse(at);
-    if (Number.isFinite(ms) && (s.lastAt === null || ms > Date.parse(s.lastAt))) s.lastAt = at;
+    if (Number.isFinite(ms) && (s.last_at === null || ms > Date.parse(s.last_at))) s.last_at = at;
   };
   for (const r of src.recipients) {
     const name = r.state === "sent" ? nameOf.get(r.broadcast_id) : undefined;
@@ -264,7 +264,7 @@ export function templateSends(src: TemplateSendSource): Record<string, TemplateS
 }
 
 /**
- * template_sends' answer (00374), by message name: storage's `last_at` read into memory's `lastAt`, its count a whole
+ * template_sends' answer (00374), by message name: storage's `last_at` kept under its own name (the wire says it), its count a whole
  * number (isCount). Null when it is not that shape, which the reader says as a read that failed, never as a message
  * nothing sent.
  */
@@ -275,7 +275,7 @@ export function templateSendsOf(answer: unknown): Record<string, TemplateSends> 
   for (const [name, raw] of Object.entries(byName)) {
     const s = recordOrNull(raw);
     if (!s || !isCount(s.count) || !(s.last_at === null || typeof s.last_at === "string")) return null;
-    out[name] = { count: s.count, lastAt: s.last_at };
+    out[name] = { count: s.count, last_at: s.last_at };
   }
   return out;
 }
@@ -299,7 +299,7 @@ export function templateSentWords(
   nowMs: number,
 ): TemplateSentWords {
   if (!templateSends || templateSends.count === 0) return { count: null, when: "Never sent" };
-  const at = templateSends.lastAt === null ? NaN : Date.parse(templateSends.lastAt);
+  const at = templateSends.last_at === null ? NaN : Date.parse(templateSends.last_at);
   return {
     count: templateSends.count.toLocaleString("en-US"),
     when: Number.isFinite(at) ? agoWords(at, nowMs, { date: (ms) => clockDate(ms, tz, nowMs) }) : null,

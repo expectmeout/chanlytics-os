@@ -62,7 +62,7 @@ globalThis.window.fetch = async (url) => {
       ? json(500, { ok: false, error: { code: "internal", message: "down" } })
       : json(200, { ok: true, data: { calls: [] } });
   if (u.pathname === "/api/v1/workspaces")
-    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, activeWorkspaceId: "t1" } });
+    return json(200, { ok: true, data: { workspaces: whoIsLooking().workspaces, active_workspace_id: "t1" } });
   return json(404, { ok: false, error: { code: "not_found", message: u.pathname } });
 };
 

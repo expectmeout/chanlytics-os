@@ -469,7 +469,7 @@ const { surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surf
 
 test("REGRESSION (D5): on a cold load the Inbox waits for the workspace's zone -- it said the minute by the browser's clock", async () => {
   const seen = wire({
-    "GET /api/v1/workspaces": { workspaces: [WORKSPACE], activeWorkspaceId: WORKSPACE.id },
+    "GET /api/v1/workspaces": { workspaces: [WORKSPACE], active_workspace_id: WORKSPACE.id },
     "GET /api/v1/conversations": { conversations: [conv([msg()])] },
     "GET /api/v1/escalations": { escalations: [] },
     "GET /api/v1/templates": { templates: [] },

@@ -1,6 +1,6 @@
 /** Answer: shape. */
 
-import type { AskMessageVM } from "../thread-words";
+import type { AskMessageDto } from "../thread-words";
 import { FOLLOWUP_ECHO, navigateLabel, sameQuestion, storedChart, type AskChart } from "../answer-text";
 import type { AskLanguage } from "../language";
 import type { FastCall } from "../fast-paths";
@@ -268,7 +268,7 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
  * threads untouched for 90 days (00040_ask.sql:86-103), so a thread in use keeps its old turns.
  */
 export function answerFromV1(
-  askMessage: Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups" | "language">,
+  askMessage: Pick<AskMessageDto, "text" | "citations" | "navigate" | "followups" | "language">,
 ): AskAnswer {
   const language = askMessage.language ?? "en";
   const words = KIND_WORDS[language === "es" ? "es" : "en"];

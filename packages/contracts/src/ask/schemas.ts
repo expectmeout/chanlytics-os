@@ -16,29 +16,38 @@ import { PHONE_PACES } from "../voice/phone-pace";
 import { WALK_INS_CHOICES } from "../config/business-tab/choices";
 import { GUARDRAIL_RULES } from "./settings-change";
 import { DAY_KEY } from "../shared/zone/day-keys";
+import { withOldNames } from "../shared/unknown";
 
 const Id = z.string().min(1).max(120);
 
-/** The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. */
-export const PageContextSchema = z
-  .object({
-    v: z.literal(1),
-    surface: z.enum(ASK_SURFACES),
-    route: z.string().max(200),
-    view: z.string().max(80).nullish(),
-    focus: z
-      .object({ kind: z.enum(ASK_SCOPE_KINDS), id: Id, label: z.string().max(80) })
-      .strict()
-      .nullish(),
-    rows: z.array(z.object({ kind: z.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-    askedAt: z.number().int().nonnegative(),
-  })
-  .strict();
+/**
+ * The one reading of a context: a field it does not know, a row with more than its kind and id, is refused. Its
+ * `asked_at` is read by its old name too for one release from 26 November 2026 (decision 0022, rule 3): a tab opened
+ * before that deploy sends `askedAt`, and a voice session kept before it holds it. The old name goes in the first change
+ * merged after #2672 is live on both hosts (decision 0022, step 3).
+ */
+export const PageContextSchema = z.preprocess(
+  withOldNames({ askedAt: "asked_at" }),
+  z
+    .object({
+      v: z.literal(1),
+      surface: z.enum(ASK_SURFACES),
+      route: z.string().max(200),
+      view: z.string().max(80).nullish(),
+      focus: z
+        .object({ kind: z.enum(ASK_SCOPE_KINDS), id: Id, label: z.string().max(80) })
+        .strict()
+        .nullish(),
+      rows: z.array(z.object({ kind: z.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+      asked_at: z.number().int().nonnegative(),
+    })
+    .strict(),
+);
 
-export const AskProposalOutcomeSchema = z.object({
+const AskProposalOutcomeFields = z.object({
   state: z.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z.string().max(300).catch(""),
-  atMs: z.number().catch(0),
+  at_ms: z.number().catch(0),
   undo: z.record(z.string(), z.unknown()).nullable().optional(),
   // What the commit made that a plan's later step names (AskProposalOutcome.made): kept, never stripped, so a plan's
   // made survives a reload; absent (every outcome saved before) or unreadable, it made nothing a token names.
@@ -56,6 +65,9 @@ export const AskProposalOutcomeSchema = z.object({
     .optional()
     .catch(undefined),
 });
+
+/** A card's outcome as the page sends it: its time read by its old name too, until the same change (decision 0022, step 3). */
+export const AskProposalOutcomeSchema = z.preprocess(withOldNames({ atMs: "at_ms" }), AskProposalOutcomeFields);
 
 /** A calendar day, YYYY-MM-DD: a closure's first and last, and a note's last. Its shape alone; the save judges the rest. */
 const CalendarDay = z.string().regex(DAY_KEY);

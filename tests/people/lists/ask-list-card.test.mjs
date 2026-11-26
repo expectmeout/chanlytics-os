@@ -504,7 +504,7 @@ function tabOver(tables) {
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
   return { client, win, sent, events, t };
 }
-const doneWith = (r) => ({ state: "done", receipt: r.receipt, atMs: 1, undo: r.undo });
+const doneWith = (r) => ({ state: "done", receipt: r.receipt, at_ms: 1, undo: r.undo });
 const ledger = (tables) => tables.decisions.map((d) => [d.verb, d.subject_type]);
 
 test("a list card, walked end to end: the model's call makes it, Approve makes the list through the lists route with its rule, People is read again, Open goes to it, and Delete it takes it away by the id the route answered", async () => {

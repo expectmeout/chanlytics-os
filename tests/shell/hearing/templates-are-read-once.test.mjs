@@ -319,7 +319,7 @@ test("the settings read is the one read of them: it lands every template with it
     team: { members: [], invites: [] },
     policies: { policies: [], role: "owner" },
     channels: { channels: [] },
-    templates: { templates: rows, messages: campaignMessagesOf(rows), usedBy: {} },
+    templates: { templates: rows, messages: campaignMessagesOf(rows), used_by: {} },
   };
   // The pages were read earlier, with Settings not yet in.
   setSurfaceValue("settings", undefined);

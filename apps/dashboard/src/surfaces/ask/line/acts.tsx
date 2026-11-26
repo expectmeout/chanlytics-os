@@ -1,5 +1,5 @@
 /** The Line's acts, made before the hooks that call them. */
-import type { AskProposalOutcome, AskThreadVM } from "@chanlytics/contracts";
+import type { AskProposalOutcome, AskThreadDto } from "@chanlytics/contracts";
 import type { Conversation, Line } from "./types";
 import { navigate } from "../shell";
 import { AR_FOCUS_MS, arPhone } from "./place";
@@ -113,8 +113,8 @@ export const arActs = (ln: Line) => {
   };
 
   // Deleting asks first, wherever it is pressed: a row's × or the Delete key (N5).
-  const askDelete = (th: AskThreadVM) => setDoomed(th);
-  const removeThread = async (th: AskThreadVM) => {
+  const askDelete = (th: AskThreadDto) => setDoomed(th);
+  const removeThread = async (th: AskThreadDto) => {
     setDoomed(null);
     const ok = await A.deleteThread(th.id);
     if (!ok) {

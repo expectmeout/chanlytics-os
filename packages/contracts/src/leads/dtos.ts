@@ -233,7 +233,7 @@ export interface LeadViewCountsDto {
 export interface LeadMonthDto {
   used: number;
   left: number;
-  renewsOn: string;
+  renews_on: string;
   /** Whether this workspace's searches look further out by themselves, short of their count (decision 0133, lead_search_widens). */
   widens?: boolean;
 }
