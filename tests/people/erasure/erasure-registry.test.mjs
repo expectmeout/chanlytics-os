@@ -60,9 +60,9 @@ test("every strategy names a leg the erasure runs, or an age the privacy page st
   );
 });
 
-test("a message's words are counted, not named: a message is immutable (00326) until an exception is costed", () => {
-  assert.equal(ERASURE_STRATEGIES.messages?.body, undefined);
-  assert.equal(ERASURE_STRATEGIES.messages?.template_vars, undefined);
+test("a message's words go with the person whose thread they are in; in someone else's thread they stay (00326, Ruben 6 Oct)", () => {
+  assert.equal(ERASURE_STRATEGIES.messages?.body?.kind, "with_person");
+  assert.equal(ERASURE_STRATEGIES.messages?.template_vars?.kind, "with_person");
   assert.equal(ERASURE_STRATEGIES.messages?.media?.kind, "with_person", "the person's own messages go with them");
 });
 

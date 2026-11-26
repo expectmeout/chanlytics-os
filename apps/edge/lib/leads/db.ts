@@ -286,7 +286,7 @@ async function readShares(
       `leads by ${col}`,
       await listLeadsSharing(db, tenantId, col, values),
     );
-    for (const r of rows) if (r[col]) out.push({ key: r[col], share: { kind, lead_id: r.id as string } });
+    for (const r of rows) if (r[col] && r.id) out.push({ key: r[col], share: { kind, lead_id: r.id } });
   };
   await lead("phone_e164", "phone", keys.phones);
   await lead("email", "email", keys.emails);
@@ -297,8 +297,7 @@ async function readShares(
       `contacts by ${col}`,
       await listPeopleSharing(db, tenantId, col, values),
     );
-    for (const r of rows)
-      if (r[col]) out.push({ key: r[col], share: { kind, contact_id: asContactId(r.id as string) } });
+    for (const r of rows) if (r[col] && r.id) out.push({ key: r[col], share: { kind, contact_id: asContactId(r.id) } });
   };
   await person("phone_e164", "phone", keys.phones);
   await person("email", "email", keys.emails);

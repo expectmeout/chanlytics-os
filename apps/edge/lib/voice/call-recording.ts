@@ -36,7 +36,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db/types";
 import { fetchRecording } from "@chanlytics/channels/voice";
 import { listRecordingsToPurge, markRecordingPurged, setCallRecording } from "@chanlytics/db/voice";
-import { DAY_MS, RECORDING_RETENTION_DAYS } from "@chanlytics/contracts";
+import { DAY_MS, RECORDING_RETENTION_DAYS, heldTenantId, valueAt } from "@chanlytics/contracts";
 import { logger } from "../shared/log.js";
 import { storeMedia } from "@chanlytics/db/channels";
 import type { TenantId } from "@chanlytics/contracts";
@@ -117,15 +117,18 @@ export async function purgeExpiredRecordings(
   const cutoff = new Date(ports.now.getTime() - RECORDING_RETENTION_DAYS * DAY_MS).toISOString();
   const { data, error } = await listRecordingsToPurge(db, cutoff, limit);
   if (error) return { candidates: 0, purged: 0, error: error.message };
-  const rows = data as {
-    id: string;
-    tenant_id: TenantId;
-    recording: { storage_path?: string; mime?: string | null } | null;
-  }[];
+  const rows = data.map((r) => {
+    const path = valueAt(r.recording, "storage_path");
+    const mime = valueAt(r.recording, "mime");
+    return {
+      id: r.id,
+      tenant_id: heldTenantId(r.tenant_id),
+      path: typeof path === "string" ? path : null,
+      mime: typeof mime === "string" ? mime : null,
+    };
+  });
   if (!rows.length) return { candidates: 0, purged: 0, error: null };
-  const paths = rows
-    .map((r) => r.recording?.storage_path)
-    .filter((p): p is string => typeof p === "string" && p.length > 0);
+  const paths = rows.map((r) => r.path).filter((p): p is string => typeof p === "string" && p.length > 0);
   if (paths.length) {
     const r = await ports.remove(paths);
     if (r.error) return { candidates: rows.length, purged: 0, error: r.error };
@@ -145,7 +148,7 @@ export async function purgeExpiredRecordings(
       fetch_state: "purged",
       purged_at: ports.now.toISOString(),
       retention_days: RECORDING_RETENTION_DAYS,
-      mime: row.recording?.mime ?? null,
+      mime: row.mime,
     });
     // One bad row does not hold the rest of the batch: the audio is already
     // gone for all of them, and a row still marked `stored` comes back next

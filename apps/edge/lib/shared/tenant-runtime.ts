@@ -23,6 +23,7 @@ import {
   DbFailure,
   causedBy,
   valueAt,
+  PolicyLimitsSchema,
 } from "@chanlytics/contracts";
 import {
   findWhatsappLine,
@@ -54,6 +55,7 @@ import {
 import type { SendResult } from "@chanlytics/channels/whatsapp";
 import { logger, errField } from "./log.js";
 import { findGoogleListingAddress } from "@chanlytics/db/google";
+import { readColumn } from "@chanlytics/db/shared";
 
 export interface TenantRuntime {
   tenantId: TenantId;
@@ -331,7 +333,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
     const parsed = parseResult.ok ? parseResult.config : null;
     const policy: TenantRuntime["policy"] = {};
     for (const p of polQ.data ?? []) {
-      policy[p.class] = { mode: p.mode, limits: (p.limits ?? {}) as PolicyLimits };
+      policy[p.class] = { mode: p.mode, limits: readColumn("policies.limits", PolicyLimitsSchema, p.limits ?? {}) };
     }
     const rt: TenantRuntime = {
       tenantId: routed.tenantId,

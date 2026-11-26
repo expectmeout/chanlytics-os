@@ -167,7 +167,7 @@ export const isForwardingMode = (value: unknown): value is ForwardingMode =>
  * What says more than the window is the carrier's own headers (forwardingProof).
  */
 export function forwardingMatch(
-  facts: ForwardingFacts,
+  facts: { readonly [K in keyof ForwardingFacts]?: unknown },
   call: { fromE164: string | null; toE164: string | null; startedAtIso: string | null },
   nowMs: number = Date.now(),
 ): boolean {
