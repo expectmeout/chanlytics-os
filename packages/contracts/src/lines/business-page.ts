@@ -55,7 +55,7 @@ export const SMS_CLAUSES: readonly string[] = [
  * privacy policy to "document what customer data you collect and how it's used";
  * the clause above says what is NOT done with it, and this says what is.
  */
-export function dataSentences(businessName: string): string[] {
+function dataSentences(businessName: string): string[] {
   return [
     `For text messages, ${businessName} keeps your mobile number, the messages you and it exchange, and your consent to messages, with the date and the way it was given.`,
     "They are used only to answer you, to send the messages you agreed to, and to honour a STOP. They are not sold, and they are not shared with third parties or affiliates for marketing or promotional purposes.",
@@ -291,6 +291,7 @@ export function textingTermsVM(businessPageFacts: BusinessPageFacts): TextingTer
       { label: "Cost", text: "Message and data rates may apply." },
       { label: "Help", text: `Reply HELP for help${support ? `, or ${support}` : ""}.` },
       { label: "Stop", text: `Reply STOP at any time to stop. ${known} confirms once and sends nothing more.` },
+      // screen-word: the phone networks' own disclosure on a customer's page, worded as they require it
       { label: "Carriers", text: "Wireless carriers are not liable for delayed or undelivered messages." },
       { label: "Your information", text: SMS_CLAUSES[3] ?? "" },
     ],

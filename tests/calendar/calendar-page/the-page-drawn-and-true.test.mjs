@@ -504,14 +504,14 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
     vm.feed.notes.map((n) => [n.id, n.title]),
     [
       ["repeats", "2 repeating events count only once."],
-      ["undrawn", "3 more events aren't drawn."],
+      ["undrawn", "3 more events aren't shown."],
     ],
   );
-  assert.match(vm.feed.notes[0].body, /only the first date is treated as taken/);
+  assert.match(vm.feed.notes[0].body, /a later date could be offered/);
   assert.match(vm.feed.notes[1].body, /still treats their times as taken/);
   assert.deepEqual(
     toCalendarVM(counted(1, 1), NOW).feed.notes.map((n) => n.title),
-    ["1 repeating event counts only once.", "1 more event isn't drawn."],
+    ["1 repeating event counts only once.", "1 more event isn't shown."],
   );
   const clean = toCalendarVM(dto(), NOW);
   assert.deepEqual(
@@ -546,7 +546,7 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
   assert.match(textOf(byTestId(tree, "cal-notice-note-repeats")), /2 repeating events count only once\./);
   assert.equal(byTestId(tree, "cal-notice-note-undrawn"), null, "one notice, never a stack of them over the first day");
   fresh(counted(0, 3));
-  assert.match(textOf(byTestId(page(), "cal-notice-note-undrawn")), /3 more events aren't drawn\./);
+  assert.match(textOf(byTestId(page(), "cal-notice-note-undrawn")), /3 more events aren't shown\./);
 });
 
 test("the board is drawn in hours of the stylesheet's hour (--cal-hour): one value moves every block, band, tick and the now line, so a phone fits the day by setting it", () => {
@@ -1019,7 +1019,7 @@ test("REGRESSION (C1): the page says only what it read -- an unreadable calendar
     }),
   );
   let tree = page();
-  assert.match(textOf(byTestId(tree, "cal-notice-feed")), /Your calendar couldn't be read\./);
+  assert.match(textOf(byTestId(tree, "cal-notice-feed")), /Couldn't load the calendar\./);
   fresh(
     dto({
       feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 },

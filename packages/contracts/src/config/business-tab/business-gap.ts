@@ -11,7 +11,7 @@ import { offersBookingLink } from "../no-booking-link";
  * box and the first run's Check say the same.
  */
 export const BOOKING_LINK_ROW_WORDS: { empty: string; hint: string } = {
-  empty: "None — it takes their details instead",
+  empty: "None · it takes their details instead",
   hint: "Optional. Add one and they book themselves.",
 };
 
@@ -65,7 +65,7 @@ export function businessGap(standingInputs: StandingInputs): BusinessGap | null 
   if (!has(profile.services)) return { sentence: `It ${CANNOT_SAY_SERVICES}.`, row: "services" };
   if (!has(profile.address)) return { sentence: "It cannot say where you are.", row: "address" };
   if (!has(profile.tone))
-    return { sentence: "It has no voice of its own yet — it answers in nobody in particular's words.", row: "tone" };
+    return { sentence: "It has no voice of its own yet · it answers in a plain, neutral voice.", row: "tone" };
   if (!offersBookingLink(standingInputs))
     return { sentence: "It has no booking link to send, so it takes their details instead.", row: "booking_link" };
   return null;

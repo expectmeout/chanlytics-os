@@ -87,6 +87,7 @@ export function timezoneWords(
  * run on and a few more; every other zone is found by its own name, as before. A state split between two zones is
  * named for the one most of it keeps.
  */
+// screen-word: the words a search for a city matches, never shown on a page
 const ZONE_ALSO: Record<string, string> = {
   "America/New_York":
     "Miami Orlando Tampa Jacksonville Florida Atlanta Georgia Boston Massachusetts Philadelphia Pittsburgh Pennsylvania Washington DC Baltimore Maryland Charlotte Raleigh North Carolina South Carolina Virginia Richmond Newark New Jersey Brooklyn Queens Bronx Buffalo Connecticut Ohio Columbus Cleveland Cincinnati Michigan Maine Vermont New Hampshire Rhode Island Delaware West Virginia",

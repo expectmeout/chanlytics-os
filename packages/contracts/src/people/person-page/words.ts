@@ -120,7 +120,7 @@ export const WORKS_AT_WORDS = {
   close: "Close",
   reading: "Reading…",
   /** A stand-in's line under the business's name, by how the lead and the person met. */
-  weWroteFirst: (day: string) => `We wrote first · ${day}`,
+  weWroteFirst: (day: string) => `You wrote first · ${day}`,
   youCalled: (day: string) => `You called · ${day}`,
   saidNo: (day: string) => `Wrote back · ${day} · said no`,
   /** Combine (0052, amending 0028): the record we wrote to and the person who answered from another address. */
@@ -128,7 +128,7 @@ export const WORKS_AT_WORDS = {
   /** The same, for someone who answered without giving a name: their address is all the page knows them by. */
   someoneAnswered: (address: string) => `Someone answered from ${address}`,
   combineWith: (name: string) => `Combine with ${name}`,
-  wroteToFirst: (address: string) => `${address} is the record we wrote to`,
+  wroteToFirst: (address: string) => `${address} is the one you wrote to`,
   combine: "Combine",
 } as const;
 
@@ -262,10 +262,10 @@ export const ORIGIN_WORDS = {
   form: (day: string) => `Through a form · ${day}`,
   lead: (day: string) => `Found by your lead search · ${day}`,
   ownList: (day: string) => `From your own list · ${day}`,
-  weWroteFirst: (day: string) => `we wrote first ${day}`,
-  weCalledFirst: (day: string) => `We called first · ${day}`,
-  /** "We wrote first by text · Sep 20": the wire as a sentence says it (CONSENT_CHANNEL_WORDS). */
-  weWroteFirstOn: (on: string, day: string) => `We wrote first ${on} · ${day}`,
+  weWroteFirst: (day: string) => `you wrote first ${day}`,
+  weCalledFirst: (day: string) => `You called first · ${day}`,
+  /** "You wrote first by text · Sep 20": the wire as a sentence says it (CONSENT_CHANNEL_WORDS). */
+  weWroteFirstOn: (on: string, day: string) => `You wrote first ${on} · ${day}`,
   /**
    * The ad they first came through (decision 0049, call 2): by its name where Chanlytics knows it, else by whose account
    * it runs in ("Meta"), else as an ad alone. It ends the line of the wire they wrote on, or begins the line of a person

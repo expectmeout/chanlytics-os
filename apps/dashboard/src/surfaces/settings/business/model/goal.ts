@@ -7,7 +7,7 @@
 import { describeSettingsChange, ASK_GOAL_MAX } from "@chanlytics/contracts";
 
 export const ASK_GOAL_WORDS = {
-  title: "Your goal",
+  title: "Goal",
   // What it is for is the hint, since a phone draws no card's sub; the sub says who reads it.
   sub: "Never shown to customers",
   label: "Goal",

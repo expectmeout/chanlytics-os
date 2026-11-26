@@ -17,7 +17,7 @@ import {
   type MailboxRequest,
 } from "@chanlytics/channels/email";
 import { fetchFromProvider } from "@chanlytics/channels/shared";
-import { MIN_MS, type MailboxProvider, recordOrEmpty } from "@chanlytics/contracts";
+import { MIN_MS, type MailboxProvider, recordOrEmpty, recordOrNull } from "@chanlytics/contracts";
 import { mailboxClient } from "./config.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -72,13 +72,13 @@ export async function storeMailboxCredentials(
 }
 
 async function readMailboxCredentials(db: Db, id: string): Promise<StoredMailboxCredentials | null> {
-  const mailboxCredentials = (await getMailboxCredentials(db, id)) as Partial<StoredMailboxCredentials> | null;
+  const mailboxCredentials = recordOrNull(await getMailboxCredentials(db, id));
   return mailboxCredentials && typeof mailboxCredentials.refresh_token === "string"
     ? {
         refresh_token: mailboxCredentials.refresh_token,
-        access_token: mailboxCredentials.access_token ?? null,
+        access_token: typeof mailboxCredentials.access_token === "string" ? mailboxCredentials.access_token : null,
         expires_at: typeof mailboxCredentials.expires_at === "number" ? mailboxCredentials.expires_at : null,
-        scope: mailboxCredentials.scope ?? null,
+        scope: typeof mailboxCredentials.scope === "string" ? mailboxCredentials.scope : null,
       }
     : null;
 }

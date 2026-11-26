@@ -223,11 +223,12 @@ test.describe("Leads on a real workspace", () => {
     await expect(page.locator(".pg-head .pg-sentence").getByTestId("leads-standing-needs")).toHaveText(
       "1 search needs you",
     );
-    // The desk's door is the rail's row: its "?" says the search needs you, and a waiting search opens on the pile its
-    // question is about (leads/page/routes.tsx, waitsOn).
+    // The desk's door is the rail's row: its "?" says the search needs you, by its name and its tip, and a waiting search
+    // opens on the pile its question is about (leads/page/routes.tsx, waitsOn).
     const door = page.getByTestId(`leads-search-${search.id}`);
     await expect(door).toBeInViewport({ ratio: 1 });
-    await expect(door.locator(".rail-q")).toHaveAttribute("title", "This search needs you");
+    await expect(door.locator(".rail-q")).toHaveAttribute("aria-label", "This search needs you");
+    await expect(door.locator(".rail-q")).toHaveAttribute("data-tip", "This search needs you");
     await door.click();
     await expect.poll(() => routeOf(page.url())).toBe(search.route);
     await expect(page.locator(".cl-rail-row", { hasText: WAITING_SEARCH_NAME })).toBeVisible();

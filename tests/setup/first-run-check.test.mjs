@@ -196,7 +196,7 @@ test("Check draws the Business tab's own rows over the settings read's brain, an
 
 test("the booking link is an offer to every business: with none, its row says it takes their details instead", () => {
   const tree = draw();
-  assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /None — it takes their details instead/);
+  assert.match(textOf(byTestId(tree, "rec-row-booking_link")), /None · it takes their details instead/);
   assert.equal(byTestId(tree, "fr-check-quotes"), null, "no note in the row's place: the row is drawn");
 });
 

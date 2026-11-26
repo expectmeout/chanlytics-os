@@ -179,8 +179,8 @@ function saysMore(r: Row, says: Says): ReactNode {
       {says.asked.map(noteLine)}
       {says.listing ? (
         <span>
-          The public listing is read once a day: Google shows five reviews and counts every rating. Connect the Business
-          Profile for all of them, and for the replies you send from Reports.
+          Google&rsquo;s public listing shows five reviews, updated daily. Connect the Business Profile for all of them
+          and to reply.
         </span>
       ) : null}
     </span>
@@ -238,7 +238,7 @@ function verbButton(o: {
       onClick={() => navigate(verb.to)}
       aria-label={named}
       data-testid={testid}
-      title={r.kind === "whatsapp" ? "What AI and your campaigns send on this number" : undefined}
+      data-tip={r.kind === "whatsapp" ? "What AI and your campaigns send on this number" : undefined}
     >
       {label}
     </Button>
@@ -259,7 +259,7 @@ function rowButton(
       {press === null && r.state === "later" && (
         <span
           className="set-int-soon"
-          title="Not built yet. When it is, this row is where you connect it."
+          data-tip="Not built yet. When it is, this row is where you connect it."
           data-testid={`connection-${r.kind}-later`}
         >
           Soon

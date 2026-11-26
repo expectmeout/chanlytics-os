@@ -21,7 +21,7 @@ import { env } from "../shared/env.js";
 import { logger, refuseFailure } from "../shared/log.js";
 import { reportToMail } from "@chanlytics/db/console";
 import { oneLine } from "@chanlytics/channels/email";
-import { CONSOLE_PATH, SUPPORT_KIND_WORDS, UUID, pageWords, reportCode } from "@chanlytics/contracts";
+import { CONSOLE_PATH, SUPPORT_KIND_WORDS, UUID, pageWords, reportCode, entryOf } from "@chanlytics/contracts";
 
 /** The support inbox: SUPPORT_TO, one address or several separated by commas; the platform's mailbox while unset. */
 function supportTo(): string[] {
@@ -47,8 +47,7 @@ interface ReportToMail {
 }
 
 /** What the member needed, as the team says it: a report kept before the pick existed reads as a question. */
-const kindWords = (kind: string): string =>
-  kind in SUPPORT_KIND_WORDS ? SUPPORT_KIND_WORDS[kind as keyof typeof SUPPORT_KIND_WORDS] : SUPPORT_KIND_WORDS.how_to;
+const kindWords = (kind: string): string => entryOf(SUPPORT_KIND_WORDS, kind) ?? SUPPORT_KIND_WORDS.how_to;
 
 /** The mail: the report's number, what they needed and the workspace in the subject, the words first, then the page. */
 function supportMail(reportToMail: ReportToMail, origin: string): { subject: string; text: string } {

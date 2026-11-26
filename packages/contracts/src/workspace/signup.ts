@@ -63,7 +63,7 @@ export const SIGNUP_WORDS = {
   making: "Making your workspace…",
   /** V1: a first workspace with no name kept from sign-up (a Google sign-up) is asked for the business, then Find. */
   nameTitle: "What's your business called?",
-  nameLead: "We'll look it up on Google next.",
+  nameLead: "Chanlytics looks it up on Google next.",
   nameCta: "Find it",
   lead: "Your business gets its own workspace: AI, the inbox, the numbers. You become its owner.",
   sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
@@ -86,9 +86,9 @@ export const SIGNUP_WORDS = {
    * and waiting for ever. Nothing is lost because nothing was made: the name they
    * typed waits on their account for the sign-in that makes the workspace.
    */
-  notSentTitle: "We couldn't send your code",
+  notSentTitle: "Couldn't send the code",
   notSent:
-    "We couldn't send the sign-in code just now. Wait a few minutes and ask for it again from the sign-in page · nothing is lost.",
+    "Couldn't send the sign-in code just now. Wait a few minutes and ask again from the sign-in page · nothing is lost.",
   /* ---------------------------------------------------------- the waitlist
    * Said the way a person would say it: what is true, when they will hear,
    * and no apology. "We are onboarding businesses in small groups" is the
@@ -97,12 +97,12 @@ export const SIGNUP_WORDS = {
    * the people already inside than making the next ones wait. */
   waitlistTitle: "Join the list",
   waitlistLead:
-    "We are onboarding businesses in small groups, so every new workspace gets set up properly. Leave your details and we will send you an invite.",
+    "Chanlytics takes new businesses in small groups, so each is set up properly. Leave your details for an invitation.",
   waitlistSent: (email: string) =>
-    `You are on the list. We will write to ${email} when there is room · usually within a week.`,
+    `You're on the list. Chanlytics writes to ${email} when there is room · usually within a week.`,
   waitlistCta: "Join the list",
   /** Under the business's name on the first-workspace screen: the list writes to the address the person signed in with. */
-  waitlistWriteTo: (email: string) => `We will write to ${email} when there is room.`,
+  waitlistWriteTo: (email: string) => `Chanlytics writes to ${email} when there is room.`,
   /** The list answered, but not with a place on it. */
   waitlistNotJoined: "You are not on the list yet. Refresh this page and try again.",
   /** No answer came back at all: said the same on the sign-up page and the first-workspace screen. */
@@ -128,7 +128,7 @@ export const SIGNUP_WORDS = {
    * headed "sign in" to type six digits has been told their credential did
    * not work. It did; the address is what is unproved. */
   confirmTitle: "Confirm your email",
-  confirmLead: (email: string) => `Enter the 6-digit code we sent to ${email}. It expires in 10 minutes.`,
+  confirmLead: (email: string) => `Enter the 6-digit code sent to ${email}. It expires in 10 minutes.`,
   confirmSubmit: "Confirm and continue",
   /**
    * Arriving at the code step from SIGN-IN, because the address was never
@@ -137,7 +137,7 @@ export const SIGNUP_WORDS = {
    * assume, and would then try to reset.
    */
   confirmFromSignIn: (email: string) =>
-    `Your password is right. This address was never confirmed, so we've sent a new 6-digit code to ${email}.`,
+    `Your password is right. This address was never confirmed, so a new 6-digit code went to ${email}.`,
 } as const;
 
 /**

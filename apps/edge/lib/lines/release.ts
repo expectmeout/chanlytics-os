@@ -23,6 +23,7 @@ import {
   type EdgeErrorCode,
   recordOrEmpty,
   DbFailure,
+  valueAt,
 } from "@chanlytics/contracts";
 import {
   LINE_RELEASE_REPORT_DAYS,
@@ -169,10 +170,8 @@ export async function releaseLine(
     // A read that failed is not a line with no token: going on would skip the carrier and forget a number still billed.
     if (creds.error)
       return { ok: false, status: 503, error: "read_failed", detail: logFailure("read", creds.error), released };
-    const token =
-      creds.data && typeof creds.data === "object" && !Array.isArray(creds.data)
-        ? (creds.data as { auth_token?: string }).auth_token
-        : undefined;
+    const authToken = valueAt(creds.data, "auth_token");
+    const token = typeof authToken === "string" ? authToken : undefined;
     await releaseAtCarrier(choice, row, token, released);
   } catch (e) {
     return {

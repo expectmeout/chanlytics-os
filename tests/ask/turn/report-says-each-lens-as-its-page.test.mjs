@@ -809,7 +809,7 @@ test("report says the People lens as the page does (Reports C3, the People lens)
         line: "A person who reached you more than one way is counted in each.",
       },
       first_came: {
-        rows: ["WhatsApp: 5", "Phone: 3", "Your calendar: 1", "An ad: 1", "Not recorded: 2"],
+        rows: ["WhatsApp: 5", "Phone: 3", "The calendar: 1", "An ad: 1", "Not recorded: 2"],
         line: "10 of 12 new people have a recorded way in.",
       },
       yeses: {

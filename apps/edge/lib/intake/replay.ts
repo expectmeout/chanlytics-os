@@ -6,8 +6,8 @@
  * or the door's own refusal. A delivery the ledger no longer holds is 404.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { SCHEMA_SETS } from "@chanlytics/contracts";
-import { findProviderEvent, type DeliveryProvider } from "@chanlytics/db/events";
+import { SCHEMA_SETS, isOneOf } from "@chanlytics/contracts";
+import { findProviderEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
@@ -17,7 +17,7 @@ type Db = SupabaseClient<Database>;
 /** The doors a kept delivery may knock on again, by the path it came to. */
 type Doors = Readonly<Record<string, (request: Request) => Promise<Response>>>;
 
-const KEPT_PROVIDERS: readonly string[] = SCHEMA_SETS["provider_events.provider"];
+const KEPT_PROVIDERS = SCHEMA_SETS["provider_events.provider"];
 
 export async function replayProviderEvent(
   db: Db | null,
@@ -25,11 +25,11 @@ export async function replayProviderEvent(
   doors: Doors,
 ): Promise<Response> {
   const log = logger({ door: "intake-replay" });
-  const provider = typeof body.provider === "string" && KEPT_PROVIDERS.includes(body.provider) ? body.provider : null;
+  const provider = isOneOf(KEPT_PROVIDERS, body.provider) ? body.provider : null;
   const id = typeof body.provider_event_id === "string" ? body.provider_event_id.trim() : "";
   if (!provider || !id) return refuse(400, "bad_request", "provider and provider_event_id");
   if (!db) return refuse(503, "no_database");
-  const kept = await findProviderEvent(db, provider as DeliveryProvider, id);
+  const kept = await findProviderEvent(db, provider, id);
   if (!kept) return refuse(404, "not_found", "no such delivery is kept");
   const door = doors[kept.door];
   if (!door) return refuse(400, "bad_request", `no door at ${kept.door}`);

@@ -23,6 +23,13 @@ export type AdOpens = "whatsapp" | "instagram" | "messenger" | "call" | "form" |
 /** The doors whose people Chanlytics counts: the tap ends in a message it receives. */
 export const AD_DOORS_COUNTED: readonly AdOpens[] = ["whatsapp", "instagram"];
 
+/**
+ * What an ad did, as the platform counts it (00719, kept by the day as `ad_days.engaged`): 3-second plays, engagement with
+ * its post, comments, reactions, saves and shares, each a whole number, a kind the platform counted none of left out.
+ * Theirs, labelled as theirs: never added to Chanlytics' count of people.
+ */
+export type AdEngaged = Partial<Record<"plays" | "engaged" | "comments" | "reactions" | "saves" | "shares", number>>;
+
 /** The budget an ad sits under, as the platform holds it. Money in minor units of the account's currency. */
 export interface AdBudgetLive {
   kind: "total" | "daily";
@@ -139,6 +146,30 @@ export interface AdLiveDto {
   issue: string | null;
   /** Its last moment (ISO), or null where it has no end. */
   ends_at: string | null;
+  /** Its first moment (ISO), or null where the platform holds none; absent from a server before it was said. */
+  starts_at?: string | null;
+  /**
+   * What it shows people, so an owner sees which ad is which (Ruben, 25 Nov 2026): the piece of Content it was made from (its
+   * file), else the platform's own small picture of it (Meta's creative thumbnail, kept by the hourly read); null where neither
+   * is known. Absent from a server before it was said.
+   */
+  picture?: { file_id: string } | { url: string; small?: boolean } | null;
+  /** Its Instagram post, where it runs one: the post's own address, which its drawer opens (Meta's permalink). */
+  post_url?: string | null;
+  /**
+   * What it did over the page's days as the platform counts it (00719): plays, engagement, comments, reactions, saves and
+   * shares. Absent from a database a deploy behind, and where the platform counted none.
+   */
+  engaged?: AdEngaged;
+  /**
+   * Who commented on it over the page's days, as Chanlytics keeps them (00719: a comment Meta says was left on it): how
+   * many, and the latest of them by name. Absent from a database a deploy behind.
+   */
+  commenters?: { count: number; people: { id: string; name: string; at: string }[] };
+  /** The words people read on it, as the platform holds them (its body, else its headline); null where none were read. */
+  words?: string | null;
+  /** The ad in Meta Ads Manager, opened at it where its ids are held (its drawer's door into Meta). */
+  meta_page?: string;
   budget: AdBudgetLive | null;
   /** A press of the owner's that the platform has not been told yet: what was asked. */
   pending: "pausing" | "resuming" | null;
@@ -224,6 +255,12 @@ export interface AdsLiveDto {
   back?: { people: number; booked: number };
   /** Whether this member may pause and resume here: the owner, on a connected account whose sign-in may change ads. */
   can_press: boolean;
+  /**
+   * Why not, on a connected account, so a drawer says the true reason: this member may not run ads (`role`), turning ads
+   * on and off from here is not switched on for the workspace yet (`off`), or Meta has not let Chanlytics change them
+   * (`meta`). Null where they may, and absent from a server before it was said.
+   */
+  press_off?: "role" | "off" | "meta" | null;
   /**
    * When AI was stopped (Stop everything), as the workspace's settings keep it; null while AI runs. While it is, no ad
    * is turned on from here: the stop paused the ads made here itself, and the page says so, and how many made in Meta

@@ -8,8 +8,8 @@
 import { partnerDayWords } from "./partner/earnings";
 
 /** How long a handover is open, and how many workspaces a partner may have waiting for an owner (00214). */
-export const HANDOVER_DAYS = 14;
-export const HANDOVER_WAITING_MAX = 10;
+const HANDOVER_DAYS = 14;
+const HANDOVER_WAITING_MAX = 10;
 
 /** A handover waiting for the signed-in person, as `GET workspaces` carries it on the person. */
 export interface OpenHandoverDto {
@@ -52,7 +52,7 @@ export const HANDOVER_WORDS = {
   /** The accept screen. */
   title: (workspace: string) => `${workspace} is ready for you`,
   body: (partnerCode: string, workspace: string) =>
-    `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+    `${partnerCode} set ${workspace} up for you. Accept to own it: you choose a plan and pay, and ${partnerCode} stays on as your partner until you remove them.`,
   accept: "Accept and open it",
   accepting: "Opening…",
   decline: "Decline",

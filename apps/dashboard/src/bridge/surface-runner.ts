@@ -513,7 +513,7 @@ function watchLiveFeed(run: SurfaceRun, booted: Promise<void>, catchUp: CatchUp 
 /** The notices told since `since`, heard as live ones are; everything read again where they could not all be said. */
 const caughtUp = (run: SurfaceRun, catchUp: CatchUp, since: number, everything: () => unknown) =>
   catchUpOn(catchUp, since, {
-    hear: (change) => hear(run, change),
+    hear: (change) => hearNotice(run, change),
     everything,
     tenant: viewedWorkspace() ?? "",
     stopped: () => run.cancelled,
@@ -699,7 +699,7 @@ function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWa
     // Routed by table (a call's turns repaint Live, not five surfaces that never asked), with the notice's clock (its
     // commit's, 00507) and the threads it names (00510).
     (row, table, event, at, threads) =>
-      hear(run, { table, event, row, ...(at ? { at } : {}), ...(threads ? { threads } : {}) }),
+      hearNotice(run, { table, event, row, ...(at ? { at } : {}), ...(threads ? { threads } : {}) }),
     {
       tenantId: ws ? heldTenantId(ws) : undefined,
       onStatus: (status) => {
@@ -716,7 +716,7 @@ function joinWorkspaceFeed(run: SurfaceRun, joinFeed: JoinLiveFeed, feed: FeedWa
  * A notice the feed told, live or caught up (caughtUp), routed to the surfaces that hear its table. A surface read after the
  * change was made holds it, and asks for nothing (readAfter), asked before the rule that keeps a page's change for its page.
  */
-function hear(run: SurfaceRun, change: RealtimeChange): void {
+function hearNotice(run: SurfaceRun, change: RealtimeChange): void {
   const arrived = Date.now();
   if (isErasureNotice(change)) run.erasures = erasureHeard(run.erasures, arrived);
   const hidden = pageHidden();

@@ -194,7 +194,7 @@ function OtherSheet({ flash }: { flash: (flash: FrameFlash) => void }) {
                 onClick={tell}
                 disabled={!provider.trim()}
                 data-testid="rec-provider-send"
-                {...gate("settings", "tell us which mailbox you use")}
+                {...gate("settings", "tell Chanlytics which mailbox you use")}
               >
                 {CONNECT_SHEET.other.tell}
               </Button>

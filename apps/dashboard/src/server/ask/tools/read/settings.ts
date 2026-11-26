@@ -294,6 +294,7 @@ export const workspaceTool = defineActions({
       examples: [{}],
       label: "Reading Settings",
       words:
+        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
         "Action settings takes nothing more and reads the settings as AI runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications (where alerts are emailed), the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels; propose_settings is what changes a setting.",
       run: getSettings,
     }),
@@ -310,7 +311,7 @@ export const workspaceTool = defineActions({
       examples: [{}],
       label: "Reading the notifications",
       words:
-        "Action notifications takes nothing more and reads this person's own notifications as the bell keeps them on the server: the last thirty days, sixty at most, newest first, each with its title, its first line, how long ago, whether it is unread for them and where it opens, and how many are unread; one they dismissed is gone. Call it for what the bell has told them. The bell also shows what the page works out in the tab (conversations waiting on a person, missed calls, invitations), which this cannot read, so say the bell may hold more; billing's notices stay out of AI.",
+        "Action notifications takes nothing more and reads this person's own notifications as the bell keeps them: the last thirty days, sixty at most, newest first, each with its title, its first line, how long ago, whether it is unread for them and where it opens, and how many are unread; one they dismissed is gone. Call it for what the bell has told them. The bell also shows what the page works out in the tab (conversations waiting on a person, missed calls, invitations), which this cannot read, so say the bell may hold more; billing's notices stay out of AI.",
       run: getNotifications,
     }),
     activity: readAction({
@@ -323,6 +324,7 @@ export const workspaceTool = defineActions({
       examples: [{ day: "2026-09-26" }],
       label: "Reading the activity",
       needs: "owner",
+      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
       words: `Action activity takes an optional person (a contact_id a read returned), kind (a verb or an event kind, exactly as the log spells it), day (YYYY-MM-DD, by the business's clock) and cursor (the next_cursor an earlier read returned), and reads who did what, as Settings › Activity lists it: both ledgers, newest first, each with when, who and what in the page's words, and where it opens; the usage, webhook and ingest records only when their kind is asked for. Call it for what a member or AI did, and when. It returns the newest ${ACTIVITY_CAP}, with next_cursor for the ones after them while there are more; anything about money (billing, a partner's share) stays out of AI.`,
       run: readActivity,
     }),
