@@ -74,6 +74,14 @@ const OURS = {
     { selector: "function", filter: "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$", format: null },
     { selector: "variable", format: ["camelCase", "UPPER_CASE", "PascalCase"], leadingUnderscore: "allow" },
     { selector: "variable", modifiers: ["destructured"], format: null },
+    // An Ask tool's definition is named by its tool, the name the model calls it by on the wire (propose_reply,
+    // press_card), so a definition and its call read the same.
+    {
+      selector: "variable",
+      modifiers: ["exported", "const"],
+      filter: { regex: "^(propose_[a-z_]+|press_card)$", match: true },
+      format: null,
+    },
     { selector: "parameter", format: ["camelCase"], leadingUnderscore: "allow" },
     { selector: "parameter", modifiers: ["destructured"], format: null },
   ],
@@ -112,7 +120,9 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
 export const HELD_TYPED = [
-  // The colour model's four (it misreads a `??`, decision 0112).
+  // Held again: the colour model's four went on 26 November 2026 (mascot/colour.ts ownLab), and the kit's bar chart
+  // gained two the same day, `{ "--i": i } as CSSProperties` in surfaces/kit/charts/bar.tsx (#2674, lane 8's tree).
+  // An error once those two go.
   "@typescript-eslint/no-unnecessary-type-assertion",
 ];
 
@@ -364,6 +374,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/bridge/invitations",
   "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/bridge/reach-out",
+  "apps/dashboard/src/bridge/refresh",
   "apps/dashboard/src/bridge/rehearse",
   "apps/dashboard/src/bridge/surfaces",
   "apps/dashboard/src/bridge/verbs",
@@ -381,6 +392,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/leads",
   "apps/dashboard/src/server/lines",
   "apps/dashboard/src/server/notices",
+  "apps/dashboard/src/server/people",
   "apps/dashboard/src/server/metrics",
   "apps/dashboard/src/server/new-conversation",
   "apps/dashboard/src/server/console",
@@ -388,11 +400,12 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/posts",
   "apps/dashboard/src/server/previews",
   "apps/dashboard/src/server/public",
+  "apps/dashboard/src/server/readers",
   "apps/dashboard/src/server/receptionist",
   "apps/dashboard/src/server/settings",
   "apps/dashboard/src/server/setup",
   "apps/dashboard/src/server/shared",
-  "apps/dashboard/src/server/campaigns/sequences",
+  "apps/dashboard/src/server/campaigns",
   "apps/dashboard/src/server/workspace",
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
@@ -529,6 +542,9 @@ export const LIMITED_TREES = [
  * five (the calendar's source, a list's action). With them all of contracts' people is held, one tree in place of its
  * three folders, and waits here while six take five or six (a list's action, a card's two, the profile, the
  * receptionist's line, a person's row).
+ * The dashboard's campaigns, people and readers joined on 26 November 2026, the day their last long function was split:
+ * 16 take five to seven (a run's audience and its pools, the templates' versions, a deal's write, the import's rows,
+ * the content reader's two).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -563,6 +579,9 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/conversations",
   "apps/dashboard/src/server/drafts",
   "apps/dashboard/src/server/settings",
+  "apps/dashboard/src/server/campaigns",
+  "apps/dashboard/src/server/people",
+  "apps/dashboard/src/server/readers",
   "apps/edge/lib/ai",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
@@ -901,6 +920,22 @@ export default [
     files: DASHBOARD_MARKUP,
     plugins: { "jsx-a11y-x": jsxA11y },
     rules: A11Y_RULES,
+  },
+  // A field that opens with the bar or the sheet it is in takes the caret, on a desktop and never on a phone (frame-verbs
+  // focusAsDrawn, Ruben 8 Oct 2026): People's and Leads' own inputs that do, until each is the kit's Field; and the one
+  // field of a new workspace's first page, which is all that page asks.
+  {
+    files: [
+      "apps/dashboard/src/bridge/CreateWorkspace.tsx",
+      "apps/dashboard/src/surfaces/leads/scope/rail.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/phone-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/lists/rule-editor.tsx",
+      "apps/dashboard/src/surfaces/people/lists/save-shown.tsx",
+      "apps/dashboard/src/surfaces/people/rail/new-list.tsx",
+      "apps/dashboard/src/surfaces/people/sheets/list-sheets.tsx",
+    ],
+    rules: { "jsx-a11y-x/no-autofocus": "off" },
   },
 
   // Test and operational scripts.

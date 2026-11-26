@@ -2,7 +2,7 @@ import { z } from "zod";
 import { FormRequestPress } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { formRequest } from "@/server/readers/forms";
+import { formRequest } from "@/server/readers/forms/forms";
 import { applyFormRequestPress } from "@/server/forms/request-press";
 
 /** A reply is queued through the reply verb: the reply route's own ceiling (core reply.ts says why it is pinned). */

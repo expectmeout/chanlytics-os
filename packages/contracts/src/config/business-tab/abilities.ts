@@ -192,7 +192,7 @@ function linkWays(abilityInputs: AbilityInputs, chatAnswers: boolean, repliesHel
   };
 }
 
-export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
+export function abilityRows(abilityInputs: AbilityInputs | null | undefined): AbilitiesVM {
   if (!abilityInputs || typeof abilityInputs !== "object")
     throw new TypeError(
       "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
@@ -393,10 +393,10 @@ export function cannotRows(input: {
   /** The workspace takes booking requests (contracts takesBookingRequests); left out, none is promised. */
   takesRequests?: boolean;
 }): CannotRowVM[] {
-  if (typeof input?.smsLive !== "boolean") {
+  if (typeof input.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
-  if (typeof input?.hasBookingLink !== "boolean") {
+  if (typeof input.hasBookingLink !== "boolean") {
     throw new TypeError(
       "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books.",
     );

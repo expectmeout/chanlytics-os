@@ -12,8 +12,8 @@ import {
 } from "@chanlytics/contracts";
 import { findAdAccountForPage, type AdAccountRow } from "@chanlytics/db/ads";
 import { findChannelNumber } from "@chanlytics/db/channels";
-import { readAdsOffered } from "../connections/ads-ready";
-import { readerStamp, type Reader } from "../shared/reader";
+import { readAdsOffered } from "../../connections/ads-ready";
+import { readerStamp, type Reader } from "../../shared/reader";
 
 /**
  * The Page's link to the number AI answers, as far as Chanlytics can know it (AdAccountCard.whatsapp_link). Meta names

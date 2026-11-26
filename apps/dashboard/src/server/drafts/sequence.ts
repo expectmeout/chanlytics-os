@@ -566,7 +566,7 @@ export async function readDraftKnown(rc: ReaderContext): Promise<DraftKnown> {
     messages: messagesKnownOf(library.data, { reviewLink: link !== null, config }),
     running: runningOf(rows),
     ready: ready
-      ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c]?.ready === true)
+      ? (["whatsapp", "sms", "email"] as const).filter((c): c is ConsentChannel => ready[c].ready === true)
       : [],
     // The channels as read, for the one rule (draft-judge.ts firstGoesBy), and WhatsApp's offers for what Ask writes.
     channels: ready,

@@ -62,7 +62,7 @@ async function instagramReadiness(now = Date.now()): Promise<InstagramReadiness>
 /** `GET channels/instagram`: whether Connect Instagram can be offered here, and to this member. */
 export async function readInstagram(member: Member): Promise<{ ready: boolean; can_connect: boolean }> {
   const ready = (await instagramReadiness()).ready;
-  return { ready, can_connect: ready && !!ROLE_PERMS[member.role]?.settings };
+  return { ready, can_connect: ready && !!ROLE_PERMS[member.role].settings };
 }
 
 /** What a login's return address carries (Instagram's own, or Meta's: meta.ts): the provider's refusal, the state, the code. */
@@ -149,7 +149,7 @@ export async function handleInstagramCallback(ctx: RouteContext, req: Request): 
   try {
     const member = await getMemberContext(ctx, proof.tenantId);
     slug = member.slug ?? null;
-    if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
+    if (!ROLE_PERMS[member.role].settings) return back("error", "not_owner");
     tenantId = member.tenantId;
   } catch {
     return back("error", "no_workspace");

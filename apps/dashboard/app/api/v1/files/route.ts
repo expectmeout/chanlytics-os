@@ -2,7 +2,7 @@ import { z } from "zod";
 import { FILES_MAX, FILE_KINDS, FILE_SHELVES } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { files } from "@/server/readers/files";
+import { files } from "@/server/readers/files/files";
 
 const Query = z.object({
   shelf: z.enum(FILE_SHELVES).optional(),
@@ -22,5 +22,5 @@ const Query = z.object({
 export const GET = read({
   scope: workspace,
   query: Query,
-  handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), files, input ?? {})).data,
+  handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), files, input)).data,
 });

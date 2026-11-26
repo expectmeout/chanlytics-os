@@ -16,6 +16,7 @@ import {
 import { listSearchSpend, listSetAsidePlaces } from "@chanlytics/db/ops";
 import { listSearches, toSearchDto } from "../leads/searches";
 import type { BackOffice } from "../shared/back-office";
+import { embedded } from "@chanlytics/db/shared";
 
 /** The places one search's view shows, newest first. */
 const SET_ASIDE_SHOWN = 200;
@@ -55,7 +56,7 @@ async function setAsideOf(office: BackOffice, tenantId: TenantId, search: LeadSe
   const { data, error } = await listSetAsidePlaces(office.db, tenantId, search.id, SET_ASIDE_SHOWN);
   if (error) throw new DbFailure(error, "cannot read what the search set aside");
   return data.map((m) => ({
-    name: m.lead?.business_name ?? "",
+    name: embedded(m.lead)?.business_name ?? "",
     why: m.class === "review" ? LEAD_CLASS_WORDS.review : leadExclusionWord(search, m.excluded_by),
     term: m.term,
     at: m.created_at,

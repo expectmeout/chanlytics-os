@@ -3,7 +3,7 @@ import { z } from "zod";
 import { TAKE_DOWN_WORDS, fileSaidOf, placeDeletes, takeDownWillOf } from "@chanlytics/contracts";
 import { readFilePosts } from "../../../../posts/record";
 import { load } from "../../../../shared/reader";
-import { filesNamedForAsk } from "../../../../readers/files";
+import { filesNamedForAsk } from "../../../../readers/files/files";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";

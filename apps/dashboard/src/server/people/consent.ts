@@ -168,7 +168,7 @@ export async function recordConsentMany(
   const ids = [...new Set(input.ids)];
   const { data, error } = await listPeopleStanding(ctx.supabase, ids.map(heldContactId));
   if (error) throw new DbFailure(error);
-  const ours = (data ?? []).filter((c) => c.tenant_id === tenantId && !c.erased_at);
+  const ours = data.filter((c) => c.tenant_id === tenantId && !c.erased_at);
   const skipped = ids.filter((id) => !ours.some((c) => c.id === id));
   const failed: ManyOutcome["failed"] = [];
   let done = 0;

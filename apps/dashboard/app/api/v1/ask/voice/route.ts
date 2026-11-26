@@ -1,4 +1,4 @@
-import { AppError, recordOrNull } from "@chanlytics/contracts";
+import { AppError, recordOrNull, valueAt } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
 import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
@@ -60,7 +60,8 @@ export const POST = write({
       });
       throw voiceRefusalOf(answer, VOICE_UNREACHED);
     }
-    const token = typeof answer.body?.token === "string" ? answer.body.token : "";
+    const sentToken = valueAt(answer.body, "token");
+    const token = typeof sentToken === "string" ? sentToken : "";
     const conversationId = typeof answer.body?.conversation_id === "string" ? answer.body.conversation_id : null;
     if (!token) throw new AppError("upstream_voice", "Couldn't start a call with AI just now.");
 

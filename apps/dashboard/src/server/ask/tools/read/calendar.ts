@@ -11,8 +11,8 @@ import {
   type CalendarBlockVM,
 } from "@chanlytics/contracts";
 import { load } from "../../../shared/reader";
-import { calendar } from "../../../readers/calendar";
-import { openings } from "../../../readers/openings";
+import { calendar } from "../../../readers/calendar/calendar";
+import { openings } from "../../../readers/calendar/openings";
 import { ROOM_DAYS } from "@chanlytics/contracts";
 import { defineActions, readAction, type ToolContext } from "../context/tool-defs";
 import { noteRow, str } from "../context/tool-reads";

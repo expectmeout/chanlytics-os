@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { calendarRuns } from "@/server/readers/calendar";
+import { calendarRuns } from "@/server/readers/calendar/calendar";
 
 const Query = z.object({
   /** YYYY-MM-DD; the Monday of today when absent. */

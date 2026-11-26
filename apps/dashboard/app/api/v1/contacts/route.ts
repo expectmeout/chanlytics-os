@@ -46,12 +46,12 @@ export const GET = read({
   scope: workspace,
   query: Query,
   handle: async ({ ctx, member, input }) => {
-    const q = input?.q?.trim() || null;
-    const offset = input?.offset ?? 0;
-    const after = input?.after ? peopleCursorParam(input.after) : null;
-    if (input?.after && !after)
+    const q = input.q?.trim() || null;
+    const offset = input.offset ?? 0;
+    const after = input.after ? peopleCursorParam(input.after) : null;
+    if (input.after && !after)
       throw new AppError("validation", "That page of People cannot be read. Open People again.");
-    const thread = input?.thread ?? null;
+    const thread = input.thread ?? null;
     return (await load(readerContext(ctx, member), people, { q, offset, after, thread })).data;
   },
 });

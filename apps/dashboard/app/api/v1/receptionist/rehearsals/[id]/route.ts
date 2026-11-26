@@ -1,7 +1,7 @@
 import { read, workspace } from "@/server/shared/route";
 import { requireUuid } from "@/server/shared/request-guards";
 import { load, readerContext } from "@/server/shared/reader";
-import { rehearsal } from "@/server/readers/settings";
+import { rehearsal } from "@/server/readers/settings/settings";
 
 /**
  * GET /api/v1/receptionist/rehearsals/:id — one rehearsal of the workspace the tab named (decision 0069): its words so

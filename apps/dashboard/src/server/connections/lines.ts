@@ -20,7 +20,7 @@ import type { TenantId } from "@chanlytics/contracts";
 export async function listLines(db: SupabaseClient<Database>, tenantId: TenantId): Promise<LineDto[]> {
   const { data, error } = await listLinesForPage(db, tenantId);
   if (error) throw new DbFailure(error);
-  return (data ?? []).map((r) => lineDtoOf(r));
+  return data.map((r) => lineDtoOf(r));
 }
 
 /** How long a lines verb waits on the edge unless its caller says: buy, register, retry and the platform's line actions. */

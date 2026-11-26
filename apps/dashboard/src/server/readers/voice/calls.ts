@@ -1,8 +1,8 @@
 import "server-only";
 import { addressOf, callerName, type CallDto, type SchemaSet, DbFailure } from "@chanlytics/contracts";
-import { listedCall, toCallDto } from "../conversations/dto";
-import { readerStamp, type Reader, type RowRef } from "../shared/reader";
-import { isGoing } from "../people/going";
+import { listedCall, toCallDto } from "../../conversations/dto";
+import { readerStamp, type Reader, type RowRef } from "../../shared/reader";
+import { isGoing } from "../../people/going";
 import { listCallRows } from "@chanlytics/db/voice";
 
 /** A search's words as an ILIKE pattern that matches them anywhere, its own wildcards taken as the characters they are. */
@@ -35,8 +35,7 @@ export const calls: Reader<
     if (error) throw new DbFailure(error);
     // A list leaves out whoever is being erased (people/going.ts); a thread's own calls, and a call by its id, still read.
     const now = rc.now.getTime();
-    const shown =
-      conversationId || ids ? (data ?? []) : (data ?? []).filter((c) => !isGoing(c.contacts?.erasing_since, now));
+    const shown = conversationId || ids ? data : data.filter((c) => !isGoing(c.contacts?.erasing_since, now));
     const whole: CallDto[] = shown.map(toCallDto);
     const calls = listed ? whole.map(listedCall) : whole;
     return {

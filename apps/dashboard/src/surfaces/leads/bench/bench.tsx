@@ -60,6 +60,7 @@ const benchQueue = (groups: readonly LeadReviewGroup[], g: LeadReviewGroup, onGr
 const benchCard = (l: LeadRowVM, x: LeadCellCtx) => {
   const words = LEAD_REVIEW_ACT_WORDS;
   return (
+    // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- a pointer's press anywhere on the card; a keyboard opens it by the card's own button
     <div
       key={l.id}
       id={`lead-${l.id}`}

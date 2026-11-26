@@ -21,7 +21,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { feedVisibleTo } = await import(
-  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/readers/settings.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/readers/settings/settings.ts")).href
 );
 
 const URL_ = process.env.SUPABASE_URL;

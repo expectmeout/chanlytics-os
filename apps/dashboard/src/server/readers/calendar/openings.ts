@@ -1,8 +1,8 @@
 import "server-only";
-import { getOpenings, type OpeningsResult } from "../calendar/openings";
-import { recordBusy } from "../calendar/record-busy";
-import { load, readerStamp, type Reader } from "../shared/reader";
-import * as facts from "./facts";
+import { getOpenings, type OpeningsResult } from "../../calendar/openings";
+import { recordBusy } from "../../calendar/record-busy";
+import { load, readerStamp, type Reader } from "../../shared/reader";
+import * as facts from "../facts";
 
 /**
  * GET ask/openings, as the route answers it: the open times for a day (or the next few) and a service, the palette's

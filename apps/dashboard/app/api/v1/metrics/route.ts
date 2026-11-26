@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { metrics } from "@/server/readers/metrics";
+import { metrics } from "@/server/readers/today/metrics";
 
 const Query = z.object({
   /** 1 to 90; one by default. */

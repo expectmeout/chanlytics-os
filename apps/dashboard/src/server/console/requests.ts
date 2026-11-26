@@ -80,7 +80,7 @@ function requestDto(request: RequestRow): PrivacyRequestDto {
 export async function listConsoleRequests(office: BackOffice): Promise<PrivacyRequestDto[]> {
   const { data, error } = await listRequests(office.db, new Date(Date.now() - 30 * DAY_MS).toISOString(), 200);
   if (error) throw new AppError("unavailable", "Couldn't load the requests just now. Try again in a moment.");
-  return (data ?? []).map(requestDto);
+  return data.map(requestDto);
 }
 
 /** A request filed as it came in: its workspace by address, its clock from when they asked. */
@@ -117,7 +117,7 @@ export async function fileConsoleRequest(
         due_at: requestDueAt(input.asked_at),
         created_by: office.userId,
       });
-      if (error || !data) throw new AppError("unavailable", NOT_RECORDED);
+      if (error) throw new AppError("unavailable", NOT_RECORDED);
       return requestDto(data);
     },
   );
@@ -146,7 +146,7 @@ export async function stepConsoleRequest(
     if ("refused" in change) throw new AppError("conflict", change.refused, 409);
     const { data, error } = await setRequestSteps(office.db, current.id, was, change.steps, change.closedAt);
     if (error) throw new AppError("unavailable", NOT_RECORDED);
-    const row = data?.[0];
+    const row = data[0];
     if (!row)
       throw new AppError("conflict", "Someone else changed or closed this request just now. Read it again first.", 409);
     return requestDto(row);
