@@ -457,6 +457,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/consent",
   "packages/contracts/src/console",
   "packages/contracts/src/content",
+  "packages/contracts/src/conversations",
   "packages/contracts/src/email",
   "packages/contracts/src/events",
   "packages/contracts/src/files",
@@ -474,6 +475,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
   "packages/contracts/src/people/person-page",
+  "packages/contracts/src/people/person-row",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/previews",
   "packages/contracts/src/campaigns/reach-out",
@@ -511,7 +513,8 @@ export const LIMITED_TREES = [
  * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts). Contracts'
  * today joined on 25 November 2026, the day its figures were split: four take five to seven (the day's figures and the
  * brief, a band's words, the facts' reader). Contracts' leads joined the same day, its row and peek split: a search's
- * class takes six.
+ * class takes six. Contracts' conversations and people's person-row joined on 25 November 2026, the day the call's and
+ * a person's rows were split: a thread's view model takes five, a person's row six.
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -555,6 +558,8 @@ export const WIDE_PARAMS = [
   "apps/edge/lib/voice",
   "packages/contracts/src/today",
   "packages/contracts/src/leads",
+  "packages/contracts/src/conversations",
+  "packages/contracts/src/people/person-row",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
