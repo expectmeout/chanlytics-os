@@ -297,7 +297,7 @@ test("a mode saved announces policy:changed once in the tab that saved it: the s
       "GET team": { members: [], invites: [] },
       "GET policies": { policies: [{ class: "reengage", mode: "auto", limits: {} }], role: "owner" },
       "GET channels": { channels: [] },
-      "GET templates": { templates: [], usedBy: {} },
+      "GET templates": { templates: [], used_by: {} },
     };
     at("#/inbox");
     told.length = 0;
@@ -327,7 +327,7 @@ test("naming yourself is a write the workspace and the Team list are re-read aft
       "PUT me": { display_name: "Dana Ortiz" },
       "GET workspaces": {
         workspaces: [{ id: "t1", slug: "studio", name: "Studio", status: "active", timezone: "America/New_York" }],
-        activeWorkspaceId: "t1",
+        active_workspace_id: "t1",
         user: { id: "u1", email: "dana@example.com", role: "owner", display_name: "Dana Ortiz" },
       },
     };

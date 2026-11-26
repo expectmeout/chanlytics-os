@@ -18,7 +18,7 @@ export interface SetupDto {
     name: string | null;
     hours: boolean;
     services: number;
-    bookingLink: boolean;
+    booking_link: boolean;
     address: boolean;
     /** The number the phone receptionist warm-transfers to, E.164. */
     handoff: string | null;

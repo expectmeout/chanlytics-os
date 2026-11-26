@@ -172,7 +172,7 @@ test.describe("Ask on a real workspace", () => {
       expect(final.message.text).not.toMatch(/\bI (have )?(added|saved|noted)\b/i);
       // Dismissing is recorded on the turn; approving would write the note.
       const out = await page.request.post(scoped(`/api/v1/ask/messages/${final.message.id}/proposals/${note.id}`, ws), {
-        data: { state: "dismissed", receipt: "Not now", atMs: Date.now() },
+        data: { state: "dismissed", receipt: "Not now", at_ms: Date.now() },
         ...fromTheApp,
       });
       expect(out.status()).toBe(200);
@@ -475,7 +475,7 @@ function threeCards(idea?: number) {
       role: "assistant",
       text: `${headline}\n${detail}`,
       at: new Date(at).toISOString(),
-      atMs: at,
+      at_ms: at,
       citations: [],
       followups: NEXT,
       navigate: null,
@@ -508,7 +508,7 @@ function threeCards(idea?: number) {
       language: "en",
       ungrounded: false,
       tools: [],
-      latencyMs: 1,
+      latency_ms: 1,
       rounds: 1,
       failed: false,
       answer: {

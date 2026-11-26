@@ -121,7 +121,6 @@
 }
 /* The canvas names the person and drops the initials disc: at this size the two
    words carry it, and the row gains the whole column. */
-:where(.dash-a-v2) .tq .cl-attn-avatar,
 :where(.dash-a-v2) .tq .cl-attn-pic { display: none; }
 :where(.dash-a-v2) .tq .cl-attn-body { gap: 6px; }
 :where(.dash-a-v2) .tq .cl-attn-name { font-size: var(--text-base); }
@@ -130,7 +129,6 @@
 /* What is left over may take a second line here; pinned right it could not. */
 :where(.dash-a-v2) .tq .cl-attn-status { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
 :where(.dash-a-v2) .tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
-:where(.dash-a-v2) .tq .cl-attn-cta { font-size: var(--text-sm); padding: 8px 12px; border-radius: var(--radius-md); }
 /* Today's card of what is left to set up (surfaces/today/zones/setup-card.tsx TodaySetup, canvas R10), in the queue's
    card and its column: the title with the count beside it and Hide at the right, then compact rows
    (surfaces/setup/rows/card-row.tsx SetupCardRow): the
@@ -205,7 +203,6 @@
 /* The queue's row: the page's verb first, the customer's words plain (the
    quotation marks already say whose they are), and the state as one calm line
    rather than a coloured lead with a tinted tail. */
-:where(.dash-a-v2) .tq .cl-attn-cta.primary { order: -1; }
 :where(.dash-a-v2) .tq .cl-attn-sentence.quoted { font-style: normal; }
 :where(.dash-a-v2) .tq .cl-attn-status, :where(.dash-a-v2) .tq .cl-attn-status span { color: var(--ink-muted); }
 :where(.dash-a-v2) .tq .cl-attn-row[class*="tone-"] .cl-attn-status .lead { color: var(--ink); }
@@ -232,7 +229,7 @@
 /* Every row leads with its own verb, not only the row that carries the page's
    primary: the canvas reads "Open and reply · Snooze" on each. The verb is the
    button AttnRow marks attention-cta; the second word follows it. */
-:where(.dash-a-v2) .tq .cl-attn-cta[data-testid="attention-cta"] { order: -1; }
+:where(.dash-a-v2) .tq .cl-attn-go { order: -1; }
 
 /* ====================================================================
    Glass: Today (the plan's step 5.4, canvas E3, "Clear")

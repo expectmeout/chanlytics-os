@@ -279,7 +279,7 @@ export interface AskProposalOutcome {
   state: "done" | "dismissed" | "failed" | "undone";
   /** One line: "Sent to Rosa", "Closed on Friday". */
   receipt: string;
-  atMs: number;
+  at_ms: number;
   /** What Undo needs, when the verb has one: an id, a previous value. */
   undo?: Record<string, unknown> | null;
   /**
@@ -315,7 +315,7 @@ export interface AskActAnswer {
    * The door could not reach the verb's own route at all, so nothing was sent and nothing is kept: the press goes the way it
    * went from a browser, under the same key, so it can never act twice. A way down, should a deployment refuse its own calls.
    */
-  walkHere?: boolean;
+  walk_here?: boolean;
   /**
    * A card of several calls that stopped part way: how many went before the one refused. What went stands, and `message`
    * says so; absent where nothing went.
@@ -346,12 +346,12 @@ export function askCardLapsed(askProposal: Pick<AskProposal, "made_at" | "plan">
   return Number.isFinite(created) && nowMs - created > (askProposal.plan ? ASK_PLAN_FRESH_MS : ASK_CARD_FRESH_MS);
 }
 
-export interface AskMessageVM {
+export interface AskMessageDto {
   id: string;
   role: AskRole;
   text: string;
   at: string;
-  atMs: number;
+  at_ms: number;
   citations: Array<AskCitation & { to: string }>;
   followups: string[];
   navigate: { to: string; label: string; now?: boolean } | null;
@@ -361,13 +361,13 @@ export interface AskMessageVM {
   ungrounded: boolean;
   /** The tools this turn ran, in order. */
   tools: string[];
-  latencyMs: number | null;
+  latency_ms: number | null;
   /** Model rounds the turn took; one means the page's context was enough. */
   rounds?: number | null;
   /** Set on a turn that could not be answered; the text says why. */
   failed: boolean;
   /** Cards of earlier turns this one pressed on a yes (D18): what became of each, so the thread draws it at once. */
-  pressed?: ReadonlyArray<{ messageId: string; proposalId: string; outcome: AskProposalOutcome }>;
+  pressed?: ReadonlyArray<{ message_id: string; proposal_id: string; outcome: AskProposalOutcome }>;
   /** The answer as the Line draws it: set by the server from plan 3; absent on every answer made before (answerFromV1). */
   answer?: AskAnswer | null;
   /** The files a person's question came with; absent on a question with none. */

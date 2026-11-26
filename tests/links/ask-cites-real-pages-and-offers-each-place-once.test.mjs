@@ -176,7 +176,7 @@ test("Open goes when an item has the same place under the other spelling, and a 
     cardOpenRoute({
       kind: "playbook",
       payload: {},
-      outcome: { state: "done", receipt: "Made.", atMs: 1, undo: { playbook_id: ID } },
+      outcome: { state: "done", receipt: "Made.", at_ms: 1, undo: { playbook_id: ID } },
     }),
     `campaigns/sequences/${ID}`,
   );

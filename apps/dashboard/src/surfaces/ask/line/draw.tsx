@@ -1,7 +1,7 @@
 /** What the Line draws: plain functions, not components, making its elements in the order AskReal always did. */
 import type { MouseEvent, PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { fileViewOf, type AskMessageVM } from "@chanlytics/contracts";
+import { fileViewOf, type AskMessageDto } from "@chanlytics/contracts";
 import type { Line } from "./types";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -116,7 +116,7 @@ const LIVE_MESSAGE = (text: string) =>
     citations: [],
     followups: [],
     proposals: [],
-  }) as Partial<AskMessageVM> as AskMessageVM;
+  }) as Partial<AskMessageDto> as AskMessageDto;
 
 export const arBody = ({
   A,

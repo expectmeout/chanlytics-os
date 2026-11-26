@@ -143,7 +143,7 @@ test("where you are: every workspace with who is signed in; the active one by ge
     ["Bayside", "Harbor"],
     "by name",
   );
-  assert.equal(home.activeWorkspaceId, A, "the oldest membership is the default");
+  assert.equal(home.active_workspace_id, A, "the oldest membership is the default");
   assert.deepEqual(home.user, {
     id: USER,
     email: "ada@example.com",
@@ -158,7 +158,7 @@ test("where you are: every workspace with who is signed in; the active one by ge
   });
   const bayside = await workspaces.GET.run(get(inB), ctxFor(tables, {}, { platform_staff_state: () => "none" }));
   assert.deepEqual(
-    [bayside.activeWorkspaceId, bayside.user.role],
+    [bayside.active_workspace_id, bayside.user.role],
     [B, "owner"],
     "the role describes the workspace being viewed",
   );
@@ -166,7 +166,7 @@ test("where you are: every workspace with who is signed in; the active one by ge
     get(`?workspace=${C}`),
     ctxFor(tables, {}, { platform_staff_state: () => "none" }),
   );
-  assert.equal(stale.activeWorkspaceId, A, "a workspace this person was removed from degrades to their default");
+  assert.equal(stale.active_workspace_id, A, "a workspace this person was removed from degrades to their default");
   // ...and ONLY that. A memberships read that FAILED is not a stale preference:
   // degrading it would put this session in the oldest membership, which the
   // client then echoes back as ?workspace= on every later call -- an operator
@@ -211,7 +211,7 @@ test("where you are: every workspace with who is signed in; the active one by ge
   // posture, open here because the test sets no SIGNUP_CODE.
   assert.deepEqual(nowhere, {
     workspaces: [],
-    activeWorkspaceId: null,
+    active_workspace_id: null,
     pending: null,
     posture: "open",
     user: {
@@ -400,7 +400,7 @@ test("where you are says each workspace's word, and a database 00458 has not rea
     ],
     "00458 not reached: no word stored",
   );
-  assert.equal(before.activeWorkspaceId, A, "and where you are is answered as ever");
+  assert.equal(before.active_workspace_id, A, "and where you are is answered as ever");
   // Any other failure is still the failure.
   const broken = fakeDb(tables, { "tenants.select": { message: "statement timeout" } }, rpcs);
   await assert.rejects(

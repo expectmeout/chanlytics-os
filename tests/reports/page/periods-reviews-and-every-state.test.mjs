@@ -488,7 +488,7 @@ test("Google's reviews under the period, from the Business Profile: five figures
     // Who waits: Ana, with the reply the receptionist wrote and held, and the door to answer her.
     const waiting = card(tree, "reviews-waiting");
     assert.equal(
-      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      textOf(find(waiting, (n) => classes(n).includes("ck-chart-title"))),
       `Waiting for a reply (${V.waiting.total})`,
     );
     assert.equal(reviewRows(waiting).length, V.waiting.rows.length);
@@ -674,7 +674,7 @@ test("a review that waits is drawn once, above Latest, which keeps the ones that
     const tree = page();
     const waiting = card(tree, "reviews-waiting");
     assert.equal(
-      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      textOf(find(waiting, (n) => classes(n).includes("ck-chart-title"))),
       `Waiting for a reply (${V.waiting.total})`,
     );
     assert.equal(V.waiting.total, 0);
@@ -820,7 +820,7 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
     assert.equal(reviewRows(card(tree, "reviews-waiting")).length, 1, "Ana waits");
     // The card's heading is where focus goes once the row that held it is gone: a place the section holds, which a browser would fill.
     const focused = [];
-    find(card(tree, "reviews-waiting"), (n) => classes(n).includes("ck-card-title")).props.ref.current = {
+    find(card(tree, "reviews-waiting"), (n) => classes(n).includes("ck-chart-title")).props.ref.current = {
       focus: () => focused.push("the waiting card's heading"),
     };
     press(byTestId(card(tree, "reviews-waiting"), "google-reply"));
@@ -1084,7 +1084,7 @@ test("over the tests' sample as its reads, the Receptionist lens draws every par
     assert.equal(byTestId(tree, "receptionist-failed"), null);
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
     assert.equal(
-      textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")),
+      textOf(cls(card(tree, "chart-hold"), "ck-chart-takeaway")),
       fold.hold.line,
       "the hold's line is the fold's, of the sample's numbers",
     );
@@ -1124,7 +1124,7 @@ test("over the tests' sample as its reads, the People lens draws every part of i
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
     assert.equal(standingSaid().sentence, fold.head, "the head says the sample's fold");
     assert.equal(
-      textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")),
+      textOf(cls(card(tree, "chart-people-steps"), "ck-chart-takeaway")),
       fold.stepsDone.line,
       "a card's line is the fold's, of the sample's numbers",
     );
@@ -1161,7 +1161,7 @@ test("over the tests' sample as its reads, the Campaigns lens draws every part o
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
     assert.equal(standingSaid().sentence, fold.head, "the head says the sample's fold");
     assert.equal(
-      textOf(cls(card(tree, "chart-funnel"), "ck-card-takeaway")),
+      textOf(cls(card(tree, "chart-funnel"), "ck-chart-takeaway")),
       fold.funnel.line,
       "a card's line is the fold's, of the sample's numbers",
     );

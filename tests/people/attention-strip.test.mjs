@@ -291,14 +291,15 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     else globalThis.React = hadReact;
   }
   // Today's queue, Setup and the back office still draw AttnRow, so the row's
-  // own rules stay; only the strip's container, footer and empty state went. Asked of People's sheet as the build's parser
-  // reads it (tests/_css.mjs givenOn; pinned as clients.css's text until 26 Nov 2026).
+  // own rules stay; only the strip's container, footer and empty state went. Its verbs are the kit's small buttons,
+  // the one primary the kit's coral (attn-row.tsx); where they stand in the row is the row's, asked of People's sheet as
+  // the build's parser reads it (tests/_css.mjs givenOn; pinned as clients.css's text until 26 Nov 2026).
   const CLIENTS = "apps/dashboard/src/styles/clients.css";
-  const primary = givenOn(CLIENTS, ".cl-attn-cta.primary", DESK);
+  const act = givenOn(CLIENTS, ".cl-attn-act", DESK);
   assert.deepEqual(
-    { background: primary.background, color: primary.color },
-    declared("background: var(--accent); color: var(--accent-fg)"),
-    "the one primary button is the mockup's coral",
+    { "align-self": act["align-self"], "white-space": act["white-space"] },
+    declared("align-self: center; white-space: nowrap"),
+    "the row's verbs stand where they stood",
   );
   assert.match(givenOn(CLIENTS, ".cl-attn-list", DESK).animation ?? "", /\bcl-attn-in\b/, "the list arrives");
   assert.equal(

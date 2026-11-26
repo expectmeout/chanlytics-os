@@ -228,7 +228,7 @@
 .settings .pol-dot { border-color: color-mix(in oklab, var(--ink) 45%, var(--bg-raised)); }
 /* Something happens under a finger. There is no hover on a phone, and tapping a
    dot, a chip, a path or a switch gave nothing back. */
-.settings .pol-dot:active, .settings .cl-attn-cta:active, .setup-rows .cl-attn-cta:active,
+.settings .pol-dot:active,
 .settings .cl-bucket-link:active, .setup-rows .setup-path:active, .settings .biz-choice:active,
 .setup-rows .setup-number:active { transform: scale(0.97); }
 @media (hover: hover) { .setup-rows .setup-path:hover, .setup-rows .setup-number:hover { border-color: var(--line-strong); } }
@@ -634,30 +634,9 @@
    yours" -- and it is what made these pages read as walls. It lives behind this
    mark now: the app's own tooltip, so it opens on hover, on focus and on a tap,
    and Escape closes it. */
-.set-mark {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 18px; height: 18px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--ink-dim);
-  cursor: help;
-  transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
-}
-.set-mark[data-tip]:focus-visible { color: var(--ink); background: var(--bg-hover); } @media (hover: hover) { .set-mark:hover { color: var(--ink); background: var(--bg-hover); } }
-.set-mark svg { display: block; }
-/* On a row of the settings kind the mark follows the label; in a list row it
-   follows the state, where the chain of facts used to run. */
-.set-row-label .set-mark, .pol-label .set-mark { margin-left: 6px; vertical-align: -3px; }
-.cl-attn-status .set-mark { margin-left: 6px; vertical-align: -4px; }
-@media (pointer: coarse) {
-  html.frame-on .settings .set-mark { width: 28px; height: 28px; min-height: 0; }
-  html.frame-on .settings .set-mark::after { content: ""; position: absolute; inset: -8px; }
-}
-.settings .set-mark { position: relative; }
+/* The mark is the record kit's tip (.rec-tip, AttnRow's noteMark): in a list row it follows the state, where the chain
+   of facts used to run. Under a finger it is the tip's 28px, which reaches 44 (kit.css). */
+.cl-attn-status .cl-attn-note { margin-left: 6px; vertical-align: -4px; }
 
 /* A table of records (invoices): named columns, figures that line up. */
 .set-table { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto auto auto; column-gap: 24px; }
@@ -1020,7 +999,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   height: auto;
   padding: var(--set-row-y) 24px;
 }
-.setup-rows .cl-attn-avatar { width: var(--set-lead); height: var(--set-lead); border-radius: var(--radius-inset); }
+.setup-rows .cl-attn-pic { width: var(--set-lead); height: var(--set-lead); }
 .setup-rows .cl-attn-body { gap: 3px; }
 .setup-rows .cl-attn-name { font-size: var(--set-label); line-height: 1.35; }
 .setup-rows .cl-attn-sentence { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty; display: block; -webkit-line-clamp: none; }
@@ -1029,9 +1008,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
    door to somewhere, and a door is a quiet word -- fifteen bordered buttons down
    one column made "Withdraw activation" look like the thing to press. */
 .setup-rows .cl-attn-acts { gap: 4px; }
-.setup-rows .cl-attn-cta { height: 30px; padding: 0 12px; font-size: var(--set-hint); border-radius: var(--radius-md); }
-.setup-rows .cl-attn-cta.ghost { padding: 0 8px; border-color: transparent; background: transparent; }
-@media (hover: hover) { .setup-rows .cl-attn-cta.ghost:hover { background: var(--bg-hover); border-color: transparent; color: var(--ink); } }
 .setup-later { opacity: .82; }
 /* A control that refuses is greyed, not unreadable: .55 put the word on a Later row at 4.15. */
 .settings [data-gated] { opacity: 0.66; }
@@ -1172,7 +1148,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
     height: auto;
     padding: var(--row-pad-y) 0;
   }
-  [data-testid="platform-rows"] .cl-attn-avatar { width: var(--row-face); height: var(--row-face); }
+  [data-testid="platform-rows"] .cl-attn-pic { width: var(--row-face); height: var(--row-face); }
   [data-testid="platform-rows"] .cl-attn-body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1186,7 +1162,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
     font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--row-name-line); color: var(--ink);
   }
   [data-testid="platform-rows"] .cl-attn-status { grid-area: state; align-self: center; font-size: var(--row-facts); }
-  [data-testid="platform-rows"] .cl-attn-status .set-mark { display: none; }
+  [data-testid="platform-rows"] .cl-attn-status .cl-attn-note { display: none; }
   [data-testid="platform-rows"] .cl-attn-sentence {
     grid-area: said; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     font-size: var(--text-sm); line-height: var(--row-said-line); color: var(--ink-muted);

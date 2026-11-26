@@ -315,9 +315,9 @@ const ldStripOf = (
 export const leadStrip = (
   s: LeadSearchDto | null,
   now: Date,
-  extra?: { nearby?: string[]; offered?: number; month?: { renewsOn: string } | null } | null,
+  extra?: { nearby?: string[]; offered?: number; month?: { renews_on: string } | null } | null,
 ) => {
-  const vm = ldStripOf(s, now, (extra && extra.nearby) || [], (extra && extra.month && extra.month.renewsOn) || null);
+  const vm = ldStripOf(s, now, (extra && extra.nearby) || [], (extra && extra.month && extra.month.renews_on) || null);
   if (!vm) return null;
   const n = (extra && extra.offered) || 0;
   if (n <= 0) return vm;

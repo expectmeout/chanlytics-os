@@ -367,7 +367,7 @@ async function monthStanding(
     findSearchWidens(ctx.supabase, tenantId).catch(logAndGoOn("lead_search_widens", false)),
   ]);
   const left = Math.max(0, used.cap - used.allowance);
-  return { used: used.cap - left, left, renewsOn: renewsOnOf(timezone, now), widens };
+  return { used: used.cap - left, left, renews_on: renewsOnOf(timezone, now), widens };
 }
 
 /**

@@ -68,7 +68,7 @@ function businessSection({ parsed, brain, profile }: SetupConfig): SetupDto["bus
     name: brain?.business_name ?? null,
     hours: !!profile?.hours && Object.keys(profile.hours).length > 0,
     services: profile?.services?.length ?? 0,
-    bookingLink: !!brain?.booking_link,
+    booking_link: !!brain?.booking_link,
     address: !!profile?.address,
     handoff: profile?.handoff_number ?? null,
     phone_greeting: profile?.phone_greeting ?? null,

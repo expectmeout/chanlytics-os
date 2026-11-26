@@ -43,7 +43,7 @@ test("REGRESSION (the live run of 14 Nov 2026): a card that names four new campa
   const press = planPressOf(setUp);
   assert.deepEqual(press.steps, [1, 2, 3, 4, 5, 6]);
   assert.deepEqual(press.sends, [3, 4, 5, 6]);
-  const done = setUp.map((c) => ({ ...c, outcome: { state: "done", receipt: "", atMs: 1 } }));
+  const done = setUp.map((c) => ({ ...c, outcome: { state: "done", receipt: "", at_ms: 1 } }));
   assert.deepEqual(planPressOf(done).steps, [], "nothing is left to press");
 });
 
@@ -54,17 +54,17 @@ test("a later send is the next press, since it may build on what the first comes
     step(3, "reach_out_make", false, {}, [1, 2]),
   ];
   assert.deepEqual(planPressOf(cards).steps, [1, 2]);
-  const after = cards.map((c, i) => (i < 2 ? { ...c, outcome: { state: "done", receipt: "", atMs: 1 } } : c));
+  const after = cards.map((c, i) => (i < 2 ? { ...c, outcome: { state: "done", receipt: "", at_ms: 1 } } : c));
   assert.deepEqual(planPressOf(after).steps, [3]);
   assert.equal(planPressOf(after).send, 3);
 });
 
 test("a step made is not made twice, and a press carries on from a stop", () => {
   const cards = offer().map((c, i) =>
-    i === 0 ? { ...c, outcome: { state: "done", receipt: "", atMs: 1, made: { kind: "message", id: "v" } } } : c,
+    i === 0 ? { ...c, outcome: { state: "done", receipt: "", at_ms: 1, made: { kind: "message", id: "v" } } } : c,
   );
   assert.deepEqual(planPressOf(cards).steps, [2, 3, 4]);
-  const stopped = cards.map((c, i) => (i === 1 ? { ...c, outcome: { state: "failed", receipt: "no", atMs: 1 } } : c));
+  const stopped = cards.map((c, i) => (i === 1 ? { ...c, outcome: { state: "failed", receipt: "no", at_ms: 1 } } : c));
   assert.deepEqual(planPressOf(stopped).steps, [2, 3, 4], "what failed is tried again");
 });
 
@@ -95,14 +95,14 @@ test("every send on the plan's words goes with the one press, in the plan's orde
 });
 
 test("a step undone stops a send that needs it, said as such", () => {
-  const cards = offer().map((c, i) => (i === 0 ? { ...c, outcome: { state: "undone", receipt: "", atMs: 1 } } : c));
+  const cards = offer().map((c, i) => (i === 0 ? { ...c, outcome: { state: "undone", receipt: "", at_ms: 1 } } : c));
   const press = planPressOf(cards);
   assert.equal(press.undone, 1);
   assert.equal(press.send, null);
 });
 
 test("Not now on one step leaves it out", () => {
-  const cards = offer().map((c, i) => (i === 2 ? { ...c, outcome: { state: "dismissed", receipt: "", atMs: 1 } } : c));
+  const cards = offer().map((c, i) => (i === 2 ? { ...c, outcome: { state: "dismissed", receipt: "", at_ms: 1 } } : c));
   assert.deepEqual(planPressOf(cards).steps, [1, 2, 4]);
 });
 

@@ -270,7 +270,7 @@ export const workspaceOverride: SurfaceOverride = {
     // read landing before the page unloads is of the workspace being left (surface-cache.ts).
     const viewing = was.activeWorkspaceId;
     if (viewing && was.workspaces?.some((t) => t.id === viewing) && !data.workspaces.some((t) => t.id === viewing)) {
-      const next = data.workspaces.find((t) => t.id === data.activeWorkspaceId) ?? data.workspaces[0];
+      const next = data.workspaces.find((t) => t.id === data.active_workspace_id) ?? data.workspaces[0];
       sealSurfaceCache();
       rememberWorkspace(next?.slug ?? null);
       window.location.replace(next ? workspaceHref(next.slug) : "/");
@@ -286,10 +286,10 @@ export const workspaceOverride: SurfaceOverride = {
     // The server had the last word on which workspace this is — it validated
     // membership and may have overridden a stale stored preference. Record what
     // it decided, so every later request agrees with the data already rendered.
-    if (data.activeWorkspaceId) {
-      holdWhoIsLooking({ activeWorkspaceId: data.activeWorkspaceId });
-      const active = data.workspaces.find((t) => t.id === data.activeWorkspaceId);
-      const slug = active?.slug ?? data.activeWorkspaceId;
+    if (data.active_workspace_id) {
+      holdWhoIsLooking({ activeWorkspaceId: data.active_workspace_id });
+      const active = data.workspaces.find((t) => t.id === data.active_workspace_id);
+      const slug = active?.slug ?? data.active_workspace_id;
       rememberWorkspace(slug);
       // The address says what the server decided. A path that names a
       // workspace this account may not use here (a membership gone, another
