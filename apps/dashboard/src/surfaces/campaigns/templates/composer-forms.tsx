@@ -298,7 +298,7 @@ function newRows(c: ComposerCtx, made: Made) {
             <Button
               key={s.key}
               size="sm"
-              title={`${s.title} — ${s.purpose}`}
+              data-tip={`${s.title} — ${s.purpose}`}
               onClick={() => startFrom(s)}
               data-testid="tpl-start-from"
             >

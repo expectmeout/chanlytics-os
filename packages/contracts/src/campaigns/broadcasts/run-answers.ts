@@ -1,4 +1,4 @@
-import { recordOrNull } from "../../shared/unknown";
+import { nonEmptyOrNull, recordOrNull } from "../../shared/unknown";
 import { REPLY_WINDOW_MS } from "./run-words";
 
 /**
@@ -101,7 +101,6 @@ const NAMES_THE_SEND: ReadonlySet<string> = new Set(["carrier", "whatsapp"]);
 const isIn = (set: ReadonlySet<string>, source: unknown): boolean => typeof source === "string" && set.has(source);
 
 /** A key's word: a string with something in it, exactly as it was written. */
-const wordOrNull = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
 /** The offers door names its purpose (00095, 00174); the conversational one names none. */
 function purposeOf(named: unknown): AnswerPurpose {
@@ -111,9 +110,9 @@ function purposeOf(named: unknown): AnswerPurpose {
 /** The key an event carries that names a send, of its own kind; none for any other event. */
 function keyOfEvent(data: Record<string, unknown>, consent: string, purpose: AnswerPurpose): AnswerKey | null {
   const asEmail = purpose === "email_marketing" && consent === "opted_out" && isIn(NAMES_THE_EMAIL, data.source);
-  const email = asEmail ? wordOrNull(data.message_id) : null;
+  const email = asEmail ? nonEmptyOrNull(data.message_id) : null;
   if (email) return { field: "messageId", value: email };
-  const send = isIn(NAMES_THE_SEND, data.source) ? wordOrNull(data.message_external_id) : null;
+  const send = isIn(NAMES_THE_SEND, data.source) ? nonEmptyOrNull(data.message_external_id) : null;
   return send ? { field: "messageExternalId", value: send } : null;
 }
 

@@ -27,7 +27,7 @@ import { logAndGoOn } from "@chanlytics/log";
  * A page's candidates tried for bytes worth keeping: its said logo, then its best icon. Past two, it is a favicon.
  * An SVG is never kept (mark-image.ts), so an address that says it is one is not asked for and spends no try.
  */
-export const MARK_TRIES = 2;
+const MARK_TRIES = 2;
 const SAYS_SVG = /\.svg(?:[?#]|$)/i;
 /** No read or image is begun with less than this left: the page's reader refuses a read of under a second. */
 const MARK_LEAST_MS = 1_000;

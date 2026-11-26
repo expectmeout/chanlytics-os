@@ -44,17 +44,15 @@ export {
   patchThreadBack,
   queueMemberReply,
   resolveHold,
-  THREAD_MESSAGE_COLUMNS,
   wakeThreadBack,
 } from "./reads";
-export { assembleHistory, HISTORY_COLUMNS, readDealForPhone, readLeadContext, readThreadState } from "./thread/history";
+export { assembleHistory, readDealForPhone, readLeadContext, readThreadState } from "./thread/history";
 export type { LeadContext, PgThreadState, ThreadTurn } from "./thread/history";
 export {
   describeLead,
   findOurLastWire,
   listFailedMessageErrors,
   listMessageSenders,
-  notesForReceptionist,
   openConversation,
   replyAnswersAt,
   saveMessageMedia,
