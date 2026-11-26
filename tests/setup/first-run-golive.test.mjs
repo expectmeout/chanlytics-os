@@ -359,7 +359,7 @@ test("You're live never waited on WhatsApp: chosen and not connected, its steps 
     {
       key: "whatsapp_connect",
       title: "WhatsApp · connect it on its own number",
-      says: "Calls and email answer now. WhatsApp joins once you approve it on your phone; Today keeps this until then.",
+      says: "Calls and email answer now. WhatsApp joins once you approve it on your phone · Today keeps this until then.",
       act: { kind: "connect", label: "Connect WhatsApp" },
     },
   ]);

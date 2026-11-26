@@ -7,7 +7,8 @@
  * The layouts are bundled for node with the dashboard's own React and drawn over a list in which every page has one
  * file of its own name: each must link that file, and no other page's. The workspace's own layout draws its children
  * twice, the second time for their links alone (styles/sheet-links.tsx SheetsAlone), so that a prerendered
- * page's head holds them: drawn here the same way, a layout inside it links its file and draws no page.
+ * page's head holds them: drawn here the same way, a layout inside it links its file and draws no page. And drawn so,
+ * what it leaves in the document stands in an element of its own, never beside the frame (the last test says why).
  *
  * The bundle's lines are written out, a line a layout, so the run that picks a change's tests can read which modules
  * this test draws (tooling/scripts/tests-of.mjs reads a bundle's lines only as strings). A page added to the frame
@@ -78,8 +79,8 @@ async function layoutsDrawn() {
         'export { default as at_today } from "../../../apps/dashboard/app/(os)/w/[workspace]/today/layout.tsx";\n' +
         'export { default as at_console } from "../../../apps/dashboard/app/(os)/console/layout.tsx";\n' +
         'export { SheetsAlone, SheetSlots } from "../../../apps/dashboard/src/styles/sheet-links.tsx";\n' +
-        'export { renderToStaticMarkup } from "react-dom/server";\n' +
-        'export { createElement } from "react";\n',
+        'export { renderToStaticMarkup, renderToString } from "react-dom/server";\n' +
+        'export { Activity, createElement } from "react";\n',
       resolveDir: path.join(ROOT, "tests/styles/sheets"),
       sourcefile: "page-layouts.ts",
       loader: "ts",
@@ -146,4 +147,38 @@ test("drawn for its links alone, a page's layout links its files and draws no pa
     LIST.files.map(([slot]) => slot),
     "every file's precedence, in the list's order",
   );
+});
+
+/**
+ * Next draws every part of an address inside an `<Activity>` (layout-router.js, under `cacheComponents`), so the page
+ * drawn for its links leaves two of them in the prerendered body, empty but for their marks. React wakes them last,
+ * when it has nothing else to do; and when a move hides one it has not woken yet, react-dom 19.3's walk over what to
+ * hide (hideOrUnhideDehydratedBoundary) ends only at a Suspense's end mark, `<!--/$-->`, never at an Activity's,
+ * `<!--/&-->`, so it went on to everything after it: the frame, the notice to turn a phone upright, Next's announcer,
+ * each `display: none` for good (nightly 45758891405, 26 Nov 2026: an old address moved on load, a blank page). An
+ * element of the twin's own is where that walk ends.
+ */
+test("drawn for its links alone, a page leaves its marks in an element of its own: a hide that runs past them never reaches the frame", () => {
+  const { key } = PAGES[0];
+  const part = (child) => drawn.createElement(drawn.Activity, { mode: "visible" }, child);
+  const page = drawn.renderToString(
+    drawn.createElement(
+      "body",
+      null,
+      drawn.createElement(
+        drawn.SheetsAlone,
+        null,
+        part(part(drawn.createElement(drawn[`at_${key}`], null, "the page"))),
+      ),
+      drawn.createElement("div", { className: "frame-outline" }, "the frame"),
+    ),
+  );
+  const body = page.slice(page.indexOf("<body>") + "<body>".length, page.indexOf("</body>"));
+  assert.match(body, /<!--&-->/, "the parts' marks are drawn, as Next's prerender draws them");
+  assert.match(
+    body,
+    /^<div hidden="">(?:<!--\/?&-->)+<\/div><div class="frame-outline">/,
+    "every mark of the twin's is inside its own element, and the frame is not its sibling",
+  );
+  assert.deepEqual(linked(page), [`/sheets/${key}.css`], "its links are still the document's, hoisted out of it");
 });

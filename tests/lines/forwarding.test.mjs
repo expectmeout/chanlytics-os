@@ -26,9 +26,25 @@ import {
   agoWords,
   EVENT_KINDS,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc, readCode } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { TENANT, rows } from "../_rows.mjs";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+
+// Setup's verbs, in the tab they are pressed in: the bridge's own client, over this process's fetch.
+globalThis.window ??= globalThis;
+globalThis.location ??= { pathname: "/w/harbor", hash: "" };
+globalThis.document ??= { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+globalThis.window.addEventListener ??= () => {};
+globalThis.window.removeEventListener ??= () => {};
+globalThis.window.dispatchEvent ??= () => true;
+bridgeHolds({
+  who: {
+    workspaces: [{ id: "t1", slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+    activeWorkspaceId: "t1",
+  },
+});
+const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 
 const DEST = "+13055550123";
 
@@ -291,39 +307,41 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   );
 });
 
-test("the wiring: the migration, the forwarding event kind, and the bridge and the page carry the card", () => {
-  const mig = readRaw("supabase/migrations/00067_forwarding.sql");
-  for (const pin of [
-    "check (provider in ('twilio', 'dry', 'carrier'))",
-    "create or replace function public.line_forwarding_set(",
-    "create or replace function public.line_forwarding_test(p_tenant_id uuid, p_line_id uuid)",
-    "interval '30 minutes'",
-    "grant execute on function public.line_forwarding_set(uuid, text, text, text, text) to authenticated;",
-    "grant execute on function public.line_forwarding_test(uuid, uuid) to authenticated;",
-    "Your receptionist has no line to forward to yet.",
-  ])
-    assert.ok(mig.includes(pin), pin);
-  // The edge's half (a test call on an instructed line marks it verified, and
-  // the bell says so) runs in voice/calls/retell-door/; the two routes'
-  // owner policy and their database calls run in settings-routes.test.mjs.
+test("the wiring: the forwarding event kind, and Setup's two verbs ask the two routes", async () => {
+  // The two definer doors 00067 made -- the set door's refusals and its one forwarded row per workspace, the test
+  // door's thirty-minute window -- run on the replayed stack in keep-my-number.db.test.mjs (pinned as the migration's
+  // text until 26 Nov 2026). The edge's half (a test call on an instructed line marks it verified, and the bell says
+  // so) runs in voice/calls/retell-door/; the two routes' owner policy and their database calls run in
+  // settings-routes.test.mjs; the card, drawn on Setup and pressed -- its code to dial, its Test it -- in
+  // setup/setup-page-activate.test.mjs.
   assert.ok(EVENT_KINDS.includes("line.forwarding_verified"));
-  // Setup's surface and rows are TSX since decision 0015's step 10 (surfaces/setup): the card imports its words.
-  const bridge = readCode("apps/dashboard/src/surfaces/setup/surface.ts");
-  for (const pin of ['"POST lines/forwarding"', '"POST lines/forwarding/test"', "export const FORWARDING_WORDS"])
-    assert.ok(bridge.includes(pin), pin);
-  const rows = (f) => readCode(`apps/dashboard/src/surfaces/setup/rows/${f}`);
-  const card = rows("forwarding.tsx");
-  for (const pin of [
-    "export const ForwardingCard",
-    "FORWARDING_WORDS",
-    'data-testid="setup-fw-dial"',
-    'data-testid="setup-fw-test"',
-  ])
-    assert.ok(card.includes(pin), pin);
-  const acts = rows("acts.tsx");
-  for (const pin of ['to === "verb:forwarding"', 'to.startsWith("verb:forwarding-test:")'])
-    assert.ok(acts.includes(pin), pin);
-  assert.ok(rows("line-chooser.tsx").includes('data-testid="setup-keep-go"'));
+  const wire = [];
+  const realFetch = globalThis.fetch;
+  globalThis.window.fetch = async (url, init = {}) => {
+    const at = new URL(String(url), "https://app.chanlytics.com").pathname;
+    wire.push({ at: `${init.method} ${at}`, body: JSON.parse(init.body) });
+    const refused = at.endsWith("/test");
+    return new Response(
+      JSON.stringify(
+        refused
+          ? { ok: false, error: { code: "not_found", message: "No such forwarded line." } }
+          : { ok: true, data: { id: "f1" } },
+      ),
+      { status: refused ? 404 : 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  const keep = { number: "+16465550142", carrier: "att", mode: "always", test_from: null };
+  assert.deepEqual(await setupVerbs.forwarding.set(keep), { ok: true, message: "" });
+  assert.deepEqual(await setupVerbs.forwarding.test("f1"), { ok: false, message: "No such forwarded line." });
+  assert.deepEqual(wire, [
+    { at: "POST /api/v1/lines/forwarding", body: keep },
+    { at: "POST /api/v1/lines/forwarding/test", body: { line_id: "f1" } },
+  ]);
+  globalThis.window.fetch = realFetch;
+  // The one part not yet drawn: the chooser's Keep my number, which hands the owner to the card (a seam: the chooser
+  // is drawn on a line row no Setup test opens with the receptionist already answering).
+  const chooser = readCode("apps/dashboard/src/surfaces/setup/rows/line-chooser.tsx");
+  assert.ok(chooser.includes('data-testid="setup-keep-go"'));
   // The nightly spec walks the first run a step at a time (e2e/setup.spec.ts) and counts no rows at all.
 });
 

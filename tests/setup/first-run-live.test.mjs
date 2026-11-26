@@ -81,7 +81,7 @@ test("Live (canvas R9): the four lines, the greeting word for word, and Finish's
     ],
   );
   assert.equal(vm.greeting, `Every caller hears “${greetingFor("Harbor Moving")}”`);
-  assert.deepEqual(vm.finish, { note: "We'll email you a copy of this." });
+  assert.deepEqual(vm.finish, { note: "Chanlytics emails you a copy of this." });
   const teammate = firstRunLiveOf({
     dto: dtoOf(),
     emails: ["owner@example.com"],
@@ -156,7 +156,7 @@ test("the you're-live email (canvas C2): the test call, what happens from now on
     "It answered your test call (48 sec) from +1 (786) 555-0199 through +1 (305) 555-0100.\n\n" +
       "From now on, calls to +1 (305) 555-0100 that nobody picks up reach AI.\n\n" +
       "A caller who asks for a person leaves a message.\n\n" +
-      "We'll email you here when someone needs you.\n",
+      "Chanlytics emails you here when someone needs you.\n",
   );
   assert.match(
     youAreLiveEmail({

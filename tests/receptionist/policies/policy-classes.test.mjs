@@ -19,7 +19,8 @@ import {
 } from "@chanlytics/contracts";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { readCode, ROOT } from "../../_source.mjs";
+import { ROOT } from "../../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 import { withStanding } from "../_prompt-rules.mjs";
 
 const { layerTwo } = await import(pathToFileURL(path.join(ROOT, "packages/core/src/inbound/steps.ts")).href);
@@ -107,11 +108,9 @@ test("the prompt carries the rows on both channels — a composed profile and a 
   assert.ok(ESCALATION_REASONS.includes("policy_ask"));
 });
 
-test("the wiring: the edge passes the rows to both prompts and checks after generation; the API refuses what a class cannot honour; the pane says so", () => {
-  const wa = readCode("packages/core/src/inbound/model-turn.ts");
-  // The wire the message came on: a text is told it answers texts (compose.ts).
-  assert.ok(wa.includes("resolveSystemPrompt(brainCfg, channel, rt?.timezone, now, rt?.policy, rt?.known)"));
-  assert.ok(wa.includes("const two = layerTwo({"), "the turn asks layer two after generation");
+test("the wiring: the edge passes the rows to both prompts and checks after generation; the API refuses what a class cannot honour; the pane says so", async () => {
+  // The text's turn hears the rows and asks layer two after generation: run through the inbound world in
+  // receptionist/prompt/what-it-knows-and-how-sure-it-was.test.mjs ("a booking under ask is a person's").
   // Layer two, run: under "ask", a booking link the model sent anyway is taken back and the thread is a person's.
   const brainCfg = { business_name: "Marisa's", booking_link: "https://book.example.com/marisas" };
   const two = layerTwo({
@@ -132,11 +131,16 @@ test("the wiring: the edge passes the rows to both prompts and checks after gene
   // The phone hears the same rules: run in call-start.test.mjs, where business_facts is this composer's text byte for byte.
   // The eval and the steer composing the same prompt, the Autonomy rows in it, are run in eval-door.test.mjs and steer-door.test.mjs.
   // The route refusing and the pane's dots, each by POLICY_CLASS_MODES, are run in policy-veto-option.test.mjs.
-  const store = readCode("apps/dashboard/src/bridge/policy-store.ts");
-  assert.ok(!store.includes("enforced: false"), "no row is stored-but-unenforced any more");
-  const pane = readCode("apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx");
-  assert.ok(
-    pane.includes("r.modes && !r.modes.includes(m)") && pane.includes("(r.hints && r.hints[m]) || polMode(m).does"),
-  );
-  assert.ok(readCode("supabase/migrations/00056_policy_ask_reason.sql").includes("'policy_ask'"));
+  // No row is stored but unenforced, and the store writes only an enforced class (policy-store.test.mjs); the pane draws a
+  // dot exactly where the rule offers a mode (policy-veto-option.test.mjs). Pinned as policy-store.ts's and matrix.tsx's
+  // text until 26 Nov 2026. The reason a hold says is one the database admits (00056), as the database in memory holds it.
+  const db = fakeDb({ escalations: [] });
+  const held = (reason) =>
+    db
+      .from("escalations")
+      .insert({ tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", conversation_id: "c1", reason })
+      .select("id")
+      .single();
+  assert.equal((await held("policy_ask")).error, null);
+  assert.equal((await held("policy_asked")).error?.code, "23514");
 });

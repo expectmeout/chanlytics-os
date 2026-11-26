@@ -29893,6 +29893,57 @@ COMMENT ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_cha
 
 
 --
+-- Name: plan_slots_hold(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.plan_slots_hold(p_tenant_id uuid, p_plan_id uuid, p_holds jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- 00714's form: the edge, holding what a week AI approves left out: no member, so no member's permission to ask.
+  v_service boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  v_hold    jsonb;
+  v_slot    uuid;
+  v_held    integer := 0;
+begin
+  if auth.uid() is null and not v_service then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null
+     or (not v_service and not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(coalesce(p_holds, '[]'::jsonb)) <> 'array' then
+    raise exception 'The slots to hold are a list.' using errcode = '22023';
+  end if;
+  -- Each held on its row with why, only while it is still proposed: one approved, made or held since is left alone.
+  for v_hold in select h from jsonb_array_elements(coalesce(p_holds, '[]'::jsonb)) h loop
+    update public.plan_slots s
+       set state = 'blocked', blocked_why = v_hold ->> 'held', blocked_reason = left(btrim(v_hold ->> 'why'), 400),
+           updated_at = now()
+     where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.id = (v_hold ->> 'id')::uuid
+       and s.state = 'proposed'
+    returning s.id into v_slot;
+    if found then
+      v_held := v_held + 1;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'plan_slot.held', 'content', 'plan_slot', v_slot,
+              jsonb_strip_nulls(jsonb_build_object('why', v_hold ->> 'held', 'plan_id', p_plan_id, 'by', auth.uid())));
+    end if;
+  end loop;
+  return v_held;
+end $$;
+
+
+--
+-- Name: FUNCTION plan_slots_hold(p_tenant_id uuid, p_plan_id uuid, p_holds jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.plan_slots_hold(p_tenant_id uuid, p_plan_id uuid, p_holds jsonb) IS 'The slots a week''s approval left out because their reason no longer stands (00720): each [{id, held, why}] held on its row (blocked, blocked_why, blocked_reason at most 400 characters) while it is still proposed, with its event (plan_slot.held). The member who pressed (permission settings) or the service role (a week AI approves). Answers how many it held.';
+
+
+--
 -- Name: plan_slots_mark_edited(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -31897,7 +31948,10 @@ declare
   -- Let go because its day passed before it could be sent: it says so, as a hold does.
   v_late boolean := p_to = 'pulled' and v_patch ->> 'held_why' = 'late';
   v_moved boolean;
+  v_was   text;
 begin
+  -- Where it stood, held while it moves: what its event says it moved from.
+  select p.status into v_was from public.posts p where p.id = p_post_id and p.status = any (p_from) for update;
   update public.posts p
      set status = p_to,
          held_reason = case when p_to = 'held' or v_late
@@ -31914,6 +31968,16 @@ begin
          updated_at = now()
    where p.id = p_post_id and p.status = any (p_from);
   v_moved := found;
+  -- Each move is a fact on the ledger, in its own transaction: from and to, its place, who moved it where a member did,
+  -- and whether it was seen at its place.
+  if v_moved then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p.tenant_id, 'post.moved', 'content', 'post', p.id,
+           jsonb_strip_nulls(jsonb_build_object('from', v_was, 'to', p_to, 'place', p.place, 'by', auth.uid(),
+                                                'seen', case when v_patch ? 'verified_at' then true end))
+      from public.posts p
+     where p.id = p_post_id;
+  end if;
   -- Up on Instagram and not yet read back from the account: it is asked for by its own id two minutes on, written here
   -- with the fact, so a run that dies after the move never leaves a post that is never seen. Its key is its own
   -- ('seen'), apart from a send's two attempts.
@@ -32140,6 +32204,56 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) IS 'I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. Kept as a post at the place hand, published as they say so; said again, the same record with the link it now has. Answers {fate: kept, gone, not_a_post, post_id}.';
+
+
+--
+-- Name: post_seen_say(uuid, boolean, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_seen_say(p_post_id uuid, p_there boolean, p_words text DEFAULT NULL::text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post  public.posts;
+  v_words text := left(nullif(btrim(coalesce(p_words, '')), ''), 300);
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_post from public.posts p where p.id = p_post_id;
+  if not found then
+    return false;
+  end if;
+  if not coalesce(public.caller_has_permission(v_post.tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_there is null then
+    raise exception 'There, or not there.' using errcode = '22023';
+  end if;
+  -- Only a post its place took and was never read holding (contracts postNeverSeen): one seen meanwhile, taken down or
+  -- let go is left as it stands, and the page reads it again.
+  if v_post.status <> 'published' or v_post.place = 'google' or v_post.verified_at is not null then
+    return false;
+  end if;
+  -- "It's there": up from now, as if the account had been read holding it.
+  if p_there then
+    return public.post_moved(p_post_id, array['published'], 'published', jsonb_build_object('verified_at', now()));
+  end if;
+  -- "It's not there": it never went up, a post that did not go, in the words its page says.
+  if v_words is null then
+    raise exception 'Say why it is not there.' using errcode = '22023';
+  end if;
+  return public.post_moved(p_post_id, array['published'], 'failed',
+    jsonb_build_object('error', jsonb_build_object('code', null, 'subcode', null, 'words', v_words)));
+end $$;
+
+
+--
+-- Name: FUNCTION post_seen_say(p_post_id uuid, p_there boolean, p_words text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_seen_say(p_post_id uuid, p_there boolean, p_words text) IS 'The owner''s word on a post its place took and never confirmed (00720; the content status review''s D5): there (up from now, seen) or not there (failed, in p_words, at most 300 characters). An owner''s or a partner''s (permission settings), for a post still up, never seen and not on Google; anything else answers false and moves nothing. The move is post_moved''s, with its event and who said it.';
 
 
 --
@@ -73298,6 +73412,15 @@ GRANT ALL ON FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_c
 
 
 --
+-- Name: FUNCTION plan_slots_hold(p_tenant_id uuid, p_plan_id uuid, p_holds jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.plan_slots_hold(p_tenant_id uuid, p_plan_id uuid, p_holds jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.plan_slots_hold(p_tenant_id uuid, p_plan_id uuid, p_holds jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.plan_slots_hold(p_tenant_id uuid, p_plan_id uuid, p_holds jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION plan_slots_mark_edited(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -73653,6 +73776,15 @@ GRANT ALL ON FUNCTION public.post_pull(p_post_id uuid) TO service_role;
 REVOKE ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) TO authenticated;
 GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text) TO service_role;
+
+
+--
+-- Name: FUNCTION post_seen_say(p_post_id uuid, p_there boolean, p_words text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_seen_say(p_post_id uuid, p_there boolean, p_words text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_seen_say(p_post_id uuid, p_there boolean, p_words text) TO authenticated;
+GRANT ALL ON FUNCTION public.post_seen_say(p_post_id uuid, p_there boolean, p_words text) TO service_role;
 
 
 --
