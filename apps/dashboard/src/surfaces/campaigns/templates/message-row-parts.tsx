@@ -499,6 +499,7 @@ function readPane(c: RowCtx, onEdit: (() => void) | null) {
     <>
       <div className="tpl-read-words">
         <MessagePreview
+          // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
           from={bizName || "Your business"}
           body={body}
           values={values}

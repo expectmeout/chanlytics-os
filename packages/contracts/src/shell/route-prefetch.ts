@@ -10,6 +10,8 @@ import { isUuid } from "../shared/identity";
 
 /** The settings read (bridge/surfaces/settings.ts): the business, the team, the policies, every template. */
 const SETTINGS_READ = ["settings", "team", "policies", "templates?all=1"] as const;
+/** What Campaigns › Ads opens on, and Content beside its own where Ads is drawn: the ad account and its ads. */
+const ADS_FIRST_READS = ["ads/account", "ads/page"] as const;
 /** A person's id in the address, as the route reads it (surface-registry personRouteId): a uuid, nothing else. */
 const PREFETCH_UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 /** Where the head parks what it started, for the client to take (client/api.ts `prefetched`). */
@@ -184,18 +186,22 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // counts is the page's own read, made as its code is in (campaigns/ads/first-touch.ts): the boot lets go of what the head started
   // once its own reads are in (api.ts dropPrefetched), before a page that loads on demand could take it, so the dearest of the
   // reports would be read twice.
-  "campaigns/ads": [...SETTINGS_READ, "ads/account", "ads/page"],
+  "campaigns/ads": [...SETTINGS_READ, ...ADS_FIRST_READS],
   // Campaigns › Content (`campaigns/content`, where it is drawn): the settings read, which says whether it is, and its own
   // first page (campaigns/content/surface.ts asks with no query, so the page takes this one). Its address had no word in the
   // head's script, so a load there opened on Campaigns' list, which Content never draws, and read Content itself only once
   // the page's code had come: its empty state stood 1.8 s after the page's frame on a phone (the phone review of 15 Nov 2026).
-  "campaigns/content": [...SETTINGS_READ, "content"],
+  // And Ads' first reads, the ad account and its ads, which the boot takes where the settings read says Ads is drawn and
+  // Content's first draw waits for (bridge/surfaces/ads-first-reads.ts readAdsBesideContent): the Ads tab's figure, said
+  // from them, stands with Made's and the Library's, where it came 2.7 s after them (Ruben, 26 Nov 2026). Where Ads is not
+  // drawn the boot lets them go.
+  "campaigns/content": [...SETTINGS_READ, "content", ...ADS_FIRST_READS],
   // Its Library (`campaigns/content:library`): the settings read, and what the business keeps, the library's own read, never
-  // Made's (files/surface.ts).
-  "campaigns/content/library": [...SETTINGS_READ, "files"],
+  // Made's (files/surface.ts), and Ads' first reads, as Made's.
+  "campaigns/content/library": [...SETTINGS_READ, "files", ...ADS_FIRST_READS],
   // The Week (`campaigns/content:week`, where the workspace plans its weeks): the settings read, which says whether it
-  // does, and the week's own read (campaigns/content/week/surface.ts), never Made's.
-  "campaigns/content/week": [...SETTINGS_READ, "content/plan"],
+  // does, and the week's own read (campaigns/content/week/surface.ts), never Made's, and Ads' first reads, as Made's.
+  "campaigns/content/week": [...SETTINGS_READ, "content/plan", ...ADS_FIRST_READS],
   // Forms (`campaigns/forms`, a form open in it among its addresses): the settings read, and its list, the view's own read
   // (campaigns/forms/opening.ts takes it as the load begins). Asked only once the view's code was in, the list said "Reading…"
   // under the head for 0.5 s after the page, 2.2 s on a slow phone (the phone sweep of 22 Nov 2026).

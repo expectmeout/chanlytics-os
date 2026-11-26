@@ -712,8 +712,8 @@ test("the note under an offer says which channels carry offers, as the workspace
     });
   const alone = offersNote(READY);
   assert.match(alone, /^Offers and news go by WhatsApp only\./);
-  assert.match(alone, /registered with the phone networks for replies and appointment messages/);
-  assert.match(alone, /nothing promotional is sent by text/);
+  assert.match(alone, /approved for replies and appointment messages/);
+  assert.match(alone, /no offer goes by text/);
   assert.match(alone, /once they say yes on WhatsApp\.$/);
   // Each way offers by email can be closed leaves the note as it was: the campaigns domain, the address, a pause, a read that failed.
   for (const [what, offers] of [
@@ -726,7 +726,7 @@ test("the note under an offer says which channels carry offers, as the workspace
   // Once offers by email can go the note says so, and still says a text carries none: it was false the day the domain verified.
   const open = offersNote(withOffers(OPEN));
   assert.match(open, /^Offers and news go by WhatsApp and by email\./);
-  assert.match(open, /nothing promotional is sent by text/);
+  assert.match(open, /no offer goes by text/);
   assert.match(open, /by email if you have their address/);
   assert.doesNotMatch(open, /WhatsApp only/);
   // It is the ticks' own question, not a second reading of the facts: it says email exactly where the email tick is open for an offer.
@@ -799,7 +799,7 @@ test("offers on WhatsApp from a US number are held while Meta's pause holds: the
     emailOnly,
     /^Offers and news go by email only for now\. WhatsApp is not delivering offers to US numbers for now/,
   );
-  assert.match(emailOnly, /nothing promotional is sent by text/);
+  assert.match(emailOnly, /no offer goes by text/);
   assert.match(emailOnly, /by email if you have their address/);
   const none = offersNote(us);
   assert.match(

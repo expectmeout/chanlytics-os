@@ -198,15 +198,14 @@ export function channelRefuses(
 export function offersNote(ready: ChannelsReady): string {
   const byWhatsApp = channelRefuses("whatsapp", "marketing", "ours", ready) === null;
   const byEmail = channelRefuses("email", "marketing", "ours", ready) === null;
-  const noText =
-    "The text line is registered with the phone networks for replies and appointment messages, so nothing promotional is sent by text";
+  const noText = "Texting is approved for replies and appointment messages, so no offer goes by text";
   const paused = ready.whatsapp.offers?.why ?? "";
   if (byWhatsApp && byEmail)
-    return `Offers and news go by WhatsApp and by email. ${noText}; someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
+    return `Offers and news go by WhatsApp and by email. ${noText} · someone who has only ever texted you hears about offers on WhatsApp once they say yes there, or by email if you have their address and they have not said no.`;
   if (byWhatsApp)
-    return `Offers and news go by WhatsApp only. ${noText}; someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
+    return `Offers and news go by WhatsApp only. ${noText} · someone who has only ever texted you hears about offers once they say yes on WhatsApp.`;
   if (byEmail)
-    return `Offers and news go by email only for now. ${paused} ${noText}; someone hears about offers by email if you have their address and they have not said no.`;
+    return `Offers and news go by email only for now. ${paused} ${noText} · someone hears about offers by email if you have their address and they have not said no.`;
   // Why email carries none, in its own reason: Chanlytics' own ("Emails carry no offers or news for now.") or the business's.
   const byEmailWhy = channelRefuses("email", "marketing", "ours", ready) ?? "";
   return `Offers and news have no channel right now. ${paused} ${noText}. ${byEmailWhy}`;

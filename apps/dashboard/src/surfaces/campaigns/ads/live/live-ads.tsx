@@ -30,6 +30,7 @@ import { NewAd } from "../new/sheet";
 import { LIVE_AD_SOURCE } from "../new/source";
 import { AdSheet } from "./ad-sheet";
 import { LiveBody } from "./live-page";
+import { adsListedOf } from "./listed";
 import { liveModel, sheetModel } from "./model";
 import { StopNotice } from "./stop-notice";
 import type { StopHere } from "./stop-notice";
@@ -78,7 +79,7 @@ export function LiveAds(p: LiveAdsProps) {
   // holds, for the Ads tab's figure on Made and the Library (ads/needs-you.ts).
   const needing = adsNeedingOf(dto);
   useEffect(() => noteAdsNeeding(needing), [needing]);
-  const listed = vm.rows.length;
+  const listed = adsListedOf(dto);
   useEffect(() => noteAdsListed(listed), [listed]);
   const sentence = (
     <>

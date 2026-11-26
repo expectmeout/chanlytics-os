@@ -161,8 +161,8 @@ test("Not on Google Workspace says what works, and Tell us posts a name and says
   press(byTestId(tree, "rec-connect-other"));
   tree = redrawTab();
   const other = textOf(byTestId(tree, "rec-connect-other-sheet"));
-  assert.match(other, /Your main email can stay where it is/);
-  assert.match(other, /a Google Workspace mailbox on a second domain works/);
+  assert.match(other, /Keep your main email/);
+  assert.match(other, /a second-domain Workspace mailbox suits cold email/);
   const box = find(byTestId(tree, "rec-provider-box"), (n) => n.type === "input");
   assert.equal(box.props.placeholder, "Microsoft 365, for example");
   box.props.onChange({ target: { value: "  Microsoft 365  " } });

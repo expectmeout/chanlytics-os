@@ -101,7 +101,7 @@ test("the notices of a batch say its wait by the rule: ready (until its day ends
   assert.equal(coldBatchGoesNotice("Dentists", 1, "today 10:30 AM").subject.endsWith(": 1 business"), true);
   const skipped = skippedRunNotice("Win-back", 3, "quiet_30");
   assert.equal(skipped.subject, "“Win-back” didn’t go: nobody approved it");
-  assert.match(skipped.body, /^3 people waited for your approval until the day ended, and nothing was sent\./);
+  assert.match(skipped.body, /^3 people waited for your approval all day, so nothing was sent\./);
   // Today's row for the waiting run says its wait by the same rule: a customer batch's ends with its day, a reach-out's
   // and a one-off's do not.
   const row = { state: "pending_approval", recipient_count: 4, when: "today", counts: { sent: 0, replied: 0 } };
@@ -128,7 +128,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   );
   assert.equal(
     ready.body,
-    "3 people have become eligible for “Appointment reminder”. Approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock. After that it's skipped and doesn't reach them.",
+    "3 people have become eligible for “Appointment reminder”: approve or skip it from your Inbox or Today. Goes only if you approve it before 21:00 by your clock. After that it's skipped and doesn't reach them.",
   );
   // Today's row, which the notice sends the owner to, says its wait the one way (and so does Coming up, which reads it).
   const row = { state: "pending_approval", recipient_count: 3, when: "today", counts: { sent: 0, replied: 0 } };
@@ -163,7 +163,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
   ]) {
     assert.equal(
       readyRunNotice("Win-back", 4, trigger).body,
-      "4 people have become eligible for “Win-back”. Approve or skip it from your Inbox or Today. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
+      "4 people have become eligible for “Win-back”: approve or skip it from your Inbox or Today. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
       String(trigger),
     );
     assert.equal(
@@ -173,7 +173,7 @@ test("REGRESSION: a reminder nobody approved told its owner its people were in l
     );
     assert.equal(
       skippedRunNotice("Win-back", 3, trigger).body,
-      "3 people waited for your approval until the day ended, and nothing was sent. They are in line for its next send, which waits for your approval too: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
+      "3 people waited for your approval all day, so nothing was sent. They're in line for its next send: its sends wait until you approve one, and every one waits while “Before each send” in its How it runs says to ask.",
       String(trigger),
     );
   }

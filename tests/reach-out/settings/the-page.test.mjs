@@ -821,7 +821,7 @@ test("who never hears says how many, by address, the three of them, and a count 
   press(byTestId(tree, "rec-row-act-never"));
   tree = redrawTab();
   const sheet = textOf(byTestId(tree, "rec-never-sheet"));
-  assert.match(sheet, /Your customers3/);
+  assert.match(sheet, /Customers3/);
   assert.match(sheet, /Said no4/);
   assert.match(sheet, /Asked to stop2/);
   unmount();

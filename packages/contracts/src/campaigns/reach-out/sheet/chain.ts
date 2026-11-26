@@ -215,6 +215,7 @@ export const REACH_OUT_ROW_WORDS = {
 export function chainHintOf(reachOutChain: ReachOutChainDto, from: string | null): string {
   const labels = reachOutChain.steps.map((s) => stepLabelOf(s).toLowerCase());
   const by = reachOutChain.owner_sends ? " · you send them" : from ? ` · from ${from}` : "";
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   return `${labels.join(", ").replace(/^your email/, "Your email")}${by}`;
 }
 
@@ -309,7 +310,7 @@ export function emailTemplateWords(params: { chainName: string; stepN: number; a
     /** The fold the check is read under, where its sentence stood open under every email (the fitted sheets). */
     checkLabel: "What is checked before each send",
     checkNote:
-      "Checked before each send: every slot filled or the email held · the opening's facts in the finder's record · under 120 words · the footer present · the language theirs.",
+      "Checked before each send: every slot filled · facts on record · under 120 words · the footer · their language.",
     /** The act that opens the whole reach-out, whose days, pace and mailboxes are its own. */
     edit: "Edit the campaign",
   };

@@ -159,6 +159,6 @@ test("the page names the email it is about, and a press that did not go through 
   assert.match(done.lead, /You're unsubscribed from emails from sam@harbor-mail\.com\./);
   const failed = unsubscribePageWords({ kind: "unavailable", retry: true });
   assert.equal(failed.button, "Try again");
-  assert.match(failed.body, /Or reply to the email and ask them to stop\./);
+  assert.match(failed.body, /or reply to the email and ask them to stop\./);
   assert.equal(unsubscribePageWords({ kind: "unavailable" }).button, null, "no secret: nothing a press could do");
 });

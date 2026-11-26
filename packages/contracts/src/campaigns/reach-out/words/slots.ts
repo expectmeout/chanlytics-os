@@ -42,7 +42,9 @@ const REACH_OUT_SLOT_LABELS: Record<ReachOutSlot, string> = {
   title: "Their title",
   role: "Their role",
   city: "Their city",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   "your name": "Your name",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   "your business": "Your business",
   "booking link": "Booking link",
   "their preview": "Their preview",

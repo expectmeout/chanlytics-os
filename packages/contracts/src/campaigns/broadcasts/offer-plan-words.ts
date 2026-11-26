@@ -94,9 +94,8 @@ const EN: OfferWords = {
   paced: (room, audience, cap) =>
     `${roomEn(room, audience)}, so the offer goes as a campaign: up to ${cap} a day, each person once, until it ends, starting when you approve it.`,
   roomTight: (room, audience, from) =>
-    `${roomEn(room, audience)}, and the send goes to the whole list at once: to pace the offer to the room instead, dismiss the send and ask again on ${from}.`,
-  whatsappReview:
-    "Its WhatsApp version waits on WhatsApp's review, which may still be running at the first send: whoever it reaches on WhatsApp waits for it.",
+    `${roomEn(room, audience)}, and the send goes to the whole list at once. To pace it to the room, dismiss it and ask again on ${from}.`,
+  whatsappReview: "WhatsApp is still checking its words, so whoever it reaches on WhatsApp waits for it.",
   reminderAsk: (day, list) => `On ${day}, ask me to send a reminder to whoever on “${list}” has not booked by then.`,
   does: {
     keeps: "Keeps these words for your next offer.",
@@ -176,9 +175,8 @@ const ES: OfferWords = {
   paced: (room, audience, cap) =>
     `${roomEs(room, audience)}, así que la oferta va como campaña: hasta ${cap} al día, cada persona una vez, hasta que termine, desde que la apruebes.`,
   roomTight: (room, audience, from) =>
-    `${roomEs(room, audience)}, y el envío va a toda la lista a la vez: para ajustarla a los huecos, descarta el envío y pídemelo otra vez el ${from}.`,
-  whatsappReview:
-    "Su versión de WhatsApp espera la revisión de WhatsApp, que puede seguir en el primer envío: quien la reciba por WhatsApp espera a que termine.",
+    `${roomEs(room, audience)}, y el envío va a toda la lista a la vez. Para ajustarla a los huecos, descártalo y pídemelo otra vez el ${from}.`,
+  whatsappReview: "WhatsApp aún revisa sus palabras, así que quien la reciba por WhatsApp espera a que termine.",
   reminderAsk: (day, list) =>
     `El ${day}, pídeme que envíe un recordatorio a quien de «${list}» no haya reservado para entonces.`,
   does: {

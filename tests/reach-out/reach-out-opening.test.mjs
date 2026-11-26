@@ -110,7 +110,7 @@ test("each hold says why in a line, and offers only the doors that can answer it
   assert.equal(holdWords("abroad", "FR"), "they're in France, where writing to a business first may need its say");
   assert.deepEqual(holdDoors("abroad"), ["include", "skip"]);
   assert.equal(holdWords("chain", "site:3"), "reads like a chain: 3 listings share their website");
-  assert.equal(holdWords("language", "es"), "their listing reads in Spanish; the email is in English");
+  assert.equal(holdWords("language", "es"), "their listing reads in Spanish, and the email is in English");
   assert.equal(holdWords("customer_domain", "hydepark.example"), "a person in People writes from hydepark.example");
   // A chain's no keeps the lead, as every other hold's does; Not a fit closes it.
   assert.deepEqual(holdDoors("chain"), ["include", "not_a_fit", "skip"]);
@@ -154,7 +154,7 @@ test("each hold says why in a line, and offers only the doors that can answer it
   assert.equal(heldWhyOf("chain", "site:3"), "Reads like a chain: 3 listings share their website");
   assert.equal(
     heldWhyOf("check_unavailable", null),
-    "The check couldn't run; it tries again on its own within the hour",
+    "The check couldn't run · it tries again on its own within the hour",
   );
 });
 
@@ -501,21 +501,27 @@ test("the reader names what a claim it refused is about, and a held email says i
   assert.deepEqual(heldClaimOf(v.detail), { kind: "calls", said: "does someone answer every one" });
   // What it guessed at, and that nothing found on them says so; a detail, or an older hold's words alone, quoted.
   const why = (detail) => holdWords("unbacked_fact", detail);
-  assert.equal(why(v.detail), "the opening guesses at their calls; nothing we read of them says so");
+  assert.equal(why(v.detail), "the opening guesses at their calls; nothing Chanlytics read of them says so");
   assert.equal(
     why("busy:clearly you're handling real volume"),
-    "the opening guesses how busy they are; nothing we read of them says so",
+    "the opening guesses how busy they are; nothing Chanlytics read of them says so",
   );
-  assert.equal(why("revenue:x"), "the opening guesses at their revenue; nothing we read of them says so");
-  assert.equal(why("feelings:x"), "the opening guesses at how they feel; nothing we read of them says so");
-  assert.equal(why("problems:x"), "the opening guesses at a problem they have; nothing we read of them says so");
-  assert.equal(why("plans:x"), "the opening guesses at their plans; nothing we read of them says so");
-  assert.equal(why("detail:award-winning"), "the opening says “award-winning”; nothing we read of them says so");
-  assert.equal(why("loved by locals"), "the opening says “loved by locals”; nothing we read of them says so");
+  assert.equal(why("revenue:x"), "the opening guesses at their revenue; nothing Chanlytics read of them says so");
+  assert.equal(why("feelings:x"), "the opening guesses at how they feel; nothing Chanlytics read of them says so");
+  assert.equal(
+    why("problems:x"),
+    "the opening guesses at a problem they have; nothing Chanlytics read of them says so",
+  );
+  assert.equal(why("plans:x"), "the opening guesses at their plans; nothing Chanlytics read of them says so");
+  assert.equal(
+    why("detail:award-winning"),
+    "the opening says “award-winning”; nothing Chanlytics read of them says so",
+  );
+  assert.equal(why("loved by locals"), "the opening says “loved by locals”; nothing Chanlytics read of them says so");
   // A colon in the words is no kind: "open until 8:30 PM" is all words.
   assert.deepEqual(heldClaimOf("open until 8:30 PM"), { kind: null, said: "open until 8:30 PM" });
-  assert.equal(why(null), "the opening says something we couldn't find in what we read of them");
-  assert.equal(why("calls:"), "the opening guesses at their calls; nothing we read of them says so");
+  assert.equal(why(null), "the opening says something not found in what Chanlytics read of them");
+  assert.equal(why("calls:"), "the opening guesses at their calls; nothing Chanlytics read of them says so");
   // What a send stores beside the reason stays inside its column (sequence_sends.hold_detail, 120 at most).
   const long = openingVerdict(null, read({ unbacked: "w".repeat(300), kind: "problems" }), "en", SAID);
   assert.ok(long.detail.length <= 120, long.detail.length);

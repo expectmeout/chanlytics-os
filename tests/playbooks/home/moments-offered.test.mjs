@@ -429,7 +429,7 @@ test("the home's moments to turn on: none retired, and one win-back -- the one t
       .map((r) => [r.id, r.name, (r.act ?? r.open).kind]),
     [
       ["pb-welcome", "Welcome", "open"],
-      ["pb-save", "Save our number", "open"],
+      ["pb-save", "Save the number", "open"],
     ],
     "a line each, as they were, to open",
   );

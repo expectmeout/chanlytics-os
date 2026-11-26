@@ -376,7 +376,7 @@ test("a held email shows the opening it would send with the words the check refu
   const c = held("c", "chain", "site:3", "KVITKA has a 4.8 rating across 201 reviews.");
   const vm = peopleNeedsOf([a, b, c], { timezone: TZ, now: NOW });
   const [va, vb, vc] = vm.held;
-  assert.equal(va.why, "The opening guesses at their calls; nothing we read of them says so");
+  assert.equal(va.why, "The opening guesses at their calls; nothing Chanlytics read of them says so");
   assert.deepEqual(va.opening, {
     before: "You're open 24 hours. When calls come in at 2 AM, ",
     said: "does someone answer every one",
@@ -401,7 +401,7 @@ test("a held email shows the opening it would send with the words the check refu
     ["a", "b"],
   );
   assert.equal(vm.cause, "Same reason for 2 of 3: the opening guesses at their calls.");
-  assert.equal(vm.advice, "A rewrite says only what we found on them.");
+  assert.equal(vm.advice, "A rewrite says only what was found on them.");
   const all = peopleNeedsOf([a, b], { timezone: TZ, now: NOW });
   assert.equal(all.cause, "Same reason for all 2: the opening guesses at their calls.");
   // Two reasons, or one email, say no shared reason; holds stored before their kind read as a detail.
@@ -414,7 +414,7 @@ test("a held email shows the opening it would send with the words the check refu
   );
   assert.equal(
     old.cause,
-    "Same reason for all 2: the opening says something we couldn't find in what we read of them.",
+    "Same reason for all 2: the opening says something not found in what Chanlytics read of them.",
   );
   // Nothing held for its words: no rewrite, no advice.
   const lead = peopleNeedsOf([c], { timezone: TZ, now: NOW });
@@ -439,7 +439,7 @@ test("a person's why is said once for People's line and Ask's read: a held email
   const p = (group, why, hold_detail) => ({ group, why, hold_detail });
   assert.equal(
     sequencePersonWhyOf(p("held", "unbacked_fact", "calls:does someone answer every one")),
-    "The opening guesses at their calls; nothing we read of them says so",
+    "The opening guesses at their calls; nothing Chanlytics read of them says so",
   );
   assert.equal(sequencePersonWhyOf(p("held", "chain", "site:3")), "Reads like a chain: 3 listings share their website");
   // A held row whose reason is none of the check's, and every other group, say what came, the detail first.

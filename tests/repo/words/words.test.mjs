@@ -180,6 +180,11 @@ test("the voice's marks: we, an apology, a click, a dash, a semicolon, a Your la
     "a JSX text is read as the screen draws its entities",
   );
   assert.deepEqual(
+    said("const body = \"Hi {{1}}, it's {{2}}. We'd love to see you again; reply to book.\";"),
+    [],
+    "a message a customer is sent, with the places its values fill, is the business's own voice",
+  );
+  assert.deepEqual(
     voiceMarksOf(source("const p = <p>It&apos;s held &mdash; it waits for you to look</p>;")),
     { emDash: 1 },
     "an entity's own semicolon is no semicolon, and a dash written as one is still a dash",

@@ -26,7 +26,7 @@ import { capitalize } from "../../shared/words";
 export function heldWhyOf(reason: ReachOutHold, detail: string | null): string {
   const reasonLine = capitalize(holdWords(reason, detail));
   return reason === "check_unavailable" && !detail
-    ? `${reasonLine}; it tries again on its own within the hour`
+    ? `${reasonLine} · it tries again on its own within the hour`
     : reasonLine;
 }
 
@@ -83,6 +83,7 @@ export function waitingAnswersOf(
 
 /** What a row says of an email whose words are its lead's own (decision 0096), where it would quote the opening. */
 export const OWN_WORDS_SAID = {
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   yours: "Your words",
   held: "You changed its words. Press Send anyway and it goes.",
 } as const;
@@ -136,7 +137,7 @@ export function markedOpeningOf(
 }
 
 /** What a rewrite does, said over the emails held for their words. */
-export const HELD_REWRITE_ADVICE = "A rewrite says only what we found on them.";
+export const HELD_REWRITE_ADVICE = "A rewrite says only what was found on them.";
 
 /**
  * One reason two or more emails held for their words share, said once over them: "Same reason for all 7: the opening
@@ -227,7 +228,7 @@ export const HELD_DECIDE_CARD: Record<ReachOutDecision, { title: string; after: 
   rewrite: {
     title: "Write its opening again",
     after: (change) =>
-      `Its opening is written again at once${change ? `, as asked: “${change}”` : ""}; Undo puts the earlier one back.`,
+      `Its opening is written again at once${change ? `, as asked: “${change}”` : ""} · Undo puts the earlier one back.`,
   },
   skip: { title: "Leave it out of this send", after: () => "Nothing undoes it." },
   not_a_fit: { title: "Set the business aside", after: () => "Nothing undoes it." },

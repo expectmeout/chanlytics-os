@@ -280,7 +280,7 @@ test("one set of names, a Sort that says Needs you keeps its own order, and a se
   );
   assert.deepEqual(
     [SEQUENCE_LIST_WORDS.types.customers, SEQUENCE_LIST_WORDS.types.leads, SEQUENCE_LIST_WORDS.types.once],
-    ["Your customers", "Cold email", "One-off sends"],
+    ["Customers", "Cold email", "One-off sends"],
   );
   assert.equal(SEQUENCE_LIST_WORDS.sorts.needsFirst, "Needs you always lists the longest wait first.");
   const auto = lead({

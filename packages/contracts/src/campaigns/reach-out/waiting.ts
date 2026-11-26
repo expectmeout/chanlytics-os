@@ -83,8 +83,8 @@ export function coldWaitsNotice(
       ? `${stepNameOf(first)} still waits for your approval`
       : `${plural(runs.length, "cold email send")} still wait for your approval`,
     body: one
-      ? `${plural(emails, "email")} to businesses your search found ${emails === 1 ? "has" : "have"} waited since ${since}. Approve ${emails === 1 ? "it" : "them"}, or skip this send. ${waitEndsWords("leads_batch")}.`
-      : `${plural(emails, "email")} to businesses your searches found have waited since ${since}: ${list}. Approve or skip each one. ${waitEndsWords("leads_batch")}.`,
+      ? `${plural(emails, "email")} to businesses your search found ${emails === 1 ? "has" : "have"} waited since ${since}: approve ${emails === 1 ? "it" : "them"}, or skip this send. ${waitEndsWords("leads_batch")}.`
+      : `${plural(emails, "email")} to businesses your searches found have waited since ${since}: ${list} · approve or skip each one. ${waitEndsWords("leads_batch")}.`,
     runId: first.id,
   };
 }

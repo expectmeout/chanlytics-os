@@ -25,11 +25,11 @@ export const COLD_EMAIL_CONNECT_WORDS = {
   },
   other: {
     title: "Not on Google Workspace?",
-    what: "Chanlytics sends through Google Workspace today. Your main email can stay where it is: a Google Workspace mailbox on a second domain works, and is better for cold email anyway.",
+    what: "Chanlytics sends through Google Workspace. Keep your main email: a second-domain Workspace mailbox suits cold email.",
     help: "How to set that up",
-    tellLabel: "Use something else? We'll tell you when it's ready.",
+    tellLabel: "Use something else? Chanlytics tells you when it's ready.",
     placeholder: "Microsoft 365, for example",
-    tell: "Tell us",
-    thanks: "Thanks. We'll tell you when it's ready.",
+    tell: "Tell Chanlytics",
+    thanks: "Thanks · Chanlytics tells you when it's ready.",
   },
 } as const;
