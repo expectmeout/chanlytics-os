@@ -155,7 +155,7 @@ function emailsNeedYou(
   by: CalendarSourceVM["by"],
   times: boolean,
 ): CalendarSourceVM | null {
-  const tool = bookingToolName(sourceFacts.tool) ?? "Your booking tool";
+  const tool = bookingToolName(sourceFacts.tool) ?? "The booking tool";
   if (step === "address")
     return {
       by,
@@ -404,7 +404,7 @@ export function calendarLinkNote(withWhat: string, bookingLink: boolean): string
   if (!withWhat) return "";
   if (withWhat === BOOKS_BY_HAND) return `Nothing to connect. ${noTimesWords(bookingLink)}`;
   if (withWhat === BOOKS_WITH_CALENDAR) return "Paste the private address of the calendar your bookings land in.";
-  const tool = bookingToolName(withWhat) ?? "Your tool";
+  const tool = bookingToolName(withWhat) ?? "The booking tool";
   const kind = bookingToolCalendar(withWhat);
   if (kind === "none") return `${tool} offers no calendar link. ${noTimesWords(bookingLink)}`;
   if (kind === "own") return `${tool} offers a calendar link of its own. Paste it here.`;

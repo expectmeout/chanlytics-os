@@ -446,6 +446,7 @@ function mailboxRows(dto: ReachOutReportDto, nowMs: number): ReachOutMailboxRow[
       ? // Sent from their own inbox (00429): a bounce or a complaint reaches them, never us, so no share is said.
         {
           id: "your-inbox",
+          // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
           address: "Your own inbox",
           state: mailboxStateWords(mailbox, nowMs, dto.timezone),
           held: false,

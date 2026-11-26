@@ -231,7 +231,7 @@ const LEAD_FIRST_DAY = {
   /** The way on to what is said to the businesses found. */
   coldEmail: "What your emails would say: Cold email",
   title: "Find your next customers",
-  sub: "We'll find them, and how to reach each one.",
+  sub: "Chanlytics finds them, and how to reach each one.",
   ask: "Describe who you want",
   /** The field's arrow, to a screen reader: what pressing it does. */
   send: "Find them",
@@ -242,6 +242,7 @@ const LEAD_FIRST_DAY = {
   edit: "Edit",
   /** New ideas from the same line, when the owner wants others (00399). */
   newIdeas: "New ideas",
+  // screen-word: "Your" tells the owner's own from the lead's, AI's or a provider's (docs/words.md, The voice 5)
   lineTitle: "Your business",
   lineSub: "Your ideas are written from this.",
   lineLabel: "What your business does",

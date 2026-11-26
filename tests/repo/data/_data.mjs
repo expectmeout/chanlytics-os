@@ -122,8 +122,6 @@ export const SERVICE_ROLE_KEPT = {
     "How a piece was made keeps its words (files.made, a piece's plan), written by the server alone",
   "apps/dashboard/src/server/posts/google.ts":
     "A post's attempt at Google and its moves (post_attempts, post_moved): every move of a post is the service role's door",
-  "apps/dashboard/src/server/posts/seen.ts":
-    "The owner's word on an unconfirmed post moves it through post_moved, as every move of a post is",
   "apps/dashboard/src/server/leads/suggestions.ts":
     "The ideas the model writes for a search: no member writes lead_suggestions (00142), and its one writer is the service role's (00400)",
   "apps/dashboard/src/server/leads/send.ts":
@@ -141,8 +139,6 @@ export const SERVICE_ROLE_KEPT = {
   // A write a member's role allows but no door takes yet: each goes when its door is written with its event.
   "apps/dashboard/src/server/calendar/notices.ts":
     "A held booking notice dismissed: members hold no write on the appointment ledger (00345), and a dismissal has no event of its own yet",
-  "apps/dashboard/src/server/content/plan.ts":
-    "The slots a week's approval left out, held with why once the member's own press is taken: a member's session writes no slot but through its doors",
   "apps/dashboard/src/server/ask/act/stop.ts":
     "Stop everything: any member who acts may stop, below the settings role that writes the workspace's config; the stop is the workspace's own row, written first",
   "apps/dashboard/src/server/ask/companion/morning.ts":

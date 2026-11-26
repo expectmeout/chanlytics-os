@@ -19,7 +19,8 @@ import {
   PolicyLimitsSchema,
   PROFILE_NAME_MAX,
 } from "@chanlytics/contracts";
-import { ROOT, readCode, readRaw } from "../_source.mjs";
+import { ROOT, readRaw } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const judge = await import(pathToFileURL(path.join(here, "../../tooling/scripts/eval-judge.mjs")).href);
@@ -236,46 +237,27 @@ test("the runner knocks with a token for the door, the workspace and the body, a
   assert.ok(runner.includes("tooling/backups/eval-"), "the exchange is saved where git ignores it");
 });
 
-test("every reply leaves a quality signal on its usage event, and the diagnostics read the day back", () => {
-  // The turn's clock (model-turn.ts) and the signal it leaves on the usage event (dispatch.ts).
-  const wa = ["model-turn", "dispatch"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
-  assert.ok(wa.includes("const tBrain = Date.now();") && wa.includes("brainMs = Date.now() - tBrain;"));
-  assert.ok(
-    wa.includes("intent: brainMeta?.intent ?? null,") &&
-      wa.includes("confidence: brainMeta?.confidence ?? null,") &&
-      wa.includes("latency_ms: brainMs,"),
-  );
-  assert.equal(
-    (wa.match(/sink\.usage\(\{ \.\.\.usage, \.\.\.replyQuality \}\)/g) ?? []).length,
-    2,
-    "the held path and the sent path",
-  );
-  assert.ok(readCode("apps/edge/lib/inbound/persist.ts").includes("usage: (u: Record<string, unknown>) =>"));
-  // The diagnostic reading the day back (getBrainSummary) is run in diag-door.test.mjs.
-  // The read is packages/db's (decision 0111); the budget pages through it.
-  const b = readCode("apps/edge/lib/ai/budget.ts");
-  assert.ok(b.includes("pageLlmUsage(db, {"));
-  assert.ok(readCode("packages/db/src/repositories/ai/usage.ts").includes('.eq("kind", "usage.llm_tokens")'));
-  assert.ok(b.includes("return 0;"), "a failed read never silences the receptionist");
-});
+// Every reply leaves a quality signal on its usage event -- how sure it was and how long it took, on the held path and
+// the sent path -- and the edge keeps it on the thread's usage event: run in receptionist/prompt/what-it-knows-and-how-sure-it-was.test.mjs.
+// The diagnostic reading the day back (getBrainSummary) is run in diag-door.test.mjs; the budget's one read of the
+// day's tokens, and that a failed read never silences the receptionist, in budget.test.mjs. Pinned as model-turn,
+// dispatch, persist, budget and the usage repository's text until 26 Nov 2026.
 
-test("the token budget: a policy limit, a check before the brain, a labelled reason with its CHECK", () => {
+test("the token budget: a policy limit, a check before the brain, a labelled reason with its CHECK", async () => {
   assert.ok(PolicyLimitsSchema.safeParse({ max_llm_tokens_day: 200000 }).success);
   assert.ok(!PolicyLimitsSchema.safeParse({ max_llm_tokens_day: 10 }).success, "below a sensible floor");
   assert.ok(ESCALATION_REASONS.includes("budget"));
   assert.ok(ESCALATION_REASON_LABELS.budget.includes("daily AI limit"));
-  const wa = readCode("packages/core/src/inbound/reply-gates.ts");
-  assert.ok(
-    wa.includes("const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);"),
-    "the cap is handed to the read, which stops at it",
-  );
-  assert.ok(/handToAPerson\(at, \{\s*reason: "budget",/.test(wa));
-  assert.ok(wa.includes('"(no reply sent · the daily AI limit is reached)"'));
-  const sql = readRaw("supabase/migrations/00039_budget_reason.sql");
-  assert.ok(sql.includes("'budget'"), "the CHECK admits the reason");
-  const route = readCode(
-    "apps/dashboard/app/api/v1/policies/route.ts",
-    "apps/dashboard/src/server/campaigns/policy-write.ts",
-  );
-  assert.ok(route.includes("limits.max_llm_tokens_day = Math.round(t);"));
+  // The check before the brain, handing a person the thread in words that say how much was used, and the dial saved as
+  // a whole number: run in receptionist/prompt/what-it-knows-and-how-sure-it-was.test.mjs (pinned as reply-gates.ts's and the policies
+  // route's text until 26 Nov 2026). The reason is one the database admits (00039), as the database in memory holds it.
+  const db = fakeDb({ escalations: [] });
+  const hold = (reason) =>
+    db
+      .from("escalations")
+      .insert({ tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", conversation_id: "c1", reason })
+      .select("id")
+      .single();
+  assert.equal((await hold("budget")).error, null, "the CHECK admits the reason");
+  assert.equal((await hold("over_budget")).error?.code, "23514");
 });

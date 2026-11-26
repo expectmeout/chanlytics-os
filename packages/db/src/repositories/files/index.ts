@@ -153,6 +153,7 @@ export {
   pullPost,
   queuePostAgain,
   reportPost,
+  sayPostSeen,
 } from "./posts";
 export type {
   MemberFilePostRow,
