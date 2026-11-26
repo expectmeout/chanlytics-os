@@ -26387,6 +26387,11 @@ begin
   update public.owner_claims set withdrawn_at = now()
    where tenant_id = p_tenant_id and id = p_claim_id and withdrawn_at is null;
   get diagnostics v_done = row_count;
+  if v_done > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'owner_claim.withdrawn', 'setup', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('claim_id', p_claim_id, 'by', auth.uid())));
+  end if;
   return v_done > 0;
 end $$;
 
@@ -26424,6 +26429,9 @@ begin
   insert into public.owner_claims (tenant_id, kind, text, source, valid_until, created_by)
   values (p_tenant_id, p_claim ->> 'kind', btrim(p_claim ->> 'text'), p_claim ->> 'source', v_until, v_actor)
   returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'owner_claim.kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('claim_id', v_row.id, 'claim', v_row.kind, 'source', v_row.source, 'by', v_actor)));
   return to_jsonb(v_row);
 end $$;
 
@@ -28712,6 +28720,11 @@ begin
    where c.id = p_contact_id
      and c.tenant_id = p_tenant_id
      and c.erased_at is null;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'contact.before_kept', 'contact', 'contact', p_contact_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(v_before) k), 'notes', v_notes is not null, 'by', (select auth.uid()))));
+  end if;
 end $$;
 
 
@@ -29485,6 +29498,9 @@ begin
     return jsonb_build_object('declined', false, 'why', 'settled');
   end if;
   update public.contacts set name_settled_at = now(), updated_at = now() where id = p_contact_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'contact.name_declined', 'contact', 'contact', p_contact_id,
+          jsonb_strip_nulls(jsonb_build_object('message_id', p_message_id, 'by', v_user)));
   return jsonb_build_object('declined', true, 'contact_id', p_contact_id);
 end $$;
 

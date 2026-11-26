@@ -3387,3 +3387,130 @@ begin
   delete from public.lead_judgments where created_at < now() - interval '180 days';
   return v_total;
 end $$;
+/* -- what the owner says of the business and of a person: each with its event -- */
+
+-- A claim the owner makes of the business kept or withdrawn writes owner_claim.kept or .withdrawn; what a client file
+-- said of a person before (their visits, their notes) writes contact.before_kept; a name the reply offered and a member
+-- declined writes contact.name_declined, each in its own transaction. All are kept from Activity's rows: the person's
+-- page and the business's facts say each.
+
+-- owner_claims_keep
+CREATE OR REPLACE FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_row    public.owner_claims;
+  v_until  date;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_claim) <> 'object' then
+    raise exception 'A claim is an object.' using errcode = '22023';
+  end if;
+  v_until := nullif(p_claim ->> 'valid_until', '')::date;
+  insert into public.owner_claims (tenant_id, kind, text, source, valid_until, created_by)
+  values (p_tenant_id, p_claim ->> 'kind', btrim(p_claim ->> 'text'), p_claim ->> 'source', v_until, v_actor)
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'owner_claim.kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('claim_id', v_row.id, 'claim', v_row.kind, 'source', v_row.source, 'by', v_actor)));
+  return to_jsonb(v_row);
+end $$;
+
+-- owner_claim_withdraw
+CREATE OR REPLACE FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_done integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.owner_claims set withdrawn_at = now()
+   where tenant_id = p_tenant_id and id = p_claim_id and withdrawn_at is null;
+  get diagnostics v_done = row_count;
+  if v_done > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'owner_claim.withdrawn', 'setup', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('claim_id', p_claim_id, 'by', auth.uid())));
+  end if;
+  return v_done > 0;
+end $$;
+
+-- person_before_note
+CREATE OR REPLACE FUNCTION public.person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb DEFAULT NULL::jsonb, p_notes text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_notes  text := left(nullif(btrim(regexp_replace(coalesce(p_notes, ''), '\s+', ' ', 'g')), ''), 600);
+  v_before jsonb;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_before is not null and jsonb_typeof(p_before) <> 'object' then
+    raise exception 'What came before is an object.' using errcode = '22023';
+  end if;
+  -- Only the keys the column holds.
+  select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) into v_before
+    from jsonb_each(coalesce(p_before, '{}'::jsonb))
+   where key in ('via', 'last_visit', 'visits', 'birthday');
+  update public.contacts c
+     set notes  = coalesce(c.notes, v_notes),
+         before = case when v_before = '{}'::jsonb then c.before else v_before || coalesce(c.before, '{}'::jsonb) end
+   where c.id = p_contact_id
+     and c.tenant_id = p_tenant_id
+     and c.erased_at is null;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'contact.before_kept', 'contact', 'contact', p_contact_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(v_before) k), 'notes', v_notes is not null, 'by', (select auth.uid()))));
+  end if;
+end $$;
+
+-- person_name_decline
+CREATE OR REPLACE FUNCTION public.person_name_decline(p_contact_id uuid, p_message_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id and c.erased_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  perform 1 from public.contacts where id = p_contact_id for update;
+  update public.sequence_replies r
+     set signer_state = 'declined', signer_settled_at = now(), signer_settled_by = v_user
+   where r.message_id = p_message_id and r.tenant_id = v_tenant
+     and r.contact_id = p_contact_id
+     and r.signer_state = 'offered';
+  if not found then
+    return jsonb_build_object('declined', false, 'why', 'settled');
+  end if;
+  update public.contacts set name_settled_at = now(), updated_at = now() where id = p_contact_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'contact.name_declined', 'contact', 'contact', p_contact_id,
+          jsonb_strip_nulls(jsonb_build_object('message_id', p_message_id, 'by', v_user)));
+  return jsonb_build_object('declined', true, 'contact_id', p_contact_id);
+end $$;
