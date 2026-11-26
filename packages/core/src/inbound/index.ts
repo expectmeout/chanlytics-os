@@ -34,4 +34,4 @@ export {
 export type { LayerTwoIn, LayerTwoOut } from "./steps";
 export { isThreadUnknown, unreadableThread } from "./thread";
 export type { ThreadState, ThreadTurn } from "./thread";
-export { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES, VISION_MIMES } from "./vision";
+export { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "./vision";

@@ -15,13 +15,6 @@
    under a bar that stays (mobile.css). */
 .cal-pane { display: contents; }
 
-.cal-week-range {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
-  letter-spacing: -0.005em;
-}
-
 .cal-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -57,13 +50,13 @@
   gap: 6px;
 }
 .cal-dow {
-  font-size: 10.5px;
+  font-size: var(--text-2xs);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-dim);
 }
-.cal-date { font-size: 12px; color: var(--ink); font-weight: 500; }
+.cal-date { font-size: var(--text-label); color: var(--ink); font-weight: 500; }
 /* One today mark (D9): the date in the accent's filled circle, in the week's head, the month and the day; the column's
    tint, the agenda's ring and the accent words were three more, each its own. */
 .cal-dayhead.today .cal-date,
@@ -87,7 +80,7 @@
   position: absolute;
   right: 8px;
   transform: translateY(-6px);
-  font-size: 10px;
+  font-size: var(--text-2xs);
   color: var(--ink-faint);
   white-space: nowrap;
 }
@@ -133,7 +126,7 @@
   position: absolute;
   left: 4px; right: 4px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--bg-raised);
   padding: 5px 8px;
   text-align: left;
@@ -164,7 +157,7 @@
   flex: 1;
 }
 .cal-appt-service {
-  font-size: 10px;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -174,21 +167,6 @@
 
 .cal-sync-spacer { flex: 1; }
 @keyframes cal-spin { to { transform: rotate(360deg); } }
-
-.cal-ev-flash {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  font-size: 11.5px;
-  color: var(--ink-muted);
-  animation: route-in 0.2s var(--ease-out);
-}
-.cal-ev-flash.ok { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
 
 /* ---------- Closed and out-of-hours time ---------- */
 .cal-unavail {
@@ -206,14 +184,12 @@
   justify-content: center;
 }
 .cal-unavail.full span {
-  font-size: 10px;
+  font-size: var(--text-2xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-faint);
   font-weight: 500;
 }
-
-.cal-pick { width: 320px; max-width: calc(100vw - 24px); }
 
 /* Day view: single wide column */
 /* One column needs no width floor: Day view kept the week's 980px, so on a phone one day was 980px wide. */
@@ -222,17 +198,13 @@
 .cal-dayhead-open { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-sm); }
 @media (hover: hover) { .cal-dayhead-open:hover .cal-dow { color: var(--ink); } }
 
-/* Footer actions wrap instead of clipping the last button */
-.st-modal-foot{flex-wrap:wrap;row-gap:6px}
-.st-modal-foot-actions{flex-wrap:wrap;row-gap:6px;justify-content:flex-end}
-
 /* ---- The real board: taken blocks from the feed, open windows, the feed's state ---- */
 .cal-appt.feed { background: var(--bg-raised); border-color: var(--line-strong); cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
 @media (hover: hover) { .cal-appt.feed:hover { border-color: var(--ink-faint); } }
 .cal-col.past .cal-appt.feed { opacity: 0.7; }
 .cal-open { position: absolute; left: 4px; right: 4px; border: 0; border-radius: var(--radius-sm); background: var(--ok-soft); padding: 3px 6px; overflow: hidden; pointer-events: auto; }
-.cal-open-label { font-size: 10px; color: var(--ok-ink); white-space: nowrap; }
-.cal-allday { display: block; max-width: 100%; margin-top: 2px; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bg-raised); font: inherit; font-size: 10px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.cal-open-label { font-size: var(--text-2xs); color: var(--ok-ink); white-space: nowrap; }
+.cal-allday { display: block; max-width: 100%; margin-top: 2px; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-full); background: var(--bg-raised); font: inherit; font-size: var(--text-2xs); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 /* Keys are for a keyboard: a touch screen is not told to press arrows (C4). */
 
 /* On a touch screen frame.css gives every control 44 px of height. The ‹ › arrows get the width to match (they were
@@ -272,7 +244,7 @@
 .cal-rules-label .cal-door { gap: 4px; font-size: var(--text-xs); }
 .cal-month { display: flex; flex-direction: column; margin: 0 var(--cal-gutter, 28px) 12px; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-raised); }
 .cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
-.cal-month-head span { padding: 6px 10px; font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.cal-month-head span { padding: 6px 10px; font-size: var(--text-2xs); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
 .cal-month-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
 .cal-month-row:last-child { border-bottom: none; }
 .cal-month-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 84px; padding: 8px 10px; border-left: 1px solid var(--line); background: transparent; color: var(--ink); min-width: 0; }
@@ -284,11 +256,11 @@
 .cal-month-cell.muted .cal-month-num { color: var(--ink-faint); }
 .cal-month-cell.closed { background: var(--bg-sunken); }
 .cal-month-num { font-size: var(--text-sm); font-weight: 500; }
-.cal-month-closed, .cal-month-none { font-size: 10.5px; color: var(--ink-faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-month-closed, .cal-month-none { font-size: var(--text-2xs); color: var(--ink-faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-month-counts { display: flex; flex-wrap: wrap; gap: 4px; }
-.cal-month-taken { font-size: 10.5px; color: var(--ink-muted); }
-.cal-month-open { font-size: 10.5px; color: var(--ok-ink); }
-.cal-month-allday { font-size: 10px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line-strong); border-radius: var(--radius-full); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-month-taken { font-size: var(--text-2xs); color: var(--ink-muted); }
+.cal-month-open { font-size: var(--text-2xs); color: var(--ok-ink); }
+.cal-month-allday { font-size: var(--text-2xs); color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line-strong); border-radius: var(--radius-full); padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-agenda { display: flex; flex-direction: column; gap: 8px; margin: 0 var(--cal-gutter, 28px) 12px; }
 .cal-agenda-day { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 .cal-agenda-day.past { opacity: 0.7; }
@@ -326,7 +298,7 @@
   html.frame-on .cal-rules .cal-refresh { position: relative; min-height: 0; height: 30px; }
   .cal-refresh::after { content: ""; position: absolute; inset: -7px -4px; }
 }
-.cal-reading { margin: 0 var(--cal-gutter, 28px) 12px; font-size: 11.5px; color: var(--ink-dim); }
+.cal-reading { margin: 0 var(--cal-gutter, 28px) 12px; font-size: var(--text-xs); color: var(--ink-dim); }
 
 /* ---- The calendar first ----
    One bar of controls and one line of counts over the board, and the hours, the rules and the calendar's source one tap

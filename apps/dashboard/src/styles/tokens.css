@@ -93,9 +93,19 @@
      the breakpoints measure, which counts the other widths still in use; on 5 October
      2026, 640 and 760 the most). A width it holds as it was is a design call
      on its page, not a rename: it waits there until its page comes to one of
-     these. */
+     these.
+
+     And two a page's own, said here so the set holds them (25 Nov 2026, lane 8: the last two widths left off it) --
+
+       small  -- the smallest phones, 320 to 360px across: a strip sized for a phone of 375 scrolls across there
+                 (Conversations' five channel tabs are 334px, and a 320px phone has 288; conversations.css .cv-filters)
+       wide   -- Reports' cards stand side by side over it, and a wide one takes the row under it (reports.css). It came
+                 before the desk's rail (--bp-desk), which now leaves a 1200px window more room than a 1300px one: when
+                 Reports is next redesigned its grid reads its own width, and this goes. */
+  --bp-small: 360px;
   --bp-phone: 720px;
   --bp-narrow: 900px;
+  --bp-wide: 1180px;
   --bp-desk: 1280px;
 
   /* ---------- A list row on a phone (900px and under) ----------
