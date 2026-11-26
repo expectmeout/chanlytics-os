@@ -59,20 +59,21 @@ export function heardAt(person: PersonRowDto): number | null {
   return at.length ? Math.max(...at) : null;
 }
 
+/** A row with no message and no call on record. */
+const NO_CONTACT: PersonLastContact = {
+  ts: null,
+  at: null,
+  kind: null,
+  who: null,
+  by: "No contact recorded",
+  when: "",
+  label: "No contact recorded",
+};
+
 export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
   const result = ts(person.last_message_at);
   const lastCallMs = ts(person.last_call_at);
-  if (result === null && lastCallMs === null) {
-    return {
-      ts: null,
-      at: null,
-      kind: null,
-      who: null,
-      by: "No contact recorded",
-      when: "",
-      label: "No contact recorded",
-    };
-  }
+  if (result === null && lastCallMs === null) return NO_CONTACT;
   if (lastCallMs !== null && (result === null || lastCallMs > result)) {
     // "Phoned" only when THEY did: last_call_at holds the receptionist's own outbound calls too, and the row said
     // "Phoned" over a call we placed (the 2 Oct 2026 audit). heardAt (above) already reads it this way.
@@ -113,7 +114,9 @@ export function lastContactOf(person: PersonRowDto, tz: string, nowMs: number): 
             ? "AI replied"
             : "AI wrote"
           : "Chanlytics sent";
-  const when = ago(result as number, tz, nowMs);
+  // A message, newer than any call: a row with neither returned above, and one with a call alone at the call.
+  if (result === null) return NO_CONTACT;
+  const when = ago(result, tz, nowMs);
   return {
     ts: result,
     at: person.last_message_at,

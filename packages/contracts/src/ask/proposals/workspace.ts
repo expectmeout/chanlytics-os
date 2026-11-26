@@ -4,6 +4,7 @@
 import { ASK_ANSWERS_PANE, ASK_ANSWERS_ROWS, applySettingsChange, type AskSettingsChange } from "../settings-change";
 import { ASK_REACH_OUT_ROWS, isReachOutChange } from "../../config/workspace-config/reach-out-change";
 import { asText, rec, refuseWith, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
+import { entryOf, valueAt } from "../../shared/unknown";
 
 const policyBody = (cls: unknown, mode: unknown, confidence: unknown): Record<string, unknown> => {
   const body: Record<string, unknown> = { class: cls };
@@ -28,11 +29,14 @@ export const policySpec: ProposalSpec = {
     // answers none.
     record: (p, data) => {
       const found = rec(data).was;
-      const prev = (found && typeof found === "object" ? found : (p.payload.previous ?? {})) as {
-        mode?: string | null;
-        min_confidence?: number | null;
+      const prev = found && typeof found === "object" ? found : p.payload.previous;
+      const mode = valueAt(prev, "mode");
+      const confidence = valueAt(prev, "min_confidence");
+      return {
+        class: p.payload.class,
+        mode: typeof mode === "string" ? mode : null,
+        min_confidence: typeof confidence === "number" ? confidence : null,
       };
-      return { class: p.payload.class, mode: prev.mode ?? null, min_confidence: prev.min_confidence ?? null };
     },
     call: (u) =>
       !u.mode && typeof u.min_confidence !== "number"
@@ -84,9 +88,8 @@ export const settingsSpec: ProposalSpecAboveOperator = {
     // A service's amount is kept on Details, in its Services (the Ads tracking plan's T6).
     if (op === "set_service_amounts") return "admin/workspace/services";
     if (!op || !(op in ASK_ANSWERS_ROWS)) return "admin/workspace";
-    const key = op as keyof typeof ASK_ANSWERS_ROWS;
-    const row = ASK_ANSWERS_ROWS[key];
-    const pane = ASK_ANSWERS_PANE[key] ?? "receptionist";
+    const row = entryOf(ASK_ANSWERS_ROWS, op);
+    const pane = entryOf(ASK_ANSWERS_PANE, op) ?? "receptionist";
     return row ? `admin/${pane}/${row}` : `admin/${pane}`;
   },
 };

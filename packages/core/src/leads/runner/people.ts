@@ -29,6 +29,7 @@ import {
   type LeadRole,
   type LeadRoundEnding,
   type LeadRunState,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { CARDS, PEOPLE_CAP_FLOOR_USD, PEOPLE_RUN_TIMEOUT_SECS, type PersonAtCompany } from "../cards";
 import { FINAL_RUN_STATES, runStateOf } from "../endings";
@@ -122,7 +123,7 @@ export async function startPeople(
   const claim = await claimOrRecover(leadPorts, card.actor, row, owner);
   if (claim !== "mine") return said(claim === "recovered" ? "reconciled" : "someone_elses");
   const token = await leadPorts.webhookToken(row.id);
-  const input = { ...(card.buildInput(plan, peopleToAsk(plan)) as Record<string, unknown>), [INPUT_MARKER]: row.id };
+  const input = { ...recordOrEmpty(card.buildInput(plan, peopleToAsk(plan))), [INPUT_MARKER]: row.id };
   try {
     const started = await leadPorts.apify.startRun(card.actor, input, {
       build: card.build,

@@ -13,6 +13,7 @@ import {
   type PipelineVM,
 } from "./vm";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./words";
+import { entryOf } from "../../shared/unknown";
 
 /* ------------------------------------------------ the Pipeline's own views: the rail and the address */
 
@@ -55,7 +56,7 @@ export function pipelineViewLabel(view: PipelineView, pace: DealPaceVM | null): 
   if (view === "lapsed") return PIPELINE_WORDS.rail.lapsed;
   if (view === "steps") return PIPELINE_WORDS.rail.steps;
   if (view === "all") return PIPELINE_WORDS.rail.all;
-  return GROUP_WORDS[view as PipelineGroupKey];
+  return entryOf(GROUP_WORDS, view) ?? PIPELINE_WORDS.rail.all;
 }
 
 /** A person's id as the address may carry it: a person's id is a uuid, and nothing with a separator in it is one. */

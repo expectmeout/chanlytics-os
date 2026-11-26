@@ -18,6 +18,7 @@ import {
   type NewStepDoes,
   type NewWrittenMessage,
 } from "./steps";
+import { valueAt } from "../../../shared/unknown";
 
 /** Something Ask checked before the owner starts it: a tick, or what still needs them (amber). */
 export interface NewCheck {
@@ -356,14 +357,16 @@ export function asDraftedOf(text: string, emails: ReadonlyArray<NewEmail | null>
 /** One email of a kept draft read back, or null where it is a call's, a note's, or in no shape this reads. */
 function draftedEmailOf(v: unknown): NewEmail | null {
   if (!v || typeof v !== "object") return null;
-  const { subject, body } = v as { subject?: unknown; body?: unknown };
+  const subject = valueAt(v, "subject");
+  const body = valueAt(v, "body");
   return typeof body === "string" ? { subject: typeof subject === "string" ? subject : null, body } : null;
 }
 
 /** What a make decision kept, read back from its payload's `as_drafted`, or null where it kept none. */
 export function asDraftedFrom(value: unknown): AsDrafted | null {
   if (!value || typeof value !== "object") return null;
-  const { asked, steps } = value as { asked?: unknown; steps?: unknown };
+  const asked = valueAt(value, "asked");
+  const steps = valueAt(value, "steps");
   if (typeof asked !== "string" || !Array.isArray(steps)) return null;
   return { asked, steps: steps.map(draftedEmailOf) };
 }

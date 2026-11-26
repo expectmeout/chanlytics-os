@@ -3,6 +3,7 @@
  * names it in words; the view models (inbox-thread.ts, conversations/vm.ts) carry it on the bubble.
  */
 import type { MessageDto } from "./thread-dto";
+import { nonEmptyOrNull, valueAt } from "../shared/unknown";
 
 /** An attachment as the thread draws it. */
 export interface MediaVM {
@@ -51,7 +52,7 @@ export function mediaVM(message: MessageDto): MediaVM | null {
   const mime = message.media.mime_type ?? null;
   return {
     messageId: message.id,
-    kind: mediaKind(mime, (message.meta && (message.meta.raw_type as string)) || null),
+    kind: mediaKind(mime, nonEmptyOrNull(valueAt(message.meta, "raw_type"))),
     mime,
     filename: message.media.filename ?? null,
     caption: message.media.caption ?? null,

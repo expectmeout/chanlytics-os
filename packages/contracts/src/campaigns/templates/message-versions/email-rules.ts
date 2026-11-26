@@ -225,9 +225,10 @@ function partText(components: unknown, type: string): string | null {
   const part = components.find((c) => {
     const kind = !!c && typeof c === "object" ? valueAt(c, "type") : null;
     return typeof kind === "string" && kind.toUpperCase() === type;
-  }) as { text?: unknown } | undefined;
+  });
   // A part with no words in it says nothing: the row's preview, or its heading, speaks instead.
-  return typeof part?.text === "string" && part.text.trim() ? part.text : null;
+  const text = valueAt(part, "text");
+  return typeof text === "string" && text.trim() ? text : null;
 }
 
 /**

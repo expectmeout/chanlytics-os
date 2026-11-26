@@ -225,9 +225,7 @@ export function subsetEqual(live: unknown, desired: unknown): boolean {
   if (Array.isArray(desired)) return stableJson(live) === stableJson(desired);
   if (desired && typeof desired === "object") {
     if (!live || typeof live !== "object" || Array.isArray(live)) return false;
-    return Object.entries(recordOrEmpty(desired)).every(([k, v]) =>
-      subsetEqual((live as Record<string, unknown>)[k], v),
-    );
+    return Object.entries(recordOrEmpty(desired)).every(([k, v]) => subsetEqual(recordOrEmpty(live)[k], v));
   }
   return stableJson(live) === stableJson(desired);
 }

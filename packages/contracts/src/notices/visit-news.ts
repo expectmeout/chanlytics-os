@@ -25,7 +25,7 @@ import { visitRoute } from "../calendar/appointment-key";
 import { visitDateKey, visitLine } from "../calendar/people/visits";
 import type { FreedTimeOffer } from "../calendar/visit/freed-time";
 import { MIN_MS } from "../shared/time";
-import { recordOrEmpty } from "../shared/unknown";
+import { recordOrEmpty, isOneOf } from "../shared/unknown";
 import { plural } from "../shared/words";
 
 /** The changes of the record that are a booking arriving: a visit added, and a proposed one confirmed. */
@@ -115,18 +115,18 @@ export function bookingArriving(event: EventLike): ArrivingBooking | null {
   if (!data) return null;
   const { change, source, starts_at: startsAt } = recordOrEmpty(data);
   if (typeof change !== "string" || !ARRIVES.has(change)) return null;
-  if (typeof source !== "string" || !ARRIVES_BY.has(source)) return null;
+  if (!isOneOf(BOOKING_VIAS, source)) return null;
   if (source === "calendar_feed" && !feedAdditionIsBooking(data)) return null;
   return {
     appointmentId: event.subject_id,
-    via: source as BookingVia,
+    via: source,
     startsAt: typeof startsAt === "string" ? startsAt : null,
   };
 }
 
 /** The changes a customer makes to a booking that the owner is told of, and the sources they make them by. */
 export type VisitChange = "cancelled" | "moved";
-const CHANGES: ReadonlySet<string> = new Set<VisitChange>(["cancelled", "moved"]);
+const VISIT_CHANGES_HEARD = ["cancelled", "moved"] as const satisfies readonly VisitChange[];
 const CHANGES_BY: ReadonlySet<string> = new Set<BookingVia>(["booking_email", "booking_tool"]);
 
 /**
@@ -140,10 +140,10 @@ export function bookingChanged(event: EventLike): { appointmentId: string; chang
   const data = event.data && typeof event.data === "object" && !Array.isArray(event.data) ? event.data : null;
   if (!data) return null;
   const { change, source, by } = recordOrEmpty(data);
-  if (typeof change !== "string" || !CHANGES.has(change)) return null;
+  if (!isOneOf(VISIT_CHANGES_HEARD, change)) return null;
   if (typeof source !== "string" || !CHANGES_BY.has(source)) return null;
   if (by !== "service") return null;
-  return { appointmentId: event.subject_id, change: change as VisitChange };
+  return { appointmentId: event.subject_id, change };
 }
 
 /**

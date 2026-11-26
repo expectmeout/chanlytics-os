@@ -24,8 +24,8 @@ export function footerOf(components: unknown): string | null {
   if (!Array.isArray(components)) return null;
   for (const c of components) {
     if (!c || typeof c !== "object") continue;
-    const part = c as { type?: unknown; text?: unknown };
-    if (textOrEmpty(part.type).toUpperCase() !== "FOOTER") continue;
+    if (textOrEmpty(valueAt(c, "type")).toUpperCase() !== "FOOTER") continue;
+    const part = { text: valueAt(c, "text") };
     const text = typeof part.text === "string" ? part.text.trim() : "";
     if (text) return text;
   }
@@ -103,7 +103,8 @@ export function templateParts(components: unknown): TemplateParts {
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
     const kind = BUTTON_KIND[textOrEmpty(recordOrEmpty(b).type).toUpperCase()];
-    const text = typeof valueAt(b, "text") === "string" ? (b as { text: string }).text.trim() : "";
+    const words = valueAt(b, "text");
+    const text = typeof words === "string" ? words.trim() : "";
     if (kind && text) buttons.push({ text, kind });
   }
   return {
@@ -155,7 +156,7 @@ export function templateBlocked(target: { blocked?: string | null; components?: 
   const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
-    const button = b as { type?: unknown; url?: unknown };
+    const button = { type: valueAt(b, "type"), url: valueAt(b, "url") };
     const type = textOrEmpty(button.type).toUpperCase();
     if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
     if (type === "URL" && /\{\{\d+\}\}/.test(textOrEmpty(button.url))) return "a button that takes a value";
@@ -214,7 +215,7 @@ export function sendableTemplates<T extends { components?: unknown }>(
   for (const t of list) (templateBlocked(t) ? blocked : sendable).push(t);
   if (blocked.length === 0) return { sendable, blocked, why: null };
   const length = blocked.length;
-  const reasons = blocked.map((t) => templateBlocked(t) as string);
+  const reasons = blocked.flatMap((t) => templateBlocked(t) ?? []);
   // One message says what IT has; several are counted by reason.
   const words = length === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
   const many = COUNT_WORDS[length] ?? String(length);
@@ -233,7 +234,7 @@ export function templateLinkButton(components: unknown): { text: string; url: st
   const list = listOrEmpty(holder?.buttons);
   for (const b of list) {
     if (!b || typeof b !== "object") continue;
-    const x = b as { type?: unknown; text?: unknown; url?: unknown };
+    const x = { type: valueAt(b, "type"), text: valueAt(b, "text"), url: valueAt(b, "url") };
     if (textOrEmpty(x.type).toUpperCase() !== "URL") continue;
     const text = typeof x.text === "string" ? x.text.trim() : "";
     const url = typeof x.url === "string" ? x.url.trim() : "";
