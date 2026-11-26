@@ -10,7 +10,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import http from "node:http";
+import { tmpdir } from "node:os";
+import { spawn, spawnSync } from "node:child_process";
+import { edgeBodyMatches, verifyEdgeToken } from "@chanlytics/channels/tokens";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -19,10 +23,17 @@ import {
   PolicyLimitsSchema,
   PROFILE_NAME_MAX,
 } from "@chanlytics/contracts";
-import { ROOT, readRaw } from "../_source.mjs";
+import { ROOT } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+/** The exchanges kept in a folder of the repository, by their path from the root. */
+const listed = (dir) =>
+  existsSync(path.join(ROOT, dir))
+    ? readdirSync(path.join(ROOT, dir))
+        .filter((f) => /^eval-.*.json$/.test(f))
+        .map((f) => `${dir}/${f}`)
+    : [];
 const judge = await import(pathToFileURL(path.join(here, "../../tooling/scripts/eval-judge.mjs")).href);
 const cases = JSON.parse(readFileSync(path.join(ROOT, "tooling/evals/whatsapp-cases.json"), "utf8"));
 
@@ -227,14 +238,80 @@ test("the report reads at a glance and counts what passed", () => {
   assert.ok(r.text.includes("1/2 passed · 2,560 tokens"));
 });
 
-test("the runner knocks with a token for the door, the workspace and the body, as the dashboard does, and saves the exchange where git ignores it", () => {
+test("the runner knocks with a token for the door, the workspace and the body, as the dashboard does, and saves the exchange where git ignores it", async () => {
   // The endpoint itself -- the door, the case set's limits, the real composed
   // prompt handed to the model per case, nothing sent and nothing written --
   // is run in eval-door.test.mjs; the key alone is refused there on an edge
-  // that holds the secret.
-  const runner = readRaw("tooling/scripts/eval-brain.mjs");
-  assert.ok(runner.includes('signEdgeToken(SECRET, "/api/admin/eval", { workspace: TENANT, body })'));
-  assert.ok(runner.includes("tooling/backups/eval-"), "the exchange is saved where git ignores it");
+  // that holds the secret. The runner runs here against a door on this machine, with a made-up case: pinned as its
+  // text until 26 Nov 2026.
+  const SECRET = "test-edge-call-secret-0123456789abcdef";
+  const TENANT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const knocks = [];
+  const server = http.createServer((req, res) => {
+    let raw = "";
+    req.on("data", (d) => (raw += d));
+    req.on("end", () => {
+      const v = verifyEdgeToken(SECRET, req.headers["x-edge-token"], "/api/admin/eval");
+      const body = JSON.parse(raw || "{}");
+      knocks.push({
+        path: req.url,
+        body,
+        claims: v.ok ? v.claims : null,
+        bound: v.ok && edgeBodyMatches(v.claims, raw),
+      });
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, prompt_chars: 1200, results: body.cases.map((c) => ok({ id: c.id })) }));
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const dir = mkdtempSync(path.join(tmpdir(), "eval-cases-"));
+  const file = path.join(dir, "cases.json");
+  writeFileSync(file, JSON.stringify([{ id: "hours_en", text: "when do you open?", expect: { intent: "hours" } }]));
+  const run = (env) =>
+    new Promise((resolve) => {
+      const clean = { ...process.env };
+      for (const k of ["BASE_URL", "EDGE_CALL_SECRET", "DIAG_KEY", "TENANT_ID"]) delete clean[k];
+      const child = spawn(process.execPath, [path.join(ROOT, "tooling/scripts/eval-brain.mjs"), file], {
+        cwd: ROOT,
+        env: { ...clean, ...env },
+      });
+      let out = "";
+      child.stdout.on("data", (d) => (out += d));
+      child.stderr.on("data", (d) => (out += d));
+      child.on("exit", (code) => resolve({ code, out }));
+    });
+  let saved = null;
+  const KEPT = ["tooling/backups", "tooling/evals"];
+  const before = new Set(KEPT.flatMap((d) => listed(d)));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const none = await run({ BASE_URL: base, TENANT_ID: TENANT });
+    assert.equal(none.code, 2, "no credential: nothing to knock with");
+    assert.equal(knocks.length, 0, "and nothing was asked");
+    const r = await run({ BASE_URL: base, EDGE_CALL_SECRET: SECRET, TENANT_ID: TENANT });
+    assert.equal(r.code, 0, r.out);
+    assert.equal(knocks.length, 1);
+    assert.equal(knocks[0].path, "/api/admin/eval");
+    assert.ok(knocks[0].bound, "a token for this door and this body, as the dashboard mints one");
+    assert.equal(knocks[0].claims.ws, TENANT, "naming this workspace");
+    assert.deepEqual(
+      knocks[0].body.cases.map((c) => c.id),
+      ["hours_en"],
+    );
+    assert.ok(!r.out.includes(SECRET), "the secret is never printed");
+    saved = /saved (tooling\/backups\/eval-[^\s]+\.json)/.exec(r.out)?.[1] ?? null;
+    assert.ok(saved, r.out);
+    const kept = JSON.parse(readFileSync(path.join(ROOT, saved), "utf8"));
+    assert.deepEqual([kept.tenant, kept.results[0].id], [TENANT, "hours_en"], "the whole exchange is kept");
+    const ignored = spawnSync("git", ["check-ignore", "-q", saved], { cwd: ROOT });
+    assert.equal(ignored.status, 0, "where git ignores it");
+  } finally {
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+    if (saved) rmSync(path.join(ROOT, saved), { force: true });
+    // Whatever else a run left (a proof that moved where the exchange goes), so no case of ours stays on the laptop.
+    for (const f of KEPT.flatMap((d) => listed(d))) if (!before.has(f)) rmSync(path.join(ROOT, f), { force: true });
+  }
 });
 
 // Every reply leaves a quality signal on its usage event -- how sure it was and how long it took, on the held path and

@@ -13,16 +13,16 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { fakeDb } from "../_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const V1 = path.join(here, "../../apps/dashboard/app/api/v1");
+const V1 = path.join(here, "../../../apps/dashboard/app/api/v1");
 const load = async (rel) => (await import(pathToFileURL(path.join(V1, rel, "route.ts")).href)).POST;
 const { setRateStore, memoryStore } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/rate-limit.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/shared/rate-limit.ts")).href
 );
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -180,7 +180,7 @@ test("a send its job has already claimed is too late to call back, and the row i
 
 test("a reply withdraws the receptionist's held drafts no job has claimed, and counts only those", async () => {
   const { cancelPendingAiReply } = await import(
-    pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/verbs.ts")).href
+    pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/shared/verbs.ts")).href
   );
   const draft = (id, over = {}) => ({
     id,

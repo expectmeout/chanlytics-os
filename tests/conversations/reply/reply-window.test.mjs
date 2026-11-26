@@ -21,16 +21,16 @@ import {
   WA_WINDOW_MS,
   WRITE_HOLD_WORDS,
 } from "@chanlytics/contracts";
-import { fakeDb } from "../_fake-db.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { buildProposal } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/ask/tools/index.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
 
 // The person page's reading of the same rule: a helper of the people module, read from its source.
 const { replyChannelOfThreads } = await import(
-  pathToFileURL(path.join(here, "../../packages/contracts/src/people/person-helpers.ts")).href
+  pathToFileURL(path.join(here, "../../../packages/contracts/src/people/person-helpers.ts")).href
 );
 
 const NOW = new Date("2026-09-10T15:00:00Z");

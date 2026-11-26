@@ -380,13 +380,13 @@ export const TEXTING_CODE_SENTENCE =
 /** The phone row before a workspace has a number: Chanlytics sets it up with the owner. Setup and Connections say it alike. */
 export const LINE_SET_UP_WITH_YOU = "Chanlytics sets up your number with you.";
 
-export const SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
+export const SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send takes minutes.`;
 
 /** Setup's version: the good news, then the ceiling. */
 const SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 
 export const MOCK_TEXTING_SENTENCE =
-  "Texting is filed against a test registry, so nothing is delivered · a person at Chanlytics is filing it with the phone networks for real.";
+  "Texting is filed with a test registry, so nothing is delivered. A person at Chanlytics files it with the networks.";
 
 /**
  * Texting on a line that answers calls with nothing filed waits on the owner's
@@ -408,7 +408,7 @@ const TEXTING_NEEDS_RECORD_CLAUSE =
  */
 export const BROKEN_CONFIG_WORDS = {
   title: "This workspace's settings can't be read",
-  body: "Something saved in this workspace's settings no longer passes the checks AI runs before it answers, so AI is silent and this form is closed · saving from here would replace what is still there. Chanlytics has to repair it.",
+  body: "A saved setting no longer passes AI's checks, so AI is silent and this form is closed. Chanlytics has to repair it.",
   clause:
     "Your business settings couldn't be read, so AI is silent until Chanlytics repairs them. Business lists what is wrong.",
   /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */

@@ -127,7 +127,7 @@ export const FIRST_RUN_PHONE_WORDS = {
   readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
   recommended: "Recommended",
   keepTitle: (display: string | null) => (display ? `Keep ${display}` : "Keep the number you have"),
-  keepListed: "The number on your Google listing. Calls nobody picks up go to AI. Same phone, same phone company.",
+  keepListed: "The number on your Google listing: calls nobody picks up go to AI. Same phone, same phone company.",
   keepTyped: "Calls nobody picks up go to AI. Same phone, same phone company.",
   newTitle: "Get a new number",
   newSentence: "For a business that doesn't have one yet. Customers call it directly.",

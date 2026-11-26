@@ -112,7 +112,7 @@ test("listening (canvas R6): a kept number is called and not picked up, with its
   // The number kept rings a mobile (its forwarding is a mobile company's): that phone cannot call itself, so the owner
   // is told another phone, and given nothing to press that would dial it from the phone in their hand.
   assert.equal(vm.heading, "Call your number from another phone. Don't pick up.");
-  assert.match(vm.lead, /^A phone can't call itself, so use a second one or ask someone to call\./);
+  assert.match(vm.lead, /^A phone can't call itself: use a second one, or ask someone\./);
   assert.deepEqual([vm.number, vm.forwarded, vm.dial], ["+1 (305) 555-0100", true, null]);
   assert.deepEqual(vm.listening, {
     sentence: "Listening for your call",

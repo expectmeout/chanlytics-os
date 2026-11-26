@@ -93,7 +93,7 @@ test("the first call stopped: nothing went, and it still says nothing went out",
   assert.equal(calls.length, 1);
   assert.equal(a.ok, false);
   assert.equal(a.landed ?? 0, 0);
-  assert.match(a.message, /Nothing went out/);
+  assert.match(a.message, /nothing went out/i);
   assert.notEqual(tables.ask_actions[0].code, "partly_done");
 });
 

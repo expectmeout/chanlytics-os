@@ -1164,8 +1164,7 @@ test("a card is approved while it is fresh: past a day nothing leaves the tab an
   const old = tab();
   assert.deepEqual(await commitProposal(old.win, mode({ made_at: made(72) }), old.client, { nowMs: now }), {
     ok: false,
-    message:
-      "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+    message: "This card is more than a day old, and things may have moved since. Ask again for one made from now.",
   });
   assert.deepEqual(old.sent, [], "nothing was sent");
   assert.deepEqual(old.events, [], "and the window was told nothing");
@@ -1206,8 +1205,7 @@ test("a plan's card is approved for a week, since a plan's sends are set ahead a
   const two = tab();
   assert.deepEqual(await commitProposal(two.win, mode({ made_at: made(2) }), two.client, { nowMs: now }), {
     ok: false,
-    message:
-      "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+    message: "This card is more than a day old, and things may have moved since. Ask again for one made from now.",
   });
   assert.deepEqual(two.sent, []);
 });

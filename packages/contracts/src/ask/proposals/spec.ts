@@ -137,14 +137,11 @@ export const PROPOSAL_WORDS = {
   cannotApprove: "This card cannot be approved from here.",
   noUndo: "This one has no undo.",
   /** A card past ASK_CARD_FRESH_MS (askCardLapsed): nothing is sent, and asking again makes it from what is true now. */
-  lapsed:
-    "This card is more than a day old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  lapsed: "This card is more than a day old, and things may have moved since. Ask again for one made from now.",
   /** A plan's card past its week (askCardLapsed): the same, in the plan's words. */
-  planLapsed:
-    "This plan is more than a week old, and what it would change may have moved since. Ask again and it is made from how things stand now.",
+  planLapsed: "This plan is more than a week old, and things may have moved since. Ask again for one made from now.",
   /** A plan's card naming a step that was undone: what that step made is gone, so nothing is sent to it. */
-  planUndone:
-    "A step this one builds on was undone, so what it would use is gone and nothing is sent. Ask again and the plan is made from how things stand now.",
+  planUndone: "A step this one builds on was undone, so nothing is sent. Ask again for a plan made from now.",
   /** A plan's card naming a step that has made nothing yet: that step is approved first. */
   waitsForStep: (): string => "Something this builds on is not done yet. Press that first.",
   /**
@@ -166,7 +163,7 @@ export const PROPOSAL_WORDS = {
    * press, which the card's Try again is.
    */
   unrecorded:
-    "I couldn't keep a record of doing this, so I didn't do this on my own. Nothing changed. Try again to do it now.",
+    "I couldn't keep a record of doing this, so I didn't do it on my own and nothing changed. Try again to do it now.",
   /** A plan's press stopped by a refusal, in the refusal's own words: what is done stands, and nothing went out. */
   planStopped: (reason: string): string =>
     `Stopped: ${/[.!?…]$/.test(reason.trim()) ? reason.trim() : `${reason.trim()}.`} Nothing went out.`,
@@ -175,7 +172,7 @@ export const PROPOSAL_WORDS = {
 /** Why a card stopped at the moment it was pressed, because what it was about has moved (D26, D35 of the answers canvas). */
 export const CARD_MOVED_WORDS = {
   wroteAgain: (who: string): string =>
-    `${who} wrote again, so this may not fit now. Nothing went out. Ask me to write it again.`,
+    `${who} wrote again, so this may not fit now and nothing went out. Ask me to write it again.`,
   answered: (who: string): string => `Someone has already answered ${who}. Nothing went out.`,
   teammateHas: "A teammate has this one. Nothing went out.",
   /** The thread could not be read just then, so whether it moved is not known: it waits for a look that can be made. */
@@ -189,7 +186,7 @@ export const CARD_MOVED_WORDS = {
 export function errorMessageOf(error: Record<string, unknown>, status: number): string {
   if (typeof error.message === "string" && error.message) return error.message;
   return status >= 500
-    ? "That did not go through. Nothing went out. Try again."
+    ? "That didn't go through, and nothing went out. Try again."
     : "That was refused. Nothing went out.";
 }
 

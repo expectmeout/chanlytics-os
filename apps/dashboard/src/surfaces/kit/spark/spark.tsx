@@ -4,7 +4,8 @@
  * `today` says so, drawn in the accent (live, right now); a
  * column of two parts draws its lower part in the ok tone (what AI answered, the ok tone's own word) and the rest of it in
  * the strong hairline's colour. It draws no words: what it says is its `aria-label`, as the Meter does. The heights are
- * data no class can hold, so they are the one style it writes in a prop, as the Meter's shares are (docs/debt.md, "Rises").
+ * data no class can hold, so each column says its own as a custom property (--col-h, --part-h) that kit.css reads, as
+ * the Meter's shares are.
  *
  * Drawn in spans, so it may stand inside a press (a figure's button, the period line's link).
  *
@@ -12,7 +13,7 @@
  * tests/styles/kit-components.test.mjs holds the two together).
  */
 import type { ComponentPropsWithRef } from "react";
-import { cx, variants } from "../variants";
+import { customProperties, cx, variants } from "../variants";
 
 const sparkClasses = variants({
   base: "spark",
@@ -66,12 +67,12 @@ export function Spark({ columns, today = false, size, className, ...span }: Spar
         <span
           key={index}
           className={columnClasses({ now: today && index === columns.length - 1 ? "yes" : "no" })}
-          style={{ height: column.value > 0 ? columnHeight(column.value, tallest) : undefined }}
+          style={customProperties({ "--col-h": column.value > 0 ? columnHeight(column.value, tallest) : undefined })}
         >
           {column.part !== undefined && column.value > 0 ? (
             <span
               className="spark-part"
-              style={{ height: heightOf(Math.min(column.part, column.value), column.value) }}
+              style={customProperties({ "--part-h": heightOf(Math.min(column.part, column.value), column.value) })}
             />
           ) : null}
         </span>

@@ -108,7 +108,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     /** Keeping the app (R12, coexistence), said only where this deployment connects that way. */
     same: (n: string) => `WhatsApp on ${n}`,
     sameSays:
-      "Keep using the app: AI answers what you don't. Your contacts and last 6 months of chats come in, if you say yes in Meta's window.",
+      "Keep using the app: AI answers what you don't. Say yes in Meta's window, and contacts and 6 months of chats come in.",
     /** Where it cannot keep the app yet: honest about what connecting does. */
     sameMoves: "WhatsApp moves to a number on Chanlytics. The app on your phone stops receiving its messages.",
     own: (n: string | null) => (n ? `On its own number, ${n}` : "On its own number"),
@@ -133,7 +133,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     bySite: "A booking site",
     byMessage: "By message",
     byHandSays:
-      "AI takes their name, what they need and when, and you confirm. Reminders the day before need a calendar: paste its link here any time.",
+      "AI takes their name, what they need and when, and you confirm. Day-before reminders need a calendar link, any time.",
     paste: "Paste a calendar link (optional)",
     clients: "Bring your clients",
     clientsDone: (n: number, tool: string | null) => `${n.toLocaleString()} clients in${tool ? ` from ${tool}` : ""}`,
@@ -152,12 +152,12 @@ export const FIRST_RUN_CHANNELS_WORDS = {
   },
   email: {
     title: "Email",
-    says: "Connect the inbox you already use: customers' emails and your contacts come in, and offers and campaigns go from your address.",
+    says: "Connect the inbox you already use: customers' emails and contacts come in, and campaigns go from your address.",
     google: "Connect Gmail",
     microsoft: "Connect Outlook",
     soon: "Coming soon",
     soonSays:
-      "Connecting Gmail or Outlook opens once Google and Microsoft finish their review. Until then email stays in your own inbox.",
+      "Gmail and Outlook open once Google and Microsoft finish their review. Until then, email stays in your own inbox.",
     connected: (address: string) => `${address} is connected`,
     notAnswered: EMAIL_NOT_ANSWERED_SENTENCE,
   },

@@ -156,7 +156,7 @@ test("each path asks exactly what its own filing sends", () => {
   }
   assert.match(
     businessFieldsFor("standard").find((f) => f.name === "website_url").hint,
-    /the phone networks are given your public page instead/,
+    /they're given your public page instead/,
   );
 
   // SOLE PROPRIETOR: two end users and an address, and between them they send
@@ -243,7 +243,7 @@ test("the mobile the carriers text cannot be the number we answer for them", () 
   // exactly this. Checkable, so checked — before the fee, not after.
   const ours = ["+1 917 555 0123"];
   const p = businessRecordProblems(soleProp(), "sole_proprietor", { ourNumbers: ours });
-  assert.match(p.contact_phone, /YOUR handset/, "however it is punctuated");
+  assert.match(p.contact_phone, /your own handset, not the number Chanlytics answers/, "however it is punctuated");
   assert.deepEqual(
     businessRecordProblems(soleProp(), "sole_proprietor", { ourNumbers: ["+13055550100"] }),
     {},
@@ -443,7 +443,7 @@ test("answering picks the fields, and they are the contract's", async () => {
   );
   assert.equal(byId(page.tree, "biz-business_type"), null);
   const mobile = textOf(byId(page.tree, "biz-contact_phone"));
-  assert.ok(mobile.includes("Your mobile"), "and the mobile is described as what it is on this path");
+  assert.ok(mobile.includes("Personal mobile"), "and the mobile is described as what it is on this path");
   assert.ok(mobile.includes("reply from that phone"));
   assert.ok(
     textOf(byId(page.tree, "biz-answer")).includes(REGISTRATION_PATH_WORDS.sole_proprietor.filed),
@@ -649,7 +649,7 @@ test("an incomplete sole-proprietor record spends nothing", async () => {
     assert.deepEqual(fetched, [], "nothing left for the provider");
     const row = rows[0];
     assert.equal(row.sms_state, "needs_record");
-    assert.match(row.last_error, /Your mobile is needed/, "in the owner's words, on the row the page reads");
+    assert.match(row.last_error, /Personal mobile is needed/, "in the owner's words, on the row the page reads");
 
     // Our own number is not a sole proprietor's handset: the filing asks the record what the route asked it, with the
     // workspace's numbers, before a single call is made.
@@ -665,7 +665,7 @@ test("an incomplete sole-proprietor record spends nothing", async () => {
     });
     assert.equal(refused.ok, false);
     assert.deepEqual(fetched, [], "nothing left for the provider");
-    assert.match(ours[0].last_error, /This is the number Chanlytics answers for you/);
+    assert.match(ours[0].last_error, /Use your own handset, not the number Chanlytics answers/);
   } finally {
     globalThis.fetch = realFetch;
     process.env = env;
@@ -903,7 +903,7 @@ test("the save says what it moved and what the carriers hold, in the words contr
     assert.equal(onFile.ok, true);
     assert.equal(
       onFile.message,
-      "Saved. Your public page shows it now; the phone networks still hold “Harbor Moving LLC” as you filed it.",
+      "Saved. Your public page shows it now, but the phone networks still hold “Harbor Moving LLC” as you filed it.",
     );
     assert.match(answers[0][1], /\/api\/v1\/business-record/);
     assert.equal(answers[0][0], "PUT");

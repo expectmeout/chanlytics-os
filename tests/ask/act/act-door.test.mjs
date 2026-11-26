@@ -233,7 +233,7 @@ test("an act Ask would run alone has its record first: no record, no act, said p
   );
   assert.equal(a.ok, false);
   assert.equal(calls.length, 0, "nothing ran");
-  assert.match(a.message, /didn't do this on my own/);
+  assert.match(a.message, /didn't do it on my own/);
   assert.match(a.message, /Try again/);
   const kept = tables.ask_messages[0].content.proposals[0].outcome;
   assert.equal(kept.state, "failed", "the card says so, and offers Try again");

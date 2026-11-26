@@ -228,7 +228,7 @@ test("the plan: its sentence counts companies, its estimate keeps both floors, t
     [["industries", 1], PEOPLE_FIND_WORDS.industryUnread("marketing agencies", ["Marketing & Advertising"])],
     "an industry the directory does not list is said with the nearest of its own",
   );
-  assert.match(refused(["dentists"]).message, /^“dentists” isn't one of the directory's industries\. Say it as/);
+  assert.match(refused(["dentists"]).message, /^“dentists” isn't one of the directory's industries\. Use its names/);
   assert.deepEqual(
     LeadPeoplePlanSchema.parse({ ...plan, industries: ["accounting", "real estate"] }).industries,
     ["Accounting", "Real Estate"],

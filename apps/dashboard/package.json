@@ -26,7 +26,7 @@
     "@protomaps/basemaps": "5.7.2",
     "@supabase/ssr": "catalog:",
     "@supabase/supabase-js": "catalog:",
-    "@tanstack/react-virtual": "3.14.26",
+    "@tanstack/react-virtual": "3.14.27",
     "@tanstack/store": "0.11.2",
     "@tanstack/table-core": "catalog:",
     "libphonenumber-js": "1.13.17",

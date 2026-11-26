@@ -3,8 +3,8 @@
  * decision 0015): the axis a data set wants, the curve through it, the arc of a radial, the frame the plot sits in, and
  * the words a point says when the page gives none. Nothing here touches the document.
  */
-import type { CSSProperties } from "react";
 import { DAY_MS, HOUR_MS, WEEK_MS, durationWords } from "@chanlytics/contracts";
+import type { CustomProperties } from "../variants";
 
 /** One series: a label and a colour token, and how its key is drawn in a legend (a rect for bars, a line for lines). */
 export interface ChartSeries {
@@ -261,8 +261,8 @@ export const ckTipSide = (x: number, width: number): "start" | "end" | "pin" =>
   x + CK_TIP_GAP + CK_TIP_W <= width ? "start" : x - CK_TIP_GAP - CK_TIP_W >= 0 ? "end" : "pin";
 
 /** Each series' colour as a CSS variable, for everything drawn inside. */
-export function ckVars(config: ChartConfig | null | undefined): CSSProperties {
-  const vars: Record<string, string> = {};
+export function ckVars(config: ChartConfig | null | undefined): CustomProperties {
+  const vars: CustomProperties = {};
   for (const [k, c] of Object.entries(config || {})) if (c && c.color) vars[`--color-${k}`] = c.color;
   return vars;
 }
