@@ -2036,6 +2036,94 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       });
       return true;
     },
+    /** Stop everything on the workspace's own row, as the member who pressed it, with its event (00722 workspace_sending_stop). */
+    workspace_sending_stop: ({ p_tenant_id, p_at = null }) => {
+      // A database the stop's column has not reached predates the door too: the door is not there.
+      if (!SCHEMA.relations.tenants?.columns.sending_stopped_at)
+        throw Object.assign(new Error("Could not find the function public.workspace_sending_stop"), {
+          code: "PGRST202",
+        });
+      const fault = faults["tenants.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const tenant = tenantOf(p_tenant_id);
+      if (!tenant) return false;
+      const was = tenant.sending_stopped_at ?? null;
+      tenant.sending_stopped_at = p_at;
+      seen.push({
+        table: "tenants",
+        op: "update",
+        values: { sending_stopped_at: p_at },
+        filters: [["eq", "id", p_tenant_id]],
+      });
+      const told = (kind, data) =>
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind,
+          category: "setup",
+          subject_type: "workspace",
+          subject_id: p_tenant_id,
+          data,
+        });
+      if (was === null && p_at !== null) told("workspace.sending_stopped", { at: p_at, by: opts.userId ?? null });
+      if (was !== null && p_at === null)
+        told("workspace.sending_resumed", { stopped_at: was, by: opts.userId ?? null });
+      return true;
+    },
+    /** What a stop holds, kept in Ask's own section of the settings as the member (00722 ask_stopped_keep). */
+    ask_stopped_keep: ({ p_tenant_id, p_stopped = null }) => {
+      const fault = faults["tenant_config.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.tenant_config ?? []).find((c) => c.tenant_id === p_tenant_id);
+      if (!row) return false;
+      const ask = { ...(row.config?.ask ?? {}) };
+      if (p_stopped === null) delete ask.stopped;
+      else ask.stopped = p_stopped;
+      row.config = { ...(row.config ?? {}), ask };
+      row.version = (row.version ?? 0) + 1;
+      seen.push({
+        table: "tenant_config",
+        op: "update",
+        values: { config: row.config },
+        filters: [["eq", "tenant_id", p_tenant_id]],
+      });
+      return true;
+    },
+    /** The stop's ads pause as the member who pressed it (00722 ad_pause_for_stop): ad_pause_all by `stop`, as a world models it. */
+    ad_pause_for_stop: ({ p_tenant_id }) => {
+      const door = rpcs.ad_pause_all ?? derived.ad_pause_all;
+      if (!door) throw new Error("fakeDb: rpc(ad_pause_all) is not modelled; add it to fakeDb's third argument");
+      return door({ p_tenant_id, p_actor: opts.userId ?? null, p_presses: null, p_by: "stop" });
+    },
+    /** Whether AI works alone, with its event where it changed (00722 ask_alone_set). */
+    ask_alone_set: ({ p_tenant_id, p_on }) => {
+      const fault = faults["tenant_config.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.tenant_config ?? []).find((c) => c.tenant_id === p_tenant_id);
+      if (!row) return false;
+      const was = row.config?.ask?.alone === true;
+      if (was !== Boolean(p_on)) {
+        const ask = { ...(row.config?.ask ?? {}) };
+        if (p_on) ask.alone = true;
+        else delete ask.alone;
+        row.config = { ...(row.config ?? {}), ask };
+        row.version = (row.version ?? 0) + 1;
+        seen.push({
+          table: "tenant_config",
+          op: "update",
+          values: { config: row.config },
+          filters: [["eq", "tenant_id", p_tenant_id]],
+        });
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "ask.alone_set",
+          category: "setup",
+          subject_type: "workspace",
+          subject_id: p_tenant_id,
+          data: { on: Boolean(p_on), by: opts.userId ?? null },
+        });
+      }
+      return true;
+    },
     /** A held booking email set aside, with its event (00722 appointment_notice_dismiss); false where it is not held. */
     appointment_notice_dismiss: ({ p_tenant_id, p_id }) => {
       const fault = faults["appointment_notices.update"];

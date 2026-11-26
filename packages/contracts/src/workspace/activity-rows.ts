@@ -48,6 +48,10 @@ export const ACTIVITY_NOISE_KINDS = [
   "form_entry.asked",
   // A held booking email set aside (00722): its row on Settings › Business says it, not the owner's day.
   "appointment.notice_dismissed",
+  // Stop everything and its lift, and AI set to work alone (00722): Today's strip and Ask's own pane say each as it stands.
+  "workspace.sending_stopped",
+  "workspace.sending_resumed",
+  "ask.alone_set",
   // A post's every step, and a week's slot held (00720): Files and the week say where each stands, not the owner's day.
   "post.moved",
   "plan_slot.held",

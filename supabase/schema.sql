@@ -1853,6 +1853,35 @@ COMMENT ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presse
 
 
 --
+-- Name: ad_pause_for_stop(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_pause_for_stop(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+begin
+  if v_by is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- The pause itself is ad_pause_all's, as the stop has always asked it, with the member as its actor.
+  return public.ad_pause_all(p_tenant_id, v_by, null, 'stop');
+end $$;
+
+
+--
+-- Name: FUNCTION ad_pause_for_stop(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_pause_for_stop(p_tenant_id uuid) IS 'Stop everything''s pause of the ads made here that are on (00722), as the member who pressed it: one who acts in the workspace, below the owner. The pause is ad_pause_all''s (by stop), with its answer.';
+
+
+--
 -- Name: ad_people(uuid, uuid, integer, date, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -3986,6 +4015,51 @@ COMMENT ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uu
 
 
 --
+-- Name: ask_alone_set(uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ask_alone_set(p_tenant_id uuid, p_on boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+  v_was boolean;
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select coalesce((c.config -> 'ask' ->> 'alone')::boolean, false) into v_was
+    from public.tenant_config c where c.tenant_id = p_tenant_id for update;
+  if not found then
+    return false;
+  end if;
+  if v_was is distinct from coalesce(p_on, false) then
+    update public.tenant_config c
+       set config = case when coalesce(p_on, false)
+                         then jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) || '{"alone": true}'::jsonb)
+                         else jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) - 'alone') end,
+           version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
+     where c.tenant_id = p_tenant_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ask.alone_set', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('on', coalesce(p_on, false), 'by', v_by));
+  end if;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION ask_alone_set(p_tenant_id uuid, p_on boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ask_alone_set(p_tenant_id uuid, p_on boolean) IS 'Whether AI works alone, kept in Ask''s own section of the settings (tenant_config.config.ask.alone) as the member who set it (00722), with ask.alone_set where it changed, kept from Activity''s rows. A member who acts in the workspace; the service role too.';
+
+
+--
 -- Name: ask_for_tick(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4312,6 +4386,46 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) IS 'A member''s morning with Ask (decision 0070), by act, the caller''s own and only for a member who acts: claim (the day, once: {claimed, thread_id, cards}; ask.morning_claimed for the winner), thread (the thread the winner made, named once: {named}), answered (how many cards wait, once: {recorded, thread_id, cards}; the caller writes the ask_cards line on the member''s own bell when any do). The day is the workspace''s, within a day of the database''s. A viewer gets {error: not_acting}.';
+
+
+--
+-- Name: ask_stopped_keep(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_stopped is not null and jsonb_typeof(p_stopped) <> 'object' then
+    raise exception 'ask_stopped_keep: what the stop holds is an object' using errcode = '22023';
+  end if;
+  -- Ask's own section of the settings, its one key, written under the row's lock and its version moved, as a save is.
+  update public.tenant_config c
+     set config = case when p_stopped is null
+                       then jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) - 'stopped')
+                       else jsonb_set(c.config, '{ask}',
+                                      coalesce(c.config -> 'ask', '{}'::jsonb) || jsonb_build_object('stopped', p_stopped))
+                  end,
+         version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
+   where c.tenant_id = p_tenant_id;
+  return found;
+end $$;
+
+
+--
+-- Name: FUNCTION ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb) IS 'What a stop holds (what it paused, to start again), kept in Ask''s own section of the settings (tenant_config.config.ask.stopped; null removes it) as the member who pressed it (00722). The stop''s own event is workspace_sending_stop''s: this is its memory. A member who acts in the workspace; the service role too.';
 
 
 --
@@ -48928,6 +49042,49 @@ COMMENT ON FUNCTION public.workspace_partner(p_tenant uuid) IS 'The owner''s vie
 
 
 --
+-- Name: workspace_sending_stop(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_sending_stop(p_tenant_id uuid, p_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+  v_was timestamptz;
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select t.sending_stopped_at into v_was from public.tenants t where t.id = p_tenant_id for update;
+  if not found then
+    return false;
+  end if;
+  update public.tenants t set sending_stopped_at = p_at where t.id = p_tenant_id;
+  if v_was is null and p_at is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.sending_stopped', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('at', p_at, 'by', v_by));
+  elsif v_was is not null and p_at is null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.sending_resumed', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('stopped_at', v_was, 'by', v_by));
+  end if;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_sending_stop(p_tenant_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_sending_stop(p_tenant_id uuid, p_at timestamp with time zone) IS 'Stop everything on the workspace''s own row (tenants.sending_stopped_at: p_at writes it, null lifts it), as the member who pressed it (00722), with workspace.sending_stopped where it began and workspace.sending_resumed where it was lifted, kept from Activity''s rows. A member who acts in the workspace; the service role too. False where there is no workspace.';
+
+
+--
 -- Name: workspace_tell_at_commit(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -69715,6 +69872,15 @@ GRANT ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_pres
 
 
 --
+-- Name: FUNCTION ad_pause_for_stop(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_pause_for_stop(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_pause_for_stop(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_pause_for_stop(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_people(p_tenant_id uuid, p_ad_id uuid, p_days integer, p_end date, p_limit integer, p_offset integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -70021,6 +70187,15 @@ GRANT ALL ON FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id 
 
 
 --
+-- Name: FUNCTION ask_alone_set(p_tenant_id uuid, p_on boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ask_alone_set(p_tenant_id uuid, p_on boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ask_alone_set(p_tenant_id uuid, p_on boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.ask_alone_set(p_tenant_id uuid, p_on boolean) TO service_role;
+
+
+--
 -- Name: FUNCTION ask_for_tick(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -70069,6 +70244,15 @@ GRANT ALL ON FUNCTION public.ask_message_words(p_content jsonb) TO service_role;
 REVOKE ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) TO authenticated;
 GRANT ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act text, p_thread_id uuid, p_cards integer) TO service_role;
+
+
+--
+-- Name: FUNCTION ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb) TO service_role;
 
 
 --
@@ -77433,6 +77617,15 @@ GRANT ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since t
 REVOKE ALL ON FUNCTION public.workspace_partner(p_tenant uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.workspace_partner(p_tenant uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_sending_stop(p_tenant_id uuid, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_sending_stop(p_tenant_id uuid, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_sending_stop(p_tenant_id uuid, p_at timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.workspace_sending_stop(p_tenant_id uuid, p_at timestamp with time zone) TO service_role;
 
 
 --

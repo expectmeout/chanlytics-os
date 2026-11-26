@@ -13,6 +13,11 @@
 --   appointment_notice_dismiss
 --                             New: a held booking email set aside by the member on their own session, with
 --                             appointment.notice_dismissed, kept from Activity's rows; it was a write on the all-access key.
+--   workspace_sending_stop, ask_stopped_keep, ask_alone_set, ad_pause_for_stop
+--                             New: Stop everything (the workspace's stop, with workspace.sending_stopped and
+--                             .sending_resumed, and what it holds), AI set to work alone (ask.alone_set) and the stop's ads
+--                             pause, each as the member who pressed it, where the dashboard wrote them on the all-access
+--                             key; the kinds are kept from Activity's rows.
 --
 -- Nothing a customer sees changes: the same kinds, with the same words, in the same places.
 --
@@ -256,3 +261,151 @@ grant execute on function public.appointment_notice_dismiss(uuid, uuid) to authe
 
 comment on function public.appointment_notice_dismiss(uuid, uuid) is
   'A held booking email set aside (00722): its notice kept as dismissed, only while it is held, with appointment.notice_dismissed (its tool, why it was held, who) in the same transaction, kept from Activity''s rows. A member who acts in the workspace, on their own session; the service role too. False where it is not held any more.';
+/* -- workspace_sending_stop, ask_stopped_keep, ask_alone_set, ad_pause_for_stop: Stop everything, as the member -- */
+
+-- Stop everything may be pressed by any member who acts, below the settings role that writes the workspace's
+-- settings, so the dashboard wrote the stop on the all-access key: the workspace's own row (sending_stopped_at), what
+-- the stop holds in Ask's own section of the settings (ask.stopped: what it paused, to start again), and the ads made
+-- here paused. Each is the member's own now, through a door that asks who is calling (one who acts in the workspace),
+-- and the stop and its lift are on the ledger, kept from Activity's rows (the Today strip says a stop as it stands).
+
+create or replace function public.workspace_sending_stop(p_tenant_id uuid, p_at timestamptz default null)
+returns boolean
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_by uuid := auth.uid();
+  v_was timestamptz;
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select t.sending_stopped_at into v_was from public.tenants t where t.id = p_tenant_id for update;
+  if not found then
+    return false;
+  end if;
+  update public.tenants t set sending_stopped_at = p_at where t.id = p_tenant_id;
+  if v_was is null and p_at is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.sending_stopped', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('at', p_at, 'by', v_by));
+  elsif v_was is not null and p_at is null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.sending_resumed', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('stopped_at', v_was, 'by', v_by));
+  end if;
+  return true;
+end $$;
+
+revoke all on function public.workspace_sending_stop(uuid, timestamptz) from public, anon;
+grant execute on function public.workspace_sending_stop(uuid, timestamptz) to authenticated, service_role;
+
+comment on function public.workspace_sending_stop(uuid, timestamptz) is
+  'Stop everything on the workspace''s own row (tenants.sending_stopped_at: p_at writes it, null lifts it), as the member who pressed it (00722), with workspace.sending_stopped where it began and workspace.sending_resumed where it was lifted, kept from Activity''s rows. A member who acts in the workspace; the service role too. False where there is no workspace.';
+
+create or replace function public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb default null)
+returns boolean
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_by uuid := auth.uid();
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_stopped is not null and jsonb_typeof(p_stopped) <> 'object' then
+    raise exception 'ask_stopped_keep: what the stop holds is an object' using errcode = '22023';
+  end if;
+  -- Ask's own section of the settings, its one key, written under the row's lock and its version moved, as a save is.
+  update public.tenant_config c
+     set config = case when p_stopped is null
+                       then jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) - 'stopped')
+                       else jsonb_set(c.config, '{ask}',
+                                      coalesce(c.config -> 'ask', '{}'::jsonb) || jsonb_build_object('stopped', p_stopped))
+                  end,
+         version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
+   where c.tenant_id = p_tenant_id;
+  return found;
+end $$;
+
+revoke all on function public.ask_stopped_keep(uuid, jsonb) from public, anon;
+grant execute on function public.ask_stopped_keep(uuid, jsonb) to authenticated, service_role;
+
+comment on function public.ask_stopped_keep(uuid, jsonb) is
+  'What a stop holds (what it paused, to start again), kept in Ask''s own section of the settings (tenant_config.config.ask.stopped; null removes it) as the member who pressed it (00722). The stop''s own event is workspace_sending_stop''s: this is its memory. A member who acts in the workspace; the service role too.';
+
+create or replace function public.ask_alone_set(p_tenant_id uuid, p_on boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_by uuid := auth.uid();
+  v_was boolean;
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select coalesce((c.config -> 'ask' ->> 'alone')::boolean, false) into v_was
+    from public.tenant_config c where c.tenant_id = p_tenant_id for update;
+  if not found then
+    return false;
+  end if;
+  if v_was is distinct from coalesce(p_on, false) then
+    update public.tenant_config c
+       set config = case when coalesce(p_on, false)
+                         then jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) || '{"alone": true}'::jsonb)
+                         else jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) - 'alone') end,
+           version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
+     where c.tenant_id = p_tenant_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ask.alone_set', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('on', coalesce(p_on, false), 'by', v_by));
+  end if;
+  return true;
+end $$;
+
+revoke all on function public.ask_alone_set(uuid, boolean) from public, anon;
+grant execute on function public.ask_alone_set(uuid, boolean) to authenticated, service_role;
+
+comment on function public.ask_alone_set(uuid, boolean) is
+  'Whether AI works alone, kept in Ask''s own section of the settings (tenant_config.config.ask.alone) as the member who set it (00722), with ask.alone_set where it changed, kept from Activity''s rows. A member who acts in the workspace; the service role too.';
+
+create or replace function public.ad_pause_for_stop(p_tenant_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_by uuid := auth.uid();
+begin
+  if v_by is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- The pause itself is ad_pause_all's, as the stop has always asked it, with the member as its actor.
+  return public.ad_pause_all(p_tenant_id, v_by, null, 'stop');
+end $$;
+
+revoke all on function public.ad_pause_for_stop(uuid) from public, anon;
+grant execute on function public.ad_pause_for_stop(uuid) to authenticated, service_role;
+
+comment on function public.ad_pause_for_stop(uuid) is
+  'Stop everything''s pause of the ads made here that are on (00722), as the member who pressed it: one who acts in the workspace, below the owner. The pause is ad_pause_all''s (by stop), with its answer.';

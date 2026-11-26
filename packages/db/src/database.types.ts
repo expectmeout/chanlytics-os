@@ -10915,6 +10915,10 @@ export type Database = {
         }
         Returns: Json
       }
+      ad_pause_for_stop: {
+        Args: { p_tenant_id: string }
+        Returns: Json
+      }
       ad_people: {
         Args: {
           p_ad_id?: string
@@ -11112,6 +11116,10 @@ export type Database = {
         }
         Returns: Json
       }
+      ask_alone_set: {
+        Args: { p_on: boolean; p_tenant_id: string }
+        Returns: boolean
+      }
       ask_for_tick: { Args: never; Returns: boolean }
       ask_journal_open_days: {
         Args: { p_limit?: number }
@@ -11156,6 +11164,10 @@ export type Database = {
           p_thread_id?: string
         }
         Returns: Json
+      }
+      ask_stopped_keep: {
+        Args: { p_stopped?: Json; p_tenant_id: string }
+        Returns: boolean
       }
       ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       assemble_broadcast:
@@ -16107,6 +16119,10 @@ export type Database = {
         }[]
       }
       workspace_partner: { Args: { p_tenant: string }; Returns: Json }
+      workspace_sending_stop: {
+        Args: { p_at?: string; p_tenant_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

@@ -75,6 +75,8 @@ export {
   listWorkspaceStandings,
   listWorkspaceZones,
   patchConfigRow,
+  keepWhatTheStopHolds,
+  setAskAlone,
   setSendingStopped,
 } from "./rows";
 export {

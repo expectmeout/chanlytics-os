@@ -301,6 +301,8 @@ export const WORDS: Record<string, string> = {
   "reach_out.reply_undone": "A reply read as no was undone",
   "workspace.created": "The workspace was created",
   "workspace.activated": "The workspace passed a milestone",
+  "workspace.sending_stopped": "Everything was stopped",
+  "workspace.sending_resumed": "Everything was started again",
   // The partner programme (0012), as the workspace's owner reads it; partnerEventBits says the rest of each.
   "partner.attributed": "The workspace was made through a partner's link",
   "partner.code_ignored": "A partner's code was not used",
@@ -325,6 +327,7 @@ export const WORDS: Record<string, string> = {
   "ask.memory_forgotten": "Something AI remembered was forgotten",
   "ask.journal_written": "AI wrote its journal",
   "ask.morning_claimed": "AI looked at the day",
+  "ask.alone_set": "Whether AI works alone was changed",
   "policy.changed": "An autonomy setting changed",
   "billing.updated": "Billing changed",
   "billing.paused": "Billing paused the workspace",
