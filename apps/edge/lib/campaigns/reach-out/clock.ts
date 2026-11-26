@@ -51,7 +51,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { sendMessageId } from "@chanlytics/core";
-import { MIN_MS, draftRefusalOf, isWaitRefusal, DbFailure, SECOND_MS } from "@chanlytics/contracts";
+import { MIN_MS, draftRefusalOf, isWaitRefusal, DbFailure, SECOND_MS, recordOrNull } from "@chanlytics/contracts";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan, type ReplanCounts } from "./replan.js";
 import type { Logger } from "../../shared/log.js";
 import { UNKNOWN_OUTCOME_MS } from "../../shared/unknown-outcome.js";
@@ -107,6 +107,18 @@ interface EmailError {
  * 429 is a refusal before the send), a job that died knowing it had not sent (settle's never_delivered), and a row
  * whose job was gone (the unfinished sweep's orphaned). A 5xx, a network error or a timeout may have left, and fails.
  */
+/** What a queued email's failure says of itself, as its row keeps it: each part where it is what it says. */
+function emailErrorOf(value: unknown): EmailError | null {
+  const e = recordOrNull(value);
+  if (!e) return null;
+  return {
+    ...(typeof e.reason === "string" ? { reason: e.reason } : {}),
+    ...(typeof e.provider === "string" ? { provider: e.provider } : {}),
+    ...(typeof e.outcome === "string" ? { outcome: e.outcome } : {}),
+    ...(typeof e.http_status === "number" ? { http_status: e.http_status } : {}),
+  };
+}
+
 function neverLeft(error: EmailError | null | undefined): boolean {
   if (!error) return false;
   return error.http_status === 429 || error.reason === "never_delivered" || error.reason === "orphaned";
@@ -191,7 +203,7 @@ async function settleFailed(tick: ClockTick, queued: QueuedOutcome, error: Email
 async function reconcileOne(tick: ClockTick, queued: QueuedOutcome): Promise<boolean> {
   const { db, now, out } = tick;
   const send = queued.send;
-  const error = queued.error as EmailError | null | undefined;
+  const error = emailErrorOf(queued.error);
   if (queued.status === "sent" || queued.status === "delivered" || queued.status === "read") {
     const at = queued.sent_at ?? queued.written_at ?? now.toISOString();
     if (await move(db, send, { state: "sent", sent_at: at })) {
