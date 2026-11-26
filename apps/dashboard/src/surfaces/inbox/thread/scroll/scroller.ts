@@ -6,7 +6,7 @@
  * bottom edge and on the keys (Ruben's recording, 3 Nov 2026: the foot floated at a thread's end, and the scroll to the
  * end undid the keyboard's lift). What scrolls it is asked, never assumed, so the window's case is still answered.
  */
-import { isDocumentScroller, scrollerOf, shownHeight } from "../../kit/motion/page-scroll";
+import { isDocumentScroller, scrollerOf, shownHeight } from "../../../kit/motion/page-scroll";
 
 /** The box that scrolls the conversation `el` (the pane's .ix-th-scroll): itself, or the document's where it does not. */
 export const threadScroller = (el: Element): HTMLElement => scrollerOf(el, { self: true });
