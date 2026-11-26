@@ -221,7 +221,7 @@ test("on a phone a thread opens by coming in from the right, over where the list
   for (const page of [".inbox[data-takeover]", ".conversations[data-takeover]"]) {
     assert.match(
       phone.style(at(page, ".ix-thread-pane")).animation ?? "",
-      /^thread-in \d+ms /,
+      /^thread-in \d*\.?\d+m?s /,
       `${page}: the one motion`,
     );
     assert.equal(
@@ -259,9 +259,11 @@ test("a route on its way is an empty pane that says so after a beat, never a ske
   for (const skel of [".skel", ".skel-line", ".skel-card"])
     assert.equal(desk.rules(at(skel)).length, plain, `no rule draws ${skel}`);
   const reading = desk.style(at(".app-root", ".route-reading"));
-  const delay = / (\d+)ms both$/.exec(reading.animation ?? "");
+  // Its times as the build prints them (`.6s`): the first is how long it plays, the second how long it waits.
+  const ms = (t) => (t.endsWith("ms") ? Number(t.slice(0, -2)) : Number(t.slice(0, -1)) * 1000);
+  const [, waits] = (reading.animation ?? "").match(/\d*\.?\d+m?s\b/g) ?? [];
   assert.ok(
-    delay && Number(delay[1]) >= 400,
+    waits && ms(waits) >= 400 && /\bboth\b/.test(reading.animation),
     "the words wait a beat (fill-mode both holds them back until then), so a surface that lands fast is never said",
   );
   assert.equal(

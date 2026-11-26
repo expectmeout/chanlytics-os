@@ -14,7 +14,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-import { PHONE, cascadeOf, element, frameSheets } from "../_css.mjs";
+import { PHONE, cascadeOf, declared, element, frameSheets } from "../_css.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -141,7 +141,11 @@ test("a campaign's answered share says its window, the one a reply is counted in
   // (tests/_css.mjs), on a desk and on a phone.
   for (const where of [{}, PHONE]) {
     const words = cascadeOf(frameSheets(), where).style(element('html[data-theme="light"]', ".tz-alert", "span"));
-    assert.deepEqual([words.flex, words["min-width"]], ["1 1 auto", "0"], "a long warning wraps beside its glyph");
+    assert.deepEqual(
+      [words.flex, words["min-width"]],
+      [declared("flex: 1 1 auto").flex, "0"],
+      "a long warning wraps beside its glyph",
+    );
   }
   // Every closing time Today says names its day (tzClock above), in the queue's, the facts', the figures' and the rows'
   // words: today/record/ and today/zones/need-you-acts.test.mjs draw them on a day that is tomorrow's.

@@ -22,7 +22,7 @@ import {
   businessReadFactsOf,
 } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
-import { PHONE, cascadeOf, element, frameSheets } from "../_css.mjs";
+import { PHONE, cascadeOf, declared, element, frameSheets } from "../_css.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { setupDtoFor } from "../../apps/dashboard/src/server/setup/setup.ts";
 
@@ -838,7 +838,7 @@ test("a Settings card keeps its height, and a row's sentence wraps on a phone", 
   const phone = cascadeOf(frameSheets(), PHONE);
   assert.equal(
     phone.style(element(".set-pane", ".card")).flex,
-    "0 0 auto",
+    declared("flex: 0 0 auto").flex,
     "a Settings card never shrinks to fit the pane on a phone",
   );
   assert.equal(
