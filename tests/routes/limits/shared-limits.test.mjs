@@ -8,10 +8,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode } from "../_source.mjs";
+import { readCode } from "../../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(here, "../..");
+const ROOT = path.resolve(here, "../../..");
 const { postgresStore, memoryStore, setRateStore, takeRate, RATE } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/shared/rate-limit.ts")).href
 );
