@@ -72,7 +72,7 @@ function AuthPanel() {
           </div>
           <div className="auth-show-msg">Hi! Do you have anything Saturday?</div>
           <div className="auth-show-msg auth-show-out">
-            We have 1:30 and 3:00 for a gloss and trim · about 90 minutes. Shall I hold one?
+            1:30 and 3:00 are open for a gloss and trim · about 90 minutes. Shall I hold one?
           </div>
           <div className="auth-show-foot">An example of AI answering</div>
         </div>

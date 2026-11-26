@@ -422,7 +422,7 @@ test("the card: unread says so, a quiet week says so, and a week of loads is a s
     ],
   );
   const undrawn = pageVitalsWords([row("TTFB", null, 3, 500)]);
-  assert.equal(undrawn.sentence, "3 page loads in the last 7 days; none has drawn its page yet.");
+  assert.equal(undrawn.sentence, "3 page loads in the last 7 days · none has drawn its page yet.");
 });
 
 test("the collector says the load's device and build, holds a beacon's worth at most, and sends more in several", () => {
