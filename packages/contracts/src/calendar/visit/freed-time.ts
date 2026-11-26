@@ -257,6 +257,6 @@ export function freedTimesUnoffered(input: {
   if (steps.some((p) => p.trigger === "slot_opened" && campaignRunsOn(p, at))) return null;
   return {
     says: `${plural(cancellations, "appointment was", "appointments were")} cancelled in the last ${input.days} days and the time was offered to nobody.`,
-    next: "propose_sequence with action moment on slot_opened (Fill a cancellation): each time a cancellation frees goes to the people who asked and never booked",
+    next: "propose_campaign with action moment on slot_opened (Fill a cancellation): each time a cancellation frees goes to the people who asked and never booked",
   };
 }

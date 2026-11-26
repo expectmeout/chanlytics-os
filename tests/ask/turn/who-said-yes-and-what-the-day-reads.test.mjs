@@ -69,7 +69,7 @@ import {
 
 test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-  const out = await runTool(tc, { name: "sequences", input: { action: "moments" } });
+  const out = await runTool(tc, { name: "campaigns", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   assert.ok(
@@ -77,7 +77,7 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
     "the note keeps the rows' facts; what to say of a zero, and that nothing ran, are the description's now (PR 3.3)",
   );
   assert.ok(
-    READ_TOOLS.find((d) => d.name === "sequences").description.includes("nothing has run because it was read"),
+    READ_TOOLS.find((d) => d.name === "campaigns").description.includes("nothing has run because it was read"),
     "the description says nothing ran because it was read",
   );
   /** One trigger's two counts: who its moment names that said the yes it needs, and who of them a run can reach. */
@@ -102,7 +102,7 @@ test("REGRESSION: campaigns.playbooks tells who said yes from who a run can reac
   for (const name of ["said_yes_now", "can_be_sent_now"]) {
     assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
     assert.ok(
-      READ_TOOLS.find((d) => d.name === "sequences").description.includes(name),
+      READ_TOOLS.find((d) => d.name === "campaigns").description.includes(name),
       `and so does the tool's description: ${name}`,
     );
   }
@@ -128,7 +128,7 @@ test("REGRESSION: a proposed playbook says who said yes apart from who a run rea
   /** What the act answers for these people: the card, or why there is none. */
   const proposed = async (people) => {
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
-    return buildProposal(tc, "propose_sequence", {
+    return buildProposal(tc, "propose_campaign", {
       action: "moment",
       trigger: "everyone_monthly",
       template_id: TPL,
@@ -157,7 +157,7 @@ test("REGRESSION: a proposed playbook says who said yes apart from who a run rea
 
 test("REGRESSION: on a US WhatsApp number the lists read says 26 said yes to offers and none can be sent one, and what is missing -- it read 'said_yes_to_offers: 0', and AI told the owner nobody had said yes", async () => {
   const tc = usNumberWorld();
-  const out = await runTool(tc, { name: "sequences", input: { action: "lists" } });
+  const out = await runTool(tc, { name: "campaigns", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   const everyone = read.audiences.find((x) => x.label === EVERYONE_LABEL);
@@ -183,7 +183,7 @@ test("REGRESSION: on a US WhatsApp number the lists read says 26 said yes to off
 });
 
 test("REGRESSION: on a US WhatsApp number the moments read says 26 said yes to the month's offer and a run reaches none -- it read 'said_yes_now: 0', the Playbooks page's chip, which offered the owner a yes they had", async () => {
-  const out = await runTool(usNumberWorld(), { name: "sequences", input: { action: "moments" } });
+  const out = await runTool(usNumberWorld(), { name: "campaigns", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const monthly = JSON.parse(out.result).triggers.find((x) => x.trigger === "everyone_monthly");
   assert.deepEqual(
@@ -194,7 +194,7 @@ test("REGRESSION: on a US WhatsApp number the moments read says 26 said yes to t
 });
 
 test("REGRESSION: on a US WhatsApp number a proposed playbook says 26 said yes and names the channel that holds them -- it said '0 people on the list said yes to offers'; reaching nobody, it is no card", async () => {
-  const r = await buildProposal(usNumberWorld(), "propose_sequence", {
+  const r = await buildProposal(usNumberWorld(), "propose_campaign", {
     action: "moment",
     trigger: "everyone_monthly",
     template_id: TPL,
@@ -214,12 +214,12 @@ test("REGRESSION: on a US WhatsApp number a proposed playbook says 26 said yes a
   );
 });
 
-test("what the model reads before any send tells nobody's yes from a yes with no number to send to: since PR 3.3 the rule is the lists read's and propose_sequence's descriptions (once campaigns.audiences' and propose_campaign.broadcast's), and no rule of the prompt's", () => {
+test("what the model reads before any send tells nobody's yes from a yes with no number to send to: since PR 3.3 the rule is the lists read's and propose_campaign's descriptions (once campaigns.audiences' and propose_campaign.broadcast's), and no rule of the prompt's", () => {
   assert.ok(!ASK_RULES.some((r) => r.includes("never propose a send to nobody")), "out of the rules");
-  const audiences = READ_TOOLS.find((d) => d.name === "sequences").description;
+  const audiences = READ_TOOLS.find((d) => d.name === "campaigns").description;
   assert.ok(audiences.includes(NO_NUMBER_REACH), audiences);
   assert.ok(audiences.includes("read before any send"), audiences);
-  const broadcast = ACT_TOOLS.find((d) => d.name === "propose_sequence").description;
+  const broadcast = ACT_TOOLS.find((d) => d.name === "propose_campaign").description;
   assert.ok(broadcast.includes("action lists for who can be sent"), broadcast);
   assert.ok(broadcast.includes("or the ones who did have no number to send to"), broadcast);
   assert.ok(broadcast.includes("never propose a send to nobody"), broadcast);
@@ -434,7 +434,7 @@ test("the day is read once a turn, each tool as its page reads it: today, inbox.
   );
 });
 
-test("inbox.thread and calls.get read through the readers (ledger #5): the thread as its page reads it, its messages with their wire and their attachment, so a text thread's window is the text's rule and it says Text, and an email thread says Email; the open escalation is the one the Inbox shows, the oldest; the row once and the messages once in the turn; the call under the workspace's own filter; another workspace's thread or call is an error, never a row", async () => {
+test("inbox.conversation and calls.get read through the readers (ledger #5): the thread as its page reads it, its messages with their wire and their attachment, so a text thread's window is the text's rule and it says Text, and an email thread says Email; the open escalation is the one the Inbox shows, the oldest; the row once and the messages once in the turn; the call under the workspace's own filter; another workspace's thread or call is an error, never a row", async () => {
   const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
   const C3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
   const C4 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc4";
@@ -508,7 +508,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   const ctx = ctxFor(t);
   const s = scripted([
     ROUND([
-      tool("inbox", { action: "thread", conversation_id: C2 }, "t-text"),
+      tool("inbox", { action: "conversation", conversation_id: C2 }, "t-text"),
       tool("calls", { action: "get", call_id: K1 }, "t-call"),
     ]),
     ROUND([answer("Rosa texted a photo, and the text can be answered now.")]),
@@ -557,7 +557,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
 
   const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
   const email = JSON.parse(
-    (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C3 } })).result,
+    (await runTool(tc, { name: "inbox", input: { action: "conversation", conversation_id: C3 } })).result,
   );
   assert.deepEqual(
     [email.channel, email.window_open],
@@ -567,7 +567,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   // A person reached only by email is their address, as the Inbox row names them and as this tool always said: the
   // thread's own payload carries no email, and its view model alone would say "Unknown".
   const byAddress = JSON.parse(
-    (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C5 } })).result,
+    (await runTool(tc, { name: "inbox", input: { action: "conversation", conversation_id: C5 } })).result,
   );
   const inTheInbox = JSON.parse(
     (await runTool(tc, { name: "inbox", input: { action: "list", filter: "recent" } })).result,
@@ -582,7 +582,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   const elsewhere = ctxFor(t);
   const away = newToolContext(elsewhere, A, "operator", TZ, NOW);
   const { result: refused, lines } = await logged("ask_tool_failed", async () => [
-    await runTool(away, { name: "inbox", input: { action: "thread", conversation_id: C4 } }),
+    await runTool(away, { name: "inbox", input: { action: "conversation", conversation_id: C4 } }),
     await runTool(away, { name: "calls", input: { action: "get", call_id: K3 } }),
   ]);
   assert.deepEqual(
@@ -600,7 +600,7 @@ test("inbox.thread and calls.get read through the readers (ledger #5): the threa
   );
 });
 
-test("inbox.thread says nothing of reasoning beside a customer's words, though their message carries an intent since 00305: a reply of AI's keeps its why", async () => {
+test("inbox.conversation says nothing of reasoning beside a customer's words, though their message carries an intent since 00305: a reply of AI's keeps its why", async () => {
   const brain = {
     intent: "pricing",
     confidence: 0.62,
@@ -629,7 +629,7 @@ test("inbox.thread says nothing of reasoning beside a customer's words, though t
   });
   const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
   const read = JSON.parse(
-    (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C1 } })).result,
+    (await runTool(tc, { name: "inbox", input: { action: "conversation", conversation_id: C1 } })).result,
   );
   assert.deepEqual(
     read.messages.map((m) => [m.from, m.text, m.why ?? null]),

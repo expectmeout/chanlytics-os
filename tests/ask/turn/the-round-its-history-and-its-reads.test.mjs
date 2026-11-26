@@ -254,16 +254,16 @@ test("a question that names another page's rows reads them before the model is a
   );
   assert.deepEqual(
     r2.tools,
-    ["sequences.moments"],
+    ["campaigns.moments"],
     "a read that succeeded is on the turn's tools, as name.action (D11)",
   );
-  assert.deepEqual(r2.shape.cross_page, ["sequences.moments"], "and on its shape");
+  assert.deepEqual(r2.shape.cross_page, ["campaigns.moments"], "and on its shape");
   const q = askedOf(s2.requests[0]).content;
   assert.ok(
-    q.some((b) => b.type === "search_result" && b.source === "read://sequences.moments"),
+    q.some((b) => b.type === "search_result" && b.source === "read://campaigns.moments"),
     "and in the question's message, as data",
   );
-  assert.ok(!JSON.stringify(s2.requests[0].system).includes("read://sequences.moments"), "never in system");
+  assert.ok(!JSON.stringify(s2.requests[0].system).includes("read://campaigns.moments"), "never in system");
 });
 
 test("the history is folded so no two neighbours share a role and the person speaks first", () => {
@@ -529,7 +529,7 @@ test("every read, each an action of the read tools, runs against the database in
       "guide",
       "inbox.list",
       "inbox.search",
-      "inbox.thread",
+      "inbox.conversation",
       "leads.back",
       "leads.ideas",
       "leads.lead",
@@ -543,16 +543,16 @@ test("every read, each an action of the read tools, runs against the database in
       "people.winners",
       "recall",
       "report",
-      "sequences.batch",
-      "sequences.cold_emails",
-      "sequences.edited",
-      "sequences.journey",
-      "sequences.list",
-      "sequences.lists",
-      "sequences.messages",
-      "sequences.moments",
-      "sequences.sent",
-      "sequences.sequence",
+      "campaigns.send",
+      "campaigns.cold_emails",
+      "campaigns.edited",
+      "campaigns.journey",
+      "campaigns.list",
+      "campaigns.lists",
+      "campaigns.messages",
+      "campaigns.moments",
+      "campaigns.sent",
+      "campaigns.campaign",
       "signals",
       "today",
       "workspace.activity",
@@ -563,9 +563,9 @@ test("every read, each an action of the read tools, runs against the database in
     "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten, PR 4.5's search, the library, the journey, the room, the operator's (the guide, the signals, the ideas, what comes back, the winners, the cold emails), recall (decision 0070), and the cold emails the member edited (decision 0078 step 2)",
   );
   // The operator's reads (15 Oct 2026) answer an empty workspace in their shape, never as a failure.
-  for (const key of ["guide", "signals", "leads.ideas", "leads.back", "people.winners", "sequences.cold_emails"])
+  for (const key of ["guide", "signals", "leads.ideas", "leads.back", "people.winners", "campaigns.cold_emails"])
     assert.equal(out[key].isError, false, `${key}: ${out[key].result}`);
-  assert.equal(out["sequences.edited"].isError, false, out["sequences.edited"].result);
+  assert.equal(out["campaigns.edited"].isError, false, out["campaigns.edited"].result);
   assert.equal(JSON.parse(out.signals.result).route, "today");
   const found = JSON.parse(out["inbox.search"].result);
   assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);
@@ -581,8 +581,8 @@ test("every read, each an action of the read tools, runs against the database in
     [[C1, "Rosa", "needs you"]],
   );
   assert.ok(tc.read.thread.has(C1), "a read row enters the read set, so it may be cited");
-  const thread = JSON.parse(out["inbox.thread"].result);
-  assert.equal(out["inbox.thread"].isError, false, out["inbox.thread"].result);
+  const thread = JSON.parse(out["inbox.conversation"].result);
+  assert.equal(out["inbox.conversation"].isError, false, out["inbox.conversation"].result);
   assert.equal(thread.conversation_id ?? thread.thread?.conversation_id ?? C1, C1);
   // Each row carries its last exchanges, so one read round answers most questions; and every row a tool returns
   // says where it opens, in the shape the answer's sources take (normalizeAnswer, ask/answer/). Both were
@@ -609,20 +609,20 @@ test("every read, each an action of the read tools, runs against the database in
     "no feed, no room counted, and said so",
   );
   assert.equal(out["calendar.week"].isError, false, out["calendar.week"].result);
-  assert.equal(out["sequences.lists"].isError, false, out["sequences.lists"].result);
-  assert.equal(out["sequences.moments"].isError, false, out["sequences.moments"].result);
-  assert.equal(out["sequences.messages"].isError, false, out["sequences.messages"].result);
-  assert.deepEqual(JSON.parse(out["sequences.messages"].result).messages, [], "an empty library, said as no message");
+  assert.equal(out["campaigns.lists"].isError, false, out["campaigns.lists"].result);
+  assert.equal(out["campaigns.moments"].isError, false, out["campaigns.moments"].result);
+  assert.equal(out["campaigns.messages"].isError, false, out["campaigns.messages"].result);
+  assert.deepEqual(JSON.parse(out["campaigns.messages"].result).messages, [], "an empty library, said as no message");
   // The sequences as their page lists them (0060): none here, and nothing needs you; one asked for by no id is refused.
-  assert.equal(out["sequences.list"].isError, false, out["sequences.list"].result);
-  assert.deepEqual(JSON.parse(out["sequences.list"].result), {
+  assert.equal(out["campaigns.list"].isError, false, out["campaigns.list"].result);
+  assert.deepEqual(JSON.parse(out["campaigns.list"].result), {
     route: "campaigns/sequences",
     needs_you: 0,
     sequences: [],
   });
-  assert.equal(out["sequences.sequence"].isError, true, "a sequence is asked for by its id");
-  assert.equal(out["sequences.journey"].isError, false, out["sequences.journey"].result);
-  const journey = JSON.parse(out["sequences.journey"].result);
+  assert.equal(out["campaigns.campaign"].isError, true, "a sequence is asked for by its id");
+  assert.equal(out["campaigns.journey"].isError, false, out["campaigns.journey"].result);
+  const journey = JSON.parse(out["campaigns.journey"].result);
   assert.deepEqual(
     [journey.covered, journey.of, journey.stages.map((s) => [s.id, s.covered, s.state, s.campaigns])],
     [
@@ -952,27 +952,33 @@ test("the proposal builders run against the database in memory: each kind is a c
     /not waiting any more/,
   );
 
-  const snooze = await p("propose_thread_verb", { conversation_id: C1, verb: "snooze" });
+  const snooze = await p("propose_conversation", { conversation_id: C1, verb: "snooze" });
   assert.equal(snooze.isError, false, snooze.result);
   assert.equal(
     snooze.proposal.payload.until,
     "2026-09-15T14:00:00.000Z",
     "tomorrow at ten in the business's zone (New York, so 14:00Z), whatever zone the server runs in",
   );
-  assert.match((await p("propose_thread_verb", { conversation_id: C1, verb: "wake" })).result, /not snoozed/);
-  assert.equal((await p("propose_thread_verb", { conversation_id: C2, verb: "wake" })).isError, false);
+  assert.match((await p("propose_conversation", { conversation_id: C1, verb: "wake" })).result, /not snoozed/);
+  assert.equal((await p("propose_conversation", { conversation_id: C2, verb: "wake" })).isError, false);
   assert.equal(
-    (await p("propose_thread_verb", { conversation_id: C2, verb: "hand_back" })).proposal.title,
+    (await p("propose_conversation", { conversation_id: C2, verb: "hand_back" })).proposal.title,
     "Hand Rosa's conversation back to AI",
   );
-  assert.match((await p("propose_thread_verb", { conversation_id: C1, verb: "hand_back" })).result, /nobody has taken/);
-  const resolve = await p("propose_thread_verb", { conversation_id: C1, verb: "resolve" });
+  assert.match(
+    (await p("propose_conversation", { conversation_id: C1, verb: "hand_back" })).result,
+    /nobody has taken/,
+  );
+  const resolve = await p("propose_conversation", { conversation_id: C1, verb: "resolve" });
   assert.deepEqual([resolve.proposal.payload.escalation_id, resolve.proposal.undo], [E1, null]);
-  assert.match((await p("propose_thread_verb", { conversation_id: C2, verb: "resolve" })).result, /no open escalation/);
+  assert.match(
+    (await p("propose_conversation", { conversation_id: C2, verb: "resolve" })).result,
+    /no open escalation/,
+  );
   // A verb the schema does not list is refused before the builder runs, in the schema's own words (PR 3.1, D2).
   assert.match(
-    JSON.parse((await p("propose_thread_verb", { conversation_id: C1, verb: "delete" })).result).error,
-    /^propose_thread_verb: verb Invalid option/,
+    JSON.parse((await p("propose_conversation", { conversation_id: C1, verb: "delete" })).result).error,
+    /^propose_conversation: verb Invalid option/,
   );
 
   const mode = await p("propose_person", { action: "mode", contact_id: P1, mode: "never" });
@@ -1065,7 +1071,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     "a mode the schema does not list is refused by the schema (PR 3.1, D2)",
   );
 
-  const broadcast = await p("propose_sequence", {
+  const broadcast = await p("propose_campaign", {
     action: "once",
     template_id: TPL,
     audience_kind: "everyone",
@@ -1082,13 +1088,13 @@ test("the proposal builders run against the database in memory: each kind is a c
     ["broadcast", "operator", 1, EVERYONE_LABEL],
   );
   assert.match(
-    (await p("propose_sequence", { action: "once", template_id: TPL, audience_kind: "list", audience_id: "nope" }))
+    (await p("propose_campaign", { action: "once", template_id: TPL, audience_kind: "list", audience_id: "nope" }))
       .result,
     /audience_id must be a People list id/,
   );
   assert.match(
     (
-      await p("propose_sequence", {
+      await p("propose_campaign", {
         action: "once",
         template_id: TPL,
         audience_kind: "everyone",
@@ -1098,7 +1104,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     /takes 0 values/,
   );
 
-  const playbook = await p("propose_sequence", {
+  const playbook = await p("propose_campaign", {
     action: "moment",
     trigger: "quiet_30",
     template_id: TPL,
@@ -1115,8 +1121,8 @@ test("the proposal builders run against the database in memory: each kind is a c
     ["playbook", "quiet_30", TPL, "Delete it. Nothing goes out."],
   );
   assert.match(
-    (await p("propose_sequence", { action: "moment", trigger: "never" })).result,
-    /propose_sequence: trigger Invalid option/,
+    (await p("propose_campaign", { action: "moment", trigger: "never" })).result,
+    /propose_campaign: trigger Invalid option/,
     "a moment the schema does not list is refused by the schema (PR 3.1, D2)",
   );
 
@@ -1136,11 +1142,11 @@ test("the proposal builders run against the database in memory: each kind is a c
   // A playbook with no template takes the trigger's starter, and where the workspace does not hold it the card adds it
   // at its Approve (the moment spec's A0; tests/playbooks/ask-setup/starter-card.test.mjs); a template with a typed slot
   // and no words is a question for the person, never invented words (pinned as text in playbooks.test.mjs until PR 3.1).
-  const onStarter = JSON.parse((await p("propose_sequence", { action: "moment", trigger: "quiet_30" })).result);
+  const onStarter = JSON.parse((await p("propose_campaign", { action: "moment", trigger: "quiet_30" })).result);
   assert.equal(onStarter.card, "Campaign: Win-back");
   assert.match(onStarter.summary, /adds the “Win-back” starter first/);
   // 2 Oct 2026: welcome is no longer a moment a new playbook starts from (it was this case's trigger): the schema says so.
-  const welcome = (await p("propose_sequence", { action: "moment", trigger: "new_week" })).result;
+  const welcome = (await p("propose_campaign", { action: "moment", trigger: "new_week" })).result;
   assert.match(welcome, /Invalid option: expected one of/);
   assert.doesNotMatch(
     welcome,
@@ -1148,7 +1154,7 @@ test("the proposal builders run against the database in memory: each kind is a c
     "the moments it names are the ones a new playbook may start from",
   );
   assert.match(
-    (await p("propose_sequence", { action: "moment", trigger: "everyone_monthly", template_id: TPL2 })).result,
+    (await p("propose_campaign", { action: "moment", trigger: "everyone_monthly", template_id: TPL2 })).result,
     /ask the person what to say there, then propose again with params/,
   );
   assert.ok(

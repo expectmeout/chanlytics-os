@@ -133,7 +133,7 @@ test("every card's role and undo words are its spec's: a wake's card offers no u
   });
   const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
   const card = async (verb, id) =>
-    (await buildProposal(tc, "propose_thread_verb", { conversation_id: id, verb })).proposal;
+    (await buildProposal(tc, "propose_conversation", { conversation_id: id, verb })).proposal;
   const cards = [
     await card("take_over", C1),
     await card("hand_back", C2),
@@ -238,7 +238,7 @@ test("REGRESSION: a broadcast to nobody is refused with the cause it has -- AI c
   const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
   /** What the model is told when it proposes an offer to one of the lists: no card, and why. */
   const refusal = async (audience_id) => {
-    const r = await buildProposal(tc, "propose_sequence", {
+    const r = await buildProposal(tc, "propose_campaign", {
       action: "once",
       template_id: TPL,
       audience_kind: "saved",
@@ -277,7 +277,7 @@ test("REGRESSION: campaigns.audiences tells who said yes from who can be sent it
     ].map(([segment_id, contact_id]) => ({ tenant_id: A, segment_id, contact_id })),
   });
   const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => people }), A, "owner", TZ, NOW);
-  const out = await runTool(tc, { name: "sequences", input: { action: "lists" } });
+  const out = await runTool(tc, { name: "campaigns", input: { action: "lists" } });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   /** One audience's four counts: said yes to offers, can be sent one; said yes to messages, can be sent one. */
@@ -298,7 +298,7 @@ test("REGRESSION: campaigns.audiences tells who said yes from who can be sent it
   for (const name of ["said_yes_to_offers", "can_be_sent_offers", "said_yes_to_messages", "can_be_sent_messages"]) {
     assert.ok(read.note.includes(name), `the note names ${name}: ${read.note}`);
     assert.ok(
-      READ_TOOLS.find((d) => d.name === "sequences").description.includes(name),
+      READ_TOOLS.find((d) => d.name === "campaigns").description.includes(name),
       `and so does the tool's description: ${name}`,
     );
   }
@@ -324,7 +324,7 @@ test("REGRESSION: campaigns.audiences counts everyone and every member, and name
   };
   const ctx = { supabase: fakeDb(t, {}, pages, { maxRows: 1000 }), userId: USER, email: "ada@example.com", params: {} };
   const out = await runTool(newToolContext(ctx, A, "owner", TZ, NOW), {
-    name: "sequences",
+    name: "campaigns",
     input: { action: "lists" },
   });
   assert.equal(out.isError, false, out.result);
@@ -343,7 +343,7 @@ test("the deal lists reach Ask once a deal is on file -- campaigns.audiences and
   const DEAL_LISTS = ["consultation_booked", "proposal_out", "clients", "deal_ended"];
   const ask = async (t) => {
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-    const out = await runTool(tc, { name: "sequences", input: { action: "lists" } });
+    const out = await runTool(tc, { name: "campaigns", input: { action: "lists" } });
     assert.equal(out.isError, false, out.result);
     const ids = JSON.parse(out.result).audiences.map((a) => a.audience_id);
     const clients = await runTool(tc, { name: "people", input: { action: "search", query: "", list: "clients" } });
@@ -402,7 +402,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   const run = async (name, input) => JSON.parse((await runTool(tc, { name, input })).result);
 
   // The audiences carry each list's token; one of the workspace's own that can't be counted says why, with no counts.
-  const { audiences } = await run("sequences", { action: "lists" });
+  const { audiences } = await run("campaigns", { action: "lists" });
   const byLabel = Object.fromEntries(audiences.map((a) => [a.label, a]));
   assert.equal(byLabel.Regulars.list, `list:${S_REG}`);
   assert.equal(byLabel["Phoned only"].list, "seg:phoned_only");
@@ -439,7 +439,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   };
   t.templates = [tpl];
   const propose = (audience_kind, audience_id) =>
-    buildProposal(tc, "propose_sequence", {
+    buildProposal(tc, "propose_campaign", {
       action: "once",
       template_id: TPL,
       audience_kind,
@@ -450,7 +450,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
   assert.equal(toRegulars.isError, false, toRegulars.result);
   assert.deepEqual([toRegulars.proposal.payload.audience_label, toRegulars.proposal.payload.count], ["Regulars", 1]);
   // A playbook on any list (00168): a saved list as a win-back, its list and class carried to the commit.
-  const onRegulars = await buildProposal(tc, "propose_sequence", {
+  const onRegulars = await buildProposal(tc, "propose_campaign", {
     action: "moment",
     trigger: "saved_list",
     list: `list:${S_REG}`,
@@ -468,7 +468,7 @@ test("Ask reaches any list by its reference: a People list or one of the workspa
     [S_REG, null, "reengage"],
   );
   assert.equal(onRegulars.proposal.payload.candidates, 1, "Rosa: on the list, a yes to offers and a number");
-  const onMine = await buildProposal(tc, "propose_sequence", {
+  const onMine = await buildProposal(tc, "propose_campaign", {
     action: "moment",
     trigger: "saved_list",
     list: "seg:waiting_on_you",
@@ -598,7 +598,7 @@ test("a gated list's refusal names the condition that failed: with a calendar an
   try {
     forgetFeeds();
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-    const listed = await runTool(tc, { name: "sequences", input: { action: "lists" } });
+    const listed = await runTool(tc, { name: "campaigns", input: { action: "lists" } });
     assert.equal(listed.isError, false, listed.result);
     const ids = JSON.parse(listed.result).audiences.map((a) => a.audience_id);
     assert.ok(ids.includes("booked"), "the calendar was read: its lists are offered");

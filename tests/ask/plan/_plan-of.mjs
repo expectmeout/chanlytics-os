@@ -1070,7 +1070,7 @@ export const ROWS = [
     ],
   },
   {
-    name: "a campaign paused on a moment is not doubled: a card of its own resumes it, as propose_sequence action change makes it (it was 'resume it from its drawer': the operator stress run, 15 Oct 2026)",
+    name: "a campaign paused on a moment is not doubled: a card of its own resumes it, as propose_campaign action change makes it (it was 'resume it from its drawer': the operator stress run, 15 Oct 2026)",
     intent: { intent: "cover_journey", stages: ["after", "quiet"] },
     world: world({
       playbooks: [{ id: PB, name: "Win-back", trigger: "lapsed", state: "paused", template_name: null }],
@@ -1362,11 +1362,11 @@ export function checkAsk() {
 
 export const tool = async (rel, name) => (await import(at(`apps/dashboard/src/server/ask/tools/act/${rel}`)))[name];
 
-export const sequenceTool = await tool("sequence/sequence.ts", "propose_sequence");
+export const sequenceTool = await tool("sequence/sequence.ts", "propose_campaign");
 
 export const settingsTool = await tool("settings.ts", "propose_settings");
 
-/** An action of a tool by its name: propose_sequence's own, or "" for a tool that is one action. */
+/** An action of a tool by its name: propose_campaign's own, or "" for a tool that is one action. */
 export const action = (t, name) => {
   const def = t.actions[name];
   assert.ok(def, `${t.name} has the action ${name || "(its own)"}`);

@@ -298,17 +298,17 @@ const ctxOf = (rows, user = USER, people = PEOPLE, faults = {}) => ({
 });
 /**
  * The tool and action an input names, as propose_campaign's actions are now (the operator, 15 Oct 2026): the plan is
- * propose_plan's action offer; a broadcast, a playbook and a run are propose_sequence's once, moment and batch; the rest
- * keep their names under propose_sequence.
+ * propose_plan's action offer; a broadcast, a playbook and a run are propose_campaign's once, moment and batch; the rest
+ * keep their names under propose_campaign.
  */
 const RENAMED = {
   plan: ["propose_plan", "offer"],
-  broadcast: ["propose_sequence", "once"],
-  playbook: ["propose_sequence", "moment"],
-  run: ["propose_sequence", "batch"],
+  broadcast: ["propose_campaign", "once"],
+  playbook: ["propose_campaign", "moment"],
+  run: ["propose_campaign", "batch"],
 };
 const routed = (input) => {
-  const [tool, action] = RENAMED[input.action] ?? ["propose_sequence", input.action];
+  const [tool, action] = RENAMED[input.action] ?? ["propose_campaign", input.action];
   return [tool, { ...input, action }];
 };
 /** A call of the campaign tools by a member of `role` over `rows`, People being `people`: its outcome. */
@@ -557,7 +557,7 @@ test("a token outside a plan, or naming a step that is not an earlier one, names
 
 test("a new campaign on a step's message that names no channels ticks them by the composer's own rule, as for any message: by email on a workspace with no number, never WhatsApp alone; and counts who the offer reaches (fix round 1)", async () => {
   const asStep = (input) =>
-    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_sequence", {
+    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_campaign", {
       action: "moment",
       trigger: "saved_list",
       list: OFFERS,
@@ -577,7 +577,7 @@ test("a new campaign on a step's message that names no channels ticks them by th
 
 test("a change to the campaign an earlier step makes (no plan names one today) takes what is said without its row: a pause, its words, its end; the rest is refused in words, and the card names the step", async () => {
   const asStep = (input) =>
-    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_sequence", {
+    buildProposal({ ...newToolContext(ctxOf(tables()), A, "owner", TZ, NOW), step: 2 }, "propose_campaign", {
       action: "change",
       playbook_id: stepToken(1),
       ...input,
@@ -918,7 +918,7 @@ test("cover_journey where the Google listing keeps a review link and the Library
   assert.equal(PROPOSAL_SPECS.playbook.commit(cards[0], { settings: null }).body.starter_key, "after_visit_review");
 });
 
-test("REGRESSION: cover_journey with the win-back paused on its moment resumes it by a card of its own, built by propose_sequence action change -- the setup told the owner to resume it from its drawer (the operator stress run, 15 Oct 2026)", async () => {
+test("REGRESSION: cover_journey with the win-back paused on its moment resumes it by a card of its own, built by propose_campaign action change -- the setup told the owner to resume it from its drawer (the operator stress run, 15 Oct 2026)", async () => {
   const intent = { intent: "cover_journey", stages: ["quiet"] };
   const paused = { name: "Win-back", trigger: "lapsed", state: "paused", template_name: "winback_reply" };
   const r = await plan(intent, withCalendar({ playbooks: [pbRow(MONTHLY, { ...paused, cadence_days: null })] }));
@@ -1090,7 +1090,7 @@ test("the loop keeps every card one call made: a plan's three cards are the turn
   assert.ok(head.also.includes(EN.without("whatsapp", C.CHANNEL_WORDS.noWhatsApp)), JSON.stringify(head));
   assert.equal(r.proposals.find((p) => p.kind === "playbook_change").plan.does, EN.does.pauses("Nov 30"));
   // The offer's journey and Library ride in before round 1 (cross-page.ts OFFER_ASKED), then the plan.
-  assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
+  assert.deepEqual(r.tools, ["campaigns.journey", "campaigns.messages", "propose_plan.offer"]);
 });
 
 test("asked in Spanish, an offer's plan answers in Spanish throughout: its one sentence, and what no step says on its card, in the question's language (16 Oct 2026; the answers canvas, D2)", async () => {
@@ -1226,7 +1226,7 @@ test("an offer's journey and Library read before round 1 are the plan's own read
   };
   const ahead = ctxOf(tables());
   const r = await planTurn([PLAN_CALL], { ctx: ahead });
-  assert.deepEqual(r.tools, ["sequences.journey", "sequences.messages", "propose_plan.offer"]);
+  assert.deepEqual(r.tools, ["campaigns.journey", "campaigns.messages", "propose_plan.offer"]);
   readerCache.clear();
   // Words that name nothing to read ahead, the same call. They name no draft either, and a plan begun at the turn's own
   // effort is set aside and asked again at the draft's (server/ask/effort.ts): this counts the database's asks, so the

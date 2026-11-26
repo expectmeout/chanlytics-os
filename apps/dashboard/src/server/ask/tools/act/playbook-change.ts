@@ -34,8 +34,7 @@ import { propose, refuse, refuseThrown } from "../context/context";
 import { paramSpecsOf } from "./playbook/params";
 
 /** Where a playbook's id is read, said as the model calls it. */
-// screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-const PLAYBOOK_FROM = "sequences with action moments";
+const PLAYBOOK_FROM = "campaigns with action moments";
 
 /**
  * How a resumed playbook's batches go, in full (D7): under auto, that it sends on its own and nothing waits for approval,
@@ -312,7 +311,7 @@ async function proposePlaybookChange(toolContext: ToolContext, input: ChangeAske
   );
 }
 
-/** A playbook that exists, changed in place: propose_sequence's action change. */
+/** A playbook that exists, changed in place: propose_campaign's action change. */
 export const playbookChangeAction = actAction({
   kind: "playbook_change",
   input: z.object({
@@ -332,6 +331,6 @@ export const playbookChangeAction = actAction({
   ],
   label: "Preparing a campaign's change",
   // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  words: `Action change takes playbook_id, a campaign that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running restarts them under its own mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later) or mode (how its sends are decided, its "Before each send": ask, each waits for an OK; veto, each waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, then goes; auto, each goes on its own, never for a cold email; a send of new words waits for an OK whatever it says). Nothing else moves: its moment, message and list are its drawer's, its channels action channels'. A run already waiting for approval stays waiting after a pause, which the card says: propose action batch with verb skip beside it when they want it gone. A campaign to leads (cold email) takes state, name and mode alone here, its emails and steps being its page's; anything else asked of one, a value outside its bounds and a campaign that already reads so are refused in words; a part it already holds (a pause of one paused) is left off the card, which says so, as does the answer.`,
+  words: `Action change takes playbook_id, a campaign that exists, as ${PLAYBOOK_FROM} gives it (or the page's rows), and only what they asked to change: state (paused stops its next runs; running restarts them under its own mode), name (at most ${PLAYBOOK_NAME_MAX} characters), run_hour (${PLAYBOOK_LIMITS.run_hour.min} to ${PLAYBOOK_LIMITS.run_hour.max} by the business's clock), cap_per_run (${PLAYBOOK_LIMITS.cap_per_run.min} to ${PLAYBOOK_LIMITS.cap_per_run.max} people a run), gap_days (${PLAYBOOK_LIMITS.gap_days.min} to ${PLAYBOOK_LIMITS.gap_days.max} days before a person is reached again), cadence_days (${PLAYBOOK_LIMITS.cadence_days.min} to ${PLAYBOOK_LIMITS.cadence_days.max}, the month's offer alone), params (its message's values in order, as action moment takes them: new text in the same message, never a new message), until (its last day, YYYY-MM-DD by the business's clock, today or later) or mode (how its sends are decided, its "Before each send": ask, each waits for an OK; veto, each waits ${PLAYBOOK_VETO_DELAY_WORDS} for a Stop, then goes; auto, each goes on its own, never for a cold email; a send of new words waits for an OK whatever it says). Nothing else moves: its moment, message and list are its drawer's, its channels action channels'. A run already waiting for approval stays waiting after a pause, which the card says: propose action send with verb skip beside it when they want it gone. A campaign to leads (cold email) takes state, name and mode alone here, its emails and steps being its page's; anything else asked of one, a value outside its bounds and a campaign that already reads so are refused in words; a part it already holds (a pause of one paused) is left off the card, which says so, as does the answer.`,
   build: proposePlaybookChange,
 });

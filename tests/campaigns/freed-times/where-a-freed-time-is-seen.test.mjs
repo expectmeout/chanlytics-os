@@ -166,7 +166,7 @@ test("Ask notices the cancellations nothing offered: a calendar connected, no st
     });
   assert.deepEqual(noticed(), {
     says: "6 appointments were cancelled in the last 30 days and the time was offered to nobody.",
-    next: "propose_sequence with action moment on slot_opened (Fill a cancellation): each time a cancellation frees goes to the people who asked and never booked",
+    next: "propose_campaign with action moment on slot_opened (Fill a cancellation): each time a cancellation frees goes to the people who asked and never booked",
   });
   // A step on the moment running, no calendar, too few, or a count that could not be read: nothing.
   assert.equal(noticed({ steps: [{ trigger: "slot_opened", state: "running" }] }), null);

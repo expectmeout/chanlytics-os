@@ -49,8 +49,8 @@ import { propose_people } from "./people/people";
 import { propose_person } from "./person";
 import { propose_reply } from "./reply";
 import { propose_review } from "./review";
-import { propose_sequence } from "./sequence/sequence";
-import { propose_thread_verb } from "./thread-verb";
+import { propose_campaign } from "./sequence/sequence";
+import { propose_conversation } from "./thread-verb";
 import { readJourney, readMessages } from "../read/campaigns/campaigns";
 import { listLists } from "../read/people/people";
 import { propose_settings, settingsAct } from "./settings";
@@ -166,8 +166,8 @@ function customersLanguage(r: Awaited<ReturnType<typeof worldReads>>, t: ToolCon
 
 /**
  * The workspace as a plan is made against (contracts PlanWorld), each part read by the read Ask's own action of it makes,
- * so what the plan reuses, counts and covers is what those actions say: the Library (sequences.messages), the lists and
- * their counts (people.lists: People's offered here and the workspace's own), the journey (sequences.journey, the
+ * so what the plan reuses, counts and covers is what those actions say: the Library (campaigns.messages), the lists and
+ * their counts (people.lists: People's offered here and the workspace's own), the journey (campaigns.journey, the
  * old home's model, contracts campaignsHomeOf), the campaigns (GET playbooks' reader, the journey's own read), the room (calendar.room:
  * none where no calendar can say it, or one with no slot either way), the receptionist's notes in force (notesOf), the
  * channels an offer may go by now and why not (the channels' readiness with the offer's own rule, contracts
@@ -393,7 +393,7 @@ const planAction = actAction({
 const STEP_TOOLS: ReadonlyMap<string, ActTool> = new Map(
   [
     propose_reply,
-    propose_thread_verb,
+    propose_conversation,
     propose_call,
     propose_person,
     propose_people,
@@ -402,7 +402,7 @@ const STEP_TOOLS: ReadonlyMap<string, ActTool> = new Map(
     propose_settings,
     propose_lead_search,
     propose_leads,
-    propose_sequence,
+    propose_campaign,
     propose_review,
     propose_follow_up,
   ].map((tool) => [tool.name, tool]),
@@ -530,7 +530,7 @@ const stepsAction = actAction({
     steps: z
       .array(
         z.object({
-          tool: z.string().describe("An act tool's name, such as propose_list or propose_sequence."),
+          tool: z.string().describe("An act tool's name, such as propose_list or propose_campaign."),
           action: z.string().optional().describe("Its action, where the tool takes one."),
           input: z
             .record(z.string(), z.unknown())
@@ -551,7 +551,7 @@ const stepsAction = actAction({
           input: { name: "Businesses near you", lead_ids: ["5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b"] },
         },
         {
-          tool: "propose_sequence",
+          tool: "propose_campaign",
           action: "cold_email",
           input: {
             name: "Businesses near you",

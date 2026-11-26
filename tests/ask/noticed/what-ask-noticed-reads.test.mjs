@@ -624,12 +624,12 @@ test("Ask's own read of what stands out (the signals tool) says what it said, wi
     {
       key: "nothing_sends_on_its_own",
       says: "29 people are in People (4 new in the last 30 days) and nothing sends on its own.",
-      next: "propose_plan with action steps: lists that group them (propose_list make), then a campaign for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
+      next: "propose_plan with action steps: lists that group them (propose_list make), then a campaign for the strongest group (propose_campaign make); or propose_plan with action offer, intent cover_journey",
     },
     {
       key: "leads_not_written_to",
       says: "7 leads were found in 1 search no cold email writes to (Florists in Queens: 7).",
-      next: "leads with action leads (list ready) to pick the best, propose_leads with action list, then propose_sequence with action cold_email on it, in one propose_plan with action steps",
+      next: "leads with action leads (list ready) to pick the best, propose_leads with action list, then propose_campaign with action cold_email on it, in one propose_plan with action steps",
     },
     {
       key: "search_asks",
@@ -644,12 +644,12 @@ test("Ask's own read of what stands out (the signals tool) says what it said, wi
     {
       key: "batches_waiting",
       says: "1 send waits for an OK before it sends.",
-      next: "sequences with action sent, then propose_sequence with action batch (approve or skip)",
+      next: "campaigns with action sent, then propose_campaign with action send (approve or skip)",
     },
     {
       key: "lists_feed_nothing",
       says: "2 lists feed no campaign: Regulars, Spring brides.",
-      next: "propose_sequence with action moment on the list (trigger saved_list), after sequences with action lists counts who it reaches",
+      next: "propose_campaign with action moment on the list (trigger saved_list), after campaigns with action lists counts who it reaches",
     },
     {
       key: "deals_without_a_step",
@@ -659,12 +659,12 @@ test("Ask's own read of what stands out (the signals tool) says what it said, wi
     {
       key: "freed_times_unoffered",
       says: "4 appointments were cancelled in the last 30 days and the time was offered to nobody.",
-      next: "propose_sequence with action moment on slot_opened (Fill a cancellation): each time a cancellation frees goes to the people who asked and never booked",
+      next: "propose_campaign with action moment on slot_opened (Fill a cancellation): each time a cancellation frees goes to the people who asked and never booked",
     },
     {
       key: "offers_never_asked",
       says: "4 people on WhatsApp have never been asked for the yes to offers (3 said yes so far).",
-      next: "never a message whose purpose is the ask: AI asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and campaigns after a booking to people with a messages yes (propose_sequence with action moment)",
+      next: "never a message whose purpose is the ask: AI asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and campaigns after a booking to people with a messages yes (propose_campaign with action moment)",
     },
   ]);
 });

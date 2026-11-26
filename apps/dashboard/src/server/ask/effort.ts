@@ -48,10 +48,10 @@ import type { turnMeter } from "./turn-end";
 const DRAFT_CALLS: ReadonlySet<string> = new Set([
   "propose_plan.offer",
   "propose_plan.steps",
-  "propose_sequence.make",
-  "propose_sequence.moment",
-  "propose_sequence.message",
-  "propose_sequence.cold_email",
+  "propose_campaign.make",
+  "propose_campaign.moment",
+  "propose_campaign.message",
+  "propose_campaign.cold_email",
 ]);
 
 const isDraftCall = (b: RoundBlock): boolean => b.type === "tool_use" && DRAFT_CALLS.has(calledName(b.name, argsOf(b)));

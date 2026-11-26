@@ -199,7 +199,7 @@ const propose = (input, db = {}, people = SAID_YES) => {
   rows.contacts = people.map((p) => ({ id: p.id, tenant_id: A, erased_at: null, display_name: p.display_name }));
   const supabase = fakeDb(rows, {}, { people_list: () => people });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  return { made: buildProposal(t, "propose_sequence", { action: "moment", ...input }), rows };
+  return { made: buildProposal(t, "propose_campaign", { action: "moment", ...input }), rows };
 };
 const said = (r) => JSON.parse(r.result).error;
 const word = appointmentWordOf("meeting");
@@ -273,7 +273,7 @@ test("a step of a plan that would reach nobody is the plan's refusal, never a fi
   rows.contacts = NO_OFFERS_YES.map((p) => ({ id: p.id, tenant_id: A, erased_at: null, display_name: p.display_name }));
   const supabase = fakeDb(rows, {}, { people_list: () => NO_OFFERS_YES });
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const r = await buildProposal({ ...t, step: 2 }, "propose_sequence", { action: "moment", trigger: "quiet_30" });
+  const r = await buildProposal({ ...t, step: 2 }, "propose_campaign", { action: "moment", trigger: "quiet_30" });
   assert.equal(r.isError, true, r.result);
   assert.equal(
     said(r),

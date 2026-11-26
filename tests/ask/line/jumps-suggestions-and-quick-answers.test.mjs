@@ -406,18 +406,18 @@ test("the surfaces are one list, Leads among them, and every kind a scope may ha
   );
 });
 
-test("a campaign's scope is read before the model is asked, by the read of its own record (sequences.sequence)", async () => {
+test("a campaign's scope is read before the model is asked, by the read of its own record (campaigns.campaign)", async () => {
   const { scopedRead } = await import(
     pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/ask/cross-page.ts")).href
   );
   // The one open, as its record shows it (every campaign is a sequence): never the whole list (Ruben, 12 Nov 2026).
   for (const kind of ["playbook", "sequence"])
     assert.deepEqual(scopedRead({ kind, id: "p1", label: "Win-back" }), {
-      name: "sequences",
-      input: { action: "sequence", sequence_id: "p1" },
+      name: "campaigns",
+      input: { action: "campaign", campaign_id: "p1" },
     });
   assert.deepEqual(scopedRead({ kind: "message", id: "reminder_24h", label: "Reminder" }), {
-    name: "sequences",
+    name: "campaigns",
     input: { action: "messages", name: "reminder_24h" },
   });
   assert.deepEqual(scopedRead({ kind: "visit", id: "v1", label: "this visit" }, "calendar/week:2026-11-12:a-v1"), {
@@ -1054,17 +1054,17 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings", "room"]],
       ["calls", ["list", "get"]],
+      [
+        "campaigns",
+        ["list", "campaign", "moments", "lists", "messages", "sent", "send", "journey", "cold_emails", "edited"],
+      ],
       ["files", ["list", "get", "view", "compare", "zoom", "listen", "week", "reasons"]],
       ["guide", []],
-      ["inbox", ["list", "thread", "search"]],
+      ["inbox", ["list", "conversation", "search"]],
       ["leads", ["searches", "leads", "lead", "ideas", "back", "search"]],
       ["people", ["search", "get", "lists", "winners", "pipeline"]],
       ["recall", []],
       ["report", []],
-      [
-        "sequences",
-        ["list", "sequence", "moments", "lists", "messages", "sent", "batch", "journey", "cold_emails", "edited"],
-      ],
       ["signals", []],
       ["today", []],
       ["workspace", ["settings", "connections", "notifications", "activity"]],

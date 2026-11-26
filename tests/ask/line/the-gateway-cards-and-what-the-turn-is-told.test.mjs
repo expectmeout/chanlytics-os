@@ -263,7 +263,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_reply", ["draft", "steer", "booking"]],
       ["propose_review", ["reply"]],
       [
-        "propose_sequence",
+        "propose_campaign",
         [
           "once",
           "moment",
@@ -292,7 +292,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ],
       ["propose_settings", ["change", "answers", "worth", "autonomy", "goal", "answer_style"]],
       ["propose_take_down", []],
-      ["propose_thread_verb", []],
+      ["propose_conversation", []],
       // A week of posts, and what a post may say (00706).
       ["propose_week", ["plan", "approve", "slot", "aims", "claim", "withdraw"]],
       // A fact the person tells Ask to keep (decision 0070).
@@ -987,8 +987,8 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   const head = "Setting up campaigns is a few cards";
   assert.ok(setup.startsWith(head));
   assert.ok(turnWords({ ...facts, surface: "campaigns" }).includes(`as the rule "${head}" says`));
-  // The two actions the rules name are propose_plan's and propose_sequence's, as the API is told them.
-  const campaign = ACT_TOOLS.find((t) => t.name === "propose_sequence");
+  // The two actions the rules name are propose_plan's and propose_campaign's, as the API is told them.
+  const campaign = ACT_TOOLS.find((t) => t.name === "propose_campaign");
   assert.ok(ACT_TOOLS.find((t) => t.name === "propose_plan").description.includes("Action offer "), "the plan");
   assert.ok(campaign.description.includes("Action message "), "the message");
   // 11 Oct 2026 (Task 19's review): the tools' words the model reads beside the rules agree with them. propose_campaign's
@@ -996,7 +996,7 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   // the journey read says what it reports and that a whole setup or an offer is the plan's, never assembled from it.
   const tail = "For an offer, a promotion or a whole setup, call propose_plan with action offer instead.";
   assert.ok(campaign.description.includes(tail), campaign.description);
-  const journey = READ_TOOLS.find((t) => t.name === "sequences").description;
+  const journey = READ_TOOLS.find((t) => t.name === "campaigns").description;
   assert.ok(
     journey.includes(
       "An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read",

@@ -119,7 +119,7 @@ async function propose(input, over = {}, role = "operator") {
   const tables = world(over);
   const supabase = fakeDb(tables, {}, {});
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, role, TZ, NOW);
-  const r = await buildProposal(t, "propose_sequence", { action: "message", ...input });
+  const r = await buildProposal(t, "propose_campaign", { action: "message", ...input });
   return { ...r, seen: supabase.seen, tables };
 }
 const said = (r) => JSON.parse(r.result).error;
@@ -441,7 +441,7 @@ test("a viewer is not offered the action; every role is offered no more tools th
   for (const role of ["viewer", "operator", "partner", "owner"]) {
     const tools = toApiTools(role, true);
     assert.ok(tools.length <= 40, `${role}: ${tools.length} tools`);
-    const sequence = tools.find((t) => t.name === "propose_sequence");
+    const sequence = tools.find((t) => t.name === "propose_campaign");
     assert.equal(sequence?.input_schema.properties.action.enum.includes("message") ?? false, role !== "viewer", role);
   }
   const r = await propose(OFFER, {}, "viewer");

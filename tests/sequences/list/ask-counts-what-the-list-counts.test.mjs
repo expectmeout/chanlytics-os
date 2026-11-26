@@ -3,7 +3,7 @@
  *
  * The list files a sequence under Needs you when something waits on its owner, when a one-off failed, and when it should
  * be going and isn't (leads that could not be checked, a run that did nothing), and its header counts those sequences.
- * Ask's read of the list (its sequences tool, action list) says the same of each: its group, its line, and, for every one under
+ * Ask's read of the list (its campaigns tool, action list) says the same of each: its group, its line, and, for every one under
  * Needs you, the words of what needs them. The number on top is the page's: the sequences under Needs you. Before this
  * it summed the people and emails waiting, so a stuck sequence added nothing and two emails in one sequence counted two.
  * How many people or emails wait stays on each row (needs_count).

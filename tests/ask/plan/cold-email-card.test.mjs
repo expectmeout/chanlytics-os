@@ -76,7 +76,7 @@ const contextOver = (mailboxes, faults, rpcs) =>
   );
 /** The card as the model's call builds it over `mailboxes`, and what the model is told of it; `more` is what else it asks. */
 async function card(mailboxes, more = {}) {
-  const out = await buildProposal(contextOver(mailboxes), "propose_sequence", {
+  const out = await buildProposal(contextOver(mailboxes), "propose_campaign", {
     action: "cold_email",
     ...INPUT,
     ...more,
@@ -86,7 +86,7 @@ async function card(mailboxes, more = {}) {
 }
 
 test("with no mailbox connected there is no card: it says what to connect, in the page's words", async () => {
-  const out = await buildProposal(contextOver([]), "propose_sequence", { action: "cold_email", ...INPUT });
+  const out = await buildProposal(contextOver([]), "propose_campaign", { action: "cold_email", ...INPUT });
   assert.equal(out.proposal, null);
   assert.equal(out.isError, true);
   assert.equal(out.refusal, COLD_EMAIL_NEEDS_MAILBOX);
@@ -101,7 +101,7 @@ test("a mailbox that is there and can't send has no card either: it says what is
   for (const [over, said] of CANT_SEND) {
     readerCache.clear();
     const world = contextOver([rows.mailboxConnection({ tenant_id: A, ...over })]);
-    const out = await buildProposal(world, "propose_sequence", { action: "cold_email", ...INPUT });
+    const out = await buildProposal(world, "propose_campaign", { action: "cold_email", ...INPUT });
     assert.equal(out.proposal, null, over.state);
     assert.equal(out.isError, true, over.state);
     assert.match(out.refusal, said, over.state);
@@ -111,7 +111,7 @@ test("a mailbox that is there and can't send has no card either: it says what is
 
 test("a read of the mailboxes that failed says so, and never that there is none", async () => {
   const failed = contextOver([CONNECTED], { "mailbox_connections.select": { message: "the read failed" } });
-  const out = await buildProposal(failed, "propose_sequence", { action: "cold_email", ...INPUT });
+  const out = await buildProposal(failed, "propose_campaign", { action: "cold_email", ...INPUT });
   assert.equal(out.proposal, null);
   assert.equal(out.isError, true);
   assert.equal(out.refusal, COLD_EMAIL_MAILBOX_UNREAD);
@@ -176,7 +176,7 @@ test("asking to send them by hand changes nothing: the mailboxes send; one email
 
 test("the model is told nothing holds the card: alone, and as each step of a plan", async () => {
   assert.equal("holds" in (await card([CONNECTED])).told, false, "nothing holds it: nothing to leave out");
-  const step = { tool: "propose_sequence", action: "cold_email", input: INPUT };
+  const step = { tool: "propose_campaign", action: "cold_email", input: INPUT };
   const plan = await buildProposal(contextOver([CONNECTED]), "propose_plan", {
     action: "steps",
     steps: [step, { ...step, input: { ...INPUT, name: "Dentists · Austin" } }],
@@ -254,7 +254,7 @@ test("REGRESSION (the live run of 14 Nov 2026): a search none of whose leads has
   // 35 med spas, each with a phone and none with an email, were pressed into a sequence that could write to nobody.
   const out = await buildProposal(
     contextOver([CONNECTED], {}, reachOf({ phone_only: 35, of: 35 })),
-    "propose_sequence",
+    "propose_campaign",
     {
       action: "cold_email",
       ...INPUT,
@@ -270,7 +270,7 @@ test("REGRESSION (the live run of 14 Nov 2026): a search none of whose leads has
 test("a search with some it can write to says how many on the card's To", async () => {
   const out = await buildProposal(
     contextOver([CONNECTED], {}, reachOf({ ready: 12, with_unconfirmed: 15, of: 57 })),
-    "propose_sequence",
+    "propose_campaign",
     {
       action: "cold_email",
       ...INPUT,
@@ -283,7 +283,7 @@ test("a search with some it can write to says how many on the card's To", async 
   );
   const unconfirmed = await buildProposal(
     contextOver([CONNECTED], {}, reachOf({ ready: 0, with_unconfirmed: 3, of: 57 })),
-    "propose_sequence",
+    "propose_campaign",
     { action: "cold_email", ...INPUT, include_unconfirmed: true },
   );
   assert.ok(unconfirmed.proposal, "with those still being checked asked for, three can be written to");

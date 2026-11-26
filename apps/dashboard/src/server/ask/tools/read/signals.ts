@@ -47,7 +47,7 @@ const nothingSends: Spot = ({ people, seqs, fresh }) => {
     key: "nothing_sends_on_its_own",
     facts: { people: people.listed },
     says: `${plural(people.listed, "person is", "people are")} in People${isNew} and nothing sends on its own.`,
-    next: "propose_plan with action steps: lists that group them (propose_list make), then a campaign for the strongest group (propose_sequence make); or propose_plan with action offer, intent cover_journey",
+    next: "propose_plan with action steps: lists that group them (propose_list make), then a campaign for the strongest group (propose_campaign make); or propose_plan with action offer, intent cover_journey",
     weight: 1,
   };
 };
@@ -63,8 +63,7 @@ const listsFeedNothing: Spot = ({ kept, steps }) => {
     key: "lists_feed_nothing",
     facts: { lists: idle.length, names },
     says: `${plural(idle.length, "list feeds", "lists feed")} no campaign: ${names.join(", ")}${idle.length > 4 ? "…" : ""}.`,
-    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-    next: "propose_sequence with action moment on the list (trigger saved_list), after sequences with action lists counts who it reaches",
+    next: "propose_campaign with action moment on the list (trigger saved_list), after campaigns with action lists counts who it reaches",
     weight: 2,
   };
 };
@@ -82,7 +81,7 @@ const leadsNotWrittenTo: Spot = ({ finder, written }) => {
     key: "leads_not_written_to",
     facts: { leads, searches: unwritten.length },
     says: `${plural(leads, "lead was", "leads were")} found in ${plural(unwritten.length, "search", "searches")} no cold email writes to (${named.join("; ")}).`,
-    next: "leads with action leads (list ready) to pick the best, propose_leads with action list, then propose_sequence with action cold_email on it, in one propose_plan with action steps",
+    next: "leads with action leads (list ready) to pick the best, propose_leads with action list, then propose_campaign with action cold_email on it, in one propose_plan with action steps",
     weight: 1,
   };
 };
@@ -122,8 +121,7 @@ const batchesWaiting: Spot = ({ seqs }) => {
     key: "batches_waiting",
     facts: { sends: n },
     says: `${plural(n, "send waits", "sends wait")} for an OK before it sends.`,
-    // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-    next: "sequences with action sent, then propose_sequence with action batch (approve or skip)",
+    next: "campaigns with action sent, then propose_campaign with action send (approve or skip)",
     weight: 1,
   };
 };
@@ -137,7 +135,7 @@ const offersNeverAsked: Spot = ({ people, saidYes }) => {
     key: "offers_never_asked",
     facts: { never },
     says: `${plural(never, "person on WhatsApp has", "people on WhatsApp have")} never been asked for the yes to offers${yesSoFar}.`,
-    next: "never a message whose purpose is the ask: AI asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and campaigns after a booking to people with a messages yes (propose_sequence with action moment)",
+    next: "never a message whose purpose is the ask: AI asks once at the natural end of a conversation they started; offer the sign-up link and its QR for the counter, and campaigns after a booking to people with a messages yes (propose_campaign with action moment)",
     weight: 3,
   };
 };
@@ -192,7 +190,7 @@ export const spotsOf = (seen: Seen): Signal[] =>
 /** The parts that could not be read, said beside the signals, never as nothing to notice. */
 const unreadOf = (s: Seen): string[] => [
   ...(s.people ? [] : ["people"]),
-  ...(s.seqs ? [] : ["sequences"]),
+  ...(s.seqs ? [] : ["campaigns"]),
   ...(s.finder ? [] : ["lead searches"]),
   ...(s.written ? [] : ["cold emails"]),
 ];

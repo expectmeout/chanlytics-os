@@ -444,7 +444,7 @@ test("the glossary the model reads: a missed call is a customer's dial that neve
 /* ----------------------------------------- 2. an action card names the person as the pages do */
 
 test("a card names the person as People and the Inbox do: the saved name, else their number as it is printed, else Unknown -- never the raw E.164 or 'this person'", async () => {
-  const verb = (conversation_id) => card("propose_thread_verb", { conversation_id, verb: "take_over" });
+  const verb = (conversation_id) => card("propose_conversation", { conversation_id, verb: "take_over" });
   assert.equal((await verb(C_WAITS)).title, "Take over Rosa's conversation");
   const phone = await verb(C_PAST);
   assert.equal(phone.title, "Take over +1 (555) 555-0103's conversation");
@@ -527,9 +527,9 @@ test("a thread's held_draft is a draft still waiting: the recent list and the th
   const rowOf = (cid) => recent.threads.find((r) => r.conversation_id === cid);
   assert.ok(rowOf(C_WAITS).held_draft, "Rosa's waits nine more minutes");
   assert.equal(rowOf(C_PAST).held_draft, null, "REGRESSION: a draft past its deadline listed as held");
-  assert.ok((await read("inbox", { action: "thread", conversation_id: C_WAITS })).held_draft);
+  assert.ok((await read("inbox", { action: "conversation", conversation_id: C_WAITS })).held_draft);
   assert.equal(
-    (await read("inbox", { action: "thread", conversation_id: C_PAST })).held_draft,
+    (await read("inbox", { action: "conversation", conversation_id: C_PAST })).held_draft,
     null,
     "REGRESSION: the thread read named it held",
   );

@@ -157,7 +157,7 @@ export async function searchPeople(
   // The query as the People page's search sends it (contacts/route.ts): trimmed, eighty characters at most.
   const text = str(input.query, 80);
   const listIn = str(input.list, 60);
-  // Any list, one way (decision 0009): a token sequences.lists gave, or a People list's bare id.
+  // Any list, one way (decision 0009): a token campaigns.lists gave, or a People list's bare id.
   const ref = listIn
     ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
     : null;
@@ -165,7 +165,7 @@ export async function searchPeople(
   if (listIn && !ref) return { error: `list must be a list token from ${AUDIENCES_CALL}, or a People list's id` };
   // A list is counted over the audience pool (readers/audience-pool.ts, once a turn), everyone with their appointments,
   // as the People rail and the send count one (audience.ts findPoolList) -- never over one page. One of the workspace's own
-  // is counted from the lists the turn holds (readers/lists.ts, as sequences.lists read them), never read again. One
+  // is counted from the lists the turn holds (readers/lists.ts, as campaigns.lists read them), never read again. One
   // that can't be counted here says why, in the page's words, and names the condition that failed.
   let pool: AudiencePool | null = null;
   let members: Set<string> | null = null;

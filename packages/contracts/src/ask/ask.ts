@@ -186,7 +186,7 @@ export type AskSurface = (typeof ASK_SURFACES)[number];
 /* ------------------------------------------------------------ what Ask reads */
 
 /**
- * One message of the library as sequences with action messages reads it (the dashboard's readers/templates.ts
+ * One message of the library as campaigns with action messages reads it (the dashboard's readers/templates.ts
  * messageReadsOf), and what a plan of Ask's is checked against: a name in a language and what the business calls it
  * (`title`), its category as a send judges a yes (an authentication message is a utility one), whether it was put away,
  * each version on its channel with its row's status (a WhatsApp version still in Meta's review among them; an email's or

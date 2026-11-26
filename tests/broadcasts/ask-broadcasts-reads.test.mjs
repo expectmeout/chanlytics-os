@@ -242,6 +242,6 @@ test("campaigns.broadcast answers one run as its opened page draws it over the s
   const typo = await ask({ action: "batch", broadcast_id: "nope" });
   assert.deepEqual(
     [typo.isError, typo.out.error],
-    [true, "broadcast_id must be an id sequences with action sent returned"],
+    [true, "broadcast_id must be an id campaigns with action sent returned"],
   );
 });

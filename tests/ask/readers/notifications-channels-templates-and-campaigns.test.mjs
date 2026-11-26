@@ -668,7 +668,7 @@ test("campaigns.messages reads the whole library, a WhatsApp version still in re
     ],
   });
   const tc = newToolContext(worldCtx(w), A, "viewer", "America/New_York", new Date());
-  const out = await runTool(tc, { name: "sequences", input: { action: "messages" } });
+  const out = await runTool(tc, { name: "campaigns", input: { action: "messages" } });
   assert.equal(out.isError, false, out.result);
   assert.deepEqual(
     JSON.parse(out.result).messages,
@@ -691,7 +691,7 @@ test("campaigns.messages reads the whole library, a WhatsApp version still in re
   );
   assert.deepEqual([...tc.read.template.keys()].sort(), [TP1, EM1].sort(), "each version a template a citation names");
   // The composers' list: the message under the WhatsApp row its words are read from, by the email it can go by now.
-  const aud = await runTool(tc, { name: "sequences", input: { action: "lists" } });
+  const aud = await runTool(tc, { name: "campaigns", input: { action: "lists" } });
   assert.equal(aud.isError, false, aud.result);
   assert.deepEqual(
     JSON.parse(aud.result).templates.map((m) => [m.template_id, m.name, m.channels]),
@@ -711,7 +711,7 @@ test("campaigns.journey says the customer journey: 2 of 4 moments covered, first
   });
   await withFeed({ body: ONE_ICS }, async () => {
     const tc = newToolContext(worldCtx(w), A, "viewer", "America/New_York", new Date());
-    const out = await runTool(tc, { name: "sequences", input: { action: "journey" } });
+    const out = await runTool(tc, { name: "campaigns", input: { action: "journey" } });
     assert.equal(out.isError, false, out.result);
     const said = JSON.parse(out.result);
     assert.equal(said.covered, 2, "first contact and quiet");
@@ -768,7 +768,7 @@ test("campaigns.playbooks says a campaign's end and its sequence's mode as its c
     ],
   });
   const tc = newToolContext(worldCtx(w), A, "owner", "America/New_York", LIFE_NOW);
-  const out = await runTool(tc, { name: "sequences", input: { action: "moments" } });
+  const out = await runTool(tc, { name: "campaigns", input: { action: "moments" } });
   assert.equal(out.isError, false, out.result);
   const said = JSON.parse(out.result);
   assert.equal(said.new_sequences_start_as.campaign, "auto", "a new one of the class sends on its own");
@@ -820,7 +820,7 @@ test("campaigns.playbooks says what a new sequence starts as could not be read w
   const down = { "policies.select": { message: "policies down" } };
   const { result: out, lines } = await logged("ask_tool_read_failed", () =>
     runTool(newToolContext(worldCtx(w, down), A, "owner", "America/New_York", LIFE_NOW), {
-      name: "sequences",
+      name: "campaigns",
       input: { action: "moments" },
     }),
   );
@@ -836,7 +836,7 @@ test("campaigns.playbooks says what a new sequence starts as could not be read w
   assert.equal(lines.length, 1, "said once in the log");
   // Read, the start is said as before.
   const tc = newToolContext(worldCtx(w), A, "owner", "America/New_York", LIFE_NOW);
-  const read = JSON.parse((await runTool(tc, { name: "sequences", input: { action: "moments" } })).result);
+  const read = JSON.parse((await runTool(tc, { name: "campaigns", input: { action: "moments" } })).result);
   assert.deepEqual([read.new_sequences_start_as.campaign, read.could_not_read], ["auto", undefined]);
 });
 

@@ -300,7 +300,7 @@ export const SETUP_AND_CHANGE = [
 ];
 
 /** The reads the marketing manager's lane added (its §5.7), each asked for by a case in its own words. */
-export const NEW_READS = ["calendar.room", "sequences.journey", "sequences.messages"];
+export const NEW_READS = ["calendar.room", "campaigns.journey", "campaigns.messages"];
 
 /** The nightly's workspace as its seed leaves it (e2e-workspace.mjs), in the cases' tokens, before the Win-back's seed. */
 export const NIGHTLY = ["no_calendar", "no_offers_channel", "no_offers_yes"];

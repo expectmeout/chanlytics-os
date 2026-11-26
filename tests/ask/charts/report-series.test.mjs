@@ -119,7 +119,7 @@ async function report(ctx, input) {
 test("by_day holds every day of the period, oldest first, each named so a chart can say it", async () => {
   const said = await report(world(), { period: "30d", lenses: ["overview"] });
   assert.equal(said.by_day.length, 30);
-  assert.deepEqual(said.by_day.at(-1), { day: "Oct 17", in: 2, receptionist: 1, you: 1, unanswered: 0 });
+  assert.deepEqual(said.by_day.at(-1), { day: "Oct 17", in: 2, ai: 1, you: 1, unanswered: 0 });
   assert.equal(said.by_day[0].day, "Sep 18");
 });
 
@@ -134,8 +134,8 @@ test("a period longer than a chart holds is added up by the week as well, with e
   assert.equal(said.by_day.length, 90);
   assert.ok(said.by_week.length <= ASK_ANSWER_CAPS.points, "drawn whole");
   const sum = (key) => said.by_week.reduce((n, w) => n + w[key], 0);
-  assert.deepEqual([sum("in"), sum("receptionist"), sum("you"), sum("unanswered")], [180, 90, 90, 0]);
-  assert.deepEqual(Object.keys(said.by_week[0]), ["week", "in", "receptionist", "you", "unanswered"]);
+  assert.deepEqual([sum("in"), sum("ai"), sum("you"), sum("unanswered")], [180, 90, 90, 0]);
+  assert.deepEqual(Object.keys(said.by_week[0]), ["week", "in", "ai", "you", "unanswered"]);
 });
 
 test("with a Business Profile, the lens says the weeks its card draws, and the card's line", async () => {

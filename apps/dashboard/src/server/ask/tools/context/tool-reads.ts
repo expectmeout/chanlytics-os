@@ -42,8 +42,7 @@ export const WHOSE: Record<MembershipRole, string> = {
  * The read a refusal points to for a template's id, an audience's id or a list's token, said as the model calls it:
  * the tool, and its action (D11). Once `list_audiences`; one spelling for every refusal that names it.
  */
-// screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-export const AUDIENCES_CALL = "sequences with action lists";
+export const AUDIENCES_CALL = "campaigns with action lists";
 
 export const str = (value: unknown, max = 200): string => (typeof value === "string" ? value.trim().slice(0, max) : "");
 

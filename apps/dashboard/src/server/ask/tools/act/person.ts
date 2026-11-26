@@ -99,14 +99,14 @@ async function proposePersonMode(
 }
 
 /** Who reads a note (D8), in the model's word; there is no default. */
-const NOTE_FOR = ["receptionist", "team"] as const;
+const NOTE_FOR = ["ai", "team"] as const;
 type NoteFor = (typeof NOTE_FOR)[number];
 /**
  * What a note's card says of who reads it: the receptionist, before it answers them (00157: a note not for the team
  * alone is read before every answer to that person), or the team alone, in the person page's own words (NOTE_WORDS).
  */
 const NOTE_READERS: Record<NoteFor, (who: string) => string> = {
-  receptionist: (person) => `AI reads it before it answers ${person}`,
+  ai: (person) => `AI reads it before it answers ${person}`,
   team: () =>
     `${NOTE_WORDS.teamOnly}: ${NOTE_WORDS.teamOnlyHint.charAt(0).toLowerCase()}${NOTE_WORDS.teamOnlyHint.slice(1)}`,
 };
@@ -119,8 +119,7 @@ async function proposePersonNote(
   const body = typeof input.body === "string" ? input.body.trim() : "";
   if (!body) return refuse("body must be the note's words");
   if (body.length > NOTE_MAX) return refuse(`body is ${body.length} characters; a note is at most ${NOTE_MAX}`);
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!isOneOf(NOTE_FOR, input.for)) return refuse("for must be receptionist or team");
+  if (!isOneOf(NOTE_FOR, input.for)) return refuse("for must be ai or team");
   const person = await personOnCard(toolContext, input.contact_id);
   if (isRefusedOutcome(person)) return person;
   return propose({
@@ -352,7 +351,7 @@ interface MessageAsk {
   subject?: string;
   template_name?: string;
   template_language?: string;
-  then?: "receptionist" | "me";
+  then?: "ai" | "me";
   note?: string;
 }
 
@@ -368,8 +367,7 @@ function carried(
   const template = name && language ? { name, language } : null;
   if (carries === "approved" && !template)
     return {
-      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-      refusal: `only a message WhatsApp approved can go to ${personName} on WhatsApp now: name it with template_name and template_language (sequences with action messages lists them)`,
+      refusal: `only a message WhatsApp approved can go to ${personName} on WhatsApp now: name it with template_name and template_language (campaigns with action messages lists them)`,
     };
   if (carries === "words" && !text && !template) return { refusal: "text is required: the words to send" };
   return { text, template };
@@ -389,7 +387,7 @@ async function proposeMessage(toolContext: ToolContext, input: MessageAsk): Prom
   if ("refusal" in words) return refuse(words.refusal);
   const { text, template } = words;
   const subject = wire === "email" ? input.subject?.trim().slice(0, 200) : undefined;
-  const then = input.then ?? "receptionist";
+  const then = input.then === "me" ? "me" : "receptionist";
   const firstText =
     reach.first_text_line && wire === "sms" ? ` · the first text carries: ${reach.first_text_line}` : "";
   return propose({
@@ -428,7 +426,7 @@ const modeAction = actAction({
   examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
   label: "Preparing a change to AI",
   // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
-  words: `Action mode takes contact_id, the id a read returned, and mode, how AI treats them: auto (answers them), ask (asks a person first), never (stays silent with them) or inherit (follows the workspace's rule). Call it when they want AI to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class, and propose_thread_verb acts on one conversation. ${approvalWords("person_mode")}.`,
+  words: `Action mode takes contact_id, the id a read returned, and mode, how AI treats them: auto (answers them), ask (asks a person first), never (stays silent with them) or inherit (follows the workspace's rule). Call it when they want AI to stop, resume or check first with one person; propose_settings with action autonomy changes a whole class, and propose_conversation acts on one conversation. ${approvalWords("person_mode")}.`,
   build: proposePersonMode,
 });
 
@@ -450,12 +448,11 @@ export const propose_person = defineActions({
         {
           contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
           body: "Prefers morning appointments.",
-          for: "receptionist",
+          for: "ai",
         },
       ],
       label: "Preparing a note",
-      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-      words: `Action note takes contact_id, the id a read returned, body, the note to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how it answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (AI never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, a preference or what to remember next time; a fact about the business itself (parking, a policy) is a settings change, and a next step with a day is action step.`,
+      words: `Action note takes contact_id, the id a read returned, body, the note to keep (at most ${NOTE_MAX} characters), and for, who reads it: ai, for what should shape how it answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (AI never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, a preference or what to remember next time; a fact about the business itself (parking, a policy) is a settings change, and a next step with a day is action step.`,
       build: proposePersonNote,
     }),
     step: actAction({
@@ -530,7 +527,7 @@ export const propose_person = defineActions({
         template_name: z.string().optional().describe("An approved WhatsApp message's name, where only one can go."),
         template_language: z.string().optional().describe("That message's language code, such as en or es."),
         then: z
-          .enum(["receptionist", "me"])
+          .enum(["ai", "me"])
           .optional()
           .describe("Who has the conversation after: AI (the default) or the member."),
         note: z.string().optional().describe("A note AI reads before it answers them."),

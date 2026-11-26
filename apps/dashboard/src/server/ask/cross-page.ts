@@ -85,8 +85,8 @@ const CALLS = /\btranscripts?\b|\brecordings?\b|\bcalls?\b|\bcalled\b|\bllam(ó|
 /** Drafts held for approval (D12): the snapshot carried them on every page; now one read carries them off the Inbox. */
 const HELD = /\bheld\b|\bdrafts?\b|\bwaiting (for|on) (my |your )?approval\b|\bborradores?\b|\bretenid[oa]s?\b/i;
 /**
- * A setup, asked for (the moment spec, A4): what runs and the moments offered with their starters (sequences.moments),
- * and the lists and messages a campaign may go by (sequences.lists), read before round 1 on any page, Campaigns
+ * A setup, asked for (the moment spec, A4): what runs and the moments offered with their starters (campaigns.moments),
+ * and the lists and messages a campaign may go by (campaigns.lists), read before round 1 on any page, Campaigns
  * included, so the first round can propose the cards. Only a request to set campaigns up: said at a sentence's start, or
  * after an opener (a please, a "hey", a "yes", a "can you", a "help me", a "let's", an "I'd love to"), in either language
  * or both at once. A question whether something is set up, or how ("is our mailbox set up?", "did you set up my
@@ -121,8 +121,8 @@ const SETUP = new RegExp(
 );
 
 /**
- * An offer, asked for (the marketing manager's spec §5.7): the journey and the Library (sequences.journey,
- * sequences.messages), read before round 1 on any page, Campaigns included, which propose_sequence's plan then reads
+ * An offer, asked for (the marketing manager's spec §5.7): the journey and the Library (campaigns.journey,
+ * campaigns.messages), read before round 1 on any page, Campaigns included, which propose_campaign's plan then reads
  * again from the turn's cache (shared/reader.ts TurnCache), never from the database twice. Only an offer to make, at a
  * sentence's start past a setup's openers or a "we":
  *   - an amount off, its article before it or none ("10% off every service all November", "a 10% discount", "un 10% de
@@ -189,7 +189,7 @@ export function draftAsked(text: string): boolean {
  */
 const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
   calendar: new Set(["calendar.openings", "calendar.week"]),
-  campaigns: new Set(["sequences.moments", "sequences.lists"]),
+  campaigns: new Set(["campaigns.moments", "campaigns.lists"]),
   pipeline: new Set(["people.pipeline"]),
   conversations: new Set(["calls.list"]),
   live: new Set(["calls.list"]),
@@ -216,13 +216,13 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   };
   // A setup's two reads come first and are read whatever page asks (A4): the page's rows hold neither.
   const setup = setupAsked(query);
-  if (setup) for (const action of ["moments", "lists"]) out.push({ name: "sequences", input: { action } });
+  if (setup) for (const action of ["moments", "lists"]) out.push({ name: "campaigns", input: { action } });
   // Then the plan's two, the journey and the Library (the marketing manager's §5.7), whatever page asks: no page's rows
   // are either. The cap leaves a setup its own two, whose one campaign alone reads nothing else (prompt.ts, the setup
   // rule); a whole setup's plan reads these on its call, the campaigns and the lines among them read already. An offer
   // said of a campaign that runs is a change to it: PLAYBOOKS reads it below.
   if (setup || offerAsked(query))
-    for (const action of ["journey", "messages"]) out.push({ name: "sequences", input: { action } });
+    for (const action of ["journey", "messages"]) out.push({ name: "campaigns", input: { action } });
   const overview = OVERVIEW.test(query);
   if (overview) add("today", {});
   if (overview || REPORT.test(query)) {
@@ -233,9 +233,9 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   else if (CANCELED.test(query)) add("inbox", { action: "search", words: CANCEL_WORDS, days: cancelDaysOf(query) });
   else if (CALENDAR.test(query)) add("calendar", { action: "week", day: askedDayOf(query, "today") });
   if (PIPELINE.test(query)) add("people", { action: "pipeline" });
-  if (PLAYBOOKS.test(query)) add("sequences", { action: "moments" });
-  if (surface === "campaigns" && REACH.test(query)) add("sequences", { action: "lists" }, new Set());
-  else if (AUDIENCES.test(query)) add("sequences", { action: "lists" });
+  if (PLAYBOOKS.test(query)) add("campaigns", { action: "moments" });
+  if (surface === "campaigns" && REACH.test(query)) add("campaigns", { action: "lists" }, new Set());
+  else if (AUDIENCES.test(query)) add("campaigns", { action: "lists" });
   if (MISSED.test(query)) add("calls", { action: "list", filter: "missed" });
   else if (CALLS.test(query)) add("calls", { action: "list", filter: "recent" });
   if (HELD.test(query)) add("inbox", { action: "list", filter: "held" });
@@ -250,9 +250,9 @@ export function crossPagePlan(text: string, surface: string | null, view: string
 
 /**
  * The row the scope names, read whole by the tool and action that read it, to ride in with the page (as the snapshot's
- * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.thread), a lead
- * (leads.lead), a search (leads.search), a run -- the Broadcasts row its address calls one -- (sequences.batch), a
- * campaign or a sequence (sequences.sequence), a message (sequences.messages), a visit (calendar.week, on its day) and a
+ * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.conversation), a lead
+ * (leads.lead), a search (leads.search), a run -- the Broadcasts row its address calls one -- (campaigns.send), a
+ * campaign or a sequence (campaigns.campaign), a message (campaigns.messages), a visit (calendar.week, on its day) and a
  * file (files.view). A lead is read as the search the page is on
  * found it (its address's `s-<id>`), the membership its peek shows, never its newest in another search. A page needs
  * no read: none, a reach-out's drawer among them (contracts scopeFromRoute: its row rides in with the page's). Moved
@@ -263,7 +263,7 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
   if (scope.kind === "call") return { name: "calls", input: { action: "get", call_id: scope.id } };
   if (scope.kind === "person") return { name: "people", input: { action: "get", contact_id: scope.id } };
   if (scope.kind === "thread" || scope.kind === "conversation")
-    return { name: "inbox", input: { action: "thread", conversation_id: scope.id, more: false } };
+    return { name: "inbox", input: { action: "conversation", conversation_id: scope.id, more: false } };
   if (scope.kind === "lead") {
     const searchId = route ? parseLeadsRoute(route)?.searchId : null;
     return {
@@ -282,13 +282,13 @@ export function scopedRead(scope: AskScope | null, route?: string | null): ToolR
 
 /** What Campaigns holds by its sequences: a run, a campaign or a sequence open at its record, a message of the Library. */
 function sequencesRead(scope: AskScope): ToolRun | null {
-  if (scope.kind === "run") return { name: "sequences", input: { action: "batch", broadcast_id: scope.id } };
+  if (scope.kind === "run") return { name: "campaigns", input: { action: "send", broadcast_id: scope.id } };
   // A campaign or a sequence, the one open, as its record shows it (every such thing is a sequence): never the whole list.
   if (scope.kind === "playbook" || scope.kind === "sequence")
-    return { name: "sequences", input: { action: "sequence", sequence_id: scope.id } };
+    return { name: "campaigns", input: { action: "campaign", campaign_id: scope.id } };
   // A message of the Library: that message alone, by the name it is stored by, its words whole, so a change of them is
   // written from the words it has (the message sheet's review, 12 Nov 2026).
-  if (scope.kind === "message") return { name: "sequences", input: { action: "messages", name: scope.id } };
+  if (scope.kind === "message") return { name: "campaigns", input: { action: "messages", name: scope.id } };
   return null;
 }
 

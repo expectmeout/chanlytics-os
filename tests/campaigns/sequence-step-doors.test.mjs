@@ -199,7 +199,7 @@ test("a call's words changed are its id and its words alone, through the step's 
 
 /* ---- Ask's cards over the same steps ---- */
 
-/** One call the model makes to propose_sequence, over the workspace in memory: the card, or the refusal it hears. */
+/** One call the model makes to propose_campaign, over the workspace in memory: the card, or the refusal it hears. */
 async function ask(steps, input) {
   const supabase = fakeDb(
     {
@@ -216,7 +216,7 @@ async function ask(steps, input) {
     },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-  const out = await buildProposal(t, "propose_sequence", input);
+  const out = await buildProposal(t, "propose_campaign", input);
   const p = out.proposal;
   return p ? { kind: p.kind, title: p.title, summary: p.summary, payload: p.payload } : JSON.parse(out.result);
 }
@@ -271,7 +271,7 @@ test("Ask's cold email with no mailbox is no card: it says what to connect, in t
     {},
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator");
-  const out = await buildProposal(t, "propose_sequence", {
+  const out = await buildProposal(t, "propose_campaign", {
     action: "cold_email",
     name: "Plumbers",
     search_id: SEARCH,
@@ -307,7 +307,7 @@ test("Ask's cold email starts at the pace every new sequence starts at, one emai
       {},
     );
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-    const out = await buildProposal(t, "propose_sequence", {
+    const out = await buildProposal(t, "propose_campaign", {
       action: "cold_email",
       name: "Plumbers in Queens",
       search_id: SEARCH,
@@ -352,7 +352,7 @@ test("Ask's cold email is signed as New signs it, by the member's first name, un
       {},
     );
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-    const out = await buildProposal(t, "propose_sequence", {
+    const out = await buildProposal(t, "propose_campaign", {
       action: "cold_email",
       name: "Plumbers in Queens",
       search_id: SEARCH,

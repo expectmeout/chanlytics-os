@@ -162,8 +162,8 @@ test("the raw at the caps (a number for the pull request, not a limit: the Phase
   const readRound = (k) =>
     ROUND([
       thinking(signature),
-      tool("inbox", { action: "thread", conversation_id: threads[2 * k + 1], more: true }, `t-${k}-1`),
-      tool("inbox", { action: "thread", conversation_id: threads[2 * k + 2], more: true }, `t-${k}-2`),
+      tool("inbox", { action: "conversation", conversation_id: threads[2 * k + 1], more: true }, `t-${k}-1`),
+      tool("inbox", { action: "conversation", conversation_id: threads[2 * k + 2], more: true }, `t-${k}-2`),
       tool("calls", { action: "get", call_id: calls[2 * k + 1] }, `t-${k}-3`),
       tool("calls", { action: "get", call_id: calls[2 * k + 2] }, `t-${k}-4`),
     ]);
@@ -190,7 +190,7 @@ test("the raw at the caps (a number for the pull request, not a limit: the Phase
   const riding = (source) => fromRecord(want.question.find((b) => b.source === source).content[0].text);
   assert.equal(riding("read://calls.list").calls.length, ASK_CAPS.calls, "a cross-page read: the calls");
   assert.equal(riding("read://inbox.list").threads.length, ASK_CAPS.threads, "a cross-page read: the held drafts");
-  assert.equal(riding("read://inbox.thread").messages.length, ASK_CAPS.messages, "the scope's thread");
+  assert.equal(riding("read://inbox.conversation").messages.length, ASK_CAPS.messages, "the scope's thread");
   const results = want.rounds
     .filter((m) => m.role === "user")
     .flatMap((m) => m.content)

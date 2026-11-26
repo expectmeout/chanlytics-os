@@ -37,10 +37,10 @@ test("the calls that raise a turn are the drafts: plans, sequences and their mes
   assert.deepEqual(raised, [
     "propose_plan.offer",
     "propose_plan.steps",
-    "propose_sequence.cold_email",
-    "propose_sequence.make",
-    "propose_sequence.message",
-    "propose_sequence.moment",
+    "propose_campaign.cold_email",
+    "propose_campaign.make",
+    "propose_campaign.message",
+    "propose_campaign.moment",
   ]);
 });
 

@@ -222,14 +222,14 @@ after(() => (globalThis.fetch = real));
 
 /**
  * A call as propose_campaign took it, to the tool and action that take it since the operator (15 Oct 2026): the plan is
- * propose_plan's offer; a broadcast, a playbook and a run are propose_sequence's once, moment and batch; the rest keep
- * their names under propose_sequence.
+ * propose_plan's offer; a broadcast, a playbook and a run are propose_campaign's once, moment and batch; the rest keep
+ * their names under propose_campaign.
  */
 const SEQUENCE_ACTIONS = { broadcast: "once", playbook: "moment", run: "batch" };
 const asSequence = (input) =>
   input?.action === "plan"
     ? ["propose_plan", { ...input, action: "offer" }]
-    : ["propose_sequence", { ...input, action: SEQUENCE_ACTIONS[input?.action] ?? input?.action }];
+    : ["propose_campaign", { ...input, action: SEQUENCE_ACTIONS[input?.action] ?? input?.action }];
 /**
  * The same people with a yes to offers by email too: a win-back that goes by email reaches them. A campaign that would
  * reach nobody is no card (the 30 Oct 2026 review, item 6), so a case about what a card by email says draws people it reaches.
@@ -419,7 +419,7 @@ test("one rule for the channels a new campaign opens on, read by the composer an
   assert.deepEqual(opensOn(visit, holds(true, true, true), ready(false, false, false)), ["whatsapp"]);
   // What the tool tells the model of a playbook that names no channel follows the same switch: it said "every one"
   // whichever way the switch stood.
-  const told = toApiTools("owner", true).find((x) => x.name === "propose_sequence").description;
+  const told = toApiTools("owner", true).find((x) => x.name === "propose_campaign").description;
   const unnamedGoesBy = (which) =>
     told.includes(`when none is named it goes by ${which} the workspace can send on now`);
   assert.deepEqual([unnamedGoesBy("every one"), unnamedGoesBy("the first one")], [true, false]);
@@ -497,7 +497,7 @@ const askOver = (rows) => {
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
   return {
     channels: (channels, id = VISIT_PB) =>
-      buildProposal(t, "propose_sequence", { action: "channels", playbook_id: id, channels }),
+      buildProposal(t, "propose_campaign", { action: "channels", playbook_id: id, channels }),
     reads: () => [...new Set(supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : q.table)))],
     pool: () => pool,
   };
@@ -1091,7 +1091,7 @@ test("a hidden message is refused a playbook; a send of a message WhatsApp is st
   assert.equal(hidden.isError, true);
   assert.equal(
     said(hidden),
-    "that template is one the workspace keeps out of the composers; sequences with action lists names the ones that may send",
+    "that template is one the workspace keeps out of the composers; campaigns with action lists names the ones that may send",
   );
   // A WhatsApp row WhatsApp is still checking, beside an approved email. It was refused, in WhatsApp's standing; the send
   // waits for WhatsApp now (core whatsapp-wait.ts), so the card is made as the route would make the send: the tick kept,
@@ -1192,13 +1192,13 @@ test("Ask is told what a message is: a name with a version on each channel it is
   const tools = toApiTools("owner", true);
   const described = (name) => tools.find((t) => t.name === name).description;
   const listing = described("sequences");
-  const proposing = described("propose_sequence");
+  const proposing = described("propose_campaign");
   assert.ok(
     listing.includes("channels (true for each of whatsapp, email and sms it can be sent on now;"),
     "the listing's channels are described",
   );
   assert.equal(
-    proposing.split("name the channels its `channels` in sequences with action lists say it holds").length - 1,
+    proposing.split("name the channels its `channels` in campaigns with action lists say it holds").length - 1,
     1,
     "a broadcast is proposed by the channels the listing says a message holds",
   );
@@ -1365,8 +1365,8 @@ test("a card whose week could not be read is no card, and the failed read is sai
     .filter((l) => l?.event === "ask_tool_read_failed")
     .map((l) => [l.tool, l.read]);
   assert.deepEqual(failed, [
-    ["propose_sequence.once", "touches"],
-    ["propose_sequence.moment", "touches"],
+    ["propose_campaign.once", "touches"],
+    ["propose_campaign.moment", "touches"],
   ]);
 });
 

@@ -241,7 +241,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
     crossPagePlan(text, surface)
       .slice(0, 2)
       .map((r) => `${r.name}.${r.input.action}`)
-      .join(" ") === "sequences.moments sequences.lists";
+      .join(" ") === "campaigns.moments campaigns.lists";
   const turns = cases.flatMap((c) => [
     c,
     ...(c.then
@@ -264,7 +264,7 @@ test("the setup and change cases (the moment spec, A8): seventeen, run only afte
   // The tools' order is noted only on a turn whose reads ride in first, and a read a case asks for off Campaigns' rows
   // is one of those reads.
   for (const t of turns.filter((x) => x.expect.tools_order)) assert.ok(setupReads(t.text, t.surface), t.id);
-  for (const t of turns.filter((x) => x.expect.tools_any?.includes("sequences.moments")))
+  for (const t of turns.filter((x) => x.expect.tools_any?.includes("campaigns.moments")))
     assert.ok(setupReads(t.text, t.surface), t.id);
   // A setup's card is never a reminder of an appointment (the setup rule: its Turn on) nor a moment no new campaign is
   // offered on; the trigger ruled out is one a campaign can have.
@@ -375,7 +375,7 @@ test("the cases fit their workspace and name the new reads (the review after the
   ])
     assert.deepEqual(
       [expect(id).tools_any, expect(id).proposals_any, expect(id).card_fields_present],
-      [["propose_sequence.change"], ["playbook_change"], { playbook_change: [field] }],
+      [["propose_campaign.change"], ["playbook_change"], { playbook_change: [field] }],
       id,
     );
   // A case's days are said relative to the day it is asked ("next month"), never as a month or a date: an offer that
@@ -564,13 +564,13 @@ test("a setup's keys (the moment spec, A8): proposals_max fails more cards, card
   // An answer made before the Line says its next questions as followups.
   assert.deepEqual(setupCardsFails(next, { text: "", followups: ["Once the list is saved, start it?"] }), []);
   assert.deepEqual(setupCardsFails({}, m()), [], "a case with none of the keys asks nothing of the cards");
-  const order = { tools_order: ["sequences.moments", "propose_sequence.moment"] };
+  const order = { tools_order: ["campaigns.moments", "propose_campaign.moment"] };
   assert.deepEqual(
-    toolsOrderNote(order, m({ tools: ["sequences.moments", "sequences.lists", "propose_sequence.moment"] })),
+    toolsOrderNote(order, m({ tools: ["campaigns.moments", "campaigns.lists", "propose_campaign.moment"] })),
     [],
   );
   assert.match(
-    toolsOrderNote(order, m({ tools: ["propose_sequence.moment", "sequences.moments"] }))[0],
+    toolsOrderNote(order, m({ tools: ["propose_campaign.moment", "campaigns.moments"] }))[0],
     /not in the order/,
   );
   // The names are read through the rename table on both sides, as the judge reads tools_any.

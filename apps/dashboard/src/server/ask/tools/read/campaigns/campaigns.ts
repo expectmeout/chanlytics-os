@@ -105,8 +105,7 @@ async function readBroadcasts(t: ToolContext): Promise<unknown> {
  */
 async function readBroadcast(toolContext: ToolContext, input: { broadcast_id: string }): Promise<unknown> {
   const id = str(input.broadcast_id, 40);
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!UUID.test(id)) return { error: "broadcast_id must be an id sequences with action sent returned" };
+  if (!UUID.test(id)) return { error: "broadcast_id must be an id campaigns with action sent returned" };
   const read = await readUnlessNotFound(load(toolContext.rc, broadcastReader, { id }));
   if (!read) return { error: "no such send in this workspace" };
   const data = read.data;
@@ -250,7 +249,7 @@ function journeyStageLine(stage: LifecycleStage, group: LifecycleGroup | undefin
  * it too (act/plan.ts).
  */
 export async function readJourney(toolContext: ToolContext) {
-  const failed = (read: string) => unread(toolContext, "sequences.journey", read);
+  const failed = (read: string) => unread(toolContext, "campaigns.journey", read);
   const [read, bc, chans] = await Promise.all([
     load(toolContext.rc, playbooks, undefined),
     load(toolContext.rc, broadcastsReader, undefined).then((r) => r.data, failed("broadcasts")),
@@ -293,14 +292,15 @@ export async function readJourney(toolContext: ToolContext) {
 
 /**
  * Everything that sends on its own (decision 0060; the operator, 15 Oct 2026, once the campaigns tool): every sequence as
- * the Sequences page lists them (list) and one as its record shows it (sequence); the moments a sequence can start at,
+ * the Campaigns page lists them (list) and one as its record shows it (campaign); the moments a campaign can start at,
  * with who each names and the autonomy modes (moments, once playbooks); who a send can go to and the messages it may use
- * (lists, once audiences); the Library whole (messages); what went out and one batch of it (sent and batch, once
+ * (lists, once audiences); the Library whole (messages); what went out and one send of it (sent and send, once
  * broadcasts and broadcast); the customer journey (journey); the cold email sequences (cold_emails), and the ones the
- * member edited from Ask's drafts (edited, decision 0078 step 2).
+ * member edited from Ask's drafts (edited, decision 0078 step 2). The tool, its actions and its fields say the screens' words
+ * since 26 Nov 2026 (Ruben's yes to lane 10's proposal): it was sequences, with sequence, batch and sequence_id.
  */
 export const sequencesTool = defineActions({
-  name: "sequences",
+  name: "campaigns",
   description:
     "Everything that sends on its own, as Campaigns reads it (every such thing is a campaign), by action: the campaigns, one campaign's steps and people, the journey's moments, who a send can go to and the messages it may use, the Library, what went out and how it did, the journey, cold email to leads, and the cold emails the person edited from AI's drafts.",
   // screen-word: the code's names, said so it never says them
@@ -311,16 +311,15 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the campaigns",
       words:
-        "Action list reads every campaign as the page lists them: its sequence_id, name, group, what starts it, state, line, steps, who is in it, and what waits on the owner (needs_you; the one on top is the page's count).",
+        "Action list reads every campaign as the page lists them: its campaign_id, name, group, what starts it, state, line, steps, who is in it, and what waits on the owner (needs_you; the one on top is the page's count).",
       run: readSequences,
     }),
-    sequence: readAction({
-      input: z.object({ sequence_id: z.string().describe("A campaign's id, from action list.") }),
-      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+    campaign: readAction({
+      input: z.object({ campaign_id: z.string().describe("A campaign's id, from action list.") }),
+      examples: [{ campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Reading the campaign",
       words:
-        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-        "Action sequence reads one as its record shows it: when it starts and stops; its sends' mode, with batches_did (what they did over 90 days: after an OK or on their own, stopped or skipped unanswered); its one notice; its steps with their ids (wait, message, channels, last 30 days); in_it, who is in it by where they stand (the first 25, each with its contact_id or lead_id); waiting_on_you, each held or handed-over email by its send_id (for propose_sequence with action decide or sent_by_hand); and its last five sends.",
+        "Action campaign reads one as its record shows it: when it starts and stops; its sends' mode, with batches_did (what they did over 90 days: after an OK or on their own, stopped or skipped unanswered); its one notice; its steps with their ids (wait, message, channels, last 30 days); in_it, who is in it by where they stand (the first 25, each with its contact_id or lead_id); waiting_on_you, each held or handed-over email by its send_id (for propose_campaign with action decide or sent_by_hand); and its last five sends.",
       run: readSequence,
     }),
     moments: readAction({
@@ -337,7 +336,7 @@ export const sequencesTool = defineActions({
       examples: [{}],
       label: "Reading the lists and messages",
       // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-      words: `Action lists, read before any send, lists who a send may go to: everyone who said yes, every People list this workspace can count and every list of its own, each with its kind and audience_id (what propose_sequence with action once takes), its list token (what people with action search takes), and four counts, because there are two consents and a yes needs a number to send to and a channel to carry it: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, message reaches on WhatsApp), said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now), and why_none_offers or why_none_messages where some said yes and WhatsApp reaches none of them, saying what they lack in People's words. It says which channels carry offers now (offers_go_by) and lists, under saved messages, the messages a send may use: each with its template_id (any version's id names it), category, channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached), values and body, cannot_send (why a WhatsApp version this product cannot send whole is left out), and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
+      words: `Action lists, read before any send, lists who a send may go to: everyone who said yes, every People list this workspace can count and every list of its own, each with its kind and audience_id (what propose_campaign with action once takes), its list token (what people with action search takes), and four counts, because there are two consents and a yes needs a number to send to and a channel to carry it: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, message reaches on WhatsApp), said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, as People counts it, whether or not a number or a channel can carry it now), and why_none_offers or why_none_messages where some said yes and WhatsApp reaches none of them, saying what they lack in People's words. It says which channels carry offers now (offers_go_by) and lists, under saved messages, the messages a send may use: each with its template_id (any version's id names it), category, channels (true for each of whatsapp, email and sms it can be sent on now; a message that holds email or sms is proposed with channels naming them, and its card then counts the people those channels reach, so a 0 in the four counts above does not mean nobody can be reached), values and body, cannot_send (why a WhatsApp version this product cannot send whole is left out), and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
       run: listAudiences,
     }),
     messages: readAction({
@@ -359,14 +358,13 @@ export const sequencesTool = defineActions({
         "Action sent reads what went out, the recent fifty (older says whether there are more): each send's name, whether a campaign or a person sent it, who it went to and its message, its state in the page's words (waiting_on_you where a person must approve it; too_late_to_approve where its day has passed), when, how many it was for, how many were sent (sent_by_channel where it went by more than one), the share of those delivered, the share of those sent by WhatsApp that were read (a text or an email keeps no read receipt), and how many replied, were held back and failed, with why.",
       run: readBroadcasts,
     }),
-    batch: readAction({
+    send: readAction({
       input: z.object({
-        broadcast_id: z.string().describe("A batch's id, from action sent or a moment's waiting batch."),
+        broadcast_id: z.string().describe("A send's id, from action sent or a moment's waiting send."),
       }),
       examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b" }],
       label: "Reading the send",
-      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-      words: `Action batch reads one send as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop), the people it touched in the page's words, and what came back, quoted. It returns at most ${RUN_CAP.people} people and ${RUN_CAP.replies} replies, the figures counting everyone.`,
+      words: `Action send reads one send as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop), the people it touched in the page's words, and what came back, quoted. It returns at most ${RUN_CAP.people} people and ${RUN_CAP.replies} replies, the figures counting everyone.`,
       run: readBroadcast,
     }),
     journey: readAction({

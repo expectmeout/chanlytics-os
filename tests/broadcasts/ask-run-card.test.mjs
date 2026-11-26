@@ -204,7 +204,7 @@ async function runCall(input, { role = "operator", now = NOW, question } = {}) {
   const supabase = fakeDb(world(role), {}, RPCS);
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, role, TZ, now);
   t.question = question;
-  const out = await buildProposal(t, "propose_sequence", { action: "batch", ...input });
+  const out = await buildProposal(t, "propose_campaign", { action: "batch", ...input });
   const p = out.proposal;
   return {
     got: p
@@ -231,7 +231,7 @@ const RUN_CALLS = [
     {},
     {
       error:
-        "broadcast_id must be a waiting run's id, as sequences with action moments (a campaign's waiting) or action sent (waiting_on_you) gives it",
+        "broadcast_id must be a waiting run's id, as campaigns with action moments (a campaign's waiting) or action sent (waiting_on_you) gives it",
     },
     [],
   ],
@@ -239,21 +239,21 @@ const RUN_CALLS = [
     "no verb: it has no default",
     { broadcast_id: RUN },
     {},
-    { error: 'propose_sequence: verb Invalid option: expected one of "approve"|"skip"' },
+    { error: 'propose_campaign: verb Invalid option: expected one of "approve"|"skip"' },
     [],
   ],
   [
     "a verb the run has no door for",
     { broadcast_id: RUN, verb: "cancel" },
     {},
-    { error: 'propose_sequence: verb Invalid option: expected one of "approve"|"skip"' },
+    { error: 'propose_campaign: verb Invalid option: expected one of "approve"|"skip"' },
     [],
   ],
   [
     "a field only another action takes",
     { broadcast_id: RUN, verb: "approve", name: "Win-back" },
     {},
-    { error: "propose_sequence: name not taken by action batch" },
+    { error: "propose_campaign: name not taken by action send" },
     [],
   ],
   [
@@ -300,7 +300,7 @@ const RUN_CALLS = [
     {},
     {
       error:
-        "an OK sends none of Florists in Denver: 2 emails are held by the check, and each is decided on its own, with action decide by its send_id (sequences with action sequence, waiting_on_you)",
+        "an OK sends none of Florists in Denver: 2 emails are held by the check, and each is decided on its own, with action decide by its send_id (campaigns with action campaign, waiting_on_you)",
     },
     null,
   ],
@@ -445,7 +445,7 @@ test("propose_campaign.run over the database in memory, from a table: each refus
   const viewer = await runCall({ broadcast_id: RUN, verb: "skip" }, { role: "viewer" });
   assert.deepEqual(
     [viewer.got, viewer.reads],
-    [{ error: "propose_sequence: action batch is an owner's, a partner's or an operator's" }, []],
+    [{ error: "propose_campaign: action send is an owner's, a partner's or an operator's" }, []],
   );
 });
 
@@ -591,7 +591,7 @@ test("a run card approved, walked end to end: Approve sends it through the run's
   const tables = todays();
   const tab = tabOver(tables);
   const run = () => tables.broadcasts.find((b) => b.id === RUN);
-  const built = await buildProposal(tab.t, "propose_sequence", { action: "batch", broadcast_id: RUN, verb: "approve" });
+  const built = await buildProposal(tab.t, "propose_campaign", { action: "batch", broadcast_id: RUN, verb: "approve" });
   assert.equal(built.isError, false, built.result);
   const card = built.proposal;
   const done = await commitProposal(tab.win, card, tab.client);
@@ -641,7 +641,7 @@ test("a run card approved, walked end to end: Approve sends it through the run's
 test("a run card skipped, walked end to end: Skip ends the run unsent through its cancel, nothing is scheduled, the receipt is the Broadcasts page's, and there is nothing to undo; approved after its day, the route refuses in the words the card's builder refuses in", async () => {
   const tables = todays();
   const tab = tabOver(tables);
-  const card = (await buildProposal(tab.t, "propose_sequence", { action: "batch", broadcast_id: RUN, verb: "skip" }))
+  const card = (await buildProposal(tab.t, "propose_campaign", { action: "batch", broadcast_id: RUN, verb: "skip" }))
     .proposal;
   const done = await commitProposal(tab.win, card, tab.client);
   const run = tables.broadcasts.find((b) => b.id === RUN);

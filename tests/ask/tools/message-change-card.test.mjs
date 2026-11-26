@@ -1,5 +1,5 @@
 /**
- * Ask changes a message on file (propose_sequence's actions message_words, message_rename, message_away and
+ * Ask changes a message on file (propose_campaign's actions message_words, message_rename, message_away and
  * message_delete; the message sheet's review, 12 Nov 2026: Ask could write a new message and change none). Each is a
  * card, never a write, made only where the door its Approve calls would take it, by that door's own checks, and it
  * quotes the words a message had beside the ones it gets. Executed through the real registry over a workspace in
@@ -80,7 +80,7 @@ beforeEach(() => readerCache.clear());
 async function propose(action, input, over = {}) {
   const supabase = fakeDb(world(over), {}, {});
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-  const r = await buildProposal(t, "propose_sequence", { action, ...input });
+  const r = await buildProposal(t, "propose_campaign", { action, ...input });
   return { ...r, seen: supabase.seen };
 }
 const said = (r) => JSON.parse(r.result).error;
@@ -96,7 +96,7 @@ const commitOf = (p) => PROPOSAL_SPECS[p.kind].commit(p, { settings: null });
 async function readMessages(over, name) {
   const supabase = fakeDb(world(over), {}, {});
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-  const r = await runTool(t, { name: "sequences", input: { action: "messages", ...(name ? { name } : {}) } });
+  const r = await runTool(t, { name: "campaigns", input: { action: "messages", ...(name ? { name } : {}) } });
   assert.equal(r.isError, false, r.result);
   return JSON.parse(r.result).messages;
 }

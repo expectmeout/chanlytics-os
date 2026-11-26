@@ -628,11 +628,11 @@ test("the act tools look a row up in the turn's workspace, whatever the session 
   const tc = newToolContext(ctxFor(t), A, "owner", TZ, NOW);
   const p = (name, input) => buildProposal(tc, name, input);
   assert.match(
-    (await p("propose_thread_verb", { conversation_id: C2, verb: "snooze" })).result,
+    (await p("propose_conversation", { conversation_id: C2, verb: "snooze" })).result,
     /no such conversation in this workspace/,
   );
   assert.match(
-    (await p("propose_thread_verb", { conversation_id: C1, verb: "resolve" })).result,
+    (await p("propose_conversation", { conversation_id: C1, verb: "resolve" })).result,
     /no open escalation on that conversation/,
     "an escalation of another workspace's is not this conversation's",
   );
@@ -649,7 +649,7 @@ test("the act tools look a row up in the turn's workspace, whatever the session 
     /no such call in this workspace/,
   );
   // The same lookups on this workspace's own rows go through, so the refusal above is the workspace's and not a broken read.
-  assert.equal((await p("propose_thread_verb", { conversation_id: C1, verb: "snooze" })).isError, false);
+  assert.equal((await p("propose_conversation", { conversation_id: C1, verb: "snooze" })).isError, false);
   assert.equal(
     (await p("propose_reply", { action: "draft", conversation_id: C1, text: "Hello", voice: "you" })).isError,
     false,
@@ -754,26 +754,26 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
     newToolContext(ctxFor(world(channels), { ...RPCS, people_list: () => [luis] }), A, "owner", TZ, NOW);
   const broadcast = { action: "once", template_id: TPL, audience_kind: "everyone", params: [] };
   // With the number connected the card is offered; with none it is refused in the words the route would refuse in.
-  const connected = await buildProposal(toolContext([WHATSAPP_NUMBER]), "propose_sequence", broadcast);
+  const connected = await buildProposal(toolContext([WHATSAPP_NUMBER]), "propose_campaign", broadcast);
   assert.equal(connected.isError, false, connected.result);
-  const none = await buildProposal(toolContext([]), "propose_sequence", broadcast);
+  const none = await buildProposal(toolContext([]), "propose_campaign", broadcast);
   assert.deepEqual([none.proposal, none.isError], [null, true], none.result);
   assert.equal(JSON.parse(none.result).error, "Connect a WhatsApp number first.");
   // A number WhatsApp flagged is refused the same way, in WhatsApp's words.
   const flagged = { ...WHATSAPP_NUMBER, config: { quality_rating: "RED", messaging_limit: "TIER_1K" } };
-  const red = await buildProposal(toolContext([flagged]), "propose_sequence", broadcast);
+  const red = await buildProposal(toolContext([flagged]), "propose_campaign", broadcast);
   assert.match(JSON.parse(red.result).error, /WhatsApp flagged this number's quality/);
   // A US number: Meta is not delivering marketing messages on WhatsApp to US numbers (contracts whatsapp-offers.ts), so an
   // offer is refused with that reason, never with a missing yes; a number Meta has stopped is refused in the row's sentence.
   const us = { ...WHATSAPP_NUMBER, number_e164: "+19295550198" };
-  const paused = await buildProposal(toolContext([us]), "propose_sequence", broadcast);
+  const paused = await buildProposal(toolContext([us]), "propose_campaign", broadcast);
   assert.deepEqual([paused.proposal, paused.isError], [null, true], paused.result);
   assert.match(JSON.parse(paused.result).error, /WhatsApp is not delivering offers to US numbers for now/);
   const unpaid = {
     ...WHATSAPP_NUMBER,
     config: { ...WHATSAPP_NUMBER.config, standing: { can_send: "AVAILABLE", has_payment_method: false } },
   };
-  const held2 = await buildProposal(toolContext([unpaid]), "propose_sequence", broadcast);
+  const held2 = await buildProposal(toolContext([unpaid]), "propose_campaign", broadcast);
   assert.match(
     JSON.parse(held2.result).error,
     /WhatsApp needs a card on file before it delivers reminders and campaigns/,
@@ -781,7 +781,7 @@ test("a broadcast or a playbook proposed on a workspace with no WhatsApp number 
   // A playbook is no longer proposed with no number (its runs would hold everyone): no campaign card, as for the broadcast,
   // but a card of the one thing to fix, in the route's words, with Connections for its door (the 30 Oct 2026 review, item 6).
   const playbook = { action: "moment", trigger: "everyone_monthly", template_id: TPL, params: [] };
-  const held = await buildProposal(toolContext([]), "propose_sequence", playbook);
+  const held = await buildProposal(toolContext([]), "propose_campaign", playbook);
   assert.equal(held.isError, false, held.result);
   assert.deepEqual(
     [held.proposal.kind, held.proposal.title, held.proposal.line, held.proposal.payload.door, held.proposal.payload.to],

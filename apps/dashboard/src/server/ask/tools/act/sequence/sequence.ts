@@ -37,12 +37,12 @@ import {
 } from "./steps";
 import { COLD_STEP, proposeColdEmail, proposeEnd } from "./cold-email";
 
-const SEQUENCE_ID = z.string().describe("A campaign's id, from sequences with action list.");
+const CAMPAIGN_ID = z.string().describe("A campaign's id, from campaigns with action list.");
 
-const STEP_ID = z.string().describe("A step's id, from sequences with action sequence.");
+const STEP_ID = z.string().describe("A step's id, from campaigns with action campaign.");
 
-export const propose_sequence = defineActions({
-  name: "propose_sequence",
+export const propose_campaign = defineActions({
+  name: "propose_campaign",
   description:
     "Propose what sends on its own, as a card the person approves (every such thing is a campaign): a message sent once, a campaign at a journey moment or on a list, a new campaign with its steps, a step added, changed, removed or reworded, a draft started, a campaign let go of or ended, people taken out, a waiting send approved or skipped, a campaign paused, resumed, renamed or retimed, its channels, a new saved message, and cold email to leads.",
   // screen-word: the code's names, said so it never says them
@@ -73,7 +73,7 @@ export const propose_sequence = defineActions({
     step: actAction({
       kind: "sequence_step",
       input: z.object({
-        sequence_id: SEQUENCE_ID,
+        campaign_id: CAMPAIGN_ID,
         step_id: STEP_ID.optional(),
         template_id: z.string().optional().describe("The step's message."),
         after_days: STEP_FIELDS.after_days.optional(),
@@ -84,7 +84,7 @@ export const propose_sequence = defineActions({
       }),
       examples: [
         {
-          sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
+          campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
           after_days: 5,
           template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
         },
@@ -96,9 +96,9 @@ export const propose_sequence = defineActions({
     }),
     step_remove: actAction({
       kind: "sequence_step_remove",
-      input: z.object({ sequence_id: SEQUENCE_ID, step_id: STEP_ID }),
+      input: z.object({ campaign_id: CAMPAIGN_ID, step_id: STEP_ID }),
       examples: [
-        { sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", step_id: "a7b8c9d0-e1f2-4a3b-9c4d-5e6f7a8b9c0d" },
+        { campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", step_id: "a7b8c9d0-e1f2-4a3b-9c4d-5e6f7a8b9c0d" },
       ],
       label: "Preparing the step's removal",
       words: "Action step_remove takes away a step after the first, with the steps after it.",
@@ -107,14 +107,14 @@ export const propose_sequence = defineActions({
     words: actAction({
       kind: "sequence_words",
       input: z.object({
-        sequence_id: SEQUENCE_ID,
+        campaign_id: CAMPAIGN_ID,
         step_id: STEP_ID,
         template_id: z.string().describe("The step's message."),
         params: STEP_FIELDS.params,
       }),
       examples: [
         {
-          sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
+          campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
           step_id: "a7b8c9d0-e1f2-4a3b-9c4d-5e6f7a8b9c0d",
           template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
         },
@@ -126,8 +126,8 @@ export const propose_sequence = defineActions({
     }),
     start: actAction({
       kind: "sequence_start",
-      input: z.object({ sequence_id: SEQUENCE_ID }),
-      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+      input: z.object({ campaign_id: CAMPAIGN_ID }),
+      examples: [{ campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing the start",
       words:
         "Action start turns a draft on: its first step runs from its next run. A paused one is resumed with action change.",
@@ -135,8 +135,8 @@ export const propose_sequence = defineActions({
     }),
     run_now: actAction({
       kind: "playbook_run",
-      input: z.object({ sequence_id: SEQUENCE_ID }),
-      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+      input: z.object({ campaign_id: CAMPAIGN_ID }),
+      examples: [{ campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing the run",
       words:
         "Action run_now runs a campaign's first step now, as its hourly run would: it waits for an OK where its class asks.",
@@ -144,16 +144,16 @@ export const propose_sequence = defineActions({
     }),
     change: playbookChangeAction,
     channels: playbookChannelsAction,
-    batch: runAction,
+    send: runAction,
     leave: actAction({
       kind: "sequence_leave",
       input: z.object({
-        sequence_id: SEQUENCE_ID,
+        campaign_id: CAMPAIGN_ID,
         contact_ids: z.array(z.string()).optional().describe("People in it, by their ids."),
         lead_ids: z.array(z.string()).min(1).max(LEAD_LIST_MAX).optional().describe("Leads in it, by their ids."),
       }),
       examples: [
-        { sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", contact_ids: ["a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"] },
+        { campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c", contact_ids: ["a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"] },
       ],
       label: "Preparing who leaves",
       words:
@@ -163,8 +163,8 @@ export const propose_sequence = defineActions({
     decide: actAction({
       kind: "sequence_send_decide",
       input: z.object({
-        sequence_id: SEQUENCE_ID,
-        send_id: z.string().describe("The email's send_id, from sequences with action sequence (waiting_on_you)."),
+        campaign_id: CAMPAIGN_ID,
+        send_id: z.string().describe("The email's send_id, from campaigns with action campaign (waiting_on_you)."),
         decision: z.enum(REACH_OUT_DECISIONS),
         change: z
           .string()
@@ -176,7 +176,7 @@ export const propose_sequence = defineActions({
       }),
       examples: [
         {
-          sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
+          campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
           send_id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
           decision: "include",
         },
@@ -189,13 +189,13 @@ export const propose_sequence = defineActions({
     sent_by_hand: actAction({
       kind: "sequence_send_said",
       input: z.object({
-        sequence_id: SEQUENCE_ID,
-        send_id: z.string().describe("The email's send_id, from sequences with action sequence (waiting_on_you)."),
+        campaign_id: CAMPAIGN_ID,
+        send_id: z.string().describe("The email's send_id, from campaigns with action campaign (waiting_on_you)."),
         outcome: z.enum(REACH_OUT_SAID_OUTCOMES),
       }),
       examples: [
         {
-          sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
+          campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c",
           send_id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
           outcome: "sent",
         },
@@ -207,8 +207,8 @@ export const propose_sequence = defineActions({
     }),
     discard: actAction({
       kind: "sequence_discard",
-      input: z.object({ sequence_id: SEQUENCE_ID }),
-      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+      input: z.object({ campaign_id: CAMPAIGN_ID }),
+      examples: [{ campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing to let it go",
       words:
         "Action discard takes away a campaign that never ran, whatever its state, or a cold email that never wrote; one that ran is ended with action end, a cold email that wrote paused with action change.",
@@ -216,8 +216,8 @@ export const propose_sequence = defineActions({
     }),
     end: actAction({
       kind: "sequence_end",
-      input: z.object({ sequence_id: SEQUENCE_ID }),
-      examples: [{ sequence_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
+      input: z.object({ campaign_id: CAMPAIGN_ID }),
+      examples: [{ campaign_id: "f6a7b8c9-d0e1-4f2a-8b3c-4d5e6f7a8b9c" }],
       label: "Preparing the end",
       words:
         "Action end ends a customer's campaign that has run, for good: it sends nothing more and nobody is added; what it sent stays in its History, and nothing undoes it. One that never ran is let go of with action discard; a cold email is paused with action change.",

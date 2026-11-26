@@ -1095,7 +1095,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
     ZONE,
     new Date("2026-09-14T14:00:00Z"),
   );
-  const pending = await buildProposal(t, "propose_sequence", {
+  const pending = await buildProposal(t, "propose_campaign", {
     action: "once",
     template_id: PENDING,
     audience_kind: "everyone",
@@ -1120,7 +1120,7 @@ test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campa
   );
   // The rule that described one tool lives in that tool since PR 3.3 (D9): the registry's own description says it.
   assert.ok(
-    ACT_TOOLS.find((t) => t.name === "propose_sequence").description.includes("never propose a send to nobody"),
+    ACT_TOOLS.find((t) => t.name === "propose_campaign").description.includes("never propose a send to nobody"),
     "a broadcast to nobody is never proposed",
   );
   // Its card's mark and word: executed in ask/palette/ ("a send's card carries its mark and its word").
