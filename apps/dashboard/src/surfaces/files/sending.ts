@@ -107,15 +107,13 @@ export function inLandedOrder<T extends { id: string }>(files: readonly T[]): re
 
 /* ------------------------------------------------- the screen, kept awake while there is work */
 
-let awake: { release: () => Promise<void> } | null = null;
+let awake: WakeLockSentinel | null = null;
 
 async function stayAwake(): Promise<void> {
   // Feature-checked and caught: a phone may refuse, on low battery, and a refusal must never stop the sends.
-  const lock = (navigator as { wakeLock?: { request: (kind: "screen") => Promise<{ release: () => Promise<void> }> } })
-    .wakeLock;
-  if (!lock || awake) return;
+  if (!("wakeLock" in navigator) || awake) return;
   try {
-    awake = await lock.request("screen");
+    awake = await navigator.wakeLock.request("screen");
     // The work may have ended while the browser answered.
     if (!now.photos.some(stillGoing)) sleepAgain();
   } catch {

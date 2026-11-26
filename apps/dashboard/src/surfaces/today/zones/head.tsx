@@ -20,7 +20,6 @@ import {
   todayWentLine,
   todayZoneDay,
   tzClock,
-  type CalendarLike,
   type TodayHeadLineVM,
 } from "@chanlytics/contracts";
 import { aiPill } from "../ai/pill";
@@ -36,7 +35,7 @@ import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { countRolls } from "../calm/motion";
 import { todayGreetingNow } from "../chrome";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, calendarLikeOf } from "../helpers";
 import { useNeedYouLine } from "../need-you-model";
 import { useTodayOnPhone } from "../phone";
 import { useDayVm } from "./day-vm";
@@ -130,7 +129,7 @@ export function useDayTurned(): boolean {
 function useZoneDayNow() {
   const day = useDayVm();
   const cal = surfaceValue("calendar");
-  const zone = todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, [], Date.now());
+  const zone = todayZoneDay(cal?.vm ? calendarLikeOf(cal.vm) : null, day, [], Date.now());
   return zone ? { ...zone, hoursSet: !!cal?.vm.hoursSet } : null;
 }
 

@@ -47,7 +47,7 @@ export function WorkspacesScreen({ go, flash }: { go: Go; flash: Flash }) {
         <SubTabs
           label="Show"
           value={only}
-          onSelect={(id) => setOnly(id as ConsoleGroup | "all")}
+          onSelect={(id) => setOnly(groups.find((g) => g.group === id)?.group ?? "all")}
           tabs={[
             { id: "all", label: "All", count: found.length },
             ...groups.map((g) => ({ id: g.group, label: CONSOLE_GROUP_WORDS[g.group], count: g.rows.length })),

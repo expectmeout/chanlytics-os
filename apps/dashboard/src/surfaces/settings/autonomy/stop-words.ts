@@ -10,6 +10,7 @@
  * own press turns them back on.
  */
 import type { AskStopped } from "@chanlytics/contracts";
+import { listOrEmpty, valueAt } from "@chanlytics/contracts";
 
 /** An ad the stop paused that stands so, as the press's answer names it for the owner's own press. */
 export interface StoppedAd {
@@ -66,6 +67,25 @@ function stillHeld(paused: number, repliesWait: boolean): string {
 }
 
 /** The row, from what Stop everything keeps: off, wholly on, on with something still going, or not all of it back. */
+/** The stop the workspace's config keeps (its `ask.stopped`), read field by field: none where it holds no time. */
+export function askStoppedOf(kept: unknown): AskStopped | null {
+  const at = valueAt(kept, "at");
+  if (typeof at !== "string") return null;
+  const words = (key: string) => listOrEmpty(valueAt(kept, key)).filter((x): x is string => typeof x === "string");
+  const reply = valueAt(kept, "reply");
+  const left = valueAt(kept, "left");
+  const repliesLeft = valueAt(kept, "replies_left");
+  const resumedAt = valueAt(kept, "resumed_at");
+  return {
+    at,
+    playbooks: words("playbooks"),
+    reply: typeof reply === "string" ? reply : null,
+    ...(Array.isArray(left) ? { left: words("left") } : {}),
+    ...(typeof repliesLeft === "boolean" ? { replies_left: repliesLeft } : {}),
+    ...(typeof resumedAt === "string" ? { resumed_at: resumedAt } : {}),
+  };
+}
+
 export function stopLineOf(kept: AskStopped | null): StopLine {
   if (!kept)
     return { label: "All sending", hint: "Pauses every send and holds replies for you, at once.", press: "stop" };

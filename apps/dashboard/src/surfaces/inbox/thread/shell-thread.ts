@@ -10,7 +10,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Params, RouteKey } from "@/client/api";
 import { onSurfaceMoved, surfaceVersion } from "@/bridge/surface-status";
-import type { replies } from "@/bridge/reach-out/replies";
 import { provided } from "@/bridge/provided";
 import { fn, object } from "../../shell-doors";
 import { agentIdFor } from "../shell";
@@ -67,9 +66,6 @@ export function hrefOf<K extends RouteKey>(key: K, params?: Params<K>): string |
 }
 
 /* ---------------------------- the reach-out readings ---------------------------- */
-
-/** What the bridge's strip reads of a thread: its id and its timeline's bubbles (`replies.stripFor`). */
-export type StripThread = Parameters<typeof replies.stripFor>[0];
 
 /** The replies to a reach-out and the words they are drawn in (reach-out/replies.ts, provided as `replies`), or nothing where they are not installed. */
 export function repliesDoor() {

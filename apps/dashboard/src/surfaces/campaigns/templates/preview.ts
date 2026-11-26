@@ -3,7 +3,16 @@
  * name and booking link, a blank for what it has not given, and the sample for anything else. What kind each slot
  * is and what it is called are templates/slots.ts.
  */
-import { starterText, defaultSlotKinds, slotLabels, type VariableLike, NUMBERED_SLOT } from "@chanlytics/contracts";
+import {
+  starterText,
+  defaultSlotKinds,
+  slotLabels,
+  type VariableLike,
+  NUMBERED_SLOT,
+  entryOf,
+  listOrEmpty,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import type { StarterTemplate } from "@chanlytics/contracts";
 
 function fill(body: string, values: string[]): string {
@@ -34,7 +43,7 @@ const OWN_SLOT_LABEL: ReadonlyMap<string, string> = new Map([
  */
 function slotWords(kind: string | undefined, label: string, example: string | null, own: OwnFacts): string | null {
   if (kind && OWN_SLOT_LABEL.has(kind)) {
-    const given = own[kind as keyof OwnFacts];
+    const given = entryOf(own, kind);
     return typeof given === "string" && given.trim() ? given : `[${label}]`;
   }
   return example;
@@ -82,7 +91,7 @@ export function templatePreviewValues(
   target: { name: string; language?: string | null; body_preview: string | null; variables: unknown },
   own: OwnFacts = {},
 ): string[] {
-  const vars = Array.isArray(target.variables) ? (target.variables as VariableLike[]) : [];
+  const vars: VariableLike[] = listOrEmpty(target.variables).map(recordOrEmpty);
   const kinds = defaultSlotKinds(target);
   const labels = slotLabels(target);
   const values: string[] = [];

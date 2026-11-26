@@ -252,7 +252,8 @@ const mapSide = (
       {a.bar}
       <div className="ld-map-rows">
         {near.map((p, i) => {
-          const l = byId.get(p.id) as LeadRowVM;
+          const l = byId.get(p.id);
+          if (!l) return null;
           return (
             <div
               key={p.id}
@@ -297,7 +298,8 @@ const mapPlot = (
       />
     ) : null}
     {plot.pins.map((p) => {
-      const l = byId.get(p.id) as LeadRowVM;
+      const l = byId.get(p.id);
+      if (!l) return null;
       return (
         <button
           key={p.id}

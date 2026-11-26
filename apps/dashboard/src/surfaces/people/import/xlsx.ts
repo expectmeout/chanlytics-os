@@ -57,7 +57,7 @@ function zipEntries(bytes: Uint8Array): Map<string, ZipEntry> {
 }
 
 /** One entry's bytes, inflated where the zip keeps them deflated (method 8), as they are where stored (method 0). */
-async function zipPart(bytes: Uint8Array, e: ZipEntry): Promise<Uint8Array> {
+async function zipPart(bytes: Uint8Array<ArrayBuffer>, e: ZipEntry): Promise<Uint8Array> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (view.getUint32(e.offset, true) !== LOCAL) throw new SheetUnreadable("That workbook is damaged.");
   const start = e.offset + 30 + view.getUint16(e.offset + 26, true) + view.getUint16(e.offset + 28, true);
@@ -66,12 +66,16 @@ async function zipPart(bytes: Uint8Array, e: ZipEntry): Promise<Uint8Array> {
   if (e.method !== 8) throw new SheetUnreadable("That workbook is packed in a way that can't be read here.");
   if (typeof DecompressionStream === "undefined")
     throw new SheetUnreadable("This browser can't open Excel files. Save it as CSV and drop that instead.");
-  const stream = new Blob([raw as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 /** An entry as a parsed XML document; null where the workbook has no such part. */
-async function xmlPart(bytes: Uint8Array, entries: Map<string, ZipEntry>, name: string): Promise<Document | null> {
+async function xmlPart(
+  bytes: Uint8Array<ArrayBuffer>,
+  entries: Map<string, ZipEntry>,
+  name: string,
+): Promise<Document | null> {
   const e = entries.get(name);
   if (!e) return null;
   const text = new TextDecoder().decode(await zipPart(bytes, e));

@@ -34,10 +34,11 @@ function receiptOf(data: unknown): { messageId: string | undefined; cancelableUn
  * and back as it was, with why, where the server refused (sent, claimed or withdrawn meanwhile).
  */
 function letHeldDraftGo(t: RealThread, st: VetoState, bump: () => void, flash: (flash: Flash) => void) {
-  if (st.held || st.going || !t.veto) return;
+  const messageId = t.veto?.messageId;
+  if (st.held || st.going || !messageId) return;
   st.going = true; // optimistic: it reads as going now
   bump();
-  void sendHeldNow(t.veto.messageId as string).then((r) => {
+  void sendHeldNow(messageId).then((r) => {
     if (r.ok) return;
     st.going = false;
     bump();
@@ -165,10 +166,11 @@ export const threadVerbs = (flash: (flash: Flash) => void) => {
         FOCUS_COMPOSER_MS,
       );
     } else if (act !== "hold" && act !== "type") return;
-    if (st.held || !t.veto) return;
+    const messageId = t.veto?.messageId;
+    if (st.held || !messageId) return;
     st.held = true; // optimistic: stops the countdown now
     bump();
-    void cancelSend(t.veto.messageId as string).then((r) => {
+    void cancelSend(messageId).then((r) => {
       if (r.ok) {
         flash({
           msg: (

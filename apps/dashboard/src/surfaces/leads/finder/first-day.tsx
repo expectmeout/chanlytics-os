@@ -17,13 +17,21 @@
  * a door that still opens. Hookless, like everything else here: the line being rewritten is the page's (`leadLine`), handed
  * down. Every word is contracts' (LEAD_WORDS.firstDay).
  */
-import { BUSINESS_LINE_MAX, LEAD_PRIOR_MIN, LEAD_WORDS, type LeadSuggestionsDto } from "@chanlytics/contracts";
+import {
+  BUSINESS_LINE_MAX,
+  LEAD_PRIOR_MIN,
+  LEAD_WORDS,
+  type LeadSuggestionsDto,
+  textOrEmpty,
+  valueAt,
+} from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
 import { RecordSheet } from "../../kit/record/sheet";
 import { Sheet } from "../../kit/sheet/sheet";
 import { gate, navigate } from "../../frame-verbs";
+import { takesFocus } from "../../dom-reads";
 
 type Suggestion = LeadSuggestionsDto["items"][number];
 
@@ -319,8 +327,9 @@ const AskField = ({
     onSubmit={(e) => {
       e.preventDefault();
       if (!canFind) return;
-      const box = e.currentTarget.elements.namedItem("words") as HTMLInputElement | null;
-      const words = (box?.value ?? "").trim();
+      const named = e.currentTarget.elements.namedItem("words");
+      const box = takesFocus(named) ? named : null;
+      const words = textOrEmpty(valueAt(named, "value")).trim();
       if (!words) {
         box?.focus();
         return;

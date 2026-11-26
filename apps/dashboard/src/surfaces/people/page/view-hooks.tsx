@@ -242,7 +242,7 @@ export function usePeoplePin({
   const togglePin = async () => {
     if (!openToken || pinBusy) return;
     const was = listsDoor.isPinned(openToken);
-    const name = activeSaved ? activeSaved.name : (activeList as SmartList).label;
+    const name = activeSaved ? activeSaved.name : activeList ? activeList.label : "";
     setPinBusy(true);
     const r = await listsDoor.pin(openToken);
     setPinBusy(false);
