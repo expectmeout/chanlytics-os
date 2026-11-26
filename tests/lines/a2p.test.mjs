@@ -48,7 +48,6 @@ import {
   emptyBusinessRecord,
   EVENT_KINDS,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
 
 const RECORD = {
   legalName: "Harbor Moving LLC",
@@ -192,13 +191,8 @@ test("the brand does not buy a vetting a low-volume campaign cannot use", () => 
     skipVetting: false,
   });
   assert.equal(vetted.form.SkipAutomaticSecVet, undefined, "asking for it stays possible, and stays a decision");
-  // Tied to the use case, in one place, where both are visible at once.
-  const edge = readCode("apps/edge/lib/lines/a2p-register.ts");
-  assert.ok(edge.includes("useCase: LOW_VOLUME_USECASE,") && edge.includes("skipVetting: true,"));
-  assert.ok(
-    readRaw("packages/channels/src/lines/a2p/brand-campaign.ts").includes("A brand can be vetted later"),
-    "and says how to get it when a workspace needs it",
-  );
+  // Tied to the use case: a real filing sends SkipAutomaticSecVet with a LOW_VOLUME campaign, run through the lines
+  // door in lines/door/register-and-its-status.test.mjs ("a first real filing walks the whole registration").
 });
 
 test("the industry is Twilio's enum: an unknown value becomes the default rather than a refusal", () => {
@@ -510,12 +504,8 @@ test("a brand the carriers still hold is a WAIT, not a refusal, and the status c
   assert.equal(r.ok, false);
   assert.equal(r.step, "campaign");
   assert.equal(r.pending, true, "the row must say 'waiting on carriers', never 'something went wrong'");
-  const edge = readCode("apps/edge/lib/lines/a2p-register.ts");
-  assert.ok(
-    edge.includes("const waiting = !result.ok && result.pending;") &&
-      edge.includes('const smsState = result.ok || waiting ? "registering" : "failed";'),
-  );
-  assert.ok(edge.includes("last_error: result.ok || waiting ? null : result.error,"), "a wait carries no error");
+  // What the row says of it -- registering, with no error -- is run through the lines door in
+  // lines/door/register-and-its-status.test.mjs ("a campaign held until the brand is through is a wait").
   // And the next status check files the campaign, so the wait finishes by
   // itself: run in lines/door/, where `registration-status` on an
   // approved brand with no campaign POSTs the one thing that was waiting.
@@ -584,7 +574,7 @@ test("the step list forks: a company files a company, a person files a person", 
   assert.equal(nextA2PStep({ ...done, brandSid: "BN1", campaignSid: "QE1" }, "SOLE_PROPRIETOR"), null);
 });
 
-test("ownership is asked too, and a value Twilio rejects never reaches it", () => {
+test("ownership is asked too, and a value Twilio rejects never reaches it", async () => {
   assert.deepEqual([...COMPANY_TYPES], ["government", "non-profit", "private", "public"]);
   assert.equal(companyTypeOf("Private"), "private");
   assert.equal(companyTypeOf("llc"), "private", "an unknown value becomes the default rather than a refusal");
@@ -592,10 +582,21 @@ test("ownership is asked too, and a value Twilio rejects never reaches it", () =
     JSON.parse(a2pProfileEndUserRequest({ friendlyName: "x", companyType: "non-profit" }).form.Attributes).company_type,
     "non-profit",
   );
-  assert.ok(
-    !readCode("packages/channels/src/lines/a2p-saga.ts").includes('p.record.ein ? "private" : "private"'),
-    "REGRESSION: ownership was hard-coded behind a ternary that could not vary",
-  );
+  // REGRESSION: ownership was hard-coded behind a ternary that could not vary. The saga files the record's own.
+  for (const companyType of ["non-profit", "public", "government"]) {
+    const t = fakeTwilio();
+    const sent = [];
+    const send = (req) => {
+      sent.push(req);
+      return t.send(req);
+    };
+    const state = { ...EMPTY_A2P_STATE };
+    const { ports: p } = ports({ send, calls: t.calls }, state);
+    const r = await runA2PSaga(state, { ...p, record: { ...RECORD, companyType } });
+    assert.equal(r.ok, true, r.ok ? "" : r.error);
+    const profile = sent.find((req) => req.form?.Type === "us_a2p_messaging_profile_information");
+    assert.equal(JSON.parse(profile.form.Attributes).company_type, companyType, `a ${companyType} business says so`);
+  }
   assert.equal(businessTypeOf("Corporation"), "Corporation");
 });
 
@@ -655,16 +656,9 @@ test("the two waits are told apart, and the carriers answering rings once", () =
   for (const e of ["line.texting_on", "line.texting_approved", "line.texting_rejected"])
     assert.ok(EVENT_KINDS.includes(e), e);
 
-  const edge = readCode("apps/edge/lib/lines/a2p-sync.ts");
-  assert.ok(
-    edge.includes("const verdict = registrationVerdict(line.sms_state, smsState, {"),
-    "the state BEFORE the write is what decides whether this is news",
-  );
-  assert.match(
-    edge,
-    /if \(notice && !\(await keepOnce\(line\.tenant_id, notice\)\)\) return null;\s*await keepAnswer\(db, line, answer\);/,
-    "the bell is the workspace's own row, addressed or not, kept BEFORE the state moves: a bell that could not be kept leaves the change to be judged again (R11 S6-12)",
-  );
+  // The sync judges the change against the state BEFORE its write, rings once on it and never twice, and keeps the
+  // bell BEFORE the state moves, so a bell that could not be kept leaves the change to be judged again (R11 S6-12):
+  // run through the lines door's registration-status in lines/door/register-and-its-status.test.mjs.
 });
 
 test("the carriers' verdicts become the words the row uses", () => {
@@ -677,10 +671,8 @@ test("the carriers' verdicts become the words the row uses", () => {
   // ACTIVE, not "approved": the inbound path only answers on active, and
   // nothing moved a line from one to the other, so every text stayed held.
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "VERIFIED" }), "active");
-  assert.ok(
-    readCode("apps/edge/lib/sms/ingress.ts").includes('held: line.sms_state !== "active"'),
-    "which is the state the inbound path reads",
-  );
+  // Which is the state the inbound path reads: a text on any other line is held for a person (sms/sms-ingress.test.mjs,
+  // "a line the carriers have not approved is accepted and HELD").
   assert.equal(smsStateFor({ brandStatus: "FAILED", campaignStatus: null }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "APPROVED", campaignStatus: "FAILED" }), "rejected");
   assert.equal(smsStateFor({ brandStatus: "SUSPENDED" }), "failed");
@@ -697,46 +689,19 @@ test("the carriers' verdicts become the words the row uses", () => {
   );
 });
 
-test("the campaign's status is read from the list Twilio answers with, and a wait's clock starts when the wait does", () => {
-  const edge = readCode("apps/edge/lib/lines/a2p-sync.ts");
-  // Verified against the live API on 2026-09-09: the Usa2p endpoint answers
-  // {compliance: [{campaign_status, mock, ...}], meta} and has NO top-level
-  // campaign_status. Reading one gave null on every tick, so smsStateFor never
-  // saw VERIFIED, so no line could ever reach active, so every inbound text was
-  // held for a person for ever -- on a code path whose own comment says it
-  // exists to end exactly that.
-  assert.ok(!/campaign\?\.campaign_status/.test(edge), "REGRESSION: the top-level read is always null");
-  assert.ok(edge.includes("listOrEmpty(campaign?.compliance)") && edge.includes("usa2p?.campaign_status"));
-  // Twilio, not our column, is the authority on whether the filing it holds is
-  // a rehearsal -- so a refile that made it real is recorded without anyone
-  // remembering to.
-  assert.ok(edge.includes('typeof usa2p?.mock === "boolean" ? usa2p.mock : line.reg_mock'));
-  assert.ok(edge.includes("smsStateFor({ brandStatus, campaignStatus, mock })"));
-  // state_since means "when this state began". Written unconditionally by an
-  // hourly sweep it meant "within the last hour", for ever -- and the Setup row
-  // reads it to tell the owner how long the carriers have had their filing.
-  assert.ok(edge.includes("const moved = smsState !== line.sms_state;"));
-  assert.ok(edge.includes("...(moved ? { state_since: new Date().toISOString() } : {}),"));
-});
+// The campaign's status is read from the list Twilio answers with. Verified against the live API on 2026-09-09: the
+// Usa2p endpoint answers {compliance: [{campaign_status, mock, ...}], meta} and has NO top-level campaign_status.
+// Reading one gave null on every tick, so smsStateFor never saw VERIFIED, so no line could ever reach active, so every
+// inbound text was held for a person for ever. Twilio, not our column, is the authority on whether the filing it holds
+// is a rehearsal; and state_since means "when this state began", so an hourly sweep with no news leaves it alone. Each
+// is run through the lines door's registration-status in lines/door/register-and-its-status.test.mjs: a VERIFIED in
+// the list makes the line active, a rehearsal made real is recorded as real, and a quiet answer moves no clock.
 
-test("everything is filed as the workspace's own subaccount, with our primary profile referenced by sid", () => {
-  const lib = readCode("apps/edge/lib/lines/a2p-register.ts");
-  assert.ok(
-    lib.includes("const sub = await findLineAccount(db, options.line)") &&
-      lib.includes('if (!sub) return { ok: false, error: "no_line_credentials"'),
-    "no subaccount, no filing",
-  );
-  assert.ok(
-    lib.includes("accountSid: sub.sid,") && !lib.includes("accountSid: master.sid,"),
-    "the address belongs to the same account as the profile",
-  );
-  assert.ok(lib.includes("await requestTwilio(sub, req.method, req.url, {"), "one account for every call");
-  const raw = readRaw("packages/channels/src/lines/a2p/wire.ts");
-  assert.ok(
-    raw.includes("WHOSE ACCOUNT.") && raw.includes("refused with 21717"),
-    "REGRESSION: a brand on the parent is refused at the campaign, after it is registered and paid for",
-  );
-});
+// Everything is filed as the workspace's own subaccount, with our primary profile referenced by sid: a brand on the
+// parent is refused at the campaign (21717), after it is registered and paid for. Run through the lines door in
+// lines/door/register-and-its-status.test.mjs: every request of a first filing carries the subaccount's own
+// credentials, the address is made under the subaccount, our primary profile is attached by sid, and a line with no
+// credentials on file files nothing.
 
 test("the owner's form: every field the carriers ask, checked in the owner's words before anything leaves", () => {
   const fields = businessFieldsFor("standard").map((f) => f.name);
@@ -824,50 +789,22 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   // refusals); a service-role read added there is a new offender of check:debt's service-role measure. Filing costs the
   // workspace's money, so lines/register is an owner's or the partner's (0012), rate-limited and declared to spend:
   // route-policy.json, held to the route's own declaration by routes/route-policy.test.mjs. Pinned as the routes' text
-  // until 25 Nov 2026.
-  const reg = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.ok(
-    !/mock:\s*(true|body)/.test(reg),
-    "the free test registry is never reachable from the dashboard: an owner's filing is always the real one",
-  );
-  const [page, pane] = ["record-form", "pane"].map((f) =>
-    readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`),
-  );
-  assert.ok(
-    page.includes('data-testid="business-record"') && page.includes('testid="biz-file"'),
-    "and filing asks once, plainly, with the price in the question",
-  );
-  assert.ok(
-    page.includes("export function BusinessRecordForm(") &&
-      pane.includes("<BusinessRecordForm line={ownLine} flash={flash} />"),
-    "the form is its own module, imported and drawn by the row that needs it, not published on the window",
-  );
-  assert.ok(
-    page.includes("detail={RECORD.costWords[path]}"),
-    "the price is the contract's, per registration -- the two do not cost the same",
-  );
+  // until 25 Nov 2026. The free test registry is never reachable from the dashboard: the register route sends the edge
+  // the line alone, whatever the body asks (lines/the-owner-and-support-read-a-filing-s-state.test.mjs). Filing asks
+  // once, plainly, with the contract's price for the registration in the question: the form is drawn and pressed in
+  // lines/registration-path.test.mjs ("the price in the question"). Pinned as the form's text until 26 Nov 2026.
 });
 
-test("the wiring: filed under our own profile, the table and the row, and the sweep that ends the wait", () => {
-  // The door's half -- never twice (`already_registered`), never real by
-  // default (`mock` only when asked, and never on a refile), the record asked
-  // for first (`no_business_record`), and the reviewer sent to this
-  // deployment's own pages -- is run in lines/door/.
-  const lib = readCode("apps/edge/lib/lines/a2p-register.ts");
-  assert.ok(
-    lib.includes("export function primaryProfileSid()") && lib.includes('error: "no_primary_profile"'),
-    "nothing is filed without our own approved profile",
-  );
-  assert.ok(
-    lib.includes("primaryProfileSid: primary,"),
-    "our own profile is referenced by sid, which is the whole declaration that this business is ours",
-  );
-  // The business's record is a member's to read and the row says which registration it is and what it made: the table
-  // and its policies on the stack (database/tenancy/); TWILIO_PRIMARY_PROFILE_SID is declared where the edge
-  // reads it (repo/env-manifest.test.mjs); and the registration sweep is registered and scheduled
-  // (ops/sweep-registry.db.test.mjs), its two waiting states run in cron/doors-b/. Pinned as 00075's, the example env's
-  // and 00077's text until 25 Nov 2026.
-});
+// The wiring: filed under our own profile, the table and the row, and the sweep that ends the wait. The door's half --
+// never twice (`already_registered`), never real by default (`mock` only when asked, and never on a refile), the record
+// asked for first (`no_business_record`), and the reviewer sent to this deployment's own pages -- is run in
+// lines/door/. So is our own approved profile: nothing is filed without it (`no_primary_profile`), and it is attached by
+// sid, which is the whole declaration that this business is ours (the first real filing's EntityAssignments). The
+// business's record is a member's to read and the row says which registration it is and what it made: the table and
+// its policies on the stack (database/tenancy/); TWILIO_PRIMARY_PROFILE_SID is declared where the edge reads it
+// (repo/env-manifest.test.mjs); and the registration sweep is registered and scheduled (ops/sweep-registry.db.test.mjs),
+// its two waiting states run in cron/doors-b/. Pinned as 00075's, the example env's and 00077's text until 25 Nov 2026,
+// and as a2p-register.ts's until 26 Nov 2026.
 
 test("a refusal keeps the carriers' own reasons, from the side that was actually refused", () => {
   // THE DEFECT. The sweep read brand.failure_reason and nothing else, so every
@@ -927,14 +864,7 @@ test("a refusal keeps the carriers' own reasons, from the side that was actually
   // An unfamiliar message is passed through rather than mangled.
   assert.equal(refusalWords({ campaignErrors: [{ description: "Something new from TCR" }] }), "Something new from TCR");
 
-  // And the sweep reads the campaign side, not just the brand.
-  const lib = readCode("apps/edge/lib/lines/a2p-sync.ts");
-  assert.ok(
-    lib.includes("campaignErrors: Array.isArray(usa2p?.errors)"),
-    "REGRESSION: the campaign's own reasons were dropped",
-  );
-  assert.ok(
-    lib.includes('?? "the carriers sent the registration back"'),
-    "and the generic line survives as the fallback it always should have been",
-  );
+  // And the sweep reads the campaign side, not just the brand, with the generic line as the fallback it always should
+  // have been: both run through the lines door's registration-status in lines/door/register-and-its-status.test.mjs (a
+  // refused campaign's cause on the row, and a refusal with no words still said as sent back).
 });

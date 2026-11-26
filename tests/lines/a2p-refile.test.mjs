@@ -19,15 +19,21 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
-import { readCode, readRaw } from "../_source.mjs";
-import {
-  unfileMockRegistration,
-  resubmitRejectedCampaign,
-  replaceRejectedCampaign,
-} from "../../apps/edge/lib/lines/a2p-refile.ts";
+import * as refile from "../../apps/edge/lib/lines/a2p-refile.ts";
 import { listFilingProblems } from "../../apps/edge/lib/lines/a2p-register.ts";
-import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord, platformLineActions } from "@chanlytics/contracts";
+import { syncRegistration } from "../../apps/edge/lib/lines/a2p-sync.ts";
+import { smsStateRow } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
+import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord, platformLineActions, textingWords } from "@chanlytics/contracts";
+
+const { unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign } = refile;
+
+// The platform's own account, which reads a subaccount's token back when the line's copy dies (the sync's heal).
+for (const k of ["VERCEL_ENV", "LINES_DRY_RUN"]) delete process.env[k];
+const MASTER = { sid: "ACmaster0000000000000000000000000", token: "master-token-for-this-file" };
+process.env.TWILIO_ACCOUNT_SID = MASTER.sid;
+process.env.TWILIO_AUTH_TOKEN = MASTER.token;
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -96,27 +102,52 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
   // the cheap half to change is the messaging profile: the customer profile
   // carries the business, the representative, the address and the document, all
   // of which are real and none of which needs redoing.
-  const lines = [mockFiled()];
+  const lines = [mockFiled({ a2p_profile_sid: "BUmsgprofile" })];
   const db = fakeDb({ lines });
   const r = await unfileMockRegistration(db, lines[0], READY);
   assert.equal(r.ok, true);
   assert.equal(lines[0].a2p_profile_sid, null, "cleared, so the saga resumes at a2p_profile with a fresh bundle");
   assert.ok(lines[0].profile_sid, "the customer profile is untouched -- it is the expensive half");
-  const lib = readCode("apps/edge/lib/lines/a2p-refile.ts");
-  assert.ok(lib.includes("a2p_profile_sid: null,"));
-  assert.ok(
-    readRaw("apps/edge/lib/lines/a2p-refile.ts").includes("Duplicate Brand can not be saved"),
-    "and says why, where the next person will look",
-  );
-  // The campaign delete is the INSTANCE url. The collection answers 405, which
-  // the first version swallowed as best-effort -- so the mock campaign stayed
-  // on the service and the refile was refused a step later, about the brand.
-  const chan = readCode("packages/channels/src/lines/a2p/brand-campaign.ts");
-  assert.ok(chan.includes('Compliance/Usa2p/${campaignSid}`, method: "DELETE"'));
-  assert.ok(
-    /if \(!gone\)\s*return \{\s*ok: false,\s*error: "provider_refused",/.test(lib),
-    "a campaign that will not come off stops the refile",
-  );
+});
+
+test("the mock campaign comes off by its INSTANCE url, and one that will not come off stops the refile", async () => {
+  // The collection answers 405, which the first version swallowed as best-effort -- so the mock campaign stayed on
+  // the service and the refile was refused a step later, about the brand. Run against each answer Twilio gives.
+  const vault = { get_line_credentials: () => ({ auth_token: "t" }) };
+  const rehearsal = mockFiled({ subaccount_sid: "ACsub", messaging_service_sid: "MG1" });
+  const realFetch = globalThis.fetch;
+  try {
+    for (const [status, ok] of [
+      [204, true],
+      [404, true],
+      [405, false],
+    ]) {
+      resetBreakers();
+      const calls = [];
+      globalThis.fetch = async (url, init) => {
+        calls.push(`${init?.method} ${url}`);
+        return new Response(status === 204 ? null : JSON.stringify({ code: 20004 }), { status });
+      };
+      const lines = [{ ...rehearsal }];
+      const r = await unfileMockRegistration(fakeDb({ lines }, {}, vault), rehearsal, READY);
+      assert.deepEqual(
+        calls,
+        [`DELETE https://messaging.twilio.com/v1/Services/MG1/Compliance/Usa2p/${rehearsal.campaign_sid}`],
+        `${status}: one call, the instance`,
+      );
+      assert.equal(r.ok, ok, `${status}: ${ok ? "gone, or already gone" : "still there"}`);
+      if (ok) {
+        assert.equal(lines[0].campaign_sid, null);
+        continue;
+      }
+      assert.equal(r.error, "provider_refused");
+      assert.match(r.detail, /would not come off \(HTTP 405\)/);
+      assert.equal(lines[0].campaign_sid, rehearsal.campaign_sid, "the row is untouched");
+      assert.equal(lines[0].reg_mock, true);
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 test("the rehearsal comes off the row and the expensive receipts stay on it", async () => {
@@ -181,20 +212,12 @@ test("no provider call is made for a line with nothing to take off, and none is 
   );
 });
 
-test("the owner's route may not refile: making a filing real is an operator's call", () => {
-  // The route's three answers -- a real filing that stands is final, a
-  // rehearsal says what it is and asks for `refile`, a refile is never itself
-  // a rehearsal and runs the saga against the cleared row -- are run in
-  // lines/door/.
-  //
-  // The owner's side: the register route may NOT refile. Making a filing real
-  // charges the workspace, so it is an operator's call with the business record
-  // in front of them, not a side effect of somebody pressing resubmit.
-  const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.ok(!/refile/.test(owner), "the owner-facing route never sends it");
-  assert.ok(owner.includes('body.error === "mock_registration"'), "but it does say what the state is");
-  assert.ok(owner.includes("MOCK_TEXTING_SENTENCE"), "in the same words the two pages use");
-});
+// The owner's side of a rehearsal: the register route may NOT refile. Making a filing real charges the workspace, so it
+// is an operator's call with the business record in front of them, not a side effect of somebody pressing resubmit. The
+// route is run in the-owner-and-support-read-a-filing-s-state.test.mjs: what it asks the edge carries no `refile`, and a
+// rehearsal comes back as MOCK_TEXTING_SENTENCE. The route's three answers on the edge's side -- a real filing that
+// stands is final, a rehearsal says what it is and asks for `refile`, a refile is never itself a rehearsal and runs the
+// saga against the cleared row -- are run in lines/door/.
 
 test("one sentence for a rehearsal, wherever an owner meets it", () => {
   // Three surfaces described this state before: Setup said "Texting is not
@@ -204,46 +227,98 @@ test("one sentence for a rehearsal, wherever an owner meets it", () => {
   assert.match(MOCK_TEXTING_SENTENCE, /test registry/);
   assert.match(MOCK_TEXTING_SENTENCE, /nothing is delivered/);
   assert.match(MOCK_TEXTING_SENTENCE, /a person at Chanlytics/);
-  for (const f of ["packages/contracts/src/setup/lines.ts", "apps/dashboard/app/api/v1/lines/register/route.ts"]) {
-    assert.ok(readCode(f).includes("MOCK_TEXTING_SENTENCE"), `${f} says the shared sentence, not its own`);
+  // Setup's row and Integrations' row say it from one function, whatever state the rehearsal reports underneath, so
+  // the two pages cannot describe one state two ways even by accident. The route says it too (run beside the route).
+  for (const sms_state of ["approved", "registering", "active"]) {
+    const line = {
+      e164: "+19296566623",
+      voice_state: "answering",
+      sms_state,
+      reg_mock: true,
+      reg_sole_prop: false,
+      state_since: "2026-09-01T00:00:00Z",
+      last_error: null,
+    };
+    assert.equal(textingWords(line).sentence, MOCK_TEXTING_SENTENCE, `Setup, under ${sms_state}`);
+    const row = smsStateRow(line, Date.parse("2026-09-03T00:00:00Z"));
+    assert.equal(row.sentence, MOCK_TEXTING_SENTENCE, `Integrations, under ${sms_state}`);
+    assert.equal(row.state, "attention", "joined, not working");
   }
-  // Integrations reaches it through the same function Setup's row uses, so the
-  // two pages cannot describe one state two ways even by accident.
-  const conn = readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
-  assert.ok(conn.includes("if (line?.reg_mock) {") && conn.includes("textingWords(line).sentence"));
-  assert.ok(!/test registry/.test(conn), "and it holds no copy of the sentence");
 });
 
-test("a question we could not ask is never reported as an answer", () => {
+test("a question we could not ask is never reported as an answer, and the platform heals the token once", async () => {
   // The live case, found the hard way: the subaccount's auth token was rotated
   // in the provider's console, our Vault copy died, and every read in
   // syncRegistration answered 401. The status was discarded, so 401 and "the
   // carriers are still thinking" both became null -- and null means "no answer
   // yet". The line would have sat in `registering` for ever with nothing wrong
   // on any page and a cheerful 200 from the sweep every hour.
-  const lib = readCode("apps/edge/lib/lines/a2p-sync.ts");
-  assert.ok(lib.includes("return { status: r.status, body:"), "the read carries the status");
-  assert.ok(lib.includes("x.status === 401 || x.status === 403"), "and a refusal is recognised as one");
-  assert.ok(lib.includes('error: "provider_unauthorized"'), "and reported as a refusal, not as a state");
-  assert.ok(
-    !/const brandStatus = typeof brand\?\.status === "string" \? brand\.status : null;[\s\S]{0,40}const campaignStatus[\s\S]{0,80}campaign\?\.campaign_status/.test(
-      lib,
-    ),
-    "REGRESSION: statuses read straight off a possibly-refused body",
-  );
+  //
+  // The platform heals itself rather than waiting for somebody to paste a secret: the parent account can read its own
+  // subaccounts' tokens, which is how the saga got this one in the first place. Each of refreshLineToken's answers (a
+  // refused master key named as itself, a blip said as a blip) is run in line-token-refresh.test.mjs; here, the sync
+  // around it.
+  const realFetch = globalThis.fetch;
+  const basic = (sid, token) => `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`;
+  const registering = () =>
+    mockFiled({
+      reg_mock: false,
+      // Standing, so the answer moves nothing and tells nobody: what is proved is that it was READ, with the healed token.
+      sms_state: "active",
+      subaccount_sid: "ACsub",
+      messaging_service_sid: "MG1",
+      last_error: null,
+    });
+  /** Twilio as the sync meets it: the subaccount's reads answer only to `live`, the parent's read hands `rotated` out. */
+  const twilio = ({ live, rotated }) => {
+    const asked = [];
+    globalThis.fetch = async (url, init) => {
+      const auth = init.headers.Authorization;
+      asked.push({ url: String(url), auth });
+      if (String(url).endsWith("/Accounts/ACsub.json"))
+        return new Response(JSON.stringify({ auth_token: rotated }), { status: 200 });
+      if (auth !== basic("ACsub", live)) return new Response(JSON.stringify({ code: 20003 }), { status: 401 });
+      if (String(url).includes("/BrandRegistrations/"))
+        return new Response(JSON.stringify({ status: "APPROVED" }), { status: 200 });
+      return new Response(JSON.stringify({ compliance: [{ campaign_status: "VERIFIED", mock: false }] }), {
+        status: 200,
+      });
+    };
+    return asked;
+  };
+  try {
+    // The token was rotated: the first reads are refused, the parent reads the new one, the sync asks again with it.
+    resetBreakers();
+    const stored = [];
+    const vault = {
+      get_line_credentials: () => ({ auth_token: "the-dead-token" }),
+      put_line_credentials: (a) => void stored.push(a.p_secret),
+    };
+    const asked = twilio({ live: "the-new-token", rotated: "the-new-token" });
+    const rows = [registering()];
+    const healed = await syncRegistration(fakeDb({ lines: rows }, {}, vault), rows[0]);
+    assert.equal(healed.ok, true, healed.error);
+    assert.deepEqual(
+      [healed.brand, healed.campaign, healed.smsState],
+      ["APPROVED", "VERIFIED", "active"],
+      "the carriers' answer, read with the healed token",
+    );
+    const parent = asked.find((a) => a.url.endsWith("/Accounts/ACsub.json"));
+    assert.equal(parent.auth, basic(MASTER.sid, MASTER.token), "read as the parent");
+    assert.deepEqual(stored, [{ auth_token: "the-new-token" }], "and written back through the one write path");
 
-  // The platform heals itself rather than waiting for somebody to paste a
-  // secret: the parent account can read its own subaccounts' tokens, which is
-  // how the saga got this one in the first place.
-  const sms = readCode("apps/edge/lib/lines/sms.ts");
-  assert.ok(sms.includes("export async function refreshLineToken("));
-  assert.ok(sms.includes("Accounts/${line.subaccount_sid}.json"), "read as the parent");
-  assert.ok(sms.includes("await putLineCredentials(db, line.id, "), "and written back through the one write path");
-  assert.ok(lib.includes("const fresh = await refreshLineToken(db, line);"));
-  assert.ok(
-    readRaw("apps/edge/lib/lines/sms.ts").includes("the platform's own Twilio credentials were refused"),
-    "a master-credential fault is named as itself, so nobody is sent looking at the subaccount",
-  );
+    // Still refused after the refresh: reported as a refusal, never as a state read off a refused body.
+    resetBreakers();
+    twilio({ live: "a-token-nobody-has", rotated: "the-new-token" });
+    const stuck = [registering()];
+    const refused = await syncRegistration(fakeDb({ lines: stuck }, {}, vault), stuck[0]);
+    assert.equal(refused.ok, false);
+    assert.equal(refused.error, "provider_unauthorized");
+    assert.equal(stuck[0].sms_state, "active", "REGRESSION: no state from a body the provider refused");
+    assert.match(stuck[0].last_error, /refused the line's credentials even after a refresh/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 
   // And the sweep says so out loud. Every line unreadable is OUR fault, not a
   // quiet week, so it fails the request (503 no_registration_readable) and
@@ -264,36 +339,60 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   // The first version of this path deleted the campaign and filed a new one,
   // which answers a rejection by buying a second vetting -- $15, every time,
   // for every workspace, on corrections that are usually one line of copy.
-  const chan = readCode("packages/channels/src/lines/a2p/brand-campaign.ts");
-  assert.ok(chan.includes("export function updateCampaignRequest("));
-  assert.ok(
-    chan.includes('Compliance/Usa2p/${campaignSid}`, method: "POST"'),
-    "the INSTANCE url with POST is the edit",
-  );
-  // All seven are required on every update, and the four booleans may not
-  // change on a campaign TCR has approved, so they go back as they were sent.
-  for (const f of [
-    "Description:",
-    "MessageFlow:",
-    "MessageSamples",
-    "HasEmbeddedLinks:",
-    "HasEmbeddedPhone:",
-    "AgeGated:",
-    "DirectLending:",
-  ]) {
-    assert.ok(chan.slice(chan.indexOf("export function updateCampaignRequest(")).includes(f), `the update sends ${f}`);
+  assert.ok(!("unfileRejectedCampaign" in refile), "REGRESSION: the delete-and-pay-again path is gone");
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method, form: new URLSearchParams(init?.body ?? "") });
+    return new Response(JSON.stringify({ campaign_status: "IN_PROGRESS" }), { status: 200 });
+  };
+  try {
+    resetBreakers();
+    const sentBack = mockFiled({
+      reg_mock: false,
+      sms_state: "rejected",
+      subaccount_sid: "ACsub",
+      messaging_service_sid: "MG1",
+      last_error: "30913: the message flow does not say how a customer agrees",
+    });
+    const rows = [{ ...sentBack }];
+    const facts = {
+      description: "Harbor Moving texts its customers about their estimates and moves.",
+      messageFlow: "A customer gives their number on the estimate form and ticks the box.",
+      samples: ["Your estimate is ready.", "Your movers arrive at 9.", "Reply STOP to stop."],
+      privacyPolicyUrl: "https://harbormoving.example/privacy",
+      termsUrl: "https://harbormoving.example/terms",
+    };
+    const db = fakeDb({ lines: rows }, {}, { get_line_credentials: () => ({ auth_token: "t" }) });
+    const r = await resubmitRejectedCampaign(db, sentBack, facts, READY);
+    assert.equal(r.ok, true, r.error);
+    assert.deepEqual(
+      calls.map((c) => `${c.method} ${c.url}`),
+      [`POST https://messaging.twilio.com/v1/Services/MG1/Compliance/Usa2p/${sentBack.campaign_sid}`],
+      "one call, nothing deleted: the INSTANCE url with POST is the edit",
+    );
+    // All seven are required on every update, and the four booleans may not
+    // change on a campaign TCR has approved, so they go back as they were sent.
+    const form = calls[0].form;
+    assert.equal(form.get("Description"), facts.description);
+    assert.equal(form.get("MessageFlow"), facts.messageFlow);
+    assert.deepEqual(form.getAll("MessageSamples"), facts.samples, "each sample, a key of its own");
+    assert.deepEqual(
+      ["HasEmbeddedLinks", "HasEmbeddedPhone", "AgeGated", "DirectLending"].map((k) => form.get(k)),
+      ["true", "true", "false", "false"],
+    );
+    assert.equal(form.get("PrivacyPolicyUrl"), facts.privacyPolicyUrl, "the two URLs an update may correct travel");
+    assert.equal(form.get("TermsAndConditionsUrl"), facts.termsUrl);
+    assert.equal(form.get("OptInMessage"), null, "and nothing the update cannot edit is sent");
+    assert.equal(rows[0].sms_state, "registering", "and the row says it is back with the carriers");
+    assert.equal(rows[0].campaign_sid, sentBack.campaign_sid, "the same campaign, so the same vetting fee");
+    assert.equal(rows[0].last_error, null);
+  } finally {
+    globalThis.fetch = realFetch;
   }
-  const lib = readCode("apps/edge/lib/lines/a2p-refile.ts");
-  assert.ok(lib.includes("export async function resubmitRejectedCampaign("));
-  assert.ok(!lib.includes("unfileRejectedCampaign"), "REGRESSION: the delete-and-pay-again path is gone");
-  assert.ok(lib.includes('sms_state: "registering",'), "and the row says it is back with the carriers");
   // The door's side is run in lines/door/: `refile` on a rejected line
   // POSTs the INSTANCE url once, as the subaccount, with the workspace's
   // CURRENT name in the description, and asks the spend rule of nobody.
-  assert.ok(
-    readRaw("apps/edge/lib/lines/a2p-refile.ts").includes("vetting fee is assessed only once per Campaign"),
-    "and the reason is quoted where the next person will change it back",
-  );
 });
 
 test("EVERY door that talks to the carriers asks first, and a refusal reaches neither the vault nor the wire", async () => {
@@ -406,26 +505,31 @@ test("a rejection reaches every person who can act on it, in words about what ha
   // answer"`. A 409 is neither, so an owner was told the carriers had not answered
   // about a message the carriers had explicitly sent. And the Connections row
   // offered them "Fix and resubmit", pointing at the only button guaranteed to
-  // produce it.
-  const owner = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
-  assert.match(owner, /body\.error === "campaign_rejected"/, "the owner route knows this answer exists");
-  assert.match(owner, /Texting approval was sent back\./);
-  assert.match(owner, /Chanlytics files it again/, "and says who sends it again, because it is not them");
-  assert.match(owner, /body\.reason/, "carrying what the carriers actually said");
+  // produce it. The owner route's answer, carrying what the carriers said, and Support's button, reading the
+  // pre-flight's sentences rather than a token, are run in the-owner-and-support-read-a-filing-s-state.test.mjs.
 
   // The row no longer promises the action gate 6 took away from owners.
-  const conn = readCode("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
-  const rejected = conn.slice(conn.indexOf('case "rejected":'), conn.indexOf('case "failed":'));
-  assert.ok(!/Fix and resubmit/.test(rejected), "REGRESSION: a button an owner may not press");
-  assert.match(rejected, /Chanlytics sends it again/);
-  assert.match(rejected, /Open the record/, "correcting the record IS theirs, and it is what unblocks the resubmit");
-
-  // And SUPPORT, pressing the button, reads the reason rather than a token. The
-  // ops surface would otherwise have repeated the exact defect this fixed for
-  // owners: `record_incomplete` where two sentences belong.
-  const bridge = readCode("apps/dashboard/src/bridge/platform.ts");
-  assert.match(bridge, /Array\.isArray\(res\?\.problems\)/);
-  assert.match(bridge, /if \(problems\.length\) return \{ ok: false, message: problems\.join\(" "\) \};/);
+  const row = smsStateRow(
+    {
+      e164: "+13055550100",
+      voice_state: "answering",
+      sms_state: "rejected",
+      reg_mock: false,
+      reg_sole_prop: false,
+      state_since: "2026-09-01T00:00:00Z",
+      last_error: "the opt-in does not say what a customer agrees to",
+    },
+    Date.parse("2026-09-03T00:00:00Z"),
+  );
+  assert.equal(row.state, "attention");
+  assert.doesNotMatch(JSON.stringify(row), /resubmit/i, "REGRESSION: a button an owner may not press");
+  assert.match(row.sentence, /: the opt-in does not say what a customer agrees to\./, "the carriers' words");
+  assert.match(row.sentence, /Chanlytics sends it again/, "and who sends it again, because it is not them");
+  assert.deepEqual(
+    row.verb,
+    { label: "Open the record", to: "verb:business-record", who: "owner" },
+    "correcting the record IS theirs, and it is what unblocks the resubmit",
+  );
   // The button says it refuses rather than that it sends whatever is there: the act Support is offered on a rejected
   // line, as contracts words it.
   const refile = platformLineActions({

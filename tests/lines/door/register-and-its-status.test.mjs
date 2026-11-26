@@ -5,11 +5,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LOW_VOLUME_USECASE } from "@chanlytics/channels/lines";
 import { whyCannotSpend } from "@chanlytics/contracts";
+import { fakeDb } from "../../_fake-db.mjs";
 import {
   A,
   B_LINE,
   FILING,
   LINE,
+  LINES_INDEXES,
+  setPg,
   NUMBER,
   REASON,
   RECORD,
@@ -457,6 +460,60 @@ test("register: a first real filing walks the whole registration as the workspac
   });
 });
 
+test("register: a campaign held until the brand is through is a wait — the row says registering and carries no error — while a campaign refused is a stop with the carrier's words", async () => {
+  // Everything asked for was accepted; the carriers only finish with the brand first. The row says "waiting on
+  // carriers", never "something went wrong", and the next status check files the campaign (the registration-status
+  // case below). (A source scan of a2p-register.ts until 26 Nov 2026.)
+  const fileWith = async (campaignAnswer) => {
+    const tables = world({ lines: [unfiled()], business_records: [RECORD] });
+    use(tables, VAULT);
+    let n = 0;
+    const carrier = wire((req) => {
+      if (req.url.endsWith("/Evaluations")) return { status: 201, body: { status: "compliant" } };
+      if (req.url.endsWith("/Services/MG0001/Compliance/Usa2p")) return campaignAnswer;
+      return { status: 201, body: { sid: `XX${String(++n).padStart(4, "0")}` } };
+    });
+    try {
+      const [, body] = await withEnv(FILING, async () => answer(await knock({ op: "register", line_id: LINE })));
+      return { body, row: tables.lines[0] };
+    } finally {
+      carrier.restore();
+    }
+  };
+  const held = await fileWith({
+    status: 400,
+    body: { code: 21717, message: "Campaign can not be created until Brand is registered. Current status: PENDING" },
+  });
+  assert.deepEqual(
+    [held.row.sms_state, held.row.last_error, held.row.reg_step],
+    ["registering", null, "campaign"],
+    "a wait: registering, no error, the campaign the step it waits at",
+  );
+  assert.match(held.row.brand_sid, /^XX/, "the brand it waits on is kept");
+  assert.equal(held.row.campaign_sid, null);
+
+  const refused = await fileWith({ status: 400, body: { code: 21700, message: "The description is too short" } });
+  assert.equal(refused.row.sms_state, "failed", "a refusal is not a wait");
+  assert.match(refused.row.last_error, /The description is too short/, "and the row keeps the carrier's words");
+});
+
+test("register: a line with no credentials on file files nothing, and asks nothing of the carriers", async () => {
+  // Everything is filed as the workspace's own subaccount; with no token for it there is no account to file as, and
+  // the master's would be refused at the campaign after the brand was paid for (21717, wire.ts).
+  const tables = world({ lines: [unfiled()], business_records: [RECORD] });
+  use(tables, { get_line_credentials: () => null });
+  const carrier = unreachable("a line with no credentials must not reach the carriers");
+  try {
+    const [status, body] = await withEnv(FILING, async () => answer(await knock({ op: "register", line_id: LINE })));
+    assert.equal(body.error, "no_line_credentials", JSON.stringify(body));
+    assert.notEqual(status, 200);
+    assert.deepEqual(carrier.seen, [], "not one request");
+  } finally {
+    carrier.restore();
+  }
+  assert.deepEqual([tables.lines[0].sms_state, tables.lines[0].brand_sid], ["none", null], "the row as it was");
+});
+
 test("register: a filing the pre-flight refuses is a 409 about this workspace with the owner's sentences — on every door to the carriers, before the vault or the wire", async () => {
   // The campaign states the WORKSPACE'S name and the brand registers the
   // RECORD'S. A live campaign went to the carriers describing a business called
@@ -769,6 +826,66 @@ test("registration-status reads where the carriers stand without asking the spen
     "the dry provider cannot ask the carriers",
   );
   assert.equal(unasked.lines[0].sms_state, "registering", "and the row is not moved by a question that was not asked");
+});
+
+test("registration-status: the bell is kept before the state moves, Twilio says whether the filing is a rehearsal, and a refusal with no reason still says it was sent back", async () => {
+  // (Source scans of a2p-sync.ts until 26 Nov 2026.)
+  const carriers = (campaign) =>
+    wire((req) =>
+      req.url.includes("/BrandRegistrations/")
+        ? { status: 200, body: { status: "APPROVED", failure_reason: null } }
+        : { status: 200, body: { compliance: [campaign], meta: {} } },
+    );
+  const check = async (tables, campaign, faults = {}) => {
+    const db = fakeDb(tables, faults, VAULT, { uniqueIndexes: LINES_INDEXES });
+    setPg(db);
+    const carrier = carriers(campaign);
+    try {
+      return await withEnv(TWILIO, async () => answer(await knock({ op: "registration-status", line_id: LINE })));
+    } finally {
+      carrier.restore();
+    }
+  };
+  const verified = { campaign_status: "VERIFIED", mock: false, errors: [] };
+
+  // A bell that could not be kept leaves the change to be judged again (R11 S6-12): the state is the one thing the next
+  // check judges the change by, so it does not move until the notice is kept.
+  const lost = world({ lines: [filed({ sms_state: "registering" })] });
+  const [, refused] = await check(lost, verified, { "notifications.insert": { message: "the bell is down" } });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.error, "write_failed");
+  assert.deepEqual(
+    [lost.lines[0].sms_state, lost.lines[0].state_since, lost.notifications.length, lost.events.length],
+    ["registering", "2026-09-10T00:00:00Z", 0, 0],
+    "nothing moved, so the next check tells it",
+  );
+  const [, told] = await check(lost, verified);
+  assert.deepEqual([told.smsState, told.told], ["active", true]);
+  assert.equal(lost.lines[0].sms_state, "active");
+  assert.equal(lost.notifications.length, 1, "told once, by the check that could keep it");
+
+  // Twilio, not our column, is the authority on whether the filing it holds is a rehearsal: a refile made real is
+  // recorded without anyone remembering to, and a rehearsal never reaches active.
+  const madeReal = world({ lines: [filed({ sms_state: "approved", reg_mock: true })] });
+  await check(madeReal, verified);
+  assert.deepEqual([madeReal.lines[0].reg_mock, madeReal.lines[0].sms_state], [false, "active"]);
+  const stillMock = world({ lines: [filed({ sms_state: "registering", reg_mock: false })] });
+  await check(stillMock, { ...verified, mock: true });
+  assert.deepEqual([stillMock.lines[0].reg_mock, stillMock.lines[0].sms_state], [true, "approved"]);
+
+  // state_since is when this state began: an answer with no news leaves it alone.
+  const standing = world({ lines: [filed({ sms_state: "active" })] });
+  const [, quiet] = await check(standing, verified);
+  assert.deepEqual([quiet.ok, quiet.told], [true, false]);
+  assert.equal(standing.lines[0].state_since, "2026-09-10T00:00:00Z", "an hourly sweep does not restart the clock");
+
+  // A refusal the carriers gave no words for is still said as one.
+  const bare = world({ lines: [filed({ sms_state: "registering" })] });
+  await check(bare, { campaign_status: "FAILED", mock: false, errors: [] });
+  assert.deepEqual(
+    [bare.lines[0].sms_state, bare.lines[0].last_error],
+    ["rejected", "the carriers sent the registration back"],
+  );
 });
 
 test("registration-status: once the carriers approve the brand, the campaign they were holding is filed by the next check — the wait finishes by itself, and the owner hears the brand is through", async () => {
