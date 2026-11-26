@@ -7,6 +7,7 @@ import {
   type PageSpotRowDto,
   type PageVitalsInputDto,
   type PageVitalsRowDto,
+  isOneOf,
 } from "@chanlytics/contracts";
 import { notePageVitals, readPageSpeed, readPageSpots, readPageVitalsP75 } from "@chanlytics/db/reports";
 import { serviceDb } from "../shared/service-db";
@@ -64,11 +65,11 @@ export async function listPlatformVitals(office: BackOffice): Promise<PageVitals
   }));
 }
 
-const HOWS = new Set(["load", "move", "within", "all"]);
-const DEVICES = new Set(["all", "desk", "phone", "unknown"]);
-const WARMS = new Set(["all", "held", "read", "unknown"]);
-const knownOr = <T extends string>(set: ReadonlySet<string>, v: unknown, fallback: T): T =>
-  typeof v === "string" && set.has(v) ? (v as T) : fallback;
+const HOWS = ["load", "move", "within", "all"] as const;
+const DEVICES = ["all", "desk", "phone", "unknown"] as const;
+const WARMS = ["all", "held", "read", "unknown"] as const;
+const knownOr = <T extends string>(set: readonly T[], v: unknown, fallback: NoInfer<T>): T =>
+  isOneOf(set, v) ? v : fallback;
 
 /**
  * Where the pages' time goes (00412, decision 0053): page_speed's rows and page_spots', read together. Null when either

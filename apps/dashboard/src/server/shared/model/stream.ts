@@ -138,9 +138,9 @@ function messageOf(message: { id?: unknown; model?: unknown; diagnostics?: unkno
 }
 function cacheMissOf(diagnostics: unknown): string | null {
   if (!diagnostics || typeof diagnostics !== "object") return null;
-  const reason = (diagnostics as { cache_miss_reason?: unknown }).cache_miss_reason;
+  const reason = "cache_miss_reason" in diagnostics ? diagnostics.cache_miss_reason : undefined;
   if (reason === null || reason === undefined) return "pending";
-  const type = (reason as { type?: unknown }).type;
+  const type = typeof reason === "object" && "type" in reason ? reason.type : undefined;
   return typeof type === "string" && type ? type : "unavailable";
 }
 

@@ -18,13 +18,13 @@ import {
   reachOutAddWords,
   type AskProposal,
   type LeadPeoplePlan,
-  type LeadSearchPlan,
   type ProposePeopleSearch,
   type ReachOutAddDto,
   US_ZIP,
   UUID,
   proposalBelowNeeds,
   recordOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { listLeadCardsLive } from "@chanlytics/db/leads";
 import { findReachOutRoot } from "@chanlytics/db/campaigns";
@@ -137,9 +137,6 @@ const shapeAsk = (input: LeadSearchAskInput) => {
   };
 };
 
-/** The plan's schema over the shaped ask: one parse, the plan's own words on a refusal. */
-const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskInput), ProposeAnySearchSchema);
-
 /**
  * Named people at companies (the people card, 00430), as a card: its own plan, its own facts and its own door. It never
  * stops to ask, so nothing answers one; and while the card finds no leads (lead_card_live) it is said in words instead.
@@ -220,7 +217,8 @@ async function proposeLeadSearch(toolContext: ToolContext, input: LeadSearchAskI
   if (!offeredTo(leadSearchAct, toolContext.role)) return refuse(proposalBelowNeeds("lead_search"));
   // A count past what one search finds is planned at the most, and said (cappedCount).
   const capped = cappedCount(input);
-  const shaped = LeadSearchPlanInput.safeParse(capped ? { ...input, count: searchMost(input) } : input);
+  // The plan's schema over the shaped ask: one parse, the plan's own words on a refusal.
+  const shaped = ProposeAnySearchSchema.safeParse(shapeAsk(capped ? { ...input, count: searchMost(input) } : input));
   if (!shaped.success)
     return refuse(
       `the plan is not complete: ${shaped.error.issues[0]?.path.join(".")} ${shaped.error.issues[0]?.message}`,
@@ -247,7 +245,7 @@ async function proposeLeadSearch(toolContext: ToolContext, input: LeadSearchAskI
   }
   // An answer is planned at the count the search's plan reserved, so the title and the view say the same number
   // as the plan the card carries; the model's count is only its own for a new search.
-  const storedCount = row ? (row.plan as LeadSearchPlan | null)?.count : undefined;
+  const storedCount = row ? valueAt(row.plan, "count") : undefined;
   const places = shaped.data;
   const item = planLeadSearch(typeof storedCount === "number" ? { ...places, count: storedCount } : places);
   // Outside the US, people rather than businesses, an ask no card fits: words
@@ -353,7 +351,7 @@ async function proposeMore(
     throw e;
   }
   const count = Math.round(Number(input.count));
-  const plan = LeadSearchPlanSchema.safeParse({ ...(row.plan as object), count });
+  const plan = LeadSearchPlanSchema.safeParse({ ...recordOrEmpty(row.plan), count });
   if (!plan.success)
     return refuse(
       `that search cannot take a new round as it is: ${plan.error.issues[0]?.path.join(".")} ${plan.error.issues[0]?.message}`,

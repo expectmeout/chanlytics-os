@@ -449,11 +449,9 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   // The pane computes its rows from contracts' own function, over the facts Setup and Google already read.
   assert.ok(
     pane.includes("connectionRows(") &&
-      pane.includes("lineRequestedAt: S ? S.dto.requests.line : null,") &&
-      pane.includes(
-        "google: G ? { ready: G.dto.ready, listing: G.dto.listing, connection: G.dto.connection } : null,",
-      ) &&
-      pane.includes("calendar: S ? S.dto.calendar : null,"),
+      pane.includes("lineRequestedAt: setup ? setup.dto.requests.line : null,") &&
+      pane.includes("{ ready: google.dto.ready, listing: google.dto.listing, connection: google.dto.connection }") &&
+      pane.includes("calendar: setup ? setup.dto.calendar : null,"),
   );
   assert.ok(
     !page.includes("INT_NOT_AVAILABLE") && !page.includes("<GoogleCard />") && !page.includes("<ConnectWhatsAppRow />"),

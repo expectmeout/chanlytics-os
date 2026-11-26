@@ -73,7 +73,7 @@ export async function findPersonVisits(
   const visits = visitsIn(index, person, now.getTime());
   // The timeline wants them all; a season either side is what the parse holds.
   const all = allVisitsIn(index, person)
-    .map((x) => toVisitDto(x) as VisitDto)
+    .flatMap((x) => toVisitDto(x) ?? [])
     .slice(-60);
   // The record's count of theirs from before the season (R7), leaving out any row the season carries.
   const earlier = earlierRows
