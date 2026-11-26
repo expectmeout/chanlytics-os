@@ -19,6 +19,7 @@ import {
   parseShellMessage,
   type PageMessage,
   type TodayVM,
+  type TodayWidgetSnapshot,
   type Waits,
 } from "@chanlytics/contracts";
 import { todayWidgetSnapshot } from "@/bridge/surfaces/today-widget";
@@ -82,6 +83,15 @@ export interface NeedsSource {
 }
 const NEEDS_YOU: NeedsSource = { now: () => needsYouNow(), hear: hearNeedsYou, parts: (vm) => needsYouOnToday(vm) };
 
+/**
+ * The widget's snapshot with the workspace's zone, so the widget says its "as of" by the workspace's clock, as the page
+ * does; none before the list is read, and the widget then says it in the phone's own.
+ */
+function withWorkspaceZone(snapshot: TodayWidgetSnapshot): TodayWidgetSnapshot {
+  const zone = currentWorkspace()?.timezone;
+  return zone ? { ...snapshot, zone } : snapshot;
+}
+
 export function installAppBridge(
   win: BridgeWindow = window,
   doors: DeviceDoors = deviceDoors,
@@ -116,13 +126,7 @@ export function installAppBridge(
     // Today's view model, as the seam holds it: what the widget shows.
     const vm = surfaceValue("today");
     if (!vm || typeof vm !== "object" || !vm.standing || !vm.queue) return;
-    // With the workspace's zone, so the widget says its "as of" by the workspace's clock, as the page does; none before the
-    // list is read, and the widget then says it in the phone's own.
-    const zone = currentWorkspace()?.timezone;
-    const snapshot = {
-      ...todayWidgetSnapshot(vm, new Date(), source.parts(vm), source.now()),
-      ...(zone ? { zone } : {}),
-    };
+    const snapshot = withWorkspaceZone(todayWidgetSnapshot(vm, new Date(), source.parts(vm), source.now()));
     const key = JSON.stringify({ ...snapshot, at: "" });
     if (key === todaySaid) return;
     todaySaid = key;

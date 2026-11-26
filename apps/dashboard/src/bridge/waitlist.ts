@@ -41,17 +41,17 @@ export async function joinWaitlistFrom(
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? SIGNUP_WORDS.waitlistNotJoined };
   const { name, email } = parsed.data;
   // Through the page's own-route client, on the window it was handed: no answer at all is status 0, said as unreachable.
-  const r = await askOwnRoute<{ ok?: boolean; data?: { waitlisted?: boolean }; error?: { message?: string } }>(
+  const joined = await askOwnRoute<{ ok?: boolean; data?: { waitlisted?: boolean }; error?: { message?: string } }>(
     "/api/v1/signup",
     {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify({ name, email }),
     },
-    { fetch: (url, init) => win.fetch(url, init) },
+    { fetch: win.fetch.bind(win) },
   );
-  const answer = r.json;
-  if (!r.ok || !answer?.ok) return { ok: false, message: answer?.error?.message ?? SIGNUP_WORDS.unreachable };
+  const answer = joined.json;
+  if (!joined.ok || !answer?.ok) return { ok: false, message: answer?.error?.message ?? SIGNUP_WORDS.unreachable };
   // Only the list's own answer is a yes: a sign-up that was not put on the list did not join it.
   if (!answer.data?.waitlisted) return { ok: false, message: SIGNUP_WORDS.waitlistNotJoined };
   return { ok: true, sentence: SIGNUP_WORDS.waitlistSent(email) };

@@ -90,7 +90,7 @@ export function expoPush(fetchImpl?: typeof fetch): PushPort {
         body: JSON.stringify(body),
         timeoutMs: TIMEOUT_MS,
       },
-      fetchImpl ? { fetch: fetchImpl } : {},
+      { fetch: fetchImpl },
     );
     return item;
   };

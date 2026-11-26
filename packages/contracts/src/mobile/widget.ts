@@ -29,6 +29,12 @@ export interface TodayWidgetSnapshot {
 const FIGURES_MAX = 4;
 const TEXT_MAX = 80;
 
+/** The workspace's zone a page sent, kept only where Intl can use it: none at all is the phone's own. */
+function zoneOf(sent: unknown): { zone?: string } {
+  const zone = typeof sent === "string" ? sent.trim() : "";
+  return zone && usableZone(zone) === zone ? { zone } : {};
+}
+
 /** The snapshot as the shell may trust it after the bridge: the shapes, the sizes, nothing else. */
 export function parseTodayWidgetSnapshot(raw: unknown): TodayWidgetSnapshot | null {
   if (!raw || typeof raw !== "object") return null;
@@ -54,6 +60,5 @@ export function parseTodayWidgetSnapshot(raw: unknown): TodayWidgetSnapshot | nu
     if (whoText === null || reason === null) return null;
     first = { who: whoText, reason };
   }
-  const zone = typeof items.zone === "string" ? items.zone.trim() : "";
-  return { headline, figures, waiting, first, at, ...(zone && usableZone(zone) === zone ? { zone } : {}) };
+  return { headline, figures, waiting, first, at, ...zoneOf(items.zone) };
 }

@@ -143,7 +143,7 @@ async function apifyCall(
     "apify",
     url,
     { method: init.method, headers: init.headers, body: init.body, timeoutMs: APIFY_TIMEOUT_MS },
-    fetchImpl ? { fetch: fetchImpl } : {},
+    { fetch: fetchImpl },
   );
   if (res.status === 0 || !res.headers) throw new ApifyRetryable(null, `the provider did not answer: ${res.error}`);
   const text = res.text;

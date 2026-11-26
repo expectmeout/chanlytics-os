@@ -70,17 +70,18 @@ type ClaimAnswer = { ok: true; workspace: ClaimedWorkspace } | { ok: false; mess
 /** The claim, as the person signed in: the workspace made theirs, or the door's own words for why not. */
 export async function claimPreviewNow(token: string): Promise<ClaimAnswer> {
   // Through the page's own-route client: no answer at all is status 0, which says the same as a refusal with no words.
-  const r = await askOwnRoute<{ ok?: boolean; data?: { workspace?: ClaimedWorkspace }; error?: { message?: string } }>(
-    "/api/v1/preview-claims",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ token }),
-    },
-  );
-  const workspace = r.json?.ok ? r.json.data?.workspace : undefined;
-  if (r.ok && workspace?.slug) return { ok: true, workspace };
-  return { ok: false, message: r.json?.error?.message ?? SIGNUP_WORDS.unreachable };
+  const claim = await askOwnRoute<{
+    ok?: boolean;
+    data?: { workspace?: ClaimedWorkspace };
+    error?: { message?: string };
+  }>("/api/v1/preview-claims", {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const workspace = claim.json?.ok ? claim.json.data?.workspace : undefined;
+  if (claim.ok && workspace?.slug) return { ok: true, workspace };
+  return { ok: false, message: claim.json?.error?.message ?? SIGNUP_WORDS.unreachable };
 }
 
 /** Where a workspace made theirs opens from sign-up: its first run, and the one this browser opens next. */
