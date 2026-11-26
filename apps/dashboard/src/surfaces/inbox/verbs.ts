@@ -229,7 +229,7 @@ async function runVerb(
         : local("No WhatsApp message is approved yet, so nothing can reach them until they write again.");
       break;
     default:
-      result = local(`Unknown verb ${verb as string}.`);
+      result = local(`Unknown verb ${String(verb)}.`);
   }
   // The refresh map re-reads the Inbox, the threads and Today after each of these lands, unless a bulk act reads them once at its end.
   return result;

@@ -17,9 +17,7 @@ import type { SetTab } from "./tabs";
 type Said = { words: string; warn?: boolean } | null;
 
 /** The business's record as the settings read holds it, or nothing. */
-const brainNow = () =>
-  (settingsNow()?.config as { brain?: { business_name?: unknown; profile?: { languages?: unknown } } } | null)?.brain ??
-  null;
+const brainNow = () => settingsNow()?.config?.brain ?? null;
 
 /** What a section's row says beside its name: the gap's page first, then the one fact the page holds, else nothing. */
 const sectionSaid = (id: string, gapPane: string | null): Said => {

@@ -98,7 +98,7 @@ export function useLeadNamedViews(a: NamedArgs) {
     isActive: (v: LeadNamedView) => leadNamedActive(v, now),
     hasMoved: (v: LeadNamedView) => leadNamedChanged(v, now),
     pick: (v: LeadNamedView) => {
-      a.table.takeLayout(layoutOf(v) as Record<string, unknown>);
+      a.table.takeLayout({ ...layoutOf(v) });
       a.nav(leadNamedRouteFor(v, a.searchIds));
       a.onPicked();
     },

@@ -286,7 +286,9 @@ function bcAside(vm: RunReportVM) {
                 key={x.contact_id}
                 className="bc-back-row"
                 disabled={!x.to}
-                onClick={() => navigate(x.to as string)}
+                onClick={() => {
+                  if (x.to) navigate(x.to);
+                }}
                 data-tip={`${x.name} · open the conversation`}
                 data-testid="bc-reply"
               >

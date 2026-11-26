@@ -12,6 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameSteer, whisperText } from "@chanlytics/contracts";
 import { readRaw } from "../../_source.mjs";
+import { givenOn } from "../../_css.mjs";
 import { installStubReact, settle } from "../../_stub-react.mjs";
 
 installStubReact({});
@@ -94,5 +95,7 @@ test("the Inbox offers the rewrite only on a real draft that is still counting d
   assert.ok(box.includes('data-testid="steer-box"'));
   assert.ok(box.includes("Rewritten · the new draft waits its turn"));
   assert.ok(box.includes('{...gate("approve")}'), "same door as Approve and Hold");
-  assert.ok(readRaw("apps/dashboard/src/styles/components.css").includes(".ix-steer-input {"));
+  // The rewrite's field takes the row's room and gives way to it, asked of the parsed sheet under any query.
+  const field = givenOn("apps/dashboard/src/styles/components.css", ".ix-steer-input", null);
+  assert.deepEqual([field.flex, field["min-width"]], ["1", "0"]);
 });

@@ -12,6 +12,8 @@ import {
   type LeadPeoplePlan,
   type LeadSearchPlan,
   type LeadSuggestionsDto,
+  nonEmptyOrNull,
+  valueAt,
 } from "@chanlytics/contracts";
 import { askAbout, openAsk, refusalToast } from "../../frame-verbs";
 import type { Flash } from "../../people/types";
@@ -112,10 +114,9 @@ export const leadFinderActs = ({
     // address the search's own. Without this they stayed on All leads with a live dot in the rail and nothing saying what
     // was happening -- the receipt's "Leads shows it" was a promise the page had not kept. A top-up or an answer is on a
     // search already open, so it stays.
-    const undo = r && r.ok ? (r.undo as { search_id?: string } | undefined) : undefined;
     // A search's own plan says its id in the door's answer, an Ask card's in its undo.
-    const data = r && r.ok ? (r.data as { search_id?: string } | undefined) : undefined;
-    const started = (undo && undo.search_id) || (data && data.search_id);
+    const started =
+      r && r.ok ? nonEmptyOrNull(valueAt(r.undo, "search_id")) || nonEmptyOrNull(valueAt(r.data, "search_id")) : null;
     if (started && !leadView.searchId) nav(leadsRoute({ searchId: started, list: "all", cls: null }));
     return r;
   };

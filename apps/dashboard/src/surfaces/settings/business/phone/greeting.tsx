@@ -54,7 +54,7 @@ const BtaGreeting = ({ draft, update, problems, readOnly, press, brain }: Fields
         label={null}
         aria-labelledby="rec-fold-phone_greeting-label"
         rows={3}
-        value={draft as string}
+        value={typeof draft === "string" ? draft : ""}
         onChange={(v) => update(() => v, ["phone_greeting"])}
         problem={problems.phone_greeting || null}
         readOnly={readOnly || undefined}

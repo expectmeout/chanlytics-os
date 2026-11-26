@@ -3,7 +3,7 @@
  * list for the run that carries our row's id, which the sweep (sweep.ts) makes too. The shared rules are rules.ts.
  */
 
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, valueAt } from "@chanlytics/contracts";
 import { runStateOf } from "../endings";
 import type { LeadPorts, LeadRunRow } from "../ports";
 import { INPUT_MARKER, PROVIDER_RUN_PAGE, iso, isRefused, isRetryable } from "./rules";
@@ -18,8 +18,7 @@ async function findOurRun(
   const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * MIN_MS);
   const runs = await leadPorts.apify.listActorRuns(actor, iso(since));
   for (const r of runs.slice(0, PROVIDER_RUN_PAGE)) {
-    const input = (await leadPorts.apify.runInput(r.id)) as Record<string, unknown> | null;
-    if (input && input[INPUT_MARKER] === row.id) return r;
+    if (valueAt(await leadPorts.apify.runInput(r.id), INPUT_MARKER) === row.id) return r;
   }
   return null;
 }

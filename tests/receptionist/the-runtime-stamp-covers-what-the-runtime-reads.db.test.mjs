@@ -82,6 +82,49 @@ test(
   },
 );
 
+test(
+  "the settings, a policy and the workspace's own row each move the stamp, as 00059 made it read them",
+  { skip },
+  async () => {
+    // What edge/runtime-freshness.test.mjs read as 00059's text until 26 Nov 2026: the stamp is the settings' version, the
+    // policies' newest change and the workspace row's, so a save of any of the three reaches a warm instance at once. Each
+    // write is a transaction of its own, so the row's updated_at (moddatetime: the transaction's now()) moves with it.
+    const changed = async (what, write) => {
+      const was = await stamp();
+      const r = await write();
+      assert.equal(r.error, null, `${what}: ${r.error?.message}`);
+      assert.notEqual(await stamp(), was, `${what} is a change the runtime must read`);
+    };
+    await changed("the settings saved", () =>
+      db
+        .from("tenant_config")
+        .upsert(
+          { tenant_id: tenantId, config: { brain: { business_name: `Stamp ${Date.now()}` } } },
+          { onConflict: "tenant_id" },
+        )
+        .select("version"),
+    );
+    const kept = await db.from("policies").select("id").eq("tenant_id", tenantId).limit(1);
+    assert.equal(kept.error, null, kept.error?.message);
+    await changed("a policy", () =>
+      kept.data.length > 0
+        ? db
+            .from("policies")
+            .update({ limits: { pause_hours: 3 } })
+            .eq("id", kept.data[0].id)
+            .select("id")
+        : db.from("policies").insert({ tenant_id: tenantId, class: "faq", mode: "auto" }).select("id"),
+    );
+    await changed("the workspace renamed", () =>
+      db
+        .from("tenants")
+        .update({ name: `Stamp renamed ${Date.now()}` })
+        .eq("id", tenantId)
+        .select("id"),
+    );
+  },
+);
+
 test("the stamp a member may not read: service role only, as 00059 left it", { skip }, async () => {
   const fn = await db
     .rpc("runtime_stamp", { p_tenant_id: tenantId })

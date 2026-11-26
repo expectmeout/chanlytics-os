@@ -10,6 +10,7 @@ import { Button } from "../../kit/button/button";
 import { RecordField } from "../../kit/record/field";
 import { gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { mailbox as MAILBOX } from "./mailbox";
+import { valueAt, textOrEmpty } from "@chanlytics/contracts";
 
 type Email = NonNullable<SetupDto["email"]>;
 
@@ -45,12 +46,12 @@ export const EmailSetupForm = ({ email, businessName, flash, onClose }: EmailSet
       else flash(refusalToast(r, "Not saved"));
       return;
     }
-    const made = r.data as { mailbox?: { address?: string } } | undefined;
+    const madeAddress = valueAt(r.data, "mailbox", "address");
     flash({
       msg: mailbox ? (
         <>Customers now see {name.trim()} beside your address</>
       ) : (
-        <>{made?.mailbox?.address} is yours · emails to it arrive in your Inbox</>
+        <>{textOrEmpty(madeAddress)} is yours · emails to it arrive in your Inbox</>
       ),
     });
     onClose();

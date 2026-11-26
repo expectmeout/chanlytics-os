@@ -5,7 +5,6 @@
  * Later puts them all off in this pass of the search. One verb each, as the sheet's: sequence_add and sequence_make.
  */
 import { useState } from "react";
-import type { ReachOutAddDto } from "@chanlytics/contracts";
 import { LEAD_SHEET_WORDS as W, leadPickerRowsOf, type LeadPickerRowVM } from "../sheet/model/view";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 import { reachOuts } from "../../campaigns/reach-out/surface";
@@ -16,6 +15,7 @@ import { gate, refusalToast, type FrameFlash } from "../../frame-verbs";
 import { SheetNew, SheetPicker, type NewStart } from "../sheet/picker";
 import type { LeadAim } from "../sheet/use-aim";
 import { laterLead } from "../surface";
+import { listOrEmpty, valueAt } from "@chanlytics/contracts";
 
 interface BulkAddProps {
   /** The leads chosen and shown. */
@@ -33,8 +33,10 @@ interface BulkAddProps {
 
 /** The leads an add left out: they stay selected, so they can be dealt with next. */
 const leftOutOf = (data: unknown): string[] => {
-  const d = data && typeof data === "object" ? (data as Partial<ReachOutAddDto>) : {};
-  return Array.isArray(d.leads) ? d.leads.map((l) => l.lead_id) : [];
+  return listOrEmpty(valueAt(data, "leads")).flatMap((lead) => {
+    const id = valueAt(lead, "lead_id");
+    return typeof id === "string" ? [id] : [];
+  });
 };
 
 export function useBulkAdd(p: BulkAddProps) {

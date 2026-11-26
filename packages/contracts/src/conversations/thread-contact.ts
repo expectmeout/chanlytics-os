@@ -7,6 +7,7 @@ import { clockDate } from "../shared/clock";
 import { formatPhoneDisplay } from "../shared/phone";
 import { personName } from "../people/person-name";
 import type { ConversationDto } from "./thread-dto";
+import { textOrEmpty } from "../shared/unknown";
 
 /** The display name for a contact, without building a whole thread viewmodel
  *  to read one field (Today was doing exactly that per open escalation). */
@@ -106,7 +107,7 @@ export function isEmailStopped(emailStopBearing: Pick<EmailStopBearing, "email_s
  */
 export function emailStoppedWords(emailStopBearing: EmailStopBearing, tz: string, now: Date): string | null {
   if (!isEmailStopped(emailStopBearing)) return null;
-  const at = Date.parse(emailStopBearing.email_suppressed_at as string);
+  const at = Date.parse(textOrEmpty(emailStopBearing.email_suppressed_at));
   const on = Number.isNaN(at) ? "" : ` on ${clockDate(at, tz, now.getTime())}`;
   const reason =
     emailStopBearing.email_suppressed_reason === "hard_bounce"

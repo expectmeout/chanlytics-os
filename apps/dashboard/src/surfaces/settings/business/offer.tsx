@@ -57,10 +57,18 @@ type FoldFields<D> = Parameters<ComponentProps<typeof BtFold<D>>["body"]>[0];
 const BtWordRow = ({ canEdit, flash }: { canEdit: boolean; flash: (flash: FrameFlash) => void }) => {
   const vm = BUSINESS_TAB.appointmentWordVM(visitWordHere());
   const door = businessTabSave.word;
-  const words = Object.fromEntries(vm.choices.map((c) => [c.value, { label: c.label, says: c.hint }])) as Record<
-    AppointmentWord,
-    { label: string; says: string }
-  >;
+  // Each word's label and what it says, as the menu offers it: the five, each from its choice.
+  const wordOf = (word: AppointmentWord) => {
+    const choice = vm.choices.find((c) => c.value === word);
+    return { label: choice?.label ?? word, says: choice?.hint ?? "" };
+  };
+  const words: Record<AppointmentWord, { label: string; says: string }> = {
+    appointment: wordOf("appointment"),
+    visit: wordOf("visit"),
+    meeting: wordOf("meeting"),
+    session: wordOf("session"),
+    lesson: wordOf("lesson"),
+  };
   // A pick lands when the door answers, taken or refused (its flash says which); one it cannot send waits for nothing.
   const pick = (word: AppointmentWord) =>
     new Promise<void>((resolve) => {

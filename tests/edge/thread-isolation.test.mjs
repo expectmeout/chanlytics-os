@@ -18,7 +18,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
@@ -97,25 +96,72 @@ test("a workspace cannot read another's conversation even by naming it", async (
   assert.equal(crossed.textedBefore, false);
 });
 
-test("the inbound-call endpoint refuses to read without a resolved tenant", () => {
-  // This endpoint SPEAKS stored conversation back to a caller. Reading the
-  // wrong tenant is not a data-quality problem, it is a disclosure.
-  //
-  // The read moved from the Blob mirror to readLeadContext (Postgres) so both
-  // agents share one memory; the ORDER is what this test is really about and
-  // it is unchanged. Locating the read explicitly rather than comparing an
-  // indexOf that returns -1: if the call is ever renamed away again, this
-  // must fail loudly rather than pass because it found nothing.
-  const src = fs.readFileSync(path.join(EDGE, "lib/voice/call-start.ts"), "utf8");
-  assert.ok(
-    src.includes(`resolveChannelDetailed(db, "voice", callStartInput.agentId)`),
-    "it must resolve the tenant from the agent",
+/* --------------------------- the call's start, run --------------------------- */
+
+const CALLER = "+16465550123";
+const BRAIN = {
+  business_name: "Salon A",
+  booking_link: "https://book.example/salon-a",
+  system_prompt: "Answer as the front desk of Salon A: brief and warm.",
+  fallbacks: { greeting: "g", error: "e", non_text: "n" },
+};
+/** The same caller known to both businesses by another name, and one voice agent: Salon A's. */
+const callWorld = () =>
+  fakeDb(
+    {
+      tenant_channels: [
+        {
+          id: "ch-voice-a",
+          tenant_id: TENANT_A,
+          kind: "voice",
+          external_id: "agent_isolation_a",
+          number_e164: "+13055550111",
+          credentials_ref: null,
+          config: {},
+          status: "active",
+        },
+      ],
+      tenant_config: [{ tenant_id: TENANT_A, config: { brain: BRAIN } }],
+      policies: [],
+      tenants: [{ id: TENANT_A, name: "Salon A", timezone: "America/New_York", status: "active" }],
+      google_listings: [],
+      contacts: [
+        { id: "k-a", tenant_id: TENANT_A, phone_e164: CALLER, display_name: "Ana Ruiz", last_seen_at: at(60) },
+        { id: "k-b", tenant_id: TENANT_B, phone_e164: CALLER, display_name: "Bea Lopez", last_seen_at: at(30) },
+      ],
+      conversations: [],
+      messages: [],
+    },
+    {},
+    { runtime_stamp: () => "stamp-isolation" },
   );
-  assert.ok(src.includes("if (!routed)"), "it must have an explicit no-tenant branch");
-  const guard = src.indexOf("if (!routed)");
-  const read = src.indexOf("readLeadContext(");
-  assert.ok(read !== -1, "the caller-context read must still exist and be findable");
-  assert.ok(guard !== -1 && guard < read, "the no-tenant guard must come BEFORE the read");
-  // And it must read the tenant it resolved, never a bare phone lookup.
-  assert.ok(src.includes("readLeadContext(db, routed.tenantId"), "the read must be scoped to the resolved tenant");
+/** The database, and every table the code asked it for, in order. */
+const watched = (db) => {
+  const asked = [];
+  const spied = new Proxy(db, {
+    get: (t, k) => (k === "from" ? (table) => (asked.push(table), t.from(table)) : t[k]),
+  });
+  return { db: spied, asked };
+};
+
+test("the inbound-call endpoint reads nothing of anyone's conversation without a resolved tenant, and the tenant it resolved alone", async () => {
+  // This endpoint SPEAKS stored conversation back to a caller. Reading the wrong tenant is not a data-quality problem,
+  // it is a disclosure. The read moved from the Blob mirror to readLeadContext (Postgres) so both agents share one
+  // memory; what is held is the order: the tenant from the agent, then the caller's memory, in that tenant alone.
+  // Pinned as call-start.ts's text until 26 Nov 2026; run since.
+  const { planCallStartWithin } = await import(pathToFileURL(path.join(EDGE, "lib/voice/call-start.ts")).href);
+  const now = new Date();
+
+  const nobody = watched(callWorld());
+  const unrouted = await planCallStartWithin({ agentId: "agent_isolation_nobody", from: CALLER, db: nobody.db, now });
+  assert.deepEqual([unrouted.facts, unrouted.tenantId], ["unrouted", null], "an agent no workspace holds is nobody's");
+  assert.deepEqual(nobody.asked, ["tenant_channels"], "the routing alone: no contact, thread or message is read");
+
+  const salon = watched(callWorld());
+  const routed = await planCallStartWithin({ agentId: "agent_isolation_a", from: CALLER, db: salon.db, now });
+  assert.equal(routed.tenantId, TENANT_A, "the tenant the agent resolved to");
+  assert.ok(salon.asked.indexOf("tenant_channels") < salon.asked.indexOf("contacts"), "resolved before the memory");
+  const said = JSON.stringify(routed.variables);
+  assert.ok(said.includes("Ana"), `Salon A's caller is the one Salon A knows: ${said}`);
+  assert.ok(!said.includes("Bea"), "and never the name another business knows the same number by");
 });

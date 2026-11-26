@@ -5,7 +5,7 @@
  */
 
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels/leads";
-import { peoplePlanOf } from "@chanlytics/contracts";
+import { peoplePlanOf, recordOrEmpty } from "@chanlytics/contracts";
 import { CARDS, MAPS_RUN_TIMEOUT_SECS } from "../cards";
 import { retryRunIdFor, runIdFor, hashSha256Hex } from "../ids";
 import type { LeadPorts, LeadRoundRow } from "../ports";
@@ -168,7 +168,7 @@ export async function startRound(
     }
     const token = await leadPorts.webhookToken(row.id);
     const input = {
-      ...(card.buildInput(plan, item.term, item.places) as Record<string, unknown>),
+      ...recordOrEmpty(card.buildInput(plan, item.term, item.places)),
       [INPUT_MARKER]: row.id,
     };
     try {
