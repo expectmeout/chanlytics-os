@@ -112,7 +112,8 @@ export async function listTemplatesToSend(
     .eq("tenant_id", tenantId)
     .eq("channel", channel);
   if (error) throw new DbFailure(error, "listTemplatesToSend");
-  return data;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- tests/edge/runtime-freshness.test.mjs's fake answers it null
+  return data ?? [];
 }
 
 /**
