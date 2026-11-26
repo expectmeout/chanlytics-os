@@ -249,7 +249,7 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
           : "No calendar to read, so it does not guess at open times."
         : abilityInputs.bookingHeld
           ? "It has the openings on a call and in chat, but bookings wait for you to confirm, so no link follows a request."
-          : `On a call it asks the calendar at that moment · in chat it has the next few days' openings. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
+          : `On a call it reads the calendar live · in chat it has the next few days' openings. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: {
         voice: abilityInputs.voiceLive && abilityInputs.hasCalendarFeed,
         whatsapp: chatAnswers && abilityInputs.hasCalendarFeed,

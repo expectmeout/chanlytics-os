@@ -424,8 +424,7 @@ function workspaceFormCard(
 
         {!another && (
           <p className="cw-foot">
-            Been invited to a workspace? Ask whoever invited you to send it again · an invitation is accepted the first
-            time you sign in.
+            Invited to a workspace? Ask for the invitation again: it is accepted the first time you sign in.
           </p>
         )}
         {leave}

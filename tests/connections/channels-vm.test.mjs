@@ -98,7 +98,7 @@ test("a switched-off channel says what the code does with what still arrives: a 
   );
   assert.equal(
     offWa.healthLabel,
-    "Switched off · messages to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not",
+    "Switched off · messages to it are neither answered nor recorded · Chanlytics is told they are arriving, you are not",
   );
   const offVoice = toChannelVM(
     {
@@ -113,7 +113,7 @@ test("a switched-off channel says what the code does with what still arrives: a 
   );
   assert.equal(
     offVoice.healthLabel,
-    "Switched off · calls are picked up without your facts and are not recorded; Chanlytics is told, you are not",
+    "Switched off · calls are picked up without your facts and are not recorded · Chanlytics is told, you are not",
   );
   const said = toChannelVM(
     {

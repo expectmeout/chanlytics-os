@@ -140,7 +140,7 @@ const withStop = (text: string): string => {
 const FOR_A_DEVELOPER = /{[A-Z][A-Z0-9_]*}/;
 
 /** Said in an owner's place of Meta's words for a developer: what it is about, and where to read it. */
-const SETTING_SENTENCE = "Meta says a setting on this number needs changing; WhatsApp Manager shows which.";
+const SETTING_SENTENCE = "Meta says a setting on this number needs changing. WhatsApp Manager shows which.";
 
 /** What Meta said, as a sentence an owner reads: its own words, or SETTING_SENTENCE where they were written for a developer. */
 const saidToOwner = (p: StandingProblem): string =>
