@@ -102,20 +102,22 @@ export interface PartnerVM {
   earnings: PartnerEarningsVM;
 }
 
-/** The pane's sentences, from the row, the ledger's sums, and the workspaces this person holds as partner. */
+/**
+ * The pane's sentences, from the row, the ledger's sums, and the workspaces this person holds as partner; the page's origin
+ * makes the link, and its zone (the workspace's clock) says the day the account was made.
+ */
 export function partnerVM(
   dto: PartnerDto,
-  origin: string,
-  zone: string,
+  page: { origin: string; zone: string },
   workspacesAsPartner: number,
   balance: readonly PartnerBalanceRow[] = [],
 ): PartnerVM {
   return {
     code: dto.code,
-    link: partnerLinkFor(dto.code, origin),
+    link: partnerLinkFor(dto.code, page.origin),
     status: dto.status,
     share: shareWords(dto.share_bp),
-    since: PARTNER_WORDS.since(dto.created_at, zone),
+    since: PARTNER_WORDS.since(dto.created_at, page.zone),
     brought: broughtWords(workspacesAsPartner),
     standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
     earnings: partnerEarningsWords(balance),

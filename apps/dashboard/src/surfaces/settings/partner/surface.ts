@@ -182,7 +182,12 @@ export const partnerVerbs: PartnerApi = {
   offerShare: shareWords(PARTNER_SHARE_BP_DEFAULT),
   // The server's count (partner_tenants) when it sends one; the seats held, from an older server.
   vm: (dto, balance) =>
-    partnerVM(dto, window.location.origin, pageClock().zone(), dto.brought ?? brought(), balance ?? []),
+    partnerVM(
+      dto,
+      { origin: window.location.origin, zone: pageClock().zone() },
+      dto.brought ?? brought(),
+      balance ?? [],
+    ),
   broughtCount: brought,
   async become(code) {
     const r = await api()("POST partner", { body: { code, terms: true } });
