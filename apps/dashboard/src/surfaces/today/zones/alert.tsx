@@ -76,7 +76,9 @@ function alertLine(a: {
       <span>{a.words}</span>
       {door && go ? (
         <a
-          {...go}
+          href={go.href}
+          onPointerEnter={go.onPointerEnter}
+          onFocus={go.onFocus}
           onClick={(event) => {
             a.before?.();
             go.onClick(event);

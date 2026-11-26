@@ -5,7 +5,15 @@
  * run the migration answers null, where the page draws what it drew before (either deploy order).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, isCurrencyCode, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import {
+  DbFailure,
+  finiteOrZero,
+  isCurrencyCode,
+  listOrEmpty,
+  nonEmptyOrNull,
+  recordOrEmpty,
+  type TenantId,
+} from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
 import type { Database } from "../../types";
@@ -119,13 +127,10 @@ export interface AdVisitsWorth {
 /** A sum as the database answers it, or none: a three-letter code beside a whole number of minor units, not below none. */
 const worthSumOf = (row: Record<string, unknown>): AdVisitsWorth["sums"] => {
   const { currency, minor } = row;
-  return isCurrencyCode(currency) && Number.isSafeInteger(minor) && count(minor) >= 0
-    ? [{ currency, minor: count(minor) }]
+  return isCurrencyCode(currency) && Number.isSafeInteger(minor) && finiteOrZero(minor) >= 0
+    ? [{ currency, minor: finiteOrZero(minor) }]
     : [];
 };
-
-const count = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
-const rowsOf = (value: unknown): Record<string, unknown>[] => (Array.isArray(value) ? value.map(recordOrEmpty) : []);
 
 /** The page's totals, counted whole in the database (00651). Null where the database cannot say. */
 export async function readAdsPageCounts(db: Db, tenantId: TenantId, days: number): Promise<AdsPageCounts | null> {
@@ -143,27 +148,37 @@ export async function readAdsPageCounts(db: Db, tenantId: TenantId, days: number
     from,
     to,
     people: new Map(
-      rowsOf(answer.ads).map((row) => [String(row.ad_id), { people: count(row.people), booked: count(row.booked) }]),
+      listOrEmpty(answer.ads)
+        .map(recordOrEmpty)
+        .map((row) => [String(row.ad_id), { people: finiteOrZero(row.people), booked: finiteOrZero(row.booked) }]),
     ),
-    unnamed: { people: count(unnamed.people), booked: count(unnamed.booked) },
+    unnamed: { people: finiteOrZero(unnamed.people), booked: finiteOrZero(unnamed.booked) },
     spend: new Map(
-      rowsOf(answer.spend).map((row) => [
-        String(row.ad_id),
-        {
-          spend_minor: count(row.spend_minor),
-          impressions: count(row.impressions),
-          clicks: count(row.clicks),
-          platform_results: typeof row.platform_results === "number" ? row.platform_results : null,
-          settling: row.settling === true,
-        },
-      ]),
+      listOrEmpty(answer.spend)
+        .map(recordOrEmpty)
+        .map((row) => [
+          String(row.ad_id),
+          {
+            spend_minor: finiteOrZero(row.spend_minor),
+            impressions: finiteOrZero(row.impressions),
+            clicks: finiteOrZero(row.clicks),
+            platform_results: typeof row.platform_results === "number" ? row.platform_results : null,
+            settling: row.settling === true,
+          },
+        ]),
     ),
     worth: Array.isArray(answer.worth)
       ? new Map(
-          rowsOf(answer.worth).map((row) => [
-            String(row.ad_id),
-            { sums: rowsOf(row.sums).flatMap(worthSumOf), visits: count(row.visits), left_out: count(row.left_out) },
-          ]),
+          listOrEmpty(answer.worth)
+            .map(recordOrEmpty)
+            .map((row) => [
+              String(row.ad_id),
+              {
+                sums: listOrEmpty(row.sums).map(recordOrEmpty).flatMap(worthSumOf),
+                visits: finiteOrZero(row.visits),
+                left_out: finiteOrZero(row.left_out),
+              },
+            ]),
         )
       : null,
   };
@@ -191,12 +206,14 @@ export async function readAdChatsKept(db: Db, tenantId: TenantId, days: number):
     if (isMissingDoor(error)) return null;
     throw new DbFailure(error, "ad_chats_kept");
   }
-  return rowsOf(data).flatMap((row) => {
-    const { ad_id: adId, name, through } = row;
-    return typeof adId === "string" && typeof name === "string" && typeof through === "string"
-      ? [{ ad_id: adId, name, meta: count(row.meta), kept: count(row.kept), through }]
-      : [];
-  });
+  return listOrEmpty(data)
+    .map(recordOrEmpty)
+    .flatMap((row) => {
+      const { ad_id: adId, name, through } = row;
+      return typeof adId === "string" && typeof name === "string" && typeof through === "string"
+        ? [{ ad_id: adId, name, meta: finiteOrZero(row.meta), kept: finiteOrZero(row.kept), through }]
+        : [];
+    });
 }
 
 /** The people ads brought back in a window, as ad_people_back answers them: each ad's, the unnamed ones', everyone's. */
@@ -208,7 +225,7 @@ export interface AdPeopleBack {
 
 const backCountOf = (value: unknown): { people: number; booked: number } => {
   const row = recordOrEmpty(value);
-  return { people: count(row.people), booked: count(row.booked) };
+  return { people: finiteOrZero(row.people), booked: finiteOrZero(row.booked) };
 };
 
 /**
@@ -225,7 +242,11 @@ export async function readAdPeopleBack(db: Db, tenantId: TenantId, days: number)
   if (data === null) return null;
   const answer = recordOrEmpty(data);
   return {
-    ads: new Map(rowsOf(answer.ads).map((row) => [String(row.ad_id), backCountOf(row)])),
+    ads: new Map(
+      listOrEmpty(answer.ads)
+        .map(recordOrEmpty)
+        .map((row) => [String(row.ad_id), backCountOf(row)]),
+    ),
     unnamed: backCountOf(answer.unnamed),
     all: backCountOf(answer.all),
   };
@@ -240,8 +261,6 @@ export interface AdPersonRow {
   wa_profile_name: string | null;
   phone_e164: string | null;
 }
-
-const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 
 /**
  * One ad's people in the page's window, newest first (ad_people, 00651); the ones from an ad Chanlytics cannot name
@@ -265,20 +284,22 @@ export async function listAdPeople(
     if (isMissingDoor(error)) return [];
     throw new DbFailure(error, "ad_people");
   }
-  return rowsOf(data).flatMap((row) => {
-    const contactId = text(row.contact_id);
-    const firstAt = text(row.first_at);
-    return contactId === null || firstAt === null
-      ? []
-      : [
-          {
-            contact_id: contactId,
-            first_at: firstAt,
-            booked: row.booked === true,
-            display_name: text(row.display_name),
-            wa_profile_name: text(row.wa_profile_name),
-            phone_e164: text(row.phone_e164),
-          },
-        ];
-  });
+  return listOrEmpty(data)
+    .map(recordOrEmpty)
+    .flatMap((row) => {
+      const contactId = nonEmptyOrNull(row.contact_id);
+      const firstAt = nonEmptyOrNull(row.first_at);
+      return contactId === null || firstAt === null
+        ? []
+        : [
+            {
+              contact_id: contactId,
+              first_at: firstAt,
+              booked: row.booked === true,
+              display_name: nonEmptyOrNull(row.display_name),
+              wa_profile_name: nonEmptyOrNull(row.wa_profile_name),
+              phone_e164: nonEmptyOrNull(row.phone_e164),
+            },
+          ];
+    });
 }
