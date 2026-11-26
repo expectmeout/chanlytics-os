@@ -22,10 +22,9 @@ import {
   VOICE_AGENT_DEFAULTS,
   greetingFor,
   GREETING_DEFAULT,
+  planVoiceProvision,
 } from "@chanlytics/channels/voice";
-import { readRaw } from "../_source.mjs";
 
-const module_ = readRaw("packages/channels/src/voice/provision.ts");
 /** Where the voice tools post in these fixtures: the address an edge off production gives them (dashboard-origin.ts). */
 const FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 const llm = voiceLlmCreateBody({ fnSecret: "s" }, FN_URL);
@@ -35,9 +34,14 @@ test("no business fact is written into provisioning", () => {
   // belong in Settings where the owner can see and change them. The endpoint
   // sends this package's bodies byte for byte (run in voice-doors.test.mjs),
   // so what is held here holds for what reaches the provider.
+  // Held on what reaches the provider, both bodies whole, where provision.ts's text was read until 26 Nov 2026.
+  const sent = JSON.stringify([
+    llm,
+    voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL),
+  ]);
   const facts = ["9:30", "Maple", "Booksy", "booksy", "212-555", "Marisa", "Brooklyn", "Beauty Academy", "balayage"];
   for (const f of facts) {
-    assert.ok(!module_.includes(f), `"${f}" is a fact and must not live in provisioning`);
+    assert.ok(!sent.includes(f), `"${f}" is a fact and must not live in provisioning`);
   }
 });
 
@@ -66,17 +70,21 @@ test("what remains is the SHAPE of a call, not its content", () => {
 });
 
 test("a second business is another request, not another copy of anything", () => {
-  // The number, the agent name and the nickname come from the request and the
-  // workspace's own name; the transfer target is a per-call variable.
-  assert.ok(module_.includes("agent: `${st.tenant.name} front desk`"));
-  assert.ok(!/NUMBER = "\+\d/.test(module_) && !/"\+1\d{10}"/.test(module_), "no hardcoded phone number");
-  assert.ok(!module_.includes("VOICE_TRANSFER_TO"), "the transfer number is a per-call variable, not a setting here");
-});
-
-test("the key is never written down", () => {
-  // The endpoint reading both from the environment -- and refusing without
-  // either -- is run in voice-doors.test.mjs.
-  assert.ok(!/key_[0-9a-f]{16}/.test(module_), "no literal Retell key");
+  // The number, the agent name and the nickname come from the request and the workspace's own name; the transfer target
+  // is a per-call variable (planned and sent, where provision.ts's text was read until 26 Nov 2026). The endpoint reading
+  // the provider key from the environment, and refusing without it, is run in voice-doors.test.mjs.
+  const planFor = (tenant, request) => planVoiceProvision({ tenant, channel: null, request });
+  const harbor = planFor({ id: "t1", name: "Harbor Moving" }, { areaCode: 305 });
+  const bayside = planFor({ id: "t2", name: "Bayside Dental" }, { number: "+12125550143" });
+  assert.equal(harbor.names.agent, "Harbor Moving front desk");
+  assert.equal(bayside.names.agent, "Bayside Dental front desk", "each business its own name");
+  assert.match(JSON.stringify(harbor.steps), /305/, "the number is the request's");
+  assert.ok(JSON.stringify(bayside.steps).includes("+12125550143"), "and the other's");
+  const sent = JSON.stringify([
+    llm,
+    voiceAgentCreateBody({ llmId: "l", llmVersion: 0, agentName: harbor.names.agent }, { fnSecret: "s" }, FN_URL),
+  ]);
+  assert.ok(!/"\+1\d{10}"/.test(sent), "no number written into what the provider is sent");
 });
 
 /* --------------------------- the greeting variable ------------------------ */

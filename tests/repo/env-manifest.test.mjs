@@ -136,15 +136,17 @@ test("every dashboard address the edge's manifest tells an operator to register 
 
 test("the dashboard holds no model or provider key: Ask's model and every provider are reached through the edge's doors, which alone read them", () => {
   // Moved here on 25 Nov 2026 from the behaviour tests that read one module each for the name (ask/line/ for the
-  // model's key, google.test.mjs for the Places key, billing.test.mjs for Stripe's): a rule of the repository, held over
+  // model's key, google.test.mjs for the Places key, billing.test.mjs for Stripe's, and on 26 Nov whatsapp-connect.test.mjs for Meta's app secret): a rule of the repository, held over
   // everything the dashboard reads from its environment and everything its manifest declares. What its calls to the
   // doors name and bind runs in edge/dashboard-names-its-callers.test.mjs.
   const dashboard = MANIFESTS.find((m) => m.name === "apps/dashboard/.env.example");
   const edge = MANIFESTS.find((m) => m.name === "apps/edge/.env.example");
   const providerKey = (k) =>
-    /(_API_KEY|_SECRET_KEY|_AUTH_TOKEN|_ACCOUNT_SID)$/.test(k) || /^(ANTHROPIC|OPENAI|CLAUDE)_/.test(k);
+    /(_API_KEY|_SECRET_KEY|_APP_SECRET|_AUTH_TOKEN|_ACCOUNT_SID)$/.test(k) || /^(ANTHROPIC|OPENAI|CLAUDE)_/.test(k);
   const edgeKeys = [...declared(edge.file)].filter(providerKey);
   assert.ok(edgeKeys.includes("ANTHROPIC_API_KEY") && edgeKeys.includes("STRIPE_SECRET_KEY"), "the edge holds them");
+  // Meta's app secret turns a sign-up's code into a business's token: the edge spends it, and nothing else holds it.
+  assert.ok(edgeKeys.includes("META_APP_SECRET"), "Meta's app secret is the edge's");
   const held = [...new Set([...usedBy(dashboard), ...declared(dashboard.file)])].filter(providerKey);
   assert.deepEqual(held, [], "a model or provider key read or declared on the dashboard");
 });
