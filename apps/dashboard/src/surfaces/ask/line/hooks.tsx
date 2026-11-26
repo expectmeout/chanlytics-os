@@ -429,9 +429,9 @@ export const useArSeedKeys = ({
   // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (`askAbout({ thread })`, any caller). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useEffect(() => {
-    const onSeed = (e: Event) => {
+    const onSeed = (e: CustomEvent<AskedSeed>) => {
       takeAskedOfTheLine();
-      asked.current = (e && (e as CustomEvent<AskedSeed>).detail) || {};
+      asked.current = e.detail || {};
       setTick((n) => n + 1);
     };
     window.addEventListener("ask:seed", onSeed);

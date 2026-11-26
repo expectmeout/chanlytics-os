@@ -59,9 +59,12 @@ export function reachCountsOf(
 ): ReachCounts {
   // Each person once, on the channel a send would reach them by (reach-any.ts reachedOn), where the rows carry it: a row
   // from before the channels does not. They add up to `canHear`.
-  const byChannel = Object.fromEntries(
-    CONSENT_CHANNELS.map((c) => [c, rows.filter((r) => r.reachedOn === c).length]),
-  ) as Record<ConsentChannel, number>;
+  const reachedOn = (c: ConsentChannel) => rows.filter((r) => r.reachedOn === c).length;
+  const byChannel: Record<ConsentChannel, number> = {
+    whatsapp: reachedOn("whatsapp"),
+    sms: reachedOn("sms"),
+    email: reachedOn("email"),
+  };
   return {
     people: rows.length,
     canHear: rows.filter((r) => r.canReceive.messages).length,

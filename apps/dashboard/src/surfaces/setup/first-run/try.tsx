@@ -292,10 +292,10 @@ export const FrTry = ({ tr, W, flash, go, leave, back, backLabel, onShowCode }: 
           change: PATCH_OF.handoff_number(o.to || ""),
           said: null,
           done: () => flash({ tone: "ok", msg: <>{W.saved}</> }),
-          flash: (f: unknown) => {
-            if (f && typeof f === "object" && Reflect.get(f, "tone") === "danger") {
+          flash: (f: FrameFlash) => {
+            if (f.tone === "danger") {
               setPicked(null);
-              flash(f as FrameFlash);
+              flash(f);
             }
           },
         }),

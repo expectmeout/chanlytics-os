@@ -8,7 +8,7 @@ import { SURFACE_VALUE_SLOT } from "@/bridge/surface-cache";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { surfaceCode } from "@/bridge/surfaces/code";
 import { declareReads } from "@/bridge/surface-registry";
-import type { LeadsSurface } from "./surface-types";
+import { isList, isObjectRecord, valueAt } from "@chanlytics/contracts";
 
 /** The rows the tab's cache keeps of the view: what an instant paint needs. */
 const SNAPSHOT_ROWS = 100;
@@ -23,9 +23,10 @@ export const leadsOverride: SurfaceOverride = {
   // full page costs to keep and to parse on every boot. The read behind the paint says the rest, so the snapshot
   // offers nothing and has no page after it.
   trimSnapshot: (snap) => {
-    const L = snap[SURFACE_VALUE_SLOT] as LeadsSurface | undefined;
-    return L
-      ? { ...snap, [SURFACE_VALUE_SLOT]: { ...L, rows: L.rows.slice(0, SNAPSHOT_ROWS), next: null, offered: 0 } }
+    const held = snap[SURFACE_VALUE_SLOT];
+    const rows = valueAt(held, "rows");
+    return isObjectRecord(held) && isList(rows)
+      ? { ...snap, [SURFACE_VALUE_SLOT]: { ...held, rows: rows.slice(0, SNAPSHOT_ROWS), next: null, offered: 0 } }
       : snap;
   },
   events: ["surface:leads"],

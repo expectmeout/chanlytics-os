@@ -11,6 +11,7 @@ import { addPerson, writePersonNote } from "../people-detail";
 import { lists } from "../people-lists";
 import { plMadeId } from "../words";
 import type { Flash } from "../types";
+import { listOrEmpty, valueAt } from "@chanlytics/contracts";
 
 export async function plRenameList(
   list: { id: string },
@@ -33,10 +34,16 @@ export interface DeleteAnswer {
  * and the answer says what paused and what reads it, for the page to say.
  */
 export async function plDeleteList(list: { id: string }): Promise<DeleteAnswer | { ok: false; error: string }> {
-  const r = await lists.remove(list.id);
-  if (!r.ok) return { ok: false, error: r.message || "The list couldn't be deleted." };
-  const d = (r.data || {}) as { archived?: boolean; paused?: string[]; read_by?: string[] };
-  return { ok: true, archived: !!d.archived, paused: d.paused || [], readBy: d.read_by || [] };
+  const removed = await lists.remove(list.id);
+  if (!removed.ok) return { ok: false, error: removed.message || "The list couldn't be deleted." };
+  const words = (key: string) =>
+    listOrEmpty(valueAt(removed.data, key)).filter((x): x is string => typeof x === "string");
+  return {
+    ok: true,
+    archived: valueAt(removed.data, "archived") === true,
+    paused: words("paused"),
+    readBy: words("read_by"),
+  };
 }
 
 /** What the page says when a delete archived instead: why, what paused, and where it comes back from. */

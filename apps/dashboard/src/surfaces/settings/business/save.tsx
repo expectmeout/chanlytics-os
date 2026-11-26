@@ -17,8 +17,11 @@ import {
   whyNotAHandoff,
   whyNotAPhone,
   E164,
+  valueAt,
+  textOrEmpty,
+  nonEmptyOrNull,
 } from "@chanlytics/contracts";
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import type { FrameFlash } from "../../frame-verbs";
 import { saveSettingsFn, settingsNow, tzApi, workspaceApi } from "./shell";
 import { pageReport } from "@/client/page-report";
@@ -119,7 +122,7 @@ export interface Config {
   [key: string]: unknown;
   brain?: Brain;
   features?: { [key: string]: unknown; vision?: boolean };
-  calendar?: { [key: string]: unknown; ical_url?: string };
+  calendar?: { [key: string]: unknown; ical_url?: string | null } | null;
   /** The booking tool the owner named (00345, contracts BOOKING_TOOL_IDS), in a section of its own. */
   bookings?: { [key: string]: unknown; tool?: string; by_hand?: boolean };
   ask?: { [key: string]: unknown; goal?: string }; // Ask's own: the owner's goal (who.tsx BtGoalCard)
@@ -183,10 +186,7 @@ export const phoneShown = (v: string | null | undefined) => (v && E164.test(v) ?
 // Two drafts are the same when saving either would write the same thing.
 const btSame = (a: unknown, b: unknown) =>
   JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
-const btTrimmed = (d: unknown) => {
-  const text = (d == null ? "" : d) as string;
-  return String(text).trim();
-};
+const btTrimmed = (d: unknown) => textOrEmpty(d).trim();
 
 /**
  * A job's patch, applied to a config: the config it would send, with the config it was applied to left exactly as it
@@ -217,12 +217,16 @@ const btPatched = (config: Config, job: SaveJob): Config => {
 const btRefusal = (words: string): Refusal => Object.assign(new Error(words), { said: words });
 
 /** What a refused or failed answer says: its `message`, when it has one. */
-const btMessageOf = (answer: unknown): ReactNode => (answer ? (answer as { message?: ReactNode }).message : undefined);
+const btMessageOf = (answer: unknown): ReactNode => btNodeOf(valueAt(answer, "message"));
+
+/** Words, or an element: what a toast can say of a value; nothing for anything else. */
+const btNodeOf = (words: unknown): ReactNode =>
+  typeof words === "string" || typeof words === "number" || isValidElement(words) ? words : undefined;
 
 /** A throw as an Error to reject with: an Error as it is, anything else as an Error that says what it said (its `message`). */
 const btAsError = (thrown: unknown): Error => {
   if (thrown instanceof Error) return thrown;
-  const said = thrown ? (thrown as { message?: unknown }).message : undefined;
+  const said = valueAt(thrown, "message");
   return new Error(typeof said === "string" ? said : "");
 };
 
@@ -230,10 +234,10 @@ const btAsError = (thrown: unknown): Error => {
  * A job's own callbacks are the page's, and one that throws (a fold already gone, a toast with nowhere to go) must not
  * stop the save behind it or the re-read that follows an accepted one.
  */
-const btSafely = <A = undefined,>(fn: ((arg: A) => unknown) | undefined, arg?: A) => {
+const btSafely = <A,>(fn: ((arg: A) => unknown) | undefined, arg: A) => {
   if (typeof fn !== "function") return;
   try {
-    fn(arg as A);
+    fn(arg);
   } catch (err) {
     pageReport.error(err);
   }
@@ -263,7 +267,7 @@ const btTried = (config: Config, job: SaveJob): Tried => {
     return { patched };
   } catch (failed) {
     // A patch's own refusal is an answer, not a fault: base() meets it on every draw while the job waits.
-    if (typeof (failed as { said?: unknown }).said !== "string") pageReport.error(failed);
+    if (typeof valueAt(failed, "said") !== "string") pageReport.error(failed);
     return { failed };
   }
 };
@@ -378,7 +382,7 @@ const btSaver = (): Saver => {
     // this config, is said and dropped, and the fold stays open with what was typed.
     const tried = btTried(cfg, job);
     if (tried.failed) {
-      const said = (tried.failed as { said?: unknown }).said;
+      const said = valueAt(tried.failed, "said");
       refused(typeof said === "string" ? said : null);
       onChange();
       next();
@@ -386,7 +390,7 @@ const btSaver = (): Saver => {
     }
     const patched = tried.patched;
     if (btSame(patched, cfg)) {
-      btSafely(job.done);
+      btSafely(job.done, undefined);
       onChange();
       next();
       return;
@@ -410,7 +414,7 @@ const btSaver = (): Saver => {
           last = { config: answer.config, version: answer.version };
         }
         taken[job.row] = Date.now();
-        btSafely(job.done);
+        btSafely(job.done, undefined);
         btSafely(job.flash, typeof job.said === "function" ? job.said(saved) : { msg: job.said });
         // With the server's answer in hand the next patch goes on it now; without one, it waits for the re-read,
         // which is when the promise settles.
@@ -421,7 +425,7 @@ const btSaver = (): Saver => {
     }
     Promise.resolve(sent).then(
       (r) => {
-        if (!(r && (r as { ok?: unknown }).ok)) refused(btMessageOf(r));
+        if (!valueAt(r, "ok")) refused(btMessageOf(r));
         free();
       },
       (e: unknown) => {
@@ -526,25 +530,25 @@ const btWorkspaceDoor = <J extends DoorJob, R extends DoorReply>({
       const mine = life;
       out = job;
       tell();
-      const answered = (r: DoorReply | undefined) => {
+      const answered = (r: R | undefined, failed?: string) => {
         if (mine !== life) return;
         out = null;
         tell();
         const ok = !!(r && r.ok);
-        if (ok) btSafely(job.done);
+        if (ok) btSafely(job.done, undefined);
         btSafely(job.flash, {
           tone: ok ? "ok" : "danger",
-          msg: ok ? taken(r as R, job) : <>{(r && r.message) || "That didn't go through."}</>,
+          msg: r && ok ? taken(r, job) : <>{(r && r.message) || failed || "That didn't go through."}</>,
         });
       };
-      let sent: Promise<DoorReply | undefined>;
+      let sent: Promise<R>;
       try {
         sent = send(job);
       } catch (e) {
         sent = Promise.reject(btAsError(e));
       }
       Promise.resolve(sent).then(answered, (e: unknown) =>
-        answered({ ok: false, message: e ? (e as { message?: string }).message : undefined }),
+        answered(undefined, nonEmptyOrNull(valueAt(e, "message")) ?? undefined),
       );
     },
     pending: () => !!out,

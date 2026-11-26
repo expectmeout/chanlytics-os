@@ -109,7 +109,7 @@ export function brainOutputSchemaFor(options: { bookingRequests: boolean }) {
  * so a past reply's prompt can be named and a settings change traced to the
  * replies after it. Rows from before the stamp carry the model alone.
  */
-export interface BrainMeta {
+export type BrainMeta = {
   intent: BrainIntent;
   confidence: number;
   reason: string;
@@ -125,7 +125,7 @@ export interface BrainMeta {
    * so it always opens one until the turn's thirty days are up.
    */
   turn_id?: string;
-}
+};
 
 /** What an answer was written from: its prompt's hash and the settings' version. */
 export interface BrainStamp {

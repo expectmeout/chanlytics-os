@@ -61,9 +61,7 @@ function lightboxPhoto(vm: LeadPeekVM) {
           src={vm.tile.band}
           alt=""
           onError={(e) => {
-            const t = e && e.currentTarget;
-            const parent = t && (t.parentNode as Element | null);
-            if (parent && parent.classList) parent.classList.add("no-img");
+            e.currentTarget.parentElement?.classList.add("no-img");
           }}
         />
       ) : (

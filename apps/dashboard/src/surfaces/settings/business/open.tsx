@@ -21,7 +21,7 @@
 //
 // The rows that come and go inside a fold (the closed days) are drawn hookless, as plain boxes wearing the kit's class.
 import type { ComponentProps, ReactNode } from "react";
-import { DEFAULT_TIMEZONE, calendarHoursLines } from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, calendarHoursLines, textOrEmpty, valueAt } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { TzApi } from "@/bridge/identity";
 import type { WorkspaceSettings } from "@/bridge/surfaces/settings";
@@ -259,7 +259,7 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFi
    */
   const removeClosure = (i: number) =>
     closed.removeAt(i, (row) => {
-      const gone = row as Closure;
+      const gone = { date: textOrEmpty(valueAt(row, "date")), note: textOrEmpty(valueAt(row, "note")) };
       return (
         <>
           Removed {gone.date ? <b>{gone.date}</b> : "the closure"}

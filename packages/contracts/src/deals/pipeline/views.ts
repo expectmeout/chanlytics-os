@@ -13,6 +13,7 @@ import {
   type PipelineVM,
 } from "./vm";
 import { GROUP_WORDS, PIPELINE_WORDS } from "./words";
+import { entryOf, isOneOf } from "../../shared/unknown";
 
 /* ------------------------------------------------ the Pipeline's own views: the rail and the address */
 
@@ -24,7 +25,7 @@ export type PipelineView = "all" | PipelineGroupKey | "waiting" | "lapsed" | "st
 
 // Built inside a call marked pure, as GROUP_WORDS is: a spread is a side effect to the bundler, and unmarked this
 // list, and the groups with it, stayed in the channels, core, db and jobs dists.
-const VIEW_KINDS: readonly string[] = /* @__PURE__ */ (() => [
+const VIEW_KINDS: readonly PipelineView[] = /* @__PURE__ */ (() => [
   "all",
   ...PIPELINE_GROUPS,
   "waiting",
@@ -34,7 +35,7 @@ const VIEW_KINDS: readonly string[] = /* @__PURE__ */ (() => [
 
 export function isPipelineView(text: unknown): text is PipelineView {
   return (
-    typeof text === "string" && (VIEW_KINDS.includes(text) || (text.startsWith("svc:") && text.slice(4).trim() !== ""))
+    typeof text === "string" && (isOneOf(VIEW_KINDS, text) || (text.startsWith("svc:") && text.slice(4).trim() !== ""))
   );
 }
 
@@ -55,7 +56,7 @@ export function pipelineViewLabel(view: PipelineView, pace: DealPaceVM | null): 
   if (view === "lapsed") return PIPELINE_WORDS.rail.lapsed;
   if (view === "steps") return PIPELINE_WORDS.rail.steps;
   if (view === "all") return PIPELINE_WORDS.rail.all;
-  return GROUP_WORDS[view as PipelineGroupKey];
+  return entryOf(GROUP_WORDS, view) ?? PIPELINE_WORDS.rail.all;
 }
 
 /** A person's id as the address may carry it: a person's id is a uuid, and nothing with a separator in it is one. */
@@ -97,7 +98,7 @@ export function parsePipelineRoute(
       if (name.trim()) view = `svc:${name}`;
     } else if (seg.startsWith("v-")) {
       const k = seg.slice(2);
-      if (VIEW_KINDS.includes(k)) view = k as PipelineView;
+      if (isOneOf(VIEW_KINDS, k)) view = k;
     } else if (seg.startsWith("p-") && PEEK_ID.test(seg.slice(2))) peek = seg.slice(2);
   }
   return { view, peek };

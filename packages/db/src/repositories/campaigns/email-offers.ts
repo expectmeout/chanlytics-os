@@ -17,6 +17,7 @@ import {
   recordOrEmpty,
   recordOrNull,
   DbFailure,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -114,14 +115,14 @@ export type OffersYesOutcome =
   | "address_changed"
   | "stopped";
 
-const REFUSALS: ReadonlySet<string> = new Set([
+const REFUSALS = [
   "unsubscribed",
   "not_a_confirmation",
   "not_sent",
   "expired",
   "address_changed",
   "stopped",
-]);
+] as const satisfies readonly OffersYesOutcome[];
 
 /**
  * A person's yes to offers by email, in writing (their own message, a form, or a website sign-up confirmed from its email,
@@ -149,9 +150,8 @@ export async function setEmailOffersYes(
   if (error) throw new DbFailure(error, "cannot record the yes to offers by email");
   const answer = recordOrNull(data);
   if (answer?.changed === true) return "recorded";
-  return typeof answer?.refused === "string" && REFUSALS.has(answer.refused)
-    ? (answer.refused as OffersYesOutcome)
-    : "unchanged";
+  const refused = answer?.refused;
+  return isOneOf(REFUSALS, refused) ? refused : "unchanged";
 }
 
 /**

@@ -28,7 +28,7 @@ import {
 import { findWhatsappChannelFacts } from "@chanlytics/db/campaigns";
 import { readAnswer } from "@chanlytics/db/shared";
 import { log } from "@/server/shared/log";
-import { getReachOutReport } from "./reach-out/reach-out-report";
+import { getReachOutReport } from "./reach-out/report";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { getAskedHead, reportWindowFor, getWindow } from "./report";
 

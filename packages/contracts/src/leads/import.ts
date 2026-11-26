@@ -158,9 +158,9 @@ export function leadImportPlanOf(text: string): {
   const words = (v: string, max: number): string | null =>
     Array.from(v.replace(/\s+/g, " ")).slice(0, max).join("").trim() || null;
   const rows = (header ? cells.slice(1) : cells).map((cells, count): LeadImportRow => {
-    const carried = (cells as { line?: number }).line;
+    const carried: unknown = Reflect.get(cells, "line");
     return {
-      line: carried ?? count + (header ? 2 : 1),
+      line: typeof carried === "number" ? carried : count + (header ? 2 : 1),
       name: words(cell(cells, columns.name), 200),
       email: normalizeEmail(cell(cells, columns.email)),
       phone: normalizePhone(cell(cells, columns.phone)),

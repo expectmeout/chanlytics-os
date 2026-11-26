@@ -15,6 +15,7 @@ import {
   personRouteOf,
   pipelineViewLabel,
   shortName,
+  entryOf,
 } from "@chanlytics/contracts";
 import { surfaceValue } from "../surface-values";
 import type { PeopleSurface } from "./surface";
@@ -65,7 +66,7 @@ function viewLabel(param: string): string {
   if (surfaceList) return surfaceList.label;
   if (savedMeta) return savedMeta.name;
   // A state is named by its words, the pill's and the list's (contracts PERSON_STATE_LABELS): "You have it", not its key's "waiting on you".
-  if (stateId) return (PERSON_STATE_LABELS as Record<string, string>)[stateId] ?? stateId.replace(/_/g, " ");
+  if (stateId) return entryOf(PERSON_STATE_LABELS, stateId) ?? stateId.replace(/_/g, " ");
   return P ? "List" : "Segment";
 }
 

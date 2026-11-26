@@ -10,6 +10,7 @@ import {
   GROUP_WORDS,
   PIPELINE_WORDS,
   csvCell,
+  isOneOf,
 } from "@chanlytics/contracts";
 import type { DealVM, DealSheetMode, PipelineGroupKey, PipelineSource, PipelineVM } from "@chanlytics/contracts";
 
@@ -120,7 +121,7 @@ export function pipelineSorted<T extends PipelineSource>(
   by: string | null | undefined,
   dir: "asc" | "desc",
 ): PipelineVM<T> {
-  const sort: PipelineSort = (PIPELINE_SORTS as readonly string[]).includes(by ?? "") ? (by as PipelineSort) : "stage";
+  const sort: PipelineSort = isOneOf(PIPELINE_SORTS, by) ? by : "stage";
   if (sort === "stage" && dir !== "desc") return vm;
   const sign = dir === "desc" ? -1 : 1;
   const groups = vm.groups.map((group) => {

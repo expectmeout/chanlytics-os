@@ -21,6 +21,7 @@ import { workspaceZone } from "@/bridge/zone";
 import { codeOnce } from "@/lib/code-once";
 import { everyPerson } from "@/surfaces/people/surface";
 import { setSurfaceValue } from "../../surface-values";
+import { errorOfThrown } from "@chanlytics/contracts";
 
 export interface AudienceOption {
   kind: AudienceKind;
@@ -142,7 +143,7 @@ export const audiencesOverride: SurfaceOverride = {
       read("GET broadcasts"),
       read("GET broadcasts/touches").catch(() => ({ touched_at: null })),
       read("GET contacts"),
-      read("GET segments").catch((e: unknown) => e as Error),
+      read("GET segments").catch(errorOfThrown),
       // Whose visit is today and what is due, by the business's clock (zone.ts).
       workspaceZone(),
       // And how they are counted (audiences-shape.ts), fetched beside them the first time.

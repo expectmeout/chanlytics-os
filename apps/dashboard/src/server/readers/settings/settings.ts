@@ -386,17 +386,17 @@ export function standingFactsOf(input: {
     othersWaiting: waitingId
       ? running.filter((c) => c.next.waiting_run_id && c.root_id !== subject?.root_id).length
       : 0,
-    running: running.map((c) => {
-      const own = c.root_id === subject?.root_id;
+    running: running.map((chain) => {
+      const own = chain.root_id === subject?.root_id;
       return {
-        root_id: c.root_id,
-        name: c.name,
-        fed_by: c.fed_by ?? null,
-        search_id: c.search?.id ?? null,
+        root_id: chain.root_id,
+        name: chain.name,
+        fed_by: chain.fed_by ?? null,
+        search_id: chain.search?.id ?? null,
         sent: own ? sent : null,
         wroteBack: own ? total((s) => s.wrote_back) : null,
         interested: own ? total((s) => s.interested) : null,
-        waitingLeads: c.people?.waiting ?? null,
+        waitingLeads: chain.people?.waiting ?? null,
       };
     }),
   };

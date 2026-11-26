@@ -4,7 +4,14 @@
  * for the record. Every role reads it. Every word is contracts' (actRowOf).
  */
 import { useEffect, useState } from "react";
-import { ACT_LOG_PAGE, actRowOf, consolePathOf, type PlatformActDto, type PlatformActVM } from "@chanlytics/contracts";
+import {
+  ACT_LOG_PAGE,
+  actRowOf,
+  consolePathOf,
+  type PlatformActDto,
+  type PlatformActVM,
+  isOneOf,
+} from "@chanlytics/contracts";
 import { AttnRow } from "../kit/attention/attn-row";
 import { Button } from "../kit/button/button";
 import { downloadCsv } from "../kit/download";
@@ -33,7 +40,14 @@ export function ActRow({ act, onOpen = null }: { act: PlatformActVM; onOpen?: ((
   );
 }
 
-type Whose = "everyone" | "mine";
+/** Whose acts the log shows. */
+const WHOSE = ["everyone", "mine"] as const;
+type Whose = (typeof WHOSE)[number];
+
+/** A tab pressed, as whose acts it shows: one of the two, else nothing changes. */
+const whosePicked = (set: (whose: Whose) => void) => (id: string) => {
+  if (isOneOf(WHOSE, id)) set(id);
+};
 
 export function LogScreen({ me, go }: { me: ConsoleMe; go: Go }) {
   const [whose, setWhose] = useState<Whose>("everyone");
@@ -86,7 +100,7 @@ export function LogScreen({ me, go }: { me: ConsoleMe; go: Go }) {
         <SubTabs
           label="Whose"
           value={whose}
-          onSelect={(id) => setWhose(id as Whose)}
+          onSelect={whosePicked(setWhose)}
           tabs={[
             { id: "everyone", label: "Everyone" },
             { id: "mine", label: "Mine" },
