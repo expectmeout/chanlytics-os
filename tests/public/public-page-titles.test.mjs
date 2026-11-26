@@ -116,7 +116,7 @@ test("REGRESSION (N21): a /b page that shows Not found says so in the tab and is
     contracts.businessPageMetadata(salonRecord),
     {
       title: "Marisa's Beauty Salon",
-      description: "Marisa's Beauty Salon: who we are, what we do, and our text-message terms.",
+      description: "Marisa's Beauty Salon: what the business does, and its text messaging terms.",
       robots: { index: true, follow: true },
     },
     "a page with something to show is named for the business customers know, and findable",

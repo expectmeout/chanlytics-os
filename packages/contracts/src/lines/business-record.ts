@@ -122,9 +122,8 @@ const FIELD = {
   about: {
     label: "What the business does",
     hint: "What you sell, who buys it and how they pay. It's on your public page, and the phone networks check it.",
-    // screen-word: an example in the business's own voice, the two or three sentences the field asks for
     placeholder:
-      "A moving company in Brooklyn. We move homes and small offices across New York and New Jersey, and pack and store for them. Customers book a free estimate and pay per move.",
+      "A moving company in Brooklyn for homes and small offices. Customers book a free estimate and pay per move.",
     multiline: true,
     group: "business",
   },
@@ -225,8 +224,7 @@ const PATH_FIELDS: Record<RegistrationPath, readonly Ask[]> = {
     {
       name: "contact_phone",
       required: true,
-      // screen-word: the owner's own handset, told from the number Chanlytics answers for them
-      label: "Your mobile",
+      label: "Personal mobile",
       hint: "Your own handset, not the number Chanlytics answers: the phone networks text it a code, and you reply from that phone.",
     },
   ],

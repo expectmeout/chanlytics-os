@@ -135,6 +135,5 @@ export const REGISTRATION_PATH_WORDS: Record<RegistrationPath, RegistrationPathW
  */
 export const REGISTRATION_COST_WORDS: Record<RegistrationPath, string> = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
-  // screen-word: what it costs and that it can't be undone stay in full where the owner decides (docs/words.md)
-  sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`,
+  sole_proprietor: `Filing costs a few dollars once and monthly, and cannot be undone: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`,
 };

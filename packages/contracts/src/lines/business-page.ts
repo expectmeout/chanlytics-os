@@ -321,8 +321,7 @@ export function businessPageMetadata(businessPageFacts: BusinessPageFacts | null
   if (!vm || vm.empty) return notFoundPageMetadata();
   return {
     title: vm.title,
-    // screen-word: the business's own page speaks as the business, "we" included (docs/words.md, "Who reads it")
-    description: `${vm.title}: who we are, what we do, and our text-message terms.`,
+    description: `${vm.title}: what the business does, and its text messaging terms.`,
     robots: { index: true, follow: true },
   };
 }

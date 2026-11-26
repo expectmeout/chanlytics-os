@@ -147,12 +147,11 @@ const LEFT_OUT_BESIDE_THE_KINDS: readonly ExportLeftOut[] = [
 ];
 
 /**
- * What the owner's copy holds, as the card beside its link says it (Settings › Business, "Your data"): a section for each
- * kind of record EXPORT_OF exports, in the file's order.
+ * What the owner's copy holds, as the card beside its link says it (Settings › Business, "Your data"): its main sections,
+ * of the kinds EXPORT_OF exports.
  */
-// screen-word: behind Why, the copy's every section named whole (docs/words.md, "Kept on purpose")
 export const EXPORT_HOLDS_WORDS =
-  "People, conversations with their messages and a link to each file a customer sent, which opens for a day, calls with their transcripts, every consent change with who recorded it, notes and steps, deals, your business details, the team, bookings, lists, campaigns and what each sent, saved messages, holds, AI's rules, Google reviews, leads, and how each reply from a lead was read.";
+  "People, conversations with a link to each file a customer sent, calls, consent, deals, bookings, campaigns and leads.";
 
 /** What the owner's copy leaves out, as the card says it: each `what` of exportLeftOut, the why at the file's end. */
 export function exportLeftOutWords(): string {

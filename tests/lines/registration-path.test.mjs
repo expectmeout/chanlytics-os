@@ -436,7 +436,7 @@ test("answering picks the fields, and they are the contract's", async () => {
   );
   assert.equal(byId(page.tree, "biz-business_type"), null);
   const mobile = textOf(byId(page.tree, "biz-contact_phone"));
-  assert.ok(mobile.includes("Your mobile"), "and the mobile is described as what it is on this path");
+  assert.ok(mobile.includes("Personal mobile"), "and the mobile is described as what it is on this path");
   assert.ok(mobile.includes("reply from that phone"));
   assert.ok(
     textOf(byId(page.tree, "biz-answer")).includes(REGISTRATION_PATH_WORDS.sole_proprietor.filed),
@@ -660,7 +660,7 @@ test("an incomplete sole-proprietor record spends nothing", async () => {
     assert.deepEqual(fetched, [], "nothing left for the provider");
     const row = rows[0];
     assert.equal(row.sms_state, "needs_record");
-    assert.match(row.last_error, /Your mobile is needed/, "in the owner's words, on the row the page reads");
+    assert.match(row.last_error, /Personal mobile is needed/, "in the owner's words, on the row the page reads");
   } finally {
     globalThis.fetch = realFetch;
     process.env = env;

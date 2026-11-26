@@ -880,7 +880,7 @@ test("record: which registration is said, not inferred — a sole proprietor is 
   assert.match(why.detail, /Use your own handset, not the number Chanlytics answers/);
   assert.deepEqual(
     await answer(await knock({ op: "record", path: "sole_proprietor", record: { ...FORM, contact_phone: "" } })),
-    [400, { ok: false, error: "sole_proprietor_incomplete", detail: "Your mobile is needed." }],
+    [400, { ok: false, error: "sole_proprietor_incomplete", detail: "Personal mobile is needed." }],
     "in that path's own words",
   );
   // And the standard path's demands are not made of them: no legal form, no tax id.

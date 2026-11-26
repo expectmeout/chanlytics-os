@@ -46,9 +46,8 @@ export const MERGE_WORDS = {
   pickNone: "Choose the other record",
   pickReading: "People is still being read · the other records are offered once it lands.",
   question: (kept: string, other: string) => `Merge ${other} into ${kept}?`,
-  // screen-word: what can't be undone stays in full where the owner decides (docs/words.md, "Kept on purpose")
   detail: (kept: string, other: string) =>
-    `${kept} keeps their record and takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} ${other}'s record stays as a merged record with no number or address. This cannot be undone.`,
+    `${kept} takes ${other}'s messages, calls, deals, notes and lists. ${MERGE_ANSWERS} This cannot be undone.`,
   /**
    * The sheet's own: what moves and that it cannot be undone, said first in two lines, and the rest of `detail` folded
    * under `more` (the fitted sheets, 14 Oct 2026: seven lines stood between the pick and the name typed).
