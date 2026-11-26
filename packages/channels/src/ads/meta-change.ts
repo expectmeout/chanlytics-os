@@ -12,12 +12,10 @@
  * one is seen at the first live change.
  */
 import { valueAt } from "@chanlytics/contracts";
-import { META_GRAPH, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { META_GRAPH, isMetaId, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { minorToMetaUnits } from "./meta-account";
 import { NOT_EXACT_TOTAL, metaAdSetTargeting, type MetaAdSetAsk } from "./meta-make";
-
-const ID = /^\d{5,32}$/;
 
 /**
  * One part's own switch, set: Meta's `status` for an ad, PAUSED or ACTIVE, and the same for an ad set or a campaign,
@@ -31,13 +29,13 @@ export function metaAdSwitchRequest(
   adId: string,
   to: "PAUSED" | "ACTIVE" | "ARCHIVED",
 ): MetaRequest {
-  if (!ID.test(adId)) throw new Error("Meta's id for the part is not one");
+  if (!isMetaId(adId)) throw new Error("Meta's id for the part is not one");
   return { url: metaGraphUrl(adId, { status: to, ...metaProofQuery(token, appSecret) }), method: "POST" };
 }
 
 /** One ad's standing, asked after a change: Meta's own word for where it now stands. */
 export function metaAdStandingRequest(token: string, appSecret: string, adId: string): MetaRequest {
-  if (!ID.test(adId)) throw new Error("Meta's id for the ad is not one");
+  if (!isMetaId(adId)) throw new Error("Meta's id for the ad is not one");
   return {
     url: metaGraphUrl(adId, { fields: "effective_status", ...metaProofQuery(token, appSecret) }),
     method: "GET",
@@ -80,7 +78,7 @@ export function metaAdSetChangeRequest(
   change: MetaAdSetChange,
   how: { dryRun: boolean },
 ): MetaRequest {
-  if (!ID.test(setId)) throw new Error("Meta's id for the ad set is not one");
+  if (!isMetaId(setId)) throw new Error("Meta's id for the ad set is not one");
   const body = new URLSearchParams({
     ...changedField(change),
     ...(how.dryRun ? { execution_options: JSON.stringify(["validate_only"]) } : {}),

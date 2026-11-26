@@ -304,7 +304,7 @@ export async function releaseRoutingRows(
     // all settle on when a workspace has more than one.
     const shared = await findOtherLineOnRow(db, { tenantId, lineId: line.id, fact: key, channelId: id });
     if (shared.error) return stop(`reading the workspace's other lines: ${shared.error.message}`);
-    const holder = shared.data?.[0];
+    const holder = shared.data[0];
     if (holder) {
       // It keeps answering -- but it must now describe the line that HOLDS it.
       // `number_e164` is what the public page, Settings, the consent page and

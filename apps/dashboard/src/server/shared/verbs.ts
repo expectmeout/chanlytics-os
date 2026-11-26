@@ -268,7 +268,7 @@ export async function recordDecision(
     actor_user_id: ctx.userId,
     payload:
       ctx.via && payload && typeof payload === "object" && !Array.isArray(payload)
-        ? { ...(payload as Record<string, Json>), via: ctx.via }
+        ? { ...payload, via: ctx.via }
         : payload,
   };
   const insert = (undoOf: string | null) => recordDecisionRow(ctx.supabase, { ...row, undo_of: undoOf });

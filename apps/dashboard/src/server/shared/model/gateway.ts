@@ -11,15 +11,12 @@ import "server-only";
  */
 
 import { parseFrame, type GatewayEvent } from "./stream";
-export { parseFrame } from "./stream";
-export type { GatewayEvent } from "./stream";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, streamEdge, type EdgeBody } from "../edge";
 import { deployment } from "../env";
-import { MIN_MS, SECOND_MS, isEffortMessage } from "@chanlytics/contracts";
+import { MIN_MS, SECOND_MS, finiteOrZero, isEffortMessage, isObjectRecord, recordOrEmpty } from "@chanlytics/contracts";
 import type {
-  EdgeErrorCode,
   ModelEffort,
   ModelSpeed,
   SkillCraftPurpose,
@@ -115,27 +112,20 @@ function speedOf(header: string | null): ModelSpeed | null {
 function gatewayRefusalOf(status: number, json: unknown): GatewayRefusal {
   // The edge's refusal (a code, its words in `detail`), or the model's own body forwarded as it came, whose `error`
   // is an object with a message. An answer that is not JSON reads as an empty one.
-  const body = (json !== null && typeof json === "object" ? json : {}) as {
-    error?: EdgeErrorCode | { message?: string };
-    detail?: string;
-    used?: number;
-    cap?: number;
-    message?: string;
-  };
-  if (status === 429 && body.error === "ask_budget")
-    return { kind: "budget", used: body.used ?? 0, cap: body.cap ?? 0 };
-  if (status === 503 && body.error === "no_model_key") return { kind: "no_key" };
+  const body = recordOrEmpty(json);
+  const code = typeof body.error === "string" ? body.error : null;
+  if (status === 429 && code === "ask_budget")
+    return { kind: "budget", used: finiteOrZero(body.used), cap: finiteOrZero(body.cap) };
+  if (status === 503 && code === "no_model_key") return { kind: "no_key" };
   if (status === 402) return { kind: "paused" };
-  if (status === 403 && body.error === "model_paused") return { kind: "model_paused" };
+  if (status === 403 && code === "model_paused") return { kind: "model_paused" };
   const err =
     typeof body.detail === "string"
       ? body.detail
-      : body.error && typeof body.error === "object"
+      : isObjectRecord(body.error)
         ? body.error.message
-        : typeof body.error === "string"
-          ? body.error
-          : body.message;
-  const message = `${status} ${err ?? "model refused"}`;
+        : (code ?? body.message);
+  const message = `${status} ${typeof err === "string" ? err : "model refused"}`;
   return status === 429 || status >= 500 ? { kind: "unreachable", message } : { kind: "bad_request", message };
 }
 

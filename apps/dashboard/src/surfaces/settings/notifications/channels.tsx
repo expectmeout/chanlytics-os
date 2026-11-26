@@ -113,7 +113,7 @@ function EmailEditor(o: EmailRowProps) {
           placeholder={W.addPlaceholder}
           value={email}
           disabled={shut}
-          title={o.locked ?? undefined}
+          data-tip={o.locked ?? undefined}
           onChange={setEmail}
           onKeyDown={(e) => {
             if (e.key === "Enter") add();
@@ -125,7 +125,7 @@ function EmailEditor(o: EmailRowProps) {
           size="sm"
           variant="primary"
           disabled={shut || !email.trim()}
-          title={o.locked ?? undefined}
+          data-tip={o.locked ?? undefined}
           onClick={add}
           {...o.gated}
         >

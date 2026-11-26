@@ -104,7 +104,14 @@ function versionMenu(p: { channel: OwnVersionChannel; busy: boolean; onEdit: () 
   return (
     <Menu
       trigger={
-        <Button iconOnly variant="quiet" size="sm" aria-label={name} title={name} data-testid="template-version-menu">
+        <Button
+          iconOnly
+          variant="quiet"
+          size="sm"
+          aria-label={name}
+          data-tip={name}
+          data-testid="template-version-menu"
+        >
           <Icon name="more" size={13} />
         </Button>
       }

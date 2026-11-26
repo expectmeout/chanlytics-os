@@ -374,5 +374,5 @@ export const SCHEMA_SETS = {
   "tenants.status": ["active", "paused", "test", "preview"],
   "touches.kind": ["reply", "comment", "dm", "story_reply", "mention", "coded_message"],
   "touches.place": ["instagram", "whatsapp", "google"],
-  "touches.subject_type": ["post", "link"],
+  "touches.subject_type": ["post", "link", "ad"],
 } as const;

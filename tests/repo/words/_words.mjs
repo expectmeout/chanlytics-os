@@ -20,9 +20,12 @@ const ROUTE_KEY = /^(GET|POST|PUT|PATCH|DELETE) \S+$/;
 /** A query, a style or a pattern written as a string: code a person never reads. */
 const CODE_TEXT =
   /^\s*(select|insert into|update|delete from|with|create|alter|drop|grant|set local)\s|^(var|calc|rgba?|hsla?|translate[XY]?|scale|rotate|url|linear-gradient)\(|=>|^\s*[{[<(]|\$\d|::[a-z]/i;
-/** What a developer reads, by what it is handed to: an error's own text and a log line never reach an answer (decision 0114). */
+/**
+ * What a developer reads, by what it is handed to: an error's own text and a log line never reach an answer (decision
+ * 0114), and neither do the notes a page's reads keep on why each table is left out (`declareReads`).
+ */
 const DEVELOPER_CALL =
-  /^(Error|TypeError|RangeError|SyntaxError|DbFailure|causedBy|logFailure|logAndGoOn|invariant|assert|describe|it|test)$|^(log|logger|console|assert)\b|\.(debug|info|warn|error|describe)$/;
+  /^(Error|TypeError|RangeError|SyntaxError|DbFailure|causedBy|logFailure|logAndGoOn|invariant|assert|describe|it|test|declareReads)$|^(log|logger|console|assert)\b|\.(debug|info|warn|error|describe)$/;
 /** A value a key holds as an id, whatever its words: a class, an address, a kind. */
 const ID_KEY =
   /^(className|class|id|key|testId|testid|href|to|route|path|event|code|kind|type|variant|tone|icon|slug)$/;
@@ -46,6 +49,32 @@ function modelPlace(node) {
   }
   return false;
 }
+
+/** The entities a JSX text may write, as the screen draws each one. */
+const ENTITIES = {
+  amp: "&",
+  apos: "'",
+  quot: '"',
+  lt: "<",
+  gt: ">",
+  nbsp: " ",
+  lsquo: "‘",
+  rsquo: "’",
+  ldquo: "“",
+  rdquo: "”",
+  hellip: "…",
+  middot: "·",
+  mdash: "—",
+  ndash: "–",
+};
+
+/** A JSX text as a person reads it: `Couldn&apos;t` is Couldn't, with no semicolon in it, and `&mdash;` is a dash. */
+export const drawnText = (text) =>
+  text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name) =>
+    name[0] === "#"
+      ? String.fromCodePoint(/^#x/i.test(name) ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10))
+      : (ENTITIES[name] ?? entity),
+  );
 
 /** Whether text is words: letters with a space between them, or a label that opens with a capital. */
 export function isWords(text) {
@@ -139,7 +168,7 @@ export function wordsReadIn(sf, { only = () => true } = {}) {
       if (read(n)) say(n, n.text);
     } else if (ts.isTemplateExpression(n)) {
       if (read(n)) say(n, [n.head.text, ...n.templateSpans.map((s) => s.literal.text)].join("…"));
-    } else if (ts.isJsxText(n) && only(n)) say(n, n.text);
+    } else if (ts.isJsxText(n) && only(n)) say(n, drawnText(n.text));
     ts.forEachChild(n, visit);
   };
   visit(sf);
@@ -173,19 +202,28 @@ export function voiceMarksOf(sf) {
   return out;
 }
 
-/** An element the browser draws (a lower-case tag), or the kit's Button, which hands its `title` to one. */
-const DRAWS_ITS_TITLE = /^([a-z][\w.-]*|Button|IconButton)$/;
+/**
+ * Where a `title=` is the browser's tooltip: on an element the browser draws (a lower-case tag); on a part of Base UI
+ * (`Tabs.Tab`, `Menu.Item`), which hands its element every prop it does not know; or on a kit control that hands its
+ * `title` on the same way (Button, IconButton, LinkButton, LinePress, Press, RecordField). A component's own `title` prop
+ * (a sheet's, an empty state's) is its heading, not a tooltip.
+ */
+const DRAWS_ITS_TITLE = /^([a-z][\w.-]*|[A-Z]\w*\.[A-Z]\w*|Button|IconButton|LinkButton|LinePress|Press|RecordField)$/;
+/** A frame's title is its name, the words a screen reader says as focus enters it (WCAG 4.1.2), not a tooltip. */
+const NAMED_BY_ITS_TITLE = new Set(["iframe"]);
+
+/** The markup the browser-tooltips measure reads: the dashboard's TSX, but what nobody reads (its tests, its types). */
+export const markupFiles = () =>
+  repoFiles(["apps/dashboard/src", "apps/dashboard/app"]).filter((f) => /\.tsx$/.test(f) && !NOT_READ.test(f));
 
 /** How many `title=` a file writes on an element: the browser's own tooltip, which a phone never shows. */
 export function titleTooltipsIn(sf) {
   let n = 0;
   const visit = (node) => {
-    if (
-      ts.isJsxAttribute(node) &&
-      node.name.getText() === "title" &&
-      DRAWS_ITS_TITLE.test(node.parent.parent.tagName.getText())
-    )
-      n += 1;
+    if (ts.isJsxAttribute(node) && node.name.getText() === "title") {
+      const tag = node.parent.parent.tagName.getText();
+      if (DRAWS_ITS_TITLE.test(tag) && !NAMED_BY_ITS_TITLE.has(tag)) n += 1;
+    }
     ts.forEachChild(node, visit);
   };
   visit(sf);
@@ -278,12 +316,11 @@ export const WORD_RATCHETS = [
     file: "title-tooltips.json",
     measure: () =>
       Object.fromEntries(
-        repoFiles(["apps/dashboard/src", "apps/dashboard/app"])
-          .filter((f) => /\.tsx$/.test(f) && !NOT_READ.test(f))
+        markupFiles()
           .map((f) => [f, titleTooltipsIn(parse(f))])
           .filter(([, n]) => n > 0),
       ),
     advice:
-      "A phone shows no title=, and nothing important lives only in one: name the control for a screen reader (aria-label) and use the kit's Tooltip for an icon's name.",
+      "A phone shows no title=, and nothing important lives only in one: name the control for a screen reader (its words or an aria-label) and say its hint in the house's tip (data-tip, frame/tip.ts), which shows on hover, on focus and under a tap.",
   },
 ];

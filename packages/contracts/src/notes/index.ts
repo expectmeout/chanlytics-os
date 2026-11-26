@@ -43,7 +43,6 @@ export type { PersonNextStepVM, StepColumns, StepDayChoice, StepDayVM, StepDue }
 export {
   checkNoteSuggestion,
   customerWords,
-  NOTE_SUGGEST_KINDS,
   NOTE_SUGGEST_LIMITS,
   NOTE_SUGGEST_MODEL,
   NOTE_SUGGEST_SCHEMA,

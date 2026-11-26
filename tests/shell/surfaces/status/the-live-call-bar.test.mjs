@@ -618,3 +618,41 @@ test("every surface the shell starts says it stopped refreshing by a word of its
   );
   for (const [key, word] of Object.entries(shell.SURFACE_LABELS)) assert.ok(word.trim(), `${key}: a word`);
 });
+
+test("on a phone the web's tab bar stands at the thumb with what needs you; inside the app the native bar stands there, and its More opens the drawer", () => {
+  // The places are places.ts's (PHONE_TABS), which the bar and the document's outline both draw from.
+  const redraw = () => {
+    setDeep(false);
+    frames.begin();
+    const tree = win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar: "open",
+      onSidebar() {},
+      onTheme() {},
+    });
+    setDeep(true);
+    return tree;
+  };
+  const tabs = (tree) => find(tree, (n) => n.type === "PhoneTabs" || n.type?.name === "PhoneTabs");
+  const wrap = (tree) => find(tree, (n) => /\bside-wrap\b/.test(String(n.props?.className || "")));
+  const bar = tabs(mount("#/inbox").tree);
+  assert.ok(bar, "the web's bar, outside the app");
+  assert.equal(typeof bar.props.inboxNeeds, "number", "carrying what needs you");
+  assert.equal(bar.props.page, "inbox", "with the page it is on");
+  bar.props.onMenu();
+  assert.match(String(wrap(redraw()).props.className), /\bopen\b/, "its More opens the drawer");
+  // Inside the native app (the class contracts' boot script puts on the root, IN_APP_CLASS) its own bar stands there.
+  const doc = globalThis.document;
+  const root = doc.documentElement;
+  doc.documentElement = { ...root, classList: { contains: (name) => name === "in-app" } };
+  try {
+    assert.equal(tabs(mount("#/inbox").tree), undefined, "REGRESSION: two tab bars, the web's under the app's");
+    // The native More tab is the bridge's shell:menu (bridge/app-bridge.ts, mobile/app-bridge-page.test.mjs).
+    fire("shell:menu");
+    assert.match(String(wrap(redraw()).props.className), /\bopen\b/, "the native More opens the drawer");
+  } finally {
+    doc.documentElement = root;
+  }
+});

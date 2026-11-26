@@ -224,9 +224,9 @@ const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegEx
   },
   {
     by:
-      "record.css, `@media (max-width: 760px)`: the record kit's phone form (a fold's label and fields, the inline " +
-      "editor, the sheet's edge), which kit.css's one breakpoint cannot hold without moving 761 to 900px (step 2.1)",
-    until: "Phase 4's People step (0015 step 5), where the record kit takes 900px, as REC_PHONE_QUERY",
+      "record.css, `@media (max-width: 900px)`: the record kit's phone form (a fold's label and fields, the inline " +
+      "editor, the sheet's edge), at the kit's one breakpoint since 25 Nov 2026 (#2605) but still in record.css",
+    until: "Phase 4's People step (0015 step 5), where record.css's phone form moves into kit.css",
     runs: /^phone /,
     failure:
       /^rec-[a-z-]+: .* (?:[a-z-]+: planting --rec-key changed nothing|border-left: planting --line-strong changed nothing)/,
@@ -240,6 +240,16 @@ const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegEx
     runs: /^phone /,
     failure:
       /^(?:btn-touch|btn-thread|notice)[a-z-]*: .* min-height: planting --control-h-touch changed nothing \(min-height at 44px\)/,
+  },
+  {
+    by:
+      "settings.css, `:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm`: Settings' sheets keep the " +
+      "pane's small press (`.settings .btn-sm`, --set-hint), 12.5px on a desk where the kit's reads --text-label's 12 " +
+      "(seen since kit.css's .btn-sm read a token, 26 Nov 2026; it wrote 12px before)",
+    until: "Phase 4's Settings step (0015), where Settings' presses take the kit's size or a variant of it",
+    runs: /^desk /,
+    failure:
+      /^rec-fold-sheet: .* button\.btn\.btn-sm[.\w-]* font-size: planting --text-label changed nothing \(font-size at 12\.5px\)/,
   },
 ];
 /**

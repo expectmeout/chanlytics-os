@@ -153,7 +153,7 @@ export function feedNotes(
     notes.push({
       id: "repeats",
       title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
-      body: `${one ? "It repeats" : "They repeat"} in a pattern AI can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`,
+      body: `${one ? "It repeats" : "They repeat"} in a way AI can't follow, like every second Tuesday, so a later date could be offered. Daily, weekly or monthly works.`,
     });
   }
   const undrawn = feed.dropped || 0;
@@ -161,8 +161,8 @@ export function feedNotes(
     const one = undrawn === 1;
     notes.push({
       id: "undrawn",
-      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
-      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; AI still treats ${one ? "its time" : "their times"} as taken.`,
+      title: `${undrawn} more event${one ? " isn't" : "s aren't"} shown.`,
+      body: `${one ? "It falls" : "They fall"} on a day with more events than the board shows. AI still treats ${one ? "its time" : "their times"} as taken.`,
     });
   }
   return notes;
@@ -211,6 +211,9 @@ export const CALENDAR_FEED_WORDS = {
 } as const;
 
 export type CalendarFeedHealth = keyof typeof CALENDAR_FEED_WORDS;
+
+/** The calendar's link that didn't load, in one sentence wherever it is said: the Calendar, Setup, Reports. */
+export const CALENDAR_UNLOADED = "Couldn't load the calendar";
 
 export function calendarSpanLabel(t1: number, t2: number): string {
   const a = clockLabel(t1);

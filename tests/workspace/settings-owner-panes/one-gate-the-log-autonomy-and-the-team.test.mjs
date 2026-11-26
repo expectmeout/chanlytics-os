@@ -1,428 +1,49 @@
 /**
- * The owner's panes gate the way the rest of the app does, and Activity reads like a log.
- *
- * - Settings' owner-only controls were refused in ways of their own (the interface audit's "gated six ways"; A7's
- *   list of hand-rolled checks): Notifications' Add and Remove were disabled with a title no keyboard or finger
- *   reaches; Your data's download and Team's Invite were absent for anyone else, under sentences of the page's own;
- *   Activity asked the signed-in role and ignored an owner's View-as preview. Each primary act is now drawn gated --
- *   focusable, described, inert, saying why when pressed, in contracts' words -- and each pane says why once.
- * - Activity (the wiring audit's S21): its filters had no names, the kind filter read the log on every keystroke and
- *   ate typed spaces, a slow answer could land over a newer one, and the first load showed nothing at all.
- * Run against the Settings page (surfaces/settings/frame/page.tsx), which imports the panes it draws (every one TSX:
- * surfaces/settings), on a stub React, over the frame's real gate and contracts' role table.
+ * One gate for every act a role may not take, the activity log's reads and lists, Autonomy's matrix and its dials, the
+ * Team card, and the rail's one question when a pane changes.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { POLICY_MODES, POLICY_MODE_WORDS, ALERT_PANE_WORDS, BUDGET_WORDS } from "@chanlytics/contracts";
 import {
-  ROLE_PERMS,
-  stateOf,
-  clockStamp,
-  clockTime,
-  clockDateYear,
-  clockDayLabel,
-  zoneDayKey,
-  POLICY_MODES,
-  POLICY_MODE_WORDS,
-  ALERT_TOPICS,
-  ALERT_PANE_WORDS,
-  BUDGET_WORDS,
-  alertGrid,
-} from "@chanlytics/contracts";
-import { useStubHooks, kitPages } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
-
-const TID = "t-studio";
-
-/* ---------------------------------- the window ---------------------------------- */
-
-const listeners = {};
-const tipped = [];
-const storage = () => {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-};
-globalThis.localStorage = storage();
-globalThis.sessionStorage = storage();
-globalThis.document = {
-  body: { appendChild() {} },
-  activeElement: null,
-  addEventListener() {},
-  removeEventListener() {},
-  getElementById: () => null,
-  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
-};
-bridgeHolds(
-  {
-    who: {
-      workspaces: [
-        { id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: "America/New_York" },
-      ],
-      activeWorkspaceId: TID,
-    },
-  },
-  { fresh: true },
-);
-globalThis.window = {
-  location: {
-    pathname: "/w/studio",
-    hash: "#/admin/notifications",
-    origin: "https://app.chanlytics.com",
-    assign() {},
-    replace() {},
-    reload() {},
-  },
-  history: { replaceState() {} },
-  innerHeight: 800,
-  localStorage: globalThis.localStorage,
-  sessionStorage: globalThis.sessionStorage,
-  addEventListener: (type, fn) => {
-    (listeners[type] ||= new Set()).add(fn);
-  },
-  removeEventListener: (type, fn) => {
-    listeners[type]?.delete(fn);
-  },
-  dispatchEvent: (ev) => {
-    for (const fn of [...(listeners[ev.type] || [])]) fn(ev);
-    return true;
-  },
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h),
-  // The open log's minute (activity/newer.ts): a pane the stub React never unmounts holds no run open.
-  setInterval: (fn, ms) => setInterval(fn, ms).unref(),
-  clearInterval: (h) => clearInterval(h),
-  // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
-  ROLE_PERMS,
-};
-
-/* ------------------------------ a stub React ------------------------------ */
-
-// Hooks are kept per component, by the component's place in the tree and its type; memos and callbacks honour their
-// inputs, so an effect that depends on a callback runs when React would run it and not on every draw. A setter marks
-// the page changed, and `settle` draws again only then.
-let cells = new Map();
-let frames = [];
-let dirty = false;
-let lastTree = null;
-const slot = () => {
-  const f = frames[frames.length - 1];
-  return `${f.key}#${f.hook++}`;
-};
-const same = (a, b) => !!a && !!b && a.length === b.length && a.every((d, i) => Object.is(d, b[i]));
-const memo = (make, deps) => {
-  const k = slot();
-  const was = cells.get(k);
-  if (!was || !deps || !same(was.deps, deps)) cells.set(k, { value: make(), deps });
-  return cells.get(k).value;
-};
-globalThis.Icon = "Icon";
-globalThis.StatStrip = "StatStrip";
-globalThis.StatCell = "StatCell";
-globalThis.Sparkline = "Sparkline";
-globalThis.React = {
-  Fragment: "Fragment",
-  createElement: (type, p, ...kids) => {
-    const props = { ...(p || {}), children: kids.flat(Infinity) };
-    const node = { type, props };
-    if (typeof type === "function") {
-      const parent = frames[frames.length - 1];
-      const name = type.name || "anon";
-      parent.kids[name] = (parent.kids[name] || 0) + 1;
-      frames.push({ key: `${parent.key}/${name}:${parent.kids[name]}`, hook: 0, kids: {} });
-      try {
-        node.rendered = type(props);
-      } finally {
-        frames.pop();
-      }
-    }
-    return node;
-  },
-  useState: (init) => {
-    const k = slot();
-    if (!cells.has(k)) cells.set(k, typeof init === "function" ? init() : init);
-    return [
-      cells.get(k),
-      (v) => {
-        cells.set(k, typeof v === "function" ? v(cells.get(k)) : v);
-        dirty = true;
-      },
-    ];
-  },
-  useReducer: (red, init) => {
-    const k = slot();
-    if (!cells.has(k)) cells.set(k, init);
-    return [
-      cells.get(k),
-      (a) => {
-        cells.set(k, red(cells.get(k), a));
-        dirty = true;
-      },
-    ];
-  },
-  useRef: (init) => {
-    const k = slot();
-    if (!cells.has(k)) cells.set(k, { current: init });
-    return cells.get(k);
-  },
-  useMemo: (fn, deps) => memo(fn, deps),
-  useCallback: (fn, deps) => memo(() => fn, deps),
-  // A surface's value through the seam (use-surface.ts): what it holds when the component draws.
-  useSyncExternalStore: (subscribe, snapshot) => snapshot(),
-  useId: () => `id-${slot()}`,
-  useEffect: (fn, deps) => {
-    const k = slot();
-    const prev = cells.get(k);
-    if (prev && deps && same(prev.deps, deps)) return;
-    if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    const cell = { deps, cleanup: undefined };
-    cells.set(k, cell);
-    cell.cleanup = fn();
-  },
-  Children: { map: (kids, fn) => (kids == null ? kids : [].concat(kids).flat(Infinity).map(fn)) },
-  isValidElement: (n) => !!n && typeof n === "object" && "type" in n && "props" in n,
-  cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
-};
-globalThis.ReactDOM = { createPortal: (node) => node };
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
-bridgeHolds({ parts: { tip: { show: (el) => tipped.push(el) } } });
-Object.assign(globalThis.window, kitPages);
-useStubHooks();
-for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
-const saved = [];
-bridgeHolds({
-  parts: {
-    chrome: { state: stateOf },
-    clock: (() => {
-      const TZ = "America/New_York";
-      const NOW = Date.parse("2026-09-17T18:00:00Z");
-      return {
-        zone: () => TZ,
-        stamp: (ms) => clockStamp(ms, TZ, NOW),
-        time: (ms) => clockTime(ms, TZ),
-        dayKey: (ms) => zoneDayKey(ms, TZ),
-        dateYear: (ms) => clockDateYear(ms, TZ),
-        dayLabel: (ms) => clockDayLabel(ms, TZ, NOW),
-      };
-    })(),
-    href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=studio`,
-    saveSettings: (config, version, accepted) => {
-      saved.push({ config, version });
-      accepted();
-      return Promise.resolve({ ok: true });
-    },
-  },
-});
-Object.assign(globalThis.window, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  __inviteState: () => ({ expired: false, words: "invite pending" }),
-});
-await import("../receptionist/business-tab/_business-parts.mjs");
-// The role store the gates ask (window.ST_STORE): the bridge installs it as the app boots (seed-globals), settings.jsx used to.
-const { installRoleStore } = await import("../../apps/dashboard/src/bridge/identity.ts");
-installRoleStore();
-// The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Activity's reads are the bridge's
-// `activity` object, which a test stands its own feed in on; Notifications reads the settings read over the seam and
-// saves through the bridge's saveSettings; Autonomy's rows are the seam's policies and its one door is a module object a
-// test stands a door in on; Team's roster is the seam's settings value.
-const { SettingsPage } = await import("../../apps/dashboard/src/surfaces/settings/frame/page.tsx");
-const { activity } = await import("../../apps/dashboard/src/bridge/activity.ts");
-const { pageClock } = await import("../../apps/dashboard/src/bridge/zone.ts");
-// The log's lists are the house's menu (the kit's MoreMenu), which runs here as it does in a browser.
-const { MoreMenu } = await import("../../apps/dashboard/src/surfaces/kit/more-menu/more-menu.tsx");
-/** The log's reads answered by `f`: the module's object, which the pane imports. */
-const stand = (f) => Object.assign(activity, f);
-const { setSurfaceValue, surfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
-/** The record the settings read holds now (the seam's `settings`; a window global, `__SETTINGS`, until 12 Nov 2026). */
-const settingsHeld = () => surfaceValue("settings")?.settings ?? undefined;
-const { autonomyVerbs } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");
-// The Team tab is the Partner pane's Team (settings/partner/team-card.tsx): the roster, then the workspace's partner
-// card, an owner's read answered here as refused, so the card stays out of what these tests look at.
-const { partnerVerbs } = await import("../../apps/dashboard/src/surfaces/settings/partner/surface.ts");
-partnerVerbs.team.read = async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." });
-
-// Notifications (decision 0040): its saves, its flashes and its verbs, stood in as the pane reads them.
-const { alertVerbs } = await import("../../apps/dashboard/src/surfaces/settings/notifications/verbs.ts");
-const realVerbs = { ...alertVerbs };
-/** The whole-config save answered as the server answers it: accepted, under the next version, holding what was sent. */
-alertVerbs.saveConfig = (config, version, accepted) => {
-  saved.push({ config, version });
-  accepted({ config, version: version + 1 });
-  return Promise.resolve({ ok: true });
-};
-/** What the pane flashed, each `{ msg, undo? }`: the frame's toast, as a list. */
-const flashes = [];
-globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
-/** Open the email row's addresses (its Change). */
-const openEmail = (tree) => press(byTestId(tree, "ntf-email-change"));
-/** The ticks of one channel, as the buttons a person presses (the kit's Press draws each as one). */
-const ticks = (tree, channel) =>
-  all(tree, (n) => n.type === "button" && (n.props?.["data-testid"] ?? "").startsWith(`ntf-${channel}-`));
-const PHONE = { platform: "ios", app_version: "1.4.0", last_seen_at: null };
-const alertsRead = (dto) => setSurfaceValue("alerts", dto ? { dto, fetchedAt: Date.now() } : null);
-const restoreVerbs = () => Object.assign(alertVerbs, { test: realVerbs.test, setPushOff: realVerbs.setPushOff });
-
-const walk = (n, fn) => {
-  if (n == null || typeof n !== "object") return;
-  if (Array.isArray(n)) {
-    for (const k of n) walk(k, fn);
-    return;
-  }
-  fn(n);
-  walk(n.props?.children, fn);
-  walk(n.rendered, fn);
-};
-// A drawn component is walked twice, as the children it was given and as what it rendered: each node counts once.
-const all = (tree, pred) => {
-  const out = [];
-  const seen = new Set();
-  walk(tree, (n) => {
-    if (!seen.has(n) && pred(n)) {
-      seen.add(n);
-      out.push(n);
-    }
-  });
-  return out;
-};
-const find = (tree, pred) => all(tree, pred)[0] ?? null;
-const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
-const textOf = (n) => {
-  if (n == null || typeof n === "boolean") return "";
-  if (typeof n === "string" || typeof n === "number") return String(n);
-  if (Array.isArray(n)) return n.map(textOf).join("");
-  if (n.rendered !== undefined) return textOf(n.rendered);
-  return textOf(n.props?.children);
-};
-const buttonSaying = (tree, words) => find(tree, (n) => n.type === "button" && textOf(n).trim() === words);
-const labelled = (tree, tag, label) => find(tree, (n) => n.type === tag && n.props["aria-label"] === label);
-const pressOf = () => ({
-  prevented: false,
-  stopped: false,
-  currentTarget: { control: true },
-  preventDefault() {
-    this.prevented = true;
-  },
-  stopPropagation() {
-    this.stopped = true;
-  },
-});
-const press = (node) => {
-  const e = pressOf();
-  node.props.onClick(e);
-  return e;
-};
-const type = (node, value) => node.props.onChange({ target: { value } });
-const flush = () => new Promise((r) => setImmediate(r));
-const fresh = () => {
-  cells = new Map();
-  saved.length = 0;
-  tipped.length = 0;
-  for (const k of Object.keys(listeners)) delete listeners[k];
-};
-const draw = (tab) => {
-  frames = [{ key: "root", hook: 0, kids: {} }];
-  dirty = false;
-  lastTree = SettingsPage({ tab, onTab() {} });
-  return lastTree;
-};
-const settings = (tab) => {
-  fresh();
-  return draw(tab);
-};
-const again = draw;
-const settle = (tab) => (dirty ? draw(tab) : lastTree);
-
-/** A real workspace as the settings surface reads it, seen by `role`; no View-as preview. */
-// The workspace's facts as the settings read resolves them: the seam's alone (the bridge published them on the window
-// too, as `__FACTS`, until 11 Nov 2026), read by the Business tab's rows from there (settings/business/shell.ts).
-const FACTS = {
-  facts: {
-    business_name: { value: "Northside Studio", source: "typed" },
-    voice_line: { value: "+13055550100", source: "provisioned" },
-    phone_display: { value: "+1 (305) 555-0100", source: "provisioned" },
-    handoff_number: { value: null, source: "absent" },
-    address: { value: null, source: "absent" },
-  },
-  conflicts: [],
-};
-/** The roster the team read answers with, where a test says no other: an owner and an operator. */
-const ROSTER = [
-  { membership_id: "m-dana", email: "dana@northside.example", display_name: "Dana", role: "owner" },
-  { membership_id: "m-lee", email: "lee@northside.example", display_name: "Lee", role: "operator" },
-];
-/**
- * A workspace as `role` reads it. Its record, roster, open invitations and policy rows are the settings surface's alone
- * (`record`, `team`, `invites`, `policies`; null is a read that failed); the rest of `over` goes on the window, where its
- * readers still are.
- */
-const workspace = (
-  role,
-  {
-    team = ROSTER,
-    invites = [],
-    policies = null,
-    record = {
-      role,
-      version: 3,
-      config: {
-        brain: { business_name: "Northside Studio", booking_link: "https://book.example/northside" },
-        notifications: { escalation_emails: ["dana@northside.example", "desk@northside.example"] },
-      },
-    },
-    ...over
-  } = {},
-) => {
-  bridgeHolds({ who: { me: { email: "dana@northside.example", role, display_name: "Dana" } } });
-  Object.assign(globalThis.window, {
-    ...over,
-  });
-  // The seam's settings value beside the globals it copies (bridge/surfaces/settings.ts), for the moved panes.
-  setSurfaceValue("settings", {
-    settings: record,
-    facts: FACTS,
-    channels: null,
-    templatesAll: null,
-    templateUse: null,
-    templateSent: null,
-    policies,
-    team,
-    invites,
-  });
-  globalThis.window.ST_STORE.viewAsRole = null;
-};
-
-/** The activity bridge, answering when told to: each read waits for `answer`. */
-const feed = (people = []) => {
-  const asked = [];
-  const waiting = [];
-  return {
-    asked,
-    waiting,
-    list: (f) => {
-      asked.push(f);
-      return new Promise((resolve) => waiting.push(resolve));
-    },
-    people: async () => people,
-  };
-};
-/** An answer as this tab may still hold one from before the log said names and members: `over` adds them. */
-const answer = (resolve, rows, kinds = ["message.sent", "call.ended"], over = {}) =>
-  resolve({ ok: true, message: "", data: { rows, actors: {}, kinds, page: { has_more: false }, ...over } });
-const entry = (id, text) => ({
-  id,
-  at: "2026-09-15T14:00:00Z",
-  text,
-  source: "decision",
-  actor_type: "human",
-  actor_user_id: null,
-  subject_type: null,
-  subject_id: null,
-});
-const rowsOn = (tree) => all(tree, (n) => n.props?.["data-testid"] === "act-row");
+  SettingsPage,
+  again,
+  all,
+  answer,
+  autonomy,
+  autonomyVerbs,
+  buttonSaying,
+  byTestId,
+  entry,
+  feed,
+  find,
+  flashes,
+  flush,
+  fresh,
+  headCells,
+  labelled,
+  lastTree,
+  listOf,
+  menuOf,
+  openEmail,
+  optionsOf,
+  pageClock,
+  pick,
+  press,
+  rowValueOf,
+  rowsOn,
+  saved,
+  setDirty,
+  setFrames,
+  setLastTree,
+  settings,
+  settle,
+  stand,
+  textOf,
+  tipped,
+  type,
+  workspace,
+} from "./_settings-owner-panes.mjs";
 
 /* ------------------------------ one gate ------------------------------ */
 
@@ -520,27 +141,6 @@ test("REGRESSION (one gate): Activity follows an owner's View-as preview like ev
   assert.equal(A.asked.length, 0, "and nothing is read for it");
   globalThis.window.ST_STORE.viewAsRole = null;
 });
-
-/* ------------------------------ Activity ------------------------------ */
-
-/** One of the log's lists (filters.tsx): what it chooses, what it offers and the one chosen, as the page keeps them. */
-const listOf = (tree, id) => find(tree, (n) => n.props?.testid === id && Array.isArray(n.props?.options));
-/** Every option a list offers, with its value and its words. */
-const optionsOf = (list) => list.props.options.map((o) => [o.value, o.label]);
-/** The house's menu a list is drawn as. */
-const menuOf = (tree, id) => find(tree, (n) => n.type === MoreMenu && n.props?.testid === id);
-/**
- * Pick an option of one of the log's lists, as a person does: the box opens the house's menu, and a press on the row
- * that says it picks it. The option is named by its value, as the page keeps it.
- */
-const pick = (tree, id, value) => {
-  const words = listOf(tree, id).props.options.find((o) => o.value === value).label;
-  press(byTestId(tree, id));
-  const open = settle("activity");
-  const row = find(open, (n) => n.type === "button" && n.props?.role === "menuitemradio" && textOf(n).trim() === words);
-  assert.ok(row, `${id} offers "${words}"`);
-  press(row);
-};
 
 test("REGRESSION (S21): Activity says it is reading and names its filters -- the first load showed nothing, and three filters had no name", async () => {
   workspace("owner");
@@ -849,26 +449,6 @@ test("REGRESSION (8 Oct): a hundred recordings opened in a minute were a hundred
   assert.equal(rowsOn(tree).length, 3);
 });
 
-/* ------------------------------- Autonomy ------------------------------- */
-// The matrix's columns were the four words the mode is FILED under -- Auto, Veto,
-// Ask, Never -- with the plain sentence for each hidden in a hover the phone
-// cannot trigger. And the money row put a tick under one of them, which stops
-// being true the moment the headings say what a mode does.
-
-/** The autonomy pane over real policy rows, as the settings read publishes them, seen by `role`. */
-const autonomy = (rows, over = {}, role = "owner") => {
-  workspace(role, { ...over, policies: { role, rows } });
-  autonomyVerbs.setPolicy = async () => ({ ok: true });
-  return settings("autonomy");
-};
-/** A record row's value, as it is read: the answer a row's act opens the others of (settings/choice-act.tsx). */
-const rowValueOf = (row) => textOf(find(row, (n) => n.props?.className === "rec-row-value"));
-const headCells = (tree) =>
-  all(tree, (n) => n.props?.className === "pol-mode").map((n) => ({
-    head: textOf(find(n, (k) => k.props?.className === "pol-mode-head")),
-    sub: textOf(find(n, (k) => k.props?.className === "pol-mode-sub")),
-  }));
-
 test("on a phone the matrix is one line per class: its mode is the row's value and its act a menu of the modes it takes, and money is said once, on Limits", () => {
   // 24 Sep: the table of four columns collapsed into four captioned dots under every label on a phone, 107px a row.
   // Settings reads the product's phone (useSetPhone, 720px); the desktop keeps the matrix, which the tests above draw.
@@ -989,7 +569,7 @@ test("a control says what it will do, in the words above it", () => {
     "REGRESSION: a screen reader heard the filing word",
   );
   assert.equal(
-    dots[1].props.title,
+    dots[1].props["data-tip"],
     POLICY_MODE_WORDS.veto.does,
     "the whole sentence is still there, on the control rather than the heading",
   );
@@ -1295,9 +875,9 @@ test("the rail hands a pane change to the move, which asks: no second question i
   );
   const went = [];
   const drawRail = () => {
-    frames = [{ key: "root", hook: 0, kids: {} }];
-    dirty = false;
-    lastTree = SettingsPage({ tab: "profile", onTab: (id) => went.push(id) });
+    setFrames([{ key: "root", hook: 0, kids: {} }]);
+    setDirty(false);
+    setLastTree(SettingsPage({ tab: "profile", onTab: (id) => went.push(id) }));
     return lastTree;
   };
   const railTab = (tree, label) =>
@@ -1318,284 +898,5 @@ test("the rail hands a pane change to the move, which asks: no second question i
   } finally {
     unbind();
     folds.reset();
-  }
-});
-
-/* ------------------------------ Notifications (decision 0040) ------------------------------ */
-
-test("F32: a config the parser refuses closes every notifications write, and says why on each", () => {
-  // The bridge reads a refused config as its own state: no config, and what was wrong (bridge/surfaces/settings.ts).
-  workspace("owner", {
-    record: { role: "owner", version: 3, config: null, broken: { issues: ["brain.business_name"] } },
-  });
-  alertsRead(null);
-  // Nothing was read, so no address: the email row is open by itself, and says nobody is emailed.
-  const tree = settings("notifications");
-  const why = "Couldn't load this workspace's settings. Chanlytics has to fix them before anything here can change.";
-  const add = buttonSaying(tree, "Add");
-  const box = labelled(tree, "input", ALERT_PANE_WORDS.addLabel);
-  assert.equal(box.props.disabled, true, "nothing can be typed to save over the broken row");
-  assert.equal(box.props.title, why);
-  type(box, "new@northside.example");
-  const typed = settle("notifications");
-  assert.equal(buttonSaying(typed, "Add").props.disabled, true, "and Add stays closed with an address typed");
-  assert.equal(add.props.title, why);
-  assert.equal(buttonSaying(tree, "Remove"), null, "nothing was read, so there is nothing to remove");
-  assert.ok(textOf(tree).includes(ALERT_PANE_WORDS.emailNobody));
-  // What the business is emailed is held the same way: the tick says why, and saves nothing.
-  const tick = byTestId(typed, "ntf-email-call");
-  assert.equal(tick.props["data-tip"], why);
-  press(tick);
-  assert.equal(saved.length, 0);
-});
-
-test("Notifications: what the workspace is told, a topic a row in its group, where each goes beside it; nothing of Chanlytics' own, and no tick no code reads (0040)", () => {
-  workspace("owner");
-  alertsRead({ push_off: [], phones: [], choosable: true });
-  const tree = settings("notifications");
-  const grid = byTestId(tree, "ntf-grid");
-  // No phone: the topics with nothing to choose (no email, no phone of theirs) are named in the bell's line instead.
-  const groups = alertGrid({
-    notifications: settingsHeld().config.notifications,
-    emailHeld: null,
-    phone: null,
-    ads: false,
-  });
-  assert.deepEqual(
-    groups.map((g) => g.group),
-    ["needs_you", "worth_knowing"],
-  );
-  for (const g of groups) {
-    const body = byTestId(grid, `ntf-group-${g.group}`);
-    assert.ok(textOf(body).startsWith(g.title), `${g.title} heads its rows`);
-    assert.deepEqual(
-      all(body, (n) => /^ntf-topic-/.test(n.props?.["data-testid"] ?? "")).map((n) =>
-        n.props["data-testid"].slice("ntf-topic-".length),
-      ),
-      g.rows.map((r) => r.topic.key),
-      `${g.title}: contracts' topics, in order`,
-    );
-  }
-  assert.ok(
-    textOf(tree).includes(
-      "Also on the bell: replies about to go, finished searches, new Google reviews, notes left for you,",
-    ),
-    "the bell's line names them",
-  );
-  // The two the receptionist must always reach someone with are locked: a switch drawn on that takes no press, saying why.
-  for (const key of ["handoff", "deadman"]) {
-    const row = byTestId(grid, `ntf-topic-${key}`);
-    const lock = find(row, (n) => n.props?.role === "switch");
-    assert.equal(lock?.props["data-tip"], ALERT_PANE_WORDS.always, key);
-    assert.deepEqual([lock.props["aria-checked"], lock.props["aria-readonly"]], [true, true], `${key}: on, and held`);
-    assert.equal(byTestId(row, `ntf-email-${key}`), null, `${key}: nothing to turn off`);
-  }
-  // Every other emailed topic is the kit's switch, on until the business turns it off; and no phone column without a
-  // phone. Ads' own is drawn only where Campaigns › Ads is, which it is not here.
-  assert.deepEqual(
-    ticks(grid, "email").map((n) => [n.props["data-testid"], n.props["aria-checked"]]),
-    ALERT_TOPICS.filter((t) => t.email === "choice" && t.ads !== true).map((t) => [`ntf-email-${t.key}`, true]),
-  );
-  assert.equal(byTestId(grid, "ntf-topic-ads"), null, "no choice about ads where no ad can run");
-  assert.equal(ticks(grid, "phone").length, 0);
-  assert.ok(!textOf(grid).includes(ALERT_PANE_WORDS.phoneHead), "no column of a phone nobody has");
-  assert.ok(!textOf(tree).includes("to Chanlytics"), "Chanlytics' own alerts are not the workspace's");
-  assert.ok(textOf(tree).includes(ALERT_PANE_WORDS.never));
-  assert.equal(
-    all(byTestId(tree, "ntf-channels"), (n) => n.props?.role === "switch").length,
-    0,
-    "a browser that cannot alert draws no switch (none can here)",
-  );
-});
-
-test("where Campaigns › Ads is drawn, an ad that needs its owner is a topic under Needs you, mailed until the business turns it off (0050 call 15)", () => {
-  const config = { notifications: { escalation_emails: ["dana@northside.example"] } };
-  workspace("owner", { record: { role: "owner", version: 3, ads: true, config } });
-  alertsRead({ push_off: [], phones: [], choosable: true });
-  const grid = byTestId(settings("notifications"), "ntf-grid");
-  const row = byTestId(byTestId(grid, "ntf-group-needs_you"), "ntf-topic-ads");
-  assert.ok(textOf(row).startsWith("An ad needs you"));
-  assert.equal(byTestId(row, "ntf-email-ads").props["aria-checked"], true, "mailed until turned off");
-  const ads = ALERT_TOPICS.find((t) => t.key === "ads");
-  // An ad on that AI can't answer, and ads Chanlytics paused for the workspace, are mailed the same way (00676).
-  assert.deepEqual(
-    [ads.kinds, ads.email, ads.phone],
-    [["ad_refused", "ad_unpaid", "ad_way_in", "ads_paused"], "choice", false],
-  );
-});
-
-test("a member with a phone ticks what reaches it, whatever their role; a kind no phone is told has no tick, and a choice that cannot be saved yet shows what is told (0040)", async () => {
-  workspace("operator");
-  alertsRead({ push_off: ["call"], phones: [PHONE], choosable: true });
-  const tree = settings("notifications");
-  assert.ok(textOf(byTestId(tree, "ntf-channels")).includes("iPhone"), "their phone, by what it is");
-  const grid = byTestId(tree, "ntf-grid");
-  assert.equal(byTestId(grid, "ntf-phone-call").props["aria-checked"], false, "turned off");
-  assert.equal(byTestId(grid, "ntf-phone-handoff").props["aria-checked"], true);
-  assert.equal(byTestId(grid, "ntf-phone-handoff").props["aria-disabled"], undefined, "a phone is the member's own");
-  assert.equal(byTestId(grid, "ntf-phone-templates"), null, "a template's news never reaches a phone");
-  assert.ok(byTestId(grid, "ntf-topic-review"), "with a phone, the topics a phone alone carries are rows");
-  const asked = [];
-  alertVerbs.setPushOff = async (kinds) => {
-    asked.push(kinds);
-    return { ok: true, message: "" };
-  };
-  press(byTestId(grid, "ntf-phone-review"));
-  await flush();
-  assert.deepEqual(asked, [["call", "review"]], "the member's list, with the rest of it kept");
-  assert.equal(saved.length, 0, "and nothing of the business's config");
-  restoreVerbs();
-  // Where the choice cannot be saved yet (00372 not applied), the phone column says what is told and offers nothing.
-  alertsRead({ push_off: [], phones: [PHONE], choosable: false });
-  const told = settings("notifications");
-  assert.equal(ticks(byTestId(told, "ntf-grid"), "phone").length, 0);
-  assert.equal(
-    all(told, (n) => n.props?.role === "switch" && n.props?.["data-tip"] === ALERT_PANE_WORDS.phoneTold).length,
-    ALERT_TOPICS.filter((t) => t.phone).length,
-  );
-});
-
-test("an email tick saves what the business is emailed in the whole config, with its version, and draws the answer at once (0040)", async () => {
-  workspace("owner");
-  alertsRead(null);
-  flashes.length = 0;
-  const tree = settings("notifications");
-  press(byTestId(tree, "ntf-email-call"));
-  await flush();
-  assert.equal(saved.length, 1);
-  assert.equal(saved[0].version, 3);
-  assert.deepEqual(saved[0].config.notifications, {
-    escalation_emails: ["dana@northside.example", "desk@northside.example"],
-    email_off: ["call"],
-  });
-  assert.equal(saved[0].config.brain.business_name, "Northside Studio", "the rest of the config rides along");
-  const after = settle("notifications");
-  assert.equal(
-    byTestId(after, "ntf-email-call").props["aria-checked"],
-    false,
-    "drawn from what the server accepted, not the read before it, which says the opposite until it is read again",
-  );
-  // Undo turns it back on, against the version the save answered.
-  flashes.at(-1).undo();
-  await flush();
-  assert.equal(saved[1].version, 4);
-  assert.deepEqual(saved[1].config.notifications.email_off, []);
-});
-
-test("REGRESSION (0040): Undo after Remove saves the address back with the version the remove made -- it sent the version read before, which the server refused", async () => {
-  workspace("owner");
-  alertsRead(null);
-  flashes.length = 0;
-  openEmail(settings("notifications"));
-  const tree = settle("notifications");
-  press(labelled(tree, "button", "Remove desk@northside.example"));
-  await flush();
-  assert.deepEqual(
-    [saved[0].version, saved[0].config.notifications.escalation_emails],
-    [3, ["dana@northside.example"]],
-  );
-  flashes.at(-1).undo();
-  await flush();
-  assert.deepEqual(
-    [saved[1].version, saved[1].config.notifications.escalation_emails],
-    [4, ["dana@northside.example", "desk@northside.example"]],
-    "REGRESSION: it sent 3 again, and the server answered that someone else had saved",
-  );
-});
-
-test("the addresses say whose they are: a teammate by name, the member's own as theirs, any other as not on the team; a teammate not emailed is one press (0040)", async () => {
-  workspace("owner");
-  alertsRead(null);
-  openEmail(settings("notifications"));
-  const tree = settle("notifications");
-  const lines = all(tree, (n) => n.props?.["data-testid"] === "ntf-address").map((n) => textOf(n));
-  assert.ok(lines[0].includes("dana@northside.example") && lines[0].includes("Dana · you"), lines[0]);
-  assert.ok(lines[1].includes("desk@northside.example") && lines[1].includes(ALERT_PANE_WORDS.notOnTeam), lines[1]);
-  // Lee is on the team and not on the list.
-  const lee = labelled(tree, "button", "Email Lee too");
-  assert.ok(lee);
-  press(lee);
-  await flush();
-  assert.deepEqual(saved[0].config.notifications.escalation_emails, [
-    "dana@northside.example",
-    "desk@northside.example",
-    "lee@northside.example",
-  ]);
-});
-
-test("Send a test asks for one email to every address and says what came of it; a role that may not is not offered it (0040)", async () => {
-  workspace("owner");
-  alertsRead(null);
-  flashes.length = 0;
-  let asked = 0;
-  alertVerbs.test = async () => {
-    asked++;
-    return { ok: true, sent: true, to: 2, why: null, message: "" };
-  };
-  openEmail(settings("notifications"));
-  press(byTestId(settle("notifications"), "ntf-test"));
-  await flush();
-  assert.equal(asked, 1);
-  assert.equal(textOf(flashes.at(-1).msg), "A test was sent to 2 addresses.");
-  restoreVerbs();
-  assert.equal(ALERT_PANE_WORDS.testNot("not_live"), "Tests are sent from the live app only, not from a preview.");
-});
-
-// B16 (audit, 2 Oct 2026): the pane said "Sent from the Chanlytics alert address until your own sending domain is
-// verified". Nothing writes notifications.from, and nothing swaps the sender for a sending domain the workspace verifies
-// (the sending domains are for campaigns): the sentence promised a feature there is not. It says the sender only where
-// an operator set one, and never the switch that does not exist.
-test("Notifications says where its mail is sent from only where one is set, and promises no sending domain that changes it (B16)", () => {
-  workspace("owner");
-  alertsRead(null);
-  const bare = textOf(settings("notifications"));
-  assert.ok(!bare.includes("Sent from"), "no own address: nothing to say beyond the alerts themselves");
-  assert.ok(
-    !bare.includes("until your own sending domain is verified") && !/sending domain is verified/.test(bare),
-    "REGRESSION: promised a switch to the workspace's own sending domain that nothing makes",
-  );
-  workspace("owner", {
-    record: {
-      role: "owner",
-      version: 3,
-      config: {
-        brain: { business_name: "Northside Studio" },
-        notifications: { escalation_emails: ["dana@northside.example"], from: "Northside <alerts@northside.example>" },
-      },
-    },
-  });
-  const own = textOf(settings("notifications"));
-  assert.ok(own.includes(ALERT_PANE_WORDS.sentFrom("Northside <alerts@northside.example>")), "the config's own");
-});
-
-test("one save at a time (review round, 0040): while one is out every other tick and the address box wait, so two presses never send two lists or one version twice", async () => {
-  workspace("owner");
-  alertsRead({ push_off: [], phones: [PHONE], choosable: true });
-  const stood = alertVerbs.saveConfig;
-  let land = null;
-  alertVerbs.saveConfig = (config, version, accepted) => {
-    saved.push({ config, version });
-    land = () => accepted({ config, version: version + 1 });
-    return Promise.resolve({ ok: true });
-  };
-  try {
-    press(byTestId(settings("notifications"), "ntf-email-call"));
-    const out = settle("notifications");
-    for (const id of ["ntf-email-sweep", "ntf-phone-review"]) {
-      const tick = byTestId(out, id);
-      assert.equal(tick.props["aria-disabled"], true, `${id} waits`);
-      assert.equal(tick.props["data-tip"], "Still saving the last change.");
-      press(tick);
-    }
-    assert.equal(saved.length, 1, "the second press sent nothing");
-    land();
-    const free = settle("notifications");
-    assert.equal(
-      byTestId(free, "ntf-email-sweep").props["aria-disabled"],
-      undefined,
-      "and is free once the first lands",
-    );
-  } finally {
-    alertVerbs.saveConfig = stood;
   }
 });

@@ -170,7 +170,11 @@ export interface PersonProposalVM {
   sent: { at: string; via: string | null } | null;
 }
 
-/** The words the one-step send carries into the composer — once, for the page and the thread. */
+/**
+ * The words the one-step send carries into the composer — once, for the page and the thread.
+ *
+ * screen-word: a message a customer reads, in the business's own voice, which docs/words.md does not bind ("Who reads it")
+ */
 export function proposalMessage(url: string): string {
   return `Here's the proposal we put together for you: ${url}`;
 }

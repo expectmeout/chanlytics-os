@@ -281,8 +281,7 @@ async function runSignup(win: Window, ask: SignupAsk = {}): Promise<ConnectResul
     return {
       ok: false,
       reason: "home_screen",
-      message:
-        "Open Chanlytics in Safari to connect WhatsApp. Meta's sign-up needs a browser tab, and an app on the home screen has none.",
+      message: "Open Chanlytics in Safari to connect WhatsApp: Meta's sign-up needs a browser tab.",
     };
   // In hand since Connections opened: nothing is waited for, and Meta's window is asked for inside the press.
   const held = IN_HAND.get(win) ?? (await fetchForSignup(win));

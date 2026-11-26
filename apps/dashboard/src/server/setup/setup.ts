@@ -26,6 +26,7 @@ import {
   businessReadFactsOf,
   IMPORT_STATES,
   isOneOf,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { dbRefusal } from "@/server/shared/with-route";
 import { requestsFrom, setupReads, type SetupViewer } from "./channel-rows";
@@ -115,10 +116,7 @@ function channelsSection({ channels, lastMsg, lastCall }: SetupReads): SetupDto[
 type ChannelRow = SetupReads["channels"][number];
 
 function whatsappSection(wa: ChannelRow | null, lastMsg: SetupReads["lastMsg"]): SetupDto["channels"]["whatsapp"] {
-  const waCfg = (wa?.config && typeof wa.config === "object" && !Array.isArray(wa.config) ? wa.config : {}) as Record<
-    string,
-    unknown
-  >;
+  const waCfg = recordOrEmpty(wa?.config);
   return {
     present: !!wa,
     active: wa?.status === "active",
@@ -180,10 +178,7 @@ function teamSection(team: SetupReads["team"], cfg: SetupConfig["cfg"]): SetupDt
     // has the roster in hand, the back office never asks for it. Who answers:
     // the partner who brought the workspace is named below, never counted as
     // someone who backs the owner up (teamCounts counts them out too).
-    members:
-      "members" in team && Array.isArray(team.members)
-        ? team.members.filter((m) => m.role !== "partner").length
-        : (team as { members: number }).members,
+    members: Array.isArray(team.members) ? team.members.filter((m) => m.role !== "partner").length : team.members,
     invites_open: "invites" in team ? team.invites.length : team.invites_open,
     alert_emails: cfg?.notifications?.escalation_emails?.length ?? 0,
     // The partner who sits on the team (0012), by the name the roster already carries: on the member's own

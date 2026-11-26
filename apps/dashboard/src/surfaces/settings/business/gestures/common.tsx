@@ -239,7 +239,7 @@ export const BtPutBacks = Object.freeze({
 });
 // What a Save says when its own checks could not run: nothing was sent, and the editor stays open with what was typed.
 export const BT_UNCHECKED =
-  "Not saved · this couldn't be checked, so nothing was sent. Try again, and tell us if it keeps happening.";
+  "Not saved · this couldn't be checked, so nothing was sent. Try again, and write to support if it keeps happening.";
 
 /** The row's own way out in place of the tab's saver: the timezone, which is the workspace's. */
 export interface BtRowDoor<D> {

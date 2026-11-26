@@ -131,7 +131,7 @@ export const ldClientPill = (l: LeadRowVM, x: Pick<LeadCellCtx, "onOpenPerson" |
         e.stopPropagation();
         x.onOpenPerson(person);
       }}
-      title={LEAD_WORDS.openPerson}
+      data-tip={LEAD_WORDS.openPerson}
       data-testid="lead-client-door"
     >
       {pill}
@@ -162,7 +162,7 @@ export const ldTalkingDoor = (
         e.stopPropagation();
         x.onOpenPerson(door.id);
       }}
-      title={door.name ? WORKS_AT_WORDS.openInPeople(door.name) : LEAD_WORDS.openPerson}
+      data-tip={door.name ? WORKS_AT_WORDS.openInPeople(door.name) : LEAD_WORDS.openPerson}
       data-testid="lead-talking-door"
     >
       <StatePill
@@ -224,7 +224,7 @@ export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
             {l.name}
           </a>
           {l.places > 1 && (
-            <span className="ld-badge" title="Two listings on the map for one business">
+            <span className="ld-badge" data-tip="Two listings on the map for one business">
               {l.places} listings
             </span>
           )}

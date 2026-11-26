@@ -389,7 +389,7 @@ test("a trial's bells say the day it ends where the business is: an end at 03:00
     .map((w) => first(w));
   assert.deepEqual(
     bells.map((b) => b.title),
-    ["Your trial has started", "Your trial ends in three days"],
+    ["The trial has started", "Your trial ends in three days"],
   );
   assert.match(bells[0].body, new RegExp(`left on the trial, until ${eve}\\. `), "the start's bell");
   assert.match(bells[1].body, new RegExp(`charged when the trial ends on ${eve}\\. `), "the warning's bell");

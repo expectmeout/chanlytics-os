@@ -30,9 +30,11 @@ import { actAction, type ProposalOutcome, type ToolContext } from "../context/to
 import { propose, refuse } from "../context/context";
 
 /** Where a waiting run's id is read, said as the model calls it. */
+// screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
 const RUN_FROM = "sequences with action moments (a campaign's waiting) or action sent (waiting_on_you)";
 
 /** Where a held email's send_id is read, said as the model calls it (action decide's own words). */
+// screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
 const HELD_FROM = "sequences with action sequence, waiting_on_you";
 
 /** A broadcast that is neither a playbook's run nor a one-off of its own: nothing here waits on a person for it. */
@@ -176,6 +178,7 @@ export const runAction = actAction({
   input: z.object({ broadcast_id: z.string(), verb: z.enum(RUN_VERBS) }),
   examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b", verb: "approve" }],
   label: "Preparing a run's approval",
+  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
   words: `Action batch takes broadcast_id, a campaign's run that waits for a person, as ${RUN_FROM} gives it, and verb: approve sends it now (asked outside the sending hours, ${SENDING_HOURS_WORDS.between} by the business's clock, it goes at ${SENDING_HOURS_WORDS.first}); skip ends this run unsent and leaves the campaign running. Always give verb, from their words: it has no default, and the card says it back. A run made for a day that has passed can only be skipped; a send to leads (cold email) is approved or skipped the same way, its card saying what the check held; a one-off waiting for its day is cancelled with verb skip, by its send's id (its campaign's own): nobody gets it, and one already going is not cancelled.`,
   build: proposeRun,
 });

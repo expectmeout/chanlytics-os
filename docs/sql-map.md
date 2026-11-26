@@ -85,14 +85,14 @@ being read is dropped by a migration.
 | `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_launch_keep`, `ad_pause_all` and 1 more | Service-role only: an owner's press that the platform will not take yet (00652). |
 | `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
 | `ad_touches_of` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/touches.ts` | The shared record's reader over ad_entries for a thread (the content loop PRD's Appendix A.2; |
-| `ad_turn_on` | the server's | the server | code `apps/edge/lib/ads/approval.ts`, `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666, 00710; |
+| `ad_turn_on` | the server's | the server | code `apps/edge/lib/ads/launch/approval.ts`, `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666, 00710; |
 | `ad_way_in_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what stands between each running ad made here and AI answering the chat it opens, as one read of its account worked it out (00676; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
 | `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |
 | `ads_paused_by_holds` | trigger | the server | trigger `ads_paused_by_holds on ads` | Trigger (00676): an ad that is not paused holds no paused_by: |
 | `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). |
-| `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). |
+| `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, 00719, decision 0049). |
 | `ads_remediate_files` | the server's | the server | SQL `post_take_down_begin` | The walk the owner's own take-down starts on ads (00676, 00682, 00687; |
 | `ads_settle_remediation` | trigger | the server | trigger `ads_settle_remediation on ads` | Trigger (00676; the content loop PRD's 8.3): |
 | `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
@@ -642,7 +642,7 @@ being read is dropped by a migration.
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
 | `post_by_hand_bell_settle` | the server's | the server | SQL `post_take_down_keep`, `post_take_down_settle` | The bell's "Delete it in <place>" line for a piece at a place, ended once nothing of the piece there is left to its owner (00698, a Facebook Page since 00707; |
-| `post_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | A person's comment on a post Chanlytics sent (00699; |
+| `post_comment_keep` | the server's | the server | code `packages/db/src/repositories/content/touches.ts` | A person's comment on a post Chanlytics sent, or on an ad this workspace holds (00699, 00719; |
 | `post_link_make` | door | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | A post's one link, made on first ask (00699; |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts`; SQL `post_seen_say` | A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |

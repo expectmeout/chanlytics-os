@@ -194,12 +194,19 @@ export function mint(m: Pick<MemberContext, "tenantId" | "role"> & { facts?: Mem
   return handle as Member;
 }
 
+/** What a scope hands its handler beside the request: a workspace's member, a row's, or the back office's seat. */
+interface ScopeGiven {
+  member?: Member;
+  row?: unknown;
+  office?: BackOffice;
+}
+
 async function resolve(
   scope: Scope,
   kind: Policy["kind"],
   req: Request,
   ctx: RouteCtx,
-): Promise<{ member: MemberContext | null; given: Record<string, unknown> }> {
+): Promise<{ member: MemberContext | null; given: ScopeGiven }> {
   switch (scope.kind) {
     case "workspace": {
       // The tab names its workspace with ?workspace=; an account in two that
@@ -399,14 +406,14 @@ function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I
     }
     // A Console act a role may not take is refused before a token is spent or the body is judged, as a role is.
     if (spec.act) {
-      const office = (given as { office?: BackOffice }).office;
+      const { office } = given;
       if (!office) throw new Error(`a ${spec.scope.kind}-scoped route cannot name a Console act`);
       if (!staffMay(office.role, spec.act))
         throw new AppError("forbidden", staffCannotWords(office.role, spec.act), 403);
     }
     // So is a read of what a role may not see, before anything is read.
     if (spec.sees) {
-      const office = (given as { office?: BackOffice }).office;
+      const { office } = given;
       if (!office) throw new Error(`a ${spec.scope.kind}-scoped route cannot name a Console sight`);
       if (!staffSees(office.role, spec.sees))
         throw new AppError("forbidden", staffCannotSeeWords(office.role, spec.sees), 403);

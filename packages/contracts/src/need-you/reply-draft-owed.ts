@@ -6,6 +6,7 @@ import { replyWindow } from "../config/policy/prices";
 import { windowClockOf } from "../config/policy/reply-limits";
 import { holdActOf } from "../conversations/escalations";
 import type { ReplyDraftKind } from "./reply-drafts";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** What the question reads of a thread (packages/db replyDraftFactsOf). */
 interface DraftOwedFacts {
@@ -87,7 +88,7 @@ export function promisesAFollowUpTime(text: string, given: string): boolean {
   return OUR_FOLLOW_UP.test(sentence) && !OUR_FOLLOW_UP.test(given.toLowerCase().replace(/’/g, "'"));
 }
 
-/** Told once more where a draft promised a time anyway. */
+/** Told once more where a draft promised a time anyway. screen-word: told to AI, never shown on a page. */
 export const NO_FOLLOW_UP_TIME =
   "Your last answer promised a time for coming back to them. Write it again and name no day or time for it: say you will find out and come back to them.";
 
@@ -173,6 +174,8 @@ export function draftUseOf(draft: string, sent: string): DraftUse {
  * production coached an owner through what looks like a sales call, and saying so is what would have helped. When unsure, no: a
  * customer told they look like a salesperson is the worse mistake. A recorded or automated message that sells is the same
  * caller with no person on the line (decision 0136): a notice that sells nothing, a reminder or a delivery, is not.
+ *
+ * screen-word: told to AI, never shown on a page.
  */
 export const CALL_SELLING_RULES =
   "You read the record of a call to a small business. Say whether the caller is selling something to the business (marketing, a " +
@@ -193,7 +196,7 @@ export const CALL_SELLING_MAX_TOKENS = 120;
 
 /** The model's answer as what they are selling, or null where they are not, or it said nothing readable. */
 export function callSellingOf(answer: unknown): string | null {
-  const a = answer && typeof answer === "object" && !Array.isArray(answer) ? (answer as Record<string, unknown>) : {};
+  const a = recordOrEmpty(answer);
   if (a.selling !== true) return null;
   const what = typeof a.what === "string" ? a.what.trim() : "";
   return what || "someone selling to you";

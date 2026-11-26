@@ -108,7 +108,7 @@ test("asked, then booked: the report's one conversion line, in words that say wh
   assert.equal(toBookingReportVM(null).sub, "Add a calendar link under Settings › Hours & booking to see who booked.");
   assert.equal(
     toBookingReportVM({ calendar: "unavailable", days: 30, asked: 5, booked: 0 }).sub,
-    "Your calendar couldn't be read.",
+    "Couldn't load the calendar.",
   );
 });
 
@@ -652,7 +652,7 @@ test("asked means they reached out: the call they placed counts, a call the owne
   assert.equal(weCalled.askedMs, null, "an outbound call is not them asking");
   assert.equal(weCalled.askedNotBooked, false);
   // Still the last contact, but nobody phoned us: the row said "Phoned" over a call we placed (the 2 Oct 2026 audit).
-  assert.equal(weCalled.lastContact.label.startsWith("We called"), true, "but it is still the last contact");
+  assert.equal(weCalled.lastContact.label.startsWith("Called them"), true, "but it is still the last contact");
   // people_list's last inbound call (00055, the function redefined since through 00680) is read on the stack by every
   // suite that lists People there (consent/email-offers.db.test.mjs, messages/a-released-person-is-tried-again.db): pinned
   // as 00055's text until 25 Nov 2026.
@@ -865,7 +865,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   assert.match(up.month, /^[A-Z][a-z]{2}$/);
   assert.match(up.date, /^\d{1,2}$/);
   assert.ok(["Today", "Tomorrow"].includes(up.day) || /^[A-Z][a-z]{2}$/.test(up.day), up.day);
-  assert.equal(vm.timeline.find((i) => i.id === "added").text, "Added from your calendar (Colour)");
+  assert.equal(vm.timeline.find((i) => i.id === "added").text, "Added from the calendar (Colour)");
   assert.equal(vm.bookingLink, "https://book.example.com/marisas");
   assert.equal(vm.replyWindow, null, "no chat, no window");
   const chat = toPersonVM(
@@ -948,7 +948,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
     assert.equal(none.person.booking_link, null, "no link to send");
   }
   assert.ok(
-    /const all = allVisitsIn\(index, person\)\s*\.map\(\(x\) => toVisitDto\(x\) as VisitDto\)\s*\.slice\(-60\);/.test(
+    /const all = allVisitsIn\(index, person\)\s*\.flatMap\(\(x\) => toVisitDto\(x\) \?\? \[\]\)\s*\.slice\(-60\);/.test(
       readCode("apps/dashboard/src/server/calendar/person-visits.ts"),
     ),
   );

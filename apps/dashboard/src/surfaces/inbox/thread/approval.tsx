@@ -33,7 +33,7 @@ export const ContextStrip = ({ thread }: { thread: Thread }) => {
           <Tag
             key={i}
             className={`ix-ctx ${f.warn ? "warn" : ""} ${f.info ? "info" : ""} ${f.to ? "linked" : ""}`}
-            title={f.to ? "Open" : undefined}
+            data-tip={f.to ? "Open" : undefined}
             onClick={to ? () => navigate(to) : undefined}
           >
             <span className="ix-ctx-label">{f.label}</span>

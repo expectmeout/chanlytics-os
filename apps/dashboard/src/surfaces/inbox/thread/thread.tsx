@@ -56,8 +56,8 @@ import { Composer } from "./composer";
 import type { OnSend } from "./send-words";
 import { ThreadHeader } from "./header";
 import { composerAside, ThreadStatus, type Stale, type StatusProps } from "./status";
-import { useEarlierAsScrolled } from "./earlier";
-import { threadEnd, threadScroller, threadShown } from "./scroller";
+import { useEarlierAsScrolled } from "./scroll/earlier";
+import { threadEnd, threadScroller, threadShown } from "./scroll/scroller";
 import { isDocumentScroller, shownHeight } from "../../kit/motion/page-scroll";
 import { TimelineEntry } from "./timeline";
 import { hasVeto, HeldDraft } from "./veto";
@@ -565,7 +565,7 @@ function FirstEmailAsk({ thread, onOpenClient }: { thread: RealThread; onOpenCli
       <LinkButton
         size="inherit"
         className="ix-first-email-act"
-        title={MAILBOX_SENDERS_WORDS.actHint}
+        data-tip={MAILBOX_SENDERS_WORDS.actHint}
         onClick={() => {
           carryNotAPerson(clientId);
           onOpenClient(clientId);

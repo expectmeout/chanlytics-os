@@ -33,7 +33,7 @@ test("an ad is a way in: the words, a person added by one by name with a door to
   // The others are as they were, and none has a door.
   assert.deepEqual(addedBy({ source: "calendar", title: "Balayage" }), {
     who: "Calendar",
-    how: "from your calendar (Balayage)",
+    how: "from the calendar (Balayage)",
     to: null,
   });
   assert.deepEqual(addedBy({ source: "lead", title: null }), {

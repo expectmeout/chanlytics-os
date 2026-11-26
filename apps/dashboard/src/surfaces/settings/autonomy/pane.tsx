@@ -198,7 +198,7 @@ function replyDials(reply: UiRow): DialRow[] {
   if (reply.mode === "Auto" || reply.mode === "Veto")
     dials.push({
       label: "Hold window",
-      note: "How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.",
+      note: "How long a reply waits before it sends, so you can stop or change it. A booking link asked for on a call goes at once.",
       steps: AUT_DELAYS,
       value: wordOf(AUT_DELAYS, delayMs, `${Math.round(delayMs / 1000)}s`),
       save: (v: number) => ({ replyDelayMs: v }),
@@ -206,7 +206,7 @@ function replyDials(reply: UiRow): DialRow[] {
   if (reply.mode === "Auto")
     dials.push({
       label: "Send on its own only when it's sure",
-      note: "A reply less certain than this waits in the hold window instead of going out. Off sends everything, and so does a reply with no confidence on record.",
+      note: "A reply less sure than this waits for you. Off sends everything, as does a reply with no certainty recorded.",
       steps: AUT_CONF,
       value: wordOf(AUT_CONF, minConf, `${Math.round(minConf * 100)}%`),
       save: (v: number) => ({ minConfidence: v }),
@@ -227,7 +227,7 @@ const AUT_MOVES_WITH: Record<string, readonly string[]> = { campaign: ["reengage
 const AUT_MOVED_WITH = new Set(Object.values(AUT_MOVES_WITH).flat());
 const AUT_MANY_ROW = {
   label: "Sends to many people",
-  note: "how a new offer, win-back or follow-up starts · each keeps its own on its page, and asks you before its first send and after new words",
+  note: "how a new offer, win-back or follow-up starts · each keeps its own on its page, and asks you before its first send",
 };
 
 /** What else it may do without you, as a table at a desk and a list on a phone. */
@@ -312,8 +312,8 @@ function AskOnItsOwn({
       <div className="rec-card-head">
         <h2 className="rec-card-title">What you ask for</h2>
         <span className="rec-card-sub">
-          Whether what you ask AI to do needs a press. Money, new words, cold email, searches, settings and anything
-          final always wait for you.
+          Which of your asks wait for a press. Money, new words, cold email, searches, settings and anything final
+          always do.
         </span>
       </div>
       <RecordRow

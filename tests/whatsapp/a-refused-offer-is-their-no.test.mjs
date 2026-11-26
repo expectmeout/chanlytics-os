@@ -229,6 +229,6 @@ test("the person's page says whose word it is: WhatsApp's report, never their wo
   assert.deepEqual(consentChangeWords(change), {
     who: "Offers",
     text: "Said no to offers",
-    sub: "Reported by WhatsApp: they chose there to stop marketing messages from your business, so a message to them was not delivered",
+    sub: "WhatsApp says they stopped offers from your business there, so a message to them wasn't delivered",
   });
 });

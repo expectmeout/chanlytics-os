@@ -431,6 +431,6 @@ test("with no booking link, the row says what AI does instead, for every busines
   const without = { booking_link: undefined };
   assert.match(
     textOf(byTestId(drawTab({ brain: without }), "rec-row-booking_link")),
-    /None — it takes their details instead/,
+    /None · it takes their details instead/,
   );
 });

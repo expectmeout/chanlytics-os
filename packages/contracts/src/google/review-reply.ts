@@ -117,7 +117,7 @@ export const REVIEW_REPLY_MAX_CHARS = 1000;
 /** How many unreplied reviews the auto mode answers in one sync; the rest wait for the next hour. */
 export const REVIEW_AUTO_REPLIES_PER_SYNC = 3;
 /** The auto mode answers reviews written within this long; older ones are the owner's. */
-export const REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
+const REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 
 function firstName(author: string | null): string | null {
   const a = (author ?? "").trim();
@@ -148,6 +148,7 @@ export function reviewReplyPrompt(facts: ReviewReplyFacts, review: ReviewToAnswe
     "- Four or five stars: thank them and pick up one thing they praised.",
     `- Three stars or fewer: thank them for the feedback, apologise plainly for what went wrong, and invite them to get in touch so it can be put right${facts.phone ? ` (${facts.phone})` : ""}. Never argue, never dispute what they wrote, never blame them.`,
     "- Never mention refunds, discounts, prices or compensation — those decisions belong to the owner.",
+    // trade-word: a reviewer's visit to the place, said to the model
     "- Never invent details about their visit, names of staff, or promises the business did not make.",
     "- No emojis, no hashtags, no sign-off, no quotation marks around the reply, and do not write the business name at the end.",
     `- ${DATA_NOT_INSTRUCTIONS}`,

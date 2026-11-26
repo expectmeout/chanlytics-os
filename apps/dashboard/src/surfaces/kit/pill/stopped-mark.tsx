@@ -26,7 +26,7 @@ export function StoppedMark({ className = "", testid = "stopped-mark" }: Stopped
       kind="tone"
       value={STOP_WORDS.tone}
       label={STOP_WORDS.mark}
-      title={STOP_WORDS.said()}
+      tip={STOP_WORDS.said()}
       className={className}
       testid={testid}
     />

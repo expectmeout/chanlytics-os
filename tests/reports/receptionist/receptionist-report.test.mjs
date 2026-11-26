@@ -300,7 +300,7 @@ test("the link and what came of it, said by what the calendar could say", () => 
   );
   assert.equal(
     linkOf({ sent: 7, booked: null, calendar: "unavailable" }).line,
-    "7 people were sent the booking link. Your calendar couldn't be read.",
+    "7 people were sent the booking link. Couldn't load the calendar.",
   );
   assert.equal(
     linkOf({ sent: 0, booked: null, calendar: "none" }).line,

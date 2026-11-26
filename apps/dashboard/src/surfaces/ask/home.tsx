@@ -287,7 +287,7 @@ function rowEnd(
         <span
           {...secondAct(() => onRest?.(rest))}
           className="line-remove ask-row-rest"
-          title={t.notNow}
+          data-tip={t.notNow}
           data-testid="ask-row-rest"
         >
           <Icon name="x" size={10} />
@@ -297,7 +297,7 @@ function rowEnd(
         <span
           {...secondAct(() => th && onDelete(th))}
           className="line-remove ask-row-del"
-          title={t.deleteThread}
+          data-tip={t.deleteThread}
           data-testid="ask-row-del"
         >
           <Icon name="x" size={10} />
@@ -521,7 +521,7 @@ export const AskActs = ({
           className="ask-act"
           onClick={copy}
           aria-label={t.copy}
-          title={t.copy}
+          data-tip={t.copy}
           data-testid="ask-copy"
         >
           <Icon name="copy" size={14} />
@@ -539,7 +539,7 @@ export const AskActs = ({
           aria-label={word}
           aria-pressed={reading}
           aria-busy={loading || undefined}
-          title={word}
+          data-tip={word}
           data-testid="ask-read"
         >
           <Icon name={reading ? "pause" : "headphones"} size={14} />

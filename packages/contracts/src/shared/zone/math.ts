@@ -110,7 +110,7 @@ export function usableZone(tz: string | null | undefined): string {
 }
 
 /** Offset of `tz` from UTC at the instant `atMs`, in milliseconds. */
-export function zoneOffsetMs(tz: string, atMs: number): number {
+function zoneOffsetMs(tz: string, atMs: number): number {
   const p = zoneParts(tz, atMs);
   return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1000) * 1000;
 }

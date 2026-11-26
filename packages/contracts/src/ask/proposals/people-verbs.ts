@@ -26,6 +26,7 @@ import {
   oneOrMany,
   uniqueIds,
 } from "./spec";
+import { listOrEmpty } from "../../shared/unknown";
 
 /** The two questions a person is asked (00095): messages (about their own appointments), and offers and news. */
 type AnswerPurpose = "conversational" | "marketing";
@@ -57,8 +58,8 @@ export function answerSaidOf(purpose: AnswerPurpose, consent: Answer): string {
 function manySaid(data: unknown, verb: string): { done: number; failed: number; said: string } {
   const d = rec(data);
   const done = typeof d.done === "number" ? d.done : 0;
-  const failedRows = Array.isArray(d.failed) ? (d.failed as unknown[]) : [];
-  const skipped = Array.isArray(d.skipped) ? (d.skipped as unknown[]) : [];
+  const failedRows = Array.isArray(d.failed) ? listOrEmpty(d.failed) : [];
+  const skipped = Array.isArray(d.skipped) ? listOrEmpty(d.skipped) : [];
   const failed = failedRows.length + skipped.length;
   const reason = asText(rec(failedRows[0]).message) || (skipped.length ? "no longer in this workspace" : "");
   return { done, failed, said: failed ? `${failed} couldn't be ${verb}${reason ? ` · ${reason}` : ""}` : "" };

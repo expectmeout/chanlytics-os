@@ -9,6 +9,7 @@
  */
 import { answerObject, fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
 import { sameBytes } from "../shared/same-bytes";
+import { valueAt } from "@chanlytics/contracts";
 
 const ELEVENLABS_API = "https://api.elevenlabs.io";
 /** One round trip to the vendor, bounded: a mint while a person waits for the first word, or an erase after the call. */
@@ -41,7 +42,7 @@ function vendorWords(a: ProviderReply): string {
   const j = answerObject(a);
   const detail = j?.detail;
   if (typeof detail === "string") return detail.slice(0, 200);
-  const message = detail && typeof detail === "object" ? (detail as { message?: unknown }).message : null;
+  const message = valueAt(detail, "message");
   return typeof message === "string" ? message.slice(0, 200) : `status ${a.status}`;
 }
 
@@ -69,6 +70,7 @@ export async function mintConversationToken(cfg: ElevenLabsConfig, deps?: Deps):
   const token = typeof result?.token === "string" ? result.token : "";
   const conversationId = typeof result?.conversation_id === "string" ? result.conversation_id : "";
   if (!token || !conversationId)
+    // screen-word: the provider's answer, said to the log and never to a person
     return { outcome: "rejected", status: response.status, error: "no token in the answer" };
   return { outcome: "ok", token, conversationId };
 }

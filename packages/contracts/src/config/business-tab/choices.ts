@@ -146,7 +146,7 @@ export const PRICE_CHOICE_WORDS = {
   options: {
     written: {
       label: "Says the prices you wrote",
-      says: "Only the prices you wrote. In chat any other figure is taken out before it's sent; on a call, you're told.",
+      says: "Only the prices you wrote. In chat any other is taken out before it's sent · on a call, you're told.",
     },
     never: {
       label: "Never says a price",

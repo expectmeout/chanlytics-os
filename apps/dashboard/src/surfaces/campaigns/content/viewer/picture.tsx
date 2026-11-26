@@ -1,8 +1,8 @@
 /**
  * The viewer's picture, full bleed on the dark (the content canvas, board PhView): a video filling the screen, Files' Stream
  * player playing at once, muted and looping (files/video/player.tsx VideoReel), with a line under it that runs the reel's
- * length; a picture post, or a photo of the Library, fitted over its own copy blurred to the screen's edges. On a desk's
- * stage, wider than a reel, a reel Ask made stands in the middle over its own poster blurred to the edges, as a post does
+ * length; a picture post, or a photo of the Library, as large as the screen holds it on the plain dark, the foot under it.
+ * On a desk's stage, wider than a reel, a reel Ask made stands in the middle over its own poster blurred to the edges
  * (board Desk, content.css); on a phone the reel covers the poster.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -11,7 +11,7 @@ import { Meter } from "../../../kit/meter/meter";
 import { Press } from "../../../kit/press";
 import { AskLooking } from "../../../files/looking";
 import { VideoOpened } from "../../../files/video/player";
-import { postShapeAddress } from "../../../files/post-shapes";
+import { postShapeAddress } from "../../../files/post/shapes";
 import { fileVerbs } from "../../../files/verbs";
 
 /**
@@ -69,6 +69,9 @@ function ReelRun({ seconds }: { seconds: number | null }) {
     </span>
   );
 }
+
+/** A post's portrait shape, as the server draws it (server/posts/layout.ts POST_SIZES.portrait): 4:5. */
+const PORTRAIT = { width: 1080, height: 1350 } as const;
 
 /** A new version being made over the one standing (the version board, cell 1): what plays dims under AI's three at work. */
 interface PictureMaking {
@@ -136,12 +139,15 @@ export function ViewerPicture({
         <VersionMaking making={making} />
       </div>
     );
-  // A post Ask made, at the shape it is drawn in; a photo of the Library as it is.
-  const src = file.source === "made" ? postShapeAddress(file.id, "portrait") : `${fileViewOf(file.id)}?w=1280`;
+  // A post Ask made, at the shape it is drawn in; a photo of the Library as it is. On the plain dark, with no blurred copy of
+  // itself darkening the edges (Ruben, 25 Nov 2026: "no filters"). Its size is said before it loads (a post's portrait shape,
+  // a photo's own), so the foot under it stands where it will stay from the first frame.
+  const isMade = file.source === "made";
+  const src = isMade ? postShapeAddress(file.id, "portrait") : `${fileViewOf(file.id)}?w=1280`;
+  const size = isMade ? PORTRAIT : file.width && file.height ? { width: file.width, height: file.height } : {};
   return (
     <div className="cnv-viewer-picture" data-kind="picture" data-testid="cnv-stage">
-      <img className="cnv-viewer-blur" src={src} alt="" aria-hidden="true" />
-      <img className="cnv-viewer-fit" src={src} alt={file.line ?? name} />
+      <img className="cnv-viewer-fit" src={src} alt={file.line ?? name} {...size} />
       <OpenFull href={file.source === "made" ? postShapeAddress(file.id, "portrait") : fileViewOf(file.id)} />
     </div>
   );

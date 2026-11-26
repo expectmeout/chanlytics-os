@@ -171,7 +171,7 @@ test("what the partner is shown and sent: who asked and until when; whether join
   assert.match(partnerJoinedWords("Harbor", false), /already paying when you joined, so it earns you no share/);
   const mail = partnerInviteEmail({ workspace: "Harbor", expiresAt: row.expires_at, signInUrl: "https://app/login" });
   assert.equal(mail.subject, "Harbor asks you to be its partner on Chanlytics");
-  assert.match(mail.body, /never touch its billing or its team\./);
+  assert.match(mail.body, /never touch its billing or team\./);
   assert.match(mail.body, /Settings › Partner to join or decline: https:\/\/app\/login/);
 });
 

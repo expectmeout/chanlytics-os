@@ -1,5 +1,5 @@
 import "server-only";
-import { fenced, type ModelSpeed } from "@chanlytics/contracts";
+import { fenced, recordOrEmpty, recordOrNull, type ModelSpeed } from "@chanlytics/contracts";
 import { streamModel, type GatewayCall } from "../shared/model/gateway";
 import type { GatewayBlockStart } from "../shared/model/stream";
 import { openedPicture, pictureBlocks, type ToolPicture } from "./tools/context/tool-defs";
@@ -180,9 +180,9 @@ export async function runRound(
   };
 }
 
-export function parseInput(json: string): Record<string, unknown> {
+function parseInput(json: string): Record<string, unknown> {
   try {
-    return json ? (JSON.parse(json) as Record<string, unknown>) : {};
+    return json ? recordOrEmpty(JSON.parse(json)) : {};
   } catch {
     // Not JSON: nothing to read.
     return {};
@@ -204,7 +204,7 @@ export function parseInput(json: string): Record<string, unknown> {
 export function argsOf(roundBlock: RoundBlock): Record<string, unknown> | null {
   if (!roundBlock.json) return {};
   try {
-    return JSON.parse(roundBlock.json) as Record<string, unknown>;
+    return recordOrNull(JSON.parse(roundBlock.json));
   } catch {
     // Not JSON: nothing to read.
     return null;

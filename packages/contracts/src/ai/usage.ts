@@ -16,6 +16,7 @@ import {
 } from "./hearing";
 import { MODELS, type ModelId, type ModelSpeed } from "./models/ids";
 import type { ModelPurpose, SmallJsonPurpose } from "./models/routes";
+import { recordOrEmpty } from "../shared/unknown";
 
 /**
  * One call's tokens, as the API counts them, and the speed it ran at when that was fast mode (the API's own
@@ -112,7 +113,7 @@ export function usageTokens(modelUsage: ModelUsage): number {
 
 /** The API's own usage object read into the four kinds, and its speed when it says fast; a missing count is zero. */
 export function usageOf(raw: unknown): ModelUsage {
-  const url = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const url = recordOrEmpty(raw);
   const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : 0);
   return {
     input: n(url.input_tokens),

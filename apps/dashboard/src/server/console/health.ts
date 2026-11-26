@@ -55,6 +55,7 @@ import {
   DbFailure,
   PREVIEW_LIMITS,
   causedBy,
+  recordOrEmpty,
   recordOrNull,
 } from "@chanlytics/contracts";
 import { readSide } from "./console";
@@ -131,7 +132,8 @@ function isHealthParts(value: unknown): value is HealthPartsDto {
     "google",
     "mailboxes",
   ];
-  return lists.every((k) => Array.isArray((value as Record<string, unknown>)[k]));
+  const parts = recordOrEmpty(value);
+  return lists.every((k) => Array.isArray(parts[k]));
 }
 
 async function partsRead(office: BackOffice, days: number): Promise<HealthPartsDto> {
@@ -322,8 +324,7 @@ export async function redriveHealth(
     { act: "delivery_redrive", why: reason, tenantId: null, target: "platform", targetId: subscriber },
     async () => {
       const { data, error } = await redriveDeliveries(office.db, subscriber);
-      if (error)
-        throw new AppError("unavailable", "Those deliveries could not be scheduled again. Try again in a moment.");
+      if (error) throw new AppError("unavailable", "Couldn't schedule those deliveries again. Try again in a moment.");
       return { subscriber, scheduled: typeof data === "number" ? data : 0 };
     },
     (out) => ({
@@ -353,7 +354,8 @@ export async function requeueHealthKind(
       try {
         rows = await listFailedJobsOfKind(office.db, { kind, sinceIso, limit: HEALTH_ROWS.requeueKind });
       } catch (e) {
-        throw causedBy(new AppError("unavailable", "The failed jobs could not be read. Try again in a moment."), e);
+        // screen-word: a refusal staff read on the Console, where the code's words are allowed
+        throw causedBy(new AppError("unavailable", "Couldn't read the failed jobs. Try again in a moment."), e);
       }
       let requeued = 0;
       let refused = 0;
@@ -402,7 +404,7 @@ export async function pauseHealthKind(
         : await resumeJobKind(office.db, kind);
       const answered = data && typeof data === "object" && !Array.isArray(data) ? data : null;
       if (error || !answered || typeof answered.error === "string")
-        throw new AppError("unavailable", "That kind could not be changed just now. Try again in a moment.");
+        throw new AppError("unavailable", "Couldn't change that kind just now. Try again in a moment.");
       return { kind, paused };
     },
     (out) => ({ outcome: "done", note: out.paused ? "Paused." : "Resumed." }),

@@ -26,6 +26,7 @@ import {
   zoneDayKey,
   zonedInputValue,
   fmtDay,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { read } from "./api";
 import { pathWorkspace } from "./workspace";
@@ -65,7 +66,7 @@ function remembered(win: Window, slug: string): string | null {
   if (m.recalled && m.recalled.slug === slug) return m.recalled.zone;
   let zone: string | null;
   try {
-    const all = JSON.parse(win.localStorage.getItem(ZONES_STORE) || "{}") as Record<string, unknown>;
+    const all = recordOrEmpty(JSON.parse(win.localStorage.getItem(ZONES_STORE) || "{}"));
     zone = typeof all[slug] === "string" && all[slug] ? all[slug] : null;
   } catch {
     zone = null;
@@ -80,7 +81,7 @@ function remember(win: Window, slug: string | null, zone: string): void {
   m.noted = `${slug}|${zone}`;
   m.recalled = { slug, zone };
   try {
-    const all = JSON.parse(win.localStorage.getItem(ZONES_STORE) || "{}") as Record<string, unknown>;
+    const all = recordOrEmpty(JSON.parse(win.localStorage.getItem(ZONES_STORE) || "{}"));
     if (all[slug] === zone) return;
     win.localStorage.setItem(ZONES_STORE, JSON.stringify({ ...all, [slug]: zone }));
   } catch {

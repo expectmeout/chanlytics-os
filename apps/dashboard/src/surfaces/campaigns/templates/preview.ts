@@ -11,7 +11,7 @@ function fill(body: string, values: string[]): string {
 }
 
 /** What a business says about itself, for the slots that name it. */
-export interface OwnFacts {
+interface OwnFacts {
   business_name?: string | null;
   booking_link?: string | null;
   /** Where a customer leaves it a review, as its Google listing keeps it (google_listings.new_review_uri). */

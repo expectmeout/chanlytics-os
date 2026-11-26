@@ -427,6 +427,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/shared",
   "apps/edge/lib/sms",
   "apps/edge/lib/support",
+  "apps/edge/lib/voice",
   "apps/edge/lib/website",
   "apps/edge/lib/whatsapp",
   "packages/channels/src/ads",
@@ -503,7 +504,9 @@ export const LIMITED_TREES = [
  * wire, the zone, the day, the Autonomy rows and who reads it). Ask's two trees joined on 1 November 2026, the day they
  * were held: 17 functions there take five or six (the act tools' card builders, the tools' context, the voice door).
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
- * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert).
+ * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). The edge's
+ * voice joined on 25 November 2026, the day its call start's plan was split: six take five (the call's activity, an
+ * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -544,6 +547,7 @@ export const WIDE_PARAMS = [
   "packages/channels/src/email",
   "packages/channels/src/google",
   "packages/channels/src/shared",
+  "apps/edge/lib/voice",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
@@ -753,9 +757,10 @@ export default [
       // The two rules by name, not the plugin's `recommended`: from v7 that
       // preset also carries the React Compiler's lints (set-state-in-effect,
       // purity, refs, immutability), which read the patterns the pages brought
-      // from the shell as errors. Adopting those is a decision of its own, not a bump.
+      // from the shell as errors. Adopting those is a decision of its own, not a bump. exhaustive-deps was a warning
+      // while the pages held findings of it, and is an error since their last (the frame's route effect, 25 Nov 2026).
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "error",
     },
   },
 

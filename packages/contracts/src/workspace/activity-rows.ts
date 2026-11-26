@@ -2,7 +2,7 @@ import { DECISION_VERBS, EVENT_KINDS, WABA_FIELDS } from "../shared/enums";
 import { isUuid } from "../shared/identity";
 import { activityWords } from "./activity/words";
 import type { ActivityRowDto } from "./activity/dtos";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty, valueAt } from "../shared/unknown";
 
 /**
  * The activity log's rows, as both ledgers become them: which kinds are kept from an owner unless asked for by name, which
@@ -97,7 +97,7 @@ export interface ActivityEventRow {
 
 /** The member a record's own words name (`by`, contracts event-data.ts), where they name one. */
 function activityEventBy(data: unknown): string | null {
-  const by = data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>).by : null;
+  const by = data && typeof data === "object" && !Array.isArray(data) ? recordOrEmpty(data).by : null;
   return typeof by === "string" && isUuid(by) ? by : null;
 }
 
@@ -106,8 +106,7 @@ function activityEventBy(data: unknown): string | null {
  * many handed the ledger (jobs erasure.ts), whose row keeps who pressed among what its legs did.
  */
 function activityDecisionBy(payload: unknown): string | null {
-  const legs =
-    payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as { legs?: unknown }).legs : null;
+  const legs = payload && typeof payload === "object" && !Array.isArray(payload) ? valueAt(payload, "legs") : null;
   return activityEventBy(legs);
 }
 

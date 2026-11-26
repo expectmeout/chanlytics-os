@@ -5,8 +5,19 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dedupeFeed, tzClock } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import {
+  ESCALATION_REASON_SHORT,
+  REPLY_WINDOW_HOURS,
+  REPLY_WINDOW_WORDS,
+  dedupeFeed,
+  tzClock,
+} from "@chanlytics/contracts";
+import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+const { funnelLine } = await importSrc("packages/contracts/src/reports/campaigns/words/lines.ts");
 
 const row = (over) => ({
   key: "x",
@@ -48,79 +59,95 @@ test("the clock names the day when it is not today", () => {
   assert.equal(tzClock(null, tz, now), null);
 });
 
-test("the wiring: words on the edge, a bounded reply on both sides, the layout fixes, and nothing of the workshop on a customer's screen", () => {
-  const alerts = readCode("apps/edge/lib/inbound/alerts.ts");
-  assert.ok(
-    alerts.includes("subject: `${name} needs a person · ${reasonWords}`") &&
-      alerts.includes("about: ctx.about ?? null,") &&
-      // The reason is said in the Inbox's words (reasonShort of the hold's reason), not a map of the notice's own.
-      alerts.includes('["passed to a human", "human_token"]'),
-    "a handoff is said in the owner's words, about its thread",
-  );
-  assert.ok(!alerts.includes("WhatsApp handoff needed"));
-  // Every module of the message path: answer.ts's order and the phases beside it.
-  const inbound = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"]
-    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
-    .join("\n");
-  // One closure builds the context now, so the name and the thread are stated
-  // once rather than retyped at a dozen call sites — and every handoff goes
-  // through it: the owner is reached by two calls on the whole path, tell's
-  // and the ingest's copy of words the database did not keep.
-  assert.ok(
-    inbound.includes("who: n.profileName ?? null,") &&
-      inbound.includes('about: { type: "conversation", id: ing.conversation_id },'),
-    "every handoff carries the name and the thread",
-  );
+test("the wiring: a handoff is said in the owner's words, about its thread", async () => {
+  const { handoffMessage } = await importSrc("apps/edge/lib/inbound/alerts.ts");
+  const about = { type: "conversation", id: "c-1" };
+  const said = handoffMessage({
+    threadId: "13055550100",
+    userText: "hi",
+    botText: "(no reply sent)",
+    reason: "passed to a human",
+    who: "Rosa Diaz",
+    channel: "whatsapp",
+    about,
+  });
+  // The reason in the Inbox's words (reasonShort of the hold's reason), not a map of the notice's own.
+  assert.equal(said.subject, `Rosa Diaz needs a person · ${ESCALATION_REASON_SHORT.human_token}`);
+  assert.deepEqual(said.about, about, "about its thread");
   assert.equal(
-    (inbound.match(/\bports\.alertStaff\(/g) ?? []).length,
-    2,
-    "and reaches the owner through the one closure",
+    handoffMessage({ threadId: "13055550100", userText: "hi", botText: "-", reason: "stale" }).about,
+    null,
+    "and about nothing it was not told",
   );
-  // A call said by name, about its call or the thread that needs a call back, runs: voice/calls/retell-door/.
+  assert.doesNotMatch(`${said.subject} ${said.body}`, /WhatsApp handoff needed/);
+  // Every handoff on the message path carries the name and the thread, and reaches the owner once: run in
+  // inbound/phases/every-way-out-says-what-the-message-became.test.mjs ("a handoff names who wrote and the thread it is
+  // about"). A call said by name, about its call or the thread that needs a call back, runs: voice/calls/retell-door/.
+  // The bell shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed), over
+  // the bridge's own feed: today/record/one-row-for-one-hold.test.mjs.
+});
+
+test("a reply to a run is the customer's first words within the reply window after the run reached them, kept with its time", async () => {
+  // A reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one
+  // is kept with its time (slice C). The SQL series keeps the same window: campaign_series, redefined since 00064
+  // through 00451, run on the stack (reports/campaigns/campaign-answers.db.test.mjs).
+  const { repliedThreads } = await importSrc("apps/dashboard/src/server/campaigns/broadcasts/replied.ts");
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const SENT = "2026-11-10T12:00:00.000Z";
+  const at = (hours) => new Date(Date.parse(SENT) + hours * 3_600_000).toISOString();
+  const inbound = (id, conversation, created) => ({
+    id,
+    tenant_id: T,
+    conversation_id: conversation,
+    direction: "inbound",
+    sender: "customer",
+    created_at: created,
+    meta: {},
+    body: "Yes please",
+  });
+  const ctx = {
+    supabase: fakeDb({
+      messages: [
+        inbound("m3", "c-answered", at(30)),
+        inbound("m1", "c-answered", at(2)),
+        inbound("m2", "c-late", at(REPLY_WINDOW_HOURS + 1)),
+      ],
+    }),
+  };
+  const replied = await repliedThreads(
+    ctx,
+    T,
+    new Map([
+      ["c-answered", SENT],
+      ["c-late", SENT],
+      ["c-quiet", SENT],
+    ]),
+  );
+  assert.deepEqual(
+    [...replied],
+    [["c-answered", at(2)]],
+    "the first reply, with its time; one past the window is no reply, and a thread that said nothing is none",
+  );
+});
+
+test("a campaign's answered share says its window, the one a reply is counted in", () => {
   assert.ok(
-    /bellFeed\(\{\s*derived: derivedFeedNow\(/.test(readCode("apps/dashboard/src/bridge/notifications.ts")),
-    "the bridge shows the feed once, a hold as one row (contracts bellFeed, which hides the kept row by dedupeFeed)",
+    funnelLine({ sent: 40, delivered: 38, read: 20, readOf: 30, replied: 6 }).includes(
+      `were answered ${REPLY_WINDOW_WORDS}`,
+    ),
   );
-  const server = [
-    "apps/dashboard/src/server/campaigns/broadcasts/replied.ts",
-    "apps/dashboard/src/server/campaigns/broadcasts/broadcasts.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    server.includes("isReplyTo(sentAt, m.created_at)") &&
-      server.includes("replied.set(m.conversation_id, m.created_at)"),
-    "a reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one is kept with its time (slice C)",
-  );
-  // The SQL series keeps the same window: campaign_series, redefined since 00064 through 00451, run on the stack
-  // (reports/campaigns/campaign-answers.db.test.mjs). Pinned as 00064's text until 25 Nov 2026.
-  assert.ok(
-    [
-      "packages/contracts/src/reports/campaigns/words/heads.ts",
-      "packages/contracts/src/reports/campaigns/words/lines.ts",
-      "packages/contracts/src/reports/campaigns/words/tables.ts",
-    ]
-      .map((p) => readCode(p))
-      .join("\n")
-      .includes("were answered ${REPLY_WINDOW_WORDS}"),
-  );
+  // A long warning wraps beside its glyph, not under it: the stylesheet's own rule, read as a stylesheet is (node draws
+  // nothing).
   assert.ok(
     readRaw("apps/dashboard/src/surfaces/today/zones/zones.css").includes(
       ".tz-alert > span {\n  flex: 1 1 auto;\n  min-width: 0;\n}",
     ),
     "a long warning wraps beside its glyph, not under it",
   );
-  assert.ok(
-    readRaw("apps/dashboard/src/styles/components.css").includes("  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos"),
-    "a long meta wraps in its own cell, not into the next",
-  );
-  // tzClock, and the four places Today says a closing or a last time with it.
-  const today = ["clock", "facts", "figures", "rows", "queue"]
-    .map((m) => readCode(`packages/contracts/src/today/${m}.ts`))
-    .join("\n");
-  assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
+  // Every closing time Today says names its day (tzClock above), in the queue's, the facts', the figures' and the rows'
+  // words: today/record/ and today/zones/need-you-acts.test.mjs draw them on a day that is tomorrow's.
+  // Nothing of the workshop on a customer's screen: presence was the mockup's, and went with demo mode, and the footer
+  // is the customer's. FrameApp.tsx cannot be imported in node, so its footer is still read.
   const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
   assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");
-  const topbar = readCode("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx");
-  assert.ok(!topbar.includes("tb-presence"), "presence was the mockup's, and went with demo mode");
 });

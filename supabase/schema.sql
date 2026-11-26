@@ -2986,22 +2986,26 @@ begin
       into v_adopted, v_moved;
 
     -- Each day the platform gave, for an ad this workspace holds: made, or written over until it is settled. A day
-    -- of an ad the read did not adopt is left out, never guessed a home.
+    -- of an ad the read did not adopt is left out, never guessed a home. What the day did (00719) is kept as the
+    -- platform said it, an object or nothing.
     with given as (
       select d.* from jsonb_to_recordset(coalesce(p_read -> 'days', '[]'::jsonb)) as d(
-        platform_ad_id text, day date, spend_minor bigint, impressions bigint, clicks bigint, platform_results bigint
+        platform_ad_id text, day date, spend_minor bigint, impressions bigint, clicks bigint, platform_results bigint,
+        engaged jsonb
       )
       where d.platform_ad_id is not null and d.day is not null
     ), written as (
-      insert into public.ad_days as x (tenant_id, ad_id, day, spend_minor, impressions, clicks, platform_results, read_at)
+      insert into public.ad_days as x (tenant_id, ad_id, day, spend_minor, impressions, clicks, platform_results,
+                                       engaged, read_at)
       select p_tenant_id, a.id, g.day, greatest(coalesce(g.spend_minor, 0), 0), greatest(coalesce(g.impressions, 0), 0),
-             greatest(coalesce(g.clicks, 0), 0), g.platform_results, now()
+             greatest(coalesce(g.clicks, 0), 0), g.platform_results,
+             case when jsonb_typeof(g.engaged) = 'object' then g.engaged end, now()
         from given g
         join public.ads a
           on a.tenant_id = p_tenant_id and a.platform = v_account.platform and a.platform_ad_id = g.platform_ad_id
       on conflict (ad_id, day) do update
          set spend_minor = excluded.spend_minor, impressions = excluded.impressions, clicks = excluded.clicks,
-             platform_results = excluded.platform_results, read_at = now()
+             platform_results = excluded.platform_results, engaged = excluded.engaged, read_at = now()
        where not x.settled
       returning 1
     )
@@ -3045,7 +3049,7 @@ end $$;
 -- Name: FUNCTION ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under and where it shows (00666); a read of an ad made here settles a launch whose last switch went unanswered; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
+COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, 00719, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under and where it shows (00666); a read of an ad made here settles a launch whose last switch went unanswered; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds, with what the day did as the platform counts it (engaged, 00719). settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
 
 
 --
@@ -31751,15 +31755,16 @@ COMMENT ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_id 
 
 
 --
--- Name: post_comment_keep(uuid, text, text, text, text, text, text, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+-- Name: post_comment_keep(uuid, text, text, text, text, text, text, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) RETURNS jsonb
+CREATE FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone, p_ad_id text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_post    public.posts%rowtype;
+  v_ad      uuid;
   v_person  jsonb;
   v_contact uuid;
   v_new     boolean;
@@ -31768,18 +31773,25 @@ begin
   if nullif(btrim(coalesce(p_from, '')), '') is null or nullif(btrim(coalesce(p_comment_id, '')), '') is null then
     raise exception 'post_comment_keep: a comment has an author and an id' using errcode = '22004';
   end if;
-  -- A comment on a post Chanlytics sent, to the account it went to. One on a post made by hand is not kept here.
+  -- The ad it was left on, where Meta names one (its comment's media.ad_id) and this workspace holds it.
+  if nullif(btrim(coalesce(p_ad_id, '')), '') is not null then
+    select a.id into v_ad from public.ads a
+     where a.tenant_id = p_tenant_id and a.platform = 'meta' and a.platform_ad_id = btrim(p_ad_id)
+     limit 1;
+  end if;
+  -- A comment on a post Chanlytics sent, to the account it went to.
   select * into v_post from public.posts p
    where p.tenant_id = p_tenant_id and p.place = 'instagram' and p.external_id = p_media_id
      and (p.account_id is null or p.account_id = p_account)
    order by p.published_at desc nulls last
    limit 1;
-  if not found then
+  -- One on a post made by hand is kept only where it was left on an ad of this workspace's.
+  if v_post.id is null and v_ad is null then
     return jsonb_build_object('kept', false, 'why', 'not_ours');
   end if;
   if exists (select 1 from public.touches t
               where t.tenant_id = p_tenant_id and t.place = 'instagram' and t.provider_event_id = p_comment_id) then
-    return jsonb_build_object('kept', false, 'why', 'again', 'post_id', v_post.id);
+    return jsonb_build_object('kept', false, 'why', 'again', 'post_id', v_post.id, 'ad_id', v_ad);
   end if;
   -- The person by their Instagram-scoped id, the one a DM's sender carries: found, or made by this comment.
   v_person := public.resolve_person(p_tenant_id, 'instagram', btrim(p_from), null, null,
@@ -31790,27 +31802,33 @@ begin
   if v_new then
     perform public.person_set_first_touch(p_tenant_id, v_contact, 'instagram', null, null);
   end if;
-  v_kept := public.touches_keep(p_tenant_id, 'comment', 'post', v_post.id, v_contact, 'instagram', btrim(p_comment_id),
+  -- Kept on the post where Chanlytics sent it, else on the ad; the ad named beside it either way.
+  v_kept := public.touches_keep(p_tenant_id, 'comment',
+                              case when v_post.id is not null then 'post' else 'ad' end,
+                              coalesce(v_post.id, v_ad), v_contact, 'instagram', btrim(p_comment_id),
                               coalesce(p_at, now()), null, null, v_new,
                               jsonb_strip_nulls(jsonb_build_object(
                                 'words', left(nullif(btrim(coalesce(p_words, '')), ''), 2200),
                                 'username', nullif(btrim(coalesce(p_username, '')), ''),
-                                'thread', nullif(btrim(coalesce(p_parent_id, '')), ''))));
-  -- AI's draft of a public answer, in this transaction: a delivery Meta sends again finds the comment kept, and its job.
-  if (v_kept->>'kept')::boolean then
+                                'thread', nullif(btrim(coalesce(p_parent_id, '')), ''),
+                                'ad', v_ad)));
+  -- AI's draft of a public answer, in this transaction, for a post Chanlytics sent: a delivery Meta sends again finds the
+  -- comment kept, and its job. A comment on an ad shown on a post made by hand is counted, and its owner answers it.
+  if (v_kept->>'kept')::boolean and v_post.id is not null then
     insert into public.jobs (tenant_id, kind, due_at, payload)
     values (p_tenant_id, 'comment_reply', now(),
             jsonb_build_object('touch_id', v_kept->>'touch_id', 'step', 'draft'));
   end if;
-  return v_kept || jsonb_build_object('post_id', v_post.id, 'contact_id', v_contact, 'new_person', v_new);
+  return v_kept || jsonb_strip_nulls(jsonb_build_object('post_id', v_post.id, 'ad_id', v_ad))
+                || jsonb_build_object('contact_id', v_contact, 'new_person', v_new);
 end $$;
 
 
 --
--- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone, p_ad_id text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) IS 'A person''s comment on a post Chanlytics sent (00699; the content loop PRD''s 9.2, Appendix A.3 to A.5): the post by the id it keeps and the account it went to, the person by their Instagram-scoped id (resolve_person; made by the comment when new, first arrival instagram), the comment kept once as a touch with its words and thread, and AI''s draft of a public answer asked for (comment_reply, step draft) in the same transaction. {kept, touch_id, post_id, contact_id, new_person}, or {kept: false, why: not_ours | again}. The service role''s.';
+COMMENT ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone, p_ad_id text) IS 'A person''s comment on a post Chanlytics sent, or on an ad this workspace holds (00699, 00719; the content loop PRD''s 9.2, Appendix A.3 to A.5): the post by the id it keeps and the account it went to; the ad by the id Meta''s comment names (p_ad_id, its media.ad_id), whatever post it shows; the person by their Instagram-scoped id (resolve_person; made by the comment when new, first arrival instagram); the comment kept once as a touch with its words, its thread and its ad, on the post where Chanlytics sent it and on the ad otherwise; and, for a post Chanlytics sent, AI''s draft of a public answer asked for (comment_reply, step draft) in the same transaction. {kept, touch_id, post_id?, ad_id?, contact_id, new_person}, or {kept: false, why: not_ours | again}. The service role''s.';
 
 
 --
@@ -48322,7 +48340,9 @@ CREATE TABLE public.ad_days (
     platform_results bigint,
     read_at timestamp with time zone DEFAULT now() NOT NULL,
     settled boolean DEFAULT false NOT NULL,
+    engaged jsonb,
     CONSTRAINT ad_days_clicks_check CHECK ((clicks >= 0)),
+    CONSTRAINT ad_days_engaged_check CHECK (((engaged IS NULL) OR (jsonb_typeof(engaged) = 'object'::text))),
     CONSTRAINT ad_days_impressions_check CHECK ((impressions >= 0)),
     CONSTRAINT ad_days_platform_results_check CHECK ((platform_results >= 0)),
     CONSTRAINT ad_days_spend_minor_check CHECK ((spend_minor >= 0))
@@ -48341,6 +48361,13 @@ COMMENT ON TABLE public.ad_days IS 'The platform''s day for one ad, in the accou
 --
 
 COMMENT ON COLUMN public.ad_days.settled IS 'Whether the platform''s numbers for the day have stopped moving. A platform keeps correcting a day for about two weeks, so a figure with an unsettled day in it says "so far" (contracts adCostRule).';
+
+
+--
+-- Name: COLUMN ad_days.engaged; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_days.engaged IS 'What the day of the ad did as the platform counts it (00719): {plays, engaged, comments, reactions, saves, shares}, each a whole number, a part the platform gave none of left out; null where the read gave none. Theirs, labelled as theirs: never added to Chanlytics'' count of people.';
 
 
 --
@@ -55627,7 +55654,7 @@ CREATE TABLE public.touches (
     CONSTRAINT touches_person_until_emptied CHECK (((contact_id IS NOT NULL) OR (emptied_at IS NOT NULL))),
     CONSTRAINT touches_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'whatsapp'::text, 'google'::text]))),
     CONSTRAINT touches_provider_event_id_check CHECK (((char_length(provider_event_id) >= 1) AND (char_length(provider_event_id) <= 200))),
-    CONSTRAINT touches_subject_type_check CHECK ((subject_type = ANY (ARRAY['post'::text, 'link'::text])))
+    CONSTRAINT touches_subject_type_check CHECK ((subject_type = ANY (ARRAY['post'::text, 'link'::text, 'ad'::text])))
 );
 
 
@@ -55636,6 +55663,13 @@ CREATE TABLE public.touches (
 --
 
 COMMENT ON TABLE public.touches IS 'A known person''s reply, comment, reply to a story or coded first message, about a post or through a link (00699; the content loop PRD''s Appendix A.1, A.3, A.5): one row per event, once per place by the place''s own id. Events, never edited, written by post_comment_keep and touches_keep. The business''s own replies and comments are never touches. Emptied with the person (touches_erase_on_contact), moved with a combined record (touches_follow_merge), emptied by age after 180 days except the one that made a person (touches_age_out). Members read.';
+
+
+--
+-- Name: COLUMN touches.subject_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.touches.subject_type IS 'What was touched: a post Chanlytics sent, a link, or an ad this workspace holds (00719: a comment Meta says was left on an ad). A message that came from an ad lives in ad_entries, a form''s entry in form_entries.';
 
 
 --
@@ -73669,11 +73703,11 @@ GRANT ALL ON FUNCTION public.post_by_hand_bell_settle(p_tenant_id uuid, p_file_i
 
 
 --
--- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone, p_ad_id text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone) TO service_role;
+REVOKE ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone, p_ad_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_comment_keep(p_tenant_id uuid, p_account text, p_from text, p_username text, p_comment_id text, p_media_id text, p_parent_id text, p_words text, p_at timestamp with time zone, p_ad_id text) TO service_role;
 
 
 --

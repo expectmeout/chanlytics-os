@@ -426,7 +426,7 @@ test("Leads' row: a Talking lead's stage is the door to the person it is talking
   // Beside the business's name it is "Talking" alone: the line under the name says who, and a name in the tag cut the
   // business's own name short on the page.
   assert.equal(textOf(door).trim(), "Talking");
-  assert.equal(door.props.title, "Open Priya Nair in People");
+  assert.equal(door.props["data-tip"], "Open Priya Nair in People");
   opened.length = 0;
   door.props.onClick({ stopPropagation() {} });
   assert.deepEqual(opened, ["person:p-priya"], "it opens the face, never the stand-in");

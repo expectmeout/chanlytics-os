@@ -65,7 +65,7 @@ test("(C2) the feed line says when the calendar was last tried where that is the
     }),
     NOW,
   );
-  assert.equal(down.feed.line, "Your calendar couldn't be read · tried 3m ago · updated 4h ago");
+  assert.equal(down.feed.line, "Couldn't load the calendar · tried 3m ago · updated 4h ago");
   const never = toCalendarVM(
     dto({
       feed: {
@@ -80,7 +80,7 @@ test("(C2) the feed line says when the calendar was last tried where that is the
     }),
     NOW,
   );
-  assert.equal(never.feed.line, "Your calendar couldn't be read · tried 3m ago", "never read: only when it was tried");
+  assert.equal(never.feed.line, "Couldn't load the calendar · tried 3m ago", "never read: only when it was tried");
   const stale = toCalendarVM(dto({ feed: { ...dto().feed, stale: true, reason: "http", checked_at: tried } }), NOW);
   assert.ok(stale.feed.line.includes("· couldn't be refreshed 3m ago ·"), stale.feed.line);
   assert.equal(
@@ -747,7 +747,11 @@ test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rul
   assert.ok(textIn(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textIn(bar)}`);
   // Each door says where it goes, for a tab named Business: 'Edit in Settings' named a tab there is none of.
   assert.deepEqual(
-    [...new Set(all(bar, (n) => /^cal-rules-door-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props.title))],
+    [
+      ...new Set(
+        all(bar, (n) => /^cal-rules-door-/.test(n.props?.["data-testid"] ?? "")).map((n) => n.props["data-tip"]),
+      ),
+    ],
     ["Change it in Settings › Hours & booking"],
     "REGRESSION: 'Edit in Settings', for a tab named Business",
   );
@@ -799,7 +803,7 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
   assert.deepEqual([down.health, down.detail], ["unavailable", "tried 3m ago · updated 4h ago"]);
   assert.equal(
     down.line,
-    "Your calendar couldn't be read · tried 3m ago · updated 4h ago",
+    "Couldn't load the calendar · tried 3m ago · updated 4h ago",
     "the whole sentence stays, for AI",
   );
   const none = feed({ present: false, state: "none", read_at: null, events: 0 });
@@ -823,7 +827,7 @@ test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, i
   assert.deepEqual([pill.props.kind, pill.props.value], ["calendar", "unavailable"]);
   const said = textOf(chip);
   assert.ok(said.includes("Couldn't be read") && said.includes("tried 3m ago · updated 4h ago"), said);
-  assert.ok(!said.includes("Your calendar couldn't be read"), `the state is said once, by the pill: ${said}`);
+  assert.ok(!said.includes("Couldn't load the calendar"), `the state is said once, by the pill: ${said}`);
 });
 
 test("REGRESSION (C3): the page's other words match the product's -- Try again beside FailedRead's Retry, Connect where Setup says paste the address, America/New_York for a zone Settings calls New York, and 'your link' for the booking link", () => {
@@ -1037,7 +1041,7 @@ test("REGRESSION: the Calendar draws no key -- its legend said ← → move · T
     "and Hours and rules says it under its name",
   );
   assert.deepEqual(
-    ["cal-prev", "cal-today", "cal-next"].map((id) => byTestId(tree, id).props.title),
+    ["cal-prev", "cal-today", "cal-next"].map((id) => byTestId(tree, id).props["data-tip"]),
     ["Previous", undefined, "Next"],
     "the arrows' tips name them, and Today says Today already",
   );

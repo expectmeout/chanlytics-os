@@ -6,14 +6,14 @@
  */
 import { useState } from "react";
 import { POST_SHAPES, postPlanOf, postPlanTidied, postWordsIn, type PostPlan } from "@chanlytics/contracts";
-import { Button } from "../kit/button/button";
-import { Press } from "../kit/press";
-import { PostChoice } from "./post-choice";
-import { usePostDraft } from "./post-draft";
-import { wordsKeyOf } from "./post-drawn";
-import { PostEdit } from "./post-edit";
-import { PostFrame } from "./post-frame";
-import { fileVerbs } from "./verbs";
+import { Button } from "../../kit/button/button";
+import { Press } from "../../kit/press";
+import { PostChoice } from "./choice";
+import { usePostDraft } from "./draft";
+import { wordsKeyOf } from "./drawn";
+import { PostEdit } from "./edit";
+import { PostFrame } from "./frame";
+import { fileVerbs } from "../verbs";
 
 /** Nothing asked yet: a sheet holds a draft from the moment it opens, and draws nothing until it is begun. */
 const NOTHING_ASKED = postPlanOf({});
@@ -58,7 +58,7 @@ type PostVersionDraft = ReturnType<typeof usePostVersion>;
 
 /**
  * What the sheet's body draws: the picture, its shapes, and what changes it. `looks` off leaves its words alone to change by
- * hand (Content's Change it, where how it looks is asked of Ask: post-edit.tsx), and `fold` folds an empty line above or below
+ * hand (Content's Change it, where how it looks is asked of Ask: edit.tsx), and `fold` folds an empty line above or below
  * behind its own press. `shapes` off draws the picture the post is, larger, and no choice of shape: what is saved is the post
  * in every shape, each drawn where it goes (a post on Instagram 4:5, a story 9:16, Google 4:3), so a shape chosen here only
  * looked like a choice (Ruben, 12 Nov 2026). What saving does to the first is the toast's to say once saved (`saved`).

@@ -216,12 +216,12 @@ function visibleRows(p: { query: string; allThreads: Thread[]; threads: Thread[]
  * Whether the list opens on its buckets, with no row over them: on a desk, where the search is the bar's line (page heads,
  * H2), while nothing is picked and no saved view has anything in it, so neither the select-all nor the views' toggle shows.
  */
-const bareOf = (L: Pick<ListCtx, "inLine" | "views" | "selected">): boolean =>
-  L.inLine && L.selected.length === 0 && !L.views.some((v) => v.count > 0);
+const bareOf = (list: Pick<ListCtx, "inLine" | "views" | "selected">): boolean =>
+  list.inLine && list.selected.length === 0 && !list.views.some((v) => v.count > 0);
 
 /** The threads picked, in the order they were picked. */
-const pickedThreads = (L: Pick<ListCtx, "selected" | "allThreads">): Thread[] =>
-  L.selected.flatMap((id) => L.allThreads.find((t) => t.id === id) ?? []);
+const pickedThreads = (list: Pick<ListCtx, "selected" | "allThreads">): Thread[] =>
+  list.selected.flatMap((id) => list.allThreads.find((t) => t.id === id) ?? []);
 
 export function InboxList(props: InboxListProps) {
   const base = listProps(props);
@@ -312,7 +312,7 @@ export function InboxList(props: InboxListProps) {
     onToggle: onToggleSelect,
     attr: "data-thread-id",
   });
-  const L: ListCtx = {
+  const list: ListCtx = {
     ...base,
     query,
     setQuery,
@@ -336,21 +336,21 @@ export function InboxList(props: InboxListProps) {
 
   return (
     <div
-      className={`ix-list ${L.density} ${selected.length > 0 ? "picking" : ""}`}
-      data-bare={bareOf(L) ? "" : undefined}
+      className={`ix-list ${list.density} ${selected.length > 0 ? "picking" : ""}`}
+      data-bare={bareOf(list) ? "" : undefined}
     >
       {/* On a phone the buckets and the search stand in the frame's top, still as the rows scroll under them (under-row.tsx). */}
       <UnderRow className={selected.length > 0 ? "ix-under picking" : "ix-under"} away={!!props.away || inLine}>
-        {bucketTabs(L)}
-        {searchBox(L)}
+        {bucketTabs(list)}
+        {searchBox(list)}
       </UnderRow>
-      {viewChips(L)}
-      {stakeLine(L)}
-      {listHead(L)}
-      {archiveAsk(L)}
+      {viewChips(list)}
+      {stakeLine(list)}
+      {listHead(list)}
+      {archiveAsk(list)}
       {/* Threads */}
       <div className="ix-threads" ref={swap}>
-        {threadsBody(L, { shown, olderShown: fold.shown, asideShown: asideFolded.shown, rowsRef, runsWaiting })}
+        {threadsBody(list, { shown, olderShown: fold.shown, asideShown: asideFolded.shown, rowsRef, runsWaiting })}
       </div>
     </div>
   );
@@ -441,8 +441,8 @@ function threadsBody(
  * tab's figure, as a desk does: with three tabs the strip has room at 320px, and Waiting said none, so nothing told a
  * phone whether it held anyone (Ruben, 19 Nov 2026; it kept Needs you's alone while there were five).
  */
-function bucketTabs(L: ListCtx) {
-  const { buckets, activeBucket, onBucketChange } = L;
+function bucketTabs(list: ListCtx) {
+  const { buckets, activeBucket, onBucketChange } = list;
   const tabs = (
     <SubTabs
       label="Conversations by status"
@@ -460,18 +460,18 @@ function bucketTabs(L: ListCtx) {
       }))}
     />
   );
-  if (L.inLine) return tabs;
+  if (list.inLine) return tabs;
   // On a phone the search rests in a glyph at the buckets' end while it holds no words, as People's does: the field stays
   // drawn, so the glyph's press puts the caret in it and a phone's keyboard with it (the phone pass, 3 Nov 2026: the
   // capsule's own row stood the first conversation at 248).
   return (
     <div className="ix-bucket-row">
       {tabs}
-      {L.query ? null : (
+      {list.query ? null : (
         <ListFind
           className="ix-find"
           label={BAR_LINE_WORDS.inbox}
-          onFind={() => L.findRef.current?.focus()}
+          onFind={() => list.findRef.current?.focus()}
           testid="inbox-find"
         />
       )}
@@ -486,8 +486,8 @@ function bucketTabs(L: ListCtx) {
  * none of it is there to see (`bare`) it takes no room until a key reaches its select-all (inbox.css), so the list opens
  * on its buckets.
  */
-function searchBox(L: ListCtx) {
-  const { visible, allThreads, query, setQuery, views, showViews, setShowViews, inLine } = L;
+function searchBox(list: ListCtx) {
+  const { visible, allThreads, query, setQuery, views, showViews, setShowViews, inLine } = list;
   const toggle = views.some((v) => v.count > 0);
   // A phone's empty search rests folded under the buckets' glyph (bucketTabs), open while it has the caret or words.
   const folded = !inLine && !query;
@@ -496,9 +496,9 @@ function searchBox(L: ListCtx) {
       {visible.length > 0 &&
         pickAll({
           ids: visible.map((t) => t.id),
-          selected: L.selected,
-          onToggle: L.onToggleSelect,
-          onClear: L.onClearSelection,
+          selected: list.selected,
+          onToggle: list.onToggleSelect,
+          onClear: list.onClearSelection,
         })}
       {!inLine && (
         <Search
@@ -506,7 +506,7 @@ function searchBox(L: ListCtx) {
           label={allThreads.some((t) => t.real) ? "Search by name or message" : "Search conversations, people, tags"}
           value={query}
           onChange={setQuery}
-          inputRef={L.findRef}
+          inputRef={list.findRef}
           testid="inbox-search"
         />
       )}
@@ -514,7 +514,7 @@ function searchBox(L: ListCtx) {
         <button
           className={`ix-views-toggle ${showViews ? "open" : ""}`}
           onClick={() => setShowViews(!showViews)}
-          title="Saved views"
+          data-tip="Saved views"
           aria-label="Saved views"
           aria-expanded={showViews}
         >
@@ -525,8 +525,8 @@ function searchBox(L: ListCtx) {
   );
 }
 
-function viewChips(L: ListCtx) {
-  const { showViews, views, activeView, onViewChange } = L;
+function viewChips(list: ListCtx) {
+  const { showViews, views, activeView, onViewChange } = list;
   return (
     showViews && (
       <div className="ix-views">
@@ -549,8 +549,8 @@ function viewChips(L: ListCtx) {
 }
 
 /** Needs-bucket stake summary */
-function stakeLine(L: ListCtx) {
-  const { inNeedsBucket, query, activeView, stake } = L;
+function stakeLine(list: ListCtx) {
+  const { inNeedsBucket, query, activeView, stake } = list;
   return (
     inNeedsBucket &&
     !query.trim() &&
@@ -574,22 +574,22 @@ function stakeLine(L: ListCtx) {
  * What is picked: the count, and the acts over it (pick.tsx). The server has no unarchive, so a real pick is asked
  * first, where the demo's Undo is the mockup's.
  */
-function bulkBar(L: ListCtx) {
-  const { selected, threads, onBulkApprove, onBulkSnooze, bulkMark, onClearSelection, bulkBusy } = L;
+function bulkBar(list: ListCtx) {
+  const { selected, threads, onBulkApprove, onBulkSnooze, bulkMark, onClearSelection, bulkBusy } = list;
   return pickBar({
     count: selected.length,
     busy: bulkBusy,
     approve: threads.some((t) => t.approval) ? onBulkApprove : null,
     mark: bulkMark,
     snooze: onBulkSnooze,
-    archive: () => (pickedThreads(L).some((t) => t.real) ? L.setAskArchive(true) : L.onBulkArchive()),
+    archive: () => (pickedThreads(list).some((t) => t.real) ? list.setAskArchive(true) : list.onBulkArchive()),
     clear: onClearSelection,
   });
 }
 
 /** What a search found: how many, and the words. */
-function searchSaid(L: ListCtx) {
-  const { visible, searching, query } = L;
+function searchSaid(list: ListCtx) {
+  const { visible, searching, query } = list;
   return (
     <span className="ix-list-said">
       <span className="ix-list-count tabular">
@@ -608,19 +608,19 @@ function searchSaid(L: ListCtx) {
 }
 
 /** The list's head: what is picked, what a search found, or what a saved view holds -- never the chip's count again. */
-function listHead(L: ListCtx) {
-  const headed = L.selected.length > 0 || L.searching || !!L.activeView;
-  return headed && <div className="ix-list-head">{L.selected.length > 0 ? bulkBar(L) : searchSaid(L)}</div>;
+function listHead(list: ListCtx) {
+  const headed = list.selected.length > 0 || list.searching || !!list.activeView;
+  return headed && <div className="ix-list-head">{list.selected.length > 0 ? bulkBar(list) : searchSaid(list)}</div>;
 }
 
-function archiveAsk(L: ListCtx) {
-  const { selected, askArchive, setAskArchive, bulkBusy, onBulkArchive } = L;
+function archiveAsk(list: ListCtx) {
+  const { selected, askArchive, setAskArchive, bulkBusy, onBulkArchive } = list;
   return (
     selected.length > 0 &&
     askArchive &&
     pickArchiveAsk({
       // A pick the list no longer holds is still asked about, by its count.
-      picked: selected.map((id) => L.allThreads.find((t) => t.id === id) ?? {}),
+      picked: selected.map((id) => list.allThreads.find((t) => t.id === id) ?? {}),
       busy: bulkBusy,
       onYes: () => Promise.resolve(onBulkArchive()).finally(() => setAskArchive(false)),
       onNo: () => setAskArchive(false),

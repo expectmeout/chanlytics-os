@@ -1,6 +1,6 @@
 /** Handlers: incoming email. */
 
-import { REACH_OUT_REPLY_DAYS, isBookingTool, senderVerdictOf, DbFailure } from "@chanlytics/contracts";
+import { REACH_OUT_REPLY_DAYS, isBookingTool, senderVerdictOf, DbFailure, valueAt } from "@chanlytics/contracts";
 import {
   classifyReceived,
   senderAuthenticated,
@@ -231,7 +231,7 @@ export async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<voi
       // workspace that named none reads none, and a value the list does not know is none.
       bookingTool: async (tenantId) => {
         const stored = (await getTenantConfig(db, tenantId))?.config;
-        const named = (stored as { bookings?: { tool?: unknown } | null } | null | undefined)?.bookings?.tool;
+        const named = valueAt(stored, "bookings", "tool");
         return isBookingTool(named) ? named : null;
       },
       // A forward by hand is trusted from a member of the workspace, once its sender is proved (member_has_address, 00345).

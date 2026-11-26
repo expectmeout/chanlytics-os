@@ -1,13 +1,15 @@
 /** What Ask's turn door reads from a request, and how it streams a turn back. */
 import {
-  ASK_SCOPE_KINDS,
   ASK_SURFACES,
   PageContextSchema,
   type AskLanguage,
   type AskScope,
-  type LeadSearchPlan,
   type PageContext,
+  listOrEmpty,
+  recordOrEmpty,
   recordOrNull,
+  textOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { after } from "next/server";
 import type { Member } from "@/server/shared/route";
@@ -19,12 +21,11 @@ import { clearFollowUp } from "@/server/ask/tools/act/follow-up";
 import type { SearchAnswering } from "@/server/ask/prompt/prompt";
 import { finishAskTurn, type AskTurnLine } from "@/server/ask/turn";
 import { searchRow } from "@/server/leads/leads";
+import { scopeIn } from "@/server/ask/store";
 import type { TenantId } from "@chanlytics/contracts";
 
 // The lists are contracts' own: a surface the palette sent that a hand-written list here had not caught up with was
 // dropped in silence, and the prompt never learnt the page.
-export const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
-
 export const SURFACES = new Set<string>(ASK_SURFACES);
 
 export function line(ev: AskTurnLine): string {
@@ -99,18 +100,7 @@ export function turnStream(
  * else is absent: ignored rather than refused.
  */
 export function scopeAsked(raw: unknown): AskScope | null | undefined {
-  if (raw === null) return null;
-  if (!raw || typeof raw !== "object") return undefined;
-  const askScope = raw as Partial<AskScope>;
-  if (
-    typeof askScope.kind !== "string" ||
-    !SCOPE_KINDS.has(askScope.kind) ||
-    typeof askScope.id !== "string" ||
-    !askScope.id ||
-    typeof askScope.label !== "string"
-  )
-    return undefined;
-  return { kind: askScope.kind, id: askScope.id.slice(0, 120), label: askScope.label.slice(0, 80) };
+  return raw === null ? null : (scopeIn(raw) ?? undefined);
 }
 
 /**
@@ -144,7 +134,7 @@ export async function answeringOf(
   tenantId: TenantId,
   raw: unknown,
 ): Promise<SearchAnswering | null> {
-  const id = raw && typeof raw === "object" ? (raw as { search_id?: unknown }).search_id : undefined;
+  const id = recordOrEmpty(raw).search_id;
   if (id === undefined) return null;
   const row = await searchRow(ctx, tenantId, requireUuid(id, "search"));
   const query = recordOrNull(row.question);
@@ -153,7 +143,7 @@ export async function answeringOf(
     name: row.name,
     question: query && typeof query === "object" && typeof query.sentence === "string" ? query.sentence : "",
     asked: row.asked,
-    leaving_out: ((row.plan as LeadSearchPlan | null)?.exclusions ?? []).map((x) => x.text),
+    leaving_out: listOrEmpty(valueAt(row.plan, "exclusions")).map((x) => textOrEmpty(valueAt(x, "text"))),
   };
 }
 
@@ -163,7 +153,7 @@ export async function answeringOf(
  * question.
  */
 export async function cameBackTo(ctx: RouteContext, member: Member, following: unknown): Promise<void> {
-  const id = following && typeof following === "object" ? (following as { id?: unknown }).id : undefined;
+  const id = recordOrEmpty(following).id;
   if (typeof id !== "string" || !id || id.length > 40) return;
   await clearFollowUp(readerContext(ctx, member), id).catch((e: unknown) =>
     log.error("ask_follow_up_clear_failed", { tenant_id: member.tenantId, error: e }),

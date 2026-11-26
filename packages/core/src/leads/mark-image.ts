@@ -28,7 +28,7 @@ export interface MarkImage {
 }
 
 export const MARK_MIN_SIDE = 64;
-export const MARK_MAX_RATIO = 2;
+const MARK_MAX_RATIO = 2;
 export const MARK_MAX_BYTES = 512 * 1024;
 
 const CONTENT_TYPE: Record<MarkKind, string> = {

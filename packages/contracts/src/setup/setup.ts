@@ -23,7 +23,7 @@ import {
   type SetupRowDraft,
   type SetupRowVM,
 } from "./lines";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty, valueAt } from "../shared/unknown";
 
 /**
  * May this line be retried, and if not, what does the person hear?
@@ -241,9 +241,9 @@ const isCompany = (v: unknown): v is PhoneCompany => v !== "office" && isOneOf(C
 
 /** The owner's number as their saved Setup view holds it; null for none, and for anything hand-edited. */
 export function setupPhoneWantOf(view: unknown): SetupPhoneWant | null {
-  const phone = view && typeof view === "object" ? (view as { phone?: unknown }).phone : null;
+  const phone = view && typeof view === "object" ? valueAt(view, "phone") : null;
   if (!phone || typeof phone !== "object") return null;
-  const { way, number, mode, rings, company } = phone as Record<string, unknown>;
+  const { way, number, mode, rings, company } = recordOrEmpty(phone);
   if (!isPhoneWay(way) || typeof number !== "string") return null;
   const e164 = normalizePhone(number);
   if (!e164) return null;
@@ -263,8 +263,8 @@ export function setupPhoneWantOf(view: unknown): SetupPhoneWant | null {
  * number's own reading (setupPhoneWantOf) is null for it.
  */
 export function callsNotByPhone(view: unknown): boolean {
-  const phone = view && typeof view === "object" ? (view as { phone?: unknown }).phone : null;
-  return !!phone && typeof phone === "object" && (phone as { way?: unknown }).way === "none";
+  const phone = view && typeof view === "object" ? valueAt(view, "phone") : null;
+  return !!phone && typeof phone === "object" && valueAt(phone, "way") === "none";
 }
 
 /**
@@ -282,7 +282,7 @@ export interface SetupChoices {
 
 /** The member's choices as their saved Setup view holds them; none for anything hand-edited. */
 export function setupChoicesOf(view: unknown): SetupChoices {
-  const wa = view && typeof view === "object" ? (view as { whatsapp?: unknown }).whatsapp : null;
+  const wa = view && typeof view === "object" ? valueAt(view, "whatsapp") : null;
   return { whatsapp: isOneOf(WHATSAPP_CHOICES, wa) ? wa : null };
 }
 

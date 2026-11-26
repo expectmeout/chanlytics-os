@@ -15,6 +15,7 @@ import {
   filesReadBy,
   isProse,
   isWords,
+  markupFiles,
   refusalWordsIn,
   screenWordsIn,
   titleTooltipsIn,
@@ -173,6 +174,25 @@ test("the voice's marks: we, an apology, a click, a dash, a semicolon, a Your la
     {},
     "a list of ids is no sentence",
   );
+  assert.deepEqual(
+    said("const p = <p>Couldn&apos;t load the list, and that&rsquo;s all &amp; nothing more</p>;"),
+    ["Couldn't load the list, and that’s all & nothing more"],
+    "a JSX text is read as the screen draws its entities",
+  );
+  assert.deepEqual(
+    voiceMarksOf(source("const p = <p>It&apos;s held &mdash; it waits for you to look</p>;")),
+    { emDash: 1 },
+    "an entity's own semicolon is no semicolon, and a dash written as one is still a dash",
+  );
+});
+
+test("the notes a page's reads keep on what they leave out are a developer's", () => {
+  assert.deepEqual(
+    said(
+      'const o = { ...declareReads("person", { omit: [{ tables: ["x"], why: "the page names the business a person works at" }] }) };',
+    ),
+    [],
+  );
 });
 
 test("a browser's tooltip is a title on an element, never a component's own title", () => {
@@ -182,6 +202,16 @@ test("a browser's tooltip is a title on an element, never a component's own titl
     'const c = <Sheet title="New campaign" />;',
   );
   assert.equal(titleTooltipsIn(sf), 2);
+});
+
+test("a frame's title is its name, and a Base UI part or a kit control that hands its title on is a tooltip", () => {
+  const sf = source(
+    'const a = <iframe title="The letter, as it is sent" srcDoc="" />;',
+    'const b = <Tabs.Tab value="all" title="Everyone on the list" />;',
+    'const c = <LinkButton href="/x" title="Open them in People">Dana</LinkButton>;',
+    'const d = <EmptyState title="Nobody yet" />;',
+  );
+  assert.equal(titleTooltipsIn(sf), 2, "the tab's and the link's, never the frame's name or the empty state's heading");
 });
 
 test("who reads a file is said by where it lives", () => {
@@ -203,7 +233,7 @@ test("who reads a file is said by where it lives", () => {
  * The demo's sample screens, which still call the AI an agent: invented rows a prospect reads first, renamed in the
  * Inbox's pass (docs/words.md, the cleanup, 3). The list may only shrink.
  */
-const THE_DEMO_STILL_SAYS_AGENT = ["apps/dashboard/src/surfaces/frame/route-table.tsx"];
+const THE_DEMO_STILL_SAYS_AGENT = [];
 
 test("outside the demo's sample screens, no page calls the product's AI by another name", () => {
   const naming = filesReadBy("owner").filter((f) => Object.keys(screenWordsIn(parse(f), ["ai"])).length > 0);
@@ -255,8 +285,18 @@ test("the ratchets say what they hold and read the tree", () => {
     "title-tooltips.json",
   ]);
   // A ratchet that has fallen to nothing is earned while it still reads its files: the customer's pages lost their last
-  // provider word on 16 Nov 2026 ("the carriers" became the phone networks).
-  const EARNED_ZERO = { "customer-words.json": () => filesReadBy("customer").length };
+  // provider word on 16 Nov 2026 ("the carriers" became the phone networks), the pages their last word that never
+  // reaches a screen on 25 Nov 2026, what AI is taught its last the same day (what is left are the tools' own names,
+  // each marked), and the server's refusals theirs on 26 Nov 2026 (what is left is staff's and operators', each marked).
+  // The markup's last browser tooltip became the house's tip the same day (what is left are three frames' titles, each
+  // its frame's name).
+  const EARNED_ZERO = {
+    "customer-words.json": () => filesReadBy("customer").length,
+    "screen-words.json": () => filesReadBy("owner").length,
+    "server-words.json": () => filesReadBy("server").length,
+    "taught-words.json": () => filesReadBy("taught").length,
+    "title-tooltips.json": () => markupFiles().length,
+  };
   for (const r of WORD_RATCHETS) {
     assert.ok(r.advice && r.name, r.file);
     assert.ok(

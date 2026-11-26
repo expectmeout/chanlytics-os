@@ -118,7 +118,7 @@ function CrBlock(p: {
       className="cal-appt feed"
       style={{ top: ofHours(from), height: `max(22px, ${ofHours(span)} - 2px)`, ...laned }}
       onClick={() => onOpen(b)}
-      title={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}${spoken ? ` · ${spoken}` : ""}`}
+      data-tip={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}${spoken ? ` · ${spoken}` : ""}`}
       aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}${spoken ? `, ${spoken.toLowerCase()}` : ""}`}
       data-testid="cal-block"
       data-phase={phase}
@@ -150,7 +150,7 @@ function CrWindow({ w, hours }: { w: CalendarWindowVM; hours: Hours }) {
     <div
       className="cal-open"
       style={{ top: ofHours(from), height: `max(18px, ${ofHours(span)} - 2px)` }}
-      title={`Open · ${w.label} · AI would offer this`}
+      data-tip={`Open · ${w.label} · AI would offer this`}
       data-testid="cal-window"
     >
       <span className="cal-open-label">Open · {w.label}</span>
@@ -219,7 +219,7 @@ function CrMoment({ x, hours, onOpen }: { x: CrLaid; hours: Hours; onOpen: () =>
       className="cal-moment"
       style={{ top: `calc(${ofHours(Math.max(0, at))} + ${x.under * CR_MOMENT_STEP}px)` }}
       onClick={onOpen}
-      title={said}
+      data-tip={said}
       aria-label={said}
       data-look={markLook(m)}
       data-cold={m.cold || undefined}
@@ -242,7 +242,7 @@ function allDayOf(d: CalendarFrame, a: ViewAct) {
         key={b.id}
         className="cal-allday"
         onClick={() => a.onOpen(b)}
-        title={said?.word ? `${b.title} · ${said.word}` : b.title}
+        data-tip={said?.word ? `${b.title} · ${said.word}` : b.title}
         aria-label={`${b.title}, all day, ${d.long}${said?.word ? `, ${said.word.toLowerCase()}` : ""}`}
         data-visit={said?.status}
         data-testid="cal-allday"
@@ -338,7 +338,7 @@ function dayHead(p: {
         </button>
       )}
       {d.closed.yes && (
-        <span className="cal-closed" title={d.closed.note || ""}>
+        <span className="cal-closed" data-tip={d.closed.note || ""}>
           Closed{d.closed.note ? ` · ${d.closed.note}` : ""}
         </span>
       )}
@@ -544,7 +544,7 @@ function monthCell(p: {
         className="cal-month-day"
         data-testid="cal-month-cell"
         onClick={(e) => onDay(d.key, e.currentTarget)}
-        title={d.long}
+        data-tip={d.long}
         aria-label={crCellLabel(d, taken, open, feedOk)}
         aria-current={d.today ? "date" : undefined}
         aria-pressed={picked !== null ? picked === d.key : undefined}
@@ -565,7 +565,7 @@ function monthCell(p: {
         </span>
       ) : null}
       {d.allDay.slice(0, 2).map((b) => (
-        <span key={b.id} className="cal-month-allday" title={b.title}>
+        <span key={b.id} className="cal-month-allday" data-tip={b.title}>
           {b.title}
         </span>
       ))}

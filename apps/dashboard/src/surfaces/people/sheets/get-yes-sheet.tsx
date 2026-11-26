@@ -71,7 +71,7 @@ function TheCode({
         {/* What it does, in two short sentences: the code, the words it sends, and how a yes is undone. */}
         <p>
           A scan or a tap opens WhatsApp with <b>{optIn.phrase}</b> ready to send, and sending it records their yes.{" "}
-          <b>{optIn.phraseEs}</b> works in Spanish; STOP undoes it.
+          <b>{optIn.phraseEs}</b> works in Spanish, and STOP undoes it.
         </p>
         <div className="bc-chips">
           {/* The code with the words a customer needs before scanning it, on one printable sheet: a bare code on a desk
@@ -106,11 +106,11 @@ function TheCode({
         </div>
         {optIn.pageUrl && (
           <p className="bc-optin-page" data-testid="bc-optin-page">
-            Your sign-up page,{" "}
+            The same code is on your sign-up page,{" "}
             <a className="cl-bucket-link" href={optIn.pageUrl} target="_blank" rel="noreferrer">
               {optIn.pageUrl.replace("https://", "")}
             </a>
-            , has the same code with the wording the phone networks ask for. On paper, print{" "}
+            , with the wording the phone networks ask for. On paper, print{" "}
             <a
               className="cl-bucket-link"
               href={`${optIn.pageUrl}/form`}

@@ -21,7 +21,7 @@ import { hasHref, hrefOf } from "./shell-thread";
 import { conversationsData } from "../store";
 import type { CallLine, ConversationLine } from "../types";
 import { useCallTurns } from "./call-turns";
-import { threadScroller, threadShown } from "./scroller";
+import { threadScroller, threadShown } from "./scroll/scroller";
 
 // The call a note stands for, from the calls Conversations reads: one GET calls page, which every surface boots with.
 // A call older than that page is drawn from its note alone.
@@ -537,7 +537,7 @@ function callOpened(c: CallDraw) {
         {(file || reviewId) && (
           <div className="tl-call-acts">
             {file && (
-              <a className="tl-call-file" href={file} download title="Download the transcript">
+              <a className="tl-call-file" href={file} download data-tip="Download the transcript">
                 <Icon name="download" size={11} />
                 Download transcript
               </a>

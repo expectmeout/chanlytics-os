@@ -1,7 +1,11 @@
 import "server-only";
 import {
   AppError,
+  ASK_SCOPE_KINDS,
+  isObjectRecord,
+  isOneOf,
   type AskAnswer,
+  type AskCitation,
   type AskIntent,
   type AskMessageVM,
   type AskProposal,
@@ -66,14 +70,42 @@ const MESSAGES_CAP = 60;
 type NamedFiles = ReadonlyMap<string, AttachedFile>;
 const NONE_NAMED: NamedFiles = new Map();
 
-export function toThreadVM(thread: ThreadRow): AskThreadVM {
+function toThreadVM(thread: ThreadRow): AskThreadVM {
   return {
     id: thread.id,
     title: thread.title || "Untitled",
     lastAtMs: Date.parse(thread.last_at) || 0,
-    scope: (thread.scope as AskScope | null) ?? null,
+    scope: scopeIn(thread.scope),
   };
 }
+
+/** A scope in the palette's shape, its id and label held to their lengths; null for anything else. */
+export function scopeIn(raw: unknown): AskScope | null {
+  if (!isObjectRecord(raw)) return null;
+  const { kind, id, label } = raw;
+  if (!isOneOf(ASK_SCOPE_KINDS, kind) || typeof id !== "string" || !id || typeof label !== "string") return null;
+  return { kind, id: id.slice(0, 120), label: label.slice(0, 80) };
+}
+
+/*
+ * What a turn keeps, read back. The turn wrote each part (finishTurn), and no schema says them, so each is checked for
+ * what the page reads of it and taken as it was written: a part that is not one is left out, never drawn wrong. A card
+ * or a citation of a kind since retired still is one: an old turn draws as it did.
+ */
+const isStoredAnswer = (value: unknown): value is AskAnswer =>
+  isObjectRecord(value) && value.v === 2 && isObjectRecord(value.show);
+const isStoredCitation = (value: unknown): value is AskCitation & { to?: string } =>
+  isObjectRecord(value) &&
+  typeof value.kind === "string" &&
+  typeof value.id === "string" &&
+  typeof value.label === "string";
+const isStoredNavigate = (value: unknown): value is NonNullable<AskMessageVM["navigate"]> =>
+  isObjectRecord(value) && typeof value.to === "string" && typeof value.label === "string";
+const isStoredCard = (value: unknown): value is AskProposal =>
+  isObjectRecord(value) && typeof value.id === "string" && typeof value.kind === "string";
+
+/** The cards a turn keeps, each one the turn made. */
+export const storedCards = (value: unknown): AskProposal[] => listOrEmpty(value).filter(isStoredCard);
 
 /**
  * The stored turn, back into the shape the Line draws: a turn made since the Line carries its answer ({v: 2, answer},
@@ -81,12 +113,9 @@ export function toThreadVM(thread: ThreadRow): AskThreadVM {
  */
 export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED): AskMessageVM {
   const content = recordOrEmpty(message.content);
-  const cites = Array.isArray(content.citations) ? (content.citations as AskMessageVM["citations"]) : [];
+  const cites = listOrEmpty(content.citations).filter(isStoredCitation);
   const files = fileIdsOf(content.files);
-  const answer =
-    content.v === 2 && content.answer && typeof content.answer === "object" && (content.answer as AskAnswer).v === 2
-      ? storedAnswer(content.answer as AskAnswer)
-      : null;
+  const answer = content.v === 2 && isStoredAnswer(content.answer) ? storedAnswer(content.answer) : null;
   return {
     ...(answer ? { answer } : {}),
     ...(files.length ? { files: files.map((id) => ({ id, name: named.get(id)?.name ?? null })) } : {}),
@@ -97,9 +126,8 @@ export function toMessageVM(message: MessageRow, named: NamedFiles = NONE_NAMED)
     atMs: Date.parse(message.created_at) || 0,
     citations: cites.map((x) => ({ ...x, to: x.to || citationRoute(x) })),
     followups: listOrEmpty(content.followups).filter((f): f is string => typeof f === "string"),
-    navigate:
-      content.navigate && typeof content.navigate === "object" ? (content.navigate as AskMessageVM["navigate"]) : null,
-    proposals: Array.isArray(content.proposals) ? (content.proposals as AskMessageVM["proposals"]) : [],
+    navigate: isStoredNavigate(content.navigate) ? content.navigate : null,
+    proposals: storedCards(content.proposals),
     language: content.language === "es" || content.language === "en" ? content.language : "other",
     ungrounded: content.ungrounded === true,
     tools: listOrEmpty(content.tools).filter((t): t is string => typeof t === "string"),
@@ -313,7 +341,7 @@ export async function setProposalOutcome(
   if (error) throw new DbFailure(error);
   if (!m) throw new AppError("not_found", "That turn is not yours or is already gone.", 404);
   const content = recordOrEmpty(m.content);
-  const proposals = Array.isArray(content.proposals) ? (content.proposals as AskProposal[]) : [];
+  const proposals = storedCards(content.proposals);
   const card = proposals.find((p) => p.id === proposalId);
   if (!card) throw new AppError("not_found", "No such card on that turn.", 404);
   const current = card.outcome;

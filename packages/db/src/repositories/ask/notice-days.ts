@@ -3,7 +3,7 @@
  * bell. Read and written by the sweep with the service role.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DAY_MS, DbFailure, type TenantId } from "@chanlytics/contracts";
+import { DAY_MS, DbFailure, type MembershipRole, type TenantId } from "@chanlytics/contracts";
 import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
@@ -11,7 +11,7 @@ type Db = SupabaseClient<Database>;
 /** The businesses the morning looks at, each with its clock and the last day it was looked at. Paused ones are not. */
 export async function listBusinessesForMorning(
   db: Db,
-): Promise<Array<{ id: string; timezone: string; lastDay: string | null }>> {
+): Promise<Array<{ id: TenantId; timezone: string; lastDay: string | null }>> {
   const { data, error } = await db.from("tenants").select("id, timezone, status").eq("status", "active").limit(5000);
   if (error) throw new DbFailure(error, "tenants");
   const rows = data ?? [];
@@ -32,7 +32,10 @@ export async function listBusinessesForMorning(
 }
 
 /** Who may act on what Ask noticed, first among them: the owners, then the partners. */
-export async function listOwnerSeats(db: Db, tenantId: TenantId): Promise<Array<{ user_id: string; role: string }>> {
+export async function listOwnerSeats(
+  db: Db,
+  tenantId: TenantId,
+): Promise<Array<{ user_id: string; role: MembershipRole }>> {
   const { data, error } = await db
     .from("memberships")
     .select("user_id, role")

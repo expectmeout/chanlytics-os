@@ -65,9 +65,9 @@ async function checkerCapOf(
 }
 
 /** The members whose picked address still waits for its check, in one fixed order. */
-export function checkable(members: LeadMemberRow[]): LeadMemberRow[] {
+export function checkable(members: LeadMemberRow[]): Array<LeadMemberRow & { email: string }> {
   return members
-    .filter((m) => m.email !== null && m.email_state === "checking")
+    .filter((m): m is LeadMemberRow & { email: string } => m.email !== null && m.email_state === "checking")
     .sort((a, b) => (a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0));
 }
 
@@ -111,7 +111,7 @@ export async function check(
   const term = again ? `again:${again.nonce}:${batch}` : `batch:${batch}`;
   const id = await runIdFor(round.id, "check", term);
   const token = await leadPorts.webhookToken(id);
-  const emails = [...new Set(slice.map((m) => m.email as string))];
+  const emails = [...new Set(slice.map((m) => m.email))];
   const capUsd = await checkerCapOf(leadPorts, round, id, emails.length);
   const rows = await leadPorts.db.runsEnsure([
     {

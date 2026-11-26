@@ -1,6 +1,6 @@
 import type { NotificationsDto, ServerNotificationKind } from "./notifications/feed-input";
 import { MIN_MS } from "../shared/time";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, recordOrEmpty } from "../shared/unknown";
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
 export const PUSH_PLATFORMS = ["ios", "android"] as const;
@@ -23,13 +23,14 @@ const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 
 /** What PUT /api/v1/me/devices accepts, or why not, in one sentence. */
 export function parseDevice(body: unknown): { ok: true; device: PushDevice } | { ok: false; reason: string } {
-  const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const record = recordOrEmpty(body);
   const token = typeof record.token === "string" ? record.token.trim() : "";
   if (!token) return { ok: false, reason: "A phone needs its notification address." };
-  if (token.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
+  if (token.length > TOKEN_MAX) return { ok: false, reason: "That notification address is too long." };
   const platform = isOneOf(PUSH_PLATFORMS, record.platform) ? record.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
-  if (!EXPO_PUSH_TOKEN.test(token)) return { ok: false, reason: "That is not a push token the service hands out." };
+  if (!EXPO_PUSH_TOKEN.test(token))
+    return { ok: false, reason: "That isn't a notification address a phone hands out." };
   const version =
     typeof record.app_version === "string" && record.app_version.trim()
       ? record.app_version.trim().slice(0, VERSION_MAX)
@@ -37,8 +38,7 @@ export function parseDevice(body: unknown): { ok: true; device: PushDevice } | {
   // The Live Activity's push-to-start token (00191), when the phone has one: iOS 17.2 and later, never Android.
   const activity =
     typeof record.activity_token === "string" && record.activity_token.trim() ? record.activity_token.trim() : null;
-  if (activity && activity.length > TOKEN_MAX)
-    return { ok: false, reason: "That activity token is longer than any we know." };
+  if (activity && activity.length > TOKEN_MAX) return { ok: false, reason: "That Live Activity address is too long." };
   return { ok: true, device: { token, platform, app_version: version, activity_token: activity } };
 }
 
@@ -121,7 +121,7 @@ export interface MemberAlertsDto {
 
 /** What `PUT /api/v1/me/alerts` accepts, or why not, in one sentence: `{ push_off: [kind, …] }`. */
 export function parseMemberAlerts(body: unknown): { ok: true; pushOff: PushKind[] } | { ok: false; reason: string } {
-  const b = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const b = recordOrEmpty(body);
   if (!Array.isArray(b.push_off)) return { ok: false, reason: "Send the kinds your phone is not told, as push_off." };
   const unknown = b.push_off.filter((k) => typeof k !== "string" || !isPushKind(k));
   if (unknown.length) return { ok: false, reason: "That is not something a phone is told." };

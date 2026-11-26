@@ -7,7 +7,7 @@
  *   previewSaidOf      what the business said is not right, each a line
  */
 import { MIN_MS, SECOND_MS } from "../shared/time";
-import { entryOf } from "../shared/unknown";
+import { entryOf, valueAt } from "../shared/unknown";
 
 /** How far back Today names a lead who tried their preview: a hot lead goes cold in days, not weeks. */
 export const PREVIEW_TRIED_DAYS = 3;
@@ -71,7 +71,7 @@ export function previewSaidOf(notRight: unknown): string[] {
   return notRight
     .filter(
       (n: unknown): n is { fact: string; said?: unknown } =>
-        !!n && typeof n === "object" && typeof (n as { fact?: unknown }).fact === "string",
+        !!n && typeof n === "object" && typeof valueAt(n, "fact") === "string",
     )
     .slice(-3)
     .map((n) => {

@@ -84,7 +84,7 @@ function Signature({ signed, onSigned }: { signed: string; onSigned: (() => void
     <span className="ny-signed" data-testid="ny-signed">
       <span className="ny-signed-words">{signed}</span>
       {onSigned ? (
-        <Button variant="quiet" size="text" onClick={onSigned} title={W.changeSignatureTip}>
+        <Button variant="quiet" size="text" onClick={onSigned} data-tip={W.changeSignatureTip}>
           {W.changeSignature}
         </Button>
       ) : null}

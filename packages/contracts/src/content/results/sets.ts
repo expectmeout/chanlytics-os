@@ -42,12 +42,15 @@ export type ObserveStep = (typeof OBSERVE_STEPS)[number];
 export const TOUCH_KINDS = ["reply", "comment", "dm", "story_reply", "mention", "coded_message"] as const;
 export type TouchKind = (typeof TOUCH_KINDS)[number];
 
-/** What a touch is of, read through one shape: a post, an ad, a link, a form. Only `post` and `link` are kept in touches. */
+/**
+ * What a touch is of, read through one shape: a post, an ad, a link, a form. Kept in touches: a post, a link, and an ad
+ * (a comment Meta says was left on it, 00719); a message from an ad lives in ad_entries, a form's entry in form_entries.
+ */
 export const TOUCH_SUBJECTS = ["post", "ad", "link", "form"] as const;
 export type TouchSubjectType = (typeof TOUCH_SUBJECTS)[number];
 
-/** What a touches row may be of: the rest live in their own homes (an ad's entry, a form's entry). */
-export const TOUCH_KEPT_SUBJECTS = ["post", "link"] as const;
+/** What a touches row may be of (touches.subject_type): the rest live in their own homes (an ad's entry, a form's entry). */
+export const TOUCH_KEPT_SUBJECTS = ["post", "link", "ad"] as const;
 
 /** What a booking is put down to (PRD 9.3): from this, it helped, or nothing defensible. */
 export type CreditClass = "direct" | "assisted" | "none";

@@ -1,3 +1,4 @@
+import { valueAt } from "../../shared/unknown";
 /**
  * Reach out's words that more than one layer says: where a lead was found, the tag a campaign's email carries, and the
  * unsubscribe page. The foot every campaign email carries is campaigns/templates/email-foot.ts, one builder for every kind. Pure.
@@ -40,7 +41,7 @@ export function isCampaignEmail(request: unknown): boolean {
   if (typeof v === "string" && v.trim() !== "") return true;
   return (
     Array.isArray(r?.tags) &&
-    r.tags.some((t) => !!t && typeof t === "object" && (t as { name?: unknown }).name === CAMPAIGN_EMAIL_TAG)
+    r.tags.some((t) => !!t && typeof t === "object" && valueAt(t, "name") === CAMPAIGN_EMAIL_TAG)
   );
 }
 

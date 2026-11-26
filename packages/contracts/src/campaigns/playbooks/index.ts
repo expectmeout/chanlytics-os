@@ -174,7 +174,6 @@ export {
   triggerWords,
   vetoRunNotice,
   VISIT_TRIGGERS,
-  visitDayWord,
   visitFactsFor,
   visitMomentDay,
   visitOnDay,

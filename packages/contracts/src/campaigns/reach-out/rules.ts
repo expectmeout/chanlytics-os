@@ -31,7 +31,7 @@ import { leadCalledByOf } from "../../leads/search/called-by";
 import type { LeadPreviewSlot } from "../../previews/standing";
 import { REACH_OUT_SLOT_FALLBACKS, REACH_OUT_SLOT_SET } from "./words/slots";
 import { linkCount } from "./words/limits";
-import { isOneOf } from "../../shared/unknown";
+import { isOneOf, valueAt } from "../../shared/unknown";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -139,7 +139,7 @@ export const REACH_OUT_CHECKS_AHEAD_PER_DAY = 300;
  * it without that job, and the job leaves one alone.
  */
 export function isReachOutRun(audience: unknown): boolean {
-  return !!audience && typeof audience === "object" && (audience as { kind?: unknown }).kind === "reach_out";
+  return !!audience && typeof audience === "object" && valueAt(audience, "kind") === "reach_out";
 }
 
 /**
@@ -158,7 +158,7 @@ export function chainOfMoment<C extends { root_id: string; steps: ReadonlyArray<
 /** The reach-out a run is of, by its root step's id, or null for any other run (the one reading of the audience's root). */
 export function reachOutRootOf(audience: unknown): string | null {
   if (!isReachOutRun(audience)) return null;
-  const root = (audience as { root_id?: unknown }).root_id;
+  const root = valueAt(audience, "root_id");
   return typeof root === "string" && root ? root : null;
 }
 

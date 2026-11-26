@@ -44,7 +44,7 @@ test("a device is a token and a platform; the version is kept short; anything el
   for (const bad of ["t", "tok-u1-a", "ExponentPushToken[]", "ExponentPushToken[a b]", "apns:abc"]) {
     assert.equal(
       parseDevice({ token: bad, platform: "ios" }).reason,
-      "That is not a push token the service hands out.",
+      "That isn't a notification address a phone hands out.",
     );
   }
   assert.equal(parseDevice(null).ok, false);

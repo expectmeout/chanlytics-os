@@ -5,7 +5,7 @@
  * This module is the shape and its parser alone: the phone app's entry (phone-app.ts) reads it, and nothing it imports
  * pulls Today's builders into the app's own compile.
  */
-import { isCount } from "../shared/unknown";
+import { isCount, recordOrEmpty, valueAt } from "../shared/unknown";
 
 export interface TodayWidgetSnapshot {
   /** The standing's headline: what Today says first. */
@@ -26,7 +26,7 @@ const TEXT_MAX = 80;
 /** The snapshot as the shell may trust it after the bridge: the shapes, the sizes, nothing else. */
 export function parseTodayWidgetSnapshot(raw: unknown): TodayWidgetSnapshot | null {
   if (!raw || typeof raw !== "object") return null;
-  const items = raw as Record<string, unknown>;
+  const items = recordOrEmpty(raw);
   const text = (x: unknown) => (typeof x === "string" ? x.trim().slice(0, TEXT_MAX) : null);
   const headline = text(items.headline);
   const at = typeof items.at === "string" && !Number.isNaN(Date.parse(items.at)) ? items.at : null;
@@ -35,16 +35,16 @@ export function parseTodayWidgetSnapshot(raw: unknown): TodayWidgetSnapshot | nu
   const figures: TodayWidgetSnapshot["figures"] = [];
   for (const f of items.figures.slice(0, FIGURES_MAX)) {
     if (!f || typeof f !== "object") return null;
-    const label = text((f as { label?: unknown }).label);
-    const value = (f as { value?: unknown }).value;
+    const label = text(valueAt(f, "label"));
+    const value = valueAt(f, "value");
     if (label === null || typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
     figures.push({ label, value: Math.floor(value) });
   }
   let first: TodayWidgetSnapshot["first"] = null;
   if (items.first !== null && items.first !== undefined) {
     if (typeof items.first !== "object") return null;
-    const whoText = text((items.first as { who?: unknown }).who);
-    const reason = text((items.first as { reason?: unknown }).reason);
+    const whoText = text(valueAt(items.first, "who"));
+    const reason = text(valueAt(items.first, "reason"));
     if (whoText === null || reason === null) return null;
     first = { who: whoText, reason };
   }

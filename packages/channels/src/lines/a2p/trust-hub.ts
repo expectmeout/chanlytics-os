@@ -4,7 +4,7 @@
  * submissions that bind them. The brand and the campaign filed from them are brand-campaign.ts; the policies, the
  * hosts and the request's shape are wire.ts.
  */
-import { businessTypeOf, companyTypeOf, industryOf } from "@chanlytics/contracts";
+import { businessTypeOf, companyTypeOf, industryOf, recordOrEmpty } from "@chanlytics/contracts";
 import { brandNameOf, type BusinessRecord } from "./business-record";
 import { A2P_POLICIES, TRUSTHUB, type A2PRequest } from "./wire";
 
@@ -207,7 +207,7 @@ export function updateEndUserRequest(sid: string, attributes: Record<string, unk
 
 /** The attributes each end user carries, so the create and the update cannot drift. */
 const parsed = (req: A2PRequest): Record<string, unknown> =>
-  JSON.parse(String(req.form?.Attributes ?? "{}")) as Record<string, unknown>;
+  recordOrEmpty(JSON.parse(String(req.form?.Attributes ?? "{}")));
 export function businessAttributes(business: BusinessRecord): Record<string, unknown> {
   return parsed(businessEndUserRequest(business));
 }

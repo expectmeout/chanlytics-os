@@ -52,7 +52,7 @@ export const SheetWho = (p: {
         <LinkButton
           size="inherit"
           className="lw-name lw-name-go"
-          title={LEAD_WORDS.openPerson}
+          data-tip={LEAD_WORDS.openPerson}
           onClick={() => p.vm.contactId && p.onOpenPerson(p.vm.contactId)}
           data-testid="peek-name-person"
         >
