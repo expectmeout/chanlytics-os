@@ -4554,3 +4554,45 @@ begin
   end if;
   return jsonb_build_object('ok', true, 'made', v_made, 'held', v_held, 'left_out', v_left);
 end $_$;
+/* -- what Stop everything holds: kept with its event -- */
+
+-- What a stop paused, kept to start again (Ask's own section of the settings), and its clearing when everything starts
+-- again, write ask.stop_kept in the write's own transaction, beside the stop's own workspace.sending_stopped and
+-- .sending_resumed. It is kept from Activity's rows: Today's strip says the stop as it stands.
+
+-- ask_stopped_keep
+CREATE OR REPLACE FUNCTION public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_stopped is not null and jsonb_typeof(p_stopped) <> 'object' then
+    raise exception 'ask_stopped_keep: what the stop holds is an object' using errcode = '22023';
+  end if;
+  -- Ask's own section of the settings, its one key, written under the row's lock and its version moved, as a save is.
+  update public.tenant_config c
+     set config = case when p_stopped is null
+                       then jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) - 'stopped')
+                       else jsonb_set(c.config, '{ask}',
+                                      coalesce(c.config -> 'ask', '{}'::jsonb) || jsonb_build_object('stopped', p_stopped))
+                  end,
+         version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
+   where c.tenant_id = p_tenant_id;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ask.stop_kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('held', p_stopped is not null,
+                                               'paused', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(coalesce(p_stopped, '{}'::jsonb)) k),
+                                               'by', v_by)));
+  return true;
+end $$;

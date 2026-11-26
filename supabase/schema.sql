@@ -4461,7 +4461,15 @@ begin
                   end,
          version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
    where c.tenant_id = p_tenant_id;
-  return found;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ask.stop_kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('held', p_stopped is not null,
+                                               'paused', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(coalesce(p_stopped, '{}'::jsonb)) k),
+                                               'by', v_by)));
+  return true;
 end $$;
 
 
