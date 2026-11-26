@@ -22,8 +22,8 @@ const { LIVE, SHEET } = await import(at("apps/dashboard/src/surfaces/campaigns/a
 const { adLeftOn, adResumeRule, adStateOfRow } = await import(at("packages/contracts/src/ads/live.ts"));
 const { AD_WAY_IN_SAID, adWayInRowOf } = await import(at("packages/contracts/src/ads/way-in.ts"));
 
-const SAID = { timezone: "America/New_York" };
 const NOW = Date.parse("2026-11-21T15:00:00Z");
+const SAID = { timezone: "America/New_York", nowMs: NOW };
 
 /** An ad made here, as the page's read answers it. */
 const ad = (over = {}) => ({
@@ -77,8 +77,9 @@ const drawerOf = (one, over) => sheetModel(page([one], over), one.id, SAID);
 
 test("an ad made here reads as made here: where it shows, this app's own press, never Made in Meta Ads Manager", () => {
   const drawer = drawerOf(ad());
-  assert.deepEqual([drawer.over, drawer.name, drawer.made], ["Facebook · WhatsApp", "First visit", null]);
-  assert.equal(drawer.line, "On · ends Thu 3 Dec · $62 left");
+  assert.deepEqual([drawer.where, drawer.name], ["Shows on Facebook · Opens WhatsApp", "First visit"]);
+  // What is left of its total is the drawer's bar (its spent of the whole), so its first line stops at the end.
+  assert.equal(drawer.line, "On · ends Thu 3 Dec");
   assert.deepEqual(drawer.foot, { kind: "pause", body: "It stops showing. Meta still bills what it already showed." });
   const row = rowOf(ad());
   assert.equal(row.line, "On · ends Thu 3 Dec · $62 left");
@@ -248,7 +249,7 @@ test("Couldn't confirm it's on: said in amber, with Check for the owner, and lef
     line: "Meta didn't answer when Chanlytics turned it on, so it may be on or still paused. Check asks Meta now.",
   });
   assert.deepEqual(drawerOf(unsure, { can_press: false }).foot, {
-    kind: "none",
+    kind: "meta",
     line: "Only the owner can pause an ad or turn one back on.",
   });
   assert.equal(adLeftOn("unconfirmed"), true, "it may be running: a disconnect pauses it first");

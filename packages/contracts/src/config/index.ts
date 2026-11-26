@@ -170,9 +170,6 @@ export {
   BusinessProfileSchema,
   ClosureSchema,
   GuardrailsSchema,
-  HoursSchema,
-  IntervalSchema,
-  NoteSchema,
   ServiceSchema,
   WALK_INS,
 } from "./workspace-config/business-profile";
@@ -220,7 +217,6 @@ export type {
   ReplyOffer,
 } from "./workspace-config/config-rules";
 export {
-  CalendarConfigSchema,
   configReceptionistOf,
   FeaturesConfigSchema,
   NotificationsConfigSchema,
@@ -245,7 +241,6 @@ export type {
 export {
   EARLIER_FALLBACK_DEFAULTS,
   FALLBACK_DEFAULTS,
-  FALLBACK_DETAILS,
   FALLBACK_ROWS,
   fallbackMessages,
   isProductFallback,

@@ -16,6 +16,7 @@ import {
   contentRouteOf,
   type ContentPageDto,
   type ContentPlace,
+  type ContentView,
   type FilesPageDto,
 } from "@chanlytics/contracts";
 import { aheadWhenIdle } from "@/bridge/workspace";
@@ -26,7 +27,7 @@ import { UnderRow } from "../../kit/head/under-row";
 import { FindWords } from "../../files/library-views";
 import { showFiles, type FilesView } from "../../files/surface";
 import { useSurface } from "../../use-surface";
-import { useAdsNeeding } from "../ads/needs-you";
+import { useAdsListed, useAdsNeeding } from "../ads/needs-you";
 import { useAdsShown } from "../ads/shown";
 import { askContentFind } from "./surface";
 import {
@@ -36,9 +37,8 @@ import {
   ContentViews,
   LibraryKinds,
   weekCountOf,
-  type AdsChoice,
+  type AdsTab,
   type ContentLayout,
-  type MadeView,
 } from "./views";
 import { warmLibrary } from "./warm";
 
@@ -151,11 +151,15 @@ interface BarGlyph {
 const madeHoldsNothing = (tally: ContentPageDto["tally"] | null): boolean =>
   !!tally && tally.made + tally.making + tally.needs + tally.aside === 0;
 
-/** Ads among Made's views where Ads is on: amber where something in it needed the owner as the Ads page last read it. */
-function useAdsChoice(): AdsChoice | null {
+/**
+ * Ads beside Made and the Library where the workspace runs ads (Ruben, 25 Nov 2026), lit where `on`: how many ads its list
+ * holds and amber where one needed the owner, as the Ads page last read them; its press opens Ads' own address.
+ */
+export function useAdsTab(on: boolean): AdsTab | null {
   const shown = useAdsShown();
   const needing = useAdsNeeding();
-  return shown ? { owed: needing > 0 } : null;
+  const count = useAdsListed();
+  return shown ? { on, count, owed: needing > 0, onPress: () => navigate(ADS_ROUTE) } : null;
 }
 
 /**
@@ -187,10 +191,8 @@ function ContentBar(props: {
   const library = place.list === "library";
   // The Week is a list of its own: no find, no views, no Squares or List (the boards' Week 1-12).
   const week = place.list === "week";
-  // Ads, the last of Made's views where it is on, is its own page at its own address (campaigns/ads), drawn in Made's place.
-  const onView = (v: MadeView) =>
-    navigate(v === "ads" ? ADS_ROUTE : contentRouteOf({ list: "made", view: v, open: null }));
-  const ads = useAdsChoice();
+  const onView = (v: ContentView) => navigate(contentRouteOf({ list: "made", view: v, open: null }));
+  const ads = useAdsTab(false);
   const libraryHolds = useLibraryHolds();
   // A list that holds nothing has nothing to look through: no Squares or List, no views (its first day says what to do). The
   // Library's Squares or List waits for its first file, as its coral Add does (heads.tsx WhileLibraryHolds).
@@ -206,6 +208,7 @@ function ContentBar(props: {
           onList={(l) => navigate(contentRouteOf({ list: l, view: "all", open: null }))}
           // How many the Week holds, as it was last read: the tab reads no week of its own on Made or the Library.
           week={props.planned ? { count: weekCountOf() } : null}
+          ads={ads}
         />
         <div className="cnv-bar-end">
           {glyph ? <ListFind label={glyph.label} onFind={glyph.onFind} testid="cnv-find-open" /> : null}
@@ -220,7 +223,6 @@ function ContentBar(props: {
                 onView={onView}
                 layout={layoutHeld}
                 planned={props.planned}
-                ads={ads}
               />
             )
           ) : null}
@@ -230,7 +232,7 @@ function ContentBar(props: {
       {phone || bare ? null : library ? (
         <LibraryKinds phone={false} />
       ) : place.view === "aside" ? null : (
-        <ContentViewRow view={place.view} tally={tally} onView={onView} planned={props.planned} ads={ads} />
+        <ContentViewRow view={place.view} tally={tally} onView={onView} planned={props.planned} />
       )}
       {/* Made's Set aside stands apart from its views, as the Library's does: the way back to All, and how many. */}
       {!library && place.view === "aside" ? (

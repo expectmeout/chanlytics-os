@@ -137,7 +137,7 @@ export interface PartnerWorkspaceMoneyDto {
 }
 
 /** What the partner reads about a workspace's standing: nothing while it qualifies, since that is the rule. */
-export const PARTNER_STANDING_WORDS: Record<string, string | null> = {
+const PARTNER_STANDING_WORDS: Record<string, string | null> = {
   pending: "Its share is judged once it has paid.",
   qualified: null,
   review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
@@ -323,7 +323,7 @@ export interface PlatformPartnerRowVM {
 }
 
 /** A platform admin's three decisions about a partner, as the back office's buttons say them. */
-export const PARTNER_STATUS_VERBS: Record<(typeof PARTNER_STATUSES)[number], string> = {
+const PARTNER_STATUS_VERBS: Record<(typeof PARTNER_STATUSES)[number], string> = {
   active: "Restore",
   paused: "Pause",
   closed: "Close",
