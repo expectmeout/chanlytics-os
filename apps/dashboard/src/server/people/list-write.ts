@@ -50,8 +50,8 @@ export async function createSavedList(ctx: RouteContext, req: Request, member: M
   return created;
 }
 
-export async function changeSavedList(ctx: RouteContext, req: Request, list: SavedListRow) {
-  const id = list.id;
+/** A list's change as the body asks it, refused where the list's kind does not allow it. */
+async function readListChange(ctx: RouteContext, req: Request, list: SavedListRow) {
   const body = recordOrNull(await readJsonBody(req));
   const add = cleanIdList(body?.add, "add");
   const remove = cleanIdList(body?.remove, "remove");
@@ -69,72 +69,101 @@ export async function changeSavedList(ctx: RouteContext, req: Request, list: Sav
   if (smart && (add.length || remove.length))
     throw new AppError("validation", "Nobody is put on a smart list by hand: its rule says who is on it.");
   if (!smart && rule) throw new AppError("validation", "A list kept by hand has no rule. Make a smart list instead.");
+  return { add, remove, rename, restore, rule, smart };
+}
 
+/** Restored first, with its new name in the same write: a restore refused leaves nothing half done. */
+async function restoreSavedList(ctx: RouteContext, list: SavedListRow, rename: string | null): Promise<void> {
+  const renamed = rename && rename !== list.name ? rename : undefined;
+  const { error, count } = await archiveList(ctx.supabase, list.id, null, renamed);
+  if (error) {
+    if (error.code === "23505")
+      throw new AppError("conflict", "A list with that name is on People now. Rename this one to bring it back.", 409);
+    throw new DbFailure(error);
+  }
+  if (!count) throw new AppError("not_found", "List not found.", 404);
+  if (renamed)
+    await recordDecision(ctx, list.tenant_id, "list", list.id, "rename_list", { from: list.name, to: renamed });
+  await recordDecision(ctx, list.tenant_id, "list", list.id, "restore_list", { name: rename ?? list.name });
+}
+
+async function renameSavedList(ctx: RouteContext, list: SavedListRow, rename: string): Promise<void> {
+  const { error } = await renameList(ctx.supabase, list.id, rename);
+  if (error) {
+    if (error.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);
+    throw new DbFailure(error);
+  }
+  await recordDecision(ctx, list.tenant_id, "list", list.id, "rename_list", { from: list.name, to: rename });
+}
+
+/** A smart list's new rule. A playbook runs on it with no one looking: a rule about "me" would stop it every day. */
+async function setSavedListRule(
+  ctx: RouteContext,
+  list: SavedListRow,
+  change: { rule: NonNullable<ListChange["rule"]>; rename: string | null },
+): Promise<void> {
+  const { rule, rename } = change;
+  if (ruleNeedsViewer(rule)) {
+    const on = await listPlaybooksOnList(ctx.supabase, list.tenant_id, list.id);
+    if (on.length)
+      throw new AppError(
+        "conflict",
+        `${on.map((p) => p.name).join(", ")} runs on ${list.name}, and a campaign's run has no one looking: a rule about "me" would stop it. Move the campaign first.`,
+        409,
+      );
+  }
+  const { error } = await setListRule(ctx.supabase, list.id, rule);
+  if (error) throw new DbFailure(error);
+  await recordDecision(ctx, list.tenant_id, "list", list.id, "change_list_rule", {
+    name: rename ?? list.name,
+    rule: asJson(rule),
+  });
+}
+
+async function dropFromSavedList(
+  ctx: RouteContext,
+  list: SavedListRow,
+  change: { remove: string[]; rename: string | null },
+): Promise<void> {
+  const { error } = await dropFromList(ctx.supabase, list.id, change.remove.map(heldContactId));
+  if (error) throw new DbFailure(error);
+  await recordDecision(ctx, list.tenant_id, "list", list.id, "drop_from_list", {
+    name: change.rename ?? list.name,
+    count: change.remove.length,
+  });
+}
+
+async function addToSavedList(
+  ctx: RouteContext,
+  list: SavedListRow,
+  change: { add: string[]; rename: string | null },
+): Promise<void> {
+  const { error } = await addToList(ctx.supabase, list, change.add.map(heldContactId), ctx.userId);
+  if (error) {
+    // RLS's with-check is the refusal for a person of another workspace or
+    // one who was erased; PostgREST reports it as a policy violation.
+    if (error.code === "42501")
+      throw new AppError("validation", "One of those people is not in this workspace any more.");
+    throw new DbFailure(error);
+  }
+  await recordDecision(ctx, list.tenant_id, "list", list.id, "add_to_list", {
+    name: change.rename ?? list.name,
+    count: change.add.length,
+  });
+}
+
+type ListChange = Awaited<ReturnType<typeof readListChange>>;
+
+export async function changeSavedList(ctx: RouteContext, req: Request, list: SavedListRow) {
+  const id = list.id;
+  const { add, remove, rename, restore, rule, smart } = await readListChange(ctx, req, list);
   // Each change is the ledger's too (00169): Activity says who renamed which list, changed who is on it, or put
   // people on it and took them off.
-  const tenantId = list.tenant_id;
-  // Restored first, with its new name in the same write: a restore refused leaves nothing half done.
-  if (restore) {
-    const renamed = rename && rename !== list.name ? rename : undefined;
-    const { error, count } = await archiveList(ctx.supabase, id, null, renamed);
-    if (error) {
-      if (error.code === "23505")
-        throw new AppError(
-          "conflict",
-          "A list with that name is on People now. Rename this one to bring it back.",
-          409,
-        );
-      throw new DbFailure(error);
-    }
-    if (!count) throw new AppError("not_found", "List not found.", 404);
-    if (renamed) await recordDecision(ctx, tenantId, "list", id, "rename_list", { from: list.name, to: renamed });
-    await recordDecision(ctx, tenantId, "list", id, "restore_list", { name: rename ?? list.name });
-  }
-  if (rename && rename !== list.name && !restore) {
-    const { error } = await renameList(ctx.supabase, id, rename);
-    if (error) {
-      if (error.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);
-      throw new DbFailure(error);
-    }
-    await recordDecision(ctx, tenantId, "list", id, "rename_list", { from: list.name, to: rename });
-  }
-  if (rule) {
-    // A playbook runs on it with no one looking: a rule about "me" would stop it every day, so it is refused here.
-    if (ruleNeedsViewer(rule)) {
-      const on = await listPlaybooksOnList(ctx.supabase, tenantId, id);
-      if (on.length)
-        throw new AppError(
-          "conflict",
-          `${on.map((p) => p.name).join(", ")} runs on ${list.name}, and a campaign's run has no one looking: a rule about "me" would stop it. Move the campaign first.`,
-          409,
-        );
-    }
-    const { error } = await setListRule(ctx.supabase, id, rule);
-    if (error) throw new DbFailure(error);
-    await recordDecision(ctx, tenantId, "list", id, "change_list_rule", {
-      name: rename ?? list.name,
-      rule: asJson(rule),
-    });
-  }
-  if (remove.length) {
-    const { error } = await dropFromList(ctx.supabase, id, remove.map(heldContactId));
-    if (error) throw new DbFailure(error);
-    await recordDecision(ctx, tenantId, "list", id, "drop_from_list", {
-      name: rename ?? list.name,
-      count: remove.length,
-    });
-  }
-  if (add.length) {
-    const { error } = await addToList(ctx.supabase, list, add.map(heldContactId), ctx.userId);
-    if (error) {
-      // RLS's with-check is the refusal for a person of another workspace or
-      // one who was erased; PostgREST reports it as a policy violation.
-      if (error.code === "42501")
-        throw new AppError("validation", "One of those people is not in this workspace any more.");
-      throw new DbFailure(error);
-    }
-    await recordDecision(ctx, tenantId, "list", id, "add_to_list", { name: rename ?? list.name, count: add.length });
-  }
+  if (restore) await restoreSavedList(ctx, list, rename);
+  if (rename && rename !== list.name && !restore) await renameSavedList(ctx, list, rename);
+  if (rule) await setSavedListRule(ctx, list, { rule, rename });
+  if (remove.length) await dropFromSavedList(ctx, list, { remove, rename });
+  if (add.length) await addToSavedList(ctx, list, { add, rename });
 
   // Every id, not the first thousand: an Undo tells who an add really added from this answer.
   const archivedAt = restore ? null : list.archived_at;

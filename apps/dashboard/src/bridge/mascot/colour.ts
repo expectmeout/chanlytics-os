@@ -178,7 +178,7 @@ const SHADOW: Record<ThemeName | "accent", { colour: string; alpha: number }> = 
 };
 
 /** A colour of the house's own (a theme's token, a shadow): each parses, and black stands in for one that could not. */
-const ownLab = (colour: string): Lab => parseColor(colour) ?? [0, 0, 0];
+const ownLab = (colour: string | null): Lab => parseColor(colour) ?? [0, 0, 0];
 
 /** Three colours at rest (the ink) and three at work (the accent), back tile to top, with the strongest and the shadow. */
 export function palette(theme: ThemeName, tokens: ThemeTokens = {}, tone: Tone = "page"): Palette {

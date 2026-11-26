@@ -449,6 +449,19 @@ const claimSendsOrUnread = (
 const coldStartMode = (policies: readonly { class: string; mode: string }[]): "veto" | "ask" =>
   newSequenceMode(policies.find((p) => p.class === "outreach")?.mode, "leads", null) === "veto" ? "veto" : "ask";
 
+/** Who the owner says their cold emails are for, as they wrote it; none where they said nothing. */
+const whoForOf = (parsed: ReturnType<typeof parseTenantConfig>): string | null =>
+  parsed?.reach_out?.who_for?.trim() || null;
+
+/** The foot every cold email carries: the business by its name, and its address where the profile says one. */
+const coldEmailFootOf = (
+  name: string,
+  parsed: ReturnType<typeof parseTenantConfig>,
+): NonNullable<ReachOutSettingsDto["foot"]> => ({
+  business: name.trim() || null,
+  address: parsed?.brain?.profile?.address?.trim() || null,
+});
+
 /**
  * GET settings/reach-out: what Cold email shows beyond the config. The mailbox as Connections says it, the month's
  * first emails against their share, the claims' counts, the lines Ask learned from how the owner writes, the newest
@@ -506,7 +519,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
                 month,
                 hasSearch: newestSearch !== null,
                 hasPitch: reachOutPitchSaid(parsed, ownWords),
-                whoFor: parsed?.reach_out?.who_for?.trim() || null,
+                whoFor: whoForOf(parsed),
                 nowMs: rc.now.getTime(),
                 tz,
               }),
@@ -515,10 +528,7 @@ export const reachOutSettings: Reader<undefined, ReachOutSettingsDto> = {
         sending: mailboxes ? coldEmailSendingOf(mailboxes, month, rc.now.getTime()) : null,
         batch_mode: coldStartMode(policies),
         never,
-        foot:
-          row && facts
-            ? { business: facts.data.name.trim() || null, address: parsed?.brain?.profile?.address?.trim() || null }
-            : null,
+        foot: row && facts ? coldEmailFootOf(facts.data.name, parsed) : null,
         mailbox: mailboxShown(mailboxes ?? [], rc.now.getTime(), tz),
         month,
         claims: claimCounts(claims, chainList, counted),

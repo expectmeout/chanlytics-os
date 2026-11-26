@@ -264,6 +264,32 @@ async function recipientsOf(ctx: RouteContext, tenantId: TenantId, id: string): 
   ) as Promise<RecipientRow[]>;
 }
 
+/** What a run's threads say of its people: who replied, when and in what words, who answered, who waits on you. */
+interface RunThreads {
+  replied: Map<string, string>;
+  words: Map<string, string | null>;
+  answers: Awaited<ReturnType<typeof answeredAfter>>;
+  waiting: Set<string>;
+}
+
+/** One person's part of a run's threads: their reply, its words, who answered it, and whether it waits on you. */
+function threadOfRecipient(
+  row: Awaited<ReturnType<typeof recipientsOf>>[number],
+  { replied, words, answers, waiting }: RunThreads,
+): Pick<
+  BroadcastRecipientDto,
+  "replied" | "replied_at" | "reply_words" | "answered_by" | "answered_at" | "waiting_on_you"
+> {
+  return {
+    replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),
+    replied_at: row.messages?.conversation_id ? (replied.get(row.messages.conversation_id) ?? null) : null,
+    reply_words: row.messages?.conversation_id ? (words.get(row.messages.conversation_id) ?? null) : null,
+    answered_by: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.by ?? null) : null,
+    answered_at: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.at ?? null) : null,
+    waiting_on_you: !!(row.messages?.conversation_id && waiting.has(row.messages.conversation_id)),
+  };
+}
+
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
 export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: string): Promise<BroadcastDetailDto> {
   const { data: row, error } = await findRunRow(ctx.supabase, tenantId, id);
@@ -288,6 +314,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
   const answers = await answeredAfter(ctx, tenantId, replied);
   const waiting = replied.size > 0 ? await waitingThreads(ctx, tenantId, [...replied.keys()]) : new Set<string>();
 
+  const seen: RunThreads = { replied, words, answers, waiting };
   const people: BroadcastRecipientDto[] = rows.map((row) => ({
     contact_id: row.contact_id,
     name: recipientNameOf(row),
@@ -299,17 +326,12 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
     sent_at: row.sent_at,
     message_status: row.messages?.status ?? null,
     conversation_id: row.messages?.conversation_id ?? null,
-    replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),
     delivered_at: statusAt(row.messages?.meta, "delivered"),
     read_at: statusAt(row.messages?.meta, "read"),
-    replied_at: row.messages?.conversation_id ? (replied.get(row.messages.conversation_id) ?? null) : null,
     consent_after: answered.get(row.contact_id)?.consent ?? null,
     consent_at: answered.get(row.contact_id)?.at ?? null,
     consent_purpose: answered.get(row.contact_id)?.purpose ?? null,
-    reply_words: row.messages?.conversation_id ? (words.get(row.messages.conversation_id) ?? null) : null,
-    answered_by: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.by ?? null) : null,
-    answered_at: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.at ?? null) : null,
-    waiting_on_you: !!(row.messages?.conversation_id && waiting.has(row.messages.conversation_id)),
+    ...threadOfRecipient(row, seen),
   }));
   return {
     broadcast: toDto(row as BroadcastRow, await sheetCountsOf(counting, id, own)),
