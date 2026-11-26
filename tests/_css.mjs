@@ -472,7 +472,7 @@ function declarationsOf(body) {
 
 /* -- selectors -- */
 
-const IDENT = /^-?[_a-zA-Z -￿-][_a-zA-Z0-9 -￿-]*/;
+const IDENT = /^-?[_a-zA-Z\u00a0-\uffff-][_a-zA-Z0-9\u00a0-\uffff-]*/;
 
 /** One complex selector as its compounds, right to left, each with the combinator that joins it to the one before. */
 function parseSelector(text) {
