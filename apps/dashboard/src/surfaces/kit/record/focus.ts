@@ -91,8 +91,12 @@ const recFocusLost = () => {
   return !now || now === document.body || !!(document.contains && !document.contains(now));
 };
 // Closed, or gone: focus that went with it (it is on nothing, or still inside it) comes back to the act of the row it
-// opened from. Focus a person has put somewhere else stays there.
-const recFocusBack = (id: FoldId, el: HTMLElement | null) => {
+// opened from. Focus a person has put somewhere else stays there. The box is read as it is now, as it closes: a fold
+// drawn as the kit's sheet is Base UI's popup, which its portal draws a render after the fold opened, so the box read
+// then was nothing, and focus left on its Discard stayed there as the sheet slid away (the nightly's Business folds,
+// 26 Nov 2026). Its popup is still on the page while it leaves.
+const recFocusBack = (id: FoldId, box: Box, opened: HTMLElement | null) => {
+  const el = box.current ?? opened;
   const now = document.activeElement;
   const lost = recFocusLost() || (el && el.contains && el.contains(now));
   if (!lost || !can(document, "querySelector")) return;
@@ -181,7 +185,7 @@ export function useRecFocus(id: FoldId, open: boolean, box: Box, area: FocusArea
     // mouse the first field is ready, in every frame.
     if (onTouchScreen() && el && typeof el.focus === "function") el.focus({ preventScroll: true });
     else recFocusIn(el, inner, fallback);
-    return () => recFocusBack(id, el);
+    return () => recFocusBack(id, box, el);
     // a new opening, a new id or a new frame: not each draw
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, id, frame]);
