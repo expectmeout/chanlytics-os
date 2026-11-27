@@ -1,7 +1,7 @@
 /** Inbox thread: thread vm. */
 
 import { formatPhoneDisplay } from "../../shared/phone";
-import { replyWhy, type ReplyWhyVM } from "../../config/brain";
+import { replyWhy } from "../../config/brain";
 import { replyWindow } from "../../config/policy/prices";
 import { windowClockOf } from "../../config/policy/reply-limits";
 import { HELD_WORDS, readingOf } from "../standing";
@@ -33,7 +33,7 @@ import {
   messageText,
   clipAtWord,
 } from "../message-words";
-import { messageVia, messageAuthor, messageWhy, lastWordLine, type MessageAuthor } from "../message-author";
+import { messageVia, messageAuthor, messageWhy, lastWordLine } from "../message-author";
 import {
   openHoldAct,
   reasonLabelOf,
@@ -148,6 +148,12 @@ const adOfWire = (ad: AdNamedDto): { id: string | null; name: string | null } =>
 const headAdOf = (dto: ConversationDto): Pick<InboxThreadVM, "fromAd"> =>
   dto.from_ad ? { fromAd: adOfWire(dto.from_ad) } : {};
 
+/** Why a held draft says what it says, where its meta says. */
+const heldWhyOf = (meta: Parameters<typeof replyWhy>[0]) => {
+  const reason = replyWhy(meta);
+  return reason ? { why: reason } : {};
+};
+
 /**
  * One message as the thread's timeline draws it. A note the platform wrote on the thread is a line between the words,
  * not a bubble: drawn as a bubble it read "by WhatsApp Receptionist · Delivered", a reply the customer never got (the 2
@@ -191,9 +197,7 @@ function threadEntryOf(
       : {}),
     ...(message.sender === "human" ? { byYou: true } : {}),
     // The words Conversations says too (messageAuthor): a person's reply is the team's.
-    ...(message.sender === "human" && messageAuthor(message)
-      ? { byWords: (messageAuthor(message) as MessageAuthor).words }
-      : {}),
+    ...((author) => (message.sender === "human" && author ? { byWords: author.words } : {}))(messageAuthor(message)),
     ...((via) => (via ? { via } : {}))(messageVia(message)),
     // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
     // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
@@ -298,7 +302,7 @@ export function toInboxThreadVM(
             draft: heldDraft.body,
             endsAtMs: heldDraft.sendsAtMs,
             messageId: heldDraft.messageId,
-            ...(replyWhy(draftMsg.meta) ? { why: replyWhy(draftMsg.meta) as ReplyWhyVM } : {}),
+            ...heldWhyOf(draftMsg.meta),
           },
         }
       : {}),

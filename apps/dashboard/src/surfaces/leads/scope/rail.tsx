@@ -5,7 +5,7 @@
  * where the search is, so the rail never loses the row that is being named.
  */
 import type { ReactNode } from "react";
-import { LEAD_WORDS as W } from "@chanlytics/contracts";
+import { LEAD_WORDS as W, textOrEmpty, valueAt } from "@chanlytics/contracts";
 import type { LeadRailRow, leadRail } from "@chanlytics/contracts";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
@@ -178,7 +178,7 @@ const renamingField = (s: RailSearch, p: RailRowsProps) => (
       aria-label="The search's name"
       data-testid="leads-rename-name"
       onKeyDown={(e) => {
-        if (e.key === "Enter") p.onRenameSave(s, (e.target as HTMLInputElement).value);
+        if (e.key === "Enter") p.onRenameSave(s, textOrEmpty(valueAt(e.target, "value")));
         if (e.key === "Escape") p.onRenameCancel();
       }}
     />

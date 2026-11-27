@@ -17,6 +17,10 @@ const { ckNice, ckNiceSeconds, ckSecondsLabel, ckMonotone, ckRuns, ckEvery, ckHe
   await import(`${K}/geometry.ts`);
 const { CkXLabels, ChartLegend, ChartTooltip } = await import(`${K}/parts.tsx`);
 const { ChartCard, SegmentBar } = await import(`${K}/card.tsx`);
+/** The card's Chart/Table switch, the kit's Segmented (loaded as the card draws): found by its options, a press there
+ *  chooses its value. */
+const isSwitch = (n) => Array.isArray(n.props?.options) && n.props.options.some((o) => o.testid === "card-table");
+const showAs = (tree, value) => find(tree, isSwitch).props.onValueChange(value);
 const { BarChart, BarList } = await import(`${K}/bar.tsx`);
 const { LineChart } = await import(`${K}/line.tsx`);
 const { DotPlot } = await import(`${K}/dot.tsx`);
@@ -237,7 +241,7 @@ test("a card switches to its table twin and back; a twin can be made from the ch
     });
   let tree = draw();
   assert.ok(textOf(byTestId(tree, "c")).includes("the chart"));
-  press(byTestId(tree, "card-table"));
+  showAs(tree, "table");
   tree = again(draw);
   assert.ok(classes(byTestId(tree, "c")).includes("is-table"), "the card says so, so its switch stays in sight");
   assert.deepEqual(
@@ -252,7 +256,7 @@ test("a card switches to its table twin and back; a twin can be made from the ch
     ["", "num", "", ""],
     "a number sits right; a label and a dash do not",
   );
-  press(byTestId(tree, "card-chart"));
+  showAs(tree, "chart");
   tree = again(draw);
   assert.equal(
     find(tree, (n) => n.type === "table"),
@@ -273,7 +277,7 @@ test("a card switches to its table twin and back; a twin can be made from the ch
     children: "a table already",
   });
   assert.ok(
-    byTestId(listed, "card-csv") && !byTestId(listed, "card-table"),
+    byTestId(listed, "card-csv") && !find(listed, isSwitch),
     "a table's card keeps the CSV and drops the switch",
   );
 });
@@ -337,7 +341,7 @@ test("a tooltip takes whichever side of the point holds it, or the whole plot, s
     "a phone's card",
   );
   assert.equal(
-    ChartTooltip({ x: 160, width: 320, children: "t" }).props.style,
+    ChartTooltip({ x: 160, width: 320, children: "t" }).props.style["--x"],
     undefined,
     "pinned across the plot, not at the point",
   );
@@ -364,7 +368,7 @@ test("columns: one tab stop, a group named for what it shows; focus reads the ne
   tree = again(draw);
   assert.equal(liveOf(tree), "Sep 3: Receptionist 3, You 1, Unanswered 0");
   assert.equal(all(tree, (n) => classes(n).includes("dim")).length, 1, "the other day steps back");
-  assert.equal(textOf(find(tree, (n) => classes(n).includes("ck-tip"))), "Sep 33Receptionist1You0Unanswered");
+  assert.equal(textOf(find(tree, (n) => classes(n).includes("ck-readout"))), "Sep 33Receptionist1You0Unanswered");
 });
 
 test("a point held across a new period that no longer exists reads as none, not as a column out of range", () => {
@@ -421,14 +425,18 @@ test("a chart told to fill takes the room its card has left, and never less than
   // takes it out of the flow) so the box's height never comes from the svg.
   const filled = plotOf(BarChart({ data: DAYS2, keys: ["ai"], config: ANSWERED, height: "fill", floor: 128 }));
   assert.ok(classes(filled).includes("fill"));
-  assert.deepEqual(filled.props.style, { minHeight: 128 });
+  assert.deepEqual(filled.props.style, { "--plot-h": "128px" }, "the floor, which charts.css holds a filling plot to");
   assert.equal(find(filled, (n) => n.type === "svg").props.height, 128, "the floor until the box is measured");
   const fixed = plotOf(BarChart({ data: DAYS2, keys: ["ai"], config: ANSWERED, height: 150 }));
   assert.ok(!classes(fixed).includes("fill"));
-  assert.deepEqual(fixed.props.style, { height: 150 }, "a fixed chart still sets its own height and nothing else");
+  assert.deepEqual(
+    fixed.props.style,
+    { "--plot-h": "150px" },
+    "a fixed chart still says its own height and nothing else",
+  );
   // The line reads the same prop the same way.
   const line = plotOf(LineChart({ data: WEEK, keys: [{ key: "total" }], config: PERIODS, height: "fill", floor: 176 }));
-  assert.deepEqual(line.props.style, { minHeight: 176 });
+  assert.deepEqual(line.props.style, { "--plot-h": "176px" });
 });
 
 test("a bar list: label and value on one line, the bar under them sized against the largest, a row with a door is a button", () => {
@@ -442,7 +450,7 @@ test("a bar list: label and value on one line, the bar under them sized against 
     onPick: (r) => picked.push(r.id),
   });
   assert.deepEqual(
-    all(tree, (n) => classes(n).includes("ck-barlist-bar")).map((b) => b.props.style.width),
+    all(tree, (n) => classes(n).includes("ck-barlist-bar")).map((b) => b.props.style["--w"]),
     ["100%", "50%"],
   );
   const rows = all(tree, (n) => n.type === "button");
@@ -487,7 +495,7 @@ test("an area is a line with a filled series: the wash, the period before as a q
   tree = again(draw);
   assert.ok(find(tree, (n) => classes(n).includes("ck-crosshair")));
   assert.equal(
-    textOf(find(tree, (n) => classes(n).includes("ck-tip"))),
+    textOf(find(tree, (n) => classes(n).includes("ck-readout"))),
     "Sep 44Last 7 days5The 7 days before",
     "both periods in the config's words",
   );
@@ -598,7 +606,7 @@ test("a dot plot: one dot per event on its day's slot, 0 on the baseline, a refe
   next = again(draw);
   assert.equal(liveOf(next), "2026-09-03: 40s past its hold", "the arrows walk the dots");
   assert.equal(
-    textOf(find(next, (n) => classes(n).includes("ck-tip"))),
+    textOf(find(next, (n) => classes(n).includes("ck-readout"))),
     "Sep 340Reply",
     "the tooltip says the day, then the value under the series' name, when the page gives no tip",
   );
@@ -777,7 +785,7 @@ test("a segment bar: the parts in the order given, only the ones with something 
   );
   const bar = find(tree, (n) => classes(n).includes("ck-segbar-bar"));
   assert.deepEqual(
-    all(bar, (n) => n.type === "i").map((i) => [i.props.style.flexGrow, i.props.style.background]),
+    all(bar, (n) => n.type === "i").map((i) => [i.props.style["--share"], i.props.style["--part-color"]]),
     [
       [2, "var(--color-pos)"],
       [1, "var(--color-neg)"],

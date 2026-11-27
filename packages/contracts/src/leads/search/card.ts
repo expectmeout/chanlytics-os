@@ -5,7 +5,7 @@
  * waiting in a thread as the model is told it. Derived here once, for the Line that draws the card, the route that saves
  * the turn and the turn that is told it. Pure, and read in the browser.
  */
-import type { AskCardSheet, AskMessageVM, AskProposal, AskProposalOutcome } from "../../ask/thread-words";
+import type { AskCardSheet, AskMessageDto, AskProposal, AskProposalOutcome } from "../../ask/thread-words";
 import { rec } from "../../ask/proposals/spec";
 import type { LeadPlanFacts } from "../dtos";
 import { leadPlanAsk, leadPlanFactLine } from "../plan";
@@ -162,7 +162,7 @@ export const SEARCH_CARD_REPLACED = "Changed below.";
 export const replacedOutcome = (atMs: number): AskProposalOutcome => ({
   state: "dismissed",
   receipt: SEARCH_CARD_REPLACED,
-  atMs,
+  at_ms: atMs,
   undo: null,
 });
 
@@ -172,7 +172,7 @@ export const replacedOutcome = (atMs: number): AskProposalOutcome => ({
  * change said to Ask made a second card while the first could still start its own search).
  */
 export function searchCardsReplaced(
-  earlier: ReadonlyArray<Pick<AskMessageVM, "id" | "proposals">>,
+  earlier: ReadonlyArray<Pick<AskMessageDto, "id" | "proposals">>,
   created: ReadonlyArray<Pick<AskProposal, "kind" | "payload" | "plan">>,
 ): Array<{ messageId: string; proposalId: string }> {
   const search = created.some(startsSearch);
@@ -181,12 +181,12 @@ export function searchCardsReplaced(
   // An offer's plan is one card: every step of one waiting above goes with it.
   const offers = new Set(
     newOffer
-      ? earlier.flatMap((m) => (m.proposals ?? []).flatMap((p) => (p.plan?.head?.press === "offer" ? [p.plan.id] : [])))
+      ? earlier.flatMap((m) => m.proposals.flatMap((p) => (p.plan?.head?.press === "offer" ? [p.plan.id] : [])))
       : [],
   );
   const ours = new Set(created.flatMap((p) => (p.plan ? [p.plan.id] : [])));
   return earlier.flatMap((m) =>
-    (m.proposals ?? [])
+    m.proposals
       .filter((p) => {
         if (p.outcome) return false;
         if (search && startsSearch(p)) return true;
@@ -223,11 +223,11 @@ function subjectOf(p: Pick<AskProposal, "kind" | "payload">): string | null {
  * however it was changed in Ask before it started (the ideas' own measure of whether they are followed, 00398).
  */
 export function withIdeaCarried<P extends Pick<AskProposal, "kind" | "payload" | "plan">>(
-  earlier: ReadonlyArray<Pick<AskMessageVM, "proposals">>,
+  earlier: ReadonlyArray<Pick<AskMessageDto, "proposals">>,
   created: readonly P[],
 ): P[] {
   const fromIdea = earlier.some((m) =>
-    (m.proposals ?? []).some((p) => !p.outcome && startsSearch(p) && rec(rec(p.payload).plan).from === "idea"),
+    m.proposals.some((p) => !p.outcome && startsSearch(p) && rec(rec(p.payload).plan).from === "idea"),
   );
   if (!fromIdea) return [...created];
   return created.map((p) =>
@@ -238,20 +238,20 @@ export function withIdeaCarried<P extends Pick<AskProposal, "kind" | "payload" |
 }
 
 /** A conversation's turns with the answer that landed after them, the cards it replaced set aside (searchCardsReplaced). */
-export function withAnswerLanded<M extends Pick<AskMessageVM, "id" | "proposals">>(
+export function withAnswerLanded<M extends Pick<AskMessageDto, "id" | "proposals">>(
   messages: readonly M[],
   landed: M,
   atMs: number,
 ): M[] {
-  const gone = new Set(searchCardsReplaced(messages, landed.proposals ?? []).map((r) => r.proposalId));
+  const gone = new Set(searchCardsReplaced(messages, landed.proposals).map((r) => r.proposalId));
   // What this turn pressed on a yes (D18 of the answers canvas) is drawn on its own card, up the thread.
   const pressed = new Map(
-    ((landed as { pressed?: AskMessageVM["pressed"] }).pressed ?? []).map((r) => [r.proposalId, r.outcome]),
+    ((landed as { pressed?: AskMessageDto["pressed"] }).pressed ?? []).map((r) => [r.proposal_id, r.outcome]),
   );
   const kept =
     gone.size || pressed.size
       ? messages.map((m) =>
-          (m.proposals ?? []).some((p) => gone.has(p.id) || pressed.has(p.id))
+          m.proposals.some((p) => gone.has(p.id) || pressed.has(p.id))
             ? {
                 ...m,
                 proposals: m.proposals.map((p) => {

@@ -45,7 +45,7 @@ export async function listPeopleAtLead(db: Db, tenantId: TenantId, leadId: strin
     .is("merged_into_contact_id", null)
     .limit(PEOPLE_AT_A_LEAD);
   if (error) throw new DbFailure(error, "listPeopleAtLead");
-  const people = data ?? [];
+  const people = data;
   if (!people.length) return [];
   const ids = people.map((p) => p.id);
   // Who waits on a person by the one standing rule, on their latest thread: a colleague whose thread the reader holds
@@ -55,7 +55,7 @@ export async function listPeopleAtLead(db: Db, tenantId: TenantId, leadId: strin
     getPersonIdsWaitingOnYou(db, tenantId, ids, Date.now()),
   ]);
   if (moments.error) throw new DbFailure(moments.error, "listPeopleAtLead");
-  const touched = new Map((moments.data ?? []).map((m) => [m.contact_id, m.in_touch_at]));
+  const touched = new Map(moments.data.map((m) => [m.contact_id, m.in_touch_at]));
   return people
     .map((p) => {
       const at = touched.get(p.id) ?? null;
@@ -80,7 +80,7 @@ export async function listSigners(db: Db, tenantId: TenantId, personId: ContactI
     .order("read_at", { ascending: false })
     .limit(5);
   if (error) throw new DbFailure(error, "listSigners");
-  return (data ?? []).flatMap((item) =>
+  return data.flatMap((item) =>
     item.signer_name && (item.signer_state === "offered" || item.signer_state === "adopted")
       ? [
           {
@@ -184,7 +184,7 @@ export async function openDoubtsOf(db: Db, tenantId: TenantId, contactId: Contac
     .order("created_at");
   if (error && (error.code === "PGRST205" || error.code === "42P01")) return [];
   if (error) throw new DbFailure(error, "person_doubts");
-  const rows = data ?? [];
+  const rows = data;
   if (!rows.length) return [];
   const otherOf = (r: (typeof rows)[number]) => (r.contact_id === contactId ? heldContactId(r.other_id) : r.contact_id);
   const otherIds = [...new Set(rows.map(otherOf))];
@@ -196,7 +196,7 @@ export async function openDoubtsOf(db: Db, tenantId: TenantId, contactId: Contac
     .is("erased_at", null)
     .is("merged_into_contact_id", null);
   if (others.error) throw new DbFailure(others.error, "person_doubts");
-  const byId = new Map((others.data ?? []).map((c) => [c.id, c]));
+  const byId = new Map(others.data.map((c) => [c.id, c]));
   const out: PersonDoubtDto[] = [];
   for (const r of rows) {
     const other = byId.get(otherOf(r));

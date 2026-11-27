@@ -103,10 +103,12 @@ apps/dashboard/src/server/
 apps/dashboard/src/bridge/
   ask/
   billing/
+  boot/
   hearing/
   invitations/
   mascot/
   reach-out/
+  refresh/
   rehearse/
   surfaces/
   verbs/

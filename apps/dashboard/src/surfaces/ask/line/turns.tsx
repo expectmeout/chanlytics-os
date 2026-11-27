@@ -1,10 +1,10 @@
 /** The turn: a question asked, what its stream sends, and what is done as it lands. */
-import type { AskAnswer, AskAttached, AskMessageVM, AskScope, AskThreadVM, PageContext } from "@chanlytics/contracts";
+import type { AskAnswer, AskAttached, AskScope, AskThreadDto, PageContextDto } from "@chanlytics/contracts";
 import type { SendEvent } from "@/bridge/ask";
 import type { AskedHow, Conversation, Line, Turn } from "./types";
 import { withAnswerLanded } from "@chanlytics/contracts";
 import { allArrived, photosAsked } from "./attached";
-import { arFailed, arPhone, arRoute } from "./place";
+import { arFailed, arPhone, arRoute, lineMessage } from "./place";
 import { chipOfAnswer } from "./resolved";
 
 /** The breath before an answer that opens a page goes there: its words are on screen first. */
@@ -25,11 +25,11 @@ const arQuickTurn = async (ln: Line, q: string, pending: Promise<AskAnswer>, spo
   const answer = await pending;
   if (mine !== turnSeq.current) return;
   const kept = (threadsReady.current || Promise.resolve(threads))
-    .then((list: AskThreadVM[]) =>
+    .then((list: AskThreadDto[]) =>
       A.keepQuick({ text: q, answer, threadId: (list.find((th) => A.sameQuestion(th.title, q)) || {}).id || null }),
     )
     .catch(() => null);
-  const m = { atMs: Date.now(), citations: [], followups: [], proposals: [] };
+  const atMs = Date.now();
   setQuick(null);
   setActive({
     id: null,
@@ -37,14 +37,8 @@ const arQuickTurn = async (ln: Line, q: string, pending: Promise<AskAnswer>, spo
     scope: null,
     kept,
     messages: [
-      { ...m, id: "u-" + m.atMs, role: "user", text: q } as Partial<AskMessageVM> as AskMessageVM,
-      {
-        ...m,
-        id: "k-" + m.atMs,
-        role: "assistant",
-        text: A.answerText(answer),
-        answer,
-      } as Partial<AskMessageVM> as AskMessageVM,
+      lineMessage({ id: "u-" + atMs, role: "user", text: q, at_ms: atMs }),
+      lineMessage({ id: "k-" + atMs, role: "assistant", text: A.answerText(answer), answer, at_ms: atMs }),
     ],
   });
   void kept.then((th) => {
@@ -82,7 +76,7 @@ const arFilesAsked = (attached: Line["attached"], how: AskedHow | undefined): re
   how?.files ?? (how?.fresh ? [] : photosAsked(attached));
 
 /** The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (bridge/ask/context.ts). A page that cannot say what it holds sends none: the question still goes. */
-const arPageNow = (askApi: Line["A"], q: string, base: Conversation | null): PageContext | null => {
+const arPageNow = (askApi: Line["A"], q: string, base: Conversation | null): PageContextDto | null => {
   try {
     return askApi.context ? askApi.context(arRoute(), q, base && base.messages) : null;
   } catch {
@@ -230,7 +224,7 @@ const arTurnLanded = (
   ); // a search card the answer made sets aside the one waiting above it, as the route kept it (contracts withAnswerLanded)
   if (turn.spoken && !final.failed) arAnswerAloud({ speech, flash, t }, A.answerSpoken(A.answer(final).answer));
   if (turn.threadId)
-    void A.threads().then((list: AskThreadVM[]) => {
+    void A.threads().then((list: AskThreadDto[]) => {
       setThreads(list);
       const now = list.find((x) => x.id === turn.threadId);
       if (now) setActive((prev) => (prev && prev.id === turn.threadId ? { ...prev, title: now.title } : prev));
@@ -266,16 +260,7 @@ const arBeginTurn = (
     how,
   }: { q: string; files: readonly AskAttached[]; chip: AskScope | null; base: Conversation | null; how: AskedHow },
 ) => {
-  const userMsg = {
-    id: "u-" + Date.now(),
-    role: "user",
-    text: q,
-    ...(files.length ? { files } : {}),
-    atMs: Date.now(),
-    citations: [],
-    followups: [],
-    proposals: [],
-  } as Partial<AskMessageVM> as AskMessageVM;
+  const userMsg = lineMessage({ id: "u-" + Date.now(), role: "user", text: q, ...(files.length ? { files } : {}) });
   const thread = base
     ? { ...base, messages: [...base.messages, userMsg], scope: chip || base.scope || null }
     : { id: null, title: q, messages: [userMsg], scope: chip || null }; // asked with the chip's scope, else the thread's own, which it then holds (the Phase 5 plan, D9)

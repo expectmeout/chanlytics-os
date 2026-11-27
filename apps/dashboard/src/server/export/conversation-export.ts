@@ -14,6 +14,7 @@ import { log } from "@/server/shared/log";
 import type { Member, Params } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { findThreadForExport, pageThreadForExport } from "@chanlytics/db/conversations";
+import { embedded } from "@chanlytics/db/shared";
 
 const THREAD_EXPORT_PAGE = 500;
 
@@ -40,7 +41,7 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
       page * THREAD_EXPORT_PAGE + THREAD_EXPORT_PAGE - 1,
     );
     if (merr) throw new Error(merr.message);
-    if (!data?.length) break;
+    if (!data.length) break;
     for (const row of data) {
       messages.push({
         id: row.id,
@@ -54,17 +55,18 @@ export async function exportConversation(ctx: RouteContext & { params: Params },
         created_at: row.created_at,
         channel_ts: row.channel_ts,
         // The wire it travelled, which the file says (R14 X4): a person's one thread holds every channel they wrote on.
-        ...(row.channel ? { channel: row.channel } : {}),
+        channel: row.channel,
       });
     }
     if (data.length < THREAD_EXPORT_PAGE) break;
   }
   const { name, timezone } = await getTenantFacts(supabase, member.tenantId);
+  const person = embedded(conv.contacts);
   const contact = {
-    id: conv.contacts?.id ?? "",
-    display_name: conv.contacts?.display_name ?? null,
-    wa_profile_name: conv.contacts?.wa_profile_name ?? null,
-    phone_e164: conv.contacts?.phone_e164 ?? null,
+    id: person?.id ?? "",
+    display_name: person?.display_name ?? null,
+    wa_profile_name: person?.wa_profile_name ?? null,
+    phone_e164: person?.phone_e164 ?? null,
     consent: null,
     dnc: false,
   };

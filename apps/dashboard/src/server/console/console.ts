@@ -95,7 +95,7 @@ export async function claimConsole(office: BackOffice, tenantId: TenantId, take:
     throw new AppError("conflict", `${staffName(held.data?.email ?? null)} is on it already.`, 409);
   }
   if (error?.code === "23503") throw new AppError("not_found", "No such workspace.", 404);
-  if (error || !data) throw new AppError("unavailable", NOT_SAVED);
+  if (error) throw new AppError("unavailable", NOT_SAVED);
   return data;
 }
 
@@ -124,7 +124,7 @@ interface ConsoleHomeDto {
 async function spendOf(office: BackOffice): Promise<Record<string, number>> {
   const { data, error } = await getModelSpend(office.db, 30);
   if (error) throw new DbFailure(error);
-  return Object.fromEntries((data ?? []).map((r) => [r.tenant_id, Number(r.usd)]));
+  return Object.fromEntries(data.map((r) => [r.tenant_id, Number(r.usd)]));
 }
 
 /** The spend in all, and across how many workspaces that spent anything. */
@@ -233,7 +233,7 @@ export async function findInConsole(office: BackOffice, query: string): Promise<
     if (error.code === "42501") throw new AppError("not_found", "No such page.", 404);
     throw new AppError("unavailable", "Find couldn't search just now. Try again in a moment.");
   }
-  return (data ?? [])
+  return data
     .filter((r): r is typeof r & { kind: FindRowDto["kind"] } => isOneOf(FIND_KINDS, r.kind))
     .slice(0, FIND_LIMITS.rows)
     .map((r) => ({

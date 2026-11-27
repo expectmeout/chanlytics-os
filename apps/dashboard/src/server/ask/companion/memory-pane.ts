@@ -30,7 +30,7 @@ export async function getMemoryPage(ctx: RouteContext, member: Member): Promise<
     askMemoryLines(ctx.supabase, member.tenantId, ASK_MEMORY_LIMITS.liveMax),
     askJournalDays(ctx.supabase, member.tenantId, ASK_JOURNAL_LIMITS.shown),
   ]);
-  return { lines, journal, may_change: ROLE_PERMS[member.role]?.settings === true };
+  return { lines, journal, may_change: ROLE_PERMS[member.role].settings === true };
 }
 
 /** A line's words as the pane or a card sent them, held to contracts' rule, or the rule's words as a refusal. */

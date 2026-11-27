@@ -61,7 +61,7 @@ export async function findNotice(
       : null;
   if (!found) return null;
   if (found.error) throw new DbFailure(found.error, "cannot read what the workspace was told");
-  const row = (found.data ?? [])[0];
+  const row = found.data[0];
   return row ? { id: row.id, kind: row.kind, mailOwed: row.mail_due_at !== null } : null;
 }
 
@@ -147,7 +147,7 @@ export async function wasNoticeKept(
     .eq("subject_id", params.subjectId)
     .limit(1);
   if (error) throw new DbFailure(error, "cannot read what the workspace was told");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -192,7 +192,7 @@ export async function reviewRowsByGoogleId(
     .eq("tenant_id", tenantId)
     .in("review_id", [...googleIds]);
   if (error) throw new DbFailure(error, "cannot read the reviews on record");
-  return new Map((data ?? []).map((r) => [r.review_id, r.id]));
+  return new Map(data.map((r) => [r.review_id, r.id]));
 }
 
 /** What a hold's notice is read from: the hold by its thread (an opened one's event) or by its own id (a change's). */
@@ -324,7 +324,7 @@ export async function holdTold(
     .is("mail_due_at", null)
     .limit(1);
   if (answered.error) throw new DbFailure(answered.error, "cannot read what the workspace was told");
-  if ((answered.data ?? []).length) return true;
+  if (answered.data.length) return true;
   const since = new Date(Date.parse(params.at) - MIN_MS).toISOString();
   const inline = await db
     .from("notifications")
@@ -337,7 +337,7 @@ export async function holdTold(
     .gte("created_at", since)
     .limit(1);
   if (inline.error) throw new DbFailure(inline.error, "cannot read what the workspace was told");
-  return (inline.data ?? []).length > 0;
+  return inline.data.length > 0;
 }
 
 /**
@@ -382,7 +382,7 @@ export async function wasOptOutTold(
     .is("mail_due_at", null)
     .limit(1);
   if (answered.error) throw new DbFailure(answered.error, "cannot read what the workspace was told");
-  if ((answered.data ?? []).length) return true;
+  if (answered.data.length) return true;
   const since = new Date(Date.parse(params.at) - MIN_MS).toISOString();
   const twin = await db
     .from("notifications")
@@ -395,7 +395,7 @@ export async function wasOptOutTold(
     .gte("created_at", since)
     .limit(1);
   if (twin.error) throw new DbFailure(twin.error, "cannot read what the workspace was told");
-  return (twin.data ?? []).length > 0;
+  return twin.data.length > 0;
 }
 
 /**
@@ -413,7 +413,7 @@ export async function wasEventTold(db: Db, params: { tenantId: TenantId; eventId
     .is("mail_due_at", null)
     .limit(1);
   if (answered.error) throw new DbFailure(answered.error, "cannot read what the workspace was told");
-  return (answered.data ?? []).length > 0;
+  return answered.data.length > 0;
 }
 
 /** A notice put on the workspace's bell, its id back. */

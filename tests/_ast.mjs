@@ -445,15 +445,43 @@ export function castsIn(sf) {
   return Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
 }
 
+/** A property's name that is a custom property's: a string `"--w"`, or a template that starts `--` (`[`--color-${k}`]`). */
+const customName = (name) => {
+  if (ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)) return name.text.startsWith("--");
+  if (!ts.isComputedPropertyName(name)) return false;
+  const e = bare(name.expression);
+  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return e.text.startsWith("--");
+  return ts.isTemplateExpression(e) && e.head.text.startsWith("--");
+};
+
+/**
+ * A style prop that sets custom properties and nothing else: an object whose every key is a `--name`, or the kit's
+ * `customProperties(…)`, whose type admits no other key (surfaces/kit/variants.ts). A value that changes as the page
+ * runs (a bar's width, a series' colour, where a point stands) reaches the page so, and a class decides what it does:
+ * the look is still the stylesheet's (the coordinator's call, 26 Nov 2026).
+ */
+const setsOnlyCustomProperties = (attr) => {
+  const init = attr.initializer;
+  if (!init || !ts.isJsxExpression(init) || !init.expression) return false;
+  const e = bare(init.expression);
+  if (ts.isCallExpression(e)) return ts.isIdentifier(e.expression) && e.expression.text === "customProperties";
+  return (
+    ts.isObjectLiteralExpression(e) &&
+    e.properties.length > 0 &&
+    e.properties.every((p) => ts.isPropertyAssignment(p) && customName(p.name))
+  );
+};
+
 /**
  * The `style` props a module's markup carries: `style={{ … }}` or `style={value}`, on an element or a component. A
  * prop is a value no look can reach (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, rule 1); a class that
- * reads tokens can. A `style` key in an object, or a string that says `style=`, is not one.
+ * reads tokens can. A `style` key in an object, or a string that says `style=`, is not one; nor is a prop that sets
+ * custom properties alone (setsOnlyCustomProperties), and one that sets any other property beside them still is.
  */
 export function inlineStyles(sf) {
   let n = 0;
   const visit = (m) => {
-    if (ts.isJsxAttribute(m) && ts.isIdentifier(m.name) && m.name.text === "style") n++;
+    if (ts.isJsxAttribute(m) && ts.isIdentifier(m.name) && m.name.text === "style" && !setsOnlyCustomProperties(m)) n++;
     ts.forEachChild(m, visit);
   };
   visit(sf);
@@ -1395,11 +1423,90 @@ function bindingOf(node, name) {
 }
 
 /**
- * Source read as text in one test file through a helper of the file's own, which `readCode(` and `readRaw(` do not
- * name: each call of a local function whose body calls `readFileSync` (`const read = (p) => fs.readFileSync(path.join(ROOT,
- * p), "utf8")`, then `read("x.ts")`) with a source file's path (`.ts`, `.jsx`, `.css`, `.sql`, …) in its argument. A
- * helper is judged by what its name is bound to where it is called, so an inner `const read = async (tenants) => …`
- * that shadows one is not a read, and a helper that loads data (a `.json` fixture) is not source.
+ * What a script writes and a test may read whole: the schema a replay builds, the database's types, a package's bundle,
+ * a `.generated.` file. It is the build's record of what the code is, not the code a test could run instead.
+ */
+const GENERATED = /(^|\/)supabase\/schema\.sql$|(^|\/)database\.types\.ts$|\/dist\/|\.generated\./;
+
+/**
+ * The text a path argument is built from, in order: its literals, and the value a name in it is bound to where it is
+ * read (`path.join(ROOT, KIT_CSS)` beside `const KIT_CSS = "apps/…/kit.css"`), one name deep. A parameter, a loop's
+ * variable, a name taken apart from a value (`const { OUT } = await import("…/gen.mjs")`) and an import are not
+ * followed, and neither is a function inside the path (`files.find((f) => f.endsWith(".sql"))` picks a file, it is not
+ * one): what they hold is not in the file.
+ */
+function pathPieces(arg) {
+  const pieces = [];
+  const visit = (n, deep) => {
+    if (isFunction(n)) return;
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) pieces.push(n.text);
+    else if (ts.isTemplateExpression(n)) {
+      pieces.push(n.head.text);
+      for (const span of n.templateSpans) {
+        visit(span.expression, deep);
+        pieces.push(span.literal.text);
+      }
+    } else if (ts.isPropertyAccessExpression(n)) visit(n.expression, deep);
+    else if (ts.isIdentifier(n)) {
+      const d = deep > 0 ? bindingOf(n, n.text) : null;
+      if (d && ts.isVariableDeclaration(d) && ts.isIdentifier(d.name) && d.initializer) visit(d.initializer, deep - 1);
+    } else ts.forEachChild(n, (c) => visit(c, deep));
+  };
+  visit(arg, 1);
+  return pieces.filter(Boolean);
+}
+
+/** A database suite or its folder's world: a migration it reads is the statements it replays on the stack. */
+const REPLAYS = /\.db\.test\.mjs$|(^|\/)_db[^/]*\.mjs$/;
+const MIGRATION_PATH = /(^|\/)supabase\/migrations\//;
+
+/** The calls that run a script's text: a read handed straight to one of them is the run, not a read of it. */
+const RUNS_TEXT = new Set(["runInNewContext", "runInThisContext", "runInContext", "compileFunction", "Script"]);
+const calleeName = (e) => (ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? e.name.text : undefined);
+/** Whether a read's text goes straight into vm (`vm.runInNewContext(fs.readFileSync(sw), { self })`, `new vm.Script(…)`). */
+const runsWhatItReads = (call) => {
+  const p = call.parent;
+  return (
+    !!p &&
+    (ts.isCallExpression(p) || ts.isNewExpression(p)) &&
+    (p.arguments ?? []).includes(call) &&
+    RUNS_TEXT.has(calleeName(p.expression) ?? "")
+  );
+};
+
+/**
+ * Whether a `readFileSync` call reads source: the file its first argument names last (`path.join(dir, action,
+ * "route.ts")`, `` `packages/${p}/src/index.ts` ``) is a source file, the path is not generated output, it is not a
+ * migration a database suite replays (consent-channels.db runs 00323's own statements, as the migration wrote them), and
+ * its text is not handed straight to vm to run (a service worker is a plain script nothing can import:
+ * shell/phone-shell.test.mjs runs sw.js so).
+ */
+function readsSourceDirectly(call, file) {
+  if (!isReadFileSync(call) || !call.arguments.length) return false;
+  const pieces = pathPieces(call.arguments[0]);
+  const named = pieces.join("/");
+  return (
+    pieces.length > 0 &&
+    SOURCE_PATH.test(pieces.at(-1)) &&
+    !GENERATED.test(named) &&
+    !(REPLAYS.test(file) && MIGRATION_PATH.test(named)) &&
+    !runsWhatItReads(call)
+  );
+}
+
+/**
+ * Source read as text in one test file with `fs`, which `readCode(` and `readRaw(` do not name. Two ways:
+ *   - through a helper of the file's own: each call of a local function whose body calls `readFileSync` (`const read =
+ *     (p) => fs.readFileSync(path.join(ROOT, p), "utf8")`, then `read("x.ts")`) with a source file's path (`.ts`,
+ *     `.jsx`, `.css`, `.sql`, …) in its argument. A helper is judged by what its name is bound to where it is called,
+ *     so an inner `const read = async (tenants) => …` that shadows one is not a read, and a helper that loads data (a
+ *     `.json` fixture) is not source;
+ *   - directly: each `readFileSync` whose path names a source file by its literal, or by a name bound to one in the
+ *     file (readsSourceDirectly), counted where it is written. Generated output is not source (GENERATED), and a
+ *     migration a database suite replays, or a script's text handed straight to vm, is the run, not a read of it
+ *     (REPLAYS, runsWhatItReads). Until 26 Nov 2026 these went
+ *     uncounted: round one of lane 4 found twelve files reading source this way, which the measure did not see.
+ * A helper's own `readFileSync` reads its parameter, so a read is counted once, at its call or where it is written.
  */
 export function sourceReads(sf) {
   const helpers = new Set();
@@ -1423,6 +1530,7 @@ export function sourceReads(sf) {
       const d = bindingOf(n, n.expression.text);
       if (d && helpers.has(d)) count++;
     }
+    if (readsSourceDirectly(n, sf.fileName)) count++;
     ts.forEachChild(n, calls);
   };
   calls(sf);

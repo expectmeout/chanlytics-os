@@ -8,7 +8,7 @@
  * tus-js-client does this with seven packages more, and its last release is outside decision 0054's year: the protocol is the
  * few lines below. Nothing here runs until a video is sent.
  */
-import { HOUR_MS, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
+import { HOUR_MS, MIN_MS, SECOND_MS, valueAt } from "@chanlytics/contracts";
 
 const MiB = 1024 * 1024;
 /** A chunk: large on a desk, small on a phone's line; each a multiple of 256 KiB, as Stream asks, and inside its 5 to 200 MiB. */
@@ -76,9 +76,10 @@ const keptKeyOf = (fingerprint: string) => `chanlytics.video-upload.${fingerprin
 export function keptUploadOf(fingerprint: string): KeptUpload | null {
   try {
     const raw = window.localStorage.getItem(keptKeyOf(fingerprint));
-    const stored = raw ? (JSON.parse(raw) as Partial<KeptUpload>) : null;
-    if (stored && typeof stored.id === "string" && typeof stored.url === "string" && typeof stored.until === "number")
-      return stored.until > Date.now() ? { id: stored.id, url: stored.url, until: stored.until } : null;
+    const stored: unknown = raw ? JSON.parse(raw) : null;
+    const [id, url, until] = [valueAt(stored, "id"), valueAt(stored, "url"), valueAt(stored, "until")];
+    if (typeof id === "string" && typeof url === "string" && typeof until === "number")
+      return until > Date.now() ? { id, url, until } : null;
   } catch {
     // A private window, or storage turned off: the clip starts again.
   }

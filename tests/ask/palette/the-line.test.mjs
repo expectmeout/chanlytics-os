@@ -143,7 +143,7 @@ test("the page is warmed as the Line opens, once, and again when the page under 
     surface: "today",
     route: route.param ? `${route.page}/${route.param}` : route.page,
     rows: [],
-    askedAt: 1,
+    asked_at: 1,
   });
   askCalls().warm = async (context) => {
     warmed.push(context.route);
@@ -211,7 +211,7 @@ test("a question asked in an open thread hands the page's context the thread it 
   const seen = [];
   askCalls().context = (route, words, thread) => {
     seen.push({ words, thread });
-    return { v: 1, surface: "today", route: route.page, rows: [], askedAt: 1 };
+    return { v: 1, surface: "today", route: route.page, rows: [], asked_at: 1 };
   };
   askCalls().send = async (input, on) => {
     calls.inputs.push(input);
@@ -1081,7 +1081,7 @@ test("the answer on the rail: figures as chips, items with a kind mark, one Open
   const final = {
     id: "m-r",
     role: "assistant",
-    atMs: Date.now(),
+    at_ms: Date.now(),
     failed: false,
     citations: [],
     followups: [],
@@ -1179,7 +1179,7 @@ test("a list they asked for is a real list, first in Show: bullets and lines a u
     const final = {
       id: "m-l",
       role: "assistant",
-      atMs: Date.now(),
+      at_ms: Date.now(),
       failed: false,
       citations: [],
       followups: [],

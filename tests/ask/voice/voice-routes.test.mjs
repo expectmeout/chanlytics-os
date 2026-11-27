@@ -335,7 +335,7 @@ test("the page follows the person: the row keeps the new page's context and surf
     view: "all",
     focus: null,
     rows: [{ kind: "thread", id: C1 }],
-    askedAt: 1,
+    asked_at: 1,
   };
   const before = Date.now();
   const moved = ctxFor(tables);

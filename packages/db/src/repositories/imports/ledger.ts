@@ -46,7 +46,7 @@ export async function listImports(db: Db, tenantId: TenantId): Promise<ImportLed
       "source, connection_id, state, counts, parts_done, parts_total, oldest, started_at, finished_at, last_error, via",
     );
   if (error) throw new DbFailure(error);
-  return (data ?? []).map((r) => ({ ...r, counts: ledgerCountsOf(r.counts) }));
+  return data.map((r) => ({ ...r, counts: ledgerCountsOf(r.counts) }));
 }
 
 /** A run's state, written: counts added to what came before (`add`) or set whole; its parts, reach, cursor and error. */
@@ -121,7 +121,7 @@ export async function importRowOf(
     ? result.or(`connection_id.eq.${connectionId},connection_id.is.null`)
     : result.is("connection_id", null));
   if (error) throw new DbFailure(error);
-  const rows = data ?? [];
+  const rows = data;
   const kept = rows.find((r) => r.connection_id === null);
   const named = kept ? namedIn(kept.job_cursor) : null;
   const handed =

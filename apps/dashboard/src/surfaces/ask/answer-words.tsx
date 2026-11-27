@@ -16,9 +16,9 @@ import { askCalls } from "./shell";
 type OnNav = ((to: string) => void) | null;
 
 const AskRuns = ({ runs, onNav = null }: { runs: AnswerRun[]; onNav?: OnNav }) =>
-  runs.map((r, k) =>
-    r.to && onNav ? (
-      <LinePress key={k} kind="words" onClick={() => onNav(r.to as string)} data-testid="ask-words-door">
+  runs.map(({ to, ...r }, k) =>
+    to && onNav ? (
+      <LinePress key={k} kind="words" onClick={() => onNav(to)} data-testid="ask-words-door">
         {r.bold ? <strong>{r.text}</strong> : r.text}
       </LinePress>
     ) : r.bold ? (

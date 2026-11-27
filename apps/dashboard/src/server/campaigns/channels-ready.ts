@@ -51,11 +51,12 @@ export async function getChannelsReady(
   const mailbox = domain === true ? await findMailboxOfTenant(ctx.supabase, tenantId) : null;
   // The address, only where offers could go at all. A configuration that could not be read says offers by email "could not
   // be checked", never "add your address", and costs the page nothing else.
-  let configUnread = false;
+  // Set by the read's catch, which the checker cannot follow into: a field, so its reading stays a boolean.
+  const configRead = { unread: false };
   const config =
     domain === true && offers === true
       ? await findConfigRow(ctx.supabase, tenantId).catch(() => {
-          configUnread = true;
+          configRead.unread = true;
           return null;
         })
       : null;
@@ -68,7 +69,7 @@ export async function getChannelsReady(
       mailbox: !!mailbox,
       domain,
       offers: {
-        campaigns: configUnread ? null : offers,
+        campaigns: configRead.unread ? null : offers,
         address: !!address,
         paused: offerPauseOf(mailbox?.offers_paused_at, mailbox?.offers_paused_reason),
       },

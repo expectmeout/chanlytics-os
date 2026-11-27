@@ -166,16 +166,16 @@ export async function readThreadState(
   if (replies.error) throw new DbFailure(replies.error, "readThreadState/replies");
   if (texted.error) throw new DbFailure(texted.error, "readThreadState/texted");
 
-  const history = assembleHistory(recent.data ?? [], historyLimit);
+  const history = assembleHistory(recent.data, historyLimit);
 
   return {
     history,
-    textedBefore: (texted.data ?? []).length > 0,
+    textedBefore: texted.data.length > 0,
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting
     // them would let a backfill silence the bot for a day against a cap it
     // never actually spent.
-    replies: (replies.data ?? [])
+    replies: replies.data
       .filter((r) => !isBackfill(r) && !isAcknowledgement(r))
       .map((r) => new Date(r.created_at).getTime()),
   };
@@ -397,7 +397,7 @@ export async function readLeadContext(
     // Undefined where the column could not be read: not null, which says "never asked".
     offersAskedAt: contact.offers_asked_at,
     notes: contact.notes ?? null,
-    noteList: nErr ? null : (noteRows ?? []).map((n) => ({ body: n.body, at: n.created_at })),
+    noteList: nErr ? null : noteRows.map((n) => ({ body: n.body, at: n.created_at })),
     proposalUrl: proposalLinkOf(current, contact.proposal_url),
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url })),
@@ -430,7 +430,7 @@ async function turnsBefore(db: Db, tenantId: TenantId, conversationId: string, l
     .order("created_at", { ascending: false })
     .limit(answering ? Math.max(limit * 3, 24) + 1 : limit * 3); // photos and dropped drafts never hide a returner
   if (error) throw new DbFailure(error, "readLeadContext/history");
-  const before = (rows ?? []).filter((m) => m.id !== answering);
+  const before = rows.filter((m) => m.id !== answering);
   const newest = keptTurns(before).at(-1);
   const lastTurnAt = newest ? new Date(effectiveAt(newest)).toISOString() : null;
   const tap = answering ? tappedMessageOf(threadMomentsOf(rows), answering) : null;

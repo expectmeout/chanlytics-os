@@ -67,9 +67,9 @@ async function storeConnectCredentials(
   db: Db,
   tenantId: TenantId,
   storedCredentials: StoredCredentials,
-  told: Parameters<typeof finishGoogleConnect>[3],
+  event: Parameters<typeof finishGoogleConnect>[3],
 ): Promise<void> {
-  const { error } = await finishGoogleConnect(db, tenantId, asJson(storedCredentials), told);
+  const { error } = await finishGoogleConnect(db, tenantId, asJson(storedCredentials), event);
   if (error) throw new DbFailure(error, "credentials");
 }
 

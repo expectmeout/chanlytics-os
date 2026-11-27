@@ -320,7 +320,7 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
   const counted = (key: string) => {
     const x = pb.pools[key];
     return x
-      ? { said_yes_now: x.saidYes, can_be_sent_now: x.candidates }
+      ? { said_yes_now: x.said_yes, can_be_sent_now: x.candidates }
       : { said_yes_now: null, can_be_sent_now: null };
   };
   // Why the page counts nobody for a playbook on a list, as far as its read says, and never a reason it does not give.

@@ -126,12 +126,16 @@ export const CLOCKS = {
   purge_provider_events: { kind: "keep", why: "retention: the intake ledger's kept deliveries after a week" },
   purge_rate_hits: { kind: "keep", why: "retention: rate-limit counters after two hours" },
   reach_out: {
-    kind: "event-shaped",
-    why: "claims due sends every minute under a lock per domain; workflow steps under a rate limit per domain replace it",
+    kind: "due",
+    why: "hands each checked send its moment, the time its row holds (sequence_sends.send_at), claimed under a lock per domain; the clock calls the edge only when a send's time has come or a claim, a draft or a run's end was left behind, and otherwise records that it looked (decision 0098). Reclassified 26 Nov 2026, when it was read: its condition had become the row's time",
+    times: ["sequence_sends.send_at"],
+    fn: "trigger_reach_out_sweep",
   },
   reach_out_check: {
-    kind: "event-shaped",
-    why: "checks each opening every minute; a step started when a send is planned replaces it",
+    kind: "due",
+    why: "checks each planned send's address once the time its row holds has come (sequence_sends.check_after, which a gate that waits or a retry writes; none is at once), and an hour after the checker was down; the clock calls the edge only then, and otherwise records that it looked (decision 0098)",
+    times: ["sequence_sends.check_after"],
+    fn: "trigger_reach_out_check_sweep",
   },
   registration: { kind: "reconcile", why: "reads carrier registration status from Twilio" },
   snoozes: {

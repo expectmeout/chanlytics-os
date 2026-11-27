@@ -278,7 +278,7 @@ const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   const profile = cfg.brain?.profile;
   if (!profile) return;
-  for (const [day, h] of Object.entries(profile.hours ?? {})) if (h) checkDay(h, day, ctx);
+  for (const [day, h] of Object.entries(profile.hours ?? {})) checkDay(h, day, ctx);
   if ((profile.closures?.length ?? 0) > MAX_CLOSURES) {
     ctx.addIssue({
       code: "custom",

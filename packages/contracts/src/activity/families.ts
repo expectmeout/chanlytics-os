@@ -3,7 +3,7 @@ import { activityKindWords } from "../workspace/activity/kinds";
 import { ACTIVITY_KINDS, isActivityNoise } from "../workspace/activity-rows";
 import { activityTone } from "./tones";
 import { UNKNOWN_MEMBER_WORD } from "../shared/words";
-import { isOneOf } from "../shared/unknown";
+import { isOneOf, entryOf } from "../shared/unknown";
 
 /**
  * The activity log's families: where in the product a row belongs, in the words the sidebar and Settings say.
@@ -189,11 +189,11 @@ const KIND_FAMILY: Partial<Record<(typeof EVENT_KINDS)[number], ActivityFamily>>
 
 /** The family a kind belongs to; null for a kind neither table names (a row a newer build wrote). */
 export function activityFamily(kind: string): ActivityFamily | null {
-  if (Object.hasOwn(VERB_FAMILY, kind)) return VERB_FAMILY[kind as DecisionVerb];
-  if (Object.hasOwn(KIND_FAMILY, kind)) return KIND_FAMILY[kind as (typeof EVENT_KINDS)[number]] ?? null;
+  if (Object.hasOwn(VERB_FAMILY, kind)) return entryOf(VERB_FAMILY, kind) ?? null;
+  if (Object.hasOwn(KIND_FAMILY, kind)) return entryOf(KIND_FAMILY, kind) ?? null;
   const dot = kind.indexOf(".");
   const prefix = dot > 0 ? kind.slice(0, dot) : "";
-  return Object.hasOwn(PREFIX_FAMILY, prefix) ? PREFIX_FAMILY[prefix as EventPrefix] : null;
+  return entryOf(PREFIX_FAMILY, prefix) ?? null;
 }
 
 export const isActivityFamily = (value: unknown): value is ActivityFamily =>

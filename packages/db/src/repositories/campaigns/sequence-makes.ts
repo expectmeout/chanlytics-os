@@ -40,7 +40,7 @@ export async function listSequenceMakes(
   if (error) throw new DbFailure(error, "decisions");
   const seen = new Set<string>();
   const out: SequenceMake[] = [];
-  for (const row of data ?? []) {
+  for (const row of data) {
     const payload = row.payload && typeof row.payload === "object" && !Array.isArray(row.payload) ? row.payload : {};
     if (payload.starts !== "leads" || seen.has(row.subject_id)) continue;
     seen.add(row.subject_id);

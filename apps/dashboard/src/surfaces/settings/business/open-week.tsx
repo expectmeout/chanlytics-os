@@ -12,7 +12,7 @@
 // skill, "A list on a page that loads no Base UI popup"). The copy menu is always drawn.
 import { Fragment } from "react";
 import type { ComponentProps, KeyboardEvent, ReactNode } from "react";
-import { clockLabel } from "@chanlytics/contracts";
+import { clockLabel, keysOf, textOrEmpty, valueAt } from "@chanlytics/contracts";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
@@ -39,17 +39,25 @@ interface Day {
 export type Week = Record<DayKey, Day>;
 
 // The days of the week in the schema's order, as the fold names them: the switch says the whole name, the row the short.
-const BTO_DAYS: [DayKey, string, string][] = [
-  ["mon", "Monday", "Mon"],
-  ["tue", "Tuesday", "Tue"],
-  ["wed", "Wednesday", "Wed"],
-  ["thu", "Thursday", "Thu"],
-  ["fri", "Friday", "Fri"],
-  ["sat", "Saturday", "Sat"],
-  ["sun", "Sunday", "Sun"],
-];
-const BTO_SHORT = Object.fromEntries(BTO_DAYS.map(([d, , short]) => [d, short])) as Record<DayKey, string>;
-const BTO_LONG = Object.fromEntries(BTO_DAYS.map(([d, long]) => [d, long])) as Record<DayKey, string>;
+const BTO_LONG: Record<DayKey, string> = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday",
+};
+const BTO_SHORT: Record<DayKey, string> = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun",
+};
+const BTO_DAYS: [DayKey, string, string][] = keysOf(BTO_LONG).map((d) => [d, BTO_LONG[d], BTO_SHORT[d]]);
 const BTO_WEEKDAYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri"];
 
 // A shift's box, named for its day, what it does and its place: "Monday opens", "Monday closes, second shift". The
@@ -205,7 +213,7 @@ const btoApplyToAll = (week: Week, change: Change, from: DayKey, days: DayKey[])
   const src = week[from];
   if (!src.isOpen) return;
   const notes = btoCopyNotes(week, src, days);
-  const before = {} as Week;
+  const before: Week = { ...week };
   BTO_DAYS.forEach(([d]) => {
     before[d] = { isOpen: week[d].isOpen, shifts: week[d].shifts.map((s) => ({ ...s })) };
   });
@@ -282,7 +290,7 @@ const btoWeekActs = (week: Week, f: WeekFields): WeekActs => {
     },
     removeShift: (d, n) => {
       shiftsOf(d).removeAt(n, (row) => {
-        const gone = row as Shift;
+        const gone = { open: textOrEmpty(valueAt(row, "open")), close: textOrEmpty(valueAt(row, "close")) };
         return (
           <>
             Removed the {BTO_SHORT[d]} shift

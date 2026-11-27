@@ -162,7 +162,7 @@ test("the standing values: what a caller gets and the tone it is drawn in, once"
 
 test("Connections: the phone line row says what a caller gets, in the tone the value gives", () => {
   const voice = C.toChannelVM(channelDto("voice"), NOW);
-  assert.equal(voice.healthLabel, `Switched off · ${C.PHONE_LINE_OFF.gets}; Chanlytics is told, you are not`);
+  assert.equal(voice.healthLabel, `Switched off · ${C.PHONE_LINE_OFF.gets} · Chanlytics is told, you are not`);
   const row = connectionRows(
     {
       channels: [voice],
@@ -182,7 +182,7 @@ test("Connections: the phone line row says what a caller gets, in the tone the v
   const wa = C.toChannelVM(channelDto("whatsapp"), NOW);
   assert.equal(
     wa.healthLabel,
-    `Switched off · ${C.lineOffGets("whatsapp", "message").gets}; Chanlytics is told they are arriving, you are not`,
+    `Switched off · ${C.lineOffGets("whatsapp", "message").gets} · Chanlytics is told they are arriving, you are not`,
   );
 });
 
@@ -216,7 +216,7 @@ const startInputs = (over = {}) => ({
     name: "Northside Movers",
     hours: true,
     services: 4,
-    bookingLink: true,
+    booking_link: true,
     address: true,
     handoff: null,
     broken: false,

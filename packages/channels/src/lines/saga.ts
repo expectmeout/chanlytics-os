@@ -203,7 +203,7 @@ interface LineRun {
 function lineRun(start: LineRow, ports: LinePorts): LineRun {
   const run: LineRun = {
     ports,
-    line: { ...start, facts: { ...(start.facts ?? {}) } },
+    line: { ...start, facts: { ...start.facts } },
     secrets: {},
     async save(patch) {
       run.line = { ...run.line, ...patch, facts: patch.facts ? { ...patch.facts } : run.line.facts };

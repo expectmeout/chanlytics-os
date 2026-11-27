@@ -15,6 +15,7 @@ import {
   DbFailure,
 } from "@chanlytics/contracts";
 import type { Database } from "../../types";
+import { nullableIn } from "../../shared/answers";
 
 type Db = SupabaseClient<Database>;
 
@@ -34,7 +35,7 @@ export async function askMemoryLines(db: Db, tenantId: TenantId, limit: number):
     .order("id", { ascending: false })
     .limit(limit);
   if (error) throw new DbFailure(error, "ask_memory_lines");
-  return (data ?? []).map((r) => ({
+  return data.map((r) => ({
     id: r.id,
     text: r.text,
     source: memorySource(r.source),
@@ -55,7 +56,7 @@ export async function askJournalDays(db: Db, tenantId: TenantId, limit: number):
     .order("day", { ascending: false })
     .limit(limit);
   if (error) throw new DbFailure(error, "ask_journal_days");
-  return (data ?? []).flatMap((r) => (r.text ? [{ day: r.day, text: r.text }] : []));
+  return data.flatMap((r) => (r.text ? [{ day: r.day, text: r.text }] : []));
 }
 
 /** A door's jsonb answer, read: the line, or its refusal. */
@@ -128,7 +129,7 @@ export interface AskRecallRow {
 export async function searchAsk(db: Db, tenantId: TenantId, words: string, limit: number): Promise<AskRecallRow[]> {
   const { data, error } = await db.rpc("search_ask", { p_tenant: tenantId, p_words: words, p_limit: limit });
   if (error) throw new DbFailure(error, "search_ask");
-  return (data ?? []).flatMap((r) =>
+  return nullableIn(data, "id", "thread_id", "snippet").flatMap((r) =>
     r.kind === "turn" || r.kind === "memory" || r.kind === "journal"
       ? [{ kind: r.kind, id: r.id ?? null, thread_id: r.thread_id ?? null, at: r.at, snippet: r.snippet ?? "" }]
       : [],

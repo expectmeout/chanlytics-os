@@ -405,3 +405,97 @@ test(
     assert.ok(count.count >= ids.length, "one finish each");
   },
 );
+
+test(
+  "an erasure collects before it destroys, withdraws all that would still speak to them, takes the people merged into them with it, and a second one destroys nothing",
+  { skip },
+  async () => {
+    // Pinned as 00501's text in people/erasure/erasure.test.mjs until 26 Nov 2026: what is collected is handed back, so the
+    // caller removes the private objects the deleted rows named; calls go explicitly (their keys are SET NULL, so a cascade
+    // would leave them holding the number); every scheduled job that names them is withdrawn, of any kind, with a reason.
+    const who = await person({ display_name: "Ada Finish", phone_e164: "+13055550171" });
+    const merged = await person({ display_name: "Ada again", phone_e164: "+13055550172", merged_into_contact_id: who });
+    const conv = ok(await db.from("conversations").insert({ tenant_id: A, contact_id: who }).select("id").single()).id;
+    const photo = `${A}/${conv}/m-1.jpg`;
+    const msg = ok(
+      await db
+        .from("messages")
+        .insert({
+          tenant_id: A,
+          conversation_id: conv,
+          contact_id: who,
+          channel: "whatsapp",
+          direction: "inbound",
+          sender: "customer",
+          type: "media",
+          media: { storage_path: photo },
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const recording = `${A}/calls/call-finish.mp3`;
+    const call = ok(
+      await db
+        .from("calls")
+        .insert({
+          tenant_id: A,
+          retell_call_id: `call-finish-${randomUUID()}`,
+          contact_id: who,
+          recording: { storage_path: recording },
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const job = async (payload, state = "scheduled") =>
+      ok(
+        await db
+          .from("jobs")
+          .insert({
+            tenant_id: A,
+            kind: "outbound_send",
+            due_at: new Date(Date.now() + 3_600_000).toISOString(),
+            state,
+            payload,
+          })
+          .select("id")
+          .single(),
+      ).id;
+    const theirs = [
+      await job({ contact_id: who }),
+      await job({ conversation_id: conv }),
+      await job({ message_id: msg }),
+    ];
+    const someoneElse = await job({ contact_id: live });
+
+    const first = ok(await erase(owner.client, who));
+    assert.equal(first.already_erased, false);
+    assert.deepEqual([...first.storage_paths].sort(), [photo, recording].sort(), "the private objects, handed back");
+    assert.deepEqual(
+      ok(await db.from("jobs").select("state, last_error").in("id", theirs)).map((j) => [j.state, j.last_error]),
+      theirs.map(() => ["canceled", "contact erased"]),
+      "every job that named them, withdrawn with its reason",
+    );
+    assert.equal(
+      ok(await db.from("jobs").select("state").eq("id", someoneElse).single()).state,
+      "scheduled",
+      "nobody else's",
+    );
+    assert.deepEqual(
+      ok(await db.from("calls").select("id").eq("id", call)),
+      [],
+      "the call, deleted, not left holding the number",
+    );
+    assert.ok(
+      ok(await db.from("contacts").select("erased_at").eq("id", merged).single()).erased_at,
+      "merged into them: erased with them",
+    );
+
+    const again = ok(await erase(owner.client, who));
+    assert.deepEqual([again.already_erased, again.storage_paths], [true, []], "answered, not done twice");
+    assert.equal(
+      ok(await db.from("decisions").select("id").eq("tenant_id", A).eq("verb", "erase").eq("subject_id", who)).length,
+      1,
+      "one erasure on the ledger",
+    );
+  },
+);

@@ -56,6 +56,7 @@ import { replyAnswersAt } from "@chanlytics/db/conversations";
 import type { Database, Json } from "@chanlytics/db/types";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
 import { heldByThread, lateDraft, liveHoldOf } from "./hold";
+import { blockedEvent } from "./refusal";
 import { heldRefusal, sendingHoldOf, sendingRefusal, stopOf, type Refused } from "./stop";
 import { textRefusal } from "./text";
 import { namedFailure, putOnWire, type BoundWire } from "./wire-senders";
@@ -496,7 +497,7 @@ async function overtakenByHuman(db: Db, delivery: Delivery): Promise<string | nu
   // A campaign's email is no person speaking on this thread, whatever its row says wrote the words: a broadcast's, and
   // a reach-out's (written queued, and perhaps refused at this door, in a thread the receptionist is drafting in).
   // Which sends those are is said once (contracts isAutomatedSend, with its SQL twin).
-  const spoke = (newer ?? []).find((m) => !isAutomatedSend(m.meta));
+  const spoke = newer.find((m) => !isAutomatedSend(m.meta));
   return spoke ? spoke.id : null;
 }
 
@@ -575,9 +576,9 @@ async function leftAs(db: Db, delivery: Delivery, sent: SendResult): Promise<voi
  * The queued row settled with what the door says of it, in one transaction (00721 message_settle): message.sent,
  * .send_blocked or .send_failed, and a cancel that won the row first said beside a send. False when a cancel won it.
  */
-async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch, told: SendTold): Promise<boolean> {
+async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch, event: SendTold): Promise<boolean> {
   if (!d.messageId) return false;
-  return settleQueuedMessage(db, { tenantId: d.tenantId, messageId: d.messageId, patch, told });
+  return settleQueuedMessage(db, { tenantId: d.tenantId, messageId: d.messageId, patch, told: event });
 }
 
 export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<Delivered> {
@@ -602,26 +603,11 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
     extra: Record<string, Json> = {},
   ): Promise<Delivered> => {
     if (delivery.messageId) {
-      const contact = { ...facts.contact, ...now };
       await finalizeQueued(
         ports.db,
         delivery,
         { status: "canceled", error: { reason: reason } },
-        {
-          kind: "blocked",
-          data: {
-            reason: reason,
-            purpose: delivery.purpose,
-            consent: contact.consent,
-            dnc: contact.dnc,
-            marketing_consent: contact.marketing_consent,
-            ...(delivery.purpose === "outreach" || delivery.purpose === "marketing"
-              ? { email_marketing: contact.email_marketing }
-              : {}),
-            ...(overtakenBy ? { after: overtakenBy } : {}),
-            ...extra,
-          },
-        },
+        blockedEvent(delivery.purpose, reason, { ...facts.contact, ...now }, overtakenBy, extra),
       );
     }
     return { outcome: "refused", reason: reason, messageId: delivery.messageId ?? null };

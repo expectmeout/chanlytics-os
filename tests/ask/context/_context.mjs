@@ -32,7 +32,7 @@ export const { buildContext, clearContextCache, shapeBlock, CONTEXT_TTL_MS } = a
 
 export const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 
-export const { shape } = await import(at("apps/dashboard/src/server/readers/shape.ts"));
+export const { shape } = await import(at("apps/dashboard/src/server/readers/workspace/shape.ts"));
 
 export const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 
@@ -306,7 +306,7 @@ export const page = (surface, rows, over = {}) => ({
   view: null,
   focus: null,
   rows,
-  askedAt: 1,
+  asked_at: 1,
   ...over,
 });
 

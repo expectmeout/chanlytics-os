@@ -30,9 +30,13 @@ import {
   fallbackMessages,
   type BrainConfig,
   type BusinessProfile,
-  type GuardrailsInForce,
+  recordOrEmpty,
+  textOrEmpty,
+  valueAt,
+  listOrEmpty,
+  recordOrNull,
 } from "@chanlytics/contracts";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps } from "react";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { gate } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
@@ -168,8 +172,8 @@ const BtaNote = ({
         aria-label={`Remove ${title.trim() || `note ${i + 1}`}`}
         {...press(() =>
           notes.removeAt(i, (gone) => {
-            const g = gone as NoteDraft;
-            return <>Removed {g && g.title ? <b>{g.title as ReactNode}</b> : "a note"}</>;
+            const title = textOrEmpty(valueAt(gone, "title"));
+            return <>Removed {title ? <b>{title}</b> : "a note"}</>;
           }),
         )}
         data-testid={`rec-note-remove-${i}`}
@@ -205,7 +209,7 @@ const BtaNotes = ({
     key: "notes",
     full: BTA_NOTES_FULL,
   });
-  const list = Array.isArray(draft) ? (draft as NoteDraft[]) : [];
+  const list: NoteDraft[] = listOrEmpty(draft).map(recordOrNull);
   // Whether a note has ended is the composer's own rule (contracts noteEndedWords), in the zone the composer is given:
   // the workspace's own, null where it has none, never the zone the page shows times in.
   const zone = btoStoredZone();
@@ -255,9 +259,6 @@ const BtaNotes = ({
 
 /* ------------------------------------ in your own words ------------------------------------ */
 
-/** The owner's own words as the fold opens them: the text, and whether it was carried over from before the form. */
-type OwnDraft = { text?: unknown; carried?: unknown };
-
 /**
  * The owner's own words, pre-filled with the workspace's existing instructions, so nothing a business already told its
  * receptionist quietly disappears the moment it fills in a form: contracts chooses them (S4, draftOf's
@@ -272,7 +273,7 @@ const BtaOwnWords = ({
   problems,
   readOnly,
 }: Pick<Fields, "draft" | "update" | "problems" | "readOnly">) => {
-  const d = (draft || {}) as OwnDraft;
+  const d = recordOrEmpty(draft);
   const text = typeof d.text === "string" ? d.text : "";
   const room = BUSINESS_TAB.instructionsWords(text).limit;
   return (
@@ -289,7 +290,7 @@ const BtaOwnWords = ({
         aria-labelledby="rec-fold-extra_instructions-label"
         rows={Math.min(14, Math.max(4, Math.ceil(text.length / 90)))}
         value={text}
-        onChange={(v) => update((was) => ({ ...(was as OwnDraft), text: v }), ["extra_instructions"])}
+        onChange={(v) => update((was) => ({ ...recordOrEmpty(was), text: v }), ["extra_instructions"])}
         problem={problems.extra_instructions || null}
         placeholder="Anything the rows above don't cover"
         readOnly={readOnly || undefined}
@@ -344,7 +345,7 @@ const btaInsert = (key: FallbackKey, token: string, update: Fields["update"]) =>
   const typed = box instanceof HTMLTextAreaElement ? box : null;
   update(
     (was) => {
-      const d = was as FallbacksDraft;
+      const d = recordOrEmpty(was);
       const cur = typeof d[key] === "string" ? d[key] : "";
       // The caret counts only in the box that shows this draft: a box a step behind it holds other words.
       const at = typed && typed.value === cur ? typed.selectionStart : cur.length;
@@ -411,7 +412,7 @@ const BtaFallback = ({
         label={label}
         rows={3}
         value={text}
-        onChange={(v) => update((was) => ({ ...(was as FallbacksDraft), [key]: v }), [key])}
+        onChange={(v) => update((was) => ({ ...recordOrEmpty(was), [key]: v }), [key])}
         problem={wrong}
         readOnly={readOnly}
       />
@@ -439,7 +440,7 @@ const BtaFallback = ({
           type="button"
           className="btn btn-ghost btn-sm bt-fallback-default"
           aria-describedby={`bt-fallback-${key}-label`}
-          {...press(() => update((was) => ({ ...(was as FallbacksDraft), [key]: defaultWording }), [key]))}
+          {...press(() => update((was) => ({ ...recordOrEmpty(was), [key]: defaultWording }), [key]))}
           data-testid={`rec-fallback-${key}-default`}
         >
           Use the default wording
@@ -466,7 +467,7 @@ const BtaFallbacks = ({
   readOnly,
   brain,
 }: Pick<Fields, "draft" | "update" | "press" | "problems" | "readOnly"> & { brain: PreviewBrain }) => {
-  const d = (draft || {}) as FallbacksDraft;
+  const d: FallbacksDraft = recordOrEmpty(draft);
   const link = String(brain.booking_link || "").trim();
   // What a customer would read with the messages as typed and the details as the brain holds them.
   const reads: Partial<Record<FallbackKey, string>> = btaReads(d, brain, link);
@@ -541,7 +542,7 @@ export const BtRulesRow = ({
 }: Shared & { brain: Brain; base?: Config | null; config?: Config | null }) => {
   // The rules as the fold opens them (contracts guardrailsInForce, through draftOf: absent means on for the price rule,
   // off for health advice), so the row and the fold never read a stored rule two ways.
-  const rules = businessTabSave.draftOf("guardrails", btaStored(brain, config)) as GuardrailsInForce;
+  const rules = businessTabSave.draftOf("guardrails", btaStored(brain, config));
   // Whether the record's details compose anything, by the resolver's own test (hasProfile), on the brain the rules'
   // save goes on.
   const on = btaOn(brain, base);
@@ -605,8 +606,8 @@ const btaTransfer = (profile: Profile): string | null | undefined => {
 
 /** The words of the owner's own opening (S4), as the instructions fold opens with them. */
 const btaOwnOpening = (stored: Config): string | null => {
-  const own = businessTabSave.draftOf("extra_instructions", stored) as OwnDraft;
-  return own ? BUSINESS_TAB.instructionsWords(own.text as string).opening : null;
+  const own = businessTabSave.draftOf("extra_instructions", stored);
+  return own ? BUSINESS_TAB.instructionsWords(own.text).opening : null;
 };
 
 export const btaFacts = (brain: Brain, base: Config | null, config: Config | null): AnswersFacts => {

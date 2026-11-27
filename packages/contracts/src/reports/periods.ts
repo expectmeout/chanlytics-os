@@ -16,6 +16,7 @@
 import { isDayKey, keyParts, shiftKey } from "../shared/zone/day-keys";
 import { DAY_MS } from "../shared/time";
 import { REPORT_RANGES } from "./dtos";
+import { valueAt } from "../shared/unknown";
 
 /** What a period is called in a request, the tab's storage and the control. */
 export type ReportPeriodId = (typeof REPORT_RANGES)[number]["id"];
@@ -93,10 +94,7 @@ export type ReportRange = ReportPeriodId | ReportDays;
 const isRealDay = (value: unknown): value is string => isDayKey(value) && shiftKey(value, 0) === value;
 
 export const isReportDays = (value: unknown): value is ReportDays =>
-  typeof value === "object" &&
-  value !== null &&
-  isRealDay((value as ReportDays).from) &&
-  isRealDay((value as ReportDays).to);
+  typeof value === "object" && value !== null && isRealDay(valueAt(value, "from")) && isRealDay(valueAt(value, "to"));
 
 /** A day as a count of days, so two are a subtraction apart whatever month or clock change lies between them. */
 const dayOrdinal = (day: string): number => {

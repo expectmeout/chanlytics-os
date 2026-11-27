@@ -26,7 +26,7 @@ function emailRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft
   const { nowMs } = ctx;
   const mb = setupInputs.email?.mailbox ?? null;
   const sending = setupInputs.email?.sending ?? null;
-  const own = sending?.mailboxes?.[0] ?? null;
+  const own = sending?.mailboxes[0] ?? null;
   if (!mb && own)
     return {
       id: "email",
@@ -52,7 +52,7 @@ function emailRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft
       state: "not_started",
       required: false,
       sentence:
-        "Connect the mailbox customers write to. Six months of email from people comes into your Inbox, and new email arrives there.",
+        "Connect the mailbox customers write to: six months of their email comes into your Inbox, and new email after.",
       details: [EMAIL_NOT_ANSWERED_SENTENCE],
       verb: { label: "Connect your mailbox", to: firstRunStepRoute("channels") },
     };
@@ -95,7 +95,7 @@ const SETUP_STATE_OF: Record<CalendarSourceState, SetupRowDraft["state"]> = {
  */
 function calendarRow(setupInputs: SetupInputs): SetupRowDraft {
   const calendarSource = calendarSourceOf(
-    calendarSourceFacts({ booking_link: setupInputs.business.bookingLink, ...setupInputs.calendar }),
+    calendarSourceFacts({ booking_link: setupInputs.business.booking_link, ...setupInputs.calendar }),
   );
   return {
     id: "calendar",

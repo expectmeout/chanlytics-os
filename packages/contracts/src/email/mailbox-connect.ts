@@ -37,10 +37,10 @@ export const MAILBOX_CONNECT_WORDS: Record<string, string> = {
   not_workspace:
     "Nothing was connected: that Google account isn't a Google Workspace mailbox. Connect the one your business writes from.",
   no_mailbox:
-    "Nothing was connected: that account has no mailbox to send from (Gmail or Exchange isn't switched on for it). Ask whoever runs your email to switch it on.",
+    "Nothing was connected: that account has no mailbox. Ask whoever runs your email to switch on Gmail or Exchange.",
   wrong_account: "Nothing was connected: that's a different account. Sign in as the mailbox you're reconnecting.",
   admin_consent:
-    "Your organisation's Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
+    "Your Microsoft 365 admin approves Chanlytics once. Copy the link for them, then connect again when they have.",
   admin_approved: "Approved for your organisation. Connect the mailbox now.",
   failed: TRY_AGAIN_IN_A_MINUTE,
 };

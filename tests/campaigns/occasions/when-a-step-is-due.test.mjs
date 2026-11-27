@@ -207,10 +207,10 @@ test("each occasion's waiting batch tells its owner how its wait ends", () => {
 
 test("an occasion's batch the sweep skipped says its time passed, never that someone booked late", () => {
   const told = lateReminderSkippedNotice("Two hours before", 1, "visit_soon");
-  assert.match(told.body, /^The message made for 1 person waited for your approval until it was too late to send/);
+  assert.match(told.body, /^Its time for 1 person passed while it waited, so it didn’t reach them/);
   assert.doesNotMatch(told.body, /booked after the day/);
   // Its next waits only for the first OK of its words: it has no "Ask me" for How it runs to say (sequenceModesFor).
-  assert.match(told.body, /The next “Two hours before” waits for your approval too, until you approve one\.$/);
+  assert.match(told.body, /The next “Two hours before” waits too, until you approve one\.$/);
   assert.doesNotMatch(told.body, /Before each send/);
   const day = lateReminderSkippedNotice("Appointment reminder", 1, "visit_tomorrow").body;
   assert.match(day, /booked after the day/);

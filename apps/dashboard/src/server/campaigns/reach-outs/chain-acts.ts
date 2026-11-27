@@ -215,7 +215,7 @@ export async function saveChain(
   if (saved.undo_dropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "start_playbook" });
   if (rootId) {
     // A chain edited, its playbook.changed written with the save (00722 reach_out_edit); a new one is start_playbook.
-    return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked ?? 0, start: null };
+    return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked, start: null };
   }
   // The press of an Ask card that showed every email whole is the member's OK of those words (decision 0120, as D3 of
   // the answers canvas is for a customer's sequence): each step's words are taken as seen before the first run is asked

@@ -11,7 +11,7 @@ import type { ParamSpec } from "../templates/params";
 import type { AskedPurpose, MessageAbout } from "../../consent/consent";
 import { consentGuardWords } from "../../consent/asks";
 import { CONSENT_CHANNELS, countsByChannelWords, type ConsentChannel } from "../../consent/channels";
-import type { Audience } from "./audience";
+import type { AudienceDto } from "./audience";
 import { broadcastFailureWords } from "./failures";
 import { answeredYes } from "./reach-any";
 import { channelRefuses, type ChannelsReady } from "./reach-for";
@@ -32,6 +32,7 @@ export {
   audienceMembers,
   audiencePreview,
   audienceTrigger,
+  runReachDto,
 } from "./audience";
 
 export type { AudienceKind, Audience, PreviewPerson, AudiencePreview, CampaignHow } from "./audience";
@@ -244,7 +245,7 @@ export interface BroadcastDto {
   template_language: string;
   /** What fills each numbered slot: typed text, or the person's first name, the business's name, its booking link. */
   params: ParamSpec[];
-  audience: Audience;
+  audience: AudienceDto;
   state: BroadcastState;
   scheduled_for: string;
   started_at: string | null;
@@ -331,7 +332,7 @@ export function toBroadcastVM(broadcast: BroadcastDto, tz: string, now = new Dat
   const attempted = counts.sent + counts.skipped + counts.failed;
   return {
     ...broadcast,
-    stateLabel: BROADCAST_STATE_LABELS[broadcast.state] ?? broadcast.state,
+    stateLabel: BROADCAST_STATE_LABELS[broadcast.state],
     when: whenLabel(broadcast.finished_at ?? broadcast.started_at ?? broadcast.scheduled_for, tz, now),
     deliveredPct: counts.sent > 0 ? Math.round((counts.delivered / counts.sent) * 100) : null,
     readPct: readShare(counts),

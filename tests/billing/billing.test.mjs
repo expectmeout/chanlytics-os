@@ -29,6 +29,7 @@ import {
 import { importSrc, readCode, readRaw } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
+import { fromDashboard, listedTogether, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const SUB = {
@@ -247,7 +248,7 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
       name: "Luna",
       hours: true,
       services: 3,
-      bookingLink: true,
+      booking_link: true,
       address: true,
       handoff: null,
       broken: false,
@@ -480,8 +481,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
       bridge.includes('declareReads("billing", { reads: ["billing"], fresh: "live" })') &&
       bridge.includes("window.location.assign(r.data.url)"),
   );
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(/googleOverride,\s*billingOverride\b/.test(app) && app.includes("installBilling();"));
+  // Read beside Google's, and its verbs installed as the frame loads (bridge/boot).
+  assert.ok(listedTogether("google", "billing"));
+  assert.ok(stepRunning(fromDashboard("surfaces/settings/billing/surface.ts").installBilling), "installed at boot");
   for (const t of [
     "billing-real",
     "billing-headline",

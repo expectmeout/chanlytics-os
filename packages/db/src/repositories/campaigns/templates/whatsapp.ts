@@ -63,14 +63,14 @@ export const keepTemplateWords = async (
   tenantId: TenantId,
   templateId: string,
   words: Required<Pick<TemplateUpdate, "components" | "body_preview" | "variables">>,
-  told: { by: string | null; before: string | null },
+  event: { by: string | null; before: string | null },
 ) =>
   db.rpc("template_words_keep", {
     p_tenant_id: tenantId,
     p_template_id: templateId,
     p_words: { ...words },
-    ...(told.by ? { p_by: told.by } : {}),
-    ...(told.before ? { p_before: told.before } : {}),
+    ...(event.by ? { p_by: event.by } : {}),
+    ...(event.before ? { p_before: event.before } : {}),
   });
 
 /**

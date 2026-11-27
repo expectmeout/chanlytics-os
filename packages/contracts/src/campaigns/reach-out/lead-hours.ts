@@ -146,7 +146,7 @@ export function listingPeriodsOf(hours: unknown): GooglePeriod[] | null {
     byDay.set(day, windows);
   }
   if (DAYS.some((d) => !byDay.has(d))) return null;
-  const allDay = (w: OpenWindow[]) => w.length === 1 && w[0]?.from === 0 && w[0]?.to === 24 * 60;
+  const allDay = (w: OpenWindow[]) => w.length === 1 && w[0]?.from === 0 && w[0].to === 24 * 60;
   if (DAYS.every((d) => allDay(byDay.get(d) ?? []))) return [{ open: { day: 0, hour: 0, minute: 0 }, close: null }];
   return DAYS.flatMap((d) =>
     (byDay.get(d) ?? []).map((w) => ({ open: googlePointOf(d, w.from), close: googlePointOf(d, w.to) })),

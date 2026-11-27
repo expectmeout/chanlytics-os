@@ -2,7 +2,8 @@
  * 00632 on the database: a lead who tries their preview rings the bell, and Health counts what previews came to.
  *
  *   1. The first message rings once, for the sender's workspace: titled with the business and what it did, its body the
- *      lead's number, opening the lead. A second message says nothing more.
+ *      lead's number, opening the lead at the address the app gives a lead (contracts addressOf). A second message says
+ *      nothing more.
  *   2. The first call rings once too, apart from the message's line.
  *   3. The number: none on the listing, or one marked wrong, says none is on file; one of another country is said as kept.
  *   4. A lead blanked leaves its lines without its name and its number, and closed.
@@ -13,6 +14,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { addressOf } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -116,7 +118,7 @@ test(
         kind: "preview_tried",
         title: "Fixture Barbers texted their preview",
         body: "Their number is +1 (512) 555-0142.",
-        route: `clients/leads:p-${p.leadId}`,
+        route: addressOf({ kind: "lead", id: p.leadId }),
         subject_type: "lead",
         subject_id: p.leadId,
         closed_at: null,

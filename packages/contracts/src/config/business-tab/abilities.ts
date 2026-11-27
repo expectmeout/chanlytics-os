@@ -192,7 +192,7 @@ function linkWays(abilityInputs: AbilityInputs, chatAnswers: boolean, repliesHel
   };
 }
 
-export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
+export function abilityRows(abilityInputs: AbilityInputs | null | undefined): AbilitiesVM {
   if (!abilityInputs || typeof abilityInputs !== "object")
     throw new TypeError(
       "abilityRows needs its inputs: which lines answer, what is filled in, and what the Autonomy tab holds.",
@@ -249,7 +249,7 @@ export function abilityRows(abilityInputs: AbilityInputs): AbilitiesVM {
           : "No calendar to read, so it does not guess at open times."
         : abilityInputs.bookingHeld
           ? "It has the openings on a call and in chat, but bookings wait for you to confirm, so no link follows a request."
-          : `On a call it asks the calendar at that moment · in chat it has the next few days' openings. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
+          : `On a call it reads the calendar live · in chat it has the next few days' openings. It offers up to three that fit${linkGoes ? `, then the link${inChat}` : ""}.`,
       channels: {
         voice: abilityInputs.voiceLive && abilityInputs.hasCalendarFeed,
         whatsapp: chatAnswers && abilityInputs.hasCalendarFeed,
@@ -393,10 +393,10 @@ export function cannotRows(input: {
   /** The workspace takes booking requests (contracts takesBookingRequests); left out, none is promised. */
   takesRequests?: boolean;
 }): CannotRowVM[] {
-  if (typeof input?.smsLive !== "boolean") {
+  if (typeof input.smsLive !== "boolean") {
     throw new TypeError("cannotRows needs true or false for smsLive: left out, texting would be drawn as not sold.");
   }
-  if (typeof input?.hasBookingLink !== "boolean") {
+  if (typeof input.hasBookingLink !== "boolean") {
     throw new TypeError(
       "cannotRows needs true or false for hasBookingLink: left out, a business with no link would be told its link books.",
     );

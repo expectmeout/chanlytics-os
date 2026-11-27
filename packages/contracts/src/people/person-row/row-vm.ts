@@ -46,6 +46,58 @@ function rowThreadOf(r: PersonRowDto, askedMs: number | null) {
   };
 }
 
+/** The line under a row's state: why it needs you, whose turn it is, how they stopped, or when they last came. */
+function stateDetailOf(
+  person: PersonRowDto,
+  state: PersonRowVM["state"],
+  at: {
+    last: ReturnType<typeof lastContactOf>;
+    first: ReturnType<typeof firstContactOf>;
+    consent: ReturnType<typeof consentOf>;
+    askedMs: number | null;
+    tz: string;
+    nowMs: number;
+  },
+): string {
+  const { last, first, nowMs } = at;
+  if (state === "needs_you") {
+    if (person.open_escalation_reason) return reasonShort(person.open_escalation_reason);
+    return person.queued_reply_at && personStanding(person, nowMs).standing !== "needs_you"
+      ? "a reply is about to send · you can still stop it"
+      : "waiting for a person";
+  }
+  // The pill says "You have it" (HELD_WORDS), so the detail adds only whose turn it is.
+  if (state === "waiting_on_you") return theirTurnWords(last) ?? "";
+  if (state === "opted_out") return at.consent.sub;
+  if (state === "new") return `first contact ${first.label}`;
+  if (state === "quiet") return `last heard from ${ago(at.askedMs ?? 0, at.tz, nowMs)}`;
+  if (state === "unheard") return last.ts === null ? "no contact recorded" : "they have not written or called";
+  return "";
+}
+
+/** How many local days a row's moments are from now: the next visit's and the last's, when they last asked, and their first contact. */
+function rowDaysOf(
+  ms: { nextVisitMs: number | null; lastVisitMs: number | null; askedMs: number | null; firstMs: number | null },
+  tz: string,
+  nowMs: number,
+): Pick<PersonRowVM, "nextVisitDays" | "lastVisitDays" | "nextVisitThisWeek" | "heardDays" | "firstDays"> {
+  const { nextVisitMs, lastVisitMs, askedMs, firstMs } = ms;
+  return {
+    nextVisitDays: nextVisitMs !== null ? Math.max(0, localDaysBetween(nowMs, nextVisitMs, tz)) : null,
+    lastVisitDays: lastVisitMs !== null ? Math.max(0, localDaysBetween(lastVisitMs, nowMs, tz)) : null,
+    nextVisitThisWeek: nextVisitMs !== null && Number.isFinite(nextVisitMs) && inLocalWeek(nextVisitMs, tz, nowMs),
+    heardDays: askedMs !== null ? Math.max(0, localDaysBetween(askedMs, nowMs, tz)) : null,
+    firstDays: firstMs !== null ? Math.max(0, localDaysBetween(firstMs, nowMs, tz)) : null,
+  };
+}
+
+/** Whose the row is: nobody's, someone's (for no one looking), the viewer's own, or a teammate's. */
+function assignedOf(assignee: string | null, viewerId: string | null): PersonRowVM["assigned"] {
+  if (!assignee) return "nobody";
+  if (!viewerId) return "someone";
+  return assignee === viewerId ? "me" : "teammate";
+}
+
 /**
  * A People row, as it reads at `now` for `viewerId` (the member looking; null for a playbook's run, which has no one):
  * its words, and the facts a list's rule reads (lists/rules.ts), each worked out once here in the workspace's own dates.
@@ -80,27 +132,7 @@ export function toPersonRowVM(
   const lastVisitMs = visits?.last ? Date.parse(visits.last.start) : null;
   const askedNotBooked =
     calendar === "ok" && askedMs !== null && nowMs - askedMs <= MONTH_MS && !bookedAfterAsk(visits, askedMs);
-  const stateDetail =
-    state === "needs_you"
-      ? person.open_escalation_reason
-        ? reasonShort(person.open_escalation_reason)
-        : person.queued_reply_at && personStanding(person, nowMs).standing !== "needs_you"
-          ? "a reply is about to send · you can still stop it"
-          : "waiting for a person"
-      : state === "waiting_on_you"
-        ? // The pill says "You have it" (HELD_WORDS), so the detail adds only whose turn it is.
-          (theirTurnWords(last) ?? "")
-        : state === "opted_out"
-          ? consent.sub
-          : state === "new"
-            ? `first contact ${first.label}`
-            : state === "quiet"
-              ? `last heard from ${ago(askedMs as number, tz, nowMs)}`
-              : state === "unheard"
-                ? last.ts === null
-                  ? "no contact recorded"
-                  : "they have not written or called"
-                : "";
+  const stateDetail = stateDetailOf(person, state, { last, first, consent, askedMs, tz, nowMs });
   const vm: PersonRowVM = {
     id: person.id,
     real: true,
@@ -140,19 +172,9 @@ export function toPersonRowVM(
     askedNotBooked,
     nextVisitMs,
     lastVisitMs,
-    nextVisitDays: nextVisitMs !== null ? Math.max(0, localDaysBetween(nowMs, nextVisitMs, tz)) : null,
-    lastVisitDays: lastVisitMs !== null ? Math.max(0, localDaysBetween(lastVisitMs, nowMs, tz)) : null,
-    nextVisitThisWeek: nextVisitMs !== null && Number.isFinite(nextVisitMs) && inLocalWeek(nextVisitMs, tz, nowMs),
-    heardDays: askedMs !== null ? Math.max(0, localDaysBetween(askedMs, nowMs, tz)) : null,
-    firstDays: first.ts !== null ? Math.max(0, localDaysBetween(first.ts, nowMs, tz)) : null,
+    ...rowDaysOf({ nextVisitMs, lastVisitMs, askedMs, firstMs: first.ts }, tz, nowMs),
     standing: state === "needs_you" || state === "waiting_on_you" ? state : null,
-    assigned: !person.latest_assignee_user_id
-      ? "nobody"
-      : !viewerId
-        ? "someone"
-        : person.latest_assignee_user_id === viewerId
-          ? "me"
-          : "teammate",
+    assigned: assignedOf(person.latest_assignee_user_id, viewerId),
     stopped: isOptedOutContact({ consent: person.consent, dnc: person.dnc }),
     ...visitKeysOf(visits, nowMs, tz),
     deal: dealOf(person, tz, nowMs),

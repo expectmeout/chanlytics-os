@@ -1,6 +1,6 @@
 import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { settings } from "@/server/readers/settings";
+import { settings } from "@/server/readers/settings/settings";
 import { saveSettings } from "@/server/settings/save";
 
 /** GET /api/v1/settings — the tenant's config, with the version the client

@@ -92,9 +92,9 @@ export async function putTenantConfig(
   updatedBy?: string | null,
   /** A member's save that changed parts of it: which (never their values), and the card it came from. The door writes
    *  the row and its settings.changed in one transaction (00722), as the member. */
-  told?: SettingsTold,
+  event?: SettingsTold,
 ): Promise<PutTenantConfigResult> {
-  if (told && told.fields.length > 0) return putThroughTheDoor(db, tenantId, config, expectedVersion, told);
+  if (event && event.fields.length > 0) return putThroughTheDoor(db, tenantId, config, expectedVersion, event);
   const { data, error } = await db
     .from("tenant_config")
     .update({
@@ -128,14 +128,14 @@ async function putThroughTheDoor(
   tenantId: TenantId,
   config: unknown,
   expectedVersion: number,
-  told?: SettingsTold,
+  event?: SettingsTold,
 ): Promise<PutTenantConfigResult> {
   const door = await db
     .rpc("tenant_config_write", {
       p_tenant_id: tenantId,
       p_config: jsonCopyOf(config),
       p_version: expectedVersion,
-      ...(told ? { p_told: { fields: [...told.fields], ...(told.via ? { via: told.via } : {}) } } : {}),
+      ...(event ? { p_told: { fields: [...event.fields], ...(event.via ? { via: event.via } : {}) } } : {}),
     })
     .maybeSingle();
   if (door.error) throw new DbFailure(door.error, "putTenantConfig");
@@ -183,7 +183,7 @@ export async function listPolicies(db: Db, tenantId: TenantId): Promise<PolicyRe
     .is("subject_type", null)
     .order("class");
   if (error) throw new DbFailure(error, "listPolicies");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -273,7 +273,7 @@ export async function getPersonReplyModes(
       .eq("subject_type", "contact")
       .in("subject_id", contactIds.slice(index, index + MODE_IDS_AT_ONCE));
     if (error) throw new DbFailure(error);
-    for (const r of data ?? []) if (r.subject_id) out.set(r.subject_id, r.mode);
+    for (const r of data) if (r.subject_id) out.set(r.subject_id, r.mode);
   }
   return out;
 }
@@ -310,12 +310,12 @@ export async function replyTokensSince(
       .order("id", { ascending: false })
       .range(from, from + USAGE_PAGE - 1);
     if (error) throw new DbFailure(error, "replyTokensSince");
-    for (const r of data ?? []) {
+    for (const r of data) {
       const d = recordOrEmpty(r.data);
       replies += 1;
       tokens += n(d.input_tokens) + n(d.output_tokens);
     }
-    if ((data ?? []).length < USAGE_PAGE) break;
+    if (data.length < USAGE_PAGE) break;
   }
   return { replies, tokens };
 }
@@ -345,8 +345,8 @@ export async function listPeopleOnTheirOwnMode(
       .order("id")
       .range(from, from + OWN_MODES_PAGE - 1);
     if (error) throw new DbFailure(error, "listPeopleOnTheirOwnMode");
-    for (const r of data ?? []) if (r.subject_id) out.push({ id: r.subject_id, mode: r.mode });
-    if ((data ?? []).length < OWN_MODES_PAGE) return out;
+    for (const r of data) if (r.subject_id) out.push({ id: r.subject_id, mode: r.mode });
+    if (data.length < OWN_MODES_PAGE) return out;
   }
 }
 
@@ -373,7 +373,7 @@ export async function setPersonReplyMode(
       .eq("subject_id", contactId)
       .select("mode");
     if (error) throw new DbFailure(error);
-    return data?.[0]?.mode ?? null;
+    return data[0]?.mode ?? null;
   }
   const { data: was, error: readError } = await db
     .from("policies")
@@ -521,7 +521,7 @@ export async function findPublicWorkspaceBySlug(db: Db, slug: string): Promise<P
     record: record.data ?? null,
     soleProprietor: sole.data === true,
     config: cfg.data?.config ?? null,
-    channels: channels.data ?? [],
+    channels: channels.data,
   };
 }
 
@@ -541,5 +541,5 @@ export async function setupChoicesOf(db: Db, tenantId: TenantId): Promise<SetupC
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throw new DbFailure(error, "cannot read the setup choices");
-  return data ? { phone: data.phone, whatsapp: data.whatsapp, marks: data.marks ?? [], version: data.version } : null;
+  return data ? { phone: data.phone, whatsapp: data.whatsapp, marks: data.marks, version: data.version } : null;
 }

@@ -26,6 +26,7 @@ import { env } from "@/server/shared/env";
 import { log } from "@/server/shared/log";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { TenantId } from "@chanlytics/contracts";
+import { asFailedReply } from "@chanlytics/db/shared";
 
 /** The error Postgres or PostgREST answers a call with an argument the function does not take. */
 const noSuchSignature = (code: string | null | undefined, message: string): boolean =>
@@ -94,7 +95,7 @@ export async function createWorkspace(ctx: RouteContext, req: Request) {
     // The messages on these codes are written for an owner to read — the
     // function raises "Unknown timezone: Mars/Olympus", not a constraint name —
     // so they are passed through rather than replaced with something vaguer.
-    const mapped = RAISED[error.code ?? ""];
+    const mapped = RAISED[asFailedReply(error).code ?? ""];
     if (mapped) throw new AppError(mapped.code, error.message, mapped.status);
     throw new DbFailure(error);
   }

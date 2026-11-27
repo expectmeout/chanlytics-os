@@ -972,16 +972,16 @@ test("where the proposal follow-up has them in hand (0006), the card says the da
     }),
     followUp,
   });
-  const will = { kind: "will", atMs: NOW + 3 * H, asks: true };
+  const will = { kind: "will", at_ms: NOW + 3 * H, asks: true };
   let [card] = dealCardsOf(quiet(will), NOW, ZONE).cards;
   assert.deepEqual(card.flags, [{ words: "Follow-up to approve today", tone: "info", rowSays: true }]);
   assert.equal(card.next.id, "won", "the run follows up: a nudge of the card's own would be a second");
   assert.ok(![card.next, ...card.more].some((a) => a.id === "follow-up"));
   assert.equal(dealNextAct(quiet(will), NOW).id, "won");
-  [card] = dealCardsOf(quiet({ ...will, asks: false, atMs: NOW + D }), NOW, ZONE).cards;
+  [card] = dealCardsOf(quiet({ ...will, asks: false, at_ms: NOW + D }), NOW, ZONE).cards;
   assert.deepEqual(card.flags, [{ words: "Follow-up tomorrow", tone: "info", rowSays: true }], "auto: it goes");
   // Had theirs, and still nothing back: the card's own, as before.
-  [card] = dealCardsOf(quiet({ kind: "had", atMs: NOW - 2 * D }), NOW, ZONE).cards;
+  [card] = dealCardsOf(quiet({ kind: "had", at_ms: NOW - 2 * D }), NOW, ZONE).cards;
   assert.deepEqual(card.flags, [{ words: "Nothing back in 9 days", tone: "warn", rowSays: true }]);
   assert.equal(card.next.id, "follow-up");
   // Their row's standing is their current deal's: an older proposal beside it keeps its own words.

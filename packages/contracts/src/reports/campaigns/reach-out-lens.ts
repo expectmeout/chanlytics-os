@@ -260,7 +260,7 @@ function businessesPart(dto: ReachOutReportDto, when: WhenWords): MixPartVM {
     businesses >= REPORT_MIN_N
       ? `: ${pct(wrote_back, businesses)}% wrote back and ${pct(interested, businesses)}% were interested`
       : "";
-  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at the last email that wrote to it · a question counts as interested. Who wrote back, was interested, booked${isCount(won) ? ", won" : ""} or said no is as it stands now.`;
+  const line = `Of ${plural(businesses, "business", "businesses")} written to ${when.within}${shares}. Each counts once, at its last email, a question as interested, and what came of it as it stands now.`;
   return mixOf(entries, line);
 }
 

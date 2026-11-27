@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { samePhone } from "@chanlytics/contracts";
+import { samePhone, recordOrEmpty } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Face } from "../../kit/face/face";
@@ -301,9 +301,7 @@ const strings = (v: unknown): string[] | null =>
   Array.isArray(v) && v.every((x): x is string => typeof x === "string") ? v : null;
 /** The words a person left in the sheet, when it opens again: what the tab kept, or nothing. */
 const keptTyped = (): Partial<Typed> => {
-  const kept = tabDraft(TYPED_KIND);
-  if (!kept || typeof kept !== "object") return {};
-  const k = kept as Partial<Record<keyof Typed, unknown>>;
+  const k = recordOrEmpty(tabDraft(TYPED_KIND));
   const listIds = strings(k.listIds);
   const newLists = strings(k.newLists);
   return {

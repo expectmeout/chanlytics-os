@@ -296,13 +296,13 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
     // The tab's first read: it holds no list yet, and the one it brings holds the workspace it shows. Nothing is sent anywhere.
     bridgeHolds({ who: { workspaces: undefined } });
     bridgeHolds({ who: { activeWorkspaceId: undefined } });
-    answers.workspaces = { workspaces: [ws("a"), ws("b")], activeWorkspaceId: "id-a", user };
+    answers.workspaces = { workspaces: [ws("a"), ws("b")], active_workspace_id: "id-a", user };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, [], "the first read has no seat to have lost");
     assert.equal(whoIsLooking().activeWorkspaceId, "id-a");
 
     // A teammate removes their seat in A: the memberships notice makes the next read, and the list no longer holds A.
-    answers.workspaces = { workspaces: [ws("b")], activeWorkspaceId: "id-b", user };
+    answers.workspaces = { workspaces: [ws("b")], active_workspace_id: "id-b", user };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, ["/w/b"], "to the workspace the server calls theirs now");
 
@@ -310,7 +310,7 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
     replaced.length = 0;
     bridgeHolds({ who: { workspaces: [ws("a"), ws("b")] } });
     bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
-    answers.workspaces = { workspaces: [], activeWorkspaceId: null, user };
+    answers.workspaces = { workspaces: [], active_workspace_id: null, user };
     await workspaceOverride.apply();
     assert.deepEqual(replaced, ["/"]);
 
@@ -320,7 +320,7 @@ test("a member whose seat in the workspace on screen is gone is sent to one of t
     bridgeHolds({ who: { activeWorkspaceId: "id-a" } });
     answers.workspaces = {
       workspaces: [ws("a"), ws("b")],
-      activeWorkspaceId: "id-a",
+      active_workspace_id: "id-a",
       user: { ...user, role: "viewer" },
     };
     await workspaceOverride.apply();

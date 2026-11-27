@@ -136,7 +136,9 @@ export async function findMetricsSummary(
   // dashboard deployed before its migration: either order works), and then after the function, which is the wait every
   // read of Today had beside it.
   // The day's midnight, as the function says it: an answer that names none is not the day's, and carries no bookings.
-  const since = answered.window?.since;
+  // Its answer is jsonb, read as it came: one that names no window says nothing of it.
+  const named: Partial<Pick<MetricsSummaryDto, "window">> = answered;
+  const since = named.window?.since;
   const [recent, bookings] = await Promise.all([
     !day ? null : (repliesOf(carried) ?? recentReplies(supabase, tenantId)),
     lately === undefined || !since ? undefined : lately && findBookedSince(supabase, tenantId, lately, since),
@@ -152,5 +154,6 @@ export async function findMetricsSummary(
   const wires = emailWires(email);
   // Untouched where there is no email line: a deployment without the channel
   // gets exactly the payload the function answered.
-  return wires.length ? { ...dto, channels: [...(dto.channels ?? []), ...wires] } : dto;
+  const listed: Partial<Pick<MetricsSummaryDto, "channels">> = dto;
+  return wires.length ? { ...dto, channels: [...(listed.channels ?? []), ...wires] } : dto;
 }

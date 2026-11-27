@@ -100,7 +100,7 @@ test("what became of a card pressed here is its foot, in its done state; a card 
   const told = byClass(redraw(), "ask-told").find((n) => n.props["data-foot"]);
   assert.match(textOf(told), /It runs/);
   assert.equal(byClass(redraw(), "ask-card-receipt")[0].props["data-state"], "done");
-  const kept = draw([card({ outcome: { state: "done", receipt: "It runs", atMs: 1, undo: null } })]);
+  const kept = draw([card({ outcome: { state: "done", receipt: "It runs", at_ms: 1, undo: null } })]);
   assert.match(textOf(kept), /It runs/);
   assert.deepEqual(feetOf(kept), [], "at rest: nothing was pressed here");
 });

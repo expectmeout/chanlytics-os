@@ -18,6 +18,7 @@ import { FILE_PICKS, FILE_PICKS_WITH_VIDEO, fileVerbs, type AddSaid } from "../.
 import { surfaceValue } from "../../surface-values";
 import type { LineWords } from "../words";
 import type { Line } from "./types";
+import { isDomNode } from "../../dom-reads";
 
 /** How long a question waits for a video to be made ready, and how often it asks. */
 const VIDEO_READY_WAIT_MS = 2 * MIN_MS;
@@ -132,7 +133,7 @@ export const useArDrop = (attach: (files: readonly File[]) => void) => {
       setDropping(true);
     },
     onDragLeave: (e: DragEvent) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+      if (!(isDomNode(e.relatedTarget) && e.currentTarget.contains(e.relatedTarget))) setDropping(false);
     },
     onDrop: (e: DragEvent) => {
       setDropping(false);

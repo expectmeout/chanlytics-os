@@ -20,6 +20,8 @@ import {
   todayLateRunsSub,
   todayDraftsSub,
   todayRunApproved,
+  type CalendarLike,
+  type CalendarVM,
   type PersonRowVM,
   type TodayNoReplyVM,
   type TodayPeopleDto,
@@ -123,3 +125,10 @@ export function peopleForToday(): TodayPeople | PeopleSurface | null {
   }
   return people;
 }
+
+/**
+ * The calendar as Today's day reads it (contracts CalendarLike). Its `now` is null when today is not in its span; the
+ * day reads it only on today's frame, where it is a number, and reads it as midnight elsewhere, as its comparisons
+ * always took the null they were handed.
+ */
+export const calendarLikeOf = (vm: CalendarVM): CalendarLike => ({ ...vm, now: vm.now ?? 0 });

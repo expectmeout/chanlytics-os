@@ -26,7 +26,7 @@ import { log } from "../shared/log";
 import { findConfigRow } from "../workspace/config-row";
 import { settingsSaved, settingsTold } from "../workspace/settings-write";
 import { judgeChangedHandoff } from "./save";
-import { getKnownFacts } from "../readers/settings";
+import { getKnownFacts } from "../readers/settings/settings";
 import { composePromptPreview } from "../receptionist/prompt-preview";
 import type { RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
@@ -277,8 +277,8 @@ export async function keepRehearsalChange(
   await judgeChangedHandoff(ctx, member.tenantId, parsed.data, before.config);
   // What the schema left out of the stored row is put back, as a save on the page does (settings-save.ts).
   const next = withStoredKeysKept(parsed.data, before.config);
-  const told = settingsTold({ ...ctx, via: input.via }, before.config, next);
-  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, before.version, ctx.userId, told);
+  const event = settingsTold({ ...ctx, via: input.via }, before.config, next);
+  const result = await putTenantConfig(ctx.supabase, member.tenantId, next, before.version, ctx.userId, event);
   if (!result.ok) throw new AppError("conflict", FIX_WORDS.moved, 409);
   await settingsSaved(ctx, member.tenantId, before.config, next);
   const field = fixField(input.change);

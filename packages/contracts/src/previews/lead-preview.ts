@@ -17,7 +17,7 @@ import { PREVIEW_STARTERS_MOST, previewStartersWrittenOf } from "./starters";
 import { previewTheirsOf } from "./theirs";
 import { TRIED_JOIN, previewTriedParts } from "./tried";
 import { LEAD_PREVIEW_WORDS } from "./words";
-import { recordOrEmpty } from "../shared/unknown";
+import { recordOrEmpty, isOneOf } from "../shared/unknown";
 
 /* ---- its page ---- */
 
@@ -118,7 +118,7 @@ export interface PreviewPageFacts {
 const GOOGLE_PHOTO = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\//;
 const googlePhotoOf = (url: string | null): string | null => (url && GOOGLE_PHOTO.test(url) ? url : null);
 
-const TURN_TONES: ReadonlySet<string> = new Set(["sends", "waits", "yours"]);
+const TURN_TONES = ["sends", "waits", "yours"] as const satisfies readonly Tone[];
 type Tone = NonNullable<PreviewTurnVM["then"]>["tone"];
 
 /** The stretches lit in one answer, at most: what its door keeps (server/previews/taught-answer.ts). */
@@ -148,10 +148,10 @@ export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
     const then = row.then && typeof row.then === "object" ? recordOrEmpty(row.then) : null;
     const spans = then?.taught === true ? turnSpansOf(then.spans, row.content.length) : [];
     const turn =
-      row.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
+      row.role === "assistant" && then && typeof then.words === "string" && isOneOf(TURN_TONES, then.tone)
         ? {
             words: then.words,
-            tone: then.tone as Tone,
+            tone: then.tone,
             ...(then.taught === true ? { taught: true } : {}),
             ...(spans.length ? { spans } : {}),
           }

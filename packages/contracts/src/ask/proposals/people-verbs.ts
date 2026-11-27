@@ -26,7 +26,7 @@ import {
   oneOrMany,
   uniqueIds,
 } from "./spec";
-import { listOrEmpty } from "../../shared/unknown";
+import { listOrEmpty, entryOf } from "../../shared/unknown";
 
 /** The two questions a person is asked (00095): messages (about their own appointments), and offers and news. */
 type AnswerPurpose = "conversational" | "marketing";
@@ -150,8 +150,7 @@ export const personModeManySpec: ProposalSpecAboveOperator = {
   gather: gatherCounts,
   receipt: ({ payload: pl }, data) => {
     const m = manySaid(data, "changed");
-    const mode = asText(pl.mode) as keyof typeof PERSON_MODE_WORDS;
-    const head = `AI for ${m.done}: ${PERSON_MODE_WORDS[mode] ?? asText(pl.mode)}`;
+    const head = `AI for ${m.done}: ${entryOf(PERSON_MODE_WORDS, pl.mode) ?? asText(pl.mode)}`;
     return m.said ? `${head} · ${m.said}` : head;
   },
   open: () => "clients",
@@ -234,7 +233,7 @@ export const personMessageSpec: ProposalSpec = {
   },
   receipt: ({ payload: pl }) => `On its way to ${asText(pl.who)} · sends in 15 seconds unless you cancel`,
   undo: {
-    label: () => "Sends 15 seconds after you approve; cancel within them",
+    label: () => "Sends 15 seconds after you approve · cancel before then",
     window: "cancelable",
     record: (_p, data) => ({
       message_id: rec(data).message_id,

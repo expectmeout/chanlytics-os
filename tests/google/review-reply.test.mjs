@@ -28,7 +28,6 @@ import {
   MODEL_ROUTES,
   MODELS,
 } from "@chanlytics/contracts";
-import { readCode } from "../_source.mjs";
 
 const { UI_ROWS, uiRows } = await import("../../apps/dashboard/src/bridge/policy-store.ts");
 
@@ -242,25 +241,13 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   // redefined since 00071 (through 00714), run on the stack by every suite that makes a workspace
   // (leads/lead-caps.db.test.mjs and the rest). Pinned as 00071's text until 25 Nov 2026.
 
-  // The answers (review-answers.ts) and the sync that calls them (profile-sync.ts).
-  const lib = ["review-answers", "profile-sync"].map((m) => readCode(`apps/edge/lib/google/${m}.ts`)).join("\n");
-  assert.ok(
-    lib.includes("export async function reviewReplyMode(") &&
-      lib.includes("reviewReplyModeOf(await listPolicies(db, tenantId))"),
-  );
-  assert.ok(
-    /const \{ answered, drafted \} = first\s*\?\s*\{ answered: \[\], drafted: \[\] \}\s*:\s*await answerNewReviews\(/.test(
-      lib,
-    ),
-    "the first sync is history, never answered",
-  );
-  assert.ok(lib.includes('if (mode === "never") return nothingAnswered();'), "Never answers nothing");
-  assert.ok(lib.includes("autoReplyCandidates(waiting, conn.connected_at, now.getTime(), REVIEW_DRAFTS_PER_SYNC)"));
-  // The reply's `by` and the bell it rings, and the reply held back for a price, are run in google/door/.
-  assert.ok(
-    lib.includes("business_name || t.data?.name") && lib.includes("phone: brain?.phone_display || null"),
-    "the facts are the brain's profile",
-  );
+  // Run, not read (pinned as the modules' text until 26 Nov 2026), in google/door/the-profile-reply-draft-and-disconnect:
+  // the mode read from the workspace's Autonomy row ("refresh under the auto mode", "under Holds it", "under Ask me",
+  // "under Never", which answers nothing and asks the model nothing); the first sync is history, never answered
+  // (door/search-link-refresh-and-connect, "the first sync is history: nothing announced, nothing answered"); the
+  // newest reviews since the connection, a few a sync (contracts autoReplyCandidates, "replies held for their owner never
+  // keep older reviews waiting"); and the reply written from the business's own facts ("a reply is written from the
+  // business's own facts"). The reply's `by` and the bell it rings, and the reply held back for a price, run there too.
   // The model, its bound, its retry and its cap are the registry's (contracts ai/models/routes.ts), asked through the port.
   assert.deepEqual(
     [
@@ -271,47 +258,17 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
     ],
     [MODELS.SONNET_5_5, 15_000, 1, 300],
   );
-  const model = readCode("apps/edge/lib/google/review-reply.ts");
-  assert.ok(
-    model.includes('if (!modelAnswer) return { ok: false, error: "no_model_key" };'),
-    "no key: no draft, said so",
-  );
-  // The draft op -- Never refused before the review is read, the no-model
-  // path -- runs in google/door/.
-
-  const route = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/draft/route.ts");
-  assert.ok(
-    route.includes('role: "operator",') && route.includes('rate: "google_draft",') && route.includes('op: "draft"'),
-  );
-  assert.ok(
-    route.includes("policy_never:") && !route.includes("recordDecision"),
-    "a draft is not a decision; sending is",
-  );
-  assert.ok(readCode("apps/dashboard/src/server/shared/rate-limit.ts").includes("google_draft: {"));
-  // The Autonomy row rides on the Google reader's read, which GET google (google-actions.ts) answers: google-routes.test.mjs
-  // runs it for each mode.
-  const bridge = readCode("apps/dashboard/src/bridge/google.ts");
-  // Keyed (decision 0035): a second press while the first is in flight is the same draft, not a second model call.
-  assert.ok(bridge.includes('"POST google/reviews/[id]/draft", { params: { id }, body, once: true }'));
-
+  // No key: no draft, said so ("draft: the Autonomy row is read first ... without a model key", google/door/). The draft
+  // route an operator's, on its own bucket, asking the edge's draft and writing no decision, Never said in Autonomy's
+  // words: google-routes.test.mjs ("the eleven declare their policy") and google-asked-of-the-edge.test.mjs ("a draft is
+  // asked of the edge"); keyed, so a second press is the same request (google.test.mjs, "the dashboard"). The Autonomy
+  // row rides on the Google reader's read, which GET google answers: google-routes.test.mjs runs it for each mode.
   // The pane's row, as it is drawn: Auto, Veto (Holds it: a reply posted after its wait unless stopped, decision 0064),
   // Ask and Never.
   assert.deepEqual(UI_ROWS.find((r) => r.id === "reviews").modes, ["Auto", "Veto", "Ask", "Never"]);
-  const reports = readCode("apps/dashboard/src/surfaces/reports/google.tsx");
-  assert.ok(
-    reports.includes('if (r.replied || mode === "never") return;'),
-    "a replied review and a Never workspace ask for nothing",
-  );
-  assert.ok(
-    reports.includes("const d = await draftReply(r.id);") && reports.includes('data-testid="google-reply-drafted"'),
-  );
-  // What the receptionist does under a new review is said beside the latest reviews' source (executed: reports/page/).
-  assert.ok(
-    reports.includes(
-      "<ReviewReply r={r} mode={vm.reply.mode} flash={flash} sent={sent} named={isNamed} answered={answered} />",
-    ) || reports.includes("named={isNamed}"),
-    "the composer is told which review a link names, and what to do once it is answered",
-  );
+  // A reply opened is drafted for the person, and a Stays quiet workspace asks for none; the review a link names opens
+  // with its box open: run on the Reviews lens in reports/page/periods-reviews-and-every-state.test.mjs ("a reply opened
+  // is drafted", "a link to one review").
   // The pane draws one row per class the workspace is offered (uiRows), the reviews' in every workspace, at the mode
   // stored; settings-autonomy.spec.ts counts the rows on production.
   const pane = uiRows({ rows: [{ class: "reviews", mode: "ask", limits: {} }] });

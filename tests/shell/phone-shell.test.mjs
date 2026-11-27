@@ -16,6 +16,7 @@ import vm from "node:vm";
 import { ROOT, readCode, readRaw, importSrc } from "../_source.mjs";
 import { installStubReact } from "../_stub-react.mjs";
 import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bootStep } from "./boot/_frame-boot.mjs";
 
 bridgeHolds({ who: { workspaces: [], activeWorkspaceId: null } });
 installStubReact();
@@ -104,7 +105,10 @@ test("the tab bar carries the real surfaces and the count that matters, drawn by
     ),
     "the room under every surface is the shell's tab bar, not the web's",
   );
-  assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
+  assert.ok(
+    css.includes("html.in-app { --toast-foot: calc(14px + var(--app-inset-bottom, 0px)); }"),
+    "a toast rests over the shell's tab bar, where the kit's stack reads it (kit.css .pp-toast-stack)",
+  );
   // The in-app rule for the web's Google door is in globals.css, which the sign-in page loads (consent-page.test.mjs).
   assert.ok(!css.includes(".auth-google"), "the sign-in page never loads this sheet, so its rule cannot live here");
   // The ✦'s own lift lives in ask.css with the palette's rules (ask/line/ holds it there).
@@ -167,7 +171,25 @@ test("the installable shell: a public manifest, real icons, full-screen on iOS, 
   heard.activate({ waitUntil: (p) => p });
   assert.deepEqual(did, ["skipWaiting", "claim"], "an update never waits on a closed tab");
   assert.equal(heard.fetch, undefined, "caches nothing and answers nothing: the workspace is live data");
-  const boot = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(boot.includes("publicEnv.productionBuild"), "no worker on a dev origin");
-  assert.ok(boot.includes('navigator.serviceWorker.register("/sw.js")'));
+  // And the frame's step that registers it (bridge/boot/installs.ts), run over a browser of the test's own: a production
+  // build registers /sw.js, a development server none, since a worker on a dev origin outlives the server.
+  const registered = [];
+  const was = { window: globalThis.window, env: process.env.NODE_ENV, navigator: globalThis.navigator };
+  globalThis.window ??= {};
+  Object.defineProperty(globalThis, "navigator", {
+    value: { serviceWorker: { register: (at) => (registered.push(at), Promise.resolve()) } },
+    configurable: true,
+  });
+  try {
+    process.env.NODE_ENV = "development";
+    bootStep("serviceWorker").run();
+    assert.deepEqual(registered, [], "no worker on a dev origin");
+    process.env.NODE_ENV = "production";
+    bootStep("serviceWorker").run();
+    assert.deepEqual(registered, ["/sw.js"]);
+  } finally {
+    process.env.NODE_ENV = was.env;
+    Object.defineProperty(globalThis, "navigator", { value: was.navigator, configurable: true });
+    if (was.window === undefined) delete globalThis.window;
+  }
 });

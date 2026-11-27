@@ -97,7 +97,7 @@ export async function findCurrentDeal(
 ): Promise<DealDto | null> {
   try {
     const r = await listDealRowsOf(ctx.supabase, tenantId, contactId);
-    if (r.error || !r.data) return null;
+    if (r.error) return null;
     return pickCurrentDeal(r.data);
   } catch (e) {
     logKeptGoing("person's current deal", e);

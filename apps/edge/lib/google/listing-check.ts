@@ -102,8 +102,8 @@ export async function checkListing(
   const day = await saveGoogleListingDay(db, row.tenant_id, plan.day);
   if (day.error) throw new DbFailure(day.error);
   // What was new on the ledger with the reviews it kept, in one transaction (00722), when there is either.
-  const told = plan.fresh.length || plan.counted;
-  if (plan.reviews.length || told) {
+  const news = plan.fresh.length > 0 || plan.counted > 0;
+  if (plan.reviews.length || news) {
     // first_seen_at is not in the payload: an existing row keeps its own.
     const reviews = await keepGoogleReviews(
       db,
@@ -122,7 +122,7 @@ export async function checkListing(
         maps_uri: review.maps_uri,
         last_seen_at: review.last_seen_at,
       })),
-      told
+      news
         ? {
             source: "places",
             fresh: plan.fresh.length,

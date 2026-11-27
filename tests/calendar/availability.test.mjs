@@ -20,7 +20,7 @@ import {
   parseTenantConfigResult,
   TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 
 const TZ = "America/New_York";
 const ICS = [
@@ -457,42 +457,241 @@ test("booking rules and the calendar feed are config the schemas accept, and the
   );
 });
 
-test("the edge reads the feed once per five minutes and tells both receptionists, after the clock", () => {
-  const lib = readRaw("apps/edge/lib/calendar/availability.ts"); // raw: a regex with // in it is not a comment
-  assert.ok(lib.includes("const CACHE_MS = 5 * MIN_MS;"));
-  assert.ok(lib.includes("AbortSignal.timeout(FETCH_TIMEOUT_MS)"));
-  assert.ok(lib.includes('u.replace(/^webcal:\\/\\//i, "https://")'));
-  assert.ok(
-    lib.includes("feeds.set(key, { text, at, parsed: null, tz, daysAhead });"),
-    "a failure is cached briefly too",
-  );
-  assert.ok(
-    lib.includes("if (hit?.parsed && sameTerms(hit)) return hit.parsed;"),
-    "parsed once per fetch, on the terms it was asked for",
-  );
-  // Keyed on the workspace ALONE, an owner correcting a wrong feed address was
-  // not a cache miss: the receptionist answered from the old calendar, and a
-  // cached failure kept a fixed address reading as broken, for five minutes.
-  assert.ok(lib.includes("const cacheKey = (tenantId: TenantId, url: string) =>"), "the address is part of the key");
-  assert.ok(
-    lib.includes("c.text === text && c.tz === tz && c.daysAhead === daysAhead"),
-    "and the horizon is part of the parse's",
-  );
-  const rt = readCode("apps/edge/lib/shared/tenant-runtime.ts");
-  assert.ok(rt.includes("calendar: parsed?.calendar ?? null,"));
-  const wa = readCode("packages/core/src/inbound/model-turn.ts");
-  assert.ok(wa.includes("const openings = rt ? await ports.calendar.openings(rt) : null;"));
-  assert.ok(wa.includes('${openings ? `\\n\\n${openings}` : ""}'), "after describeNow, in the uncached block");
-  // The phone's openings ride inside business_facts, and the facts rule from
-  // voice-parity: run, not read, in call-start.test.mjs.
+/**
+ * A feed with a weekly appointment from two days ahead: a parse expands it inside its horizon, so how many there are says
+ * how far ahead it was parsed (13 within a season's 90 days, 17 for a workspace that books 120 days out).
+ */
+const WEEKLY_FEED = [
+  "BEGIN:VCALENDAR",
+  "BEGIN:VEVENT",
+  "UID:soon",
+  "SUMMARY:Soon",
+  "DTSTART:20260910T150000Z",
+  "DTEND:20260910T160000Z",
+  "END:VEVENT",
+  "BEGIN:VEVENT",
+  "UID:weekly",
+  "SUMMARY:Weekly",
+  "DTSTART:20260910T170000Z",
+  "DTEND:20260910T180000Z",
+  "RRULE:FREQ=WEEKLY",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+
+/** The feed read over a season: the one appointment, and the weekly one 13 times. */
+const SEASON = { soon: 1, weekly: 13 };
+
+/**
+ * The edge's feed reads over a network the test scripts (`answers`, by address), with what each fetch was handed, and
+ * its clock held at `NOW` until a test moves it. Every fetch the edge makes goes through channels' guarded fetcher,
+ * which follows `globalThis.fetch` in a test process (calendar/_stand-in-network.mjs).
+ */
+async function edgeFeeds(t) {
+  const { listFeedItems, forgetFeeds } = await importSrc("apps/edge/lib/calendar/availability.ts");
+  forgetFeeds();
+  const NOW = new Date("2026-09-08T16:00:00.000Z");
+  t.mock.timers.enable({ apis: ["Date"], now: NOW.getTime() });
+  const answers = new Map();
+  const fetched = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    fetched.push({ url: String(url), signal: init?.signal ?? null });
+    const a = answers.get(String(url));
+    if (!a) throw new Error(`no route to ${url}`);
+    return new Response(a.body ?? "", { status: a.status ?? 200, headers: { "content-type": "text/calendar" } });
+  };
+  t.after(() => {
+    globalThis.fetch = realFetch;
+    forgetFeeds();
+  });
+  /** How many of each appointment a read holds, by its uid. */
+  const uids = (items) =>
+    items
+      ? Object.fromEntries(
+          [...new Set(items.map((i) => i.uid))].map((u) => [u, items.filter((i) => i.uid === u).length]),
+        )
+      : null;
+  return { listFeedItems, NOW, answers, fetched, uids };
+}
+
+test("the edge reads a feed once per five minutes, and a failed read is remembered as briefly", async (t) => {
+  const { listFeedItems, NOW, answers, fetched, uids } = await edgeFeeds(t);
+  const url = "https://cal.example/salon.ics";
+  answers.set(url, { status: 500 });
+  assert.equal(await listFeedItems("t-five", url, TZ, NOW), null, "a feed that did not answer is no appointments");
+  answers.set(url, { body: WEEKLY_FEED });
+  assert.equal(await listFeedItems("t-five", url, TZ, NOW), null, "the failure is kept: one broken feed is one wait");
+  assert.equal(fetched.length, 1, "and not asked again");
+  t.mock.timers.tick(5 * 60_000 - 1);
+  assert.equal(await listFeedItems("t-five", url, TZ, NOW), null, "still within the five minutes");
+  t.mock.timers.tick(1);
+  assert.deepEqual(uids(await listFeedItems("t-five", url, TZ, NOW)), SEASON, "five minutes on, read again");
+  assert.equal(fetched.length, 2);
+  await listFeedItems("t-five", url, TZ, NOW);
+  assert.equal(fetched.length, 2, "and that read is kept for the next five");
 });
 
-test("Settings collects the rules and the feed; the feed address is whole only for an owner", () => {
-  // The rules and the feed are folds of the Business page now (Task 3.7 deleted the form), and each patches only its
-  // own keys. What each writes, the row that states the feed and the sentence that it is only ever read are EXECUTED
-  // in receptionist/business-tab/folds/ and receptionist/business-tab/open/, so four pins that were here are gone.
-  const page = readRaw("apps/dashboard/src/surfaces/settings/business/folds.ts");
-  assert.ok(page.includes('btPutProfile(next, "booking_rules", Object.keys(rules).length ? rules : undefined);'));
-  // The feed address whole for an owner and masked for anyone else is RUN: through the route in settings-routes.test.mjs
-  // ("the settings read") and through its reader in ask/readers/, so the two pins on the route's text are gone.
+test("the address is part of the cache's key: an owner who corrects the link is answered from the new calendar at once", async (t) => {
+  // Keyed on the workspace ALONE, an owner correcting a wrong feed address was not a cache miss: the receptionist
+  // answered from the old calendar, and a cached failure kept a fixed address reading as broken, for five minutes.
+  const { listFeedItems, NOW, answers, fetched, uids } = await edgeFeeds(t);
+  const wrong = "https://cal.example/wrong.ics";
+  const right = "https://cal.example/right.ics";
+  answers.set(wrong, { status: 404 });
+  answers.set(right, { body: WEEKLY_FEED });
+  assert.equal(await listFeedItems("t-key", wrong, TZ, NOW), null);
+  assert.deepEqual(uids(await listFeedItems("t-key", right, TZ, NOW)), SEASON, "the corrected address is read now");
+  assert.deepEqual(
+    fetched.map((f) => f.url),
+    [wrong, right],
+  );
+  assert.deepEqual(
+    uids(await listFeedItems("t-other", right, TZ, NOW)),
+    SEASON,
+    "another workspace with the same link is its own read",
+  );
+  assert.equal(fetched.length, 3);
 });
+
+test("a feed is parsed on the terms it was asked for: one fetch, a second horizon parsed again, the same terms handed the same parse", async (t) => {
+  const { listFeedItems, NOW, answers, fetched, uids } = await edgeFeeds(t);
+  const url = "https://cal.example/terms.ics";
+  answers.set(url, { body: WEEKLY_FEED });
+  const near = await listFeedItems("t-terms", url, TZ, NOW, 14);
+  assert.deepEqual(uids(near), SEASON, "a season: 90 days ahead");
+  assert.deepEqual(
+    uids(await listFeedItems("t-terms", url, TZ, NOW, 120)),
+    { soon: 1, weekly: 17 },
+    "a workspace that books 120 days out is parsed to its horizon, never handed the first caller's",
+  );
+  assert.equal(fetched.length, 1, "from the one fetch");
+  const again = await listFeedItems("t-terms", url, TZ, NOW, 120);
+  assert.equal(again, await listFeedItems("t-terms", url, TZ, NOW, 120), "the same terms: the parse kept");
+  assert.notEqual(
+    await listFeedItems("t-terms", url, "Europe/London", NOW, 120),
+    again,
+    "another zone is another parse",
+  );
+  assert.equal(fetched.length, 1);
+});
+
+test("a webcal:// address is fetched as https://, and a feed that does not answer is given up after six seconds", async (t) => {
+  const { listFeedItems, NOW, answers, fetched, uids } = await edgeFeeds(t);
+  answers.set("https://cal.example/apple.ics", { body: WEEKLY_FEED });
+  const asked = [];
+  const timeout = AbortSignal.timeout;
+  t.after(() => {
+    AbortSignal.timeout = timeout;
+  });
+  const stop = new AbortController();
+  AbortSignal.timeout = (ms) => {
+    asked.push(ms);
+    return stop.signal;
+  };
+  assert.deepEqual(uids(await listFeedItems("t-webcal", "webcal://cal.example/apple.ics", TZ, NOW)), SEASON);
+  assert.deepEqual(
+    fetched.map((f) => f.url),
+    ["https://cal.example/apple.ics"],
+    "https in a hat",
+  );
+  assert.deepEqual(asked, [6000], "six seconds");
+  assert.equal(fetched[0].signal, stop.signal, "and the fetch is the one that stops");
+});
+
+test("both receptionists are told what the calendar says: the runtime carries the workspace's feed, and a text's turn its openings after the clock and its visits with who they are", async () => {
+  const { loadTenantRuntime } = await importSrc("apps/edge/lib/shared/tenant-runtime.ts");
+  const { runtime, text, world } = await import("../inbound/_world.mjs");
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const tenant = "aaaaaaaa-aaaa-4aaa-8aaa-00000000ca1e";
+  const calendar = { ical_url: "https://cal.example/salon.ics" };
+  const db = fakeDb(
+    {
+      tenant_channels: [
+        {
+          id: "ch-cal",
+          tenant_id: tenant,
+          kind: "whatsapp",
+          external_id: "wa-cal",
+          number_e164: "+13055550188",
+          credentials_ref: null,
+          config: {},
+          status: "active",
+        },
+      ],
+      tenant_config: [
+        {
+          tenant_id: tenant,
+          config: {
+            brain: {
+              business_name: "Harbor",
+              system_prompt: "Answer as the front desk of Harbor: brief and warm, and never guess a price.",
+              fallbacks: { greeting: "g", error: "e", non_text: "n" },
+            },
+            calendar,
+          },
+        },
+      ],
+      policies: [],
+      tenants: [{ id: tenant, name: "Harbor", timezone: TZ, status: "active" }],
+      google_listings: [],
+      contacts: [],
+      conversations: [],
+      messages: [],
+    },
+    {},
+    { runtime_stamp: () => "stamp-cal" },
+  );
+  const routed = { tenantId: tenant, channelId: "ch-cal", kind: "whatsapp", credentialsRef: null };
+  assert.deepEqual((await loadTenantRuntime(db, routed)).calendar, calendar, "the runtime carries the feed it names");
+
+  const OPENINGS = "Open times (from the calendar): Wed Sep 9: 9:00 AM – 11:00 AM.";
+  const VISITS = "Their next appointment: Thu Sep 10, 11:00 AM.";
+  let asked = null;
+  const visitsAsked = [];
+  const ports = {
+    leads: {
+      read: async () => ({ name: "Dana Ruiz" }),
+      personReplyMode: async () => null,
+    },
+    calendar: {
+      openings: async () => OPENINGS,
+      visits: async (_rt, who) => {
+        visitsAsked.push(who);
+        return VISITS;
+      },
+    },
+    brain: async () => ({
+      generateReply: async (a) => {
+        asked = a;
+        return {
+          text: "We have Wednesday at 9.",
+          escalate: false,
+          meta: { confidence: 0.95 },
+          usage: { input_tokens: 9 },
+        };
+      },
+    }),
+  };
+  await world({ env: { modelKey: "sk-test" }, rt: runtime({ calendar, timezone: TZ }) }).run(
+    text("anything open this week?"),
+    ports,
+  );
+  assert.ok(asked, "the model was asked");
+  const [clock, openings] = asked.nowNote.split("\n\n");
+  assert.equal(openings, OPENINGS, "the openings ride after the clock");
+  assert.ok(clock.length > 0 && !clock.includes("Open times"), "the business's clock first");
+  assert.ok(!asked.systemPrompt.includes(OPENINGS), "never in the cached system prompt, where five minutes is stale");
+  assert.deepEqual(visitsAsked, [{ phone: "+13055550100", name: "Dana Ruiz" }], "their visits, asked by who they are");
+  const [who, visits] = asked.leadNote.split("\n");
+  assert.deepEqual([who.length > 0, visits], [true, VISITS], "and told after who they are");
+  // The phone's openings ride inside business_facts, and the facts rule from voice-parity: run in call-start.test.mjs.
+});
+
+// Settings collects the rules and the feed, and the feed address is whole only for an owner. The rules and the feed are
+// folds of the Business page (Task 3.7 deleted the form), and each patches only its own keys, run in
+// receptionist/business-tab/folds/what-each-fold-owns-and-saves.test.mjs: the rules fold writes each rule in its range
+// and keeps the rest, and emptying the fold's own keys takes booking_rules with it (pinned here as folds.ts's text until
+// 26 Nov 2026). The row that states the feed and the sentence that it is only ever read are run in
+// receptionist/business-tab/open/. The feed address whole for an owner and masked for anyone else is run through the
+// route in settings-routes.test.mjs ("the settings read") and through its reader in ask/readers/.

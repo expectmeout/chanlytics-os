@@ -90,7 +90,7 @@ export type FreedomVerdict = ReturnType<typeof freedomAnswer>;
 export function rowOf(p: Pick<AskProposal, "kind" | "payload">): PolicyClass | null {
   const { row } = askTraitsOf(p.kind);
   if (row === "own") {
-    const cls = p.payload?.policy_class;
+    const cls = p.payload.policy_class;
     return typeof cls === "string" ? (cls as PolicyClass) : null;
   }
   return row;

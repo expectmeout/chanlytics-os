@@ -93,14 +93,24 @@ test("the words: the share from the row, the count from the memberships, the sta
     terms_accepted_at: "2026-09-01T00:00:00Z",
     created_at: "2026-09-01T12:00:00Z",
   };
-  const vm = partnerVM(dto, "https://app.example.com", 2);
+  const vm = partnerVM(dto, { origin: "https://app.example.com", zone: "America/New_York" }, 2);
   assert.equal(vm.link, "https://app.example.com/p/ada");
   assert.equal(vm.share, "25% of what it pays for its plan");
   assert.equal(vm.brought, "2 workspaces have you as their partner.");
   assert.equal(vm.standing, null, "an active account leads with nothing");
   assert.match(vm.since, /^A partner since Sep 1, 2026\.$/);
-  assert.equal(partnerVM({ ...dto, status: "paused" }, "x", 0).standing, PARTNER_WORDS.paused);
-  assert.equal(partnerVM({ ...dto, status: "closed" }, "x", 0).standing, PARTNER_WORDS.closed);
+  // Said by the workspace's clock: an account made late on the 1st in New York is the 2nd in Tokyo.
+  const lateNight = { ...dto, created_at: "2026-09-02T02:00:00Z" };
+  assert.match(partnerVM(lateNight, { origin: "x", zone: "America/New_York" }, 0).since, /Sep 1, 2026/);
+  assert.match(partnerVM(lateNight, { origin: "x", zone: "Asia/Tokyo" }, 0).since, /Sep 2, 2026/);
+  assert.equal(
+    partnerVM({ ...dto, status: "paused" }, { origin: "x", zone: "America/New_York" }, 0).standing,
+    PARTNER_WORDS.paused,
+  );
+  assert.equal(
+    partnerVM({ ...dto, status: "closed" }, { origin: "x", zone: "America/New_York" }, 0).standing,
+    PARTNER_WORDS.closed,
+  );
 });
 
 test("the earnings in words: each line a sum from the ledger, a zero said, what is owed back said as owed", () => {

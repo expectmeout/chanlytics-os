@@ -12,7 +12,8 @@ import { normalizeLink } from "../../shared/link";
 import { agoShort } from "../../shared/time";
 import type { LeadRowDto } from "../dtos";
 import { leadAddresseeOf, leadSizeOf } from "../kind";
-import { LEAD_CALL_OUTCOME_WORDS, type LeadCallOutcome } from "../words/lists";
+import { LEAD_CALL_OUTCOME_WORDS } from "../words/lists";
+import { entryOf } from "../../shared/unknown";
 
 /** The Columns menu's headings, in its order. */
 export const LEAD_COLUMN_GROUPS = {
@@ -54,7 +55,7 @@ export interface LeadColumnsVM {
 export function leadOutcomeWord(outcome: string | null | undefined): string | null {
   if (!outcome) return null;
   if (outcome === "emailed") return "Emailed";
-  return LEAD_CALL_OUTCOME_WORDS[outcome as LeadCallOutcome] ?? null;
+  return entryOf(LEAD_CALL_OUTCOME_WORDS, outcome) ?? null;
 }
 
 /** Whether the listing is claimed, in words. A source that says nothing says nothing. */
@@ -94,7 +95,7 @@ export function leadColumnsOf(lead: LeadRowDto, tz: string, now: Date): LeadColu
     city: lead.city || null,
     region: lead.state || null,
     social: socialOf(lead),
-    reviews: lead.reviews === null || lead.reviews === undefined ? null : lead.reviews.toLocaleString("en-US"),
+    reviews: lead.reviews === null ? null : lead.reviews.toLocaleString("en-US"),
     claimed: leadClaimedWord(lead.claimed),
   };
 }

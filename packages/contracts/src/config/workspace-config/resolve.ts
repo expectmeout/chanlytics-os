@@ -83,7 +83,7 @@ export function hasProfile(businessProfile: BusinessProfile | undefined | null):
   // time has to exist before this counts.
   const statedHours =
     !!businessProfile.hours &&
-    Object.values(businessProfile.hours).some((h) => (h?.open && h?.close) || h?.intervals?.length);
+    Object.values(businessProfile.hours).some((h) => (h.open && h.close) || h.intervals?.length);
   // NOT closures. Their contents EXPIRE: a profile whose only fact is a closure
   // would compose a real prompt while it was upcoming and, the day after it
   // passed, compose one with no hours, no address and no services — while this

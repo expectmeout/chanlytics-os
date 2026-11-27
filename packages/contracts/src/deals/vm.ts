@@ -31,6 +31,7 @@ import {
   type DealStage,
 } from "./words";
 import { amountWords } from "./amount";
+import { recordOrEmpty } from "../shared/unknown";
 
 /** The columns the people read carries for a person (people_list, 00156): the newest open or current deal, else the newest of any. */
 export interface DealColumns {
@@ -308,7 +309,7 @@ export function openDealsFromJson(value: unknown): OpenDealDto[] | null | undefi
   const out: OpenDealDto[] = [];
   for (const item of value) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const value = item as Record<string, unknown>;
+    const value = recordOrEmpty(item);
     const id = strOrNull(value.id);
     const stage = strOrNull(value.stage);
     if (!id || !stage) continue;

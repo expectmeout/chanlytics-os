@@ -6,7 +6,7 @@
  * here: Go live spends. Every sentence is here; the page composes.
  */
 import { formatPhoneDisplay } from "../shared/phone";
-import { bookingToolName, type BookingTool } from "../calendar/booking-notice";
+import { BOOKING_TOOL_IDS, bookingToolName, type BookingTool } from "../calendar/booking-notice";
 import { bookingToolOfLink } from "../google/booking-page";
 import { googleAudienceWords } from "../google/audience";
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
@@ -16,6 +16,7 @@ import { importLinesOf, type ImportRowDto } from "../imports/ledger";
 import type { FirstRunPhoneVM } from "./first-run-phone/vm";
 import type { SetupDto } from "./lines";
 import type { SetupVM, WhatsappChoice } from "./setup";
+import { isOneOf } from "../shared/unknown";
 
 /** What a number's line is, by the carrier's own records (decision 0073, R11: Twilio Lookup's line type intelligence). */
 export interface LineLookupDto {
@@ -108,7 +109,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     /** Keeping the app (R12, coexistence), said only where this deployment connects that way. */
     same: (n: string) => `WhatsApp on ${n}`,
     sameSays:
-      "Keep using the app: AI answers what you don't. Your contacts and last 6 months of chats come in, if you say yes in Meta's window.",
+      "Keep using the app: AI answers what you don't. Say yes in Meta's window, and contacts and 6 months of chats come in.",
     /** Where it cannot keep the app yet: honest about what connecting does. */
     sameMoves: "WhatsApp moves to a number on Chanlytics. The app on your phone stops receiving its messages.",
     own: (n: string | null) => (n ? `On its own number, ${n}` : "On its own number"),
@@ -133,7 +134,7 @@ export const FIRST_RUN_CHANNELS_WORDS = {
     bySite: "A booking site",
     byMessage: "By message",
     byHandSays:
-      "AI takes their name, what they need and when, and you confirm. Reminders the day before need a calendar: paste its link here any time.",
+      "AI takes their name, what they need and when, and you confirm. Day-before reminders need a calendar link, any time.",
     paste: "Paste a calendar link (optional)",
     clients: "Bring your clients",
     clientsDone: (n: number, tool: string | null) => `${n.toLocaleString()} clients in${tool ? ` from ${tool}` : ""}`,
@@ -152,12 +153,12 @@ export const FIRST_RUN_CHANNELS_WORDS = {
   },
   email: {
     title: "Email",
-    says: "Connect the inbox you already use: customers' emails and your contacts come in, and offers and campaigns go from your address.",
+    says: "Connect the inbox you already use: customers' emails and contacts come in, and campaigns go from your address.",
     google: "Connect Gmail",
     microsoft: "Connect Outlook",
     soon: "Coming soon",
     soonSays:
-      "Connecting Gmail or Outlook opens once Google and Microsoft finish their review. Until then email stays in your own inbox.",
+      "Gmail and Outlook open once Google and Microsoft finish their review. Until then, email stays in your own inbox.",
     connected: (address: string) => `${address} is connected`,
     notAnswered: EMAIL_NOT_ANSWERED_SENTENCE,
   },
@@ -297,7 +298,7 @@ const siteHostOf = (raw: string | null): string | null => {
 function bookingsOf(channelsInput: ChannelsInput): FirstRunChannelsVM["bookings"] {
   const bookings = FIRST_RUN_CHANNELS_WORDS.bookings;
   const cal = channelsInput.dto.calendar;
-  const tool = (cal.tool as BookingTool | null | undefined) ?? bookingToolOfLink(channelsInput.bookingLink);
+  const tool = isOneOf(BOOKING_TOOL_IDS, cal.tool) ? cal.tool : bookingToolOfLink(channelsInput.bookingLink);
   const toolName = bookingToolName(tool);
   const calRow = (channelsInput.dto.imports ?? []).find((r) => r.source === "calendar") ?? null;
   const clientsRow = (channelsInput.dto.imports ?? []).find((r) => r.source === "clients_file") ?? null;

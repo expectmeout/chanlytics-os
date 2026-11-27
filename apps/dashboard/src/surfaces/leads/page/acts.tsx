@@ -34,6 +34,10 @@ interface ActData {
 }
 const dataOf = (r: { ok: true; data: unknown }): ActData => (r.data && typeof r.data === "object" ? r.data : {});
 
+/** The operation a door's answer says it made, by its id and the version its Undo names, or none. */
+const operationOf = (d: ActData): { id: string; version: number } | null =>
+  typeof d.op_id === "string" && d.op_id && typeof d.version === "number" ? { id: d.op_id, version: d.version } : null;
+
 // The owner's own clipboard and the owner's own phone: a lead is emailed from their inbox and called from their handset,
 // and nothing is sent from here (PRD 0.4).
 const plCopy = (text: string) => {
@@ -66,11 +70,11 @@ interface LeadActsArgs {
 function leadDoors(a: LeadActsArgs) {
   const { leadBusy, setLeadBusy, plFlash, setSel, setAllMatching } = a;
   const leadUndo = (r: { ok: true; data: unknown }) => {
-    const d = dataOf(r);
-    return d.op_id
+    const op = operationOf(dataOf(r));
+    return op
       ? {
           undo: async () => {
-            const u = await undoLeadOperation(d.op_id as string, d.version as number);
+            const u = await undoLeadOperation(op.id, op.version);
             if (!u.ok) plFlash(refusalToast(u, "Nothing was put back"));
           },
         }

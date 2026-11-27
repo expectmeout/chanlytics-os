@@ -150,63 +150,61 @@ export function todayProof(
 const isCustomerMessage = (x: ConversationDto["messages"][number]): boolean =>
   x.direction === "inbound" && x.sender === "customer" && isPersonsWords(x.meta);
 
-/**
- * The day's four figures, from the fields Today has fetched on every load and never read (period.new_contacts,
- * call_sentiments, calls_voicemail, messages_out_ai) and from the threads, calls and escalations the page holds.
- * Null on a day with nothing at all: a row of zeros is a product that died overnight, not a fact.
- *
- * A figure is the SQL's count over the whole day; the page holds the newest hundred threads and the open
- * escalations. So a receipt makes an absolute claim ("All by WhatsApp.", "both on WhatsApp") only when what the page
- * holds accounts for the figure's own total, and otherwise says what it is counting ("Of the 4 in the Inbox: ...").
- */
-export function figuresOf(
-  metricsSummary: MetricsSummaryDto,
-  conversations: ConversationDto[],
-  callsInWindow: CallDto[],
-  /** The escalations read as it came (state=open): not `openEsc`, which drops the ones a person has taken over. */
-  escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
-  tz: string,
-  now: Date,
-): TodayFigureVM[] {
-  const period = metricsSummary.period;
-  if (nothingCounted(metricsSummary)) return quietFigures(metricsSummary.now, tz, now, metricsSummary.bookings);
-  const windowMs = new Date(metricsSummary.window.since).getTime();
-  const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) =>
-    x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
+/** A message or a thread counted today: written in the day's window, and never one a backfill brought in. */
+type FreshToday = (x: { created_at: string; meta: Record<string, unknown> | null }) => boolean;
 
-  // The customer messages the day's answered figure is "of": the wires they came by as the first of its why. A message
-  // with no wire named is WhatsApp, which is what every row was before the column said (viewmodels.ts writtenChannelOf).
-  // Nothing is said of the wires when the read holds none of today's messages, and what was counted is said when the read
-  // holds fewer than the figure. What it counts is what the figure counts: a person's words (isCustomerMessage, 00379),
-  // never an out-of-office the Inbox also holds. Messages and answered were one fact on two seats (the canvas of 2 Nov
-  // 2026), so the messages are answered's "of" and new people keep their seat.
-  const wires = tally(
-    conversations.flatMap((c) =>
-      c.messages.filter((x) => isCustomerMessage(x) && fresh(x)).map((x) => threadChannelWords([x])),
-    ),
-  );
+/**
+ * The wires today's customer messages came by, as the answered figure's first why. Nothing is said of the wires when the
+ * read holds none of today's messages, and what was counted is said when the read holds fewer than the figure. What the
+ * page holds is said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
+ */
+function inboxWiresWords(wires: Array<[string, number]>, messagesIn: number): string {
+  if (!wires.length) return "";
   const held = wires.reduce((s, [, n]) => s + n, 0);
   const split = andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`));
-  // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
-  const wireWords = !wires.length
-    ? ""
-    : held !== period.messages_in
-      ? held === 1
-        ? `The one the Inbox holds came by ${wireWord(wires[0]?.[0] ?? "")}.`
-        : wires.length === 1
-          ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0]?.[0] ?? "")}.`
-          : `Of the ${held} in the Inbox: ${split}.`
-      : wires.length === 1
-        ? `All by ${wireWord(wires[0]?.[0] ?? "")}.`
-        : `${split}.`;
+  const only = wireWord(wires[0]?.[0] ?? "");
+  if (held === messagesIn) return wires.length === 1 ? `All by ${only}.` : `${split}.`;
+  if (held === 1) return `The one the Inbox holds came by ${only}.`;
+  if (wires.length === 1) return `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${only}.`;
+  return `Of the ${held} in the Inbox: ${split}.`;
+}
 
-  // Answered by the receptionist: how fast and how often it stopped as the clause; why it stopped and what it sent as
-  // the why. The clause is the SQL's count of handovers opened today; the reasons are today's escalations as the page
-  // holds them (the open ones: the read is state=open), so a handover already resolved is counted, not named.
-  // period.escalation_reasons is every OPEN escalation whatever its age (00037_hygiene.sql), so it is not read here:
-  // a clause about today with a breakdown about all time contradicted itself on the first workspace that opened it.
-  // The raw read, not the queue's list: a handover a teammate has taken over is still open, not resolved.
-  const todays = escalations.filter((e) => e.state === "open" && new Date(e.created_at).getTime() >= windowMs);
+/**
+ * The handovers as a person would say them: how many times it handed over, why each time, and what is already
+ * resolved. It was a ledger ("Asked for a person: once; sent something the receptionist can't read: once."); the canvas
+ * wrote the same facts as a sentence, and a sentence is what an owner reads. Counts are words, so the receipt can never
+ * repeat the figure's digit; the handovers are the SQL's count, the reasons are today's open ones.
+ */
+function handoverWords(handedOver: number, reasons: Array<[string, number]>, resolved: number): string {
+  if (!handedOver) return "";
+  const lead = `Handed over ${timesWords(handedOver)}`;
+  if (!reasons.length) {
+    // Every one already resolved: nothing open to give a reason for.
+    return `${lead}, ${handedOver === 1 ? "already resolved" : handedOver === 2 ? "both already resolved" : "all already resolved"}.`;
+  }
+  if (reasons.length === 1 && reasons[0]?.[1] === handedOver) {
+    // One reason for all of them: "once, because ...", "twice, both times because ...", "three times, each time ...".
+    const [r, n] = reasons[0];
+    return `${lead}, ${n === 1 ? "" : n === 2 ? "both times " : "each time "}${reasonWhy(r)}.`;
+  }
+  // The breakdown, most common first; what is already resolved is not in the list, so it is said after.
+  const parts = reasons.map(([r, n]) => `${timesWords(n)} ${reasonWhy(r)}`).join(", ");
+  const done = resolved ? ` ${capitalize(countWord(resolved))} ${resolved === 1 ? "is" : "are"} already resolved.` : "";
+  return `${lead}: ${parts}.${done}`;
+}
+
+/**
+ * Answered by the receptionist: how fast and how often it stopped as the clause; the wires its messages came by, why it
+ * stopped and what it sent as the why. The clause is the SQL's count of handovers opened today; the reasons are today's
+ * escalations as the page holds them (the open ones: the read is state=open), so a handover already resolved is
+ * counted, not named.
+ */
+function answeredFigure(
+  metricsSummary: MetricsSummaryDto,
+  wiresWords: string,
+  todays: readonly EscalationDto[],
+): TodayFigureVM {
+  const period = metricsSummary.period;
   const reasons = tally(todays.map((e) => e.reason));
   const resolved = Math.max(0, period.escalations_new - todays.length);
   const answeredMeta =
@@ -220,30 +218,8 @@ export function figuresOf(
     ]
       .filter(Boolean)
       .join(", ") || (period.messages_in ? "none answered yet" : "nothing to answer yet");
-  // The why as a person would say it: how many times it handed over, why each time, and that the rest it answered
-  // itself. It was a ledger ("Asked for a person: once; sent something the receptionist can't read: once."); the
-  // canvas wrote the same facts as a sentence, and a sentence is what an owner reads. Counts are words, so the
-  // receipt can never repeat the figure's digit; the handovers are the SQL's count, the reasons are today's open ones.
   const handedOver = period.escalations_new;
-  let handovers = "";
-  if (handedOver) {
-    const lead = `Handed over ${timesWords(handedOver)}`;
-    if (!reasons.length) {
-      // Every one already resolved: nothing open to give a reason for.
-      handovers = `${lead}, ${handedOver === 1 ? "already resolved" : handedOver === 2 ? "both already resolved" : "all already resolved"}.`;
-    } else if (reasons.length === 1 && reasons[0]?.[1] === handedOver) {
-      // One reason for all of them: "once, because ...", "twice, both times because ...", "three times, each time ...".
-      const [r = "", n = 0] = reasons[0] ?? [];
-      handovers = `${lead}, ${n === 1 ? "" : n === 2 ? "both times " : "each time "}${reasonWhy(r)}.`;
-    } else {
-      // The breakdown, most common first; what is already resolved is not in the list, so it is said after.
-      const parts = reasons.map(([r, n]) => `${timesWords(n)} ${reasonWhy(r)}`).join(", ");
-      const done = resolved
-        ? ` ${capitalize(countWord(resolved))} ${resolved === 1 ? "is" : "are"} already resolved.`
-        : "";
-      handovers = `${lead}: ${parts}.${done}`;
-    }
-  }
+  const handovers = handoverWords(handedOver, reasons, resolved);
   // answered_by_ai is the asks it answered on its own, so with a handover on the day those are "the rest".
   const answeredItself = handedOver && period.answered_by_ai ? "The rest it answered itself." : "";
   // answered_by_ai counts the asks it answered and messages_out_ai the messages it sent: more is more than one thing
@@ -255,10 +231,10 @@ export function figuresOf(
       : "";
   const sentEach = period.messages_out_ai && period.messages_out_ai === period.answered_by_ai ? "One reply each." : "";
   const answeredWhy = [
-    wireWords,
+    wiresWords,
     ...(handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]),
   ].filter(Boolean);
-  const answered: TodayFigureVM = {
+  return {
     id: "answered",
     label: "answered by AI",
     value: period.answered_by_ai,
@@ -273,9 +249,18 @@ export function figuresOf(
         }
       : null,
   };
+}
 
-  // Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why. A caller is
-  // named once, by name or number; a withheld or unknown caller is in the clause's count and never in the sentence.
+/**
+ * Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why. A caller is named
+ * once, by name or number; a withheld or unknown caller is in the clause's count and never in the sentence.
+ */
+function callsFigure(
+  period: MetricsSummaryDto["period"],
+  callsInWindow: CallDto[],
+  tz: string,
+  now: Date,
+): TodayFigureVM {
   const moods = counted(period.call_sentiments);
   const moodOf = ([mood, n]: [string, number]) =>
     n === period.calls
@@ -305,7 +290,7 @@ export function figuresOf(
     ]
       .filter(Boolean)
       .join(", ") || (period.calls ? "none connected" : "none yet");
-  const calls: TodayFigureVM = {
+  return {
     id: "calls",
     label: "calls",
     value: period.calls,
@@ -318,11 +303,49 @@ export function figuresOf(
           }
         : null,
   };
+}
 
-  // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
-  // people whose first message of their own, or first call to us, came today (00394; 00254: never one with neither);
-  // the threads the page holds may be fewer (a name is said only for a person the figure counts) or more (someone who
-  // existed before and first wrote today is not new), so a wire or a name is said only when the two agree.
+/** The new people's clause: nobody yet, counted today, or the wires they came by where the two counts agree. */
+function newPeopleClause(newContacts: number, agree: boolean, newWires: Array<[string, number]>): string {
+  if (!newContacts) return "nobody new yet";
+  if (!agree) return "first contact today";
+  if (newWires.length !== 1) return `on ${andList(newWires.map(([w]) => wireWord(w)))}`;
+  return `${newContacts === 1 ? "on" : newContacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0]?.[0] ?? "")}`;
+}
+
+/**
+ * The new people's receipt: named when the two counts agree. When they do not, the figure still opens: the reason they
+ * disagree IS the answer to what an owner is asking -- the count is everyone whose first message of their own, or first
+ * call to us, came today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the
+ * one stat on the card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
+ */
+function newPeopleReceipt(newContacts: number, names: string[], threadsHeld: number): TodayFigureVM["receipt"] {
+  const door = { label: "Open People", to: "clients/seg:new_week" };
+  const shownNames = names.slice(0, 3);
+  if (shownNames.length)
+    return {
+      text: `${andList(names.length > 3 ? [...shownNames, `${names.length - 3} more`] : shownNames)} wrote for the first time today.`,
+      door,
+    };
+  if (newContacts > 0)
+    return {
+      text: `Counted however they reached you, by message or call${threadsHeld < newContacts ? ", so not everyone here has a conversation to open yet" : ""}.`,
+      door,
+    };
+  return null;
+}
+
+/**
+ * New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
+ * people whose first message of their own, or first call to us, came today (00394; 00254: never one with neither); the
+ * threads the page holds may be fewer (a name is said only for a person the figure counts) or more (someone who existed
+ * before and first wrote today is not new), so a wire or a name is said only when the two agree.
+ */
+function newPeopleFigure(
+  period: MetricsSummaryDto["period"],
+  conversations: ConversationDto[],
+  fresh: FreshToday,
+): TodayFigureVM {
   const newThreads = conversations.filter((c) => {
     const first = [...c.messages]
       .filter((x) => x.meta?.backfill !== true)
@@ -332,35 +355,58 @@ export function figuresOf(
   const agree = period.new_contacts > 0 && newThreads.length === period.new_contacts;
   const newWires = tally(newThreads.map((c) => threadChannelWords(c.messages)));
   const names = agree ? newThreads.map((c) => contactName(c)) : [];
-  const shownNames = names.slice(0, 3);
-  const newPeople: TodayFigureVM = {
+  return {
     id: "new",
     label: "new people",
     value: period.new_contacts,
-    meta: !period.new_contacts
-      ? "nobody new yet"
-      : !agree
-        ? "first contact today"
-        : newWires.length === 1
-          ? `${period.new_contacts === 1 ? "on" : period.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0]?.[0] ?? "")}`
-          : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
-    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS the answer
-    // to what an owner is asking -- the count is everyone whose first message of their own, or first call to us, came
-    // today (00394), and the page only holds the ones who wrote. Without this the fourth figure was the one stat on the
-    // card with nothing under it, so a hover that worked three times in a row did nothing on the fourth.
-    receipt: shownNames.length
-      ? {
-          text: `${andList(names.length > 3 ? [...shownNames, `${names.length - 3} more`] : shownNames)} wrote for the first time today.`,
-          door: { label: "Open People", to: "clients/seg:new_week" },
-        }
-      : period.new_contacts > 0
-        ? {
-            text: `Counted however they reached you, by message or call${newThreads.length < period.new_contacts ? ", so not everyone here has a conversation to open yet" : ""}.`,
-            door: { label: "Open People", to: "clients/seg:new_week" },
-          }
-        : null,
+    meta: newPeopleClause(period.new_contacts, agree, newWires),
+    receipt: newPeopleReceipt(period.new_contacts, names, newThreads.length),
   };
-  return [bookedOf(metricsSummary.bookings, now), answered, calls, newPeople];
+}
+
+/**
+ * The day's four figures, from the fields Today has fetched on every load and never read (period.new_contacts,
+ * call_sentiments, calls_voicemail, messages_out_ai) and from the threads, calls and escalations the page holds.
+ * Null on a day with nothing at all: a row of zeros is a product that died overnight, not a fact.
+ *
+ * A figure is the SQL's count over the whole day; the page holds the newest hundred threads and the open
+ * escalations. So a receipt makes an absolute claim ("All by WhatsApp.", "both on WhatsApp") only when what the page
+ * holds accounts for the figure's own total, and otherwise says what it is counting ("Of the 4 in the Inbox: ...").
+ */
+export function figuresOf(
+  metricsSummary: MetricsSummaryDto,
+  conversations: ConversationDto[],
+  callsInWindow: CallDto[],
+  /** The escalations read as it came (state=open): not `openEsc`, which drops the ones a person has taken over. */
+  escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
+  tz: string,
+  now: Date,
+): TodayFigureVM[] {
+  const period = metricsSummary.period;
+  if (nothingCounted(metricsSummary)) return quietFigures(metricsSummary.now, tz, now, metricsSummary.bookings);
+  const windowMs = new Date(metricsSummary.window.since).getTime();
+  const fresh: FreshToday = (x) => x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
+
+  // The customer messages the day's answered figure is "of": the wires they came by as the first of its why. A message
+  // with no wire named is WhatsApp, which is what every row was before the column said (viewmodels.ts writtenChannelOf).
+  // What it counts is what the figure counts: a person's words (isCustomerMessage, 00379), never an out-of-office the
+  // Inbox also holds. Messages and answered were one fact on two seats (the canvas of 2 Nov 2026), so the messages are
+  // answered's "of" and new people keep their seat.
+  const wires = tally(
+    conversations.flatMap((c) =>
+      c.messages.filter((x) => isCustomerMessage(x) && fresh(x)).map((x) => threadChannelWords([x])),
+    ),
+  );
+  // period.escalation_reasons is every OPEN escalation whatever its age (00037_hygiene.sql), so it is not read here:
+  // a clause about today with a breakdown about all time contradicted itself on the first workspace that opened it.
+  // The raw read, not the queue's list: a handover a teammate has taken over is still open, not resolved.
+  const todays = escalations.filter((e) => e.state === "open" && new Date(e.created_at).getTime() >= windowMs);
+  return [
+    bookedOf(metricsSummary.bookings, now),
+    answeredFigure(metricsSummary, inboxWiresWords(wires, period.messages_in), todays),
+    callsFigure(period, callsInWindow, tz, now),
+    newPeopleFigure(period, conversations, fresh),
+  ];
 }
 
 /**

@@ -18,6 +18,7 @@ import { postTouchFacts } from "./post-touch";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
 import type { Json } from "../../../types";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
+import { nullableIn } from "../../../shared/answers";
 
 const NOTES_BUDGET = 1200;
 
@@ -189,7 +190,7 @@ export async function searchMessages(
   });
   if (error) throw new DbFailure(error, "searchMessages");
   // The generated row types every column as present; a call's channel, and a call's thread and person, may be null.
-  return (data ?? []).map((r): MessageHit => ({
+  return nullableIn(data, "conversation_id", "contact_id", "channel", "snippet").map((r): MessageHit => ({
     kind: hitKind(r.kind),
     id: r.id,
     conversationId: r.conversation_id ?? null,
@@ -232,7 +233,7 @@ export async function listFailedMessageErrors(
       .eq("status", "failed")
       .in("id", ids.slice(index, index + IDS_PER_READ));
     if (error) throw new DbFailure(error, "listFailedMessageErrors");
-    for (const r of data ?? [])
+    for (const r of data)
       if (r.error !== null && typeof r.error === "object" && !Array.isArray(r.error))
         out.push({ id: r.id, error: r.error });
   }
@@ -253,7 +254,7 @@ export async function listMessageSenders(db: Db, tenantId: TenantId, ids: readon
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
     if (error) throw new DbFailure(error, "listMessageSenders");
-    out.push(...(data ?? []));
+    out.push(...data);
   }
   return out;
 }
@@ -279,7 +280,7 @@ export async function wasRepliedTo(
     .eq("meta->>reply_to", messageId)
     .limit(1);
   if (error) throw new DbFailure(error, "wasRepliedTo");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -330,7 +331,7 @@ export async function wasTextReached(db: Db, tenantId: TenantId, conversationId:
     .in("status", DELIVERED)
     .limit(1);
   if (error) throw new DbFailure(error, "wasTextReached");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**

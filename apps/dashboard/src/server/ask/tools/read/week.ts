@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { CONTENT_WEEK_ROUTE, DAY_KEY, creativesOf, weekSizeSaid } from "@chanlytics/contracts";
 import { load } from "../../../shared/reader";
-import { contentPlan, opportunities } from "../../../readers/plan";
+import { contentPlan, opportunities } from "../../../readers/content/plan";
 import { readAction, type ToolContext } from "../context/tool-defs";
 
 /**

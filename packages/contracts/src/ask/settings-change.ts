@@ -12,7 +12,7 @@ import { newReceptionistDefaults } from "../config/workspace-config/brain-config
 import { FALLBACK_DEFAULTS, FALLBACK_ROWS } from "../config/workspace-config/fallbacks";
 import { instructionsDraft } from "../config/workspace-config/resolve";
 import { formatPhoneDisplay, handoffE164 } from "../shared/phone";
-import { isList, listOrEmpty, recordOrEmpty, valueAt } from "../shared/unknown";
+import { isList, listOrEmpty, recordOrEmpty, valueAt, textOrEmpty } from "../shared/unknown";
 import { phoneVoiceOf } from "../voice/phone-voices";
 import { PHONE_PACE_WORDS, type PhonePace } from "../voice/phone-pace";
 import { WALK_IN_WORDS, type WalkInsChoice } from "../config/business-tab/choices";
@@ -145,7 +145,7 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
   if (isAnswersBrainChange(change)) return applyAnswersChange(config, change);
   // The owner's goal is Ask's own section, never the receptionist's profile: set, or taken away when empty.
   if (change.op === "set_goal") {
-    const ask = { ...((config.ask as Record<string, unknown> | undefined) ?? {}) };
+    const ask = { ...recordOrEmpty(config.ask) };
     const goal = change.goal.trim();
     if (goal) ask.goal = goal;
     else delete ask.goal;
@@ -248,9 +248,10 @@ function profileWithFix(profile: Record<string, unknown>, change: AskFixChange):
     case "set_service":
       return { ...profile, services: servicesWith(profile.services, change) };
     case "add_escalate_when": {
-      const reasons = [...((profile.escalate_when as string[] | undefined) ?? [])];
+      const reasons = [...listOrEmpty(profile.escalate_when)];
       const reason = change.reason.trim();
-      if (reason && !reasons.some((r) => r.trim().toLowerCase() === reason.toLowerCase())) reasons.push(reason);
+      if (reason && !reasons.some((r) => textOrEmpty(r).trim().toLowerCase() === reason.toLowerCase()))
+        reasons.push(reason);
       return { ...profile, escalate_when: reasons };
     }
     case "set_guardrail":
@@ -263,7 +264,7 @@ function profileWithFix(profile: Record<string, unknown>, change: AskFixChange):
  * and spacing aside); a name not listed is added, as add_service would.
  */
 function servicesWith(list: unknown, change: Extract<AskFixChange, { op: "set_service" }>): unknown[] {
-  const services = [...((list as unknown[] | undefined) ?? [])];
+  const services = [...listOrEmpty(list)];
   const at = services.findIndex(
     (s) => !!s && typeof s === "object" && serviceKey(storedWordsOf(valueAt(s, "name"))) === serviceKey(change.name),
   );
@@ -452,9 +453,9 @@ export function describeSettingsChange(change: AskSettingsChange): string {
     case "set_guardrail":
       return GUARDRAIL_RULE_WORDS[change.rule][change.on ? "on" : "off"];
     case "set_goal":
-      return change.goal.trim() ? `Your goal: “${change.goal.trim()}”` : "Your goal, taken away";
+      return change.goal.trim() ? `Goal: “${change.goal.trim()}”` : "Goal, taken away";
     case "set_booking_link":
-      return change.link.trim() ? `Your booking link: ${change.link.trim()}` : "Your booking link, taken away";
+      return change.link.trim() ? `Booking link: ${change.link.trim()}` : "Booking link, taken away";
     default:
       return describeAnswersChange(change);
   }

@@ -73,13 +73,6 @@ export interface LeadsSurface {
   readAt?: number;
 }
 
-/** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
-export interface LeadSearchesAnswer {
-  searches: LeadSearchDto[];
-  counts?: LeadCounts;
-  /** The cards that find leads now (00430). */
-  cards_live?: string[];
-}
 export interface LeadsPageAnswer {
   rows: LeadRowDto[];
   next: { key: string; id: string } | null;

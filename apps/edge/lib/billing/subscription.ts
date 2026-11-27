@@ -43,8 +43,8 @@ export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"]
  * A write nothing races (a customer's id, a stamp, a customer Stripe forgot): the row's one door, with no expectation,
  * and the change's event where it is news (a payment's), in its transaction.
  */
-export const keepOnRow = (db: Db, tenantId: TenantId, row: BillingPatch, told?: BillingTold) =>
-  applyBilling(db, { tenantId, row, expect: null, tenantStatus: null, ...(told ? { told } : {}) });
+export const keepOnRow = (db: Db, tenantId: TenantId, row: BillingPatch, event?: BillingTold) =>
+  applyBilling(db, { tenantId, row, expect: null, tenantStatus: null, ...(event ? { told: event } : {}) });
 
 /**
  * Back on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the page reads once: Settings ›

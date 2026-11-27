@@ -31,6 +31,7 @@ import { usePeopleToast } from "../shell-verbs";
 import type { PeopleRead } from "../types";
 import { heardListScroll } from "./scroller";
 import { plLoadView, plSaveView, plViewSaver } from "./view-store";
+import { recordOrNull } from "@chanlytics/contracts";
 
 /** How long after a list stops scrolling it stops being said to (the pane's data-scrolling, which hides the hover tips). */
 const SCROLLING_CLEARS_MS = 160;
@@ -112,7 +113,7 @@ export function usePlControls<R extends TableRow, X, C>(args: ControlsArgs<R, X,
     columns: cols,
     first: sortFirst,
     sortThen: args.sortThen,
-    saved: ((landed && people.views && people.views[args.scope]) || null) as View | null,
+    saved: landed && people.views ? recordOrNull(people.views[args.scope]) : null,
     landed,
     store: VIEW_STORE,
     railRow: args.railRow,

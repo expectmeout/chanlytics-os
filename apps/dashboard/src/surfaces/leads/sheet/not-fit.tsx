@@ -4,14 +4,14 @@
  * hides it from every future search), beside Undo. The next lead is already up.
  */
 import { useState } from "react";
-import { LEAD_NOT_A_FIT_ASK as A, type LeadNotAFitWhy } from "@chanlytics/contracts";
+import { LEAD_NOT_A_FIT_ASK as A, type LeadNotAFitWhy, keysOf } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import type { FrameFlash } from "../../frame-verbs";
 
 /** How long the toast stays: long enough to give a reason. */
 const NOT_FIT_TOAST_MS = 9000;
 
-const WHYS = Object.keys(A.short) as (keyof typeof A.short)[];
+const WHYS = keysOf(A.short);
 
 /** The question and its reasons; a reason given says so, and the rest go. */
 function NotFitAsk({ name, onWhy }: { name: string; onWhy: (why: LeadNotAFitWhy) => void }) {

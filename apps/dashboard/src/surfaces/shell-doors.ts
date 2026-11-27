@@ -15,11 +15,8 @@ export { windowValue };
 export const fn = windowFn;
 export const object = windowObject;
 
-/** A role gate's props, spread after a control's handlers: `{}` where the role may act (frame/gate.ts `gate`). */
-export function gate(perm: string, doing?: string): Record<string, unknown> {
-  const g = fn<[string, string | undefined], Record<string, unknown>>("gate");
-  return g ? g(perm, doing) : {};
-}
+/* A role gate's props for a control: the frame's own (frame-verbs.ts gate), where the shell has a role store. */
+export { gate } from "./frame-verbs";
 
 /** What the shell's one toast takes (frame/flash.tsx `usePPToast`): a message, its tone, and what pressing does. */
 export interface Flash {

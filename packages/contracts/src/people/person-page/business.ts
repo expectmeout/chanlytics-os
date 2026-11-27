@@ -10,7 +10,6 @@ import { leadsRoute } from "../../leads/plan";
 import { toLeadPeekVM } from "../../leads/peek";
 import { LEAD_STAGE_WORDS } from "../../leads/words/lists";
 import { clockDate } from "../../shared/clock";
-import { formatPhoneDisplay } from "../../shared/phone";
 import { MIN_MS } from "../../shared/time";
 import { personName } from "../person-name";
 import type { PersonBusinessDto, PersonSignerDto } from "../person-dto";
@@ -273,7 +272,7 @@ export function businessRecordOf(
     address: peek.where ? { line: peek.where.line, href: peek.where.href } : null,
     read: Number.isFinite(found) ? WORKS_AT_WORDS.readOnSheet(clockDate(found, tz, nowMs)) : "",
     stage: {
-      word: LEAD_STAGE_WORDS[personBusiness.lead.stage] ?? personBusiness.lead.stage,
+      word: LEAD_STAGE_WORDS[personBusiness.lead.stage],
       note: WORKS_AT_WORDS.stageNote,
     },
     open: personBusiness.lead.stage !== "archived" && !!personBusiness.lead.contact_id,
@@ -290,7 +289,7 @@ export function businessRecordOf(
       : null,
     phone: peek.reach.phone
       ? {
-          value: peek.reach.phone.value ?? formatPhoneDisplay(personBusiness.lead.phone) ?? "",
+          value: peek.reach.phone.value,
           tel: peek.reach.phone.tel,
           hours: peek.today ? WORKS_AT_WORDS.listingHours(peek.today) : null,
         }

@@ -183,7 +183,7 @@ const storage = () => {
 // `wanted` is whether a setter has changed a value since the last quiet(): what React would take as a reason to draw
 // again. A test that proves a page redraws on an event reads it, since this stub draws only when a test asks.
 // `list` is each hook's cell by the key its frame gives it (_hook-frames.mjs).
-// The surfaces the pages draw from, and the event each one's rows land on: FrameApp counts these against each key
+// The surfaces the pages draw from, and the event each one's rows land on: the frame's boot counts these against each key
 // before React draws (hearSurfaces over the overrides' own `events`), so a page's `useSurface` moves on them here too.
 const SURFACE_EVENTS = [
   ["today", "surface:today"],

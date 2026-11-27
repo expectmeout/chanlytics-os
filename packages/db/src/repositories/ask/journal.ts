@@ -102,7 +102,7 @@ export async function askJournalDayRows(
   ]);
   if (d.error) throw new DbFailure(d.error, "decisions");
   if (e.error) throw new DbFailure(e.error, "events");
-  return { decisions: d.data ?? [], events: e.data ?? [] };
+  return { decisions: d.data, events: e.data };
 }
 
 /**
@@ -118,7 +118,7 @@ export async function getJournalMemberNames(db: Db, userIds: readonly string[]):
     .in("user_id", [...userIds]);
   if (error) throw new DbFailure(error, "profiles");
   const out: Record<string, string> = {};
-  for (const r of data ?? []) if (r.display_name?.trim()) out[r.user_id] = r.display_name.trim();
+  for (const r of data) if (r.display_name.trim()) out[r.user_id] = r.display_name.trim();
   return out;
 }
 

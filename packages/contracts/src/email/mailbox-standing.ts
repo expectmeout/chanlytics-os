@@ -1,3 +1,4 @@
+import { entryOf } from "../shared/unknown";
 /**
  * What a connected mailbox may send in a day, and why its own mail may hold it (decision 0056, 4 and 8): the cold ramp,
  * its owner's cap and the customer domain's ceiling, and the words for a hold. Its own module, apart from everything
@@ -58,7 +59,7 @@ const HOLD_WORDS: Record<MailboxHold, string> = {
 
 /** Why a mailbox was held, as a clause: the row, the Activity log and the owner's notice say it alike. */
 export function mailboxHoldWords(reason: string | null | undefined): string {
-  return (reason && HOLD_WORDS[reason as MailboxHold]) || "it was held";
+  return entryOf(HOLD_WORDS, reason) || "it was held";
 }
 
 const HOLD_FIX_WORDS: Record<MailboxHold, string> = {
@@ -69,5 +70,5 @@ const HOLD_FIX_WORDS: Record<MailboxHold, string> = {
 
 /** What to do about a hold: on the row, in the Resume confirm, and in the owner's notice. */
 export function mailboxHoldFixWords(reason: string | null | undefined): string | null {
-  return (reason && HOLD_FIX_WORDS[reason as MailboxHold]) || null;
+  return entryOf(HOLD_FIX_WORDS, reason) || null;
 }

@@ -5,7 +5,8 @@
  *   one delivery      findAppointmentNotice (what it became, or null), keepAppointmentNotice (once per delivery: the same
  *                     delivery kept again replaces the row, appointment_notices_delivery_uq).
  *   the health line   findAppointmentNotices: the latest notice (its tool and when) and how many are held for a person,
- *                     read one after the other so a turn's reads are in one order (ask/readers.test.mjs pins them).
+ *                     read one after the other so a turn's reads are in one order
+ *                     (ask/readers/the-calendar-and-the-receptionist-and-people-lenses.test.mjs pins them).
  *
  * Written by the booking_read job on the service role; read by the dashboard on the member's client, where RLS decides.
  * A failed read or write throws, so the caller's retry meets it.
@@ -56,7 +57,7 @@ export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): 
     )
     .select("notice_id");
   if (error) throw new DbFailure(error, "appointment_notice_hold");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**
@@ -118,7 +119,7 @@ export async function listHeldNotices(db: Db, tenantId: TenantId): Promise<Appoi
     .order("received_at", { ascending: false })
     .limit(HELD_MAX);
   if (error) throw new DbFailure(error, "appointment_notices_held_list");
-  return data ?? [];
+  return data;
 }
 
 /** More held notices than any workspace keeps: past it, the read is not the whole of them. */
@@ -140,7 +141,7 @@ export async function findHeldNoticeKeys(db: Db, tenantId: TenantId): Promise<Re
     .order("id", { ascending: true })
     .limit(HELD_KEYS_CAP);
   if (error) throw new DbFailure(error, "appointment_notices_held_keys");
-  const rows = data ?? [];
+  const rows = data;
   if (rows.length >= HELD_KEYS_CAP) return null;
   return new Set(rows.flatMap((r) => [r.id, r.notice_id]));
 }

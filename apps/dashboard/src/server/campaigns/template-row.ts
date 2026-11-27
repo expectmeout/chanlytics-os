@@ -86,7 +86,7 @@ export async function getDeleteRefusal(
   if (count) return "A send is still using this message. Cancel it first.";
   const { data: running, error: pErr } = await listRunningStepsOfTemplate(ctx.supabase, tenantId, key);
   if (pErr) throw new DbFailure(pErr, "steps that send a template");
-  return running?.length ? playbooksStillSending(running.map((p) => String(p.name))) : null;
+  return running.length ? playbooksStillSending(running.map((p) => String(p.name))) : null;
 }
 
 export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {

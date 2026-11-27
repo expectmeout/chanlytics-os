@@ -140,7 +140,7 @@ export function imageHeaderOf(bytes: Uint8Array): MarkImage | null {
 
 /** The image worth keeping as this lead's mark, or null: the three rules above, over the bytes as they came. */
 export function markImageFrom(bytes: Uint8Array): MarkImage | null {
-  if (!bytes || bytes.length === 0 || bytes.length > MARK_MAX_BYTES) return null;
+  if (bytes.length === 0 || bytes.length > MARK_MAX_BYTES) return null;
   const image = imageHeaderOf(bytes);
   if (!image) return null;
   const short = Math.min(image.width, image.height);

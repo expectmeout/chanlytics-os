@@ -481,19 +481,19 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     throw e;
   });
   const queued = sent.receipt;
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
+  const decisionId = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
     message_id: queued.message_id,
     window_open: window.open,
     template: sent.templateName,
     ...(cmd.starts ? { starts: true } : {}),
   });
-  await ports.resolveEscalation(conv.id, decision_id);
+  await ports.resolveEscalation(conv.id, decisionId);
 
   // The receipt completed with the decision's id, on the same stamp. The send
   // is certain by now, so a key taken over for other words since, or a write
   // that failed, is not this reply's failure: a replay is answered with the
   // receipt kept before the job, without the id.
-  const receipt: ReplyReceipt = { ...queued, decision_id };
+  const receipt: ReplyReceipt = { ...queued, decision_id: decisionId };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso).catch(() => false);
   return receipt;
 }
@@ -654,9 +654,9 @@ async function queueReply(
   // The operator is REPLACING the receptionist's held reply, not queueing
   // behind it: withdraw the draft before writing their own words, or the
   // customer receives both.
-  const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
+  const withdrawnDrafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
 
-  const message_id = await ports.queue({
+  const messageId = await ports.queue({
     tenant_id: conv.tenant_id,
     conversation_id: conv.id,
     contact_id: conv.contact_id,
@@ -673,11 +673,11 @@ async function queueReply(
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
   const receipt: ReplyReceipt = {
-    message_id,
+    message_id: messageId,
     status: "queued",
     cancelable_until: dueAt.toISOString(),
     window_open: window.open,
-    withdrawn_drafts,
+    withdrawn_drafts: withdrawnDrafts,
   };
   try {
     // The receipt is kept BEFORE the job exists, on the claim's stamp. A retry
@@ -688,7 +688,7 @@ async function queueReply(
     if (key && !(await ports.storeReceipt(conv.tenant_id, key.idemKey, key.intentHash, receipt, key.stamp)))
       throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
     await ports.schedule(conv.tenant_id, dueAt, {
-      message_id,
+      message_id: messageId,
       conversation_id: conv.id,
       ...(channel === "email" ? { to_email: to } : channel === "instagram" ? { to_instagram: to } : { to_phone: to }),
       ...(template ? { template: template.job } : { body: messageBody }),
@@ -699,7 +699,7 @@ async function queueReply(
   } catch (e) {
     // Never leave an orphan queued row that silently never sends -- nor one a
     // taken-over caller wrote, which must not.
-    await ports.cancelOrphan(conv.tenant_id, message_id);
+    await ports.cancelOrphan(conv.tenant_id, messageId);
     throw e;
   }
   return { receipt, templateName: template?.name ?? null };

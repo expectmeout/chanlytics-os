@@ -8,6 +8,7 @@ import type { PointerEvent } from "react";
 import type { ChartWords } from "./geometry";
 import { ckPointer, useChartNav, useChartWidth } from "./hooks";
 import { ChartLive, ChartTooltip, ChartTooltipContent } from "./parts";
+import { customProperties } from "../variants";
 
 interface HeatStripProps {
   /** A number per hour. */
@@ -54,7 +55,7 @@ export function HeatStrip({ values, labels, unit = "", ariaLabel, tip = null, de
       aria-label={ariaLabel}
       {...nav}
       {...ckPointer(setActive, at)}
-      style={{ height: height + 18 }}
+      style={customProperties({ "--plot-h": `${height + 18}px` })}
     >
       {width > 0 && (
         <svg width={width} height={height + 18} className="ck-svg" aria-hidden="true">

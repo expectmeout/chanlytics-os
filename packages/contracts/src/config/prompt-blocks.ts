@@ -206,7 +206,11 @@ function ownWordsSpan(
   return null;
 }
 
-export function promptBlocks(text: string, channel: "whatsapp" | "voice", from: PromptSource): PromptBlockVM[] {
+export function promptBlocks(
+  text: string,
+  channel: "whatsapp" | "voice",
+  from: PromptSource | undefined,
+): PromptBlockVM[] {
   // Required, and checked as it runs: the page that calls this is untyped JSX, and
   // a call that left it out got the owner's words folded into a neighbour, silently.
   // A bare string is the shape this replaced, and it cannot say whether the words

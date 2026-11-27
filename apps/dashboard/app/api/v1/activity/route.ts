@@ -21,5 +21,5 @@ export const GET = read({
   role: "owner",
   rate: "aggregate",
   query: ActivityQuerySchema,
-  handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), activity, input ?? {})).data,
+  handle: async ({ ctx, member, input }) => (await load(readerContext(ctx, member), activity, input)).data,
 });

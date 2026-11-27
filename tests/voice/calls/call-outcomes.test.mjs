@@ -33,7 +33,10 @@ import {
   CALL_HANDBOOK,
   CALL_LIMITS,
 } from "@chanlytics/channels/voice";
-import { readCode, readRaw } from "../../_source.mjs";
+import { ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_SUMMARIES } from "@chanlytics/contracts";
+import { ingestCall } from "@chanlytics/db/voice";
+import { findCallRow } from "../../../packages/db/src/repositories/voice/call-rows.ts";
+import { fakeDb } from "../../_fake-db.mjs";
 import { toCallDto } from "../../../apps/dashboard/src/server/conversations/dto.ts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -379,23 +382,78 @@ test("a call's topic and language ride the normalised call into the door as the 
   });
 });
 
-test("the wiring: the door files the four columns and keeps them across retries, the people door prefers the request, the ingest passes the analysis, the dashboard selects the columns", () => {
+test("the wiring: the door files the four columns and keeps them across retries, the people door prefers the request, the ingest passes the analysis, the dashboard selects the columns", async () => {
   // The door files the four columns and keeps them across retries, the edge's alone, and people_list prefers the request:
   // ingest_call (redefined since 00061 through 00530) and people_list (through 00680) are run on the stack
   // (voice/calls/a-call-keeps-its-topic-and-language.db.test.mjs, messages/a-person-keeps-how-they-first-reached-us.db,
   // consent/consent-channels.db). Pinned as 00061's text until 25 Nov 2026, which no longer said what the database does.
-  assert.match(
-    readCode("packages/db/src/repositories/voice/calls.ts"),
-    /p_analysis: asJson\(callInput\.analysis \?\? null\),/,
+  // The edge hands the door the analysis whole; the dashboard reads the four columns back and says them on the call.
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const asked = [];
+  const db = fakeDb(
+    {},
+    {},
+    {
+      ingest_call: (a) => (
+        asked.push(a),
+        { call_id: "k1", is_new: true, recording_state: null, contact_id: null, conversation_id: null }
+      ),
+    },
   );
-  // With the columns it reads them by, packages/db's (decision 0111).
-  const dto = readCode(
-    "apps/dashboard/src/server/conversations/dto.ts",
-    "packages/db/src/repositories/voice/call-rows.ts",
+  const analysis = { caller_wanted: "Asked a price.", outcome: "answered", topic: "pricing", language: "es" };
+  const none = Object.fromEntries(
+    [
+      "agentId",
+      "callType",
+      "fromE164",
+      "fromRaw",
+      "toE164",
+      "startedAtIso",
+      "endedAtIso",
+      "durationMs",
+      "disconnectionReason",
+      "sentiment",
+      "callSuccessful",
+      "inVoicemail",
+      "summary",
+      "transcript",
+      "transcriptObject",
+      "recordingUrl",
+      "publicLogUrl",
+      "cost",
+      "latency",
+    ].map((k) => [k, null]),
   );
-  assert.ok(
-    dto.includes("summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object") &&
-      dto.includes("wanted: call.wanted ?? null,"),
+  await ingestCall(db, T, { ...none, retellCallId: "call_1", direction: "inbound", status: "ended", analysis });
+  assert.deepEqual(asked[0].p_analysis, analysis, "the analysis whole, for the door to file");
+  const K = "11111111-1111-4111-8111-111111111111";
+  const read = await findCallRow(
+    fakeDb({
+      calls: [
+        {
+          id: K,
+          tenant_id: T,
+          retell_call_id: "call_1",
+          direction: "inbound",
+          status: "ended",
+          summary: "Asked about Saturday.",
+          wanted: "Asked a price.",
+          outcome: "answered",
+          follow_up: "Call back with the price.",
+          caller_name: "Dana",
+          analysis,
+        },
+      ],
+    }),
+    T,
+    K,
+  );
+  assert.equal(read.error, null, read.error?.message);
+  const dto = toCallDto(read.data);
+  assert.deepEqual(
+    [dto.summary, dto.wanted, dto.outcome, dto.follow_up, dto.caller_name],
+    ["Asked about Saturday.", "Asked a price.", "answered", "Call back with the price.", "Dana"],
+    "the columns the call row is read by, said on the call (pinned as dto.ts's and call-rows.ts's text until 26 Nov 2026)",
   );
 });
 
@@ -450,27 +508,24 @@ test("the agent reader carries the write-up's model, so the watch and the diagno
   }
 });
 
-test("the converge endpoint has more than the default budget", () => {
-  // The endpoint itself -- the door, a dry run by default, a draft for a
-  // published version, publish only when asked, the backup with its secret
-  // stripped, the LLM never touched -- is run in voice-doors.test.mjs.
-  assert.ok(
-    readRaw("apps/edge/vercel.json").includes('"api/admin/voice-converge.ts"'),
-    "several provider calls need more than the default budget",
-  );
-});
+// The converge endpoint has more than the default budget: every door's limit is written in apps/edge/vercel.json, sized to
+// its slowest path (repo/ops-hygiene.test.mjs). The endpoint itself -- the door, a dry run by default, a draft for a
+// published version, publish only when asked, the backup with its secret stripped, the LLM never touched -- is run in
+// voice-doors.test.mjs.
 
-test("a caller who needs a call back lands on Needs you: the reason exists everywhere a reason is named", () => {
-  const enums = readCode("packages/contracts/src/shared/enums.ts");
-  assert.ok(enums.includes('"callback",'), "the reason is declared");
-  assert.ok(readRaw("supabase/migrations/00062_callback_reason.sql").includes("'callback'"), "and the CHECK admits it");
+test("a caller who needs a call back lands on Needs you: the reason exists everywhere a reason is named", async () => {
+  // The reason is declared, the database admits it (00062's CHECK, as the database in memory holds it), and the Inbox and
+  // the operator say it (pinned as the three files' text until 26 Nov 2026).
+  assert.ok(ESCALATION_REASONS.includes("callback"), "the reason is declared");
+  const hold = await fakeDb({ escalations: [] })
+    .from("escalations")
+    .insert({ tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", conversation_id: "c1", reason: "callback" })
+    .select("id")
+    .single();
+  assert.equal(hold.error, null, "and the CHECK admits it");
   assert.equal(reasonShort("callback"), "needs a call back", "the strip's words, from the one vocabulary");
-  const vm = readCode("packages/contracts/src/conversations/escalations.ts");
-  assert.ok(
-    vm.includes('callback: "Needs a call back · they phoned and are still owed a call",') &&
-      vm.includes("They phoned and are still owed a call: the call didn't connect"),
-    "the Inbox's label and the operator's first sentence",
-  );
+  assert.equal(ESCALATION_REASON_LABELS.callback, "Needs a call back · they phoned and are still owed a call");
+  assert.match(ESCALATION_SUMMARIES.callback, /^They phoned and are still owed a call: the call didn't connect/);
 });
 
 /* ---- a dial's direction, a voicemail and a fault each have their own word (the 2 Oct 2026 audit) ---- */

@@ -570,7 +570,7 @@ test("register: a filing the pre-flight refuses is a 409 about this workspace wi
       const [status, body] = await answer(await knock({ op: "register", line_id: LINE }));
       assert.equal(status, 409);
       assert.ok(
-        body.problems.some((p) => /has to be true/.test(p)),
+        body.problems.some((p) => /told customers opt in by texting you/.test(p)),
         "somewhere for a customer to say yes",
       );
     });
@@ -591,7 +591,7 @@ test("register: a filing the pre-flight refuses is a 409 about this workspace wi
       assert.equal(status, 409, `${what}: ${JSON.stringify(body)}`);
       assert.equal(body.error, "record_incomplete", what);
       assert.ok(
-        body.problems.some((p) => /has to be true/.test(p)),
+        body.problems.some((p) => /told customers opt in by texting you/.test(p)),
         `${what}: nobody can say yes, and this door said so too`,
       );
       assert.ok(

@@ -53,7 +53,7 @@ export function refusalWords(options: {
   const brand = (options.brandFailureReason ?? "").trim();
   if (brand) parts.push(brand);
   for (const error of options.campaignErrors ?? []) {
-    const sentence = String(error?.description ?? "");
+    const sentence = String(error.description ?? "");
     // A trailing full stop before the code reads as a false sentence end.
     const body = sentence.replace(PREAMBLE, "").trim().replace(/\.$/, "").trim();
     // Nothing left once the boilerplate is gone: contributing an empty string
@@ -62,9 +62,7 @@ export function refusalWords(options: {
     if (!body) continue;
     // The code and the field are what a resubmit is aimed at, so they travel
     // with the sentence rather than in a log line nobody opens.
-    const tags = [error?.error_code == null ? null : String(error.error_code), ...(error?.fields ?? [])].filter(
-      Boolean,
-    );
+    const tags = [error.error_code == null ? null : String(error.error_code), ...(error.fields ?? [])].filter(Boolean);
     parts.push(tags.length ? `${body} (${tags.join(" · ")})` : body);
   }
   if (!parts.length) return null;

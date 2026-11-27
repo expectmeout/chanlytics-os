@@ -16,8 +16,8 @@ export const finishGoogleConnect = async (
   db: Db,
   tenantId: TenantId,
   secret: Json,
-  told: { email: string | null; accounts: number; locations: number; on_maps: number; by: string | null },
-) => db.rpc("google_connect_finish", { p_tenant_id: tenantId, p_secret: secret, p_told: told });
+  event: { email: string | null; accounts: number; locations: number; on_maps: number; by: string | null },
+) => db.rpc("google_connect_finish", { p_tenant_id: tenantId, p_secret: secret, p_told: event });
 
 /**
  * A disconnect: the profile's reviews and the connection's row gone, with google.disconnected
@@ -26,8 +26,8 @@ export const finishGoogleConnect = async (
 export const removeGoogleConnection = async (
   db: Db,
   tenantId: TenantId,
-  told: { email: string | null; location: string | null; revoked: boolean; by: string | null },
-) => db.rpc("google_connection_remove", { p_tenant_id: tenantId, p_told: told });
+  event: { email: string | null; location: string | null; revoked: boolean; by: string | null },
+) => db.rpc("google_connection_remove", { p_tenant_id: tenantId, p_told: event });
 
 /** What a link writes of a place: Google's public read of it. */
 export interface ListingLinked {
@@ -65,11 +65,11 @@ export interface ReviewsRead {
  * The reviews a read listed, each written over its row (google_reviews_keep): a row keeps its first sighting, and only a
  * read that carries a reply writes one. With `told`, google.reviews in the same transaction.
  */
-export const keepGoogleReviews = async (db: Db, tenantId: TenantId, rows: ReviewInsert[], told?: ReviewsRead) =>
+export const keepGoogleReviews = async (db: Db, tenantId: TenantId, rows: ReviewInsert[], event?: ReviewsRead) =>
   db.rpc("google_reviews_keep", {
     p_tenant_id: tenantId,
     p_reviews: rows.map((row) => ({ ...row })),
-    ...(told ? { p_told: { ...told } } : {}),
+    ...(event ? { p_told: { ...event } } : {}),
   });
 
 /**
@@ -80,13 +80,13 @@ export const stampGoogleProfileSync = async (
   db: Db,
   tenantId: TenantId,
   sync: { synced_at: string; complete: boolean },
-  told?: ReviewsRead,
+  event?: ReviewsRead,
 ) =>
   db.rpc("google_profile_synced", {
     p_tenant_id: tenantId,
     p_synced_at: sync.synced_at,
     p_complete: sync.complete,
-    ...(told ? { p_told: { ...told } } : {}),
+    ...(event ? { p_told: { ...event } } : {}),
   });
 
 /** What a reply says on the ledger: google.replied. */
@@ -106,12 +106,12 @@ export const markGoogleReviewReplied = async (
   tenantId: TenantId,
   rowId: string,
   reply: { reply_text: string | null; replied_at: string | null },
-  told: ReviewReplied,
+  event: ReviewReplied,
 ) =>
   db.rpc("google_review_replied", {
     p_tenant_id: tenantId,
     p_id: rowId,
     ...(reply.reply_text === null ? {} : { p_reply_text: reply.reply_text }),
     ...(reply.replied_at === null ? {} : { p_replied_at: reply.replied_at }),
-    p_told: { ...told },
+    p_told: { ...event },
   });

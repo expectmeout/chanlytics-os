@@ -23,7 +23,7 @@ import {
   toInboxThreadVM,
 } from "@chanlytics/contracts";
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { readCode, readRaw } from "../_source.mjs";
+import { readRaw } from "../_source.mjs";
 import { at } from "../_cron-doors-world.mjs";
 import { scripted, said, json } from "../ai/_model-world.mjs";
 
@@ -281,17 +281,13 @@ test("the brain asks for the record, reads it through the parse, and keeps the o
   );
 });
 
-test("the handler keeps the record on the row, holds a reply below the dial, and tells the escalation why", () => {
-  // Run, not read (pinned as model-turn's, dispatch's, steps' and draft-queue's text until 26 Nov 2026): a reply held
-  // below the dial waits in the configured window, and its source says why it waited (holdPlan, in
-  // whatsapp/whatsapp-steps.test.mjs); the draft row remembers the model's record and the message it answers, its address
-  // last; an escalation carries the model's reason beside the customer's words (receptionist/prompt/what-it-knows-and-how-sure-it-was.test.mjs).
-  // The sent row names the message it answers, through the send door: read until the sink's send is run.
-  assert.ok(
-    readCode("apps/edge/lib/inbound/persist.ts").includes("meta: { ...meta, reply_to: ing.message_id },"),
-    "so does the sent row, through the door, naming the message it answers",
-  );
-});
+// The handler keeps the record on the row, holds a reply below the dial, and tells the escalation why: run, not read
+// (pinned as model-turn's, dispatch's, steps' and draft-queue's text until 26 Nov 2026). A reply held below the dial waits
+// in the configured window, and its source says why it waited (holdPlan, in whatsapp/whatsapp-steps.test.mjs); the draft
+// row remembers the model's record and the message it answers, its address last; an escalation carries the model's reason
+// beside the customer's words (receptionist/prompt/what-it-knows-and-how-sure-it-was.test.mjs). So does the sent row,
+// through the door, naming the message it answers: the sink's send is run over the send door's database in
+// sms/a-text-is-answered-on-its-own-wire.test.mjs, where persist.ts's text was read until 26 Nov 2026.
 
 // The route's side runs in workspace/settings-routes.test.mjs: the dial taken by its row's name (and, for one release,
 // its old one), kept to two places, a dial edit keeping the row's mode.

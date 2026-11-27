@@ -86,13 +86,13 @@ function openHere(profile: Pick<BusinessProfile, "hours" | "closures"> | undefin
 /** Whether a card's words are new to the people here: a step that writes them, or a send on them, in a plan with no press. */
 const newWordsOf = (p: AskProposal): boolean =>
   p.kind === "playbook" || p.kind === "broadcast" || p.kind === "sequence_start"
-    ? p.payload?.words_shown !== true
+    ? p.payload.words_shown !== true
     : false;
 
 /** How many people a card touches, where it says. */
 const proposalCountOf = (p: AskProposal): number | null => {
-  const ids = p.payload?.ids ?? p.payload?.contact_ids ?? p.payload?.lead_ids;
-  return Array.isArray(ids) ? ids.length : typeof p.payload?.count === "number" ? p.payload.count : null;
+  const ids = p.payload.ids ?? p.payload.contact_ids ?? p.payload.lead_ids;
+  return Array.isArray(ids) ? ids.length : typeof p.payload.count === "number" ? p.payload.count : null;
 };
 
 /**

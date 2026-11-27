@@ -411,7 +411,7 @@ test("the partner account's doors, its own reads and the boot: refused without t
     memberships: [seat(A, "owner", "harbor", "2026-01-01T00:00:00Z")],
     tenants: world().tenants.slice(0, 1),
   };
-  assert.equal((await boot.GET.run(home, session("aal1", { ...owner, profiles: [] }))).activeWorkspaceId, A);
+  assert.equal((await boot.GET.run(home, session("aal1", { ...owner, profiles: [] }))).active_workspace_id, A);
 });
 
 test("the client: an mfa_required sends the tab to the second step, and says so in our words", async () => {

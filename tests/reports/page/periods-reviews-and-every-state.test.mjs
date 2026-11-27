@@ -418,6 +418,29 @@ test("a period on its way keeps the one showing, dimmed by the one rule every pa
   });
 });
 
+test("the page asks no keyboard to stop on a chart point, says no zone as a raw id, and names nothing by a native title", () => {
+  // Pinned as reports-page.tsx's text in reports/metrics-truth.test.mjs until 26 Nov 2026: up to 270 unnamed stops at 90
+  // days, a title that reaches nobody on a keyboard or a phone, and the IANA id in the subtitle. The zone is the kit's
+  // tooltip over the dates.
+  const tree = page();
+  assert.ok(byTestId(tree, "reports-real"), "the page drawn over its read");
+  // A chart is one stop, the kit's plot: nothing inside it is another.
+  const plots = all(tree, (n) => classes(n).includes("ck-plot"));
+  assert.ok(plots.length > 0, "the page draws its charts");
+  for (const plot of plots)
+    assert.deepEqual(
+      all(plot, (n) => n !== plot && n.props?.tabIndex === 0).map((n) => n.props.className ?? n.type),
+      [],
+      "no point of a chart is a keyboard stop",
+    );
+  assert.deepEqual(
+    all(tree, (n) => typeof n.type === "string" && typeof n.props?.title === "string"),
+    [],
+    "no native title",
+  );
+  assert.ok(!/\b(America|Europe|Asia|Africa|Australia|Pacific)\/[A-Za-z_]+/.test(textOf(tree)), "no raw zone id said");
+});
+
 test("a period that fails to load says so, keeps the one showing, and lets the tabs go again", async () => {
   // 30 days, which no test above has read: a period this tab holds paints at once (held views) and cannot fail to load.
   await inPeriodTest("refuse", async () => {
@@ -465,13 +488,22 @@ test("Google's reviews under the period, from the Business Profile: five figures
     // Who waits: Ana, with the reply the receptionist wrote and held, and the door to answer her.
     const waiting = card(tree, "reviews-waiting");
     assert.equal(
-      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      textOf(find(waiting, (n) => classes(n).includes("ck-chart-title"))),
       `Waiting for a reply (${V.waiting.total})`,
     );
     assert.equal(reviewRows(waiting).length, V.waiting.rows.length);
     assert.ok(V.waiting.rows[0].held, "the fold has a reply held for Ana to say");
     assert.equal(V.waiting.rows[0].held, textOf(byTestId(waiting, "google-review-held")), "the fold's own words");
     assert.ok(byTestId(waiting, "google-reply"), "a review through the Business Profile can be answered");
+    // By a member who may approve, and by nobody else: a viewer reads the review and answers nothing (pinned as
+    // reports/google.tsx's text in google/profile/ until 26 Nov 2026).
+    const asWho = globalThis.canDo;
+    globalThis.canDo = () => false;
+    try {
+      assert.equal(byTestId(card(page(), "reviews-waiting"), "google-reply"), null, "a viewer: no reply to send");
+    } finally {
+      globalThis.canDo = asWho;
+    }
     // A review is drawn once: Ana waits above, so the latest has none of its own, and says why.
     const latest = card(tree, "chart-google-latest");
     assert.equal(reviewRows(latest).length, 0);
@@ -517,6 +549,46 @@ test("Google's reviews under the period, from the Business Profile: five figures
       "the listing's own address, in a tab of its own",
     );
   } finally {
+    setSurfaceValue("reports_reviews", undefined);
+  }
+});
+
+test("a reply opened is drafted by AI for the person: the box takes its words and says whose they are; a workspace set to Stays quiet asks for none", async () => {
+  // Pinned as reports/google.tsx's text in google/review-reply.test.mjs until 26 Nov 2026.
+  const drafts = [];
+  const answer = globalThis.window.fetch;
+  globalThis.window.fetch = async (url, init) => {
+    const u = new URL(String(url), "https://app.test");
+    if (/\/google\/reviews\/[^/]+\/draft$/.test(u.pathname)) {
+      drafts.push(u.pathname);
+      return new Response(JSON.stringify({ ok: true, data: { text: "Thank you, Ana!", mode: "ask" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return answer(url, init);
+  };
+  try {
+    for (const [mode, asked] of [
+      ["ask", 1],
+      ["never", 0],
+    ]) {
+      drafts.length = 0;
+      holdReviews({ ...NORTHSIDE, reply_mode: mode }, northsideLedger());
+      setLensAt(LENS_PATHS[5]);
+      press(byTestId(card(pageOnce(), "reviews-waiting"), "google-reply"));
+      if (asked) {
+        await until(
+          () => find(again(draw), (n) => n.type === Field)?.props.value === "Thank you, Ana!",
+          "the box takes AI's words",
+        );
+        assert.ok(byTestId(again(draw), "google-reply-drafted"), "and says they are AI's");
+      } else for (let i = 0; i < 8; i++) await settle();
+      assert.equal(drafts.length, asked, `${mode}: ${asked ? "one draft asked for" : "none"}`);
+    }
+  } finally {
+    globalThis.window.fetch = answer;
+    setLensAt(LENS_PATHS[0]);
     setSurfaceValue("reports_reviews", undefined);
   }
 });
@@ -602,7 +674,7 @@ test("a review that waits is drawn once, above Latest, which keeps the ones that
     const tree = page();
     const waiting = card(tree, "reviews-waiting");
     assert.equal(
-      textOf(find(waiting, (n) => classes(n).includes("ck-card-title"))),
+      textOf(find(waiting, (n) => classes(n).includes("ck-chart-title"))),
       `Waiting for a reply (${V.waiting.total})`,
     );
     assert.equal(V.waiting.total, 0);
@@ -748,7 +820,7 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
     assert.equal(reviewRows(card(tree, "reviews-waiting")).length, 1, "Ana waits");
     // The card's heading is where focus goes once the row that held it is gone: a place the section holds, which a browser would fill.
     const focused = [];
-    find(card(tree, "reviews-waiting"), (n) => classes(n).includes("ck-card-title")).props.ref.current = {
+    find(card(tree, "reviews-waiting"), (n) => classes(n).includes("ck-chart-title")).props.ref.current = {
       focus: () => focused.push("the waiting card's heading"),
     };
     press(byTestId(card(tree, "reviews-waiting"), "google-reply"));
@@ -1012,7 +1084,7 @@ test("over the tests' sample as its reads, the Receptionist lens draws every par
     assert.equal(byTestId(tree, "receptionist-failed"), null);
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
     assert.equal(
-      textOf(cls(card(tree, "chart-hold"), "ck-card-takeaway")),
+      textOf(cls(card(tree, "chart-hold"), "ck-chart-takeaway")),
       fold.hold.line,
       "the hold's line is the fold's, of the sample's numbers",
     );
@@ -1052,7 +1124,7 @@ test("over the tests' sample as its reads, the People lens draws every part of i
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
     assert.equal(standingSaid().sentence, fold.head, "the head says the sample's fold");
     assert.equal(
-      textOf(cls(card(tree, "chart-people-steps"), "ck-card-takeaway")),
+      textOf(cls(card(tree, "chart-people-steps"), "ck-chart-takeaway")),
       fold.stepsDone.line,
       "a card's line is the fold's, of the sample's numbers",
     );
@@ -1089,7 +1161,7 @@ test("over the tests' sample as its reads, the Campaigns lens draws every part o
     assert.equal(byTestId(tree, "reports-real").props["data-loading"], undefined, "nothing is on its way");
     assert.equal(standingSaid().sentence, fold.head, "the head says the sample's fold");
     assert.equal(
-      textOf(cls(card(tree, "chart-funnel"), "ck-card-takeaway")),
+      textOf(cls(card(tree, "chart-funnel"), "ck-chart-takeaway")),
       fold.funnel.line,
       "a card's line is the fold's, of the sample's numbers",
     );

@@ -6,6 +6,7 @@
 import { DAY_MS } from "../shared/time";
 import { dayNumber, localToUtcMs } from "../shared/zone/math";
 import { durationMs, localPartsOf, splitLine, toMs, unescapeText, unfold } from "./ics-text";
+import { isOneOf } from "../shared/unknown";
 
 /** A taken stretch of time, epoch milliseconds. */
 export interface BusyBlock {
@@ -92,14 +93,17 @@ interface Rule {
 }
 
 /** RRULE, in the forms a salon's calendar actually carries. Null = not understood. */
+/** The frequencies a repeat rule may have, as the feed's RRULE says them. */
+const RULE_FREQS = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"] as const satisfies readonly Rule["freq"][];
+
 function parseRule(value: string, fallbackTz: string): Rule | null {
   const parts: Record<string, string> = {};
   for (const kv of value.split(";")) {
     const eq = kv.indexOf("=");
     if (eq > 0) parts[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
   }
-  const freq = parts.FREQ as Rule["freq"] | undefined;
-  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
+  const freq = parts.FREQ;
+  if (!isOneOf(RULE_FREQS, freq)) return null;
   for (const k of Object.keys(parts))
     if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
   const interval = Math.max(1, Number(parts.INTERVAL ?? 1) || 1);
@@ -152,7 +156,7 @@ function occurrences(
     const uTCFullYear = at.getUTCFullYear(),
       uTCMonth = at.getUTCMonth() + 1,
       uTCDate = at.getUTCDate();
-    let hit = false;
+    let hit: boolean;
     if (rule.freq === "DAILY") hit = count % rule.interval === 0;
     else if (rule.freq === "WEEKLY") {
       const week = Math.floor((day - ((at.getUTCDay() + 6) % 7)) / 7);
@@ -160,7 +164,8 @@ function occurrences(
     } else if (rule.freq === "MONTHLY") {
       const months = (uTCFullYear - start.y) * 12 + (uTCMonth - start.m);
       hit = uTCDate === (rule.bymonthday ?? start.d) && months % rule.interval === 0;
-    } else if (rule.freq === "YEARLY") {
+    } else {
+      // YEARLY, the last of the four.
       hit = uTCMonth === start.m && uTCDate === start.d && (uTCFullYear - start.y) % rule.interval === 0;
     }
     if (!hit) continue;
@@ -209,20 +214,34 @@ function instantsOf(lines: Array<{ params: Record<string, string>; value: string
 /** An item's place in its series (FeedItem.occurrence), or nothing for a single event. */
 const seriesOf = (occurrence: number | null): { occurrence?: number } => (occurrence === null ? {} : { occurrence });
 
-/** The instant an override's RECURRENCE-ID names: when the occurrence it moves was due. Null for an event that is none. */
-function dueAt(rid: { params: Record<string, string>; value: string } | undefined, fallbackTz: string): number | null {
-  return rid ? toMs(rid.value, rid.params, fallbackTz) : null;
+/** A content line of an event as splitLine reads it: its parameters and its value. */
+type IcsValue = { params: Record<string, string>; value: string };
+
+/** One content line of an event, kept where the event keeps it: a date taken out, a date added, who attends, or a property. */
+function keepEventLine(cur: RawEvent, line: string): void {
+  const result = splitLine(line);
+  if (!result) return;
+  if (result.name === "EXDATE") {
+    cur.exdates.push({ params: result.params, value: result.value });
+    return;
+  }
+  if (result.name === "RDATE") {
+    cur.rdates.push({ params: result.params, value: result.value });
+    return;
+  }
+  if (result.name === "ATTENDEE") {
+    const v = result.value.trim();
+    cur.attendees.push({
+      name: result.params.CN?.trim() || null,
+      email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null,
+    });
+    return;
+  }
+  cur.props[result.name] = { params: result.params, value: result.value };
 }
 
-export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = {}): ParsedFeed {
-  const horizon = opts.horizon ?? { from: Date.now() - DAY_MS, to: Date.now() + 90 * DAY_MS };
-  const busy: BusyBlock[] = [];
-  const items: FeedItem[] = [];
-  let events = 0;
-  let recurringExpanded = 0;
-  let skippedRecurring = 0;
-
-  // First pass: every VEVENT as the text gives it.
+/** The first pass: every VEVENT as the text gives it. */
+function rawEventsOf(text: string): RawEvent[] {
   const raws: RawEvent[] = [];
   let cur: RawEvent | null = null;
   for (const line of unfold(text)) {
@@ -235,30 +254,13 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
       cur = null;
       continue;
     }
-    if (!cur) continue;
-    const result = splitLine(line);
-    if (!result) continue;
-    if (result.name === "EXDATE") {
-      cur.exdates.push({ params: result.params, value: result.value });
-      continue;
-    }
-    if (result.name === "RDATE") {
-      cur.rdates.push({ params: result.params, value: result.value });
-      continue;
-    }
-    if (result.name === "ATTENDEE") {
-      const v = result.value.trim();
-      cur.attendees.push({
-        name: result.params.CN?.trim() || null,
-        email: /^mailto:/i.test(v) ? v.slice(7).toLowerCase() : null,
-      });
-      continue;
-    }
-    cur.props[result.name] = { params: result.params, value: result.value };
+    if (cur) keepEventLine(cur, line);
   }
+  return raws;
+}
 
-  // The occurrences an override replaces, by the series' UID: cancelled or
-  // moved, the series no longer has that instance.
+/** The occurrences an override replaces, by the series' UID: cancelled or moved, the series no longer has that instance. */
+function overriddenOf(raws: readonly RawEvent[], fallbackTz: string): Map<string, Set<number>> {
   const overridden = new Map<string, Set<number>>();
   for (const raw of raws) {
     const rid = raw.props["RECURRENCE-ID"];
@@ -273,80 +275,150 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     }
     set.add(ms);
   }
+  return overridden;
+}
 
-  for (const raw of raws) {
-    events++;
-    const props = raw.props;
-    const status = props.STATUS?.value.toUpperCase();
-    const transp = props.TRANSP?.value.toUpperCase();
-    if (status === "CANCELLED" || transp === "TRANSPARENT" || !props.DTSTART) continue;
-    const start = toMs(props.DTSTART.value, props.DTSTART.params, fallbackTz);
-    let end: number | null = null;
-    if (props.DTEND) end = toMs(props.DTEND.value, props.DTEND.params, fallbackTz);
-    else if (props.DURATION && start !== null) {
-      const d = durationMs(props.DURATION.value);
-      end = d === null ? null : start + d;
-    } else if (start !== null) {
-      // No end: an all-day event takes the day; a timed one takes nothing we can name.
-      end =
-        props.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(props.DTSTART.value.trim()) ? start + DAY_MS : start;
-    }
-    if (start === null || end === null || end <= start) continue;
-    const title = unescapeText(props.SUMMARY?.value ?? "");
-    const description = unescapeText(props.DESCRIPTION?.value ?? "") || null;
-    const location = unescapeText(props.LOCATION?.value ?? "") || null;
-    const allDay = props.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(props.DTSTART.value.trim());
-    const uid = props.UID?.value.trim() || null;
-    const org = props.ORGANIZER?.value.trim() ?? "";
-    const organizer = /^mailto:/i.test(org) ? org.slice(7).toLowerCase() : null;
-    const isOverride = !!props["RECURRENCE-ID"];
-    const rule = props.RRULE && !isOverride ? parseRule(props.RRULE.value, fallbackTz) : null;
-    const local =
-      props.RRULE && !isOverride ? localPartsOf(props.DTSTART.value, props.DTSTART.params, fallbackTz) : null;
-    const dur = end - start;
-    const words = { title, allDay, uid, description, location, attendees: raw.attendees.slice(), organizer };
-    const push = (o: BusyBlock, occurrence: number | null = null) => {
-      busy.push(o);
-      items.push({ ...o, ...words, ...seriesOf(occurrence) });
-    };
+/** Whether an event's start is a day, not a moment: a DATE value, or eight digits. */
+const startsAllDay = (dtstart: IcsValue): boolean =>
+  dtstart.params.VALUE === "DATE" || /^\d{8}$/.test(dtstart.value.trim());
 
-    if (props.RRULE && !isOverride && rule && local) {
-      const ex = new Set<number>(instantsOf(raw.exdates, fallbackTz));
-      for (const ms of uid ? (overridden.get(uid) ?? []) : []) ex.add(ms);
-      const seen = new Set<number>();
-      const occ = occurrences(local, dur, rule, ex, horizon);
-      for (const o of occ) {
-        if (!seen.has(o.start)) {
-          seen.add(o.start);
-          push(o, o.start);
-        }
-      }
-      // RDATE: dates the rule does not produce, added to the series.
-      for (const ms of instantsOf(raw.rdates, fallbackTz)) {
-        if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
-        seen.add(ms);
-        push({ start: ms, end: ms + dur }, ms);
-      }
-      recurringExpanded++;
-    } else if (!props.RRULE && raw.rdates.length && !isOverride) {
-      // A list of dates with no rule: the event and its extra dates are a series.
-      const ex = new Set<number>(instantsOf(raw.exdates, fallbackTz));
-      const seen = new Set<number>([start]);
-      push({ start, end }, start);
-      for (const ms of instantsOf(raw.rdates, fallbackTz)) {
-        if (ex.has(ms) || seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
-        seen.add(ms);
-        push({ start: ms, end: ms + dur }, ms);
-      }
-      recurringExpanded++;
-    } else {
-      // A single event, an override standing where it moved to, or a rule we
-      // cannot read keeping its first occurrence.
-      if (props.RRULE && !isOverride) skippedRecurring++;
-      push({ start, end }, dueAt(props["RECURRENCE-ID"], fallbackTz));
+/**
+ * An event's span: its start, and its end as DTEND or DURATION say, or, with neither, an all-day event's day and a timed
+ * one's nothing we can name. Null where it cannot be read, or ends before it starts.
+ */
+function eventSpanOf(props: RawEvent["props"], dtstart: IcsValue, fallbackTz: string): BusyBlock | null {
+  const start = toMs(dtstart.value, dtstart.params, fallbackTz);
+  let end: number | null = null;
+  if (props.DTEND) end = toMs(props.DTEND.value, props.DTEND.params, fallbackTz);
+  else if (props.DURATION && start !== null) {
+    const d = durationMs(props.DURATION.value);
+    end = d === null ? null : start + d;
+  } else if (start !== null) end = startsAllDay(dtstart) ? start + DAY_MS : start;
+  if (start === null || end === null || end <= start) return null;
+  return { start, end };
+}
+
+/** What the board says of an event: its title, whether it takes the day, its series, words, place, who attends and who asked. */
+function eventWordsOf(raw: RawEvent, allDay: boolean) {
+  const props = raw.props;
+  const org = props.ORGANIZER?.value.trim() ?? "";
+  return {
+    title: unescapeText(props.SUMMARY?.value ?? ""),
+    allDay,
+    uid: props.UID?.value.trim() || null,
+    description: unescapeText(props.DESCRIPTION?.value ?? "") || null,
+    location: unescapeText(props.LOCATION?.value ?? "") || null,
+    attendees: raw.attendees.slice(),
+    organizer: /^mailto:/i.test(org) ? org.slice(7).toLowerCase() : null,
+  };
+}
+
+/** What placing a feed's events holds: the window, the zone, the overrides, and the blocks and items so far. */
+interface FeedPlacing {
+  horizon: { from: number; to: number };
+  fallbackTz: string;
+  overridden: Map<string, Set<number>>;
+  busy: BusyBlock[];
+  items: FeedItem[];
+}
+
+/** One occurrence kept: a block, and the board's item for it with the event's words and its place in the series. */
+type PlaceOccurrence = (o: BusyBlock, occurrence?: number | null) => void;
+
+/** The dates a series adds (RDATE) that the rule does not produce, the dates taken out and the horizon allowing. */
+function placeAddedDates(
+  raw: RawEvent,
+  dur: number,
+  dates: { ex: Set<number>; seen: Set<number> },
+  at: { feed: FeedPlacing; place: PlaceOccurrence },
+): void {
+  const { horizon, fallbackTz } = at.feed;
+  for (const ms of instantsOf(raw.rdates, fallbackTz)) {
+    if (dates.ex.has(ms) || dates.seen.has(ms) || ms > horizon.to || ms + dur < horizon.from) continue;
+    dates.seen.add(ms);
+    at.place({ start: ms, end: ms + dur }, ms);
+  }
+}
+
+/** A series by its rule: each occurrence the rule gives in the horizon, but those taken out or overridden, then its added dates. */
+function placeRuleSeries(
+  raw: RawEvent,
+  series: { rule: Rule; local: NonNullable<ReturnType<typeof localPartsOf>>; dur: number; uid: string | null },
+  at: { feed: FeedPlacing; place: PlaceOccurrence },
+): void {
+  const { feed, place } = at;
+  const ex = new Set<number>(instantsOf(raw.exdates, feed.fallbackTz));
+  for (const ms of series.uid ? (feed.overridden.get(series.uid) ?? []) : []) ex.add(ms);
+  const seen = new Set<number>();
+  for (const o of occurrences(series.local, series.dur, series.rule, ex, feed.horizon)) {
+    if (!seen.has(o.start)) {
+      seen.add(o.start);
+      place(o, o.start);
     }
   }
-  busy.sort((a, b) => a.start - b.start);
-  items.sort((a, b) => a.start - b.start);
-  return { busy, items, events, recurringExpanded, skippedRecurring };
+  // RDATE: dates the rule does not produce, added to the series.
+  placeAddedDates(raw, series.dur, { ex, seen }, at);
+}
+
+/**
+ * One event placed: dropped (cancelled, transparent, no start, no span), a series by its rule, a list of dates with no
+ * rule, or a single event, an override standing where it moved to, or a rule we cannot read keeping its first
+ * occurrence. What it was, for the feed's counts.
+ */
+function placeEvent(raw: RawEvent, feed: FeedPlacing): "none" | "series" | "unread" | "single" {
+  const props = raw.props;
+  const status = props.STATUS?.value.toUpperCase();
+  const transp = props.TRANSP?.value.toUpperCase();
+  const dtstart = props.DTSTART;
+  if (status === "CANCELLED" || transp === "TRANSPARENT" || !dtstart) return "none";
+  const span = eventSpanOf(props, dtstart, feed.fallbackTz);
+  if (!span) return "none";
+  const words = eventWordsOf(raw, startsAllDay(dtstart));
+  const place: PlaceOccurrence = (o, occurrence = null) => {
+    feed.busy.push(o);
+    feed.items.push({ ...o, ...words, ...seriesOf(occurrence) });
+  };
+  const at = { feed, place };
+  const ruled = !!props.RRULE && !props["RECURRENCE-ID"];
+  const rule = ruled && props.RRULE ? parseRule(props.RRULE.value, feed.fallbackTz) : null;
+  const local = ruled ? localPartsOf(dtstart.value, dtstart.params, feed.fallbackTz) : null;
+  const dur = span.end - span.start;
+  if (ruled && rule && local) {
+    placeRuleSeries(raw, { rule, local, dur, uid: words.uid }, at);
+    return "series";
+  }
+  if (!props.RRULE && raw.rdates.length && !props["RECURRENCE-ID"]) {
+    // A list of dates with no rule: the event and its extra dates are a series.
+    place({ start: span.start, end: span.end }, span.start);
+    placeAddedDates(
+      raw,
+      dur,
+      { ex: new Set<number>(instantsOf(raw.exdates, feed.fallbackTz)), seen: new Set([span.start]) },
+      at,
+    );
+    return "series";
+  }
+  place(span, dueAt(props["RECURRENCE-ID"], feed.fallbackTz));
+  return ruled ? "unread" : "single";
+}
+
+/** The instant an override's RECURRENCE-ID names: when the occurrence it moves was due. Null for an event that is none. */
+function dueAt(rid: { params: Record<string, string>; value: string } | undefined, fallbackTz: string): number | null {
+  return rid ? toMs(rid.value, rid.params, fallbackTz) : null;
+}
+
+export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = {}): ParsedFeed {
+  const horizon = opts.horizon ?? { from: Date.now() - DAY_MS, to: Date.now() + 90 * DAY_MS };
+  const raws = rawEventsOf(text);
+  const feed: FeedPlacing = { horizon, fallbackTz, overridden: overriddenOf(raws, fallbackTz), busy: [], items: [] };
+  let recurringExpanded = 0;
+  let skippedRecurring = 0;
+  for (const raw of raws) {
+    const placed = placeEvent(raw, feed);
+    if (placed === "series") recurringExpanded++;
+    else if (placed === "unread") skippedRecurring++;
+  }
+  feed.busy.sort((a, b) => a.start - b.start);
+  feed.items.sort((a, b) => a.start - b.start);
+  return { busy: feed.busy, items: feed.items, events: raws.length, recurringExpanded, skippedRecurring };
 }

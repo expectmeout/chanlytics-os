@@ -74,6 +74,14 @@ const OURS = {
     { selector: "function", filter: "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$", format: null },
     { selector: "variable", format: ["camelCase", "UPPER_CASE", "PascalCase"], leadingUnderscore: "allow" },
     { selector: "variable", modifiers: ["destructured"], format: null },
+    // An Ask tool's definition is named by its tool, the name the model calls it by on the wire (propose_reply,
+    // press_card), so a definition and its call read the same.
+    {
+      selector: "variable",
+      modifiers: ["exported", "const"],
+      filter: { regex: "^(propose_[a-z_]+|press_card)$", match: true },
+      format: null,
+    },
     { selector: "parameter", format: ["camelCase"], leadingUnderscore: "allow" },
     { selector: "parameter", modifiers: ["destructured"], format: null },
   ],
@@ -112,7 +120,9 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
 export const HELD_TYPED = [
-  // The colour model's four (it misreads a `??`, decision 0112).
+  // Held again: the colour model's four went on 26 November 2026 (mascot/colour.ts ownLab), and the kit's bar chart
+  // gained two the same day, `{ "--i": i } as CSSProperties` in surfaces/kit/charts/bar.tsx (#2674, lane 8's tree).
+  // An error once those two go.
   "@typescript-eslint/no-unnecessary-type-assertion",
 ];
 
@@ -359,10 +369,12 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/styles",
   "apps/dashboard/src/bridge/ask",
   "apps/dashboard/src/bridge/billing",
+  "apps/dashboard/src/bridge/boot",
   "apps/dashboard/src/bridge/hearing",
   "apps/dashboard/src/bridge/invitations",
   "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/bridge/reach-out",
+  "apps/dashboard/src/bridge/refresh",
   "apps/dashboard/src/bridge/rehearse",
   "apps/dashboard/src/bridge/surfaces",
   "apps/dashboard/src/bridge/verbs",
@@ -380,6 +392,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/leads",
   "apps/dashboard/src/server/lines",
   "apps/dashboard/src/server/notices",
+  "apps/dashboard/src/server/people",
   "apps/dashboard/src/server/metrics",
   "apps/dashboard/src/server/new-conversation",
   "apps/dashboard/src/server/console",
@@ -387,11 +400,12 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/posts",
   "apps/dashboard/src/server/previews",
   "apps/dashboard/src/server/public",
+  "apps/dashboard/src/server/readers",
   "apps/dashboard/src/server/receptionist",
   "apps/dashboard/src/server/settings",
   "apps/dashboard/src/server/setup",
   "apps/dashboard/src/server/shared",
-  "apps/dashboard/src/server/campaigns/sequences",
+  "apps/dashboard/src/server/campaigns",
   "apps/dashboard/src/server/workspace",
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
@@ -439,11 +453,13 @@ export const LIMITED_TREES = [
   "packages/channels/src/inbound",
   "packages/channels/src/instagram",
   "packages/channels/src/leads",
+  "packages/channels/src/lines",
   "packages/channels/src/meta",
   "packages/channels/src/shared",
   "packages/channels/src/tokens",
   "packages/channels/src/voice",
   "packages/channels/src/website",
+  "packages/channels/src/whatsapp",
   "packages/contracts/src/activity",
   "packages/contracts/src/ads",
   "packages/contracts/src/ai",
@@ -451,12 +467,15 @@ export const LIMITED_TREES = [
   "packages/contracts/src/ask/memory",
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/ask/skills",
+  "packages/contracts/src/calendar",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
   "packages/contracts/src/jobs",
   "packages/contracts/src/consent",
   "packages/contracts/src/console",
   "packages/contracts/src/content",
+  "packages/contracts/src/conversations",
+  "packages/contracts/src/deals",
   "packages/contracts/src/email",
   "packages/contracts/src/events",
   "packages/contracts/src/files",
@@ -464,6 +483,7 @@ export const LIMITED_TREES = [
   "packages/contracts/src/google",
   "packages/contracts/src/imports",
   "packages/contracts/src/journey",
+  "packages/contracts/src/leads",
   "packages/contracts/src/lines",
   "packages/contracts/src/logo",
   "packages/contracts/src/look",
@@ -472,22 +492,26 @@ export const LIMITED_TREES = [
   "packages/contracts/src/new-conversation",
   "packages/contracts/src/notes",
   "packages/contracts/src/notices",
-  "packages/contracts/src/people/person-page",
+  "packages/contracts/src/people",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/previews",
   "packages/contracts/src/campaigns/reach-out",
   "packages/contracts/src/rehearsal",
   "packages/contracts/src/reports",
   "packages/contracts/src/campaigns/sequences",
+  "packages/contracts/src/setup",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
+  "packages/contracts/src/today",
   "packages/contracts/src/voice",
   "packages/contracts/src/waits",
+  "packages/contracts/src/workspace",
   "packages/core/src/calendar",
   "packages/core/src/campaigns",
   "packages/core/src/content",
   "packages/core/src/conversations",
   "packages/core/src/inbound",
+  "packages/core/src/leads",
   "packages/core/src/look",
   "packages/core/src/messages",
   "packages/core/src/opportunities",
@@ -506,7 +530,21 @@ export const LIMITED_TREES = [
  * The jobs package joined on 3 November 2026, the day it was held (decision 0089): six take five or six (the ledger's
  * defer, the settle's conclude, a broadcast's failure and count, cancelJobsFor, the escalation's upsert). The edge's
  * voice joined on 25 November 2026, the day its call start's plan was split: six take five (the call's activity, an
- * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts).
+ * event's write, the link's send, the calendar's two reads, provisioning, the webhook's facts). Contracts'
+ * today joined on 25 November 2026, the day its figures were split: four take five to seven (the day's figures and the
+ * brief, a band's words, the facts' reader). Contracts' leads joined the same day, its row and peek split: a search's
+ * class takes six. Contracts' conversations and people's person-row joined on 25 November 2026, the day the call's and
+ * a person's rows were split: a thread's view model takes five, a person's row six. Contracts' deals joined on 25
+ * November 2026, the day the deal sheet was split: six take five (the pipeline's three, the deal card's two, the
+ * sheet's own). Contracts' calendar joined on 25 November 2026, the day its week and its feed's reader were split: five
+ * take five (a block, the rule's occurrences, a run's day, a person's visit facts, a freed time). Contracts' setup and
+ * people's lists joined on 25 November 2026, the day a capability's status and a list's chip were split: one each takes
+ * five (the calendar's source, a list's action). With them all of contracts' people is held, one tree in place of its
+ * three folders, and waits here while six take five or six (a list's action, a card's two, the profile, the
+ * receptionist's line, a person's row).
+ * The dashboard's campaigns, people and readers joined on 26 November 2026, the day their last long function was split:
+ * 16 take five to seven (a run's audience and its pools, the templates' versions, a deal's write, the import's rows,
+ * the content reader's two).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -516,8 +554,12 @@ export const WIDE_PARAMS = [
   "packages/contracts/src/ask/proposals",
   "packages/contracts/src/campaigns/broadcasts",
   "packages/contracts/src/config",
+  "packages/contracts/src/calendar",
+  "packages/contracts/src/people",
+  "packages/contracts/src/setup",
   "packages/contracts/src/campaigns/playbooks",
   "packages/contracts/src/campaigns/reach-out",
+  "packages/contracts/src/deals",
   "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/server/ask",
   "apps/dashboard/src/server/calendar",
@@ -537,6 +579,9 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/conversations",
   "apps/dashboard/src/server/drafts",
   "apps/dashboard/src/server/settings",
+  "apps/dashboard/src/server/campaigns",
+  "apps/dashboard/src/server/people",
+  "apps/dashboard/src/server/readers",
   "apps/edge/lib/ai",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
@@ -548,6 +593,13 @@ export const WIDE_PARAMS = [
   "packages/channels/src/google",
   "packages/channels/src/shared",
   "apps/edge/lib/voice",
+  // Channels' lines and core's leads joined on 26 November 2026, the day the registration saga and a collect were split:
+  // one takes five there (Twilio's request), eighteen here (a place's member, a round's decision, the people runner's).
+  "packages/channels/src/lines",
+  "packages/core/src/leads",
+  "packages/contracts/src/today",
+  "packages/contracts/src/leads",
+  "packages/contracts/src/conversations",
 ];
 
 const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
@@ -868,6 +920,22 @@ export default [
     files: DASHBOARD_MARKUP,
     plugins: { "jsx-a11y-x": jsxA11y },
     rules: A11Y_RULES,
+  },
+  // A field that opens with the bar or the sheet it is in takes the caret, on a desktop and never on a phone (frame-verbs
+  // focusAsDrawn, Ruben 8 Oct 2026): People's and Leads' own inputs that do, until each is the kit's Field; and the one
+  // field of a new workspace's first page, which is all that page asks.
+  {
+    files: [
+      "apps/dashboard/src/bridge/CreateWorkspace.tsx",
+      "apps/dashboard/src/surfaces/leads/scope/rail.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/phone-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/lists/rule-editor.tsx",
+      "apps/dashboard/src/surfaces/people/lists/save-shown.tsx",
+      "apps/dashboard/src/surfaces/people/rail/new-list.tsx",
+      "apps/dashboard/src/surfaces/people/sheets/list-sheets.tsx",
+    ],
+    rules: { "jsx-a11y-x/no-autofocus": "off" },
   },
 
   // Test and operational scripts.

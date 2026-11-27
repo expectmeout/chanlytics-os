@@ -1,8 +1,7 @@
 /**
  * The Inbox's thread pane (moved from pages/inbox-thread.jsx, decision 0015): the conversation, wherever it opens.
  *
- * Inbox Thread Pane — perfectionist refinement.
- * New structure:
+ * Inbox Thread Pane — perfectionist refinement. New structure:
  *   1. Header (compact — name, channels, actions)
  *   2. Context strip (4 micro-facts the operator wants at a glance)
  *   3. Approval card v2 (only if needs/drafts) — $ impact strip, evidence expander, next-steps row
@@ -64,6 +63,7 @@ import { hasVeto, HeldDraft } from "./veto";
 import { tlCallFor } from "./call";
 import { useCallLinesFirst } from "./call-turns";
 import { conversationsData } from "../store";
+import { answersClosest } from "../../dom-reads";
 
 // The newest thing said in a thread: its last message, written or a call. A flag after it is not something said.
 const ixNewestSaid = (timeline: TlEntry[] | null | undefined) => {
@@ -341,7 +341,7 @@ function openOnTap(foot: RefObject<HTMLDivElement | null>, setFolded: (v: boolea
       const field = foot.current?.querySelector<HTMLTextAreaElement>("textarea.ix-composer-text");
       // A glance that offers a draft puts it in (composer.tsx foldedGlance), and the keys stay down: it may be sent as it is.
       if (!field || field === document.activeElement) return;
-      if (!(e.target as Element).closest?.(".ix-composer-glance:not([data-offers])")) return;
+      if (!(answersClosest(e.target) && e.target.closest(".ix-composer-glance:not([data-offers])"))) return;
       field.focus({ preventScroll: true });
       field.setSelectionRange(0, 0);
     },
