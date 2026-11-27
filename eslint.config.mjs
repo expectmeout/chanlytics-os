@@ -166,6 +166,37 @@ const STRICT_AT_ERROR = {
   "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
 };
 export const HELD_STRICT = ["@typescript-eslint/no-unnecessary-condition"];
+
+/**
+ * The house's own rules, a plugin of this file's. A disable says why beside it (`-- <why>`), so a warning kept on purpose
+ * is read where it stands, and the keeps in apps, packages, e2e and tooling cannot grow unseen; a disable that disables
+ * nothing is an error (linterOptions, below). An error since 26 Nov 2026, when the last 40 that said nothing said why
+ * (three were a setter their hook had left out of its list, and took it). A house rule that comes in over findings is
+ * held here, a warning, and lint.mjs fails the run once none is left, so the change that clears the last turns it an error.
+ */
+export const HELD_HOUSE = [];
+const DISABLE = /^\s*eslint-disable(?:-next-line|-line)?(?:\s|$)/;
+const HOUSE = {
+  rules: {
+    "disable-says-why": {
+      meta: {
+        type: "suggestion",
+        schema: [],
+        messages: { why: "Say why beside the disable: `eslint-disable-next-line <rule> -- <why>`." },
+      },
+      create(context) {
+        return {
+          Program() {
+            for (const comment of context.sourceCode.getAllComments())
+              if (DISABLE.test(comment.value) && !/\s--\s+\S/.test(comment.value))
+                context.report({ loc: comment.loc, messageId: "why" });
+          },
+        };
+      },
+    },
+  },
+};
+
 const BACKEND_TYPED = [
   "apps/edge/**/*.ts",
   "apps/relay/**/*.ts",
@@ -683,6 +714,20 @@ export default [
       // What Cloudflare's Wrangler leaves beside a Worker it ran on a laptop (apps/relay): its bundles, never ours.
       "**/.wrangler/**",
     ],
+  },
+
+  // A disable that disables nothing is an error, and every disable says why (HELD_HOUSE).
+  { linterOptions: { reportUnusedDisableDirectives: "error" } },
+  // No `files`: it holds whatever the blocks below lint, less the suite's (tests/**, lane 4's own count).
+  {
+    ignores: ["tests/**"],
+    plugins: { house: HOUSE },
+    rules: Object.fromEntries(
+      Object.keys(HOUSE.rules).map((name) => [
+        `house/${name}`,
+        HELD_HOUSE.includes(`house/${name}`) ? "warn" : "error",
+      ]),
+    ),
   },
 
   // The edge: vanilla Node functions, no React, no DOM globals worth assuming.

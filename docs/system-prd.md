@@ -1410,7 +1410,7 @@ A Vercel variable reaches a running deployment only after a redeploy.
 
 ### 23.2 Scripts
 
-Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/db-paths-changed.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs` and `eval-judge.mjs`.
+Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/changed/database.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs` and `eval-judge.mjs`.
 
 ### 23.3 Secrets
 
