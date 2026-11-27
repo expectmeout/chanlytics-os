@@ -130,6 +130,16 @@ export function sourceRow(over = {}) {
 }
 
 /** One job of a kind per folder due, as 00641's sources_hand_out writes them: none where one waits or runs. */
+/** A footage account's event, as 00723's doors write it. */
+const sourceEvent = (tenantId, kind, connectionId, data) => ({
+  tenant_id: tenantId,
+  kind,
+  category: "setup",
+  subject_type: "source_connection",
+  subject_id: connectionId,
+  data,
+});
+
 function handOut(tables, { p_walk_stale_seconds }) {
   const now = Date.now();
   const due = (iso) => iso != null && Date.parse(iso) <= now;
@@ -260,6 +270,36 @@ export function world({ source = {}, tables: more = {}, faults = {}, rpcs: moreR
       return `source-creds-${p_connection_id}`;
     },
     source_credentials_drop: ({ p_connection_id }) => vault.delete(p_connection_id),
+    // 00723: a connect's token kept with source.connected, and an account removed (its token, then its row with its
+    // folders) with source.disconnected, each in one transaction. Each asks the vault's door above, as the SQL does.
+    source_connection_connected: ({ p_tenant_id, p_connection_id, p_secret, p_told }) => {
+      const row = tables.source_connections.find((c) => c.id === p_connection_id && c.tenant_id === p_tenant_id);
+      if (!row) throw Object.assign(new Error("no such connection"), { code: "P0002" });
+      const name = rpcs.source_credentials_put({ p_connection_id, p_secret });
+      (tables.events ??= []).push(
+        sourceEvent(p_tenant_id, "source.connected", p_connection_id, {
+          door: row.door,
+          again: p_told?.again ?? false,
+          ...(p_told?.by ? { by: p_told.by } : {}),
+        }),
+      );
+      return name;
+    },
+    source_connection_remove: ({ p_tenant_id, p_connection_id, p_told }) => {
+      const at = tables.source_connections.findIndex((c) => c.id === p_connection_id && c.tenant_id === p_tenant_id);
+      if (at < 0) return false;
+      const [row] = tables.source_connections.splice(at, 1);
+      rpcs.source_credentials_drop({ p_connection_id });
+      tables.media_sources = (tables.media_sources ?? []).filter((source) => source.connection_id !== p_connection_id);
+      (tables.events ??= []).push(
+        sourceEvent(p_tenant_id, "source.disconnected", p_connection_id, {
+          door: row.door,
+          revoked: p_told?.revoked ?? false,
+          ...(p_told?.by ? { by: p_told.by } : {}),
+        }),
+      );
+      return true;
+    },
     sources_hand_out: (args) => handOut(tables, args),
     ...(typeof moreRpcs === "function" ? moreRpcs(tables) : moreRpcs),
   };

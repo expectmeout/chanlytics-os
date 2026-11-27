@@ -105,7 +105,7 @@ test("Drive is offered only in the workspaces SOURCES_WORKSPACES names: a connec
   }
 });
 
-test("a connect trades the code for a grant, keeps its token in Vault and writes the account's row", async () => {
+test("a connect trades the code for a grant, keeps its token in Vault with source.connected and writes the account's row", async () => {
   fresh();
   w.drive.grant((form) => {
     assert.equal(form.get("grant_type"), "authorization_code");
@@ -127,6 +127,11 @@ test("a connect trades the code for a grant, keeps its token in Vault and writes
   assert.doesNotMatch(JSON.stringify(row), /refresh-token-new|access-token-new/, "no token is on the row");
   assert.equal(w.vault.get(row.id).refresh_token, "refresh-token-new");
   assert.deepEqual(w.drive.revoked, [], "a grant that is kept is not given back");
+  assert.deepEqual(
+    w.tables.events.filter((e) => e.subject_type === "source_connection").map((e) => [e.kind, e.subject_id, e.data]),
+    [["source.connected", row.id, { door: "watch", again: false, by: OWNER }]],
+    "the connect stands with its token, and says so in the same write (00723)",
+  );
 });
 
 /* ------------------------------------------------------------------------- the narrow door (the archive plan, B1) -- */
@@ -582,6 +587,11 @@ test("disconnecting closes the folder's channel, drops the token and gives the g
   assert.equal(w.drive.channels.size, 0);
   assert.equal(w.vault.size, 0, "the token leaves Vault");
   assert.equal(w.tables.source_connections.length, 0);
+  assert.deepEqual(
+    w.tables.events.filter((e) => e.kind === "source.disconnected").map((e) => [e.subject_id, e.data]),
+    [[CONNECTION, { door: "watch", revoked: true }]],
+    "the token, the row and source.disconnected leave together (00723)",
+  );
 });
 
 test("disconnecting leaves the grant with Google while a mailbox or a profile of the same account rides it", async () => {
