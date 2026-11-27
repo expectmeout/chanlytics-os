@@ -175,6 +175,7 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
   return (
     <Strip
       name={groupKey || ""}
+      className="pg-views"
       label={own ? own.label : "Section views"}
       testid={own ? own.testid : undefined}
       picked={own ? own.picked : at.page}

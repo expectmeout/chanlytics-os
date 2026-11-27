@@ -487,7 +487,7 @@ export const arLineView = (ln: Line) => {
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
   return (
     // It goes the way it came as it closes (kit/motion/leaving.ts leaving): a desk's panel back out to the right, a phone's screen
-    // fading, where a thumb also pulls it down or takes it across to either side (touchSwipe). ask-overlay and ask-modal
+    // fading, where a thumb also pulls it down or takes it across to either side (touchSwipe). ask-overlay and ask-pane
     // carry the motion.
     <div
       className="ask-overlay ask-line-scrim"
@@ -501,7 +501,7 @@ export const arLineView = (ln: Line) => {
     >
       <div
         ref={dialogRef}
-        className={`ask-modal ask-real ask-line${dropping ? " dropping" : ""}`}
+        className={`ask-pane ask-real ask-line${dropping ? " dropping" : ""}`}
         data-docked={ln.dock ? "" : undefined}
         {...dropProps}
         role={phone ? "dialog" : "complementary"}
@@ -566,7 +566,7 @@ export const arLineView = (ln: Line) => {
             no={t.deleteKeep}
             danger
             block
-            className="ask-confirm"
+            className="ask-remove-q"
             onYes={() => removeThread(doomed)}
             onNo={() => setDoomed(null)}
             testid="ask-delete"

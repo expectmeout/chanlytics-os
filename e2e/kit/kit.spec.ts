@@ -214,18 +214,7 @@ const tokensQ = (width: Width, pressed: boolean, reduced = false): KitAsk => ({
  */
 // settings.css's `:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm` held the fold sheet's foot at the
 // medium height until Classic retired (#1367): kit.css's own `footer.rec-sheet-foot .btn` outranks it there now.
-const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegExp }[] = [
-  {
-    by:
-      "settings.css, `:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm`: Settings' sheets keep the " +
-      "pane's small press (`.settings .btn-sm`, --set-hint), 12.5px on a desk where the kit's reads --text-label's 12 " +
-      "(seen since kit.css's .btn-sm read a token, 26 Nov 2026; it wrote 12px before)",
-    until: "Phase 4's Settings step (0015), where Settings' presses take the kit's size or a variant of it",
-    runs: /^desk /,
-    failure:
-      /^rec-fold-sheet: .* button\.btn\.btn-sm[.\w-]* font-size: planting --text-label changed nothing \(font-size at 12\.5px\)/,
-  },
-];
+const KNOWN_OVERRIDES: { by: string; until: string; runs: RegExp; failure: RegExp }[] = [];
 /**
  * Where a control's focus draws no ring by design, each with the decision that made it so: a failure one of these
  * explains, in the runs it names, is expected, and an entry no run meets any more fails the test.
@@ -701,7 +690,7 @@ test("check 5 names a toast over a sheet's foot: on a phone as the bell's list l
     // (mobile.css, data-bell-open on the root: kit/motion/root-flags.ts).
     phone: (page: Page) =>
       page.evaluate(() => {
-        document.querySelector(".gx-entries")?.insertAdjacentHTML("beforeend", '<section class="tbn-pop"></section>');
+        document.querySelector(".gx-entries")?.insertAdjacentHTML("beforeend", '<section class="tbn-place"></section>');
         document.documentElement.setAttribute("data-bell-open", "");
       }),
     // The stack at the page's right edge, over the sheet, where the kit stands it beside.

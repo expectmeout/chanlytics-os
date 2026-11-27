@@ -6,7 +6,7 @@
  * the JSX drew them, raw buttons and all, until the frame's kit step (eslint KIT_PENDING).
  */
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { FrameFlash } from "../../frame-verbs";
 import { warmSettingsPane } from "../../settings/frame/pane-reads";
 import { frameBell, frameChrome, frameShell } from "../frame-window";
@@ -20,6 +20,7 @@ import {
   type SbWho,
 } from "./sidebar-who";
 import { Icon } from "../../kit/icon/icon";
+import { customProperties, type CustomProperties } from "../../kit/variants";
 import { createPortal } from "react-dom";
 import { touchSwipe } from "../../kit/motion/swipe";
 import { openShortcuts } from "../shortcuts";
@@ -96,16 +97,17 @@ const SB_MENU_MARGIN = 8;
 // the sidebar (Ruben, 7 Oct 2026). On a phone it is placed by the stylesheet, as a sheet from the screen's foot
 // (components.css `[data-sb-place]`): it took its place from its row, and a row read while the drawer was still
 // sliding in put the menu off the screen.
-const sbMenuStyle = (rect: MenuRect | null, side: "up" | "down"): CSSProperties => {
+const sbMenuPlace = (rect: MenuRect | null, side: "up" | "down"): CustomProperties => {
   if (!rect || !sbBeside()) return {};
-  const left = Math.round(rect.edge) - SB_OVERLAP_PX;
+  const left = `${Math.round(rect.edge) - SB_OVERLAP_PX}px`;
+  const width = `${SB_MENU_WIDTH}px`;
   return side === "up"
     ? {
-        left,
-        bottom: Math.max(SB_MENU_MARGIN, Math.round(window.innerHeight - rect.bottom)),
-        width: SB_MENU_WIDTH,
+        "--sb-left": left,
+        "--sb-bottom": `${Math.max(SB_MENU_MARGIN, Math.round(window.innerHeight - rect.bottom))}px`,
+        "--sb-width": width,
       }
-    : { left, top: Math.max(SB_MENU_MARGIN, Math.round(rect.top)), width: SB_MENU_WIDTH };
+    : { "--sb-left": left, "--sb-top": `${Math.max(SB_MENU_MARGIN, Math.round(rect.top))}px`, "--sb-width": width };
 };
 
 // Drawn at the app's root, not inside the sidebar: a phone's drawer is moved by a transform, and a fixed box inside a
@@ -164,12 +166,12 @@ export function SbMenu({
       />
       {/* eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/interactive-supports-focus -- the menu's keys are its items' own; it waits for the kit's Menu (Base UI) to own them */}
       <div
-        className="more-menu sb-menu"
+        className="more-menu sb-place"
         role="menu"
         aria-label={label}
         {...sbMenuPull(menu)}
         data-sb-place={place}
-        style={sbMenuStyle(menu.rect, side)}
+        style={customProperties(sbMenuPlace(menu.rect, side))}
         onClick={(e) => e.stopPropagation()}
         data-testid={testid}
       >
@@ -207,7 +209,7 @@ export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) 
               if (!current) frameShell()?.switchWorkspace(w.id);
             }}
           >
-            <SbWorkspaceFace ws={w} className="sb-ws-mark" />
+            <SbWorkspaceFace ws={w} className="face face-sm face-tile" />
             <span className="more-item-label">
               {w.name}
               {roleWords ? <span className="sb-ws-role">{roleWords}</span> : null}
@@ -264,11 +266,11 @@ interface UserMenuProps {
  */
 function UserMenuHead({ who, go }: { who: SbWho; go: (to: string) => () => void }) {
   return (
-    <button className="more-item sb-menu-head" role="menuitem" onClick={go("admin/profile")} data-testid="sb-me">
-      <span className="avatar">{who.initials}</span>
-      <span className="who">
-        <span className="name">{who.name}</span>
-        <span className="email">
+    <button className="more-item sb-me-head" role="menuitem" onClick={go("admin/profile")} data-testid="sb-me">
+      <span className="face face-lg">{who.initials}</span>
+      <span className="more-item-words">
+        <span className="more-item-label">{who.name}</span>
+        <span className="more-item-sub">
           {who.role ? <span data-testid="sb-me-role">{who.role}</span> : null}
           {who.role ? " · " : null}
           {who.email}
@@ -327,7 +329,7 @@ function UserMenuLooks({
     <>
       <div className="sb-look-row">
         <span className="sb-look-word">Appearance</span>
-        <div className="sb-theme-seg" role="radiogroup" aria-label="Theme">
+        <div className="rec-seg sb-looks" role="radiogroup" aria-label="Theme">
           {themes.map((t) => (
             <button
               key={t.id}
@@ -335,7 +337,7 @@ function UserMenuLooks({
               aria-checked={themePref === t.id}
               aria-label={t.label}
               data-tip={t.label}
-              className={`sb-theme-opt ${themePref === t.id ? "active" : ""}`}
+              className="rec-seg-btn"
               onClick={() => onTheme(t.id)}
               data-testid={`sb-theme-${t.id}`}
             >
@@ -347,13 +349,13 @@ function UserMenuLooks({
       {looks.length > 0 && (
         <div className="sb-look-row">
           <span className="sb-look-word">Look</span>
-          <div className="sb-theme-seg" role="radiogroup" aria-label="Look">
+          <div className="rec-seg sb-looks" role="radiogroup" aria-label="Look">
             {looks.map((l) => (
               <button
                 key={l.id}
                 role="radio"
                 aria-checked={look === l.id}
-                className={`sb-theme-opt ${look === l.id ? "active" : ""}`}
+                className="rec-seg-btn"
                 onClick={() => onLook && onLook(l.id)}
                 data-testid={`sb-look-${l.id}`}
               >

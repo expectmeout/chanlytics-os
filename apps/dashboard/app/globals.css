@@ -112,8 +112,7 @@ body {
     [type="button"],
     [type="submit"],
     [type="reset"],
-    [type="image"],
-    .ask-line-input
+    [type="image"]
   ),
   textarea,
   select,
@@ -142,7 +141,7 @@ body {
   width: 100%;
   max-width: 380px;
 }
-.auth-mark {
+.auth-brand {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -151,14 +150,14 @@ body {
   font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
 }
-.auth-mark-dot {
+.auth-brand-dot {
   width: 9px;
   height: 9px;
   border-radius: var(--radius-full);
   background: var(--accent);
   flex: none;
 }
-.auth-mark-name {
+.auth-brand-name {
   color: var(--ink);
 }
 .auth-foot {

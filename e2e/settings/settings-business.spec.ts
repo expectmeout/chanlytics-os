@@ -252,7 +252,7 @@ async function expectAbilitiesQuiet(page: Page, where: string): Promise<void> {
       ready: r.getAttribute("data-ready"),
       why: !!r.querySelector(".bt-can-why"),
       ink: getComputedStyle(r.querySelector(".rec-row-key") as Element).color,
-      lit: r.querySelectorAll('.rec-can-chip[data-on="true"]').length,
+      lit: r.querySelectorAll('.bt-can-state[data-on="true"]').length,
     }));
     // --ink-dim as this card's own ground resolves it, for the row nothing does.
     const probe = document.createElement("span");

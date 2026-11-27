@@ -118,7 +118,7 @@ function SetPane({ id, row, flash }: { id: string; row: string | null; flash: Fl
  */
 function PaneConsole() {
   return (
-    <section className="rec-card set-card" data-testid="set-console">
+    <section className="rec-card set-block" data-testid="set-console">
       <div className="rec-card-head">
         <h2 className="rec-card-title">The Console</h2>
         <span className="rec-card-sub">Every workspace, support and requests, in their own place</span>

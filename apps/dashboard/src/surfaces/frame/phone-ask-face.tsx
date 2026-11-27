@@ -12,7 +12,7 @@ import { moveAlongArc, type ArcBox } from "../kit/motion/arc";
 
 /** How long the three take home: the canvas's 360 ms, shorter than their way out. */
 const HOME_MS = 360;
-/** One tile of the three on the circle, in CSS px (ask.css, `.phone-ask-face`). */
+/** One tile of the three on the circle, in CSS px (ask.css, `.phone-ask-lead`). */
 const SIDE = 14;
 
 /** Where the three stood in AI as it closed, until the circle's face has taken it. */
@@ -53,7 +53,7 @@ export function PhoneAskFace({ away }: { away: boolean }) {
   return (
     <span className="phone-ask-arc" ref={outer}>
       <span className="phone-ask-arc" ref={inner}>
-        <AskFace className="phone-ask-face" ground="raised" side={SIDE} testId="phone-ask-face" />
+        <AskFace className="phone-ask-lead" ground="raised" side={SIDE} testId="phone-ask-face" />
       </span>
     </span>
   );

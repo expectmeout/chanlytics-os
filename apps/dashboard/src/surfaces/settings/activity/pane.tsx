@@ -161,7 +161,7 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
             {W.title}
           </h2>
         </div>
-        <p className="set-card-foot">{W.ownerOnly}</p>
+        <p className="set-block-foot">{W.ownerOnly}</p>
       </section>
     );
   }
@@ -216,7 +216,7 @@ export function PaneActivity({ family = null }: { family?: string | null } = {})
         onClear={() => setN(NO_NARROWING)}
         load={load}
       />
-      <p className="set-card-foot">{W.foot}</p>
+      <p className="set-block-foot">{W.foot}</p>
     </section>
   );
 }

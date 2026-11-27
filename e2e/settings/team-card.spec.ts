@@ -90,7 +90,7 @@ test.describe("the Team card", () => {
 
   test("the roster shows the signed-in account and no invented colleagues", async ({ page }) => {
     await signInAndGo(page, "#/admin/team");
-    const card = page.locator(".set-card", { hasText: "Team" }).first();
+    const card = page.locator(".set-block", { hasText: "Team" }).first();
     await expect(card).toBeVisible();
     for (const invented of ["Sarah Chen", "Marcus Webb", "Lena Park", "Jay Rivera", "serenityspa.co"]) {
       await expect(card).not.toContainText(invented);

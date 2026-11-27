@@ -317,7 +317,7 @@ function leaveLinks() {
 function makingCard(kept: string, doing: string) {
   return (
     <div className="cw-screen">
-      <div className="cw-card" role="status" aria-live="polite" data-testid="cw-making">
+      <div className="panel cw-form" role="status" aria-live="polite" data-testid="cw-making">
         <h1 className="cw-title">{kept}</h1>
         <p className="cw-lede">{doing}</p>
       </div>
@@ -335,7 +335,7 @@ function waitlistCard(
   const { busy, error, joined } = form;
   return (
     <div className="cw-screen" data-testid="create-workspace-waitlist">
-      <form className="cw-card" onSubmit={join}>
+      <form className="panel cw-form" onSubmit={join}>
         <h1 className="cw-title">{SIGNUP_WORDS.waitlistTitle}</h1>
         {joined ? (
           <p className="cw-lede" role="status" data-testid="create-workspace-joined">
@@ -344,8 +344,8 @@ function waitlistCard(
         ) : (
           <>
             <p className="cw-lede">{SIGNUP_WORDS.waitlistLead}</p>
-            <label className="cw-field">
-              <span className="cw-label">Business name</span>
+            <label className="rec-field">
+              <span className="rec-field-label">Business name</span>
               {businessNameInput(form)}
               {email && <span className="cw-hint">{SIGNUP_WORDS.waitlistWriteTo(email)}</span>}
             </label>
@@ -354,7 +354,12 @@ function waitlistCard(
                 {error}
               </div>
             )}
-            <button className="cw-submit" type="submit" disabled={busy} data-testid="create-workspace-join">
+            <button
+              className="btn btn-primary btn-lg cw-go"
+              type="submit"
+              disabled={busy}
+              data-testid="create-workspace-join"
+            >
               {busy ? "Joining…" : SIGNUP_WORDS.waitlistCta}
             </button>
           </>
@@ -386,11 +391,11 @@ function workspaceFormCard(
   const { another, busy, error, door, partnerCode } = form;
   return (
     <div className="cw-screen" data-testid="create-workspace">
-      <form className="cw-card" onSubmit={submit}>
+      <form className="panel cw-form" onSubmit={submit}>
         {workspaceHead(another, email)}
 
-        <label className="cw-field">
-          <span className="cw-label">Business name</span>
+        <label className="rec-field">
+          <span className="rec-field-label">Business name</span>
           {businessNameInput(form)}
         </label>
 
@@ -406,7 +411,7 @@ function workspaceFormCard(
           </div>
         )}
 
-        <button className="cw-submit" type="submit" disabled={busy}>
+        <button className="btn btn-primary btn-lg cw-go" type="submit" disabled={busy}>
           {another ? (busy ? "Creating…" : "Create workspace") : busy ? SIGNUP_WORDS.making : SIGNUP_WORDS.nameCta}
         </button>
         {onCancel && (
@@ -466,7 +471,7 @@ function workspaceHead(another: boolean, email: string | null) {
 function businessNameInput({ name, setName }: WorkspaceForm) {
   return (
     <input
-      className="cw-input"
+      className="rec-input"
       value={name}
       onChange={(e) => setName(e.target.value)}
       placeholder="The name customers know you by"
@@ -480,9 +485,14 @@ function businessNameInput({ name, setName }: WorkspaceForm) {
 /** Another workspace's clock, from the short list (sign-up's own zone at its head). */
 function zoneField({ timezone, setTimezone, zones }: WorkspaceForm) {
   return (
-    <label className="cw-field">
-      <span className="cw-label">Timezone</span>
-      <select className="cw-input" value={timezone} onChange={(e) => setTimezone(e.target.value)} aria-label="Timezone">
+    <label className="rec-field">
+      <span className="rec-field-label">Timezone</span>
+      <select
+        className="rec-input"
+        value={timezone}
+        onChange={(e) => setTimezone(e.target.value)}
+        aria-label="Timezone"
+      >
         {zones.map((z) => (
           <option key={z} value={z}>
             {z.replace(/_/g, " ")}
@@ -499,10 +509,10 @@ function zoneField({ timezone, setTimezone, zones }: WorkspaceForm) {
 /** The invite code, while sign-up is by invitation. */
 function codeField({ code, setCode }: WorkspaceForm) {
   return (
-    <label className="cw-field">
-      <span className="cw-label">Invite code</span>
+    <label className="rec-field">
+      <span className="rec-field-label">Invite code</span>
       <input
-        className="cw-input"
+        className="rec-input"
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="From your Chanlytics contact"

@@ -14,6 +14,7 @@ import { BELL_READ_WORDS } from "@chanlytics/contracts";
 import type { BellRow } from "@/bridge/notifications";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
+import { EmptyState } from "../../kit/empty/empty";
 import { Sheet } from "../../kit/sheet/sheet";
 import { useRootFlag } from "../../kit/motion/root-flags";
 import { frameBell } from "../frame-window";
@@ -275,12 +276,7 @@ function bellList(d: BellDraw, items: BellNote[], readHere: Set<string>) {
   const sections = tbnSections(items.map((n) => (readHere.has(n.id) ? { ...n, unread: true } : n)));
   return (
     <div className="tbn-list">
-      {tbnCaughtUp(items) && (
-        <div className="tbn-empty">
-          <Icon name="check" size={18} />
-          <span>All caught up</span>
-        </div>
-      )}
+      {tbnCaughtUp(items) && <EmptyState kind="line" glyph="check" tone="ok" title="All caught up" />}
       {sections.map((sec) => (
         <Fragment key={sec.label}>
           <div className="tbn-sec">{sec.label}</div>
@@ -371,10 +367,10 @@ export function NotifPopover({
   }
   return (
     <>
-      <div className="tbn-backdrop" role="presentation" onClick={onClose} />
+      <div className="tbn-catch" role="presentation" onClick={onClose} />
       {/* A popover under the bell on a wider screen: the kit's pop panel. */}
       <div
-        className="tbn-pop panel panel-pop panel-flush"
+        className="tbn-place panel panel-pop panel-flush"
         role="dialog"
         aria-modal="true"
         aria-label="Notifications"

@@ -55,8 +55,10 @@
     border-color: var(--line-strong);
   }
 }
+/* Pressed, it gives a half pixel under the finger (every press the house draws; components.css held it). */
 .btn:active {
   background: var(--bg-active);
+  transform: translateY(0.5px) scale(0.985);
 }
 .btn .icon {
   width: 14px;
@@ -1356,6 +1358,8 @@ a.more-item {
   border: 1px solid var(--surface-inset-edge);
   border-radius: var(--surface-inset-radius);
   background: var(--surface-inset-fill);
+  /* What answers a press in place rises into it (components.css held it). */
+  animation: nudge-in var(--duration-base) var(--ease-out);
 }
 .confirm-block,
 .rec-sheet-foot .confirm {
@@ -1749,8 +1753,17 @@ a.more-item {
   }
 }
 
+/* Busy says so, unless the button is disabled: then .btn:disabled keeps its pointer. :where() holds the weight under the
+   gate's, so a button both gated and busy says it is gated. */
+.btn[aria-busy="true"]:where(:not(:disabled)) {
+  cursor: progress;
+}
 /* Role-gated controls (window.gate) keep a working control's look under the pointer and the press: they are dimmed and
-   say why (components.css, [data-gated]), and take no hover or press state of their own. */
+   say why (components.css, [data-gated], for any other control), and take no hover or press state of their own. */
+.btn[data-gated] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .btn[data-gated]:active {
   background: var(--secondary-fill);
   border-color: var(--line);
@@ -4694,8 +4707,14 @@ a.list-row {
     bottom: var(--foot-clear, 0px);
     mask-image: var(--foot-fade, none);
   }
+  /* The backdrop-filter is for the browser's bar, not the page: a childless, see-through, screen-sized fixed box is what
+     Safari on iOS 26 calls a dimming layer, and it paints its status-bar strip with that colour blended over the page (a
+     grey band while a sheet or the drawer is open). A fixed box with a backdrop-filter it paints in the page's own colour.
+     A blur of zero changes nothing on the page; it is the filter's presence that counts (Ruben, 21 Oct 2026; mobile.css
+     held it for the drawer's wash). */
   .sheet-backdrop {
     background: var(--surface-veil);
+    backdrop-filter: blur(0);
   }
   /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float, --sheet-foot), or stands on the
      keyboard. */
@@ -6730,9 +6749,26 @@ textarea.rec-input,
   line-height: 1;
   color: var(--count-ink);
 }
+/* A place's count beside its name (the sidebar's, as the canvases' sidebar draws it): the neutral count filled, a step
+   larger than an icon's. People who need you, the Inbox's count, are amber, warn's own meaning (contracts tone.ts; Today
+   with colour, D5, 17 Nov 2026), as the rail's dot is; every other place's count stays the neutral one. */
+.tally-fill {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--count-fill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  color: var(--count-ink);
+}
+.tally-fill.tally-warn {
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
 /* People who need you, counted on an icon (the phone's Inbox tab), are the neutral count too, with no ring: an amber tint
    let the glyph's lines show through the figure, and the warn tone whole read too harsh on the bar (Ruben, 18 Nov 2026).
-   The menu's count, beside its words, keeps the amber (components.css .nav-badge.tally-warn). */
+   The sidebar's count, beside its words, keeps the amber (.tally-fill.tally-warn, above). */
 
 /* ---- A tone's words read the tone's ink (the one-badge spec's rule) ----
    Where the house's rules still write a raw tone as words: a quiet destructive act, a menu's destructive item, what went
@@ -8564,8 +8600,18 @@ button.line-figure {
   letter-spacing: -0.012em;
   color: var(--ink);
 }
+/* What to ask is one line, cut with "…" where the field is narrower than it (ask.css held it for AI's line). */
 .line-field::placeholder {
   color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* On a phone the words are at the 16px a phone never zooms into. */
+@media (max-width: 900px) {
+  .line-field {
+    font-size: var(--field-text-touch);
+  }
 }
 .line-field[data-listening="true"]::placeholder {
   color: var(--accent);
@@ -8800,6 +8846,35 @@ html.frame-on .rec-row-act {
   }
 }
 
+/* A row of a long list read as text (Settings › Business's services, hours, notes and closures; Outreach's claims): its
+   boxes draw no edge until the row is approached, and its icon act waits for the same approach, so thirty-three rows
+   read as a list and not ninety-nine boxes (23 Sep 2026). A touch screen hovers nothing, so there every edge and act is
+   drawn; a key in the row shows both. */
+@media (hover: hover) {
+  .rec-quiet :is(.rec-input, .rec-input-group) {
+    border-color: transparent;
+    background: transparent;
+  }
+  .rec-quiet:is(:hover, :focus-within) :is(.rec-input, .rec-input-group) {
+    border-color: var(--line-strong);
+    background: var(--bg-raised);
+  }
+  .rec-quiet :is(.rec-input:focus-visible, .rec-input-group:focus-within) {
+    border-color: var(--accent);
+  }
+  .rec-quiet > .btn-icon {
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+  .rec-quiet:is(:hover, :focus-within) > .btn-icon {
+    opacity: 1;
+  }
+}
+/* While a fold or a sheet saves (the gesture says aria-busy), its buttons say wait, as its boxes do. */
+:is(.rec-fold, .rec-fold-sheet, .sheet)[aria-busy="true"] .btn {
+  cursor: progress;
+}
+
 /* Under reduced motion nothing of the record kit moves. After the phone block, whose transitions it stops. */
 @media (prefers-reduced-motion: reduce) {
   .rec-row::before,
@@ -8811,8 +8886,29 @@ html.frame-on .rec-row-act {
   .rec-knob,
   .rec-seg-btn,
   .rec-tip,
-  .rec-sheet-close {
+  .rec-sheet-close,
+  .rec-quiet > .btn-icon {
     transition: none;
+  }
+  /* What settles, folds or answers a press arrives at once (components.css held these for the kit). */
+  .rec-row[data-settled="true"] .rec-row-val {
+    animation: none !important;
+  }
+  .rec-says-line[data-changed="true"],
+  .rec-inline-body,
+  .rec-fold-hint,
+  .rec-fold {
+    transition: none !important;
+  }
+  .confirm,
+  .confirm-block {
+    animation: none;
+  }
+  .stabs-tab {
+    transition: none;
+  }
+  .stabs-tab:active {
+    transform: none;
   }
 }
 
@@ -8821,6 +8917,11 @@ html.frame-on .rec-row-act {
 @media (pointer: coarse) {
   html.frame-on .btn {
     min-height: 44px;
+  }
+  /* An icon button is a square a finger can land on: as wide as it is tall (Settings and its sheets held it at 44 wide,
+     and the touch check of Business's sheets reads it). */
+  html.frame-on .btn-icon {
+    min-width: 44px;
   }
   /* A pill is words and a tally is a number: neither is pressed, so neither
      takes a floor (every list row used to undo one on .pill). A chip that is

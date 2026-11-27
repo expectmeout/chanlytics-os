@@ -92,7 +92,7 @@ export function useConsoleRead<T>(read: () => Promise<Read<T>>, key: string): Co
 /** A section that says one thing while its screen reads. */
 export function ScreenReading({ words = CONSOLE_WORDS.reading }: { words?: string }) {
   return (
-    <section className="rec-card set-card" data-testid="console-reading">
+    <section className="rec-card set-block" data-testid="console-reading">
       <div className="set-row">
         <div className="set-row-info">
           <span className="set-row-hint">{words}</span>
@@ -117,7 +117,7 @@ export function ScreenFailed({
   testid: string;
 }) {
   return (
-    <section className="rec-card set-card">
+    <section className="rec-card set-block">
       <FailedRead
         kind="card"
         what={what}
@@ -146,7 +146,7 @@ export function ScreenSection({
   testid: string;
 }) {
   return (
-    <section className="rec-card set-card" data-testid={testid}>
+    <section className="rec-card set-block" data-testid={testid}>
       <div className="rec-card-head">
         <h2 className="rec-card-title">{title}</h2>
         {sub ? <span className="rec-card-sub">{sub}</span> : null}

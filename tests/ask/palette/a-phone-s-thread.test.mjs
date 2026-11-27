@@ -631,17 +631,17 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
   try {
     let tree = render(AskCard, { p: reply, messageId: "x", t, onNav() {} });
     assert.ok(
-      byClass(tree, "ask-card-change")[0].props.className.split(" ").includes("bubble"),
+      byClass(tree, "ask-job-change")[0].props.className.split(" ").includes("bubble"),
       "the message as a bubble",
     );
-    assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), reply.summary);
-    assert.equal(textOf(byClass(tree, "ask-card-foot")[0]), reply.undo, "what follows, in the undo's own words");
-    assert.equal(textOf(byClass(tree, "ask-card-not-now")[0]), t.notNow, "Not now, apart");
+    assert.equal(textOf(byClass(tree, "ask-job-summary")[0]), reply.summary);
+    assert.equal(textOf(byClass(tree, "ask-job-foot")[0]), reply.undo, "what follows, in the undo's own words");
+    assert.equal(textOf(byClass(tree, "ask-job-not-now")[0]), t.notNow, "Not now, apart");
     // Outside the 24-hour window only a template can go: the card says so and promises no send in 15 seconds.
     const shut = { ...reply, payload: { ...reply.payload, window_open: false } };
     tree = render(AskCard, { p: shut, messageId: "x", t, onNav() {} });
-    assert.equal(textOf(byClass(tree, "ask-card-note")[0]), t.windowNote);
-    assert.equal(byClass(tree, "ask-card-foot").length, 0, "REGRESSION: it promised a send the route refuses");
+    assert.equal(textOf(byClass(tree, "ask-job-note")[0]), t.windowNote);
+    assert.equal(byClass(tree, "ask-job-foot").length, 0, "REGRESSION: it promised a send the route refuses");
 
     const at = Date.now() - 3_000;
     const sending = {
@@ -655,10 +655,10 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
     };
     tree = render(AskCard, { p: sending, messageId: "x", t, onNav() {} });
     assert.ok(byTestId(tree, "ask-card-ring"), "the clock leads the line");
-    const undo = byClass(tree, "ask-card-undo")[0];
+    const undo = byClass(tree, "ask-job-undo")[0];
     assert.equal(textOf(undo), t.undo, "it says Undo");
     assert.equal(undo.props["data-tip"], reply.undo);
-    assert.equal(byClass(tree, "ask-card-foot").length, 0, "the words for what follows are the card's, before the act");
+    assert.equal(byClass(tree, "ask-job-foot").length, 0, "the words for what follows are the card's, before the act");
 
     const sent = {
       ...sending,
@@ -670,8 +670,8 @@ test("a reply's card draws the message as the bubble it will be, the undo's word
     };
     tree = render(AskCard, { p: sent, messageId: "x", t, onNav() {} });
     assert.equal(byTestId(tree, "ask-card-ring"), null, "the window closed: no clock");
-    assert.equal(byClass(tree, "ask-card-undo").length, 0, "and no Undo");
-    assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("On its way to Rosa"));
+    assert.equal(byClass(tree, "ask-job-undo").length, 0, "and no Undo");
+    assert.ok(textOf(byClass(tree, "ask-job-receipt")[0]).includes("On its way to Rosa"));
   } finally {
     holdAsk(A);
   }
@@ -722,15 +722,15 @@ test("the reads say Thinking before the first and a repeat once, at its newest; 
     const ring = byTestId(tree, "ask-card-ring");
     assert.ok(ring, "the clock leads the line");
     const arc = find(ring, (n) => typeof n.props?.onAnimationEnd === "function");
-    const left = parseFloat(arc.props.style.animationDuration);
+    const left = parseFloat(arc.props.style["--ring-ms"]);
     assert.ok(left > 11_000 && left <= 12_000, `it runs for what is left of the window, not all of it: ${left}ms`);
-    const gone = arc.props.style.strokeDashoffset;
+    const gone = arc.props.style["--ring-from"];
     assert.ok(gone > 7.5 && gone < 8.5, `a fifth of it is gone as it is drawn: ${gone}`);
     arc.props.onAnimationEnd();
     tree = settle(AskCard, props);
     assert.equal(byTestId(tree, "ask-card-ring"), null, "empty: the ring goes");
-    assert.equal(byClass(tree, "ask-card-undo").length, 0, "and the Undo with it");
-    assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("On its way to Rosa"), "the line stays");
+    assert.equal(byClass(tree, "ask-job-undo").length, 0, "and the Undo with it");
+    assert.ok(textOf(byClass(tree, "ask-job-receipt")[0]).includes("On its way to Rosa"), "the line stays");
   } finally {
     holdAsk(A);
   }

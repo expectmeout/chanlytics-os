@@ -38,7 +38,7 @@ function NoNumber() {
     <div className="bc-optin-body">
       <div className="bc-optin-text">
         <p data-testid="bc-optin-no-number">{W.body}</p>
-        <div className="bc-chips">
+        <div className="bc-picks">
           <LinkButton onClick={() => navigate(W.door.to)} data-testid="bc-optin-connect">
             {W.door.label}
           </LinkButton>
@@ -73,7 +73,7 @@ function TheCode({
           A scan or a tap opens WhatsApp with <b>{optIn.phrase}</b> ready to send, and sending it records their yes.{" "}
           <b>{optIn.phraseEs}</b> works in Spanish, and STOP undoes it.
         </p>
-        <div className="bc-chips">
+        <div className="bc-picks">
           {/* The code with the words a customer needs before scanning it, on one printable sheet: a bare code on a desk
               says nothing about whose messages, what they are, or how to stop them. */}
           {optIn.pageUrl && (

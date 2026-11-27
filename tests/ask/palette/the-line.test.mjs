@@ -841,7 +841,7 @@ test("REGRESSION: a card sent once says Sent wherever it is drawn again -- an ea
   press(byTestId(tree, "ask-card-approve"));
   tree = await later(Palette, OPEN);
   assert.deepEqual(committed, ["p1"]);
-  assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Sent to Nora"));
+  assert.ok(textOf(byClass(tree, "ask-job-receipt")[0]).includes("Sent to Nora"));
   typed(tree, "and tomorrow?");
   tree = await later(Palette, OPEN);
   keyed(tree, "Enter");
@@ -954,7 +954,7 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
     press(approve);
     tree = await later(Palette, OPEN);
     assert.deepEqual(committed, ["p1"]);
-    assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Invited ada@example.com as viewer"));
+    assert.ok(textOf(byClass(tree, "ask-job-receipt")[0]).includes("Invited ada@example.com as viewer"));
   } finally {
     bridgeHolds({ parts: { roles: was.store } });
   }

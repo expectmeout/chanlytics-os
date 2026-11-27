@@ -359,6 +359,14 @@
   /* An option picked and not yet written (kit.css .rec-seg-btn[data-armed]): ringed in the faint ink, never the tile the
      answer on record keeps. */
   --armed-ring: inset 0 0 0 1px var(--ink-faint);
+  /* What is now on a list's rail (components.css .ag-item.now): a soft ring of the accent round its dot. */
+  --now-halo: 0 0 0 3px var(--accent-soft);
+  /* A row's focus drawn inside it, where a ring outside would be cut (settings.css, Setup's rows). */
+  --focus-inset: inset 0 0 0 2px var(--accent);
+  /* A dot drawn, not filled: a row that waits on nothing (settings.css, Setup's plain rows). */
+  --dot-hollow: inset 0 0 0 1.5px var(--ink-dim);
+  /* The step or the way chosen, edged in the accent (settings.css, Setup's paths and numbers). */
+  --chosen-edge: inset 0 0 0 1px var(--accent);
   /* A lead's row says where it stands with a 3px stripe at its start (leads.css .ld-row-*), in its state's colour; held
      by the keys, the focus stripe first and the state's past it. */
   --stripe-warn: inset 3px 0 0 var(--warn);

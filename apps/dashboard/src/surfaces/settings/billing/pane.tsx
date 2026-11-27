@@ -162,7 +162,7 @@ function planCard(o: {
   const acct = dto.account;
   const brand = acct?.card_brand ? acct.card_brand.charAt(0).toUpperCase() + acct.card_brand.slice(1) : null;
   return (
-    <section className="rec-card set-card" data-testid="billing-real" aria-labelledby="set-billing-title">
+    <section className="rec-card set-block" data-testid="billing-real" aria-labelledby="set-billing-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="set-billing-title">
           Billing
@@ -255,7 +255,7 @@ function planCard(o: {
 /** The invoices: the last twelve when asked, none yet, or each one with its date, amount, status and Stripe's page. */
 function invoicesCard(invoices: BillingInvoiceDto[] | null, busy: Busy, showInvoices: () => void): ReactNode {
   return (
-    <section className="rec-card set-card" data-testid="billing-invoices" aria-labelledby="set-invoices-title">
+    <section className="rec-card set-block" data-testid="billing-invoices" aria-labelledby="set-invoices-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="set-invoices-title">
           Invoices
@@ -334,7 +334,7 @@ export const PaneBillingReal = ({ flash }: { flash: (f: FrameFlash) => void }) =
   });
   if (B === undefined) {
     return (
-      <section className="rec-card set-card" data-testid="billing-loading">
+      <section className="rec-card set-block" data-testid="billing-loading">
         <div className="rec-card-head">
           <h2 className="rec-card-title">Billing</h2>
         </div>

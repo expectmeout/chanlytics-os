@@ -29,7 +29,7 @@ const FactRows = ({ f }: { f: BoxFields }) => {
       {facts.map((fact, index) => {
         const room = roomSaid(fact.length, REACH_OUT_LIMITS.claim);
         return (
-          <div className="ro-claim" key={index} data-testid={`rec-claim-${index}`}>
+          <div className="ro-claim rec-quiet" key={index} data-testid={`rec-claim-${index}`}>
             <RecordBox
               id={`ro-claim-${index}`}
               label={FACT_WORDS.fact(index + 1)}

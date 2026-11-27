@@ -83,7 +83,7 @@ export function PlatformQueueCard({
   flash: Flash;
 }) {
   return (
-    <section className="rec-card set-card" data-testid="platform-queue">
+    <section className="rec-card set-block" data-testid="platform-queue">
       <div className="rec-card-head">
         <h2 className="rec-card-title">Waiting to get in</h2>
         <span className="rec-card-sub set-says" data-testid="platform-queue-words">

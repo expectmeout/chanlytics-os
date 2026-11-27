@@ -159,23 +159,26 @@ test("a style prop of custom properties alone does not count; one with any other
 });
 
 test("the measures see the dashboard's stylesheets and the shell's markup, and leave the tokens alone", () => {
-  const components = "apps/dashboard/src/styles/components.css";
-  const { values: v, classes } = cssOf(components);
+  // charts.css keeps its validated palette as literals (Ruben's call), so it is the sheet that always writes some.
+  const charts = "apps/dashboard/src/styles/charts.css";
+  const { values: v, classes } = cssOf(charts);
   assert.ok(
     Object.values(v).some((n) => n > 0),
-    "components.css parsed, and the literal values it still writes were found",
+    "charts.css parsed, and the literal values it keeps were found",
   );
-  assert.ok(classes.btn > 0, "its selectors were read");
+  assert.ok(classes["ck-segbar"] > 0, "its selectors were read");
   const measure = (name) => MEASURES.find((m) => m.name === name).measure();
   const styleValues = measure("literal style values");
-  assert.ok(styleValues[components], "the shared stylesheet is measured");
+  assert.ok(styleValues[charts], "a page's stylesheet is measured");
   assert.equal(styleValues[TOKENS_CSS], undefined, "the tokens are where a literal belongs");
   const primitives = measure("primitives outside the kit");
-  assert.ok(primitives[`${components}::btn`] > 0, "the button is a primitive outside the kit");
-  assert.ok(primitives["apps/dashboard/src/styles/calendar.css::btn"] > 0, "a page that restyles it is counted");
+  assert.ok(
+    Object.entries(primitives).some(([at, n]) => at.endsWith("::btn") && !at.includes("/kit/") && n > 0),
+    "a page that restyles the button, a primitive outside the kit, is counted",
+  );
   const inline = Object.keys(measure("inline style props"));
   assert.ok(
-    inline.some((f) => f.startsWith("apps/dashboard/src/surfaces/ask/")),
+    inline.some((f) => f.startsWith("apps/dashboard/src/surfaces/")),
     "the pages' markup is measured",
   );
   assert.ok(

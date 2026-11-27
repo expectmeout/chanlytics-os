@@ -11,7 +11,7 @@ const LINE = WEBSITE_FORM_WORDS.settingsLine;
 
 export function WebsiteFormsLine() {
   return (
-    <section className="rec-card set-card set-conn" data-testid="connections-website" aria-label={LINE.label}>
+    <section className="rec-card set-block set-conn" data-testid="connections-website" aria-label={LINE.label}>
       <RecordRow
         id="wf-moved"
         testid="wf-moved"

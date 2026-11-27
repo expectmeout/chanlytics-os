@@ -168,7 +168,7 @@ export const LrWhisper = ({ c }: { c: LiveCallVM }) => {
       ) : null}
       <div className="lm-whisper-row capsule">
         <input
-          className="set-input"
+          className="rec-input"
           value={text}
           maxLength={500}
           placeholder={listening ? "Listening…" : "Whisper to AI…"}

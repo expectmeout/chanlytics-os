@@ -96,7 +96,7 @@ function ComingSoon({ surface, onNavigate }: { surface: string; onNavigate: (to:
       </div>
       <div className="soon-title">{meta.title}</div>
       <div className="soon-blurb">{meta.blurb}</div>
-      <span className="soon-chip">Not in this release</span>
+      <span className="pill pill-accent soon-note">Not in this release</span>
       <div className="soon-actions">
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
           <Icon name="home" size={12} /> Back to Today

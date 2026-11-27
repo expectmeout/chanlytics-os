@@ -59,7 +59,6 @@ export const arField = (
     ref={inputRef}
     rows={1}
     listening={talk.listening}
-    className="ask-line-input"
     placeholder={fieldWords({ talk, t, active, surface, dock })}
     value={query}
     onChange={(e) => {

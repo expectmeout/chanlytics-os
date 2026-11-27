@@ -47,8 +47,8 @@ test.describe("identity on a real workspace", () => {
       expect(set.body.data.display_name).toBe("Ruben Test");
       await page.reload();
       await page.waitForLoadState("networkidle");
-      await expect(page.locator(".user-chip .name")).toHaveText("Ruben Test");
-      await expect(page.locator(".user-chip .avatar")).toHaveText("RT");
+      await expect(page.locator(".sb-account .name")).toHaveText("Ruben Test");
+      await expect(page.locator(".sb-account .face")).toHaveText("RT");
       // The roster is the Team tab's; it is painted by the settings override,
       // so wait for a row before reading your own. Your row is the one marked
       // data-me: "you" is in the partner row's sentence too.
@@ -59,7 +59,7 @@ test.describe("identity on a real workspace", () => {
       expect(cleared.status).toBe(200);
       await page.reload();
       await page.waitForLoadState("networkidle");
-      await expect(page.locator(".user-chip .name")).toHaveText("Account");
+      await expect(page.locator(".sb-account .name")).toHaveText("Account");
       const tooLong = await put("x".repeat(81));
       expect(tooLong.status).toBe(400);
     } finally {

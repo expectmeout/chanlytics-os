@@ -217,7 +217,7 @@ export function PaneMemory({ flash }: { flash: (f: FrameFlash) => void }) {
   };
   return (
     <>
-      <section className="rec-card set-card" data-testid="rec-card-memory">
+      <section className="rec-card set-block" data-testid="rec-card-memory">
         <div className="rec-card-head">
           <h2 className="rec-card-title">{W.linesHead}</h2>
           <span className="rec-card-sub">{W.paneLede}</span>
@@ -237,7 +237,7 @@ export function PaneMemory({ flash }: { flash: (f: FrameFlash) => void }) {
       </section>
       {/* The journal is the owners' (RLS): anyone else reads none, and the card is not drawn. */}
       {journal.length > 0 && (
-        <section className="rec-card set-card" data-testid="rec-card-journal">
+        <section className="rec-card set-block" data-testid="rec-card-journal">
           <div className="rec-card-head">
             <h2 className="rec-card-title">{W.journalHead}</h2>
             <span className="rec-card-sub">{W.noJournal}</span>

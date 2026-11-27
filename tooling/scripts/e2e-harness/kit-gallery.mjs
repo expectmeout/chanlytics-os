@@ -1770,6 +1770,8 @@ export const FAMILIES = [
       { id: "tally-warn", html: `<span class="tally tally-warn">3</span>` },
       { id: "tally-icon", html: `${icon("bell", 16)} <span class="tally tally-icon">4</span>` },
       { id: "tally-icon-warn", html: `${icon("inbox", 16)} <span class="tally tally-icon tally-warn">2</span>` },
+      { id: "tally-fill", html: `<span>Leads</span> <span class="tally tally-fill">12</span>` },
+      { id: "tally-fill-warn", html: `<span>Inbox</span> <span class="tally tally-fill tally-warn">3</span>` },
     ],
   },
   {
@@ -2385,6 +2387,16 @@ export const FAMILIES = [
       { id: "rec-field-grows", html: recFieldGrows() },
       // A box in a phone's sheet (a list's name, which forms they signed, the business in a line): a thumb's 48px, its
       // words at the 16px a phone never zooms into (kit.css .rec-input-touch).
+      // A row of a long list read as text (kit.css .rec-quiet): its boxes edged and its remove shown only as the row is
+      // approached, hovered or holding a key.
+      {
+        id: "rec-quiet",
+        html:
+          `<div class="rec-quiet" style="display:flex;gap:6px;align-items:center">` +
+          `<span class="rec-box"><input type="text" class="rec-input" aria-label="Service, row 1" value="Consultation"></span>` +
+          `<span class="rec-box" data-size="sm"><span class="rec-input-group"><input type="text" class="rec-input" aria-label="How long" value="45"></span></span>` +
+          `<button type="button" class="btn btn-ghost btn-icon btn-sm" aria-label="Remove Consultation">×</button></div>`,
+      },
       {
         id: "rec-field-touch",
         html:
@@ -2738,12 +2750,11 @@ export const FAMILIES = [
       "types in where it stands, a pane holding an open menu, which stands over the panes after it; md padding, sm, " +
       "or none for rows edge to edge, which it clips. Each but the field and the menu's pane " +
       "beside the rule it reproduces, which the spec holds it equal " +
-      "to, but for what that rule sets of its own page's: a card's shrinking in a grid, Confirm's column and entrance, " +
+      "to, but for what that rule sets of its own page's: Confirm's column and entrance, " +
       "the tip card's width, the bell's place and entrance.",
     entries: [
       { id: "panel", html: `<section class="panel">${PANE_WORDS}</section>` },
-      { id: "panel-flush", html: `<section class="panel panel-flush">${PANE_ROWS}</section>`, twin: "src-card" },
-      { id: "src-card", source: "styles/components.css:437", html: `<section class="card">${PANE_ROWS}</section>` },
+      { id: "panel-flush", html: `<section class="panel panel-flush">${PANE_ROWS}</section>` },
       {
         id: "panel-inset",
         html: `<div class="panel panel-inset panel-sm">Their conversations and notes go with them.</div>`,
@@ -2756,7 +2767,7 @@ export const FAMILIES = [
       },
       {
         id: "src-confirm-block",
-        source: "surfaces/kit/kit.css:643",
+        source: "surfaces/kit/kit.css:1354",
         html: `<div class="confirm-block">Their conversations and notes go with them.</div>`,
       },
       { id: "panel-field", html: `<div class="panel panel-field panel-sm">Friday at two works. See you then.</div>` },
@@ -2774,7 +2785,7 @@ export const FAMILIES = [
       },
       {
         id: "src-rec-card-tip",
-        source: "surfaces/kit/kit.css:2154",
+        source: "surfaces/kit/kit.css:3847",
         html: `<div class="rec-card-tip">Your hours come from Google once it is linked.</div>`,
       },
       {
@@ -2783,7 +2794,7 @@ export const FAMILIES = [
         // On a phone the bell's list is a sheet from the bottom edge, no pop: the twin is a desk's.
         width: "desk",
         html: `<div class="gx-anchor"><section class="panel panel-pop panel-flush">${PANE_ROWS}</section></div>`,
-        twin: "src-tbn-pop",
+        twin: "src-tbn-place",
         // The bell's own: where it hangs from its button, how wide and tall it may be, its column, its layer and its
         // entrance. A panel sets no place: what opens a pop places it.
         except: [
@@ -2792,11 +2803,11 @@ export const FAMILIES = [
         ],
       },
       {
-        id: "src-tbn-pop",
+        id: "src-tbn-place",
         stage: "pop",
         width: "desk",
-        source: "styles/components.css:981",
-        html: `<div class="gx-anchor"><section class="tbn-pop">${PANE_ROWS}</section></div>`,
+        source: "styles/components.css:584",
+        html: `<div class="gx-anchor"><section class="tbn-place">${PANE_ROWS}</section></div>`,
       },
     ],
   },

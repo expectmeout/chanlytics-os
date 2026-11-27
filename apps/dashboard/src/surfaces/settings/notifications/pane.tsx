@@ -81,7 +81,7 @@ export const PaneNotificationsReal = ({ flash }: { flash: (f: FrameFlash) => voi
         flash={flash}
         now={Date.now()}
       />
-      <section className="rec-card set-card" data-testid="ntf-what">
+      <section className="rec-card set-block" data-testid="ntf-what">
         <div className="rec-card-head">
           <h2 className="rec-card-title">{W.what}</h2>
           <span className="rec-card-sub">{W.whatSub}</span>

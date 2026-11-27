@@ -147,7 +147,7 @@ test.describe("Phone shell on a real workspace", () => {
     await expect
       .poll(async () => (await sidebar.boundingBox())?.x, { message: "the drawer slides in to the edge" })
       .toBe(edge);
-    const scrim = page.locator(".nav-backdrop");
+    const scrim = page.locator(".nav-wash");
     await expect(scrim).toBeVisible();
     expect(await scrim.evaluate((el) => getComputedStyle(el).position)).toBe("fixed");
     expect(await scrim.evaluate((el) => getComputedStyle(el).backdropFilter), "the scrim is glass to the bar").not.toBe(
@@ -173,7 +173,7 @@ test.describe("Phone shell on a real workspace", () => {
       await page.getByTestId("phone-tabs").getByRole("button", { name: "Menu" }).click();
       await expect(page.getByRole("dialog", { name: "Navigation" })).toHaveCount(1);
       return sidebar.evaluate((el) =>
-        Math.round(el.getBoundingClientRect().bottom - el.querySelector(".user-chip")!.getBoundingClientRect().bottom),
+        Math.round(el.getBoundingClientRect().bottom - el.querySelector(".sb-account")!.getBoundingClientRect().bottom),
       );
     };
     const plain = await under();
@@ -221,7 +221,7 @@ test.describe("Phone shell on a real workspace", () => {
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("phone-tabs")).toBeVisible();
-    await expect(page.locator(".tb-menu")).toBeHidden();
+    await expect(page.locator(".tb-nav-open")).toBeHidden();
     // The four places a thumb reaches, and what is NOT among them: a call is
     // live for minutes a week, so it is a bar while it is happening rather
     // than a slot that is empty the rest of the time. Calendar took it.

@@ -107,11 +107,11 @@ export const BtPromptTold = ({ prompt }: { prompt: BtPromptHold | null }) => {
   if (!prompt || !tab.PROMPT_READERS || !btpComposed(prompt.channel)) return null;
   return (
     <section className="rec-card bt-told" data-testid="rec-card-told" aria-labelledby="bt-told-title">
-      <div className="rec-card-head">
-        <h2 className="rec-card-title" id="bt-told-title">
+      <div className="rec-card-head bt-told-head">
+        <h2 className="rec-card-title bt-told-name" id="bt-told-title">
           What AI is told
         </h2>
-        <span className="rec-card-sub">{tab.PROMPT_READERS[prompt.channel]}</span>
+        <span className="rec-card-sub bt-told-for">{tab.PROMPT_READERS[prompt.channel]}</span>
         <button
           type="button"
           className="bt-link bt-told-open"

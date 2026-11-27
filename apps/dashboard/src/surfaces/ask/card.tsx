@@ -55,14 +55,14 @@ const atUndoOpen = (
 // is the card's.
 const AskSearchCard = ({ lead, t, alike }: { lead: SearchCardView; t: LineWords; alike: readonly string[] }) => (
   <>
-    <div className="ask-card-change">
+    <div className="panel panel-inset ask-job-change">
       <AskSheet sheet={lead.sheet} alike={alike} />
     </div>
-    <p className="ask-card-foot" data-testid="ask-card-facts">
+    <p className="ask-job-foot" data-testid="ask-card-facts">
       {lead.foot}
     </p>
     {lead.source ? (
-      <details className="ask-card-foot" data-testid="ask-card-source">
+      <details className="ask-job-foot" data-testid="ask-card-source">
         <summary>{t.whereFrom}</summary>
         {lead.source}
       </details>
@@ -89,10 +89,10 @@ const AskPosting = ({
   onUndo: () => void;
 }) => (
   <div className="ask-told" role="status" data-foot="told">
-    <div className="ask-card-receipt ask-landing" tabIndex={-1} ref={landRef} data-testid="ask-card-posting">
+    <div className="ask-job-receipt ask-landing" tabIndex={-1} ref={landRef} data-testid="ask-card-posting">
       <AskRing from={posting.from} until={posting.until} onDone={onEnd} />
-      <span className="ask-card-said">{said}</span>
-      <Button variant="quiet" size="sm" className="ask-card-undo" onClick={onUndo}>
+      <span className="ask-job-said">{said}</span>
+      <Button variant="quiet" size="sm" className="ask-job-undo" onClick={onUndo}>
         {t.undo}
       </Button>
     </div>
@@ -118,9 +118,9 @@ const AskCardAfter = ({
   const why = p.outcome?.why ?? null;
   return (
     <>
-      {err && state === "done" ? <div className="ask-card-note">{err}</div> : null}
+      {err && state === "done" ? <div className="ask-job-note">{err}</div> : null}
       {why && state === "done" ? (
-        <p className="ask-card-foot" data-testid="ask-card-why">
+        <p className="ask-job-foot" data-testid="ask-card-why">
           {t.whyAlone(why.reason, why.row)}{" "}
           <LinePress kind="words" onClick={() => onNav("admin/autonomy")}>
             {t.whyChange}
@@ -128,7 +128,7 @@ const AskCardAfter = ({
         </p>
       ) : null}
       {forward && state === "failed" ? (
-        <div className="ask-card-actions">
+        <div className="ask-job-actions">
           <Button variant="quiet" size="sm" onClick={() => onNav(forward.to)} data-testid="ask-card-forward">
             {t.fixIt}
           </Button>
@@ -240,6 +240,10 @@ const AskCardBody = ({
   return <AskCardChange p={p} t={t} idle={idle} alike={alike} more={more} />;
 };
 
+/** A card's classes: the kit's panel, unless it is the quiet one drawn inside another's; its state, and shut. */
+const askJobClass = (state: string, shut: boolean, quiet: boolean) =>
+  `${quiet ? "" : "panel "}ask-job ${state}${shut ? " ask-shut" : ""}${quiet ? " ask-quiet" : ""}`;
+
 export const AskCard = ({
   p,
   messageId,
@@ -274,11 +278,7 @@ export const AskCard = ({
   const lead = idle ? searchCardView(p) : null;
   const goes = whatGoes(p, lead, { post, piece, folder });
   return (
-    <div
-      className={`ask-card ${state}${shut ? " ask-shut" : ""}${quiet ? " ask-quiet" : ""}`}
-      data-testid="ask-card"
-      data-kind={p.kind}
-    >
+    <div className={askJobClass(state, shut, quiet)} data-testid="ask-card" data-kind={p.kind}>
       {quiet ? null : <AskCardHead p={headCardOf(p, post, folder)} fold={idle ? step.fold : null} />}
       {body ? (
         <AskCardBody
@@ -297,7 +297,7 @@ export const AskCard = ({
         />
       ) : null}
       {idle && step.note ? (
-        <p className="ask-card-foot" data-testid="ask-step-note">
+        <p className="ask-job-foot" data-testid="ask-step-note">
           {step.note}
         </p>
       ) : null}

@@ -98,7 +98,7 @@ test("what became of a card pressed here is its foot, in its done state; a card 
   assert.deepEqual(feetOf(redraw()), ["told"], "where the press was");
   const told = byClass(redraw(), "ask-told").find((n) => n.props["data-foot"]);
   assert.match(textOf(told), /It runs/);
-  assert.equal(byClass(redraw(), "ask-card-receipt")[0].props["data-state"], "done");
+  assert.equal(byClass(redraw(), "ask-job-receipt")[0].props["data-state"], "done");
   const kept = draw([card({ outcome: { state: "done", receipt: "It runs", at_ms: 1, undo: null } })]);
   assert.match(textOf(kept), /It runs/);
   assert.deepEqual(feetOf(kept), [], "at rest: nothing was pressed here");
@@ -110,7 +110,7 @@ test("a press that did not go through says why in the failed state, where the pr
   const redraw = () => again(() => group(cards));
   press(byTestId(draw(cards), "ask-card-approve")[0]);
   await until(() => /needs a message first/.test(textOf(redraw())), "why it did not go");
-  const receipt = byClass(redraw(), "ask-card-receipt")[0];
+  const receipt = byClass(redraw(), "ask-job-receipt")[0];
   assert.equal(receipt.props["data-state"], "failed");
   assert.equal(byClass(receipt, "ok").length, 0, "never a tick");
   assert.ok(all(receipt, (n) => n.type === "button").some((b) => textOf(b) === t.tryAgain));

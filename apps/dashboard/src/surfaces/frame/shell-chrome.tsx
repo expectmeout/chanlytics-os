@@ -119,7 +119,7 @@ export const sharedViewer = ({
   return (
     <div className="shared-root" data-theme={theme} data-look={look}>
       <div className="shared-banner">
-        <span className="sidebar-brand-mark">C</span>
+        <span className="face face-sm face-tile">C</span>
         <span className="shared-banner-title">Serenity Spa · Reports</span>
         <span className="pill">Read-only</span>
         <span className="shared-banner-meta">Shared link · expires in 7 days</span>
@@ -273,7 +273,7 @@ const sideWrap = (s: ChromeAt) => {
       onPointerOver={sideWarm}
     >
       {/* The wash stands just before the drawer, where a thumb sliding the drawer away finds it to fade. */}
-      {s.navOpen && <div className="nav-backdrop" role="presentation" onClick={() => s.setNavOpen(false)} />}
+      {s.navOpen && <div className="sheet-backdrop nav-wash" role="presentation" onClick={() => s.setNavOpen(false)} />}
       <Side
         active={s.activeNav}
         badges={{ inbox: s.inboxNeeds > 0 ? String(s.inboxNeeds) : null }}

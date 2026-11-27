@@ -91,7 +91,7 @@ export const arDocked = (): boolean => {
   return !!bar && bar.getClientRects().length > 0;
 };
 
-/** One tile of the three on the phone's circle, and the canvas they were drawn on there (ask.css `.phone-ask-face`). */
+/** One tile of the three on the phone's circle, and the canvas they were drawn on there (ask.css `.phone-ask-lead`). */
 const DISC_FACE = { width: 45, height: 38 } as const;
 const DISC_FACE_DROP = 0.225 * 14;
 
@@ -103,7 +103,7 @@ export const arDiscBox = (): { left: number; top: number; width: number; height:
   if (!box || !box.width) return null;
   return {
     left: box.left + (box.width - DISC_FACE.width) / 2,
-    // The three were drawn a hair under the circle's middle there (ask.css `.phone-ask-face`, 0.225 of a tile).
+    // The three were drawn a hair under the circle's middle there (ask.css `.phone-ask-lead`, 0.225 of a tile).
     top: box.top + (box.height - DISC_FACE.height) / 2 + DISC_FACE_DROP,
     ...DISC_FACE,
   };

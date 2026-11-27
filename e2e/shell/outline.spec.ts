@@ -17,14 +17,14 @@ const PX = 2;
 const PARTS = [
   ".sidebar",
   ".sb-team",
-  ".sb-team-mark",
+  ".sb-team .face",
   ".sidebar-label",
   ".nav-item",
   ".nav-item svg",
   // The row's words, not its count: a count is the frame's alone, read after the code, and the document has none to draw.
-  ".nav-item > span:not(.nav-badge, .nav-dot)",
+  ".nav-item > span:not(.nav-count, .nav-dot)",
   ".sidebar-foot",
-  ".user-chip",
+  ".sb-account",
   ".avatar",
   ".tb-ask",
   ".tb-ask-label",

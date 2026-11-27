@@ -17,7 +17,7 @@ import { cascadeOf, element, frameSheets } from "../_css.mjs";
 const nameOf = (animation) => (animation ?? "").split(" ")[0];
 
 /** The bell's popover, as the topbar draws it. */
-const popover = (state = "") => element(".app-root", ".topbar", ".tbn-wrap", `.tbn-pop${state}`);
+const popover = (state = "") => element(".app-root", ".topbar", ".tbn-wrap", `.tbn-place${state}`);
 
 test("the bell's popover leaves by one rule at every width it is drawn at: the entrance's mirror", () => {
   for (const width of [1440, 1100, 901, 900, 721]) {

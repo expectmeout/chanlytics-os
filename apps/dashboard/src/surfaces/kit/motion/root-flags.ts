@@ -53,7 +53,7 @@ export const ROOT_FLAGS = {
   /** The kit's sheet is open, not on its way out: a toast clears its foot. */
   sheetOpen: { attr: "data-sheet-open", picture: ".sheet:not([data-leaving])", within: "document" },
   /** The bell's list is open, not on its way out: a toast stands at the screen's foot. */
-  bellOpen: { attr: "data-bell-open", picture: ".tbn-pop:not([data-leaving])", within: "document" },
+  bellOpen: { attr: "data-bell-open", picture: ".tbn-place:not([data-leaving])", within: "document" },
   /** A dialog holds the page (`aria-modal`): the page holds still under it. */
   modalOpen: { attr: "data-modal-open", picture: '[aria-modal="true"]', within: "document" },
   /** The phone's drawer is open: the page holds still under it. */

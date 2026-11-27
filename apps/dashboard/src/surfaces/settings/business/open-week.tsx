@@ -391,7 +391,7 @@ const BtoDay = ({
         {day.isOpen ? (
           <>
             {day.shifts.map((sh, n) => (
-              <span key={n} className="bt-week-shift" {...list.row(n)}>
+              <span key={n} className="bt-week-shift rec-quiet" {...list.row(n)}>
                 {/* The kit's box for a row of a list, named for its day and its place ("Monday closes, second
                     shift"): the day's one sentence is drawn once, under the row, and both boxes are wrong by it. */}
                 <BtoTime
@@ -459,7 +459,7 @@ const BtoDay = ({
           <span className="bt-week-closed">{kept ? "Closed · times kept" : "Closed"}</span>
         )}
       </span>
-      <FieldError id={problemId} message={bad} testid={`rec-hours-problem-${d}`} />
+      <FieldError id={problemId} message={bad} testid={`rec-hours-problem-${d}`} className="bt-week-error" />
     </div>
   );
 };
@@ -488,7 +488,7 @@ const btoCopies = (from: DayKey | null, apply: (from: DayKey, days: DayKey[]) =>
  */
 const BtoWeekCopy = ({ from, copies, readOnly }: { from: DayKey | null; copies: MenuItems; readOnly: boolean }) => (
   <div className="bt-week-copy">
-    <div className="bt-week-copy-menu" hidden={from ? undefined : true} data-testid="rec-hours-copy">
+    <div className="bt-week-copy-list" hidden={from ? undefined : true} data-testid="rec-hours-copy">
       <MoreMenu
         items={copies}
         label={`Copy ${from ? BTO_LONG[from] : "a day"} to…`}

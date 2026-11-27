@@ -253,7 +253,7 @@ function mailboxRow(m: MailboxConnectionDto, ctx: RowContext, imports: readonly 
           </span>
         ))}
       </span>
-      <StatePill kind="tone" value={pill.tone} label={pill.label} />
+      <StatePill kind="tone" value={pill.tone} label={pill.label} className="set-int-state" />
       <span className="set-int-actions">
         <Button
           size="sm"
@@ -582,7 +582,7 @@ function emailHeadRow(r: ConnectionLine, imports: readonly ImportRowDto[] | null
   const live = sharedImports(imports).filter((line) => !line.done);
   return (
     <div className="set-int-row" data-testid="connection-mailbox" data-state={r.state} data-offers="none">
-      <Face className="set-int-tile" data-kind="mailbox" data-on="true" glyph={<Icon name={r.icon} size={15} />} />
+      <Face className="set-int-lead" data-kind="mailbox" data-on="true" glyph={<Icon name={r.icon} size={15} />} />
       <span className="set-team-body">
         <span className="set-int-head">
           <span className="set-team-name">{r.title}</span>
@@ -601,7 +601,7 @@ function emailHeadRow(r: ConnectionLine, imports: readonly ImportRowDto[] | null
           </span>
         ))}
       </span>
-      <StatePill kind="tone" value={r.tone} label={r.stateWords} />
+      <StatePill kind="tone" value={r.tone} label={r.stateWords} className="set-int-state" />
       <span className="set-int-actions" />
     </div>
   );

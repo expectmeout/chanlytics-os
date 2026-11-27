@@ -293,7 +293,7 @@ function newRows(c: ComposerCtx, made: Made) {
     <>
       <div className="tpl-row">
         <span className="bc-row-label">From</span>
-        <div className="bc-chips bc-mid">
+        <div className="bc-picks bc-mid">
           {(c.reviewLink === undefined ? starters.list : starters.offered(c.reviewLink)).map((s) => (
             <Button
               key={s.key}
@@ -322,7 +322,7 @@ function newRows(c: ComposerCtx, made: Made) {
       </div>
       <div className="tpl-row">
         <span className="bc-row-label">Kind</span>
-        <div className="bc-chips">
+        <div className="bc-picks">
           <Segmented
             label="Kind"
             value={category}

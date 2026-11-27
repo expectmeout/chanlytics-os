@@ -59,7 +59,7 @@
   animation: ask-fade 160ms;
 }
 @keyframes ask-fade { from { opacity: 0; } to { opacity: 1; } }
-.ask-modal {
+.ask-pane {
   width: 100%;
   max-width: 600px;
   max-height: 86vh;
@@ -75,16 +75,6 @@
   from { opacity: 0; transform: translateY(-8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.ask-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  font-size: var(--text-read);
-  color: var(--ink);
-  font-family: inherit;
-}
-.ask-input::placeholder { color: var(--ink-faint); }
 
 /* ---- Today's queue: one list in the strip's row grammar --------------------- */
 .tq { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }

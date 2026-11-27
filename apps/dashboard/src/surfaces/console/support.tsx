@@ -381,7 +381,7 @@ function QueueCard({
 }) {
   const filtered = !!(ask.topic || ask.workspace || ask.q || ask.kind !== "all");
   return (
-    <section className="rec-card set-card cs-desk-list">
+    <section className="rec-card set-block cs-desk-list">
       {rows.length === 0 ? (
         <NoneRow
           words={

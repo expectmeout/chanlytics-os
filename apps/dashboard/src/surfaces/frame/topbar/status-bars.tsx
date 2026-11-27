@@ -331,7 +331,7 @@ export function ShellStatusBar() {
           {line.cta && (
             <button
               type="button"
-              className="btn btn-sm shell-status-cta"
+              className="btn btn-sm shell-status-act"
               onClick={press}
               aria-busy={busy || undefined}
               data-testid="shell-status-cta"

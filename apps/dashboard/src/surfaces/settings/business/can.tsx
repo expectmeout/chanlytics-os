@@ -65,7 +65,7 @@ type Brain = SavedBrain;
  * it says.
  */
 const BtcGlyph = ({ channel, has, words }: { channel: "whatsapp" | "voice"; has: boolean; words: ChannelWords }) => (
-  <span className="rec-can-chip" data-on={has ? "true" : "false"} role="img" aria-label={has ? words.has : words.not}>
+  <span className="bt-can-state" data-on={has ? "true" : "false"} role="img" aria-label={has ? words.has : words.not}>
     <Icon name={channel === "voice" ? "phone" : "chat"} size={12} />
   </span>
 );
@@ -110,8 +110,8 @@ const BtcRow = ({
       // The tip only where the sentence is not on screen: drawn, it IS the row's description.
       data-tip={a.missing ? undefined : a.detail}
     >
-      <span className="rec-row-key">{a.title}</span>
-      <span className="bt-can-chips">
+      <span className="rec-row-key bt-can-key">{a.title}</span>
+      <span className="bt-can-states">
         <BtcGlyph channel="whatsapp" has={a.channels.whatsapp} words={words.whatsapp} />
         <BtcGlyph channel="voice" has={a.channels.voice} words={words.voice} />
         {end}
@@ -228,7 +228,7 @@ const BtcCallText = ({
 /** One thing the receptionist cannot do: a line, and what it is instead, kept where the abilities keep theirs. */
 const BtcCannotRow = ({ limit }: { limit: Limit }) => (
   <div className="rec-row bt-cannot-row" data-testid={`rec-cannot-${limit.id}`} data-tip={limit.detail}>
-    <span className="rec-row-key">{limit.title}</span>
+    <span className="rec-row-key bt-can-key">{limit.title}</span>
     <span className="bt-can-says">{limit.detail}</span>
   </div>
 );

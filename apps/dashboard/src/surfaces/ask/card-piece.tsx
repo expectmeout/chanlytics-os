@@ -202,7 +202,7 @@ function PieceStills({ card, t }: { card: PieceCard; t: LineWords }) {
       </div>
     );
   return (
-    <p className="ask-card-note" role="alert" data-testid="ask-piece-undrawn">
+    <p className="ask-job-note" role="alert" data-testid="ask-piece-undrawn">
       {card.refused ?? card.says.notDrawn}
     </p>
   );
@@ -261,7 +261,7 @@ function PieceNow({
           <>
             <p className="ask-piece-state">{says.follows.making}</p>
             {/* Keyed by its words, so a new line comes in as one (ask.css). */}
-            <p className="ask-card-foot ask-piece-line" key={stands.stage} data-testid="ask-piece-stage">
+            <p className="ask-job-foot ask-piece-line" key={stands.stage} data-testid="ask-piece-stage">
               {says.follows.stage[stands.stage](card.moments)}
             </p>
           </>
@@ -269,7 +269,7 @@ function PieceNow({
         {stands.is === "ready" ? (
           <>
             <p className="ask-piece-state">{says.follows.ready}</p>
-            <p className="ask-card-foot ask-piece-line">{says.follows.readyWhere}</p>
+            <p className="ask-job-foot ask-piece-line">{says.follows.readyWhere}</p>
             {/* The canvas's two (PhDoors "ask"): Make another, asked in this conversation, and Open, the card's one coral now its
                 press is done, which opens the video in Content's viewer. */}
             <div className="ask-piece-acts">
@@ -290,7 +290,7 @@ function PieceNow({
         {stands.is === "failed" ? (
           <>
             <StatePill kind="tone" value="warn" label={says.follows.failedMark} testid="ask-piece-failed" />
-            <p className="ask-card-foot ask-piece-line">{says.failed[stands.why]}</p>
+            <p className="ask-job-foot ask-piece-line">{says.failed[stands.why]}</p>
             {onRetry ? (
               <Button size="sm" onClick={onRetry} disabled={busy} aria-busy={busy} data-testid="ask-piece-retry">
                 {t.tryAgain}
@@ -324,7 +324,7 @@ export function AskPieceCard({
   if (stands?.is === "gone")
     return (
       <div className="ask-piece" data-testid="ask-piece">
-        <p className="ask-card-foot" role="status" data-testid="ask-piece-gone">
+        <p className="ask-job-foot" role="status" data-testid="ask-piece-gone">
           {card.says.follows.gone}
         </p>
       </div>
@@ -343,15 +343,15 @@ export function AskPieceCard({
       ) : (
         <PieceStills card={card} t={t} />
       )}
-      <p className="ask-card-summary">{p.summary}</p>
+      <p className="ask-job-summary">{p.summary}</p>
       {/* The words Ask wrote to paste under it where it is posted, seen before it is made (C3); none on an older card. */}
       {card.caption ? (
-        <p className="ask-card-foot" data-testid="ask-piece-caption">
+        <p className="ask-job-foot" data-testid="ask-piece-caption">
           <b>{card.says.caption}</b> {card.caption}
         </p>
       ) : null}
       {/* While it is made, that they may leave and where it lands: the press's own receipt, said here beside what it is doing. */}
-      {stands?.is === "making" ? <p className="ask-card-foot">{card.says.making}</p> : null}
+      {stands?.is === "making" ? <p className="ask-job-foot">{card.says.making}</p> : null}
     </div>
   );
 }
