@@ -50,6 +50,8 @@
  * registry lists is a primitive whatever its words, so one declared in any stylesheet
  * but the kit's own is a primitive outside the kit.
  *
+ * The cascade at the end of this module runs the stylesheets for one element, as a browser decides what it draws with.
+ *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 import fs from "node:fs";
@@ -348,71 +350,70 @@ export function cssOf(file) {
   return found;
 }
 
-/* ---- The cascade on a screen: what a selector is given, as the build's parser reads a stylesheet ---- */
-
-/*
- * The suite's one cascade (the coordinator's call, 26 Nov 2026): lightningcss underneath, the build's own parser. Lane 4
- * (c)'s `cascadeOf` (an element's style through selector matching, specificity, inheritance and var()) sits on this parse
- * in its own change, and the checks below move onto it. Ask of it, or add to it; never a third parser of sheets.
- */
+/* ---- The cascade, run: the value an element is drawn with (lane 4, area c, 26 Nov 2026) ---- */
 
 /**
- * A screen a stylesheet is asked about: its width in CSS pixels, whether it can hover, its pointer, and whether its person
- * asked for less motion. A phone and a desk, at the widths e2e/ opens the pages at; any other is asked as
- * `{ ...DESK, width: 800 }`. Since 26 Nov 2026 (layer 14, round two), when the pages' tests stopped finding a rule's
- * text in a sheet's and asked the sheet what a selector is given instead: written another way, or moved to another
- * place in the sheet, a rule gives what it gave; under a query that no longer holds on a phone, it does not.
+ * What a browser makes of the stylesheets a page links, for one element. A stylesheet does not run in node, so a test of
+ * one used to slice its text ("mobile.css includes `.ix-back { display: none; }`"), which passes over a later rule that
+ * overrides it, a media query it sits in or a class the page no longer draws. This is the part of a browser that decides
+ * which value an element is drawn with, and nothing else: each rule whose selector matches the element, under the media
+ * and supports conditions it is written in, ordered as the cascade orders them (importance, specificity, then the order
+ * the sheets are linked and the rules written), each property's winner, inherited where CSS inherits it, every var()
+ * replaced by what the element holds. So a test asks "on a phone, inside the app, what is the room under a page?" and
+ * reads the answer a browser would draw.
+ *
+ * The sheets are read by lightningcss, the parser the dashboard's build compiles them with (the coordinator's call, 26
+ * Nov 2026: the suite's one cascade, on the standard parser, never one of ours): its tree gives each rule's selectors,
+ * its conditions and its declarations, each printed as the build prints it (`flex: 0 0 auto` is `none`), so a test
+ * compares with `declared()`, which prints the same way, rather than with text it wrote. The cascade's own rules
+ * (matching, specificity, order, inheritance, var()) are worked out here over that tree.
+ *
+ * What it does not model is said, never guessed: layout, a container query and a first style (@starting-style) apply
+ * nowhere here, and a media feature it does not know throws. An element is written as the selectors that would name it,
+ * from the document down (`element("html.in-app", ".app-root", ".main-scroll")`: html and body are put in front when the
+ * first part is not the document). A part may say what it holds, for `:has()` (`{ sel: ".pane", holds: [".ix-threads"] }`),
+ * and a state is a pseudo-class on its part (`button:focus-visible`).
  */
-export const PHONE = Object.freeze({ width: 390, hover: false, pointer: "coarse", reducedMotion: false });
-export const DESK = Object.freeze({ width: 1440, hover: true, pointer: "fine", reducedMotion: false });
 
-const RANGE = {
-  "less-than": (a, b) => a < b,
-  "less-than-equal": (a, b) => a <= b,
-  equal: (a, b) => a === b,
-  "greater-than": (a, b) => a > b,
-  "greater-than-equal": (a, b) => a >= b,
-};
+const INHERITED = new Set([
+  "color",
+  "color-scheme",
+  "cursor",
+  "direction",
+  "font",
+  "font-family",
+  "font-feature-settings",
+  "font-size",
+  "font-style",
+  "font-variant",
+  "font-variant-numeric",
+  "font-weight",
+  "hyphens",
+  "letter-spacing",
+  "line-height",
+  "list-style",
+  "list-style-type",
+  "overflow-wrap",
+  "tab-size",
+  "text-align",
+  "text-indent",
+  "text-rendering",
+  "text-transform",
+  "visibility",
+  "white-space",
+  "word-break",
+  "word-spacing",
+  "-webkit-font-smoothing",
+  "-webkit-text-size-adjust",
+]);
 
-/** A media feature's width in px; any other unit throws, as a query the cascade cannot answer. */
-function pxOf(value, where) {
-  const v = value?.type === "length" ? value.value : null;
-  if (v?.type === "value" && v.value.unit === "px") return v.value.value;
-  throw new Error(`the cascade reads a width in px, not ${JSON.stringify(value)} (${where})`);
-}
+/* -- the build's parser -- */
 
-/** Whether one media feature holds on `screen`. One it cannot answer throws, so no check passes on a guess. */
-function featureHolds(f, screen, where) {
-  const ident = f.value?.type === "ident" ? f.value.value : null;
-  if (f.type === "range" && f.name === "width") return RANGE[f.operator](screen.width, pxOf(f.value, where));
-  if (f.type === "plain" && f.name === "hover") return ident === (screen.hover ? "hover" : "none");
-  if (f.type === "plain" && f.name === "pointer") return ident === screen.pointer;
-  if (f.type === "plain" && f.name === "prefers-reduced-motion") {
-    return ident === (screen.reducedMotion ? "reduce" : "no-preference");
-  }
-  throw new Error(`the cascade cannot say whether (${f.name}) holds on a screen (${where})`);
-}
-
-function conditionHolds(c, screen, where) {
-  if (!c) return true;
-  if (c.type === "feature") return featureHolds(c.value, screen, where);
-  if (c.type === "not") return !conditionHolds(c.value, screen, where);
-  if (c.type === "operation") {
-    const each = c.conditions.map((x) => conditionHolds(x, screen, where));
-    return c.operator === "and" ? each.every(Boolean) : each.some(Boolean);
-  }
-  throw new Error(`the cascade cannot read a media condition of type ${c.type} (${where})`);
-}
-
-/** Whether a media query list holds on `screen`: any one of its queries, by its type and its condition. */
-const queryHolds = (query, screen, where) =>
-  query.mediaQueries.some((q) => {
-    const holds = (q.mediaType === "all" || q.mediaType === "screen") && conditionHolds(q.condition, screen, where);
-    return q.qualifier === "not" ? !holds : holds;
-  });
-
-/** CSS as the build's parser reads it: its syntax tree, and what it could not read (errors recovered, not thrown). */
-function parsed(code, filename) {
+/**
+ * CSS as the build's parser reads it (lightningcss, the parser the dashboard's build compiles its stylesheets with): its
+ * syntax tree. What it could not read whole throws, since a rule it dropped would be a rule this cascade never weighs.
+ */
+function parsedSheet(code, filename) {
   let tree = null;
   const { warnings } = transform({
     filename,
@@ -424,57 +425,36 @@ function parsed(code, filename) {
       },
     },
   });
-  return { tree, warnings };
-}
-
-const trees = new Map();
-
-/** One stylesheet's syntax tree, as the build's parser reads it, once per process; a sheet it cannot read whole throws. */
-function treeOf(file) {
-  const hit = trees.get(file);
-  if (hit) return hit;
-  const { tree, warnings } = parsed(fs.readFileSync(path.join(ROOT, file)), file);
-  if (!tree || warnings.length > 0) {
-    throw new Error(`the cascade cannot read ${file} whole:\n${warnings.map((w) => w.message).join("\n")}`);
-  }
-  trees.set(file, tree);
+  if (!tree || warnings.length > 0)
+    throw new Error(`the cascade cannot read ${filename} whole:\n${warnings.map((w) => w.message).join("\n")}`);
   return tree;
 }
 
 /**
- * Every rule of a sheet, in its order, each with whether it holds on `screen` (null: every rule, whatever the screen).
- * A container query's rules hold by a box's size, not the screen's, and are left out; a rule nested in a style rule
- * throws, since no sheet the pages link nests one yet and its selector is its parent's.
- */
-function* rulesOf(file, screen) {
-  function* walk(rules) {
-    for (const r of rules) {
-      if (r.type === "media") {
-        if (screen === null || queryHolds(r.value.query, screen, `${file}:${r.value.loc.line}`))
-          yield* walk(r.value.rules);
-      } else if (r.type === "supports" || r.type === "layer-block") {
-        yield* walk(r.value.rules);
-      } else {
-        if (r.type === "style" && r.value.rules?.length > 0) {
-          throw new Error(`the cascade does not read a nested rule (${file}:${r.value.loc.line})`);
-        }
-        yield r;
-      }
-    }
-  }
-  yield* walk(treeOf(file).rules);
-}
-
-/**
- * One declaration as the parser prints it alone, minified (`animation:none`), so two never merge into a shorthand. What
- * the parser hands out as null (a `var()`'s `from`, its absent fallback) it refuses back as null, so a null is left out.
+ * One declaration as the parser prints it alone (`grid-auto-columns: minmax(0, 1fr)`), so no two merge into a shorthand:
+ * the value as the build writes it, which `declared()` prints the same way for a test to compare with. What the parser
+ * hands out as null (a `var()`'s `from`, an absent fallback) it refuses back as null, so a null is left out.
  */
 function printOne(parsed, important) {
-  const d = JSON.parse(JSON.stringify(parsed, (_, v) => (v === null ? undefined : v)));
+  try {
+    return printed(parsed, important, false);
+  } catch (e) {
+    // A whole number of 65536 or more is handed to the parser's printer as a 64-bit integer, which a field it keeps as a
+    // 32-bit float refuses (`flex: 0 100000 auto`'s shrink). Handed over a hair off whole, the float rounds it back.
+    if (!/expected a 32-bit floating point/.test(String(e?.message))) throw e;
+    return printed(parsed, important, true);
+  }
+}
+
+function printed(parsed, important, nudged) {
+  const d = JSON.parse(
+    JSON.stringify(parsed, (_, v) =>
+      v === null ? undefined : nudged && Number.isInteger(v) && Math.abs(v) >= 65536 ? v + 2 ** -20 : v,
+    ),
+  );
   const { code } = transform({
     filename: "given.css",
     code: Buffer.from(""),
-    minify: true,
     visitor: {
       StyleSheet: (s) => ({
         ...s,
@@ -495,95 +475,675 @@ function printOne(parsed, important) {
     },
   });
   const text = code.toString();
-  const body = text.slice(text.indexOf("{") + 1, text.lastIndexOf("}"));
+  const body = text
+    .slice(text.indexOf("{") + 1, text.lastIndexOf("}"))
+    .trim()
+    .replace(/;$/, "");
   const colon = body.indexOf(":");
-  return [body.slice(0, colon), body.slice(colon + 1)];
+  const value = body
+    .slice(colon + 1)
+    .replace(/\s*!important$/, "")
+    .trim();
+  return [body.slice(0, colon).trim(), value];
 }
 
-/** What a block of declarations gives, by property, a later one winning and an important one beating any other. */
-function giveInto(given, important, block) {
-  for (const d of block?.declarations ?? []) {
-    const [property, value] = printOne(d, false);
-    if (!important.has(property)) given[property] = value;
-  }
-  for (const d of block?.importantDeclarations ?? []) {
-    const [property, value] = printOne(d, true);
-    given[property] = value;
-    important.add(property);
-  }
-}
+/** The sides a typed box shorthand gives, each printed as its own longhand, so `margin-top` is read where it is written. */
+const SIDES = {
+  margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+  padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+  inset: ["top", "right", "bottom", "left"],
+};
+const SIDE_KEYS = ["top", "right", "bottom", "left"];
 
-/** One rule's body, read as a sheet's is (`animation: none; opacity: 1`), and printed as givenOn prints what it says. */
-export function declared(text) {
-  const { tree, warnings } = parsed(`.given { ${text} }`, "declared.css");
-  const rule = tree?.rules[0];
-  if (rule?.type !== "style" || warnings.length > 0) throw new Error(`not a rule's body: ${text}`);
-  const given = {};
-  giveInto(given, new Set(), rule.value.declarations);
-  return given;
-}
-
-/** A selector as the parser reads it: `.a>.b` and `.a > .b` are one selector. */
-function selectorOf(text) {
-  const { tree, warnings } = parsed(`${text} {}`, "selector.css");
-  const rule = tree?.rules[0];
-  if (rule?.type !== "style" || rule.value.selectors.length !== 1 || warnings.length > 0) {
-    throw new Error(`not one selector: ${text}`);
-  }
-  return JSON.stringify(rule.value.selectors[0]);
-}
-
-/**
- * What `selector` is given by one repo-relative stylesheet on `screen`: each declaration of every style rule that lists
- * the selector, under media queries that hold there, by property as the parser prints it (`{ animation: "none" }`), a
- * later rule winning and an important declaration beating the rest. The rules that list it have its specificity, so
- * their order decides; a rule naming another selector the same element matches is not weighed.
- */
-export function givenOn(file, selector, screen) {
-  const want = selectorOf(selector);
-  const given = {};
-  const important = new Set();
-  for (const r of rulesOf(file, screen)) {
-    if (r.type === "style" && r.value.selectors.some((s) => JSON.stringify(s) === want)) {
-      giveInto(given, important, r.value.declarations);
+/** A block's declarations as the parser reads them, each `{ prop, value, important }`, a typed box shorthand's sides too. */
+function declarationsIn(block) {
+  const out = [];
+  for (const [list, important] of [
+    [block?.declarations ?? [], false],
+    [block?.importantDeclarations ?? [], true],
+  ]) {
+    for (const d of list) {
+      const [prop, value] = printOne(d, important);
+      out.push({ prop, value, important });
+      const sides = SIDES[d.property];
+      if (sides && d.value && typeof d.value === "object" && "top" in d.value)
+        sides.forEach((side, k) => {
+          const [, sideValue] = printOne({ property: side, value: d.value[SIDE_KEYS[k]] }, important);
+          out.push({ prop: side, value: sideValue, important });
+        });
     }
-  }
-  return given;
-}
-
-/**
- * Every style rule of one stylesheet, under any query, as the parser reads it: its `selectors` (the syntax tree, each a
- * list of components) and its `declarations`. What a check over every rule of a kind asks (no rule that hides a bar for a
- * dock while a page is carried back), where no one selector is the question.
- */
-export function styleRulesIn(file) {
-  return [...rulesOf(file, null)].filter((r) => r.type === "style").map((r) => r.value);
-}
-
-/** Every property one stylesheet sets, in any rule under any query: what a check that it sets none asks. */
-export function propertiesIn(file) {
-  const out = new Set();
-  for (const r of rulesOf(file, null)) {
-    if (r.type !== "style") continue;
-    const block = r.value.declarations;
-    for (const d of [...(block?.declarations ?? []), ...(block?.importantDeclarations ?? [])]) out.add(propertyOf(d));
   }
   return out;
 }
 
-/** One stylesheet's `@keyframes <name>`, each step (`from`, `50%`, `to`) with what it gives, or null where none is. */
-export function keyframesOf(file, name) {
-  const found = [...rulesOf(file, null)].filter((r) => r.type === "keyframes" && r.value.name.value === name);
-  if (found.length > 1) throw new Error(`${file} declares @keyframes ${name} ${found.length} times`);
-  if (found.length === 0) return null;
-  const steps = {};
-  for (const k of found[0].value.keyframes) {
-    for (const s of k.selectors) {
-      const at = s.type === "percentage" ? `${Math.round(s.value * 1000) / 10}%` : s.type;
-      const given = {};
-      giveInto(given, new Set(), k.declarations);
-      steps[at] = given;
+/** One rule's body, read as a sheet's is (`flex: 0 0 auto; opacity: 1`), and printed as the cascade prints what it gives. */
+export function declared(text) {
+  const rule = parsedSheet(`.given { ${text} }`, "declared.css").rules[0];
+  if (rule?.type !== "style") throw new Error(`not a rule's body: ${text}`);
+  return Object.fromEntries(declarationsIn(rule.value.declarations).map((d) => [d.prop, d.value]));
+}
+
+/* -- selectors, as the parser reads them -- */
+
+const COMBINATORS = { descendant: " ", child: ">", "next-sibling": "+", "later-sibling": "~" };
+const OPERATORS = { equal: "=", includes: "~=", "dash-match": "|=", prefix: "^=", suffix: "$=", substring: "*=" };
+const LISTS = new Set(["not", "is", "where", "has", "matches", "any"]);
+
+/**
+ * One selector of the parser's tree as its compounds, left to right, the subject last, each with the combinator that
+ * joins it to the one before (none before the first). A relative selector (`:has(> x)`) is the parser's `:scope` and a
+ * combinator: the scope is dropped and its combinator kept on the compound after it.
+ */
+function compoundsOf(components) {
+  const compounds = [];
+  let current = null;
+  let combinator = null;
+  const fresh = () => ({ tag: null, ids: [], classes: [], attrs: [], pseudos: [], element: null });
+  const close = () => {
+    if (current) compounds.push({ ...current, combinator });
+    current = null;
+  };
+  for (const c of components) {
+    if (c.type === "combinator") {
+      if (!(c.value in COMBINATORS)) throw new Error(`a combinator this cascade does not model: ${c.value}`);
+      const scopeOnly = current && current.pseudos.length === 1 && current.pseudos[0].name === "scope";
+      if (scopeOnly && compounds.length === 0) current = null;
+      else close();
+      combinator = COMBINATORS[c.value];
+      continue;
+    }
+    current ??= fresh();
+    if (c.type === "type") current.tag = c.name.toLowerCase();
+    else if (c.type === "universal") current.tag = "*";
+    else if (c.type === "class") current.classes.push(c.name);
+    else if (c.type === "id") current.ids.push(c.name);
+    else if (c.type === "attribute") {
+      const op = c.operation;
+      if (op && !(op.operator in OPERATORS))
+        throw new Error(`an attribute match this cascade does not model: ${op.operator}`);
+      current.attrs.push({
+        name: c.name,
+        op: op ? OPERATORS[op.operator] : null,
+        value: op ? op.value : null,
+        fold: op?.caseSensitivity === "ascii-case-insensitive",
+      });
+    } else if (c.type === "pseudo-element") current.element = c.kind;
+    else if (c.type === "pseudo-class") {
+      if (LISTS.has(c.kind)) current.pseudos.push({ name: c.kind, args: null, list: c.selectors.map(compoundsOf) });
+      else if (c.kind === "nth-child" || c.kind === "nth-of-type" || c.kind === "nth-last-child") {
+        if (c.of) throw new Error(`:${c.kind}(… of …) is not modelled by this cascade`);
+        current.pseudos.push({ name: c.kind, args: `${c.a}n+${c.b}`, list: null });
+      } else if (c.kind === "lang" || c.kind === "dir") {
+        current.pseudos.push({ name: c.kind, args: [].concat(c.languages ?? c.direction).join(","), list: null });
+      } else current.pseudos.push({ name: c.kind, args: null, list: null });
+    } else if (c.type === "nesting") throw new Error("a nested selector (&) is not modelled by this cascade");
+    else throw new Error(`a selector part this cascade cannot read: ${JSON.stringify(c)}`);
+  }
+  close();
+  return compounds;
+}
+
+/** A selector's compounds written back as text: what `rules()` names a rule by. */
+function selectorText(compounds) {
+  const one = (c) =>
+    (c.tag && (c.tag !== "*" || !(c.ids.length || c.classes.length || c.attrs.length || c.pseudos.length))
+      ? c.tag
+      : "") +
+    c.ids.map((i) => `#${i}`).join("") +
+    c.classes.map((k) => `.${k}`).join("") +
+    c.attrs.map((a) => `[${a.name}${a.op ? `${a.op}"${a.value}"${a.fold ? " i" : ""}` : ""}]`).join("") +
+    c.pseudos
+      .map((p) => `:${p.name}${p.list ? `(${p.list.map(selectorText).join(", ")})` : p.args ? `(${p.args})` : ""}`)
+      .join("") +
+    (c.element ? `::${c.element}` : "");
+  return compounds
+    .map(
+      (c, k) =>
+        (k === 0
+          ? c.combinator && c.combinator !== " "
+            ? `${c.combinator} `
+            : ""
+          : c.combinator === " "
+            ? " "
+            : ` ${c.combinator} `) + one(c),
+    )
+    .join("");
+}
+
+/** A selector a test writes (an element's part), read by the parser: one complex selector's compounds. */
+function selectorOf(text) {
+  const rule = parsedSheet(`${text} {}`, "selector.css").rules[0];
+  if (rule?.type !== "style" || rule.value.selectors.length !== 1) throw new Error(`not one selector: ${text}`);
+  return compoundsOf(rule.value.selectors[0]);
+}
+
+/** [ids, classes, types] of a complex selector, as the cascade weighs it. */
+function specificityOf(compounds) {
+  const total = [0, 0, 0];
+  const add = (s) => s.forEach((n, k) => (total[k] += n));
+  for (const c of compounds) {
+    total[0] += c.ids.length;
+    total[1] += c.classes.length + c.attrs.length;
+    if (c.tag && c.tag !== "*") total[2]++;
+    if (c.element) total[2]++;
+    for (const p of c.pseudos) {
+      if (p.name === "where") continue;
+      if (p.list) {
+        const most = p.list.map(specificityOf).sort(bySpecificity).at(-1) ?? [0, 0, 0];
+        add(most);
+      } else total[1]++;
     }
   }
-  return steps;
+  return total;
+}
+
+const bySpecificity = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+
+function attrMatches(el, a) {
+  const has = Object.hasOwn(el.attrs, a.name);
+  if (!has) return false;
+  if (!a.op) return true;
+  const fold = (v) => (a.fold ? String(v).toLowerCase() : String(v));
+  const v = fold(el.attrs[a.name]);
+  const want = fold(a.value);
+  switch (a.op) {
+    case "=":
+      return v === want;
+    case "~=":
+      return v.split(/\s+/).includes(want);
+    case "|=":
+      return v === want || v.startsWith(`${want}-`);
+    case "^=":
+      return want !== "" && v.startsWith(want);
+    case "$=":
+      return want !== "" && v.endsWith(want);
+    case "*=":
+      return want !== "" && v.includes(want);
+    default:
+      return false;
+  }
+}
+
+/**
+ * The element a selector inside `:is()`, `:where()` or `:not()` asks of: itself, not its pseudo-element, and still
+ * itself to a `:has()` in there, whose parts' parent is the element and never a copy of it.
+ */
+const asItself = (el) => ({ ...el, pseudo: null, self: el.self ?? el });
+
+function compoundMatches(el, c) {
+  if (c.tag && c.tag !== "*" && c.tag !== el.tag) return false;
+  if ((c.element ?? null) !== (el.pseudo ?? null)) return false;
+  if (!c.ids.every((id) => el.id === id)) return false;
+  if (!c.classes.every((k) => el.classes.has(k))) return false;
+  if (!c.attrs.every((a) => attrMatches(el, a))) return false;
+  for (const p of c.pseudos) {
+    if (p.name === "root") {
+      if (el.parent) return false;
+    } else if (p.name === "not") {
+      if (p.list.some((sel) => complexMatches(asItself(el), sel))) return false;
+    } else if (p.name === "is" || p.name === "where" || p.name === "matches") {
+      if (!p.list.some((sel) => complexMatches(asItself(el), sel))) return false;
+    } else if (p.name === "has") {
+      const self = el.self ?? el;
+      const held = self.holds ?? [];
+      const relative = (sel) =>
+        held.some((h) => {
+          const first = sel[0];
+          // `:has(> x)` asks a child; plain `:has(x)` any descendant, which is what a part's holds are.
+          if (first.combinator === ">" && h.parent !== self) return false;
+          return complexMatches(h, sel, self);
+        });
+      if (!p.list.some(relative)) return false;
+    } else {
+      const state = p.args === null ? p.name : `${p.name}(${p.args})`;
+      if (!el.states.has(state)) return false;
+    }
+  }
+  return true;
+}
+
+/** Whether `el` is what a complex selector names; `scope` stands for `:has()`'s subject, above which it never climbs. */
+function complexMatches(el, compounds, scope = null, at = compounds.length - 1) {
+  if (!el || el === scope) return false;
+  const c = compounds[at];
+  if (!compoundMatches(el, c)) return false;
+  if (at === 0) return scope === null || isWithin(el, scope);
+  const joined = compounds[at].combinator;
+  if (joined === " " || joined === null) {
+    for (let up = el.parent; up && up !== scope; up = up.parent)
+      if (complexMatches(up, compounds, scope, at - 1)) return true;
+    return false;
+  }
+  if (joined === ">") return complexMatches(el.parent, compounds, scope, at - 1);
+  // A sibling is only what a part says stands before it (`before`); none is assumed.
+  const before = el.before ?? [];
+  if (joined === "+") return before.length > 0 && complexMatches(before.at(-1), compounds, scope, at - 1);
+  if (joined === "~") return before.some((b) => complexMatches(b, compounds, scope, at - 1));
+  return false;
+}
+
+const isWithin = (el, scope) => {
+  for (let up = el.parent; up; up = up.parent) if (up === scope) return true;
+  return false;
+};
+
+/* -- media and supports, as the parser reads them -- */
+
+/** A length in a media query, in CSS pixels (an em or a rem is 16px); any other unit throws. */
+function pxIn(value, where) {
+  const v = value?.type === "length" ? value.value : null;
+  const d = v?.type === "value" ? v.value : null;
+  if (d && (d.unit === "px" || d.unit === "em" || d.unit === "rem")) return d.value * (d.unit === "px" ? 1 : 16);
+  throw new Error(`a length this cascade cannot weigh: ${JSON.stringify(value)} (${where})`);
+}
+
+const COMPARE = {
+  "less-than": (a, b) => a < b,
+  "less-than-equal": (a, b) => a <= b,
+  equal: (a, b) => a === b,
+  "greater-than": (a, b) => a > b,
+  "greater-than-equal": (a, b) => a >= b,
+};
+
+/** The screen's size a range asks of: its width, its height, or its aspect ratio. */
+function sizeOf(name, ctx, value, where) {
+  // A phone's browser fills its screen: the device's size is the viewport's unless the page says otherwise.
+  if (name === "width") return [ctx.width, pxIn(value, where)];
+  if (name === "height") return [ctx.height, pxIn(value, where)];
+  if (name === "device-width") return [ctx.deviceWidth ?? ctx.width, pxIn(value, where)];
+  if (name === "device-height") return [ctx.deviceHeight ?? ctx.height, pxIn(value, where)];
+  if (name === "aspect-ratio") {
+    const r = value?.type === "ratio" ? value.value : null;
+    if (!r) throw new Error(`an aspect ratio this cascade cannot read (${where})`);
+    return [ctx.width / ctx.height, r[0] / r[1]];
+  }
+  throw new Error(`a media range this cascade does not model: (${name}) (${where})`);
+}
+
+/** Whether one media feature holds where the page is drawn. One it does not model throws: no check passes on a guess. */
+function featureHolds(f, ctx, where) {
+  if (f.type === "range") {
+    const [size, bound] = sizeOf(f.name, ctx, f.value, where);
+    return COMPARE[f.operator](size, bound);
+  }
+  if (f.type === "interval") {
+    const [size, start] = sizeOf(f.name, ctx, f.start, where);
+    const [, end] = sizeOf(f.name, ctx, f.end, where);
+    return COMPARE[f.startOperator](start, size) && COMPARE[f.endOperator](size, end);
+  }
+  const v = f.type === "plain" ? (f.value?.type === "ident" ? f.value.value : null) : undefined;
+  switch (f.name) {
+    case "prefers-reduced-motion":
+      return v === undefined ? ctx.reducedMotion : (v === "reduce") === ctx.reducedMotion;
+    case "prefers-reduced-transparency":
+      return v === undefined ? ctx.reducedTransparency : (v === "reduce") === ctx.reducedTransparency;
+    case "prefers-color-scheme":
+      return v === ctx.colorScheme;
+    case "pointer":
+      return v === undefined ? ctx.pointer !== "none" : v === ctx.pointer;
+    case "hover":
+      return v === undefined ? ctx.hover === "hover" : v === ctx.hover;
+    case "display-mode":
+      return v === ctx.displayMode;
+    case "orientation":
+      return v === (ctx.width >= ctx.height ? "landscape" : "portrait");
+    default:
+      throw new Error(`a media feature this cascade does not model: (${f.name}) (${where})`);
+  }
+}
+
+function conditionHolds(c, ctx, where) {
+  if (!c) return true;
+  if (c.type === "feature") return featureHolds(c.value, ctx, where);
+  if (c.type === "not") return !conditionHolds(c.value, ctx, where);
+  if (c.type === "operation") {
+    // Asked in order, and no further than the answer: a browser never weighs the rest of an `and` once one part fails.
+    const holds = (x) => conditionHolds(x, ctx, where);
+    return c.operator === "and" ? c.conditions.every(holds) : c.conditions.some(holds);
+  }
+  throw new Error(`a media condition this cascade cannot read: ${c.type} (${where})`);
+}
+
+/** Whether a media query list holds where the page is drawn: any one of its queries, by its type and its condition. */
+function mediaHolds(query, ctx, where) {
+  return query.mediaQueries.some((q) => {
+    const type = q.mediaType === "all" || q.mediaType === "screen" ? true : q.mediaType === "print" ? ctx.print : false;
+    const holds = type && conditionHolds(q.condition, ctx, where);
+    return q.qualifier === "not" ? !holds : holds;
+  });
+}
+
+/**
+ * Whether a supports condition holds: a declaration is supported unless where the page is drawn says its value is not
+ * (`unsupported: ["dvh"]`); only an iPhone's browsers say -webkit-touch-callout.
+ */
+function supportsHolds(c, ctx) {
+  switch (c.type) {
+    case "not":
+      return !supportsHolds(c.value, ctx);
+    case "and":
+      return c.value.every((x) => supportsHolds(x, ctx));
+    case "or":
+      return c.value.some((x) => supportsHolds(x, ctx));
+    case "declaration": {
+      const property = c.propertyId?.property ?? "";
+      if (property === "-webkit-touch-callout" || property === "touch-callout") return ctx.ios;
+      const said = `${property}: ${c.value}`;
+      return !ctx.unsupported.some((u) => said.includes(u));
+    }
+    case "selector":
+      return true;
+    default:
+      throw new Error(`a supports condition this cascade cannot read: ${c.type}`);
+  }
+}
+
+/* -- the sheets -- */
+
+const sheetTrees = new Map();
+
+/** A repo-relative stylesheet's syntax tree, read once a process. */
+function treeOf(file) {
+  if (!sheetTrees.has(file)) sheetTrees.set(file, parsedSheet(fs.readFileSync(path.join(ROOT, file), "utf8"), file));
+  return sheetTrees.get(file);
+}
+
+/** A keyframe's key as a sheet writes it: `from`, `to`, or a percentage. */
+const keyOf = (s) => (s.type === "percentage" ? `${Math.round(s.value * 1000) / 10}%` : s.type);
+
+/** A stylesheet's rules in the order they are written, each with the conditions it is drawn under. */
+function rulesIn(rules, file, into, outer = { media: [], supports: [], apart: null }) {
+  for (const r of rules) {
+    const v = r.value;
+    const where = `${file}:${(v?.loc?.line ?? 0) + 1}`;
+    switch (r.type) {
+      case "style":
+        if (v.rules?.length) throw new Error(`a nested rule is not modelled by this cascade (${where})`);
+        into.rules.push({
+          file,
+          selectors: v.selectors.map((s) => {
+            const compounds = compoundsOf(s);
+            return { text: selectorText(compounds), compounds };
+          }),
+          declarations: declarationsIn(v.declarations),
+          ...outer,
+          order: into.rules.length,
+        });
+        break;
+      case "media":
+        rulesIn(v.rules, file, into, { ...outer, media: [...outer.media, { query: v.query, where }] });
+        break;
+      case "supports":
+        rulesIn(v.rules, file, into, { ...outer, supports: [...outer.supports, v.condition] });
+        break;
+      case "container":
+      case "starting-style":
+        rulesIn(v.rules, file, into, { ...outer, apart: `@${r.type} (${where})` });
+        break;
+      case "import": {
+        const target = path.posix.join(path.posix.dirname(file), v.url);
+        rulesIn(treeOf(target).rules, target, into, outer);
+        break;
+      }
+      case "keyframes": {
+        const frames = {};
+        for (const k of v.keyframes)
+          for (const s of k.selectors)
+            frames[keyOf(s)] = {
+              ...frames[keyOf(s)],
+              ...Object.fromEntries(declarationsIn(k.declarations).map((d) => [d.prop, d.value])),
+            };
+        into.keyframes.push({ file, name: v.name.value, frames, ...outer, order: into.keyframes.length });
+        break;
+      }
+      case "layer-block":
+      case "layer-statement":
+        throw new Error(`@layer is not modelled by this cascade (${where})`);
+      default:
+      // @font-face, @property, @page, @namespace and the rest draw no element.
+    }
+  }
+}
+
+/** The stylesheets every page of the frame links, in the cascade's order: the root layout's globals, then sheets.json's. */
+export function frameSheets() {
+  const listed = JSON.parse(fs.readFileSync(path.join(ROOT, "apps/dashboard/src/styles/sheets.json"), "utf8")).sheets;
+  return [
+    "apps/dashboard/app/globals.css",
+    ...listed.filter((s) => typeof s === "string").map((s) => `apps/dashboard/src/${s}`),
+  ];
+}
+
+/**
+ * Where a page is drawn: a desk by default, at the width e2e/ opens the pages at; any other place is asked as a change to
+ * it (`{ ...DESK, width: 800 }`, `{ reducedMotion: true }`), and a phone is PHONE.
+ */
+export const DESK = Object.freeze({
+  width: 1440,
+  height: 900,
+  reducedMotion: false,
+  reducedTransparency: false,
+  colorScheme: "light",
+  pointer: "fine",
+  hover: "hover",
+  displayMode: "browser",
+  print: false,
+  ios: false,
+  unsupported: [],
+});
+
+/** A phone in a browser's tab, as the frame's phone rules are written for it. */
+export const PHONE = { width: 390, height: 844, pointer: "coarse", hover: "none" };
+
+/** One element, from the document down, each part a compound selector (or `{ sel, holds }` for `:has()`). */
+export function element(...parts) {
+  const specs = parts.map((p) => (typeof p === "string" ? { sel: p } : p));
+  const first = selectorOf(specs[0].sel)[0];
+  if (first?.tag !== "html") specs.unshift({ sel: "html" }, { sel: "body" });
+  else if (specs.length > 1 && selectorOf(specs[1].sel)[0]?.tag !== "body") specs.splice(1, 0, { sel: "body" });
+  let parent = null;
+  for (const spec of specs) {
+    const el = partOf(spec.sel, parent);
+    el.holds = (spec.holds ?? []).map((h) => partOf(h, el));
+    parent = el;
+  }
+  return parent;
+}
+
+function partOf(sel, parent) {
+  const compounds = selectorOf(sel);
+  if (compounds.length !== 1) throw new Error(`one part at a time: ${sel}`);
+  const c = compounds[0];
+  const attrs = Object.fromEntries(c.attrs.map((a) => [a.name, a.value ?? ""]));
+  const states = new Set(c.pseudos.map((p) => (p.args === null ? p.name : `${p.name}(${p.args})`)));
+  return {
+    tag: c.tag && c.tag !== "*" ? c.tag : "div",
+    id: c.ids[0] ?? null,
+    classes: new Set(c.classes),
+    attrs,
+    states,
+    pseudo: c.element,
+    parent,
+  };
+}
+
+/** Where a bracket opened at `open` closes, in a value as the parser prints it; -1 when it never does. */
+function closing(text, open) {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === "(") depth++;
+    else if (text[i] === ")" && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** A var() replaced by what `get` answers, its fallback where that is nothing; null when nothing stands for it. */
+function substitute(value, get, seen = new Set()) {
+  let out = value;
+  for (let guard = 0; guard < 200; guard++) {
+    const at = out.lastIndexOf("var(");
+    if (at < 0) return out;
+    const end = closing(out, at + 3);
+    if (end < 0) throw new Error(`a var() that never closes: ${value}`);
+    const inner = out.slice(at + 4, end);
+    const comma = inner.indexOf(",");
+    const name = (comma < 0 ? inner : inner.slice(0, comma)).trim();
+    const fallback = comma < 0 ? null : inner.slice(comma + 1).trim();
+    const got = seen.has(name) ? null : get(name, seen);
+    const put = got ?? fallback;
+    if (put === null) return null;
+    out = out.slice(0, at) + put + out.slice(end + 1);
+  }
+  throw new Error(`a var() that never settles: ${value}`);
+}
+
+/** The words of an `animation` shorthand that are never its name: its timing, its count, its direction, its fill, its state. */
+const ANIMATION_WORDS = new Set(
+  "ease ease-in ease-out ease-in-out linear step-start step-end infinite normal reverse alternate alternate-reverse forwards backwards both running paused".split(
+    " ",
+  ),
+);
+
+/**
+ * The names an `animation` value plays, one per animation it lists (`none` where one plays nothing), whichever place the
+ * build prints each name in: what is left of each once its times, numbers, functions and keywords are taken away.
+ */
+export function animationNamesOf(value) {
+  if (!value) return [];
+  const out = [];
+  let depth = 0;
+  let from = 0;
+  const parts = [];
+  for (let i = 0; i <= value.length; i++) {
+    const c = value[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if ((c === "," && depth === 0) || i === value.length) {
+      parts.push(value.slice(from, i));
+      from = i + 1;
+    }
+  }
+  for (const part of parts) {
+    const words = part
+      .replace(/[\w-]+\([^()]*(?:\([^()]*\)[^()]*)*\)/g, " ")
+      .split(/\s+/)
+      .filter((w) => w && !ANIMATION_WORDS.has(w) && !/^-?\d*\.?\d+(m?s)?$/.test(w));
+    out.push(words.at(-1) ?? "none");
+  }
+  return out;
+}
+
+/**
+ * The cascade over `files` (repo-relative stylesheets, in the order a page links them, or `{ css }`), where a page is drawn (`ctx`,
+ * over a desk: `{ ...PHONE, displayMode: "standalone" }`). `style(el)` answers each property the element is drawn with,
+ * custom properties too; `given(el)` each property's winning declaration as written, before var() and inheritance;
+ * `rules(el)` the rules that reach it, in the cascade's order; `keyframes(name)` the frames an
+ * animation of that name plays, as drawn there.
+ */
+export function cascadeOf(files, ctx = {}) {
+  const where = { ...DESK, ...ctx };
+  const sheet = { rules: [], keyframes: [] };
+  // A sheet is a repo-relative file, or `{ css }`: a rule a test adds after the page's own, to change a token and see
+  // who follows it.
+  for (const file of files)
+    if (typeof file === "string") rulesIn(treeOf(file).rules, file, sheet);
+    else {
+      const name = file.name ?? "the test's own sheet";
+      rulesIn(parsedSheet(file.css, name).rules, name, sheet);
+    }
+  const drawn = (r) =>
+    r.apart === null &&
+    r.media.every((m) => mediaHolds(m.query, where, m.where)) &&
+    r.supports.every((c) => supportsHolds(c, where));
+  const live = sheet.rules.filter(drawn);
+  const understood = (d) => !where.unsupported.some((u) => d.value.includes(u));
+
+  const reaching = (el) =>
+    live
+      .map((r) => {
+        const hits = r.selectors.filter((s) => complexMatches(el, s.compounds)).map((s) => specificityOf(s.compounds));
+        return hits.length ? { rule: r, specificity: hits.sort(bySpecificity).at(-1) } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => bySpecificity(a.specificity, b.specificity) || a.rule.order - b.rule.order);
+
+  /** Each property's winner, as written: normal declarations in order, then the important ones over them. */
+  const given = (el) => {
+    const won = {};
+    const hits = reaching(el);
+    for (const important of [false, true])
+      for (const { rule } of hits)
+        for (const d of rule.declarations) if (d.important === important && understood(d)) won[d.prop] = d.value;
+    return won;
+  };
+
+  const computed = new WeakMap();
+  const style = (el) => {
+    if (!el) return {};
+    if (computed.has(el)) return computed.get(el);
+    const parent = style(el.parent);
+    const won = given(el);
+    const out = {};
+    // Custom properties first, each read against the element's own (a cycle is nothing), inherited where unset.
+    const own = (name, seen) => {
+      if (Object.hasOwn(won, name)) {
+        const raw = won[name];
+        if (raw === "initial") return null;
+        if (raw === "inherit" || raw === "unset") return parent[name] ?? null;
+        return substitute(raw, own, new Set([...seen, name]));
+      }
+      return parent[name] ?? null;
+    };
+    for (const name of Object.keys(parent)) if (name.startsWith("--")) out[name] = parent[name];
+    for (const name of Object.keys(won)) if (name.startsWith("--")) out[name] = own(name, new Set());
+    const read = (name) => out[name] ?? null;
+    for (const name of Object.keys(parent)) if (!name.startsWith("--") && INHERITED.has(name)) out[name] = parent[name];
+    for (const [name, raw] of Object.entries(won)) {
+      if (name.startsWith("--")) continue;
+      const inherits = INHERITED.has(name);
+      if (raw === "inherit" || (raw === "unset" && inherits)) out[name] = parent[name];
+      else if (raw === "initial" || raw === "unset") delete out[name];
+      else {
+        const v = substitute(raw, read);
+        // Invalid at computed-value time: as if unset.
+        if (v === null) {
+          if (inherits && parent[name] !== undefined) out[name] = parent[name];
+          else delete out[name];
+        } else out[name] = v;
+      }
+    }
+    for (const k of Object.keys(out)) if (out[k] === null || out[k] === undefined) delete out[k];
+    computed.set(el, out);
+    return out;
+  };
+
+  return {
+    style,
+    // What the element is given, before any var() is read or anything inherited: each property's winning declaration as
+    // the build prints it, for a check that asks what a sheet says of an element (`declared()` prints the same way).
+    given: (el) => (el ? given(el) : {}),
+    rules: (el) =>
+      reaching(el).map(({ rule, specificity }) => ({
+        file: rule.file,
+        selectors: rule.selectors.map((s) => s.text),
+        specificity,
+        declarations: rule.declarations,
+      })),
+    keyframes: (name) => {
+      const found = sheet.keyframes.filter((k) => k.name === name && drawn(k));
+      return found.at(-1)?.frames ?? null;
+    },
+    // Every @keyframes the sheets declare, drawn here or not: what a check over every animation of a kind asks.
+    allKeyframes: () => sheet.keyframes.map((k) => ({ file: k.file ?? null, name: k.name, frames: k.frames })),
+    // Every rule the sheets hold, drawn here or not: what a sheet sets anywhere (a property of a family it never sets).
+    every: () =>
+      sheet.rules.map((r) => ({
+        file: r.file,
+        selectors: r.selectors.map((s) => s.text),
+        declarations: r.declarations,
+        media: r.media,
+        supports: r.supports,
+        apart: r.apart,
+      })),
+  };
 }

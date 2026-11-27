@@ -11,7 +11,7 @@ import {
   platformPartnerStanding,
   CONSOLE_WORDS,
 } from "@chanlytics/contracts";
-import { importSrc, readCode } from "../../../_source.mjs";
+import { importSrc } from "../../../_source.mjs";
 import { fakeDb } from "../../../_fake-db.mjs";
 import {
   getPlatformWaitlist,
@@ -37,7 +37,6 @@ import {
   balance,
   brought,
   byId,
-  consoleSource,
   live,
   mount,
   p75,
@@ -72,48 +71,12 @@ test("a role is offered only the acts it may take: Billing sees a line, and no b
   assert.equal(byId(row.tree, "platform-act-release"), null);
 });
 
-test("the screens decide nothing: every verdict, word and row comes from the contract", () => {
-  const src = consoleSource();
-  for (const call of [
-    "P.rows(tenants)",
-    "P.summary(rows)",
-    "verdictPill(row.verdict)",
-    "P.steps({ ...setup, tz, later: [], rests: {} })",
-    "P.number(line.e164)",
-    "P.actions(line)",
-    "P.warning(arm)",
-    "consoleGroups(",
-  ]) {
-    assert.ok(src.includes(call), `the screen reads ${call} rather than deciding`);
-  }
-  // No thresholds, no state lists, no sorting of its own.
-  assert.ok(!/\.sort\(/.test(src), "the contract sorts");
-  assert.ok(!/86_?400_?000|14 \* DAY|\bDAY\b/.test(src), "no clocks of its own");
-  assert.ok(!/needs_record|past_due|reg_mock === true/.test(src), "no state judgements of its own");
-  assert.ok(!/\$\d/.test(src.replace(/\$\{/g, "")), "no money figure lives in a screen");
-  // It borrows the row grammar rather than inventing one.
-  assert.ok(src.includes("<AttnRow"), "the same row People, Today and Setup draw");
-});
+// The screens decide nothing: every verdict, word and row comes from the contract. A rule of the code's shape (no sort,
+// no clock, no state judgement and no money figure of a screen's own), so it is the repository's:
+// tests/repo/rules/the-console-s-screens-decide-nothing.test.mjs.
 
-test("Settings' Back office is a link to the Console, for the people it is for and for nobody else", () => {
-  const settings = readCode(
-    "apps/dashboard/src/surfaces/settings/frame/tabs.ts",
-    "apps/dashboard/src/surfaces/settings/frame/page.tsx",
-  );
-  // Not in SET_TABS: a customer who types the route lands on Profile rather than on a locked door they now know about.
-  assert.ok(!/id: "platform".*group: "Workspace"/.test(settings));
-  assert.match(
-    settings,
-    /export const SET_TABS_PLATFORM: readonly SetTab\[\] = \[\s*\{ id: "platform", label: "The Console"/,
-  );
-  assert.match(settings, /export const isPlatformAdmin = \(\): boolean => !!whoIsLooking\(\)\.me\?\.platform_admin;/);
-  assert.match(settings, /\.\.\.SET_TABS\.filter\(.*\),\s*\.\.\.\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM : \[\]\)/);
-  assert.match(settings, /\(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\) \|\|/);
-  // One copy, not two (decision 0066): the row opens the Console, and an old address says where it went.
-  assert.match(settings, /t\.id === "platform" \? window\.location\.assign\(CONSOLE_PATH\) : go\(t\.id\)/);
-  assert.match(settings, /\{id === "platform" && <PaneConsole \/>\}/);
-  assert.ok(!settings.includes("PanePlatform"), "the back office's pane is the Console's now");
-});
+// Settings' Back office is a link to the Console, for the people it is for and for nobody else: drawn in
+// workspace/settings-owner-panes/every-address-of-the-business-lands-on-its-pane.test.mjs.
 
 test("the ops routes have their own ceilings, sized for a support shift and named for what they do", async () => {
   // RATE's own rule is "One rule per bucket. Named by what the route DOES, not by its path." The three platform routes

@@ -12,8 +12,9 @@ import {
   dedupeFeed,
   tzClock,
 } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
+import { PHONE, cascadeOf, declared, element, frameSheets } from "../_css.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -136,18 +137,18 @@ test("a campaign's answered share says its window, the one a reply is counted in
       `were answered ${REPLY_WINDOW_WORDS}`,
     ),
   );
-  // A long warning wraps beside its glyph, not under it: the stylesheet's own rule, read as a stylesheet is (node draws
-  // nothing).
-  assert.ok(
-    readRaw("apps/dashboard/src/surfaces/today/zones/zones.css").includes(
-      ".tz-alert > span {\n  flex: 1 1 auto;\n  min-width: 0;\n}",
-    ),
-    "a long warning wraps beside its glyph, not under it",
-  );
+  // A long warning wraps beside its glyph, not under it: what its words are drawn with, the frame's sheets run for them
+  // (tests/_css.mjs), on a desk and on a phone.
+  for (const where of [{}, PHONE]) {
+    const words = cascadeOf(frameSheets(), where).style(element('html[data-theme="light"]', ".tz-alert", "span"));
+    assert.deepEqual(
+      [words.flex, words["min-width"]],
+      [declared("flex: 1 1 auto").flex, "0"],
+      "a long warning wraps beside its glyph",
+    );
+  }
   // Every closing time Today says names its day (tzClock above), in the queue's, the facts', the figures' and the rows'
   // words: today/record/ and today/zones/need-you-acts.test.mjs draw them on a day that is tomorrow's.
-  // Nothing of the workshop on a customer's screen: presence was the mockup's, and went with demo mode, and the footer
-  // is the customer's. FrameApp.tsx cannot be imported in node, so its footer is still read.
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");
+  // Nothing of the workshop on a customer's screen: presence was the mockup's, and went with demo mode, and the frame is
+  // the customer's: drawn in shell/boot/the-frame-draws-what-it-holds.test.mjs ("nothing of the workshop").
 });
