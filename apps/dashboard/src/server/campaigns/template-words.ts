@@ -19,8 +19,9 @@ import {
   textOrEmpty,
   validateTemplateDraft,
 } from "@chanlytics/contracts";
-import { countLiveRunsOfTemplate, findTemplateWords } from "@chanlytics/db/campaigns";
-import { editTemplateWords, recordFixWords } from "@/server/campaigns/meta-templates";
+import { countLiveRunsOfTemplate, findTemplateWords, keepTemplateFix } from "@chanlytics/db/campaigns";
+import { editTemplateWords } from "@/server/campaigns/meta-templates";
+import { log } from "@/server/shared/log";
 import { submitRefusal } from "@/server/campaigns/template-submit";
 import {
   WHATSAPP_NO_COPY,
@@ -98,7 +99,9 @@ export async function keepFixWords(
   const { data: held, error } = await findTemplateWords(ctx.supabase, tenantId, fixing.template_id);
   if (error) throw new DbFailure(error, "template words");
   if (!held || held.channel !== "whatsapp" || held.meta_status !== "rejected") return;
-  await recordFixWords(tenantId, held.id, { words, reason: fixing.reason, by: ctx.userId });
+  // On the member's own session, through a door that asks who is calling (00722 template_fix_keep).
+  const { error: kept } = await keepTemplateFix(ctx.supabase, tenantId, held.id, { words, reason: fixing.reason });
+  if (kept) log.error("db_failed", { tenant_id: tenantId, code: kept.code, error: kept.message });
 }
 
 /**

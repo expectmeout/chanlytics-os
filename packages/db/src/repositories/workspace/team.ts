@@ -66,17 +66,13 @@ export const listInvitesForAddress = async (db: Db, email: string, now: string) 
     .gt("expires_at", now);
 
 /** A person made a member of a workspace. */
-export const insertMembership = async (db: Db, row: Database["public"]["Tables"]["memberships"]["Insert"]) =>
-  db.from("memberships").insert(row);
-
-/** An invitation stamped as taken up at `at`, only while it is open. */
-export const stampInvitationAccepted = async (db: Db, tenantId: TenantId, invitationId: string, at: string) =>
-  db
-    .from("invitations")
-    .update({ accepted_at: at })
-    .eq("id", invitationId)
-    .eq("tenant_id", tenantId)
-    .is("accepted_at", null);
+/**
+ * A person's open invitation taken up, in one transaction (00722 invitation_accept): the seat at the invited role (one
+ * held already is kept), member.joined where the ledger does not hold it for the invitation, and the invitation stamped.
+ * The answer is the database's as it came: true when it was open and is taken, false where it is not open.
+ */
+export const acceptInvitation = async (db: Db, invitationId: string, userId: string) =>
+  db.rpc("invitation_accept", { p_invitation_id: invitationId, p_user_id: userId });
 
 /**
  * The person's workspaces, by name, read newest columns first: each read after the first leaves one newer column out,

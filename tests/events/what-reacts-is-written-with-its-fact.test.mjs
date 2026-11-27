@@ -54,7 +54,8 @@ test("no kind something reacts to is written by emitEvent: its failure would los
     };
     visit(sf);
   }
-  assert.ok(calls >= 30, `read ${calls} emitEvent calls; the code holds more than that`);
+  // A floor that says the scan reads the code: the calls fall as each kind moves into its change's door (00721, 00722).
+  assert.ok(calls >= 15, `read ${calls} emitEvent calls; the code holds more than that`);
   assert.deepEqual(off, [], "write it with its fact in SQL, or with recordEvent and a next read that finishes it");
 });
 

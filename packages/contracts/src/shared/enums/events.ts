@@ -121,6 +121,8 @@ export const EVENT_KINDS = [
   "ask.memory_forgotten",
   "ask.journal_written",
   "ask.morning_claimed",
+  /** Whether AI works alone, set by a member ({ on, by }: ask_alone_set, 00722). */
+  "ask.alone_set",
   "policy.changed",
   "billing.updated",
   "billing.paused",
@@ -267,6 +269,9 @@ export const EVENT_KINDS = [
   "reach_out.reply_undone",
   // A workspace reached an activation milestone for the first time (contracts ACTIVATION_MILESTONES): the funnel's rows.
   "workspace.activated",
+  /** Stop everything pressed, and lifted ({ at | stopped_at, by }: workspace_sending_stop, 00722). */
+  "workspace.sending_stopped",
+  "workspace.sending_resumed",
   /**
    * An appointment of the record changed (decision 0002), never its title: the calendar's hourly read writes { change:
    * added | moved | vanished | back, source, starts_at } (appointments_feed_sync, 00348), and every other writer's row
@@ -349,6 +354,8 @@ export const EVENT_KINDS = [
   "appointment.moved",
   "appointment.cancelled",
   "appointment.lapsed", // a request that ran out, closed (00679): { told, starts_at, service, contact_id }
+  /** A held booking email a member set aside ({ tool, hold_reason, by }: appointment_notice_dismiss, 00722). */
+  "appointment.notice_dismissed",
   /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
   "conversation.owner_replied",
   /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */

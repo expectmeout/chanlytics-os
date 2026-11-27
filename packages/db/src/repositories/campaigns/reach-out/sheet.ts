@@ -217,14 +217,23 @@ export async function saveReachOutChain(
     decision: { payload: Json; via: string | null; undoOf: string | null } | null;
   },
 ): Promise<{ data: ReachOutSaved | null; error: { code?: string; message: string } | null }> {
-  const { data, error } = await db.rpc("reach_out_save", {
-    p_tenant_id: params.tenantId,
-    p_user_id: params.userId,
-    p_chain: jsonCopyOf(params.chain),
-    p_decision: params.decision?.payload ?? null,
-    ...(params.decision?.via ? { p_via: params.decision.via } : {}),
-    ...(params.decision?.undoOf ? { p_undo_of: params.decision.undoOf } : {}),
-  });
+  // A chain that names its root is an edit: saved with its playbook.changed beside it (00722 reach_out_edit). A new one
+  // is saved with its start's decision.
+  const { data, error } =
+    typeof params.chain.root_id === "string"
+      ? await db.rpc("reach_out_edit", {
+          p_tenant_id: params.tenantId,
+          p_user_id: params.userId,
+          p_chain: jsonCopyOf(params.chain),
+        })
+      : await db.rpc("reach_out_save", {
+          p_tenant_id: params.tenantId,
+          p_user_id: params.userId,
+          p_chain: jsonCopyOf(params.chain),
+          p_decision: params.decision?.payload ?? null,
+          ...(params.decision?.via ? { p_via: params.decision.via } : {}),
+          ...(params.decision?.undoOf ? { p_undo_of: params.decision.undoOf } : {}),
+        });
   if (error) return { data: null, error: { code: error.code, message: error.message } };
   // A door's jsonb answer, as the DTO its function builds (00211): the SQL is its shape, and its tests hold it.
   const saved = data as ReachOutSaved | null;

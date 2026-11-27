@@ -13,6 +13,7 @@
  * the thumb moved before its click landed, so picking a search's result did nothing.
  */
 import { useCallback, useRef } from "react";
+import { valueAt } from "@chanlytics/contracts";
 
 /** How long the height takes to change, on the house's ease-out (tokens.css --ease-out, read off the sheet). */
 const GLIDE_MS = 220;
@@ -22,7 +23,8 @@ function typingIn(sheet: HTMLElement): boolean {
   const at = document.activeElement;
   if (!at || !sheet.contains(at)) return false;
   if (at.tagName === "TEXTAREA") return true;
-  return at.tagName === "INPUT" && !/^(checkbox|radio|button|submit|range)$/.test((at as HTMLInputElement).type);
+  const type = valueAt(at, "type");
+  return at.tagName === "INPUT" && !/^(checkbox|radio|button|submit|range)$/.test(typeof type === "string" ? type : "");
 }
 
 const lessMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;

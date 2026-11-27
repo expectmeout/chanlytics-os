@@ -123,15 +123,11 @@ export async function pauseAdsForStop(
 ): Promise<
   { outcome: "kept"; ads: Array<AdPressKept & { adId: string }> } | { outcome: "not_allowed" } | { outcome: "no_door" }
 > {
-  const { data, error } = await db.rpc("ad_pause_all", {
-    p_tenant_id: by.tenantId,
-    p_actor: by.userId,
-    p_presses: null,
-    p_by: "stop",
-  });
+  // As the member who pressed the stop, through its door (00722 ad_pause_for_stop), which pauses by ad_pause_all.
+  const { data, error } = await db.rpc("ad_pause_for_stop", { p_tenant_id: by.tenantId });
   if (error) {
     if (isMissingDoor(error)) return { outcome: "no_door" };
-    throw new DbFailure(error, "ad_pause_all for the stop");
+    throw new DbFailure(error, "ad_pause_for_stop");
   }
   const answer = recordOrEmpty(data);
   if (answer.outcome === "not_allowed") return { outcome: "not_allowed" };

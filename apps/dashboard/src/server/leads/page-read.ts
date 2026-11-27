@@ -9,9 +9,7 @@ import {
   LEAD_READ_SOURCES,
   type LeadCheck,
   type LeadCheckKey,
-  type LeadClass,
   type LeadCounts,
-  type LeadEmailState,
   leadFiltersOf,
   leadMarkSrc,
   leadMonth,
@@ -19,13 +17,13 @@ import {
   type LeadPileCountsDto,
   type LeadRowDto,
   type LeadsQuery,
-  type LeadStage,
   type LeadViewCountsDto,
   type SequencePlaceOfDto,
   recordOrNull,
   recordOrEmpty,
   listOrEmpty,
   DbFailure,
+  shaped,
 } from "@chanlytics/contracts";
 import { getLeadPileCounts, listSequencePlaces } from "@chanlytics/db/campaigns";
 import { findSearchWidens, getLeadViewCounts, listSearchNames, readLeadOne, readLeadsPage } from "@chanlytics/db/leads";
@@ -36,6 +34,7 @@ import type { RouteContext } from "../shared/with-route";
 import { env } from "../shared/env";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import { readChecked, readColumn } from "@chanlytics/db/shared";
 
 /* --------------------------------------------------------- a page of rows */
 
@@ -194,7 +193,7 @@ function checksOf(leadPage: LeadPageRow): LeadCheck[] {
       source: "Maps · website",
       reason: null,
     });
-  const state = leadPage.email_state as LeadEmailState;
+  const state = readChecked("leads.email_state", leadPage.email_state);
   if (state !== "none" || leadPage.email) {
     out.push({
       key: "mailbox",
@@ -254,7 +253,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
     phone_agrees: (leadPage.phone_sources ?? 1) >= 2,
     phone_wrong: leadPage.phone_wrong,
     email: leadPage.email,
-    email_state: leadPage.email_state as LeadEmailState,
+    email_state: readChecked("leads.email_state", leadPage.email_state),
     email_checked_at: leadPage.email_checked_at,
     website: leadPage.website_host,
     instagram: leadPage.instagram_url,
@@ -262,12 +261,14 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
     reviews: leadPage.reviews,
     // What the listing shows about the business (D2), as leads_page returns it; jsonb arrives as it was stored.
     about: leadPage.about ?? null,
-    hours: Array.isArray(leadPage.hours) ? (leadPage.hours as { day: string; hours: string }[]) : [],
+    hours: Array.isArray(leadPage.hours)
+      ? readColumn("leads.hours", shaped<{ day: string; hours: string }[]>(), leadPage.hours)
+      : [],
     image_url: leadPage.image_url ?? null,
     price: leadPage.price ?? null,
     reviews_dist:
       leadPage.reviews_dist && typeof leadPage.reviews_dist === "object"
-        ? (leadPage.reviews_dist as LeadRowDto["reviews_dist"])
+        ? readColumn("leads.reviews_dist", shaped<NonNullable<LeadRowDto["reviews_dist"]>>(), leadPage.reviews_dist)
         : null,
     facebook_url: leadPage.facebook_url ?? null,
     linkedin_url: leadPage.linkedin_url ?? null,
@@ -275,7 +276,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
     claimed: leadPage.claimed ?? null,
     maps_url: leadPage.maps_url ?? null,
     rank: leadPage.rank ?? null,
-    stage: leadPage.stage as LeadStage,
+    stage: readChecked("leads.stage", leadPage.stage),
     closed_reason: leadPage.closed_reason,
     contact_id: leadPage.contact_id,
     chain_id: leadPage.chain_id ?? null,
@@ -292,8 +293,8 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
     exported_at: leadPage.exported_at,
     version: leadPage.version,
     member: {
-      class: leadPage.class as LeadClass,
-      fit: (leadPage.fit ?? null) as LeadRowDto["member"]["fit"],
+      class: readChecked("lead_search_members.class", leadPage.class),
+      fit: leadPage.fit === null ? null : readChecked("lead_search_members.fit", leadPage.fit),
       reason: leadPage.reason ?? "",
       excluded_by: leadPage.excluded_by,
       distance_m: leadPage.distance_m,

@@ -236,12 +236,30 @@ test(
     const other = await threadOf("owner", "another question");
     assert.equal(ok(await morning("owner", "thread", { p_thread_id: other }), "again").named, false, "named once");
 
-    assert.deepEqual(ok(await morning("owner", "answered", { p_cards: 2 }), "answered"), {
+    // The count, and the member's own bell told in its transaction (00722): once a morning, as the member.
+    const bell = { title: "2 things are ready for a look", body: "From this morning." };
+    assert.deepEqual(ok(await morning("owner", "answered", { p_cards: 2, p_bell: bell }), "answered"), {
       recorded: true,
       thread_id: own,
       cards: 2,
+      told: true,
     });
-    assert.equal(ok(await morning("owner", "answered", { p_cards: 3 }), "twice").recorded, false, "recorded once");
+    const again = ok(await morning("owner", "answered", { p_cards: 3, p_bell: bell }), "twice");
+    assert.equal(again.recorded, false, "recorded once");
+    const lines = ok(
+      await db
+        .from("notifications")
+        .select("kind, route, subject_id, recipient_user_id")
+        .eq("tenant_id", A)
+        .eq("kind", "ask_cards"),
+      "bell",
+    );
+    assert.deepEqual(lines, [{ kind: "ask_cards", route: "today", subject_id: own, recipient_user_id: as.owner.id }]);
+    const shown = ok(
+      await as.owner.client.from("notifications").select("title").eq("kind", "ask_cards"),
+      "the owner's",
+    );
+    assert.deepEqual(shown, [{ title: bell.title }], "the member reads their own line");
 
     // Each member reads their own morning alone.
     const seen = async (who) => ok(await as[who].client.from("ask_mornings").select("user_id").eq("tenant_id", A), who);

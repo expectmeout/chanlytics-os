@@ -10,9 +10,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   noTemplateWords,
   replyDelayMs,
@@ -20,10 +17,6 @@ import {
   REPLY_DELAY_MIN_MS,
   REPLY_DELAY_MAX_MS,
 } from "@chanlytics/contracts";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(here, "../../..");
-const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
 /* ------------------------------- the rule -------------------------------- */
 
@@ -94,12 +87,10 @@ test("garbage in the config falls back rather than producing NaN", () => {
   // guaranteed server rejection for every other, including every newly created one, which has no template row at all.
   // With none in hand the courier refuses in the browser and asks the server nothing: pressed in
   // inbox/inbox-verbs.test.mjs, where verbs.ts's text was read until 26 Nov 2026.
-  // The template reply box, where the composer offers what may go outside the window (template-box.tsx).
-  const thread = read("apps/dashboard/src/surfaces/inbox/thread/template-box.tsx");
-
   test("with no approved template the composer says so instead of offering a send", () => {
-    // The composer says it in contracts' words (noTemplateWords), the plain sentence where nothing is counted.
-    assert.match(thread, /noTemplateWords\(/);
+    // The composer says it in contracts' words (noTemplateWords), the plain sentence where nothing is counted. The
+    // template reply box draws it, and which of the messages were left out and why: inbox/inbox-words.test.mjs ("none
+    // approved is still its own answer"), where template-box.tsx's text was read here until 26 Nov 2026.
     assert.match(noTemplateWords(null), /^No approved message yet/);
     // And the courier refuses rather than posting a request the server must reject with a message the operator cannot
     // act on: pressed in inbox/inbox-verbs.test.mjs.

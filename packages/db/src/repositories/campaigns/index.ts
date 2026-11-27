@@ -317,13 +317,12 @@ export {
   findStepRow,
   finishBatchSending,
   holdBatchForOk,
-  insertDecision,
   listChainSteps,
   listLeadClocks,
   pauseStepRow,
   planReachOutRun,
   recordReachOutBooked,
-  stampStepRun,
+  recordStepRun,
   startBatchSending,
 } from "./sequences/runs";
 export {
@@ -401,6 +400,7 @@ export {
   deleteTemplateRow,
   findTemplateWords,
   findWhatsAppTemplate,
+  keepTemplateFix,
   keepTemplateWords,
   listSlowReviews,
   listWhatsAppTemplateKeys,

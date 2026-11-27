@@ -133,7 +133,7 @@ export function searchAnswer(choice: LineProviderChoice, areaCode: number, numbe
 
 /** The billing row as the door read it: PostgREST's envelope, no more. */
 interface BillingRead {
-  data: { mode: string; status: string } | null;
+  data: { mode: BillingMode; status: BillingStatus } | null;
   error: { message: string } | null;
 }
 
@@ -159,7 +159,7 @@ export function spendRefusal(bill: BillingRead, doing: SpendWords): DoorAnswer |
   if (bill.error)
     return { status: 503, body: { ok: false, error: "read_failed", detail: logFailure("read", bill.error) } };
   if (!bill.data) return { status: 402, body: { ok: false, error: "no_billing_record" } };
-  const reason = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus, doing);
+  const reason = whyCannotSpend(bill.data.mode, bill.data.status, doing);
   if (reason)
     return { status: 402, body: { ok: false, error: "payment_required", detail: reason, status: bill.data.status } };
   return null;

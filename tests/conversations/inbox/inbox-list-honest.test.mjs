@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+import { until } from "../../shared/_until.mjs";
 const { askOnScreen, setAskOnScreen } = await import("../../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 const ZONE = "America/New_York";
@@ -180,6 +181,7 @@ test("REGRESSION (A19): a bulk snooze asks once per thread and reads the Inbox a
 const { Inbox } = await import(`${S}/surfaces/inbox/pages/inbox-page.tsx`);
 const { InboxList } = await import(`${S}/surfaces/inbox/pages/inbox-list.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
 
 const findAll = all;
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;
@@ -424,6 +426,50 @@ test("REGRESSION (A19): the Inbox's bulk snooze is one act -- busy while it runs
     Object.assign(globalThis, clocks);
     globalThis.fetch = realFetch;
     AFTER[row] = tableRow;
+  }
+});
+
+test("Wake now asks the wake verb for the thread, never hand-back, which resolved the very request being pulled forward", async () => {
+  // hand-back resolves the escalation AND returns the thread to the receptionist, so waking through it discarded the
+  // request the owner was bringing back. A real thread's Wake is the one thread's (thread-pane.tsx), the press drawn here;
+  // conversation-vm.test.mjs read inbox-acts.tsx's text for it until 26 Nov 2026, which is the seeded threads'.
+  const later = new Date(NOW.getTime() + 3 * 3_600_000).toISOString();
+  const lia = toInboxThreadVM(
+    { ...conv("c4", "Lia Moreno"), state: "snoozed", paused_until: later, snooze_until: later },
+    asked("c4"),
+    ZONE,
+    NOW,
+  );
+  assert.equal(lia.state, "snoozed", "a thread put away until later");
+  inboxWith([lia]);
+  const posted = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    if ((init.method ?? "GET") !== "POST")
+      return json(404, { ok: false, error: { code: "not_found", message: "not read here" } });
+    posted.push(new URL(String(url), "https://app.chanlytics.com").pathname);
+    return json(200, { ok: true, data: { conversation: { id: "c4", state: "open" } } });
+  };
+  const toasts = () =>
+    findAll(
+      again(() => Inbox({ initialThreadId: lia.id })),
+      (n) => typeof n.props?.className === "string" && n.props.className.startsWith("pp-toast "),
+    )
+      .map(textOf)
+      .join(" | ");
+  try {
+    fresh();
+    const pane = find(
+      again(() => Inbox({ initialThreadId: lia.id })),
+      (n) => n.type === InboxThread,
+    ).props;
+    assert.equal(pane.thread?.id, lia.id, "the snoozed thread, open");
+    pane.onWake(lia.id);
+    // The page says it the moment the server takes it, and the act is done.
+    await until(() => /back in Needs you/.test(toasts()), "the wake said");
+    assert.deepEqual(posted, ["/api/v1/conversations/c4/wake"], "the wake verb, once, and no hand-back");
+  } finally {
+    globalThis.fetch = realFetch;
   }
 });
 

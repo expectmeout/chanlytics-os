@@ -42,7 +42,7 @@ import {
   takeRoutingRow,
 } from "@chanlytics/db/lines";
 import { findChannelConfig } from "@chanlytics/db/channels";
-import { asJson } from "@chanlytics/db/shared";
+import { asJson, jsonCopyOf, readChecked } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
 
 export interface LineProviderChoice {
@@ -120,8 +120,14 @@ export function linePorts(
     smsInboundUrl: smsInboundUrl(edgeFnUrl()),
     store: {
       async save(patch) {
-        const row: Partial<Row> = {};
-        for (const [k, v] of Object.entries(patch)) (row as Record<string, unknown>)[k] = v;
+        // The saga's patch is the row's own columns: its facts copied as JSON, and its provider read as lines_provider_check
+        // holds it (the saga's LineRow says only that it is words).
+        const { facts, provider, ...columns } = patch;
+        const row: Partial<Row> = {
+          ...columns,
+          ...(facts === undefined ? {} : { facts: jsonCopyOf(facts) }),
+          ...(provider === undefined ? {} : { provider: readChecked("lines.provider", provider) }),
+        };
         const { error } = await saveLineRow(db, line, row);
         if (error) throw new DbFailure(error, "saving the line");
       },

@@ -31,9 +31,9 @@ const IN_READERS_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivi
 export const compareSortValues = (a: unknown, b: unknown): number =>
   typeof a === "string" && typeof b === "string"
     ? IN_READERS_ORDER.compare(a, b)
-    : (a as number) < (b as number)
+    : Number(a) < Number(b)
       ? -1
-      : (a as number) > (b as number)
+      : Number(a) > Number(b)
         ? 1
         : 0;
 

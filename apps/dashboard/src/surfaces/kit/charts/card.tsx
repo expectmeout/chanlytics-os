@@ -90,7 +90,7 @@ const ckTwin = (twin: ChartTwin | null, config: ChartConfig | null): ChartTableD
           d.label,
           ...twin.keys.map((k) => {
             const v: unknown = Reflect.get(d, k);
-            return v == null ? null : (v as string | number);
+            return typeof v === "string" || typeof v === "number" ? v : null;
           }),
         ]),
       }

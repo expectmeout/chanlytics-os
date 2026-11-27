@@ -32,7 +32,6 @@
 import { json, refuse } from "../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { respond, workspaceOf, workspaceRow, type Refused } from "../shared/admin-door.js";
-import { emitEvent } from "@chanlytics/db/events";
 import { setFileListingAside } from "@chanlytics/db/files";
 import { findLinkedPlace } from "@chanlytics/db/imports";
 import type { Database } from "@chanlytics/db/types";
@@ -86,14 +85,7 @@ import {
 } from "./ops.js";
 
 import { postOnProfile, unpostOnProfile } from "./local-posts.js";
-import {
-  deleteGoogleListing,
-  deleteGoogleListingDays,
-  deleteGoogleReviews,
-  findGoogleConnection,
-  findGoogleListing,
-  saveGoogleListingBack,
-} from "@chanlytics/db/google";
+import { findGoogleConnection, findGoogleListing, linkGoogleListing, unlinkGoogleListing } from "@chanlytics/db/google";
 import { findWorkspaceZoneRow } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
@@ -198,17 +190,17 @@ async function link(googleCall: GoogleCall): Promise<Response> {
     return respond(unreadablePlaceAnswer(e));
   }
   const before = await findLinkedPlace(googleCall.db, googleCall.tenantId).catch(logAndGoOn("findLinkedPlace", null));
-  const saved = await saveGoogleListingBack(
+  // The listing written, the old one's reviews and days forgotten (they were another place's), and google.linked, in
+  // one transaction (00722); then the row as it stands, for the check.
+  const linked = await linkGoogleListing(
     googleCall.db,
     googleCall.tenantId,
-    linkRow(details, googleCall.tenantId, googleCall.userId, new Date()),
+    linkRow(details, new Date()),
+    googleCall.userId,
   );
-  if (saved.error) return refuseFailure(503, "write_failed", saved.error);
-  // A new listing forgets the old one's reviews and days: they were another place's.
-  const reviewsGone = await deleteGoogleReviews(googleCall.db, googleCall.tenantId);
-  if (reviewsGone.error) return refuseFailure(503, "write_failed", reviewsGone.error);
-  const daysGone = await deleteGoogleListingDays(googleCall.db, googleCall.tenantId);
-  if (daysGone.error) return refuseFailure(503, "write_failed", daysGone.error);
+  if (linked.error) return refuseFailure(503, "write_failed", linked.error);
+  const saved = await findGoogleListing(googleCall.db, googleCall.tenantId);
+  if (saved.error || !saved.data) return refuseFailure(503, "write_failed", saved.error);
   // The link asks for the listing's website to be read too (website-read.ts), for Check and its booking page.
   const read = await checkListing(googleCall.db, saved.data, googleCall.tz, { askWebsite: true });
   // A place that changed: what the last one offered and nobody kept leaves the Inbox, as it may be another business's. The
@@ -219,12 +211,6 @@ async function link(googleCall: GoogleCall): Promise<Response> {
       googleCall.L.warn("file_fetch_failed", { source: "google_listing", error: errField(e) }),
     );
   }
-  await emitEvent(googleCall.db, googleCall.tenantId, "google.linked", "listing", null, {
-    place_id: details.place_id,
-    name: details.name,
-    by: googleCall.userId,
-    read: read.ok,
-  }).catch(logAndGoOn("event google.linked"));
   googleCall.L.info("google_linked", { place_id: details.place_id, read: read.ok });
   return respond(linkedAnswer(await listingNow(googleCall), saved.data, read));
 }
@@ -337,14 +323,9 @@ async function unpostOp(c: GoogleCall): Promise<Response> {
 async function unlink(googleCall: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null): Promise<Response> {
   if (conn) await disconnectProfile(googleCall.db, googleCall.tenantId, googleCall.userId);
   if (!row) return json(200, { ok: true, removed: false });
-  const del = await deleteGoogleListing(googleCall.db, googleCall.tenantId);
+  // The row gone with google.unlinked, in one transaction (00722).
+  const del = await unlinkGoogleListing(googleCall.db, googleCall.tenantId, !!conn, googleCall.userId);
   if (del.error) return refuseFailure(503, "write_failed", del.error);
-  await emitEvent(googleCall.db, googleCall.tenantId, "google.unlinked", "listing", null, {
-    place_id: row.place_id,
-    name: row.name,
-    had_profile: !!conn,
-    by: googleCall.userId,
-  }).catch(logAndGoOn("event google.unlinked"));
   googleCall.L.info("google_unlinked", { place_id: row.place_id });
   return json(200, { ok: true, removed: true });
 }

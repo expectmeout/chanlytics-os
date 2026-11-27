@@ -27,6 +27,7 @@ import {
   type SpeechPurpose,
   UUID,
   valueAt,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { api } from "../api";
 import { readLines, unwrap, type Api } from "../../client/api";
@@ -36,6 +37,21 @@ import { readLines, unwrap, type Api } from "../../client/api";
  * (contracts answer-stream.ts), a preview the final message replaces (an empty one takes back an answer the server set
  * aside); `delta` is a v1 turn's words, from a server before the Line (spec 7.5). The Line reads both.
  */
+
+/** The server's refusal as its answer says it: its code, its words and its details, each where it has them; none without one. */
+function refusalPartsOf(
+  answer: unknown,
+): { code: string | undefined; message: string | undefined; details: unknown } | null {
+  const error = recordOrNull(valueAt(answer, "error"));
+  if (!error) return null;
+  const { code, message, details } = error;
+  return {
+    code: typeof code === "string" ? code : undefined,
+    message: typeof message === "string" ? message : undefined,
+    details,
+  };
+}
+
 export type SendEvent =
   | { t: "thread"; id: string; title: string }
   | { t: "trace"; text: string }
@@ -153,10 +169,10 @@ function speechCalls(client: Api) {
       const body = more?.before ? { text, purpose, before: more.before } : { text, purpose };
       const res = await client.raw("POST ask/speech", { body, timeoutMs: SPEECH_MS });
       if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+        const parts = refusalPartsOf(await res.json().catch(() => null));
         // A clip asked for and refused changed nothing: a read, for the refusal's words.
         throw new Error(
-          refusalOf({ code: j?.error?.code, status: res.status, message: j?.error?.message, write: false }).message,
+          refusalOf({ code: parts?.code, status: res.status, message: parts?.message, write: false }).message,
         );
       }
       return res.blob();
@@ -374,19 +390,17 @@ function turnCall(client: Api, head: { sent(): void }) {
     // The client has already signed the tab out on its way back.
     if (res.status === 401 || (stopped() && !res.ok)) return;
     if (!res.ok || !res.body) {
-      const j = (await res.json().catch(() => null)) as {
-        error?: { code?: string; message?: string; details?: unknown };
-      } | null;
+      const parts = refusalPartsOf(await res.json().catch(() => null));
       // The server's sentence, in our words where it gave none (contracts refusalOf); a page
       // that was not ours used to read "Ask failed (502)." and gets a sentence of ours.
       on({
         t: "error",
-        text: j?.error
+        text: parts
           ? refusalOf({
-              code: j.error.code,
+              code: parts.code,
               status: res.status,
-              message: j.error.message,
-              details: j.error.details,
+              message: parts.message,
+              details: parts.details,
               retryAfter: res.headers.get("retry-after"),
               write: true,
             }).message

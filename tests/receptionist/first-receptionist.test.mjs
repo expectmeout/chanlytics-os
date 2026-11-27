@@ -29,7 +29,7 @@ const post = () => new Request(`http://localhost/api/v1/x${inT}`, { method: "POS
 /** A session over these tables, and the service role over the same ones: settings.changed is the service role's write. */
 const ctxFor = (tables) => (
   setServiceClient(fakeDb(tables)),
-  { supabase: fakeDb(tables), userId: USER, email: "ada@example.com", params: {} }
+  { supabase: fakeDb(tables, {}, {}, { userId: USER }), userId: USER, email: "ada@example.com", params: {} }
 );
 async function refused(p, code, status, words) {
   await assert.rejects(p, (e) => {
@@ -177,15 +177,15 @@ test("a colleague who set one up first wins: nothing is written over theirs; a s
     system_prompt: "You are AI for Harbor Moving Co, answering customers in a warm, short way.",
     fallbacks: { greeting: "g", error: "e", non_text: "n" },
   };
-  // The read sees version 4 with no receptionist; by the write, a colleague's save has moved it to 5.
+  // The read sees version 4 with no receptionist; by the write (the settings' door, with its event), a colleague's save
+  // has moved it to 5.
   const race = (theirs) => {
     const t = tables();
     const ctx = ctxFor(t);
-    const from = ctx.supabase.from.bind(ctx.supabase);
-    let reads = 0;
-    ctx.supabase.from = (table) => {
-      if (table === "tenant_config" && ++reads === 2) Object.assign(t.tenant_config[0], { version: 5, config: theirs });
-      return from(table);
+    const rpc = ctx.supabase.rpc.bind(ctx.supabase);
+    ctx.supabase.rpc = (name, args) => {
+      if (name === "tenant_config_write") Object.assign(t.tenant_config[0], { version: 5, config: theirs });
+      return rpc(name, args);
     };
     return { t, ctx };
   };

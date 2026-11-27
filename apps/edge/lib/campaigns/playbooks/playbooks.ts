@@ -20,12 +20,11 @@ import {
   listRunningStepsOn,
   listTouchesSince,
   recordCampaignMonthSent,
-  stampStepRun,
+  recordStepRun,
   touchIndex,
   wasSequenceReached,
 } from "@chanlytics/db/campaigns";
 import { getDealOnFile, listYesesSince } from "@chanlytics/db/deals";
-import { emitEvent } from "@chanlytics/db/events";
 import { findPersonRow, listEveryoneIn, listSavedLists } from "@chanlytics/db/people";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { recordOver } from "@chanlytics/db/calendar";
@@ -80,7 +79,6 @@ import { emailCanSend } from "../../email/email.js";
 import { findConfigRow, findWorkspaceZoneStatus } from "@chanlytics/db/workspace";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
-import { logAndGoOn } from "@chanlytics/log";
 
 type Db = SupabaseClient<Database>;
 
@@ -487,18 +485,22 @@ export async function runPlaybook(ctx: TenantRunContext, playbook: PlaybookRow, 
       // Who a list's sequence already reached: its run goes once to each person (the loop review's item 6).
       reached: (sequenceId) => wasSequenceReached(db, tenantId, sequenceId),
       record: async (playbookId, runFor, at, data) => {
-        await emitEvent(db, tenantId, "playbook.run", "playbook", playbookId, data).catch(
-          logAndGoOn("event playbook.run"),
-        );
         // A late booking's reminder is not the day's run (decision 0118): stamped, it would close the day for everyone the
         // look has still to name, so its record is the event alone. Nor is an occasion's step (0119), which has no day.
-        if (data.late === true || data.occasion === true) return;
-        // The run is kept (its batch says it ran, which alreadyRan reads); a stamp that fails is said, never the run's end.
-        const stamped = await stampStepRun(db, tenantId, playbookId, runFor, at.toISOString());
-        if (stamped.error)
+        const ownTime = data.late === true || data.occasion === true;
+        // The record and the day's stamp in one transaction (00722). The run is kept already (its batch says it ran,
+        // which alreadyRan reads): a record that fails is said, never the run's end.
+        const recorded = await recordStepRun(
+          db,
+          tenantId,
+          playbookId,
+          jsonCopyOf(data),
+          ownTime ? {} : { stamp: { run_for: runFor, at: at.toISOString() } },
+        );
+        if (recorded.error)
           logger({ tenant_id: tenantId }).warn("playbook_run_stamp_failed", {
             playbook_id: playbookId,
-            error: stamped.error.message,
+            error: recorded.error.message,
           });
       },
       // The run, its people, its job and its decision, whole (00282 assemble_broadcast, with its decision since 00381):

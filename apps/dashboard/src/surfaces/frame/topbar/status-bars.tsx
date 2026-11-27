@@ -12,7 +12,6 @@ import {
   todayDayNext,
   todayVisitsAsked,
   todayVisitsSub,
-  type CalendarLike,
 } from "@chanlytics/contracts";
 import { askCalls, routeDoor } from "../../frame-verbs";
 import { hearAskHeld, navigate } from "../../frame-doors";
@@ -223,8 +222,7 @@ export function NextVisitBar({ page }: { page: string }) {
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useCalendarRead();
   const cal = surfaceValue("calendar");
-  const next =
-    page !== "today" && cal && cal.vm ? todayDayNext(cal.vm as CalendarLike & { timezone: string }, Date.now()) : null;
+  const next = page !== "today" && cal && cal.vm ? todayDayNext({ ...cal.vm, now: 0 }, Date.now()) : null;
   const up = !!next;
   useEffect(() => {
     if (!up) return undefined;

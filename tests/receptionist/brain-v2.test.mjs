@@ -23,7 +23,6 @@ import {
   toInboxThreadVM,
 } from "@chanlytics/contracts";
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { readRaw } from "../_source.mjs";
 import { at } from "../_cron-doors-world.mjs";
 import { scripted, said, json } from "../ai/_model-world.mjs";
 
@@ -296,11 +295,9 @@ test("the dial reaches the policy row through the pane and the bridge", async ()
   // where inbox-verbs.ts's text was pinned here until 26 Nov 2026.
   // The pane's dial, pressed: workspace/settings-owner-panes/ ("F50: ... a dial sends itself alone") sends 75% as
   // { minConfidence: 0.75 } on the reply row, and no mode.
-  const thread = readRaw("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
-  assert.ok(
-    thread.includes("· {why.summary}"),
-    "the summary the dial drives, now inside the button that opens the reason",
-  );
+  // The summary the dial drives is the name of the button that opens the reason, drawn and pressed in
+  // inbox/thread-on-a-phone.test.mjs ("why it said that is a button a thumb can open"), where timeline.tsx's text was read
+  // here until 26 Nov 2026.
   // The bar over a draft the dial held says so, drawn (thread/veto.tsx): a component with no hooks, on the plainest
   // React there is, and nothing of the shell's on the window.
   const { VetoBar } = await import("../../apps/dashboard/src/surfaces/inbox/thread/veto.tsx");

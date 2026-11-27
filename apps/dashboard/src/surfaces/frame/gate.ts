@@ -10,7 +10,7 @@
  * Each reads the role store (identity.ts, provided as `roles`) and the tip from the bridge's store (provided.ts) when it
  * is asked: a test hands in a stand-in for either with `provide`.
  */
-import { roleGate, type Role } from "@chanlytics/contracts";
+import { ROLES, isOneOf, roleGate } from "@chanlytics/contracts";
 import { provided } from "@/bridge/provided";
 import type { GateProps } from "../frame-verbs";
 
@@ -23,7 +23,7 @@ export const canDo = (a: string, doing?: string): boolean => {
 /** Whether the member, as they are acting (View-as included), stands on this rung or above it; with no store, no. */
 export const mayAtLeast = (rung: string): boolean => {
   const store = provided("roles");
-  return !!(store && store.mayAtLeast && store.mayAtLeast(rung as Role));
+  return !!(store && store.mayAtLeast && isOneOf(ROLES, rung) && store.mayAtLeast(rung));
 };
 
 /** Why the role acting may not do it, in contracts' words. */

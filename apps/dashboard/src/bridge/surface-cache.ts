@@ -41,7 +41,7 @@ import {
   slotsKept,
   SURFACES_SLOT,
 } from "@/client/kept-on-device";
-import { DAY_MS } from "@chanlytics/contracts";
+import { DAY_MS, recordOrNull } from "@chanlytics/contracts";
 import { whoIsLooking } from "./who";
 import { heldRead, holdKeptRead, isHeldRead } from "./held-reads";
 import { pageReport } from "@/client/page-report";
@@ -84,7 +84,11 @@ interface Kept {
 const keptNow = (key: string): Kept => ({ build: BUILD, shape: SURFACE_SHAPES[key] ?? null, at: Date.now() });
 
 /** What a snapshot says it was kept under, or nothing for one written before snapshots said. */
-const keptStampOf = (entry: Record<string, unknown>) => entry[KEPT_SLOT] as Kept | undefined;
+const keptStampOf = (entry: Record<string, unknown>): Kept | undefined => {
+  const stamp = recordOrNull(entry[KEPT_SLOT]);
+  if (!stamp || typeof stamp.build !== "string" || typeof stamp.at !== "number") return undefined;
+  return { build: stamp.build, shape: typeof stamp.shape === "string" ? stamp.shape : null, at: stamp.at };
+};
 
 /**
  * Whether a surface's snapshot may be drawn now: under the build that wrote it; under another, only a typed value with

@@ -9,7 +9,8 @@
  * week of production has said nothing, the reader refuses at the schema instead, and the answer the code reads is the
  * one the schema parsed.
  */
-import type { z } from "zod";
+import { z } from "zod";
+import { SCHEMA_SETS, type SchemaSet, type SchemaSetKey } from "@chanlytics/contracts";
 import { dbLog, dbRequestId } from "./observe";
 
 /** The fields a value's schema did not hold, at most ten, each once: what a line says instead of the value. */
@@ -35,3 +36,16 @@ export const readColumn = <S extends z.ZodType>(column: string, schema: S, value
   readAs(schema, value, (fields) =>
     dbLog().warn("json_column_unexpected", { column, fields, request_id: dbRequestId() }),
   );
+
+/**
+ * A column's value from a closed set its CHECK holds (contracts SCHEMA_SETS, generated from the CHECKs themselves), read
+ * as one of the set: report-only, as readColumn is, so a value outside it is said under its column and read as it came.
+ */
+export const readChecked = <K extends SchemaSetKey>(column: K, value: unknown): SchemaSet<K> => {
+  const set: readonly unknown[] = SCHEMA_SETS[column];
+  return readColumn(
+    column,
+    z.custom<SchemaSet<K>>((v) => set.includes(v)),
+    value,
+  );
+};

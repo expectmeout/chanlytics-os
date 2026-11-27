@@ -100,6 +100,9 @@ test("the summary sentence is the one the composer wrote", () => {
     summaryOf(marisa.hours),
     "word for word, joined as hoursSummary joins them",
   );
+  // The days that keep the same hours are one run, as the prompt states them (one-hours-algorithm.test.mjs): Monday to
+  // Thursday, Friday and Saturday, then Sunday, never a line a day.
+  assert.equal(textOf(byTestId(row, "rec-hours-line")).split(" · ").length, 3, "three runs for seven days");
 });
 
 test("with no hours stored, the row is empty in the old card's words, and its act adds them", () => {

@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LIBRARY_WORDS, TEMPLATE_STATUSES } from "@chanlytics/contracts";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -120,12 +120,9 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   // A message's sheet (message-row-parts.tsx): the list that stood beside it went as Messages folded into Campaigns.
   // No sync button (the Messages redesign's step 5): a message's name menu is Rename, Put away, Add a language and
   // Delete, drawn whole in templates/sheet/message-versions-page.test.mjs. WhatsApp is asked quietly as Campaigns opens,
-  // whichever view is on screen (parts/whatsapp-list.ts; Campaigns, one tab, call C11: it was the Messages page's own) --
-  // the one read left here: no test draws Campaigns' route yet.
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/campaigns/home/route.tsx").includes("useWhatsAppListAsked()"),
-    "Campaigns asks it as it opens",
-  );
+  // whichever view is on screen (parts/whatsapp-list.ts; Campaigns, one tab, call C11: it was the Messages page's own):
+  // Campaigns' route drawn, and what it asks, in templates/campaigns-asks-whatsapp-s-list-as-it-opens.test.mjs, where
+  // route.tsx's text was read here until 26 Nov 2026.
   // The head's hover is contracts' (the page draws it: message-versions-page.test.mjs): it says who a marketing message reaches.
   assert.ok(LIBRARY_WORDS.headTip.includes("A marketing message can only go to people who said yes to offers."));
   // Settings' read asks every template with its status, once: run over a wire that records it in

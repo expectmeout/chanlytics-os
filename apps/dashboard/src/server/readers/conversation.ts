@@ -5,6 +5,7 @@ import { markAdMessages } from "../conversations/from-ads";
 import { loadConversation, type VerbConversation } from "../shared/verbs";
 import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
 import { listThreadMessages } from "@chanlytics/db/conversations";
+import { readChecked } from "@chanlytics/db/shared";
 
 /**
  * One thread's messages, as GET conversations/:id answers them: the hundred
@@ -37,7 +38,7 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
 export function conversationDtoOf(row: VerbConversation, userId: string): Omit<ConversationDto, "messages"> {
   return {
     id: row.id,
-    state: row.state as ConversationDto["state"],
+    state: readChecked("conversations.state", row.state),
     paused_until: row.paused_until,
     snooze_until: row.snooze_until,
     set_aside_at: row.set_aside_at,

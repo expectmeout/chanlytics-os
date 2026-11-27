@@ -5,7 +5,6 @@
  * A connected profile's own read is profile-sync.ts.
  */
 import type { TenantId } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { patchListing } from "@chanlytics/db/imports";
 import { planListingCheck, type PlaceDetails } from "@chanlytics/channels/google";
 import { localDate, HOUR_MS, DbFailure } from "@chanlytics/contracts";
@@ -24,13 +23,12 @@ import {
   type ListingRow,
 } from "../shared/google/rows.js";
 import {
+  keepGoogleReviews,
   listGoogleConnectionsDue,
   listGoogleListingsDue,
   pageGoogleReviewIds,
   saveGoogleListingDay,
-  saveGoogleReviews,
 } from "@chanlytics/db/google";
-import { logAndGoOn } from "@chanlytics/log";
 
 export type CheckResult =
   { ok: true; fresh: number; counted: number; answered?: number } | { ok: false; error: string };
@@ -103,9 +101,11 @@ export async function checkListing(
   await patchListing(db, row.tenant_id, plan.listing);
   const day = await saveGoogleListingDay(db, row.tenant_id, plan.day);
   if (day.error) throw new DbFailure(day.error);
-  if (plan.reviews.length) {
+  // What was new on the ledger with the reviews it kept, in one transaction (00722), when there is either.
+  const news = plan.fresh.length > 0 || plan.counted > 0;
+  if (plan.reviews.length || news) {
     // first_seen_at is not in the payload: an existing row keeps its own.
-    const reviews = await saveGoogleReviews(
+    const reviews = await keepGoogleReviews(
       db,
       row.tenant_id,
       plan.reviews.map((review) => ({
@@ -122,6 +122,15 @@ export async function checkListing(
         maps_uri: review.maps_uri,
         last_seen_at: review.last_seen_at,
       })),
+      news
+        ? {
+            source: "places",
+            fresh: plan.fresh.length,
+            counted: plan.counted,
+            rating: plan.listing.rating,
+            review_count: plan.listing.review_count,
+          }
+        : undefined,
     );
     if (reviews.error) throw new DbFailure(reviews.error);
   }
@@ -138,15 +147,6 @@ export async function checkListing(
       body: b.body,
       ...aboutReview(rowIds, b.review_id),
     });
-  }
-  if (plan.fresh.length || plan.counted) {
-    await emitEvent(db, row.tenant_id, "google.reviews", "listing", null, {
-      source: "places",
-      fresh: plan.fresh.length,
-      counted: plan.counted,
-      rating: plan.listing.rating,
-      review_count: plan.listing.review_count,
-    }).catch(logAndGoOn("event google.reviews"));
   }
   log.info("google_checked", {
     rating: plan.listing.rating,

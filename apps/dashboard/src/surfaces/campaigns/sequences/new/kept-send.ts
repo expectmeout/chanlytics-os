@@ -19,9 +19,15 @@ export interface KeptSend {
  * What a one-off's run sent, kept as it was: who it went to by its audience's key, its message by the id it sent, and each
  * value as it was filled, typed words kept. New puts each right against what can fill it now (new-model.ts againOf).
  */
-export const keptSendOf = (b: Pick<BroadcastDto, "audience" | "template_id" | "params">): KeptSend => ({
-  aud: `${b.audience.kind}:${b.audience.id ?? ""}`,
-  tplId: b.template_id,
-  sources: { [b.template_id]: b.params.map((p) => p.kind) },
-  params: { [b.template_id]: b.params.map((p) => (p.kind === "text" ? p.value : "")) },
-});
+export const keptSendOf = (b: Pick<BroadcastDto, "audience" | "template_id" | "params">): KeptSend => {
+  const aud = `${b.audience.kind}:${b.audience.id ?? ""}`;
+  // A run that sent no message (a reach-out's hand step's) keeps its audience alone: againOf opens New on its line.
+  const tplId = b.template_id;
+  if (tplId === null) return { aud };
+  return {
+    aud,
+    tplId,
+    sources: { [tplId]: b.params.map((p) => p.kind) },
+    params: { [tplId]: b.params.map((p) => (p.kind === "text" ? p.value : "")) },
+  };
+};

@@ -20,6 +20,7 @@ import type { GoOptions } from "@/bridge/workspace";
 import { provided } from "@/bridge/provided";
 import { CHANLY } from "./frame/constants";
 import { pageReport } from "@/client/page-report";
+import { keysOf } from "@chanlytics/contracts";
 
 /** What Ask is opened with: a question to ask, or to finish with `mode` "compose"; a conversation to open; and the scope its chip opens on. */
 interface AskAbout {
@@ -76,7 +77,7 @@ export function fillDoors(doors: Partial<FrameDoors>): void {
 
 /** The doors the registry holds, for the test that every one a page uses has a filler. */
 export function filledDoors(): Array<keyof FrameDoors> {
-  return frame ? (Object.keys(frame) as Array<keyof FrameDoors>) : [];
+  return frame ? keysOf(frame) : [];
 }
 
 /** Empty the registry (a test's world, drawn again). */

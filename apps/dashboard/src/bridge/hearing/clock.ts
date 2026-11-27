@@ -29,8 +29,10 @@ import { hearAddress, routeOnScreen } from "../workspace";
 import { knownZone } from "../zone";
 import { hearFront, pageHidden } from "./front";
 import { pageReport } from "@/client/page-report";
+import { letsGo } from "@/client/trouble";
 
 /** What the clock asks of the runner it keeps time for. */
+
 export interface ClockRun {
   readonly overrides: readonly SurfaceOverride[];
   /** When the surface's last read began, as the runner keeps it (its `readFrom`); undefined when it was never read. */
@@ -146,7 +148,7 @@ export function watchTheClock(run: ClockRun, win: Window = window): () => void {
     timer = setTimeout(tick, MIN_MS - (Date.now() % MIN_MS) + PAST_THE_MINUTE_MS);
     // A test's process, or a worker's, is not kept alive by the clock alone (a browser's timer is a number, with none).
     const handle: unknown = timer;
-    if (typeof handle === "object" && handle !== null && "unref" in handle) (handle as { unref: () => void }).unref();
+    if (letsGo(handle)) handle.unref();
   };
   const onShown = () => {
     if (visible()) look();

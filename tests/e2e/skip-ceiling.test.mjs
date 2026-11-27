@@ -100,6 +100,25 @@ test("skips behind an unset switch do not count; the others do, against the ceil
   assert.match(said, /1 × \(no reason given\)/);
 });
 
+test("a test is judged once, by whether it ever ran: a serial group's skip after a failure, run again in the retry, is no skip", async () => {
+  process.env.E2E_MAX_SKIPS = "0";
+  // Playwright skips the rest of a serial group in the try where one of its tests failed, then runs the group again,
+  // handing each retry to the same test.
+  const tail = { annotations: [] };
+  const ranOnTheRetry = [
+    [tail, { status: "skipped" }],
+    [tail, { status: "passed" }],
+  ];
+  assert.equal((await run(ranOnTheRetry)).verdict, undefined, "skipped in the first try, passed in the retry: it ran");
+  const never = { annotations: [] };
+  const { verdict, said } = await run([
+    [never, { status: "skipped" }],
+    [never, { status: "skipped" }],
+  ]);
+  assert.deepEqual(verdict, { status: "failed" }, "skipped in every try: it never ran");
+  assert.match(said, /1 × \(no reason given\)/, "and it is counted once, not once a try");
+});
+
 test("the ceiling is the run's to set, and bites only on a run that declares credentials", async () => {
   const data = Array.from({ length: 12 }, () => skipped("this workspace has nobody to open"));
   process.env.E2E_MAX_SKIPS = "12";

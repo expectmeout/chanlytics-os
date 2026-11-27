@@ -7,6 +7,11 @@ import { DAY_MS, HOUR_MS, WEEK_MS, durationWords } from "@chanlytics/contracts";
 import type { CustomProperties } from "../variants";
 
 /** One series: a label and a colour token, and how its key is drawn in a legend (a rect for bars, a line for lines). */
+
+/** A row's value as a tooltip says it: its words or its number, a dash for none. */
+const chartValueOf = (value: unknown): string | number =>
+  typeof value === "string" || typeof value === "number" ? value : "—";
+
 export interface ChartSeries {
   label: string;
   color: string;
@@ -231,7 +236,7 @@ export function ckTip<D extends ChartRow>(
       ...keys.map((k) => ({
         key: k,
         label: config[k]?.label || k,
-        value: row[k] == null ? "—" : (row[k] as string | number),
+        value: chartValueOf(row[k]),
       })),
       ...extra,
     ],

@@ -215,10 +215,18 @@ const heldHere = (leftS: number, nowMs: number): ApiRefusal => ({
   ...refusalOf({ code: "unavailable", status: 503, retryAfter: String(leftS), write: false, nowMs }),
 });
 
+/** A header of an answer, by name, or null: a stand-in answer (a test's) may carry no headers at all. */
+function answerHeaderOf(res: Response, name: string): string | null {
+  const headers: unknown = valueAt(res, "headers");
+  return hasHeaders(headers) ? headers.get(name) : null;
+}
+
+/** Whether a value answers headers by name, as an answer's own do. */
+const hasHeaders = (value: unknown): value is Pick<Headers, "get"> => typeof valueAt(value, "get") === "function";
+
 /** The wait an answer names in whole seconds (`Retry-After`), or null where it names none. */
 function waitNamed(res: Response): number | null {
-  const headers = (res as { headers?: Headers | undefined }).headers;
-  const seconds = Number.parseInt(headers?.get("retry-after") ?? "", 10);
+  const seconds = Number.parseInt(answerHeaderOf(res, "retry-after") ?? "", 10);
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
 }
 
@@ -272,8 +280,7 @@ const LEAD_SAMPLES = 20;
 /** The server's clock when it began an answer (contracts SERVED_AT_HEADER), or null where the answer does not say. */
 function servedAtOf(res: Response): number | null {
   // A stand-in answer (a test's) may carry no headers at all: it measures nothing.
-  const headers = (res as { headers?: Headers | undefined }).headers;
-  const served = Number(headers?.get(SERVED_AT_HEADER));
+  const served = Number(answerHeaderOf(res, SERVED_AT_HEADER));
   return Number.isFinite(served) && served > 0 ? served : null;
 }
 

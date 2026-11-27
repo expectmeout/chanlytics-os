@@ -114,6 +114,9 @@ const SUBJECT_OPENS = {
   // A sequence (0060) is its first step's id, which its campaign opens at until the Sequences page has its address.
   sequence: { kind: "campaign", id: ID },
   appointment: { kind: "visit", id: ID },
+  // A booking tool's email held for a look opens Settings › Business, where the calendar is set up (00722): a page, no
+  // record of its own.
+  booking_email: null,
   review: { kind: "review", id: ID },
   membership: { kind: "team" },
   invitation: { kind: "team" },
