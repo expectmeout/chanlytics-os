@@ -131,51 +131,34 @@
    where the row's acts do. Setup's own margins are its page's (a tile and a 24px gutter, settings.css), which the card
    does not have: the form stood 48px inside the words. */
 .today-setup .setup-chooser { margin-left: 26px; margin-right: 0; }
-.setup-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.setup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 /* What the first run kept for the owner while a step is open (canvas T·a), and what is done going live (T·c). */
 .today-setup-ticks { display: grid; gap: 6px; padding: 4px 0 10px; }
 .today-setup-tick-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: var(--text-sm); color: var(--ink-dim); }
 .today-setup-tick-list li { display: flex; align-items: center; gap: 6px; }
 /* Done, in the ok tone's ink (Today with colour, D6, 17 Nov 2026). */
 .today-setup-tick-list li > svg { color: var(--ok-ink); }
-.setup-card-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--text-base); font-weight: 500; color: var(--ink); }
-.setup-card-left { font-size: var(--text-sm); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-.setup-card-row {
+.setup-title { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--text-base); font-weight: 500; color: var(--ink); }
+.setup-left { font-size: var(--text-sm); font-weight: 400; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.setup-line {
   display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 12px;
   padding: 11px 0; border-top: 1px solid var(--line);
 }
-.setup-card-dot { justify-self: center; width: 7px; height: 7px; border-radius: var(--radius-circle); background: var(--ink-faint); }
-.setup-card-dot[data-tone="warn"] { background: var(--warn); }
-.setup-card-dot[data-tone="info"] { background: var(--info); }
-.setup-card-dot[data-tone="ok"] { background: var(--ok); }
-.setup-card-dot[data-tone="danger"] { background: var(--danger); }
-.setup-card-body { display: grid; gap: 1px; min-width: 0; }
-.setup-card-name { font-size: var(--text-base); font-weight: 500; color: var(--ink); }
+.setup-line-dot { justify-self: center; width: 7px; height: 7px; border-radius: var(--radius-circle); background: var(--ink-faint); }
+.setup-line-dot[data-tone="warn"] { background: var(--warn); }
+.setup-line-dot[data-tone="info"] { background: var(--info); }
+.setup-line-dot[data-tone="ok"] { background: var(--ok); }
+.setup-line-dot[data-tone="danger"] { background: var(--danger); }
+.setup-line-body { display: grid; gap: 1px; min-width: 0; }
+.setup-line-name { font-size: var(--text-base); font-weight: 500; color: var(--ink); }
 /* A row back from a week put off says so beside its name, quieter than it: a phone hides the sentence, never this. */
 .setup-back { font-weight: 400; color: var(--ink-dim); }
-.setup-card-said { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); text-wrap: pretty; }
+.setup-line-said { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); text-wrap: pretty; }
 /* The count beside the first row's words was a phone's one row's; every width says it in the head now. */
-.setup-card-aside { display: none; }
+.setup-line-aside { display: none; }
 /* A button with a phone's shorter word says the whole one here. */
-.setup-card-short { display: none; }
-.setup-card-acts { display: flex; align-items: center; gap: 10px; }
-.setup-card-btn {
-  padding: 5px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg-raised);
-  font: inherit; font-size: var(--text-sm); font-weight: 500; color: var(--ink); white-space: nowrap; cursor: pointer;
-}
-@media (hover: hover) { .setup-card-btn:hover { background: var(--bg-hover); } }
-.setup-card-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-@media (hover: hover) { .setup-card-btn.primary:hover { background: var(--accent); filter: brightness(1.06); } }
-/* The card's first act while someone waits, the page's primary being theirs: the kit's lead (btn-lead), the accent's tint. */
-.setup-card-btn.lead { background: var(--accent-soft); border-color: var(--accent-soft); font-weight: var(--weight-semibold); color: var(--accent-ink); }
-@media (hover: hover) { .setup-card-btn.lead:hover { background: var(--accent-soft); border-color: var(--accent); } }
-.setup-card-skip {
-  padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--ink-dim); white-space: nowrap;
-  text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer;
-}
-@media (hover: hover) { .setup-card-skip:hover { color: var(--ink); } }
-.setup-card-btn:focus-visible, .setup-card-skip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.setup-card-btn:disabled, .setup-card-skip:disabled { cursor: default; opacity: 0.6; }
+.setup-line-short { display: none; }
+.setup-line-acts { display: flex; align-items: center; gap: 10px; }
 
 /* One surface, not a bar over a list: the head loses its sunken fill and its rule,
    and the sentence sits under the title instead of beside it. */
@@ -184,7 +167,7 @@
    it, the Inbox a quiet door at the right -- rows with less air, and an empty queue's mark beside its words, inside
    the card's gutter. */
 :where(.dash-a-v2) .today-queue .cl-attn-row { gap: 4px; padding: 10px 18px; }
-:where(.dash-a-v2) .today-queue .empty-line { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
+:where(.dash-a-v2) .today-queue .tq-failed { flex-wrap: nowrap; align-items: baseline; gap: 8px; padding: 4px 18px 12px; }
 
 /* ---- The canvas's finish ---------------------------------------------------
    The proportions landed in #699; this is the rest of what the canvas draws

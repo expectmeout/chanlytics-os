@@ -168,7 +168,11 @@ test("REGRESSION: a real thread's header names its channel once and keeps Snooze
   // The wire, once: the number was the line's other half, and it is on their profile, one tap away in the menu. It is
   // the glyph after the name, its word said to a reader, and the line under the name says where the thread stands.
   assert.equal(find(head, byTestId("ix-th-wire")).props["aria-label"], "WhatsApp");
-  assert.equal(find(head, hasClass("ix-channel-chip")), null, "REGRESSION: a chip said WhatsApp again");
+  assert.equal(
+    find(head, (n) => hasClass("chip")(n) && /WhatsApp/.test(textOf(n))),
+    null,
+    "REGRESSION: a chip said WhatsApp again",
+  );
   // In words only where the person's rail stands beside the thread on a wide desk, where the face is not drawn (the
   // thread canvas's desk; inbox.css .with-context): the glyph's words, once, and nowhere else in the head.
   const onWire = find(head, byTestId("ix-th-on"));
@@ -324,7 +328,7 @@ test("REGRESSION: the list has no head line until a search or a pick -- it said 
   fresh();
   let tree = listOf(threads);
   assert.equal(find(tree, hasClass("ix-list-head")), null, "REGRESSION: a head saying the chip's number again");
-  const box = find(find(tree, hasClass("ix-search-row")), (n) => n.type === "input" && n.props?.type === "checkbox");
+  const box = find(find(tree, hasClass("ix-find-line")), (n) => n.type === "input" && n.props?.type === "checkbox");
   assert.equal(box.props["aria-label"], "Select all 2 conversations");
 
   // A search says what it found, by the words the rows show: what they asked, not only the last message.

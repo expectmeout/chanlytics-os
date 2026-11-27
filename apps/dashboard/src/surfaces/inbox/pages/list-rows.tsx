@@ -157,7 +157,7 @@ function rowFoot(inboxList: ListCtx, t: Thread) {
           </span>
         )}
         {t.tags.slice(0, 2).map((tag) => (
-          <span key={tag} className="ix-tag">
+          <span key={tag} className="chip">
             {tag}
           </span>
         ))}
@@ -195,7 +195,7 @@ function rowMovePill(inboxList: ListCtx, t: RealThread) {
   // so a row there always says.
   if (move === "needs_you")
     return inboxList.searching || !(inboxList.inNeedsBucket || inboxList.activeBucket === "escalated") ? (
-      <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />
+      <StatePill kind="thread" value="escalated" className="ix-row-state" testid="thread-state" />
     ) : null;
   // A teammate has it: say whose, never Needs you.
   if (move === "theirs")
@@ -204,15 +204,14 @@ function rowMovePill(inboxList: ListCtx, t: RealThread) {
         kind="thread"
         value="theirs"
         label={heldPill("theirs", holderName(t.assigneeUserId))}
-        className="ix-state-pill ix-name-pill"
+        className="ix-row-state ix-row-name"
         testid="thread-theirs"
       />
     );
   // A thread you have is yours to answer, not waiting on you (I2).
-  if (move === "yours")
-    return <StatePill kind="thread" value="yours" className="ix-state-pill" testid="thread-yours" />;
+  if (move === "yours") return <StatePill kind="thread" value="yours" className="ix-row-state" testid="thread-yours" />;
   return ROW_NO_PILL.has(move) ? null : (
-    <StatePill kind="thread" value={move} className="ix-state-pill" testid="thread-last-word" />
+    <StatePill kind="thread" value={move} className="ix-row-state" testid="thread-last-word" />
   );
 }
 
@@ -231,8 +230,8 @@ function rowLine1(inboxList: ListCtx, t: Thread) {
       <div className="ix-thread-meta" data-gives={t.real && ixMoveOf(t).move === "theirs" ? true : undefined}>
         {/* They asked to stop: said beside the name, where the owner picks who to answer, not first at a reply box that
             will not take the words (D1-stop-unseen). */}
-        {t.real && t.optedOut && <StoppedMark className="ix-state-pill" testid="thread-stopped" />}
-        {seededPill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
+        {t.real && t.optedOut && <StoppedMark className="ix-row-state" testid="thread-stopped" />}
+        {seededPill && <StatePill kind="thread" value="escalated" className="ix-row-state" testid="thread-state" />}
         {t.real && rowMovePill(inboxList, t)}
         <ReplyChip thread={t} />
         {/* One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only

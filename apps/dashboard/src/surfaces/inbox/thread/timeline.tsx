@@ -54,7 +54,7 @@ const TlMsgQuote = ({ quoted }: { quoted: string }) => {
     <>
       <button
         type="button"
-        className="tl-msg-quote-toggle"
+        className="btn btn-ghost btn-sm tl-msg-quote-more"
         aria-expanded={open}
         aria-label={open ? "Hide quoted text" : "Show quoted text"}
         data-tip={open ? "Hide quoted text" : "Show quoted text"}
@@ -135,7 +135,7 @@ const TlWhyButton = ({ why, open, onToggle }: { why: ReplyWhyVM; open: boolean; 
 const TlWhyPanel = ({ why }: { why: ReplyWhyVM }) => {
   const facts = why.facts && why.facts.length ? why.facts : null;
   return (
-    <div className="tl-msg-why-panel" data-testid="tl-msg-why-panel">
+    <div className="panel panel-inset panel-sm tl-msg-why" data-testid="tl-msg-why-panel">
       <div className="tl-msg-why-sum">{why.summary}</div>
       {why.reason && <div className="tl-msg-why-reason">{why.reason}</div>}
       {facts && <div className="tl-msg-why-facts">Used: {facts.join(" · ")}</div>}
@@ -198,7 +198,7 @@ export const TimelineEntry = ({
     return (
       <div className={`tl-agent ${isDecision ? "decision" : "thinking"}`}>
         <span className="tl-agent-glyph">
-          <span className="agent-avatar ix-tl-who">{thread.agent.glyph}</span>
+          <span className="face face-sm ix-tl-who">{thread.agent.glyph}</span>
         </span>
         <div className="tl-agent-body">
           <div className="tl-agent-head">
@@ -314,7 +314,7 @@ function byReceptionistLine(p: {
       {entry.why && <TlWhyButton why={entry.why} open={whyOpen} onToggle={toggleWhy} />}
       {/* What became of it, as the team's bubbles say: "Didn't send", "Canceled before sending", "Read". */}
       {!held && entry.statusLabel ? <span> · {entry.statusLabel}</span> : null}
-      {held && <span className="tl-held-tag">Not sent yet</span>}
+      {held && <span className="pill pill-warn tl-held">Not sent yet</span>}
     </>
   );
 }
@@ -487,7 +487,7 @@ function bubbleFoot(p: TlMsgEntryProps, why: { open: boolean; toggle: () => void
   if (held)
     return (
       <div className="tl-msg-by">
-        <span className="tl-held-tag">Not sent yet</span>
+        <span className="pill pill-warn tl-held">Not sent yet</span>
       </div>
     );
   return undelivered && entry.status === "failed" && again && entry.body ? againActs(again, entry.body) : null;

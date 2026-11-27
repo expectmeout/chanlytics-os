@@ -494,7 +494,7 @@ test("a call still going opens on its own clock, run from when it started, and i
     t.mock.timers.tick(25_000);
     assert.match(textOf(live()), /On the phone now\s*2:00/, "and it runs on the wall clock");
     assert.ok(!/Listen in/.test(textOf(live())), "no audio to listen to while it goes");
-    const go = find(live(), (n) => n.props?.className?.includes?.("ix-state-go"));
+    const go = find(live(), (n) => n.props?.variant === "soft" && typeof n.props.onClick === "function");
     assert.match(textOf(go), /Open Live/);
     go.props.onClick();
     assert.deepEqual(went, ["live"], "its press opens Live, where it can be heard and steered");

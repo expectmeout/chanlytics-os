@@ -34,30 +34,15 @@
 /* The buckets are the kit's sub-tabs (SubTabs, kit.css); the page places the strip, as each look below wants it. */
 
 /* Search row. Its select-all box sits over the rows' own boxes, and the field starts where their avatars do. */
-.ix-search-row {
+.ix-find-line {
   display: flex;
 }
-.ix-search-row .ix-checkall,
-.cv-list-head > .ix-checkall { flex: none; align-self: center; justify-content: center; width: 14px; }
+.ix-find-line .ix-checkall, .cv-list-head > .ix-checkall { flex: none; align-self: center; justify-content: center; width: 14px; }
 /* The search is the kit's (kit.css, "Search"), People's capsule; the row gives it what is left beside the boxes. */
 .ix-lookup {
   flex: 1;
   min-width: 0;
 }
-.ix-views-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  width: 30px;
-  color: var(--ink-faint);
-  cursor: pointer;
-  transition: all 120ms;
-}
-@media (hover: hover) { .ix-views-toggle:hover { color: var(--ink); border-color: var(--ink-faint); } }
-.ix-views-toggle.open { background: var(--bg-raised); color: var(--ink); }
 
 /* Saved views (collapsed by default) */
 .ix-views {
@@ -70,26 +55,6 @@
   flex-wrap: wrap;
   gap: 4px;
 }
-.ix-view-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  transition: all 120ms;
-  cursor: pointer;
-}
-@media (hover: hover) {
-  .ix-view-chip:hover {
-    color: var(--ink);
-    border-color: var(--ink-faint);
-  }
-}
-.ix-view-count { color: var(--ink-faint); font-size: var(--text-2xs); }
 
 /* List header */
 .ix-list-head {
@@ -111,7 +76,7 @@
 .ix-checkall input { accent-color: var(--ink); }
 .ix-list-count { font-weight: 500; color: var(--ink-muted); }
 .ix-list-said { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
-.ix-search-hint {
+.ix-find-hint {
   font-size: var(--text-xs);
   color: var(--ink-faint);
   font-style: italic;
@@ -120,7 +85,6 @@
 .ix-bulk { display: flex; align-items: center; justify-content: space-between; flex: 1; gap: 12px; }
 .ix-bulk-count { font-size: var(--text-xs); color: var(--ink); font-weight: 500; white-space: nowrap; }
 .ix-bulk-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
-.ix-bulk-actions .btn-sm { font-size: var(--text-xs); padding: 3px 8px; height: 24px; }
 
 /* Threads list */
 .ix-threads {
@@ -228,8 +192,7 @@
 .ix-thread-meta:not([data-gives]) {
   flex: none;
 }
-.ix-thread-meta > .ix-wait,
-.ix-thread-meta > .ix-state-pill:not(.ix-name-pill) {
+.ix-thread-meta > .ix-wait, .ix-thread-meta > .ix-row-state:not(.ix-row-name) {
   flex: none;
 }
 /* A teammate with no display name is said by their address (contracts memberWords), which on a 340px rail is
@@ -242,7 +205,7 @@
   flex-shrink: 100;
   min-width: 7.5em;
 }
-.ix-thread-meta > .ix-name-pill {
+.ix-thread-meta > .ix-row-name {
   display: inline-block;
   flex: 0 1 auto;
   min-width: 4.5em;
@@ -250,7 +213,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ix-thread-meta > .ix-name-pill::before { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.ix-thread-meta > .ix-row-name::before { display: inline-block; margin-right: 6px; vertical-align: 1px; }
 .ix-thread-time { font-size: var(--text-2xs); color: var(--ink-dim); }
 /* Until when a snoozed thread waits, the clock before its hour, on one line (list-rows.tsx rowTime). */
 .ix-thread-wakes { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -341,13 +304,6 @@
   font-weight: 500;
 }
 .ix-thread-conf { display: inline-flex; align-items: center; }
-.ix-tag {
-  font-size: var(--text-2xs);
-  letter-spacing: 0.02em;
-  color: var(--ink-dim);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-}
 .ix-thread-value {
   font-size: var(--text-2xs);
   color: var(--ink-dim);
@@ -407,8 +363,6 @@
     display: none;
   }
 }
-.ix-empty-mini { border: 0; background: transparent; align-items: center; text-align: center; padding: 56px 24px; }
-.ix-empty-mini .empty-body { max-width: 220px; }
 
 /* ====================================================================
    THREAD PANE — middle column
@@ -471,7 +425,6 @@
 .ix-th-reply-doors { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .ix-th-reply-from,
 .ix-th-reply-of { font-size: var(--text-xs); color: var(--ink-dim); }
-.ix-reply-chip { font-size: var(--text-xs); }
 /* Under a thumb the 44px floor would make the line a row of its own height: Done keeps the line's, and reaches past
    it for the thumb, without moving a word. */
 @media (pointer: coarse) {
@@ -510,22 +463,6 @@ a.ix-th-who:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 a.ix-th-who:active { opacity: 0.72; }
 
 .ix-th-channels-meta { display: flex; gap: 4px; margin-right: 12px; }
-.ix-channel-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-2xs);
-  color: var(--ink-muted);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-}
-.ix-channel-chip.primary {
-  background: var(--bg-raised);
-  color: var(--ink);
-  border-color: var(--ink-faint);
-}
 
 .ix-th-actions { display: flex; align-items: center; gap: 4px; }
 
@@ -641,28 +578,14 @@ a.ix-th-who:active { opacity: 0.72; }
 }
 
 /* Confidence linear meter */
-.conf-meter {
+.conf-line {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.conf-meter-bar {
-  width: 60px;
-  height: 4px;
-  background: var(--line);
-  border-radius: var(--radius-dot);
-  overflow: hidden;
-}
-.conf-meter-fill {
-  height: 100%;
-  background: var(--ink-muted);
-  border-radius: var(--radius-dot);
-  transition: width 200ms;
-}
-.conf-meter.conf-high .conf-meter-fill { background: var(--ok); }
-.conf-meter.conf-med  .conf-meter-fill { background: var(--ink-muted); }
-.conf-meter.conf-low  .conf-meter-fill { background: var(--accent); }
-.conf-meter-label {
+/* How sure AI is, as the kit's small meter, 60px wide. */
+.conf-bar { width: 60px; }
+.conf-pct {
   font-size: var(--text-xs);
   color: var(--ink);
   font-weight: 500;
@@ -698,17 +621,9 @@ a.ix-th-who:active { opacity: 0.72; }
   border-color: var(--accent);
   background: var(--accent-soft);
 }
-.ix-outcome-rec-tag {
+.ix-plan-says {
   position: absolute;
   top: -8px; right: 10px;
-  font-size: var(--text-2xs);
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-fg);
-  background: var(--accent);
-  padding: 2px 6px;
-  border-radius: var(--radius-full);
 }
 
 .ix-outcome-action-line {
@@ -773,31 +688,6 @@ a.ix-th-who:active { opacity: 0.72; }
   margin-bottom: 4px;
   flex-wrap: wrap;
 }
-.ix-exp-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: all 120ms;
-}
-@media (hover: hover) {
-  .ix-exp-toggle:hover {
-    background: var(--bg-sunken);
-    color: var(--ink);
-    border-color: var(--ink-faint);
-  }
-}
-.ix-exp-toggle.open {
-  background: var(--bg-sunken);
-  color: var(--ink);
-  border-color: var(--ink-faint);
-}
 .ix-exp-count {
   font-size: var(--text-2xs);
   color: var(--ink-faint);
@@ -806,16 +696,9 @@ a.ix-th-who:active { opacity: 0.72; }
   border-radius: var(--radius-md);
   margin-left: 1px;
 }
-.ix-exp-toggle.open .ix-exp-count { background: var(--bg); }
-.ix-exp-toggle .icon { color: var(--ink-faint); }
-.ix-exp-toggle.open .icon { color: var(--ink-muted); }
 
-.ix-exp-panel {
+.ix-exp-body {
   margin-top: 10px;
-  padding: 12px 14px;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
 }
 
 /* Evidence rows */
@@ -876,28 +759,8 @@ a.ix-th-who:active { opacity: 0.72; }
   border-radius: var(--radius-xs);
   align-items: center;
 }
-.ix-next-mark {
-  width: 16px; height: 16px;
-  border-radius: var(--radius-circle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-sunken);
-}
-.ix-next-mark.auto { background: var(--ok); color: var(--ok-fg); }
-.ix-next-mark.manual { background: var(--bg-raised); color: var(--ink-muted); border: 1px solid var(--line); }
 .ix-next-label { font-size: var(--text-label); color: var(--ink); }
 .ix-next-hint { font-size: var(--text-2xs); color: var(--ink-dim); margin-top: 1px; }
-.ix-next-tag {
-  font-size: var(--text-2xs);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: var(--radius-xs);
-  background: var(--bg-sunken);
-}
-.ix-next-tag.auto { background: var(--ok-soft); }
 
 /* Approval foot */
 .ix-approval-foot {
@@ -970,7 +833,7 @@ a.ix-th-who:active { opacity: 0.72; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.tl-msg-by > .agent-avatar { flex: 0 0 auto; }
+.tl-msg-by > .ix-tl-who { flex: 0 0 auto; }
 /* A body never leaves its bubble. It is a column-flex item aligned to one edge, so its width is
    fit-content — floored at its min-content. A link that will not wrap (.tl-msg-link) made that
    floor the whole address: on production Daniela's Booksy link drew a 552px body inside a 259px
@@ -1010,27 +873,9 @@ a.ix-th-who:active { opacity: 0.72; }
 .tl-msg-link:hover { text-decoration-color: currentColor; }
 /* What an email quoted back at us: kept, not shown. "Got it, thanks!" was six lines of headers. */
 /* Three dots under what they wrote, as a mail client keeps the chain: its own line, never against the last word. */
-.tl-msg-quote-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  appearance: none;
-  border: 0;
+.tl-msg-quote-more {
   margin: var(--space-2) 0 0;
-  padding: 0 var(--space-2) var(--space-1);
-  min-width: var(--space-10);
-  height: var(--space-5);
-  border-radius: var(--radius-full);
-  background: var(--bg-hover);
-  font: inherit;
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.1em;
-  line-height: 1;
-  color: var(--ink-dim);
-  cursor: pointer;
 }
-@media (hover: hover) { .tl-msg-quote-toggle:hover { color: var(--ink); background: var(--selected-fill); } }
 /* Their signature: one quiet line under a hairline, the whole of it on a press. */
 .tl-msg-sig {
   position: relative;
@@ -1067,8 +912,8 @@ html.frame-on .tl-msg-sig { min-height: 0; }
 /* A thumb's reach without a thumb's height. Every button on a touch screen is 44px tall
    (frame.css), which put 25px of air under the words in every email that quoted; the height
    comes off the box and the reach goes to an ::after that takes no room. */
-html.frame-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
-.tl-msg-quote-toggle::after { content: ""; position: absolute; inset: -12px -8px; }
+html.frame-on .tl-msg-quote-more { position: relative; min-height: 0; }
+.tl-msg-quote-more::after { content: ""; position: absolute; inset: -12px -8px; }
 .tl-msg-quote {
   margin-top: 6px;
   padding-left: 8px;
@@ -1210,7 +1055,7 @@ html.frame-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
 }
 
 /* Where it ended: a line across the thread, as a day's divider would be. */
-.tl-call-mark {
+.tl-call-line {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1219,7 +1064,7 @@ html.frame-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
   line-height: 1.4;
   color: var(--ink-dim);
 }
-.tl-call-mark::before, .tl-call-mark::after { content: ""; flex: 1 1 16px; min-width: 16px; height: 1px; background: var(--line); }
+.tl-call-line::before, .tl-call-line::after { content: ""; flex: 1 1 16px; min-width: 16px; height: 1px; background: var(--line); }
 .tl-call-ended { min-width: 0; text-align: center; }
 /* Under the end line, the call's acts in one centred row: the transcript's file and Review this call; a review the press
    brought takes the row's width under them. */
@@ -1233,7 +1078,7 @@ html.frame-on .tl-msg-quote-toggle { position: relative; min-height: 0; }
 .tl-call-turns { display: flex; flex-direction: column; gap: 10px; }
 .tl-msg.tl-spoken.playable .tl-msg-body { cursor: pointer; }
 .tl-msg.tl-spoken .tl-msg-body { transition: box-shadow var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out); }
-.tl-msg.tl-spoken.now .tl-msg-body { box-shadow: 0 0 0 2px color-mix(in oklab, var(--ink) 26%, transparent), var(--shadow-sm); }
+.tl-msg.tl-spoken.now .tl-msg-body { box-shadow: var(--spoken-ring), var(--shadow-sm); }
 .tl-call.listening .tl-msg.tl-spoken:not(.now) .tl-msg-body { opacity: 0.72; }
 .tl-msg.tl-spoken.whisper .tl-msg-body { font-style: italic; }
 .tl-spoken-whisper { color: var(--ink-dim); }
@@ -1324,8 +1169,8 @@ html.frame-on .tl-listen-play, html.frame-on .tl-listen-speed, html.frame-on .tl
 /* Opened at the call, from Conversations: a moment's light on where it began. */
 .tl-call.focus > .tl-call-gist { animation: tl-call-here 2.4s var(--ease-out) 0.2s both; }
 @keyframes tl-call-here {
-  from { box-shadow: 0 0 0 6px color-mix(in oklab, var(--ink) 10%, transparent); }
-  to { box-shadow: 0 0 0 6px transparent; }
+  from { box-shadow: var(--pulse-from); }
+  to { box-shadow: var(--pulse-to); }
 }
 
 /* A call still going, drawn alone (conversations.jsx CallPane): the line, and Live to hear it. */
@@ -1457,8 +1302,8 @@ html.frame-on .tl-listen-play, html.frame-on .tl-listen-speed, html.frame-on .tl
 .ix-list.rich .ix-thread { padding: 14px 16px; }
 
 /* Outcome selection (wired) */
-.ix-outcome.selected { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.ix-outcome.recommended.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.ix-outcome.selected { border-color: var(--ink); box-shadow: var(--chosen-edge-ink); }
+.ix-outcome.recommended.selected { border-color: var(--accent); box-shadow: var(--chosen-edge); }
 
 /* ====================================================================
    Decide-engine additions (approvals wired end-to-end)
@@ -1503,14 +1348,6 @@ html.frame-on .tl-listen-play, html.frame-on .tl-listen-speed, html.frame-on .tl
 }
 .ix-thread-resolution.declined { color: var(--ink-muted); }
 
-/* Saved-view chip active state */
-.ix-view-chip.active {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: transparent;
-}
-.ix-view-chip.active .ix-view-count { color: var(--accent); }
-
 /* Resolved banner in thread pane */
 .ix-resolved {
   display: flex;
@@ -1554,7 +1391,6 @@ html.frame-on .tl-listen-play, html.frame-on .tl-listen-speed, html.frame-on .tl
 .ix-take > .icon { color: var(--danger); flex-shrink: 0; margin-top: 2px; }
 .ix-take-body { flex: 1; min-width: 0; }
 .ix-take-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; }
-.ix-take-actions .btn { height: auto; padding-block: 4px; white-space: normal; text-align: left; }
 /* A thread you have: its words first, the hand-back beside them, or beneath them when the pane is narrow. */
 .ix-resolved.ix-owned { flex-wrap: wrap; align-items: flex-start; }
 .ix-resolved.ix-owned > .icon { margin-top: 2px; }
@@ -1697,8 +1533,8 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: var(--text-label); color: var(--warn); border-bottom: 1px solid var(--line); }
 /* Archive's question, under the thread's header, on the header's own gutter. */
-.ix-thread-pane > .confirm-block { flex-shrink: 0; margin: 10px 24px 4px; }
-.ix-list > .confirm-block { flex-shrink: 0; margin: 8px 12px 0; max-width: none; }
+.ix-thread-pane > [data-testid="ix-archive-confirm"] { flex-shrink: 0; margin: 10px 24px 4px; }
+.ix-list > .ix-list-ask { flex-shrink: 0; margin: 8px 12px 0; max-width: none; }
 
 /* The pane's own width, not the window's (I3). At 1024 the header's name column was 35px, the strip hid 399px of
    its facts behind a scroll with no scrollbar, and the template picker was 31px wide on a phone. */
@@ -1754,10 +1590,6 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 /* ---- What a state asks of you (IxState): one anatomy for every state ----
    One sentence, what they asked, and the acts under them, the first act first: the words take the width, and the
    buttons never share their row (at 1024 the words were 0px wide). The state's name is the bar's, under the header. */
-/* The act that answers the state: a soft fill, not a slab. The screen keeps one solid button, the reply box's Send. */
-.btn.ix-state-go { background: color-mix(in oklab, var(--ink) 9%, transparent); border-color: transparent; color: var(--ink); }
-@media (hover: hover) { .btn.ix-state-go:hover { background: color-mix(in oklab, var(--ink) 15%, transparent); border-color: transparent; } }
-.btn.ix-state-go .icon { color: currentColor; }
 
 /* ---- Where the conversation stands: the header's second line (status.tsx standingLine) ----
    The pill its row wears and its wait, or a quiet thread's one sentence, under the name where the wires were; the wires
@@ -1810,7 +1642,6 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-th-visit .icon { flex: none; }
 .ix-th-visit-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ix-th-visit.ahead { font-weight: 500; }
-.ix-th-status .ix-take-actions .btn-ghost { color: var(--ink-dim); }
 .ix-th-status .ix-veto { gap: 8px; font-size: var(--text-sm); }
 /* A pulsing countdown is motion: still, for a reader who asked for no motion. */
 @media (prefers-reduced-motion: reduce) { .ix-veto-dot { animation: none; } }
@@ -2102,7 +1933,7 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 }
 
 /* ---- The list: the search first, then the buckets as text tabs on a hairline, the picked one underlined in ink ---- */
-.ix-search-row {
+.ix-find-line {
   gap: 0;
   padding: 14px 18px 10px;
   border-bottom: 0;
@@ -3224,36 +3055,18 @@ button.tl-stamp:focus-visible {
   margin-top: 2px;
 }
 /* The line that has it written again: one capsule of the raised ground, the spark in the coral, its Rewrite soft. */
-.ix-held-draft > .ix-steer,
-.ix-composer-draft > .ix-steer {
+.ix-held-draft > .ix-rewrite-line, .ix-composer-draft > .ix-rewrite-line {
   gap: 8px;
-  height: 40px;
   margin-top: 2px;
-  padding: 0 6px 0 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  background: var(--bg-raised);
-  box-shadow: none;
 }
+/* The rewrite line is the kit's box holding its words (kit.css .rec-input-group): the spark and the press stand in it,
+   centred on its line. */
+.ix-rewrite-line { align-items: center; }
+.ix-rewrite-line > .ix-steer-spark { margin-left: 10px; }
+.ix-rewrite-line > button { margin-right: 4px; }
 .ix-steer-spark {
   flex: none;
   color: var(--accent);
-}
-.ix-held-draft .ix-steer-input,
-.ix-composer-draft .ix-steer-input {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
-  font-size: var(--text-base);
-}
-.ix-held-draft .ix-steer-input:focus,
-.ix-composer-draft .ix-steer-input:focus {
-  box-shadow: none;
 }
 .ix-held-draft > .ix-steer:focus-within,
 .ix-composer-draft > .ix-steer:focus-within {
@@ -3262,9 +3075,6 @@ button.tl-stamp:focus-visible {
 }
 /* Under a thumb the draft's small presses keep the canvas's heights, each pressed through a thumb's 44px round it, as a
    step's Done is: the field in its 40px capsule, its Rewrite, the three acts under the draft, and the box's own words. */
-html.frame-on :is(.ix-held-draft, .ix-composer-draft) > .ix-steer > .ix-steer-input {
-  min-height: 0;
-}
 html.frame-on :is(.ix-held-acts, .ix-steer, .ix-composer-drafted, .ix-composer-signed, .ix-closed-line, .ix-tpl-choices) > .ix-press {
   min-height: 0;
 }
@@ -3646,24 +3456,20 @@ html.frame-on .tl-email-fold-row > .tl-email-fold {
 /* The badges of a row and of a draft, as the one-badge rules say (Appendix A, item 8): words at the small step and in
    sentence case, a row's tag a name with a hairline and no fill, "next" and the confidence a word and no more. Classic's
    rules stay as they are, so each is written once more here. */
-:is(.ix-tag, .ix-next-tag, .conf-word) {
+:is(.ix-next-word, .conf-word) {
   padding: 0;
   font-size: var(--text-xs);
   letter-spacing: normal;
   text-transform: none;
   background: none;
 }
-.ix-tag {
-  padding: 0 8px;
-  border-radius: var(--chip-radius);
-}
 .conf-word {
   border: 0;
 }
-.ix-next-tag {
+.ix-next-word {
   color: var(--ink-dim);
 }
-.ix-next-tag.auto {
+.ix-next-word.auto {
   color: var(--ok-ink);
 }
 

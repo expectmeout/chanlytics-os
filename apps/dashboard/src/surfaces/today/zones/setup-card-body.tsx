@@ -64,7 +64,7 @@ function ticks(title: string, lines: readonly string[], testid: string): ReactNo
   if (!lines.length) return null;
   return (
     <div className="today-setup-ticks" data-testid={testid}>
-      <span className="setup-card-title">{title}</span>
+      <span className="setup-title">{title}</span>
       <ul className="today-setup-tick-list">
         {lines.map((l) => (
           <li key={l}>
@@ -146,7 +146,7 @@ function SkipMenu(p: {
           data-lead={p.lead || undefined}
           data-testid={p.testid}
         >
-          <span className="setup-card-long">{p.word}</span>
+          <span className="setup-line-long">{p.word}</span>
           <Icon name="chevron-down" size={12} />
         </Button>
       }
@@ -393,14 +393,14 @@ function setupHead(
 ) {
   return (
     <div
-      className="setup-card-head tz-head"
+      className="setup-head tz-head"
       role="presentation"
       onClick={parts.foldable ? foldFromHead(parts.toggle) : undefined}
       data-foldable={parts.foldable || undefined}
     >
-      <span className="setup-card-title tz-name">
+      <span className="setup-title tz-name">
         {card.title}
-        <span className="setup-card-left tz-fact" data-testid="today-setup-left">
+        <span className="setup-left tz-fact" data-testid="today-setup-left">
           {card.left}
         </span>
       </span>

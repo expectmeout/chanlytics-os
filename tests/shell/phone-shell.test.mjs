@@ -131,10 +131,12 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
     ["none", "flex", "flex"],
     "then the thread, and a list held under it is still laid out",
   );
+  // The whisper's buttons are the kit's: under a finger the shell's touch floor and the kit's give them a thumb, on the
+  // frame's root flag (bridge/frame.css, kit.css html.frame-on .btn), where a rule of Live's own gave it once.
   assert.equal(
-    styleAt(phone, DOC, ".live-monitor", ".lm-whisper", "button.btn")["min-height"],
+    styleAt(phone, 'html.frame-on[data-theme="light"]', ".live-monitor", ".lm-whisper", "button.btn")["min-height"],
     "44px",
-    "the whisper's buttons take a thumb on Live, on the class the page draws",
+    "the whisper's buttons take a thumb on Live, by the touch floor",
   );
 });
 

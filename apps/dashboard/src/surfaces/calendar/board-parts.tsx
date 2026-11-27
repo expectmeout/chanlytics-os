@@ -178,14 +178,7 @@ function whenPart(p: BarProps) {
         >
           <Icon name="chevron" size={14} className="cal-flip" />
         </Button>
-        <Button
-          variant="quiet"
-          size="sm"
-          className="cal-today-btn"
-          onClick={() => setAnchorKey(null)}
-          disabled={onToday}
-          data-testid="cal-today"
-        >
+        <Button variant="quiet" size="sm" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">
           Today
         </Button>
         <Button

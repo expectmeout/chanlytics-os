@@ -237,7 +237,7 @@ test("the draft bubble is visually distinct from a sent one", () => {
     find(tree, (n) =>
       String(n.props?.className ?? "")
         .split(" ")
-        .includes("tl-held-tag"),
+        .includes("tl-held"),
     );
   const isHeld = (tree) => find(tree, (n) => /\btl-msg\b/.test(String(n.props?.className ?? ""))).props.className;
   assert.equal(textOf(tagOf(held)), "Not sent yet", "the draft says it has not gone");

@@ -409,7 +409,7 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
   });
   const pill = byTestId(tree, "thread-state");
   assert.ok(pill, 'REGRESSION: the pill was gated on state === "needs"');
-  assert.equal(pill.props.className, "pill pill-warn ix-state-pill");
+  assert.equal(pill.props.className, "pill pill-warn ix-row-state");
   assert.equal(textOf(pill), "Needs you", 'one name for the state, not "Escalated" here and "Needs you" there');
   const wait = byClass(tree, "ix-thread-wait");
   assert.ok(wait, "REGRESSION: the wait chip was gated the same way");

@@ -39,7 +39,7 @@
      quiet words a floor stood 44px tall, and every row with them (21 Oct 2026). The queue's See all is a link in its
      head line, and the queue's row buttons keep their desktop size: each grows the same way. */
   html.frame-on .today-listen,
-  html.frame-on .setup-card-btn,
+  html.frame-on .setup-act,
   html.frame-on
     .today-setup
     :is([data-testid^="setup-later-"], [data-testid="today-setup-remind-skip"], [data-testid="today-setup-hide"]),
@@ -52,7 +52,7 @@
     position: absolute;
     inset: -6px;
   }
-  html.frame-on .setup-card-btn::after,
+  html.frame-on .setup-act::after,
   html.frame-on :is(.today-queue, .today-going) .cl-attn-act::after {
     content: "";
     position: absolute;
@@ -78,13 +78,6 @@
   border: 1px dashed var(--line-strong);
   opacity: 0.82;
 }
-.tl-held-tag {
+.tl-held {
   margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: var(--radius-xs);
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  background: var(--warn-soft);
-  color: var(--warn-ink);
 }

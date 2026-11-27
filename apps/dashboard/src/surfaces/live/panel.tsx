@@ -272,7 +272,7 @@ function panelFoot({ c, open }: SummaryProps) {
   return (
     <footer className={`lm-controls${c.stale ? "" : " is-over"}`}>
       <span className="lm-controls-who tabular">{c.number || "Caller ID withheld"} &nbsp;&amp;&nbsp; AI</span>
-      <span className="lm-ended-chip">
+      <span className="lm-ended-words">
         {c.missed ? (
           "Nothing to review."
         ) : c.stale ? (
@@ -327,7 +327,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
     // With no call the panel is the empty state's alone, so it takes the page's shape, standing in the panel's middle: the
     // card's dashed edge lay on the panel's own, 12px corners inside its 30 (the sample walk, 18 Oct 2026).
     return (
-      <div className="lm-panel lm-call">
+      <div className="lm-pane lm-call">
         {notice ? (
           <LrMissing notice={notice} />
         ) : (
@@ -345,7 +345,7 @@ export const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null, onBack 
   // A call gone quiet says when it was last heard from; the checking banner below comes minutes later.
   const quietS = c.live && c.heartbeatAtMs ? Math.floor((nowMs - c.heartbeatAtMs) / 1000) : 0;
   return (
-    <div className="lm-panel lm-call" key={c.callId} {...lmSwipeBack(onBack)}>
+    <div className="lm-pane lm-call" key={c.callId} {...lmSwipeBack(onBack)}>
       {notice && <LrMissing notice={notice} />}
       {panelHead({ c, elapsed, quietS, onBack })}
 

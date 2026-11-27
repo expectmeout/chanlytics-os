@@ -241,7 +241,7 @@
   box-shadow: var(--focus-field);
 }
 /* The AI's mark, ink at rest (docs/words.md): this line hands what is asked to AI, and works nothing in place. */
-.cnv-ask-mark {
+.cnv-ask-lead {
   display: grid;
   flex: none;
   place-items: center;

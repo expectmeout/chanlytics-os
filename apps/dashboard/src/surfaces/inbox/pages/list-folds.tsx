@@ -177,6 +177,7 @@ function OlderAll({
       onYes={() => void mark().then(() => setAsking(false))}
       onNo={() => setAsking(false)}
       testid="inbox-older-ask"
+      className="ix-list-ask"
     />
   ) : null;
   return (

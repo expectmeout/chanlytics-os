@@ -238,9 +238,9 @@ function cardFoot(c: RowCtx) {
   const adds = !row && !!g.starter && !!starterText && !readyMade;
   if (row ? !warns : readyMade) return null;
   return (
-    <div className="msg-card-foot">
+    <div className="msg-row-foot">
       {row ? null : (
-        <span className="msg-card-meta">Not on WhatsApp in {cur.lang.label} yet · the words WhatsApp would review</span>
+        <span className="msg-row-meta">Not on WhatsApp in {cur.lang.label} yet · the words WhatsApp would review</span>
       )}
       {/* The rating WhatsApp gives the template in view, as of the last sync, where it warns. */}
       {warns ? <StatePill kind="template_quality" value={quality} testid="template-quality" /> : null}
@@ -276,7 +276,7 @@ function cardActs(c: RowCtx, row: TemplateDto) {
   // What is answered stands in the pane's foot, docked as every drawer's acts are; where the pane has none, here.
   const docked = (answers: ReactNode) => (dock ? createPortal(answers, dock) : answers);
   return (
-    <div className="msg-card-acts" data-testid="template-row">
+    <div className="msg-row-acts" data-testid="template-row">
       {renaming ? (
         <span className="tpl-rename" data-testid="template-rename-form" {...editorBox}>
           <Field

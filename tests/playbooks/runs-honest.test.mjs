@@ -574,7 +574,7 @@ test("REGRESSION (C23, X2-2): an open detail keeps up while its broadcast is sen
       find(byTestId(t, "bc-person"), (n) =>
         String(n.props?.className || "")
           .split(" ")
-          .includes("bc-person-pill"),
+          .includes("bc-person-state"),
       ),
     );
   const sentFigure = (t) =>

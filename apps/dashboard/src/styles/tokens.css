@@ -367,6 +367,22 @@
   --dot-hollow: inset 0 0 0 1.5px var(--ink-dim);
   /* The step or the way chosen, edged in the accent (settings.css, Setup's paths and numbers). */
   --chosen-edge: inset 0 0 0 1px var(--accent);
+  /* The same edge in the ink: the outcome picked of a set (inbox.css .ix-outcome.selected). */
+  --chosen-edge-ink: inset 0 0 0 1px var(--ink);
+  /* A choice picked by the ink, a touch heavier (Ads' connect sheet's option). */
+  --chosen-ink: inset 0 0 0 1.5px var(--ink);
+  /* A row's left stripe: the ink for the one open (Live's row), the accent for a line open in place (Content's). */
+  --stripe-ink: inset 2px 0 0 var(--ink);
+  --stripe-accent: inset 2px 0 0 var(--accent);
+  /* A ring of the page's own ground round a dot, so it stands clear of what it sits on (Live's row's dot). */
+  --dot-gap: 0 0 0 2px var(--bg);
+  /* What warns, edged in its line (Ads' connect needs). */
+  --edge-warn: inset 0 0 0 1px var(--warn-line);
+  /* The message being said aloud: a ring of the ink round its body (inbox.css .tl-spoken.now). */
+  --spoken-ring: 0 0 0 2px color-mix(in oklab, var(--ink) 26%, transparent);
+  /* A soft ring of the ink that fades as it widens: a press answered (inbox.css's pulse). */
+  --pulse-from: 0 0 0 6px color-mix(in oklab, var(--ink) 10%, transparent);
+  --pulse-to: 0 0 0 6px transparent;
   /* A lead's row says where it stands with a 3px stripe at its start (leads.css .ld-row-*), in its state's colour; held
      by the keys, the focus stripe first and the state's past it. */
   --stripe-warn: inset 3px 0 0 var(--warn);

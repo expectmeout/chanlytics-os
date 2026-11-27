@@ -597,7 +597,7 @@ export function ReachOutRun({ d, onDecided = () => undefined, flash = null, arme
     ) : null;
   const list = <RoRunList key="list" vm={vm} runId={b.id} startOpen={!waiting} doors={doors} />;
   return (
-    <div className="bc-sheet ro-run bc-approval" data-testid="ro-run" data-state={b.state}>
+    <div className="panel panel-flush bc-run ro-run bc-approval" data-testid="ro-run" data-state={b.state}>
       {armed ? <div className="ro-scrim" aria-hidden="true" /> : null}
       <div className="ro-cols">
         <div className="ro-col">

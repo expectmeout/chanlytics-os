@@ -27,6 +27,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Menu } from "../../kit/menu/menu";
+import { Meter } from "../../kit/meter/meter";
 import { gateTitle, navigate } from "../../frame-verbs";
 import { cmSplitWords, cmStandInOf } from "../parts/channels";
 import { mpParts } from "../parts/message-preview";
@@ -81,7 +82,7 @@ export const bcPersonRow = (p: RunPersonVM) => {
         {p.name}
       </LinkButton>
       <span
-        className={`pill${p.pill.tone && p.pill.tone !== "plain" ? ` pill-${p.pill.tone}` : ""} bc-person-pill`}
+        className={`pill${p.pill.tone && p.pill.tone !== "plain" ? ` pill-${p.pill.tone}` : ""} bc-person-state`}
         data-tone={p.pill.tone}
       >
         {p.pill.label}
@@ -104,7 +105,6 @@ export const bcPersonRow = (p: RunPersonVM) => {
 // `broadcasts.approval`); the acts are the page's, and when one lands the next run waiting opens, so a queue of two is
 // two presses.
 // A part of a bar, as a width: never under a sliver for a part that exists, so one person out of three hundred still shows.
-const bcShare = (n: number, of: number) => (of > 0 ? Math.max(1.5, Math.round((n / of) * 1000) / 10) : 0);
 
 /**
  * What the pane's head says under a waiting run's name: that it waits for your approval, and where it sits among those
@@ -137,10 +137,10 @@ function bcSheetReach(avm: ApprovalVM) {
       )
     : null;
   return (
-    <div className="bc-sheet-reach" data-testid="bc-sheet-reach">
-      <div className="bc-sheet-n">
-        <span className="bc-sheet-v tabular">{avm.will}</span>
-        <span className="bc-sheet-will">
+    <div className="panel panel-inset bc-run-reach" data-testid="bc-sheet-reach">
+      <div className="bc-run-n">
+        <span className="bc-run-v tabular">{avm.will}</span>
+        <span className="bc-run-will">
           {avm.of ? (
             <>
               {"will get it, of "}
@@ -160,17 +160,19 @@ function bcSheetReach(avm: ApprovalVM) {
       )}
       {avm.of ? (
         <>
-          <div className="bc-sheet-bar is-parts" aria-hidden="true">
-            {avm.will > 0 && (
-              <span className="bc-sheet-bar-will" style={{ width: `${bcShare(avm.will, avm.of.pool)}%` }} />
-            )}
-            {avm.of.held > 0 && (
-              <span className="bc-sheet-bar-held" style={{ width: `${bcShare(avm.of.held, avm.of.pool)}%` }} />
-            )}
-            {avm.of.pool - avm.will - avm.of.held > 0 && <span className="bc-sheet-bar-rest" />}
-          </div>
+          <Meter
+            size="sm"
+            className="bc-run-bar"
+            aria-hidden="true"
+            aria-label={`${avm.will} of ${avm.of.pool}`}
+            parts={[
+              { share: avm.will, tone: "ok" },
+              { share: avm.of.held, tone: "warn" },
+              { share: Math.max(0, avm.of.pool - avm.will - avm.of.held), tone: "rest" },
+            ]}
+          />
           {avm.of.lines.length > 0 && (
-            <ul className="bc-sheet-why" data-testid="bc-sheet-why">
+            <ul className="bc-run-why" data-testid="bc-sheet-why">
               {avm.of.lines.map((l) => {
                 const door = l.door;
                 return (
@@ -178,11 +180,7 @@ function bcSheetReach(avm: ApprovalVM) {
                     <span className="cm-reach-dot" data-tone={l.tone} aria-hidden="true" />
                     <span>{l.words}</span>
                     {door && (
-                      <LinkButton
-                        className="bc-sheet-door"
-                        onClick={() => navigate(door.to)}
-                        data-testid="bc-sheet-door"
-                      >
+                      <LinkButton className="bc-run-door" onClick={() => navigate(door.to)} data-testid="bc-sheet-door">
                         {door.words}
                       </LinkButton>
                     )}
@@ -194,11 +192,9 @@ function bcSheetReach(avm: ApprovalVM) {
         </>
       ) : (
         <>
-          <div className="bc-sheet-bar" aria-hidden="true">
-            <span />
-          </div>
+          <Meter size="sm" className="bc-run-bar" aria-hidden="true" aria-label="" parts={[{ share: 1, tone: "ok" }]} />
           {avm.rules.length > 0 && (
-            <div className="bc-sheet-rules">
+            <div className="bc-run-rules">
               {avm.rules.map((r) => (
                 <div key={r}>{r}</div>
               ))}
@@ -238,7 +234,7 @@ function bcSheetSays(tpl: NonNullable<BcSheetAsk["template"]>, avm: ApprovalVM, 
 function bcSheetMarked(words: string | null | undefined, values: readonly string[]) {
   return mpParts(words, values).map((x, i) =>
     x.kind === "slot" ? (
-      <span key={i} className="bc-sheet-slot">
+      <span key={i} className="bc-run-slot">
         {x.text}
       </span>
     ) : (
@@ -252,27 +248,31 @@ function bcSheetWords(says: CmPreviewBy, avm: ApprovalVM) {
   // "by email", under the reader's name: the quiet label the composers' previews carry (contracts PREVIEW_CHANNEL_WORDS).
   const via = says.via ? `${says.via.charAt(0).toLowerCase()}${says.via.slice(1)}` : null;
   return (
-    <div className="bc-sheet-words" data-testid="bc-sheet-words" data-channel={avm.readerChannel}>
+    <div
+      className="panel panel-inset panel-sm bc-run-words"
+      data-testid="bc-sheet-words"
+      data-channel={avm.readerChannel}
+    >
       {says.mail?.subject ? (
         <p className="bc-approval-subject" data-testid="bc-sheet-subject">
           {bcSheetMarked(says.mail.subject, avm.values)}
         </p>
       ) : null}
-      <p className="bc-sheet-quote">“{bcSheetMarked(says.body, avm.values)}”</p>
+      <p className="bc-run-quote">“{bcSheetMarked(says.body, avm.values)}”</p>
       {says.footer ? <p className="bc-approval-says">{says.footer}</p> : null}
       {says.note ? (
         <p className="bc-approval-says" data-testid="bc-sheet-version-note">
           {says.note}
         </p>
       ) : null}
-      <div className="bc-sheet-reader">
+      <div className="bc-run-reader">
         {avm.reader && (
           <span data-testid="bc-sheet-reader">
             as {avm.reader} reads it{via ? ` · ${via}` : ""}
           </span>
         )}
         {avm.hiThere > 0 && (
-          <span className="bc-sheet-hi" data-testid="bc-sheet-hi">
+          <span className="bc-run-hi" data-testid="bc-sheet-hi">
             {avm.hiThere} {avm.hiThere === 1 ? "gets" : "get"} “Hi there” · no name on file
           </span>
         )}
@@ -286,9 +286,9 @@ function bcSheetActs(p: { b: BroadcastDto; avm: ApprovalVM; sheet: BcSheetAsk })
   const { b, avm, sheet } = p;
   const stop = runStopWords("pending_approval");
   return (
-    <div className="bc-sheet-acts bc-approval-acts" data-testid="bc-sheet-acts">
+    <div className="bc-run-acts bc-approval-acts" data-testid="bc-sheet-acts">
       {avm.expired && (
-        <p className="bc-sheet-expired" data-testid="bc-sheet-expired">
+        <p className="bc-run-expired" data-testid="bc-sheet-expired">
           {avm.expired}
         </p>
       )}
@@ -313,17 +313,18 @@ function bcSheetActs(p: { b: BroadcastDto; avm: ApprovalVM; sheet: BcSheetAsk })
           onYes={sheet.skip}
           onNo={() => sheet.onArm(false)}
           testid="bc-sheet-skip"
+          className="bc-run-ask"
         />
       ) : (
         sheet.canSend && (
-          <div className="bc-sheet-pair">
+          <div className="bc-run-pair">
             <Button className="bc-second" onClick={() => sheet.onArm(true)} data-testid="bc-sheet-skip">
               {LIFECYCLE_WORDS.ledger.skip}
             </Button>
           </div>
         )
       )}
-      <span className="bc-sheet-note" data-testid="bc-sheet-goes">
+      <span className="bc-run-note" data-testid="bc-sheet-goes">
         {sheet.canSend
           ? avm.approve
             ? `${avm.goesLine}. ${avm.skip}`
@@ -362,12 +363,12 @@ interface WhoGetsItProps {
 function WhoGetsIt({ id, head, open, onToggle, testid, children = null }: WhoGetsItProps) {
   return (
     <section
-      className="bc-touched bc-sheet-people bc-approval-people"
+      className="bc-touched bc-run-people bc-approval-people"
       data-open={open ? "true" : "false"}
       data-testid={testid}
     >
       <div className="bc-touched-head">
-        <span className="bc-card-title">{head}</span>
+        <span className="bc-pane-title">{head}</span>
         <Button
           variant="quiet"
           size="sm"
@@ -440,7 +441,7 @@ export function bcSheetDock({ b, avm, sheet }: BcSheetActsAsk) {
   return (
     <div className="bc-approval-foot" data-foot-pair="" data-testid="bc-sheet-acts">
       {why ? (
-        <span className="bc-sheet-expired" data-testid="bc-sheet-expired">
+        <span className="bc-run-late" data-testid="bc-sheet-expired">
           {why}
         </span>
       ) : null}
@@ -552,10 +553,10 @@ export function BcSheet({ d, people, avm, sheet, seeAll, onSeeAll, docked }: BcS
   const hint = pb && pb.triggerHint ? pb.triggerHint : b.audience.label !== runTitleOf(b) ? b.audience.label : null;
   const says = sheet.template && sheet.template.body_preview ? bcSheetSays(sheet.template, avm, sheet) : null;
   return (
-    <div className="bc-sheet bc-approval" data-testid="bc-sheet">
-      <div className="bc-sheet-body bc-approval-body">
+    <div className="panel panel-flush bc-run bc-approval" data-testid="bc-sheet">
+      <div className="bc-run-body bc-approval-body">
         {hint ? (
-          <div className="bc-sheet-sub" data-testid="bc-sheet-hint">
+          <div className="bc-run-sub" data-testid="bc-sheet-hint">
             {hint}
           </div>
         ) : null}

@@ -562,7 +562,7 @@ function channelChips(thread: Thread, channelLabels: Record<string, string>) {
   return (
     <div className="ix-th-channels-meta">
       {thread.channels.map((c) => (
-        <span key={c} className={`ix-channel-chip ${c === thread.primaryChannel ? "primary" : ""}`}>
+        <span key={c} className="chip">
           <Icon name={channelIconOf(c)} size={11} />
           {channelLabels[c]}
         </span>

@@ -481,7 +481,7 @@ test("REGRESSION: with no line connected, Today does not say AI is answering -- 
     );
     assert.ok(!said.includes("Queue clear — nothing needs you"), "nor that the queue was clear, as if all were well");
     assert.equal(buttonsSaying(setup, "Continue setting up").length, 1, "one door to the first run");
-    const dot = find(setup, (n) => n.props?.className === "setup-card-dot");
+    const dot = find(setup, (n) => n.props?.className === "setup-line-dot");
     assert.equal(dot.props["aria-label"], "Not answering yet", "and the state it stands in, as its dot's name");
     assert.ok(textOf(setup).includes("Your business"), "it names the very next step");
     assert.equal(dot.props["data-tone"], "warn");
@@ -540,8 +540,8 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded to the 
     assert.equal(steps.props.parts.filter((p) => p.tone === "open").length, rows.length, "a part for each step left");
     // The card's compact rows (canvas R10): the next one's act coral, the others outlined, each with its Skip.
     const verbs = rows.map((r) => find(r, (n) => n.props?.["data-testid"] === "setup-verb"));
-    assert.equal(verbs[0].props.className, "setup-card-btn primary");
-    assert.ok(verbs.slice(1).every((v) => v.props.className === "setup-card-btn"));
+    assert.equal(verbs[0].props.className, "btn btn-sm btn-primary setup-act");
+    assert.ok(verbs.slice(1).every((v) => v.props.className === "btn btn-sm setup-act"));
     // Each row's Skip is a menu that says both choices before either is pressed (the refined canvas, 31 Oct 2026).
     const skipOf = (r) => find(r, (n) => Array.isArray(n.props?.groups) && /^Skip /.test(n.props?.label ?? ""));
     assert.ok(rows.every(skipOf), "each row can be skipped");
@@ -559,7 +559,7 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded to the 
     assert.equal(textOf(find(card, (n) => n.props?.["data-testid"] === "today-setup-left")), `${rows.length} left`);
     // The count rides beside the first row's words too (canvas P9's phone), where no width draws it now: a phone draws
     // every row under the head's count, and hides each row's words.
-    const aside = (r) => find(r, (n) => n.props?.className === "setup-card-aside");
+    const aside = (r) => find(r, (n) => n.props?.className === "setup-line-aside");
     assert.ok(textOf(aside(rows[0])).endsWith(`${rows.length} left`));
     assert.ok(!aside(rows[1]), "and only there");
     // The chevron folds the card and opens it, as often as the owner likes: nothing is put off.
@@ -624,7 +624,7 @@ test("a press anywhere on the card's head folds it, and one on its own buttons s
   const pressHead = (inButton) =>
     find(
       again(() => SetupAsPage()),
-      (n) => String(n.props?.className ?? "").includes("setup-card-head"),
+      (n) => String(n.props?.className ?? "").includes("setup-head"),
     ).props.onClick({ target: new globalThis.Element(inButton) });
   try {
     mountSetup();
@@ -684,10 +684,10 @@ test("after the first run, with the calendar in, the card's last row is the door
     const card = mountSetup();
     const row = find(card, (n) => n.props?.["data-testid"] === "today-setup-remind");
     assert.ok(row, "the reminder's row, the last in Setup's list");
-    assert.equal(row.props.className, "setup-card-row", "drawn as Setup's rows are");
+    assert.equal(row.props.className, "setup-line", "drawn as Setup's rows are");
     // Its name whole and short, both drawn and one shown: the short one beside a phone's pill (the phone pass, 3 Nov 2026).
     const nameIn = (cls) => textOf(find(row, (n) => n.props?.className === cls));
-    assert.deepEqual([nameIn("setup-card-long"), nameIn("setup-card-short")], ["The day-before reminder", "Reminders"]);
+    assert.deepEqual([nameIn("setup-line-long"), nameIn("setup-line-short")], ["The day-before reminder", "Reminders"]);
     assert.ok(textOf(row).includes("Your calendar is in. Remind each customer the day before."));
     const rows = findAll(card, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? "")).length;
     assert.equal(
@@ -831,9 +831,13 @@ test("while someone waits on you, what is left to set up stands under the queue,
     const verbs = findAll(card, (n) => n.props?.["data-testid"] === "setup-verb");
     // Today with colour (D2, 17 Nov 2026): the coral is the queue's while someone waits, and the card's first act leads
     // its pane in the accent's tint; every other act here is quiet.
-    assert.equal(verbs[0]?.props.className, "setup-card-btn lead", "the card's first act leads, never the coral");
+    assert.equal(
+      verbs[0]?.props.className,
+      "btn btn-sm btn-lead setup-act",
+      "the card's first act leads, never the coral",
+    );
     assert.ok(
-      verbs.slice(1).every((v) => v.props.className === "setup-card-btn"),
+      verbs.slice(1).every((v) => v.props.className === "btn btn-sm setup-act"),
       "the coral is the queue's while someone waits: every other act here is quiet",
     );
   } finally {
@@ -907,7 +911,7 @@ test("one coral across setting up and AI found (the Moments board: else setting 
   setSurfaceValue("ask_morning", morningWith(idea()));
   setSurfaceValue("today", todayWith([]));
   feedSetup(answeringSetup());
-  const isCoral = (v) => /(^| )primary( |$)/.test(String(v.props.className ?? ""));
+  const isCoral = (v) => /(^| )btn-primary( |$)/.test(String(v.props.className ?? ""));
   const foundAct = () => {
     fresh();
     return find(

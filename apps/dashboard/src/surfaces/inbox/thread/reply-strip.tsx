@@ -47,7 +47,7 @@ export const ReplyChip = ({ thread }: { thread: Thread | null | undefined }) => 
   if (!R || !reading) return null;
   // The pill every other state uses, in the reading's own tone (contracts' `reply` kind): an Interested reply and a Said
   // no were the same grey chip, which carried the reading in a data attribute no style read.
-  return <StatePill kind="reply" value={R.chipStateOf(reading)} className="ix-reply-chip" testid="thread-reply-chip" />;
+  return <StatePill kind="reply" value={R.chipStateOf(reading)} testid="thread-reply-chip" />;
 };
 
 export const ReplyStrip = ({ thread }: { thread: Thread }) => {

@@ -65,7 +65,7 @@ export function AskLine({
   return (
     <div className="cnv-ask-line" data-lead={lead ? "" : undefined} data-testid="cnv-ask-line">
       {lead ?? (
-        <span className="cnv-ask-mark" aria-hidden="true">
+        <span className="cnv-ask-lead" aria-hidden="true">
           <Icon name="three" size={15} />
         </span>
       )}

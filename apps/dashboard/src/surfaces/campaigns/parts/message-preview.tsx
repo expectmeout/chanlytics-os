@@ -203,7 +203,7 @@ function mpBody(parts: readonly MpPart[], slot: MessagePreviewProps["slot"], key
 function MpHead({ from, kind }: { from: string | null | undefined; kind: string }) {
   return (
     <figcaption className="mp-head">
-      <span className="mp-avatar" aria-hidden="true">
+      <span className="mp-who" aria-hidden="true">
         {mpInitials(from)}
       </span>
       <span className="mp-who">
@@ -328,7 +328,7 @@ function BubbleFrame({
         {rows.length > 0 && (
           <div className="mp-buttons" aria-hidden="true" data-testid="mp-buttons">
             {rows.map((b, i) => (
-              <span key={i} className="mp-button">
+              <span key={i} className="mp-reply">
                 <Icon name={MP_BUTTON_ICON[b.kind] || "external"} size={11} />
                 {b.text}
               </span>
@@ -336,7 +336,7 @@ function BubbleFrame({
           </div>
         )}
         {held && (
-          <span className="mp-mark" data-testid="mp-held">
+          <span className="mp-held-note" data-testid="mp-held">
             <Icon name="x" size={11} /> {PREVIEW_WORDS.notSent}
           </span>
         )}

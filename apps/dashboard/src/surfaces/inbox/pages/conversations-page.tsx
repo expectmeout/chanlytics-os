@@ -254,7 +254,7 @@ function callHead(c: ConversationLine, onBack: (() => void) | null) {
 function callLive(secs: number | null) {
   return (
     <div className="tl-call inbound live" data-testid="cv-call-live">
-      <div className="tl-call-mark">
+      <div className="tl-call-line">
         <span className="live-dot" aria-hidden="true" />
         <span className="tl-call-words">
           <span className="tl-call-what">
@@ -264,7 +264,7 @@ function callLive(secs: number | null) {
         </span>
       </div>
       <div className="tl-call-live-acts">
-        <Button type="button" size="sm" className="ix-state-go" onClick={() => navigate("live")}>
+        <Button type="button" size="sm" variant="soft" onClick={() => navigate("live")}>
           <Icon name="phone" size={12} /> Open Live
         </Button>
       </div>

@@ -270,7 +270,7 @@ function StepSheetWhen({
           id="step-sheet-day"
           label={W.when.pick}
           type="date"
-          className="deal-sheet-day"
+          className="deal-day"
           value={draft.day || ""}
           onChange={(v) => set({ day: v || null })}
           readOnly={busy}
@@ -327,7 +327,7 @@ function StepSheetReads({
 
 /**
  * Say it, then what to do, when, and for whom, in that order; then who reads it. They stand in the deal sheet's rhythm
- * (record.css `.deal-sheet-fields`: 18px apart, room under the head), where they stood touching. Hookless.
+ * (record.css `.deal-fields`: 18px apart, room under the head), where they stood touching. Hookless.
  */
 function StepSheetFields({
   sheet,
@@ -348,7 +348,7 @@ function StepSheetFields({
   const at = (field: string) => (problem && problem.field === field ? problem.words : null);
   const what = sheet.kind === "note" ? W.noteWhat : W.what;
   return (
-    <div className="deal-sheet-fields step-sheet-fields">
+    <div className="deal-fields step-sheet-fields">
       {say}
       <RecordField
         id="step-sheet-what"
@@ -394,7 +394,7 @@ function ManyFields({
 }) {
   const W = STEP_SHEET_WORDS;
   return (
-    <div className="deal-sheet-fields step-sheet-fields">
+    <div className="deal-fields step-sheet-fields">
       <RecordField
         id="step-sheet-what"
         label={W.noteWhat.label}
@@ -522,7 +522,7 @@ function sheetBody(h: Host, set: (patch: Partial<StepDraft>) => void): ReactNode
     );
   if (!st.person && !st.ask?.many)
     return (
-      <div className="route-reading deal-sheet-reading" role="status">
+      <div className="route-reading deal-reading" role="status">
         {W.reading}
       </div>
     );
@@ -530,7 +530,7 @@ function sheetBody(h: Host, set: (patch: Partial<StepDraft>) => void): ReactNode
   if (!sheet || !st.draft) return <FailedRead kind="card" what="this person" testid="step-sheet-failed" />;
   if (sheet.blocked)
     return (
-      <p className="deal-sheet-said" data-testid="step-sheet-blocked">
+      <p className="deal-said" data-testid="step-sheet-blocked">
         {sheet.blocked}
       </p>
     );
@@ -587,7 +587,7 @@ function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode) {
     <>
       <RecordSheet
         id={STEP_SHEET_ID}
-        className="deal-sheet step-sheet"
+        className="deal-form step-sheet"
         // Back closes it; a new note or step about one person is named in the address, so a reload opens it again.
         backCloses={many || ask.noteId || ask.dealId ? true : `${ask.note ? "note" : "step"}:${ask.personId}`}
         title={many ? W.titles.note : sheet ? sheet.title : W.titles[ask.noteId ? "edit" : ask.note ? "note" : "add"]}

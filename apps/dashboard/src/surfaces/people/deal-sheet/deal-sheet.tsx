@@ -321,14 +321,14 @@ function sheetBody(
     );
   if (!st.person)
     return (
-      <div className="route-reading deal-sheet-reading" role="status">
+      <div className="route-reading deal-reading" role="status">
         {W.reading}
       </div>
     );
   if (!sheet || !st.draft) return <FailedRead kind="card" what="this person" testid="deal-sheet-failed" />;
   if (sheet.blocked)
     return (
-      <p className="deal-sheet-said" data-testid="deal-sheet-blocked">
+      <p className="deal-said" data-testid="deal-sheet-blocked">
         {sheet.blocked}
       </p>
     );
@@ -394,7 +394,7 @@ function drawSheet(h: Host, { cancel, close }: Hands, toastNode: ReactNode) {
     <>
       <RecordSheet
         id={DEAL_SHEET_ID}
-        className="deal-sheet"
+        className="deal-form"
         // Back closes it; a new proposal is named in the address, so a reload or a link opens it again (kit sheet/back.ts).
         backCloses={ask.mode === "propose" && !ask.dealId ? `deal:${ask.personId}` : true}
         title={sheet ? sheet.title : W.titles[ask.mode]}

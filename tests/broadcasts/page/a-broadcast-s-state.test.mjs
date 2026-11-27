@@ -626,16 +626,20 @@ test("a run that kept who it left out opens as the board's card: of how many, th
     all(byTestId(card, "bc-sheet-why"), (n) => n.type === "li").map((li) => textOf(li)),
     ["94 never said yes to offersGet their yes", "32 hear from you within a week of it"],
   );
-  // The bar is the whole list: green reaches, amber waits, and the grey is the rest.
-  const parts = all(card, (n) => /^bc-sheet-bar-/.test(String(n.props?.className || ""))).map((n) => [
-    n.props.className,
-    n.props.style ? n.props.style.width : null,
-  ]);
-  assert.deepEqual(parts, [
-    ["bc-sheet-bar-will", "59.6%"],
-    ["bc-sheet-bar-held", "10.3%"],
-    ["bc-sheet-bar-rest", null],
-  ]);
+  // The bar is the whole list, the kit's meter: green reaches, amber waits, and the grey is the rest.
+  const bar = find(
+    card,
+    (n) => n.props?.className === "bc-run-bar" && Array.isArray(n.props.parts) && n.props.parts.length === 3,
+  );
+  const whole = bar.props.parts.reduce((sum, part) => sum + part.share, 0);
+  assert.deepEqual(
+    bar.props.parts.map((part) => [part.tone, Math.round((part.share / whole) * 1000) / 10]),
+    [
+      ["ok", 59.6],
+      ["warn", 10.3],
+      ["rest", Math.round((100 - 59.6 - 10.3) * 10) / 10],
+    ],
+  );
   assert.equal(textOf(card).includes("each said yes to offers"), false, "the counts stand where the rules stood");
   // Of every reason, the one an owner can change opens where it is changed.
   press(byTestId(card, "bc-sheet-door"));
@@ -1104,7 +1108,7 @@ test("The preview draws the heading and the buttons, which are the message too",
   assert.ok(textOf(find(preview, (n) => n.props?.className === "mp-header")).includes("This week at Luna Studio"));
   const buttons = byTestId(preview, "mp-buttons");
   assert.ok(buttons, "the buttons are drawn");
-  assert.equal(all(buttons, (n) => n.props?.className === "mp-button").length, 2);
+  assert.equal(all(buttons, (n) => n.props?.className === "mp-reply").length, 2);
   assert.ok(textOf(buttons).includes("Book now") && textOf(buttons).includes("Not now"), textOf(buttons));
   // A screen reader hears the whole message, not the words alone.
   const said = String(find(preview, (n) => n.props?.className === "mp-bubble").props["aria-label"]);
