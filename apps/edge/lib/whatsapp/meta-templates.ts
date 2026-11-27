@@ -28,7 +28,7 @@ import {
  * A template's component as a page writes one for Meta: its type, and where it has them its format, its words and its
  * buttons. Its examples go to Meta as the page wrote them; nothing here reads them.
  */
-export interface MetaTemplateComponent {
+interface MetaTemplateComponent {
   type: string;
   format?: string;
   text?: string;
