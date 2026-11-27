@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { routeOf } from "./address";
 import { apiGet } from "./workspace";
@@ -522,11 +522,15 @@ test.describe("Leads on a real workspace", () => {
   });
 
   /**
-   * Find leads is Ask on the Leads surface (spec F1, F2): the button opens the
-   * Line, the words go as typed, and the plan comes back as Ask's card, drawn
-   * with the page's own plan card inside it (surfaces/ask/turn.tsx, LeadPlanCard).
+   * Find leads is AI on the Leads surface (spec F1, F2): the button opens the Line, the words go as typed, and the plan
+   * comes back as AI's own card (surfaces/ask/card.tsx, searchCardView): what it finds as rows, read, and one press.
+   * It is never the finder's plan card with its pickers (Ruben, 23 Oct 2026). This waited on that card's ids
+   * (`lead-plan`, `plan-sentence`, `plan-approve`) until 27 Nov 2026: the paid specs skip every night, so nothing said
+   * the card had changed, and the weekly search failed here three Sundays running with the plan on screen, before it
+   * pressed anything. The ids below are the ones the Line's own test holds
+   * (tests/ask/palette/the-quick-path-and-what-each-page-asks.test.mjs).
    */
-  async function askForBusinesses(page: Page, words: string): Promise<void> {
+  async function askForBusinesses(page: Page, words: string): Promise<Locator> {
     await page.goto("/#/clients/leads");
     await page.waitForLoadState("networkidle");
     // The button reads "Find leads F" -- it carries its own key -- so it is
@@ -536,7 +540,9 @@ test.describe("Leads on a real workspace", () => {
     const input = page.getByTestId("ask-input");
     await input.fill(words);
     await input.press("Enter");
-    await expect(page.getByTestId("ask-card").getByTestId("lead-plan")).toBeVisible({ timeout: 40_000 });
+    const card = page.locator('[data-testid="ask-card"][data-kind="lead_search"]');
+    await expect(card.getByTestId("ask-card-sheet")).toBeVisible({ timeout: 40_000 });
+    return card;
   }
 
   test("Find leads is AI: the words become a plan card on the Line, and nothing is started when it is closed", async ({
@@ -544,8 +550,9 @@ test.describe("Leads on a real workspace", () => {
   }) => {
     test.skip(!PAID, WHY_UNPAID);
     const before = await (await apiGet(page, "/api/v1/lead-searches")).json();
-    await askForBusinesses(page, "6 personal trainers in Round Rock, TX, a phone is enough");
-    await expect(page.getByTestId("plan-sentence")).toContainText("Round Rock");
+    const card = await askForBusinesses(page, "6 personal trainers in Round Rock, TX, a phone is enough");
+    // Where it looks is one of the card's rows.
+    await expect(card.getByTestId("ask-card-sheet")).toContainText("Round Rock");
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("ask-line")).toBeHidden();
     const after = await (await apiGet(page, "/api/v1/lead-searches")).json();
@@ -559,29 +566,44 @@ test.describe("Leads on a real workspace", () => {
   }) => {
     test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(10 * 60_000);
-    await askForBusinesses(page, "6 independent bike shops in Round Rock, TX, a phone is enough");
-    await page.getByTestId("plan-approve").click();
-    // Approve commits through Ask's door and lands on the new search (spec F4): the address is the search's own,
+    const card = await askForBusinesses(page, "6 independent bike shops in Round Rock, TX, a phone is enough");
+    // The card's one press, for what the month has room for: a press it holds back would start nothing.
+    const find = card.getByTestId("ask-card-approve");
+    await expect(find).toBeEnabled();
+    await find.click();
+    // The press commits through AI's door and lands on the new search (spec F4): the address is the search's own,
     // and the strip narrating the run is on screen.
-    await expect.poll(() => routeOf(page.url())).toMatch(/^clients\/leads:s-[0-9a-f-]{36}/);
+    const AT_SEARCH = /^clients\/leads:s-([0-9a-f-]{36})/;
+    await expect.poll(() => routeOf(page.url()), { timeout: 30_000 }).toMatch(AT_SEARCH);
+    const searchId = AT_SEARCH.exec(routeOf(page.url()))![1];
     const strip = page.getByTestId("lead-strip");
     await expect(strip).toBeVisible({ timeout: 60_000 });
     await expect(strip).toContainText(/Finding|Stopped|Found/, { timeout: 60_000 });
-    await expect(strip).toContainText(/^(Found|Stopped)/, { timeout: 9 * 60_000 });
+    // The round is over when the strip says so itself (strip-view.tsx, data-state), whichever ending it came to. A
+    // question is where a round waits on a person for good, so it ends the wait too and fails on its own sentence
+    // below, as an ending that found nothing to start does, rather than nine minutes later on a timeout.
+    await expect(strip).toHaveAttribute("data-state", /^(found|ended|question)$/, { timeout: 9 * 60_000 });
+    await expect(strip.getByTestId("strip-title")).toHaveText(/^(Found|Stopped at) /);
     // What it spent is read from the ledger, never from a screen.
     const searches = await (await apiGet(page, "/api/v1/lead-searches")).json();
     // What a round spent is the ROUND's (LeadSearchRoundDto), never the search's.
     const mine = (
-      searches.data.searches as Array<{ id: string; name: string; round: { cost_usd: number } | null }>
-    ).find((s) => /bike shops/i.test(s.name));
+      searches.data.searches as Array<{
+        id: string;
+        name: string;
+        round: { state: string; cost_usd: number } | null;
+      }>
+    ).find((s) => s.id === searchId);
     expect(mine, "the search the page started is in the ledger").toBeTruthy();
+    expect(mine!.round?.state, "its round ended: one put off to another day says Found too").toBe("ended");
     expect(Number(mine!.round?.cost_usd ?? 0)).toBeLessThan(0.5);
     // And the workspace goes back to its six: the seed's verify() refuses a drifted one.
-    // The kept search's menu says what it asked for, so that is its button's name.
-    await page.locator(".cl-rail-row", { hasText: mine!.name }).locator(".ld-search-more").click();
+    // The kept search's row holds its menu beside its pick (people/rail/rail-kit.tsx RailRow).
+    const row = page.locator(".cl-rail-row", { has: page.getByTestId(`leads-search-${searchId}`) });
+    await row.locator(".ld-search-more").click();
     await page.getByRole("menuitem", { name: "Remove this search" }).click();
     await page.getByTestId("leads-remove-yes").click();
-    await expect(page.locator(".cl-rail-row", { hasText: mine!.name })).toHaveCount(0);
+    await expect(page.getByTestId(`leads-search-${searchId}`)).toHaveCount(0);
   });
 });
 
