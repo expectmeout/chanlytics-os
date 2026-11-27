@@ -212,8 +212,7 @@ export async function listenToVideo(auth: Admitted, body: DoorRead<typeof FILE_L
     });
   if (fileSoundOf(row.sound).none) return json(200, { ok: true, wont: "the clip has no sound" });
   const read = await filesBucket(at.db).download(fileMadePathOf(row.tenant_id, row.id, "audio"));
-  if (read.error || !read.data)
-    return json(200, { ok: true, wont: "its sound is not kept yet; it is still being made ready" });
+  if (read.error) return json(200, { ok: true, wont: "its sound is not kept yet; it is still being made ready" });
   const audio = new Uint8Array(await read.data.arrayBuffer());
   const heard = await listenTo(
     at.db,

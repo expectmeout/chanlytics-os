@@ -40,7 +40,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode } from "../../_source.mjs";
+import { cascadeOf, element } from "../../_css.mjs";
 import { describeNow, describeOpenings, freeWindows, parseIcs, resolveSystemPrompt } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -51,7 +51,7 @@ const { composePromptPreview, findOpeningsBlock } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/receptionist/prompt-preview.ts")).href
 );
 
-const css = readCode("apps/dashboard/src/styles/settings.css");
+const SETTINGS_CSS = "apps/dashboard/src/styles/settings.css";
 
 /** A Monday at 10:00 in New York. */
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -257,45 +257,32 @@ test("the record's own rules in settings.css paint no gradient and set no second
   // The owner named these two before he read a word of the page (the plan's Task 4.0), and both live only in CSS,
   // which the suite cannot execute: a mutant that put the fold's gradient back passed 265 tests. The journey proves it
   // the better way, by computed style in a browser over the whole record (e2e/settings/settings-business.spec.ts, the 390px
-  // test), and this stands beside it for the family settings.css owns, on the stylesheet this file already reads.
-  // record.css's own rec-* rules are the journey's: reading a second stylesheet here would raise the source-scan
-  // baseline, which may only fall.
-  const SPLIT = String.fromCharCode(10);
-  const rules = css.split("}").flatMap((block) => {
-    const at = block.lastIndexOf("{");
-    if (at < 0) return [];
-    const selector = block.slice(0, at).trim().split(SPLIT).pop().trim();
-    return [{ selector, body: block.slice(at + 1) }];
-  });
-  const ours = rules.filter((r) => /\.(bt|rec|act)-/.test(r.selector));
+  // test), and this stands beside it for the family settings.css owns, asked of the parsed sheet: each rule's classes
+  // and what it gives, under any query (read as its text, split at its braces, until 26 Nov 2026).
+  const classesOf = (rule) => [...rule.selectors.join(" ").matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
+  const ours = cascadeOf([SETTINGS_CSS])
+    .every()
+    .filter((r) => classesOf(r).some((c) => /^(bt|rec|act)-/.test(c)));
   assert.ok(ours.length > 40, `the record's rules are in this stylesheet (found ${ours.length})`);
+  const giving = (re) => ours.filter((r) => re.test(JSON.stringify(r.declarations))).map((r) => classesOf(r).join(" "));
   assert.deepEqual(
-    ours.filter((r) => r.body.includes("gradient")).map((r) => r.selector),
+    giving(/gradient/),
     [],
     "a gradient on the record: the fold's ground, a closed day's stripes and the log's bones each were one",
   );
-  assert.deepEqual(
-    ours.filter((r) => /font-mono|--mono/.test(r.body)).map((r) => r.selector),
-    [],
-    "the page reads in ONE typeface",
-  );
+  assert.deepEqual(giving(/font-mono|--mono/), [], "the page reads in ONE typeface");
 });
 
 test("six thousand characters cannot break the sheet's layout", () => {
-  // The rule the prompt's text is set by, on the stylesheet this file already reads. Found and bounded BEFORE the
-  // slice: `indexOf` answers -1 for a rule that was renamed, and a slice from -1 is the empty string, so the
-  // assertions below would stop being about the prompt without saying so.
-  const from = css.indexOf(".bt-prompt-block-text {");
-  assert.ok(from > -1, "the rule this test is about is still called .bt-prompt-block-text");
-  const to = css.indexOf("}", from);
-  assert.ok(to > from, "and it closes");
-  const body = css.slice(from, to);
-  assert.ok(body.includes("white-space: pre-wrap"), "the prompt has real newlines and must keep them");
-  assert.ok(body.includes("overflow-wrap: anywhere"), "an unbroken booking URL must not widen the sheet");
+  // What the rule the prompt's text is set by gives, asked of the parsed sheet under any query.
+  const prompt = cascadeOf([SETTINGS_CSS]).given(element("pre.bt-prompt-block-text"));
+  assert.ok(Object.keys(prompt).length > 0, "the rule this test is about is still called .bt-prompt-block-text");
+  assert.equal(prompt["white-space"], "pre-wrap", "the prompt has real newlines and must keep them");
+  assert.equal(prompt["overflow-wrap"], "anywhere", "an unbroken booking URL must not widen the sheet");
   // The page reads in ONE typeface. The prompt is sentences somebody wrote about their business, not a listing, and a
   // second face here is the "font changes" an owner sees before he reads a word of it.
-  assert.ok(body.includes("font-family: inherit"), "the prompt is set in the page's own face");
-  assert.ok(!/font-mono|--mono/.test(body));
+  assert.equal(prompt["font-family"], "inherit", "the prompt is set in the page's own face");
+  assert.ok(!/mono/.test(JSON.stringify(prompt)));
   // Where the <pre> scrolled inside the page (max-height 420px, overflow-y auto), the sheet's own body scrolls now:
   // the kit's (record.css .rec-sheet-body), which the 390px journey measures (e2e/settings/settings-business.spec.ts).
 });

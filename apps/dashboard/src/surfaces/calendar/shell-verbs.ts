@@ -5,10 +5,9 @@
  * facts (contracts calendar-person-facts.ts) and the record's addresses (addressOf), and the days' swipe is the kit's own
  * (frame-verbs.ts touchSwipe).
  */
+import { flushSync } from "react-dom";
 
-/** Run a change so it is drawn at once (React's flushSync, which the shell publishes with its React), else just run it. */
+/** Run a change so it is drawn at once (React's flushSync). */
 export function flushChange(change: () => void): void {
-  const flush = window.ReactDOM?.flushSync;
-  if (flush) flush(change);
-  else change();
+  flushSync(change);
 }

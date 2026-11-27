@@ -135,7 +135,7 @@ export async function listAnthropicProfileRows(db: Db): Promise<AnthropicProfile
 export async function listAnthropicProfilesWaiting(db: Db, limit: number): Promise<ProfiledSubject[]> {
   const { data, error } = await db.rpc("anthropic_profiles_waiting", { p_limit: limit });
   if (error) throw new DbFailure(error, "anthropic_profiles_waiting");
-  return (data ?? []).map((w) =>
+  return data.map((w) =>
     w.kind === "person" ? { kind: "person", userId: w.subject } : { kind: "workspace", tenantId: w.subject },
   );
 }

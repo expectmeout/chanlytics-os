@@ -314,7 +314,7 @@ function toLeadRowDto(leadPage: LeadPageRow, searchNames: Map<string, string>): 
 async function searchNamesOf(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<Map<string, string>> {
   const { data, error } = await listSearchNames(ctx.supabase, tenantId, 200);
   if (error) throw new DbFailure(error);
-  return new Map((data ?? []).map((s) => [s.id, s.name]));
+  return new Map(data.map((s) => [s.id, s.name]));
 }
 
 export interface LeadsPageAnswer {

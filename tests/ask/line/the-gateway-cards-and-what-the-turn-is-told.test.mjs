@@ -230,7 +230,7 @@ test("the entry points are real everywhere: the button opens AI, and the Line is
   // The seeded palette went with the mockup's pages (17 Oct 2026): the AskBar is the Line (surfaces/ask/) everywhere, and
   // the door into Ask is the bridge's (surfaces/frame-doors.ts).
   assert.equal(existsSync("apps/dashboard/mockup/demo/pages/dashboard-a-ask.jsx"), false, "no seeded palette");
-  // A real workspace's AskBar is the frame's door to the Line (ask/line.tsx, published by seed-globals.ts), with no seeded
+  // A real workspace's AskBar is the frame's door to the Line (ask/line.tsx, which the frame imports), with no seeded
   // file to choose it, and the Line is its own dialog with nothing seeded in it: executed in ask/palette/ ("the Line
   // is its own dialog"). A quick answer never spends a model turn: there too ("the Line at rest").
   // The Line is a chunk of its own, fetched by the frame's ask/line.tsx: the imports are walked in ask-line-chunk.test.mjs.

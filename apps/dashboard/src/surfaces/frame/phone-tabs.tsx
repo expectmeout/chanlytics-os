@@ -7,11 +7,11 @@
  */
 import { useEffect } from "react";
 import { askDockRef } from "@/bridge/ask/dock";
-import type { TabBar } from "../kit/tab-bar/tab-bar";
-import { frameGlyph, fromGlobal } from "./frame-window";
+import { TabBar } from "../kit/tab-bar/tab-bar";
 import { PHONE_MORE, PHONE_TABS, PHONE_WARM_ROUTES } from "./places";
 import { pageToTop } from "./shell-hooks";
 import { shellAddress } from "./shell-routes";
+import { Icon } from "../kit/icon/icon";
 
 /** What the place the bar folded into says, now that it is the way back from AI. */
 const PHONE_BACK = { to: (place: string): string => `Back to ${place}`, plain: "Back" } as const;
@@ -46,8 +46,7 @@ export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace
     const a = shellAddress();
     if (a && a.keepWarm) a.keepWarm(PHONE_WARM_ROUTES);
   }, [page]);
-  const Glyph = frameGlyph();
-  const Bar = fromGlobal<typeof TabBar | null>("TabBar", null);
+  const Bar = TabBar;
   const warm = (route: string) => {
     const a = shellAddress();
     if (a && a.warm) a.warm(route);
@@ -79,7 +78,7 @@ export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace
         id: t.id,
         label: t.label,
         href: href(t.route),
-        glyph: <Glyph name={t.icon} size={18} />,
+        glyph: <Icon name={t.icon} size={18} />,
         // Only the Inbox has a count, and it counts people who need you (on the glyph the kit draws it neutral).
         count: t.id === "inbox" && inboxNeeds > 0 ? inboxNeeds : null,
         tone: t.id === "inbox" ? "warn" : undefined,
@@ -90,7 +89,7 @@ export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace
       more={{
         label: PHONE_MORE.label,
         word: PHONE_MORE.word,
-        glyph: <Glyph name={PHONE_MORE.icon} size={18} />,
+        glyph: <Icon name={PHONE_MORE.icon} size={18} />,
         onPress: onMenu,
       }}
     />

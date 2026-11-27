@@ -25,12 +25,8 @@ bridgeHolds({
     activeWorkspaceId: "t-1",
   },
 });
-Object.assign(W, {
-  CHANLY: { nav() {} },
-  usePPToast: () => [null, (t) => toasts.push(t)],
-});
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 installRoleStore(W);
-W.mayAtLeast = (rung) => W.ST_STORE.mayAtLeast(rung);
 const { ClientProfile } = await import(`${PEOPLE}/person/person-real.tsx`);
 const { recFolds } = await import("../../../apps/dashboard/src/surfaces/kit/record/registry.ts");
 const { clearReadCaches } = await import(`${BRIDGE}/read-cache.ts`);

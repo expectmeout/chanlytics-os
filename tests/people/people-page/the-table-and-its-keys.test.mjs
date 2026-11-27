@@ -8,17 +8,14 @@ import { lineBox } from "../../shared/_line.mjs";
 import { SHORTCUTS, shortcutGroups } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
 import {
-  BODY,
-  D,
-  H,
-  NOW,
-  ZONE,
   all,
   barMenuOf,
+  BODY,
   byTestId,
   click,
   columnsMenu,
   cursorRow,
+  D,
   dockSays,
   drained,
   draw,
@@ -27,15 +24,17 @@ import {
   flipColumn,
   frames,
   freshPage,
+  H,
   headings,
   heldSaves,
   iso,
   itemOf,
   listeners,
   menuItems,
+  NOW,
   onPhone,
-  openSheet,
   opened,
+  openSheet,
   peeked,
   peopleOverride,
   peopleSearch,
@@ -46,9 +45,11 @@ import {
   setCells,
   setOverlayOpen,
   settle,
+  shortcutsSheet,
   sortByHeading,
   textOf,
   wire,
+  ZONE,
 } from "./_people-page.mjs";
 import { bridgeHolds, provided, whoIsLooking, surfaceValue } from "../../shell/_bridge-holds.mjs";
 
@@ -329,13 +330,13 @@ test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the se
   bridgeHolds({ parts: { chrome: { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false } } });
   const sheet = () => {
     frames.begin();
-    return frames.render(globalThis.window.ShortcutsSheet, {});
+    return frames.render(shortcutsSheet.ShortcutsSheet, {});
   };
   try {
     assert.equal(sheet(), null, "closed until asked");
     byTestId(draw(), "select-all").props.onChange();
     draw();
-    globalThis.window.openShortcuts();
+    shortcutsSheet.openShortcuts();
     assert.ok(byTestId(sheet(), "shortcuts-sheet"), "the sheet is open");
     assert.equal(press("Escape"), true, "the sheet takes the Esc that closes it");
     assert.equal(sheet(), null, "and closes");

@@ -14,8 +14,12 @@ import { mailboxSendsNow, DAY_MS } from "@chanlytics/contracts";
 import { sendFromMailbox, sendsAsConnected, type EmailRequest } from "@chanlytics/channels/email";
 import type { SendResult } from "@chanlytics/channels/whatsapp";
 import type { EmailRoute } from "@chanlytics/core";
-import { emitEvent } from "@chanlytics/db/events";
-import { listMailboxConnectionsOf, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import {
+  listMailboxConnectionsOf,
+  moveMailboxConnection,
+  patchMailboxConnection,
+  type MailboxConnectionRow,
+} from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
 import { getToken } from "./credentials.js";
 import { tellSignedOut } from "./notices.js";
@@ -30,23 +34,14 @@ const nextMidnight = (now: number): string => new Date(Math.floor(now / DAY_MS) 
 
 /** The mailbox signed out: set to reconnect (only from a state that sends), said, and its owner told once. */
 export async function markSignedOut(db: Db, row: MailboxConnectionRow, log: Logger, now = Date.now()): Promise<void> {
-  const moved = await patchMailboxConnection(db, {
+  // To reconnect, only from a state that sends, with its event in the same transaction (00721).
+  const moved = await moveMailboxConnection(db, {
     tenantId: row.tenant_id,
     id: row.id,
-    from: ["connected", "paused", "held"],
-    patch: {
-      state: "reconnect",
-      held_why: null,
-      held_at: null,
-      last_error: "Signed out by its provider: connect it again.",
-      last_error_at: new Date(now).toISOString(),
-    },
+    move: "signed_out",
+    at: new Date(now).toISOString(),
   });
   if (!moved) return;
-  await emitEvent(db, row.tenant_id, "mailbox_connection.signed_out", "mailbox_connection", row.id, {
-    address: row.address,
-    provider: row.provider,
-  });
   await tellSignedOut(db, row, log, new Date(now));
 }
 

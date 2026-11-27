@@ -14,10 +14,10 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { toCallVM, stateOf } from "@chanlytics/contracts";
 import { toConversationVM } from "../../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { legacyAddress } from "../../shell/address/_address.mjs";
+import "../../shell/address/_address.mjs";
 import { installStubReact, fresh as freshTree, again, all, find, textOf, settle } from "../../_stub-react.mjs";
 import { lineBox } from "../../shared/_line.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -30,8 +30,9 @@ installStubReact({
   history: { replaceState() {}, back: () => went.push(["back"]) },
   setInterval: () => 1,
   clearInterval() {},
-  appNavigate: (to, opts) => went.push(["app", to, opts || null]),
 });
+// The frame's move (frame-doors.ts navigate), which every page move takes: where it went, and how.
+bridgeHolds({ doors: { navigate: (to, opts) => went.push([to, opts || null]) } });
 bridgeHolds({
   who: {
     workspaces: [{ id: "t1", slug: "marisas", name: "Marisa's Beauty Salon", status: "active", timezone: ZONE }],
@@ -40,15 +41,10 @@ bridgeHolds({
 });
 Object.assign(globalThis, {
   location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
-  CHANLY: {
-    nav: (to) => went.push(["nav", to]),
-    address: await legacyAddress(),
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-  },
 });
 globalThis.document.visibilityState = "hidden";
 // The shell's own toast and role gate, which the page draws through the bridge (surfaces/frame-verbs.ts).
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 const S = "../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
@@ -346,7 +342,7 @@ test("the rows take the Inbox's keys: Space picks a row, Enter opens it, and Spa
   draw();
   assert.deepEqual(picked(), ["Nina Park"]);
   key(rowOf("Nina"), "Enter");
-  assert.deepEqual(went.at(-1), ["app", "conversations/c2", { replace: true }]);
+  assert.deepEqual(went.at(-1), ["conversations/c2", { replace: true }]);
   assert.deepEqual(
     rows().map((r) => r.props.tabIndex),
     [0, -1, -1, -1],

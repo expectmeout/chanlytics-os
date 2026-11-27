@@ -137,8 +137,10 @@ test("the message path's event names are unchanged by the conversion", () => {
   // Blob thread carried; Postgres carries no such list, and ingest_inbound's
   // atomic is_new claim — `wa_skip_pg_dupe`, still here — is the dedupe. With
   // the store gone there is no second gate left for it to name.
-  // The message path and the webhook: the names span both files now.
-  const src = pathSrc() + fs.readFileSync(path.join(EDGE, "lib/intake/whatsapp.ts"), "utf8");
+  // The message path's names. The webhook's own two, wa_unroutable and wa_skip_unroutable, are said by the webhook run
+  // (whatsapp/door/the-door-and-what-it-routes.test.mjs, a number that is not ours): read from its text until 26 Nov
+  // 2026.
+  const src = pathSrc();
   const required = [
     "wa_replied",
     "wa_skip_pg_dupe",
@@ -149,8 +151,6 @@ test("the message path's event names are unchanged by the conversion", () => {
     "wa_state_unavailable",
     "policy_block_price",
     "brain_failed",
-    "wa_unroutable",
-    "wa_skip_unroutable",
     "wa_stale_escalated",
     "wa_late_but_answering",
   ];

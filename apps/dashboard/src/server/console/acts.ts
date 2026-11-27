@@ -89,7 +89,7 @@ export async function takeAct<T>(
     note: on.why.note,
     outcome: "running",
   });
-  if (started.error || !started.data) throw new AppError("unavailable", NOT_RECORDED);
+  if (started.error) throw new AppError("unavailable", NOT_RECORDED);
   const id = started.data.id;
   const finish = (verdict: ActVerdict) =>
     finishAct(office.db, id, verdict.outcome, verdict.note, new Date().toISOString()).then(
@@ -129,7 +129,7 @@ export async function listConsoleActs(
     limit: input.csv ? LOG_CSV : ACT_LOG_PAGE,
   });
   if (error) throw new AppError("unavailable", "Couldn't load the log just now. Try again in a moment.");
-  return (data ?? []).map((row) => ({
+  return data.map((row) => ({
     id: row.id,
     at: row.at,
     actor_id: row.actor_id,

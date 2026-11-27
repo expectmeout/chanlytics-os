@@ -22,6 +22,7 @@ import {
   type LeadPileAct,
   type LeadRowVM,
   type ReachOutAddDto,
+  valueAt,
 } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
 import { pileAsk, reachOuts } from "../../campaigns/reach-out/surface";
@@ -42,8 +43,9 @@ const UNDO_DEPTH = 3;
 
 /** A door's answer, as the pile reads it: the operation it made, if any. */
 const opOf = (data: unknown): PileDone["op"] => {
-  const d = data && typeof data === "object" ? (data as { op_id?: unknown; version?: unknown }) : {};
-  return typeof d.op_id === "string" && typeof d.version === "number" ? { id: d.op_id, version: d.version } : null;
+  const id = valueAt(data, "op_id");
+  const version = valueAt(data, "version");
+  return typeof id === "string" && typeof version === "number" ? { id, version } : null;
 };
 
 /** The leads an add left out, by id: the rest of those asked for joined. */

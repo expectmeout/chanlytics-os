@@ -18,7 +18,7 @@ import { LIST_MESSAGES_EACH, stateOf, toInboxThreadVM } from "@chanlytics/contra
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
 import { installStubReact, fresh, again as drawAgain } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -211,12 +211,9 @@ Object.assign(globalThis, {
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  canDo: () => true,
-  gate: () => ({}),
 });
 globalThis.document.visibilityState = "hidden";
-(await import(at("apps/dashboard/src/surfaces/frame/frame-globals.ts"))).installFrameGlobals();
+holdFrameParts();
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const { inboxOverride } = await quiet(() => import(at("apps/dashboard/src/surfaces/inbox/surface.ts")));

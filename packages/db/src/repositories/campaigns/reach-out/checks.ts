@@ -38,7 +38,7 @@ export async function recordLeadWritten(
     .select("id");
   if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
   // Worked by a person at the same moment: read again and write once more (it only merges), then say it was not.
-  if ((moved ?? []).length === 0) return params.retried ? false : recordLeadWritten(db, { ...params, retried: true });
+  if (moved.length === 0) return params.retried ? false : recordLeadWritten(db, { ...params, retried: true });
   const sentence = { by: "reach_out" as const, send_id: params.sendId };
   const { error: e3 } = await recordEvent(db, params.tenantId, "lead.emailed", "lead", params.leadId, sentence);
   if (e3) throw new Error(`cannot record the lead's email: ${e3}`);
@@ -63,7 +63,7 @@ export async function recordCheck(
     .eq("check_gen", params.gen)
     .select("id");
   if (error) throw new DbFailure(error, "cannot record the send's check");
-  return (data ?? []).length === 1;
+  return data.length === 1;
 }
 
 /**
@@ -87,7 +87,7 @@ export async function mayWorkspaceSpend(db: Db, tenantId: TenantId, kind: SpendK
 export async function findWorkspaceAbout(db: Db, tenantId: TenantId): Promise<string | null> {
   const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new DbFailure(error, "cannot read the business record");
-  return data?.about?.trim() || null;
+  return data?.about.trim() || null;
 }
 
 /**

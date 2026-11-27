@@ -45,14 +45,14 @@ export function rgbToLab(r: number, g: number, b: number): Lab {
  * CSS `lab(L a b)`, CIE Lab under D50, to OKLab: through XYZ, adapted to D65 (Bradford) and linear sRGB, per CSS Color 4.
  * The app's build writes every `oklch()` token as `lab()`, so this is the form the page's tokens are read back in.
  */
-export function cieLabToOklab(L: number, a: number, b: number): Lab {
+export function cieLabToOklab(lightness: number, a: number, b: number): Lab {
   const e = 216 / 24389;
   const k = 24389 / 27;
-  const fy = (L + 16) / 116;
+  const fy = (lightness + 16) / 116;
   const fx = fy + a / 500;
   const fz = fy - b / 200;
   const xr = fx ** 3 > e ? fx ** 3 : (116 * fx - 16) / k;
-  const yr = L > k * e ? fy ** 3 : L / k;
+  const yr = lightness > k * e ? fy ** 3 : lightness / k;
   const zr = fz ** 3 > e ? fz ** 3 : (116 * fz - 16) / k;
   const X = xr * 0.9642956764295677;
   const Y = yr;
@@ -67,10 +67,10 @@ export function cieLabToOklab(L: number, a: number, b: number): Lab {
   );
 }
 
-function linearToOklab(R: number, G: number, B: number): Lab {
-  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
-  const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
-  const s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+function linearToOklab(red: number, green: number, blue: number): Lab {
+  const l = Math.cbrt(0.4122214708 * red + 0.5363325363 * green + 0.0514459929 * blue);
+  const m = Math.cbrt(0.2119034982 * red + 0.6806995451 * green + 0.1073969566 * blue);
+  const s = Math.cbrt(0.0883024619 * red + 0.2817188376 * green + 0.6299787005 * blue);
   return [
     0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
     1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
@@ -79,10 +79,10 @@ function linearToOklab(R: number, G: number, B: number): Lab {
 }
 
 /** OKLab to sRGB, each 0 to 1 (a WebGL colour). */
-export function labRgb([L, A, B]: Lab): [number, number, number] {
-  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
-  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
-  const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+export function labRgb([lightness, greenRed, blueYellow]: Lab): [number, number, number] {
+  const l = (lightness + 0.3963377774 * greenRed + 0.2158037573 * blueYellow) ** 3;
+  const m = (lightness - 0.1055613458 * greenRed - 0.0638541728 * blueYellow) ** 3;
+  const s = (lightness - 0.0894841775 * greenRed - 1.291485548 * blueYellow) ** 3;
   return [
     clamp01(gam(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s)),
     clamp01(gam(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s)),
@@ -138,7 +138,11 @@ export const mixLab = (p: Lab, q: Lab, t: number): Lab => [
   p[2] + (q[2] - p[2]) * t,
 ];
 /** more of the same colour: chroma up by k, lightness moved by dl */
-const hotter = ([L, a, b]: Lab, dl: number, k: number): Lab => [Math.min(0.97, Math.max(0.05, L + dl)), a * k, b * k];
+const hotter = ([lightness, a, b]: Lab, dl: number, k: number): Lab => [
+  Math.min(0.97, Math.max(0.05, lightness + dl)),
+  a * k,
+  b * k,
+];
 
 /** The app's tokens (tokens.css), for when the page gives none. */
 const TOKENS: Record<ThemeName, Required<ThemeTokens>> = {
@@ -173,11 +177,14 @@ const SHADOW: Record<ThemeName | "accent", { colour: string; alpha: number }> = 
   accent: { colour: "oklch(0.32 0.1 25)", alpha: 0.38 },
 };
 
+/** A colour of the house's own (a theme's token, a shadow): each parses, and black stands in for one that could not. */
+const ownLab = (colour: string | null): Lab => parseColor(colour) ?? [0, 0, 0];
+
 /** Three colours at rest (the ink) and three at work (the accent), back tile to top, with the strongest and the shadow. */
 export function palette(theme: ThemeName, tokens: ThemeTokens = {}, tone: Tone = "page"): Palette {
   const base = TOKENS[theme];
-  const accent = parseColor(tokens.accent) ?? (parseColor(base.accent) as Lab);
-  const onAccent = parseColor(tokens.accentFg) ?? (parseColor(base.accentFg) as Lab);
+  const accent = parseColor(tokens.accent) ?? ownLab(base.accent);
+  const onAccent = parseColor(tokens.accentFg) ?? ownLab(base.accentFg);
   if (tone === "accent") {
     const sh = SHADOW.accent;
     const at = (t: readonly number[]) => t.map((f) => mixLab(onAccent, accent, f)) as [Lab, Lab, Lab];
@@ -186,12 +193,12 @@ export function palette(theme: ThemeName, tokens: ThemeTokens = {}, tone: Tone =
       live: at(ON_ACCENT.live),
       strongRest: onAccent,
       strongLive: onAccent,
-      shadow: parseColor(sh.colour) as Lab,
+      shadow: ownLab(sh.colour),
       shadowAlpha: sh.alpha,
     };
   }
-  const bg = parseColor(tokens.bg) ?? (parseColor(base.bg) as Lab);
-  const ink = parseColor(tokens.ink) ?? (parseColor(base.ink) as Lab);
+  const bg = parseColor(tokens.bg) ?? ownLab(base.bg);
+  const ink = parseColor(tokens.ink) ?? ownLab(base.ink);
   const f = FADES[theme];
   const sh = SHADOW[theme];
   return {
@@ -199,7 +206,7 @@ export function palette(theme: ThemeName, tokens: ThemeTokens = {}, tone: Tone =
     live: [mixLab(accent, bg, f.live[0]), mixLab(accent, bg, f.live[1]), mixLab(accent, bg, f.live[2])],
     strongRest: ink,
     strongLive: hotter(accent, theme === "dark" ? 0.05 : 0.015, 1.12),
-    shadow: parseColor(sh.colour) as Lab,
+    shadow: ownLab(sh.colour),
     shadowAlpha: sh.alpha,
   };
 }

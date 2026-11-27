@@ -22,7 +22,6 @@ import {
   runTitleOf,
   todayZoneDay,
   type BroadcastVM,
-  type CalendarLike,
   type GoingTodayRowVM,
   type TodayDayBarVM,
   type TodayZoneDayVM,
@@ -30,7 +29,7 @@ import {
 } from "@chanlytics/contracts";
 import { TODAY_LINE_WORDS as L } from "../model/lines";
 import { api } from "@/bridge/api";
-import { pageClock, type PageClock } from "@/bridge/zone";
+import { pageClock } from "@/bridge/zone";
 import { surfaceValue } from "../../surface-values";
 import { Button, Meter } from "../../kit";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -39,7 +38,7 @@ import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
-import { TODAY_HELPERS } from "../helpers";
+import { TODAY_HELPERS, calendarLikeOf } from "../helpers";
 import { canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
 import { todayAskOf, useTodayAsks } from "../calm/asks";
@@ -79,7 +78,7 @@ type WentOut = { run: StartedRun; at: string; atMs: number };
 /** The runs that went out today: how many, and the first two, each with the time it went on the business's clock. */
 function runsDoneToday(): { rows: WentOut[]; count: number } {
   const all = broadcastsRead()?.rows ?? [];
-  const clock = workspaceClock() as PageClock | null;
+  const clock = workspaceClock();
   if (!clock) return { rows: [], count: 0 };
   const went = all.filter(
     (r): r is StartedRun =>
@@ -474,7 +473,7 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
   const noCalendar = cal?.vm?.feed.state === "none";
   const zone = noCalendar
     ? null
-    : todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, vm?.back ?? [], Date.now());
+    : todayZoneDay(cal?.vm ? calendarLikeOf(cal.vm) : null, day, vm?.back ?? [], Date.now());
   const runs = runsOfTheDay(zone);
   // AI is handed the day's question where the day has a visit to say (D10).
   useTodayAsks("day", [zone && zone.cells.length ? todayAskOf(zone.tomorrow ? L.asks.tomorrow : L.asks.day) : null]);

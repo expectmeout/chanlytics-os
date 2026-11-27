@@ -62,9 +62,9 @@ export const notifications: Reader<undefined, NotificationsDto> = {
     // so it fetched every mark this person has ever left, in every workspace
     // they belong to -- a row per notification per user, kept for ever, to
     // build a map consulted at most LIMIT times. One more round trip bounds it.
-    const ids = (rows.data ?? []).map((r) => r.id);
+    const ids = rows.data.map((r) => r.id);
     const seenAt = seen.data?.seen_at ?? null;
-    const oldest = (rows.data ?? []).at(-1)?.created_at ?? null;
+    const oldest = rows.data.at(-1)?.created_at ?? null;
     // The older rows, only where the list is full and one of them may be unread: none can be when the seen moment is at or
     // after the oldest row listed, and none older than the seen moment counts, so the read starts there.
     const olderRead =
@@ -84,8 +84,8 @@ export const notifications: Reader<undefined, NotificationsDto> = {
       olderRead,
     ]);
     if (marks.error) throw new DbFailure(marks.error);
-    const byId = new Map((marks.data ?? []).map((m) => [m.notification_id, m]));
-    const notifications: NotificationDto[] = (rows.data ?? []).map((row) => {
+    const byId = new Map(marks.data.map((m) => [m.notification_id, m]));
+    const notifications: NotificationDto[] = rows.data.map((row) => {
       const found = byId.get(row.id);
       return {
         id: row.id,
@@ -104,7 +104,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
     const listedUnread = unreadFor(
       notifications,
       seenAt,
-      (marks.data ?? []).map((m) => ({
+      marks.data.map((m) => ({
         notification_id: m.notification_id,
         read_at: m.read_at,
         dismissed_at: m.dismissed_at,

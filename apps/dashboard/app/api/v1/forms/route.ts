@@ -1,7 +1,7 @@
 import { FormPress } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { formsList } from "@/server/readers/forms";
+import { formsList } from "@/server/readers/forms/forms";
 import { applyFormPress } from "@/server/forms/press";
 
 /** AI drafting a form reads the business first and writes a whole form: the platform's ceiling, as the other drafts'. */

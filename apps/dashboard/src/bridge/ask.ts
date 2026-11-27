@@ -56,6 +56,7 @@ import { askColumn } from "./ask/column";
 import { holdAsk } from "@/surfaces/frame-verbs";
 import { navigate } from "@/surfaces/frame-doors";
 import { listenForAlertPresses } from "./ask/web-push";
+import { publicEnv } from "@/lib/public-env";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
@@ -255,9 +256,10 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
   holdAsk(ask);
   // A press on a browser's alert opens where the bell does (D12 of the answers canvas).
   if (typeof win.addEventListener === "function") listenForAlertPresses(win, (route) => navigate(route));
-  // On the window only for what stands outside the bundle and has no import: the nightly's specs, which ask it what the
-  // page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts). Nothing of the app reads it here.
-  (win as Window & { __ask?: AskApi }).__ask = ask;
+  // On the window only for what stands outside the bundle and has no import, and only in the nightly e2e's own build
+  // (NEXT_PUBLIC_E2E): its specs ask it what the page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts), and skip
+  // where it is not. Nothing of the app reads it, and no customer's page has it.
+  if (publicEnv.NEXT_PUBLIC_E2E === "1") (win as Window & { __ask?: AskApi }).__ask = ask;
   return ask;
 }
 

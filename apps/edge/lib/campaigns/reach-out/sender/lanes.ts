@@ -457,7 +457,7 @@ export async function sendFromMailbox(
       playbook_id: reachOutSend.step_id,
       root_id: reachOutSend.sequence_id,
       broadcast_id: reachOutSend.batch_id,
-      attempt: reachOutSend.attempts ?? 0,
+      attempt: reachOutSend.attempts,
     },
   };
   const wrote = await insertQueuedEmail(db, {

@@ -3,17 +3,20 @@
  * ChanlyticsApp and the state its effects set, called in the order the frame always called them, so the effects run in
  * the order they always ran.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { firstRowsStand } from "@chanlytics/contracts";
-import type { watchKeyboard } from "../kit/motion/keyboard";
+import { watchKeyboard } from "../kit/motion/keyboard";
 import { isDocumentScroller, scrollerOf } from "../kit/motion/page-scroll";
 import { provided } from "@/bridge/provided";
 import { whoIsLooking } from "@/bridge/who";
 import { surfaceValue } from "../surface-values";
-import { frameChrome, frameShell, fromWindow } from "./frame-window";
+import { frameChrome, frameShell } from "./frame-window";
 import { parseRoute, routeFailed, routeReady, shellAddress, type RouteAt, type ShellRoute } from "./shell-routes";
 import { stripPlace, stripSlide } from "./surface-tabs";
+import { useNeedsYou } from "../needs-you";
+import { surfaceHook } from "@/bridge/surface-status";
+import { routeSurfaces } from "@/bridge/surface-registry";
 
 type SetRoute = Dispatch<SetStateAction<ShellRoute>>;
 type SetTick = Dispatch<SetStateAction<number>>;
@@ -50,10 +53,16 @@ export function useDeskSidebar(sidebar: string, onSidebar: (v: string) => void) 
 
 /**
  * What needs you, for the sidebar's and the phone bar's count and the tab's title: the one number every surface says
- * (surfaces/needs-you.ts, `window.useNeedsYou`, drawn again when it changes). Nothing before the Inbox has been read, and
+ * (surfaces/needs-you.ts, drawn again when it changes). Nothing before the Inbox has been read, and
  * nothing in the standalone mockup's stub, which has no threads to count.
  */
-export const useInboxNeeds = () => (window.useNeedsYou ? window.useNeedsYou() : 0) || 0;
+export const useInboxNeeds = () => useNeedsYou() || 0;
+
+/**
+ * Drawn again when a surface moves: a key, a list, or a route's, as the registry names them (bridge/surface-status.ts
+ * surfaceHook over surface-registry.ts routeSurfaces). The frame's parts redraw on it; the pages hear their own.
+ */
+export const useFrameSurfaces = surfaceHook({ useCallback, useSyncExternalStore }, routeSurfaces);
 
 /**
  * The route gate and the honesty gate, for the route on screen. Only the escape hatches are state: readiness itself is
@@ -202,7 +211,7 @@ export function useShellRouting({
   useEffect(() => (follows ? shellAddress().hear(() => setRoute(parseRoute())) : undefined), [follows, setRoute]);
   // What a phone's keyboard covers, as --kb, for Ask's screen and every sheet (kit/motion/keyboard.ts watchKeyboard).
   useEffect(() => {
-    const watch = fromWindow<typeof watchKeyboard | null>("watchKeyboard", null);
+    const watch = watchKeyboard;
     return watch ? watch() : undefined;
   }, []);
   // A person's page opens before People's rows land (it reads its own person), and its crumb and the tab's name come from
@@ -426,7 +435,7 @@ export function useViewFade(
   placed: RefObject<number | null>,
 ) {
   const { page, param } = route;
-  const place = fromWindow("stripPlace", stripPlace)(page, param);
+  const place = stripPlace(page, param);
   const viewRef = useRef<ViewState>({
     key: null,
     page: null,
@@ -446,7 +455,7 @@ export function useViewFade(
   const viewKey = routeLoading && !onStrip && !inPlace ? `${mountKey}/reading` : mountKey;
   if (viewRef.current.key !== viewKey) {
     const prev = viewRef.current;
-    const slide = prev.key !== null && !prev.reading ? fromWindow("stripSlide", stripSlide)(prev.place, place) : null;
+    const slide = prev.key !== null && !prev.reading ? stripSlide(prev.place, place) : null;
     // The tab bar's move, taken by the first view to arrive after it, if it arrived while the move is still the last ask.
     const cut = placed.current !== null && performance.now() - placed.current < PLACE_CUT_MS;
     placed.current = null;

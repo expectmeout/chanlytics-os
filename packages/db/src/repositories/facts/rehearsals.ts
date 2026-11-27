@@ -209,7 +209,7 @@ export async function getRehearsalSpokenMs(
   if (error) throw new DbFailure(error, "cannot read the rehearsals' minutes");
   let spentMs = 0;
   let running = false;
-  for (const r of data ?? []) {
+  for (const r of data) {
     if (r.ended_at || r.seconds !== null) spentMs += Math.max(0, r.seconds ?? 0) * 1000;
     else if (options.now.getTime() - Date.parse(r.created_at) < options.runningMs) {
       const listened = r.end_reason === REHEARSAL_LISTEN.ended;
@@ -298,7 +298,7 @@ export async function keepRehearsalCall(
     .eq("retell_call_id", startingCallId(row.tenantId))
     .select("id");
   if (error) throw new DbFailure(error, "cannot keep the rehearsal");
-  if (!data?.length) throw new Error("cannot keep the rehearsal: its reservation is gone");
+  if (!data.length) throw new Error("cannot keep the rehearsal: its reservation is gone");
 }
 
 /**
@@ -319,7 +319,7 @@ export async function writeRehearsalTranscript(
     .is("ended_at", null)
     .select("id");
   if (error) throw new DbFailure(error, "cannot write the rehearsal's words");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** A spoken rehearsal ended: its whole transcript, its seconds (what the free minutes count), and why it ended. */
@@ -347,7 +347,7 @@ export async function endRehearsal(
     .eq("retell_call_id", retellCallId)
     .select("id");
   if (error) throw new DbFailure(error, "cannot end the rehearsal");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** A typed rehearsal, kept when it is reviewed: its turns, the version it ran on and the instructions composed for it. */
@@ -475,7 +475,7 @@ export async function keepVoiceAgent(
 export async function listVoiceAgentsBeforeANumber(db: Db): Promise<string[]> {
   const { data, error } = await platformWide(db).from("voice_agents").select("agent_id");
   if (error) throw new DbFailure(error, "cannot read the voice agents");
-  return (data ?? []).map((r) => r.agent_id);
+  return data.map((r) => r.agent_id);
 }
 
 /**
@@ -489,7 +489,7 @@ export async function listActiveVoiceAgents(db: Db): Promise<Array<{ tenantId: T
     .eq("kind", "voice")
     .eq("status", "active");
   if (error) throw new DbFailure(error, "cannot read the voice lines");
-  return (data ?? []).flatMap((r) => (r.external_id ? [{ tenantId: r.tenant_id, agentId: r.external_id }] : []));
+  return data.flatMap((r) => (r.external_id ? [{ tenantId: r.tenant_id, agentId: r.external_id }] : []));
 }
 
 /** A workspace's settings as they stood at one version (tenant_config_versions, 00402); null when that version is not kept. */

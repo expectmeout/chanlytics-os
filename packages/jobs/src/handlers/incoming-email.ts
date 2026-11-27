@@ -53,16 +53,12 @@ export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<vo
         if (!data) return null;
         // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
         // a row without a sendable one reaches the wire with none and fails there by name.
-        const meta = data.meta as {
-          email?: { request?: unknown; own_request?: unknown };
-          reach_out?: { lead_id?: unknown };
-          to?: unknown;
-        } | null;
-        const request = meta?.email?.request;
+        const request = valueAt(data.meta, "email", "request");
         // A person's reply to a reach-out, frozen again on the chain's own domain (G15): the door may send it instead.
-        const own = meta?.email?.own_request;
+        const own = valueAt(data.meta, "email", "own_request");
         // A reach-out's email names the lead it was written for, so the door asks that lead's facts and no other's.
-        const leadId = meta?.reach_out?.lead_id;
+        const leadId = valueAt(data.meta, "reach_out", "lead_id");
+        const to = valueAt(data.meta, "to");
         return {
           status: data.status,
           body: data.body,
@@ -72,7 +68,7 @@ export async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<vo
           ownEmail: isEmailRequest(own) ? own : undefined,
           leadId: typeof leadId === "string" && leadId ? leadId : null,
           // Where it goes, frozen on the row when it was queued (00527 queue_send): the ledger keeps no copy.
-          to: typeof meta?.to === "string" && meta.to ? meta.to : null,
+          to: typeof to === "string" && to ? to : null,
         };
       },
       purposeOf: (template) => getTemplatePurpose(ctx.db, job.tenant_id, template),

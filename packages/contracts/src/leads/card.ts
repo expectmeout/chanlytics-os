@@ -193,7 +193,7 @@ function cardValuesOf(text: string): LeadCardPart[] {
   const parts: LeadCardPart[] = [];
   let from = 0;
   for (const m of text.matchAll(VALUE_RE)) {
-    const at = m.index ?? 0;
+    const at = m.index;
     if (at > from) parts.push(...gapsOf(text.slice(from, at)));
     parts.push({ kind: "value", text: m[1] ?? "" });
     from = at + m[0].length;

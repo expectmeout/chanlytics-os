@@ -13,6 +13,7 @@ import type { TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
 import { platformWide } from "../../shared/tenant-db";
+import { asFailedReply } from "../../shared/answers";
 
 /** What mailbox_connection_connect answers: the mailbox's row, and whether this call made it. */
 const ConnectAnswer = z.object({ id: z.string(), made: z.boolean(), state: z.string() }).partial();
@@ -29,7 +30,7 @@ export async function listMailboxConnectionsOf(db: Db, tenantId: TenantId): Prom
     .neq("state", "removed")
     .order("connected_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the workspace's mailboxes");
-  return data ?? [];
+  return data;
 }
 
 /** One of a workspace's mailboxes, removed or not; null when it is not this workspace's. */
@@ -99,7 +100,7 @@ export async function listMailboxesToTend(
   if (done.length) query = query.not("id", "in", `(${done.join(",")})`);
   const { data, error } = await query;
   if (error) throw new DbFailure(error, "cannot read the mailboxes to tend");
-  return data ?? [];
+  return data;
 }
 
 /** Why a connection was not made, by the door's own word (00423's P0001 hints). */
@@ -133,7 +134,7 @@ export async function connectMailbox(
     p_customer_domain: params.customerDomain,
   });
   if (error) {
-    const hint = error.hint ?? "";
+    const hint = asFailedReply(error).hint ?? "";
     if (hint === "taken" || hint === "too_many" || hint === "too_many_on_domain") return { ok: false, refused: hint };
     throw new DbFailure(error, "cannot connect the mailbox");
   }
@@ -154,7 +155,43 @@ export async function patchMailboxConnection(
   if (params.from?.length) q = q.in("state", [...params.from]);
   const { data, error } = await q.select("*");
   if (error) throw new DbFailure(error, "cannot change the mailbox");
-  return data?.[0] ?? null;
+  return data[0] ?? null;
+}
+
+/** A mailbox's moves that are news, each with its event (00721 mailbox_connection_move). */
+export type MailboxMove = "stood" | "paused" | "unpaused" | "resumed" | "held" | "signed_out" | "removed";
+
+/**
+ * One move of a mailbox and its event, in one transaction (00721): the connect that stood (with what it read of its
+ * domain and a new one's history), a pause and its end, a hold and its resume, a sign-out, a removal. Each takes only
+ * the states it may leave: the row as it now is, or null when the mailbox was elsewhere and nothing moved.
+ */
+export async function moveMailboxConnection(
+  db: Db,
+  params: {
+    tenantId: TenantId;
+    id: string;
+    move: MailboxMove;
+    /** The member who moved it; none for the clock and the provider. */
+    by?: string | null;
+    /** A hold's reason (contracts mailboxHoldOf). */
+    why?: SchemaSet<"mailbox_connections.held_why">;
+    /** What the event carries beside the row's words: a hold's counts; a connect's dns, history and whether again. */
+    detail?: Record<string, Json>;
+    at: string;
+  },
+): Promise<MailboxConnectionRow | null> {
+  const { data, error } = await db.rpc("mailbox_connection_move", {
+    p_tenant_id: params.tenantId,
+    p_id: params.id,
+    p_move: params.move,
+    ...(params.by ? { p_by: params.by } : {}),
+    ...(params.why ? { p_why: params.why } : {}),
+    ...(params.detail ? { p_detail: params.detail } : {}),
+    p_at: params.at,
+  });
+  if (error) throw new DbFailure(error, "cannot move the mailbox");
+  return data === true ? findMailboxConnection(db, params.tenantId, params.id) : null;
 }
 
 /* ------------------------------------------------------------------------------------------------ the token */

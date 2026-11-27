@@ -137,7 +137,7 @@ async function sweepHealth(): Promise<Section> {
     if (!db) return { sweeps: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
     const { data, error } = await readSweepHealth(db);
     if (error) return { sweeps: { error: error.message.slice(0, 200) } };
-    const rows = data ?? [];
+    const rows = data;
     const sweeps = { ok: rows.every((r) => r.healthy), detail: rows };
     // Due work nobody has claimed: the honest measure of whether the heartbeat drains.
     const { data: backlog, error: backlogErr } = await readJobsBacklog(db);
@@ -161,7 +161,7 @@ async function pagerMemory(): Promise<Section> {
     if (!db) return { pages: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
     const { data, error } = await listOperatorPages(db);
     if (error) return { pages: { error: error.message.slice(0, 200) } };
-    const rows = data ?? [];
+    const rows = data;
     return { pages: { ok: untoldPages(rows).length === 0, untold: untoldPages(rows), conditions: pageStates(rows) } };
   } catch (e) {
     return { pages: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };
@@ -183,7 +183,7 @@ async function numberDrift(): Promise<Section> {
     if (!db) return { numbers: { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" } };
     const { data, error } = await readNumberDrift(db);
     if (error) return { numbers: { error: error.message.slice(0, 200) } };
-    const rows = data ?? [];
+    const rows = data;
     return { numbers: { ok: rows.length === 0, drift: rows } };
   } catch (e) {
     return { numbers: { error: String(e instanceof Error ? e.message : e).slice(0, 200) } };

@@ -16,8 +16,8 @@ import type { PageClock } from "@/bridge/zone";
 import { provided } from "@/bridge/provided";
 import { surfaceHook } from "@/bridge/surface-status";
 import type { SurfaceNames } from "@/bridge/surface-status";
-import { askAbout, askCalls, canDo, mayAtLeast } from "../frame-verbs";
-import { fn, type Flash } from "../shell-doors";
+import { askAbout, askCalls, canDo, mayAtLeast, navigate, refusalToast } from "../frame-verbs";
+import type { Flash } from "../shell-doors";
 
 export { askAbout, canDo, mayAtLeast };
 
@@ -27,20 +27,19 @@ export type { Flash } from "../shell-doors";
 
 /* -------------------------------- the toast -------------------------------- */
 
-/** The toast a refused verb raises, in the shell's words (`window.refusalToast`): its lead, then the server's reason. */
+/** The toast a refused verb raises, in the shell's words (frame/refusal.tsx `refusalToast`): its lead, then the server's reason. */
 export function refusalFlash(res: unknown, lead: string): Flash {
-  const say = fn<[unknown, string], Flash>("refusalToast");
-  return say ? say(res, lead) : { msg: lead };
+  return refusalToast(typeof res === "object" ? res : null, lead);
 }
 
 /* ------------------------------- the address ------------------------------- */
 
-/** Move to a route; nothing without the frame (`appNavigate`). */
+/** Move to a route (frame-doors.ts `navigate`). */
 /** The glyph on a door's words: the canvases' chevron (kit Icon's names). */
 export const doorGlyph = (): "chevron" => "chevron";
 
 export function appNavigate(route: string): void {
-  fn<[string], void>("appNavigate")?.(route);
+  navigate(route);
 }
 
 /* -------------------------------- the voice -------------------------------- */
@@ -67,16 +66,19 @@ interface AskSpeech {
 /** Ask's voice where the shell has wired it and the device can play it; nothing in a stand-in window. */
 export function askSpeech(): AskSpeech | undefined {
   const a: Partial<AskSpeech> | undefined = askCalls();
-  if (
-    !a ||
-    typeof a.canSpeak !== "function" ||
-    typeof a.speak !== "function" ||
-    typeof a.state !== "function" ||
-    typeof a.watchSpeech !== "function" ||
-    typeof a.stopSpeaking !== "function"
-  )
-    return undefined;
-  return a.canSpeak() ? (a as AskSpeech) : undefined;
+  return isAskSpeech(a) && a.canSpeak() ? a : undefined;
+}
+
+/** Whether the shell's calls hold every one of the voice's own (warmSpeech may be absent). */
+function isAskSpeech(a: Partial<AskSpeech> | undefined): a is AskSpeech {
+  return (
+    !!a &&
+    typeof a.canSpeak === "function" &&
+    typeof a.speak === "function" &&
+    typeof a.state === "function" &&
+    typeof a.watchSpeech === "function" &&
+    typeof a.stopSpeaking === "function"
+  );
 }
 
 /* ------------------------------- Ask's cards ------------------------------- */
@@ -95,7 +97,12 @@ interface AskCardDoor {
 /** Ask's card door where the shell has wired it (Ask's ideas in Need you, decisions 0070 and 0071); nothing in a stand-in window. */
 export function askCards(): AskCardDoor | undefined {
   const a: Partial<AskCardDoor> | undefined = askCalls();
-  return a && typeof a.commit === "function" && typeof a.outcome === "function" ? (a as AskCardDoor) : undefined;
+  return isAskCardDoor(a) ? a : undefined;
+}
+
+/** Whether the shell's calls hold both of the card door's. */
+function isAskCardDoor(a: Partial<AskCardDoor> | undefined): a is AskCardDoor {
+  return !!a && typeof a.commit === "function" && typeof a.outcome === "function";
 }
 
 /* ------------------------------ the surfaces ------------------------------ */

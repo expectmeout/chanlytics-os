@@ -1,7 +1,14 @@
 /** Answer: shape. */
 
 import type { AskMessageDto } from "../thread-words";
-import { FOLLOWUP_ECHO, navigateLabel, sameQuestion, storedChart, type AskChart } from "../answer-text";
+import {
+  FOLLOWUP_ECHO,
+  navigateLabel,
+  sameQuestion,
+  storedChart,
+  type AskChart,
+  type AskChartBefore,
+} from "../answer-text";
 import type { AskLanguage } from "../language";
 import type { FastCall } from "../fast-paths";
 import { citationRoute, type AskCitation, type AskCitationKind } from "../citations";
@@ -107,14 +114,28 @@ export const ASK_ANSWER_CAPS = {
 /** No list: what every answer carries until one is asked for, and what an answer stored before the list part reads as. */
 export const noList = (): AskList => ({ style: "bullets", entries: [] });
 
+/**
+ * An answer as a turn kept it: one kept before the list part has none, and a chart kept before it had series is one
+ * value to a point (answer-text.ts storedChart).
+ */
+type AskAnswerAsStored = Omit<AskAnswer, "show"> & {
+  show: Omit<AskAnswer["show"], "list" | "chart"> & { list?: AskList; chart?: AskChart | AskChartBefore };
+};
+
+/** An answer that may have been kept before the list part, read where it is drawn or said: its chart as it is now. */
+export type AskAnswerMaybeListless = Omit<AskAnswer, "show"> & {
+  show: Omit<AskAnswer["show"], "list"> & { list?: AskList };
+};
+
+/** Whether a kept answer is whole already: its list there, and its chart, if it has one, in series. */
+const isWhole = (askAnswer: AskAnswerAsStored): askAnswer is AskAnswer =>
+  !!askAnswer.show.list && (!askAnswer.show.chart || !!askAnswer.show.chart.series);
+
 /** An answer as it was stored, whole: one stored before the list part has none, and reads as having no list. */
-export function storedAnswer(askAnswer: AskAnswer): AskAnswer {
-  const c = askAnswer.show.chart;
-  if (askAnswer.show.list && (!c || c.series)) return askAnswer;
-  return {
-    ...askAnswer,
-    show: { ...askAnswer.show, ...(c ? { chart: storedChart(c) } : {}), list: askAnswer.show.list ?? noList() },
-  };
+export function storedAnswer(askAnswer: AskAnswerAsStored): AskAnswer {
+  if (isWhole(askAnswer)) return askAnswer;
+  const { chart, list, ...show } = askAnswer.show;
+  return { ...askAnswer, show: { ...show, ...(chart ? { chart: storedChart(chart) } : {}), list: list ?? noList() } };
 }
 
 /** `t`, at most n characters: a longer one ends on a whole word, with an ellipsis. */
@@ -184,7 +205,7 @@ function nextQuestions(next: string[], places: string[]): string[] {
  * its Open goes (contracts cardOpenRoute), from its caller: the cards' specs come with the Line, Ask's answers with every page.
  */
 export function oneDoor(
-  askAnswer: AskAnswer,
+  askAnswer: AskAnswerMaybeListless,
   cards: ReadonlyArray<{ id: string; open: string | null }> = [],
 ): { answer: AskAnswer; cardOpen: Record<string, boolean> } {
   const offered = new Set<string>();
@@ -270,9 +291,9 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
 export function answerFromV1(
   askMessage: Pick<AskMessageDto, "text" | "citations" | "navigate" | "followups" | "language">,
 ): AskAnswer {
-  const language = askMessage.language ?? "en";
+  const language = askMessage.language;
   const words = KIND_WORDS[language === "es" ? "es" : "en"];
-  const cites = askMessage.citations ?? [];
+  const cites = askMessage.citations;
   const items: AskItem[] = cites
     .filter((c) => c.kind !== "page")
     .slice(0, ASK_ANSWER_CAPS.items)
@@ -292,9 +313,9 @@ export function answerFromV1(
   return {
     v: 2,
     form: "prose",
-    say: { headline: "", detail: (askMessage.text ?? "").trim() },
+    say: { headline: "", detail: askMessage.text.trim() },
     show: { figures: [], items, breakdown: null, list: noList() },
-    do: { open, next: askMessage.followups ?? [] },
+    do: { open, next: askMessage.followups },
     language,
   };
 }

@@ -219,8 +219,7 @@ export function PaneWorkspace({
     };
   }, []);
   const settings = settingsNow() || null;
-  const config = settings?.config as { brain?: unknown } | null | undefined;
-  const S = (config && config.brain) || null;
+  const S = settings?.config?.brain || null;
   const real = !!S;
   /**
    * "No configuration" is NOT "show the demo".

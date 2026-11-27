@@ -252,8 +252,10 @@ const mapSide = (
       {a.bar}
       <div className="ld-map-rows">
         {near.map((p, i) => {
-          const l = byId.get(p.id) as LeadRowVM;
+          const l = byId.get(p.id);
+          if (!l) return null;
           return (
+            // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- a pointer's press anywhere on the row; a keyboard opens it by the row's own button
             <div
               key={p.id}
               className={`ld-map-row${a.picked === p.id ? " on" : ""}`}
@@ -297,7 +299,8 @@ const mapPlot = (
       />
     ) : null}
     {plot.pins.map((p) => {
-      const l = byId.get(p.id) as LeadRowVM;
+      const l = byId.get(p.id);
+      if (!l) return null;
       return (
         <button
           key={p.id}

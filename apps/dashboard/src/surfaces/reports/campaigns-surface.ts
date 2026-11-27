@@ -41,6 +41,7 @@ import {
   type CampaignLedgerDto,
   type CampaignReportDto,
   type ReachOutReportDto,
+  errorOfThrown,
 } from "@chanlytics/contracts";
 import { periodSurface } from "./period-surface";
 import { rangeQuery, shownReportRange } from "./surface";
@@ -90,9 +91,9 @@ export const reportsCampaigns = periodSurface({
     const query = rangeQuery(range);
     // Each read is its own: a failure in one is that one's null, never the surface's (the audit's D9, as the frame's offers read was).
     const [campaigns, ledger, reachOuts] = await Promise.all([
-      read("GET reports/campaigns", { query }).catch((e: unknown) => e as Error),
-      read("GET reports/campaigns/ledger", { query }).catch((e: unknown) => e as Error),
-      read("GET reports/reach-outs", { query }).catch((e: unknown) => e as Error),
+      read("GET reports/campaigns", { query }).catch(errorOfThrown),
+      read("GET reports/campaigns/ledger", { query }).catch(errorOfThrown),
+      read("GET reports/reach-outs", { query }).catch(errorOfThrown),
     ]);
     if (campaigns instanceof Error) pageReport.error("reports_campaigns_fetch_failed", campaigns.message);
     if (ledger instanceof Error) pageReport.error("reports_campaigns_ledger_fetch_failed", ledger.message);

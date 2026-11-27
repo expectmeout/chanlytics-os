@@ -91,8 +91,9 @@ export interface Decision {
  * session and broadcast `inbox:decisions` (something changed, draw again): the badge is a selector over the threads and
  * these decisions, not a number sent.
  */
+const decisions: Record<string, Decision> = {};
 export const IX_STORE = {
-  decisions: {} as Record<string, Decision>,
+  decisions,
   _broadcast() {
     window.dispatchEvent(new CustomEvent("inbox:decisions"));
   },
@@ -164,9 +165,9 @@ export const VW_UTIL = {
 /**
  * Presence, Take transfers (moved from legacy/components/data-bits.jsx, the one-system plan's step 2): phone agents check
  * it before warm-transferring. Away forces the holding line; the top bar's switch for it went with demo mode (16 Nov 2026).
- * Published as `PR_STORE` for the Inbox's shell, which reads it there.
+ * Held here, once (`presence`), for the Inbox's shell.
  */
-export interface PresenceStore {
+interface PresenceStore {
   away: boolean;
   transfers: boolean;
   reachable(): boolean;
@@ -176,7 +177,7 @@ export interface PresenceStore {
 }
 
 /** A presence store as the JSX made it: Available, transfers allowed. */
-export function makePresenceStore(): PresenceStore {
+function makePresenceStore(): PresenceStore {
   return {
     away: false,
     transfers: true,
@@ -206,3 +207,6 @@ export function makePresenceStore(): PresenceStore {
  * for the pane, whose toast has already said what happened.
  */
 export const OWN_VERBS = { n: 0 };
+
+/** The member's presence, one for the tab. */
+export const presence: PresenceStore = makePresenceStore();

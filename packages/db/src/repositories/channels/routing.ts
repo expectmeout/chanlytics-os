@@ -166,7 +166,7 @@ export async function listActiveChannelRows(
     .eq("status", "active")
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, `cannot read the workspace's ${CHANNEL_ROWS_WORDS[kind]}`);
-  return data ?? [];
+  return data;
 }
 
 /**

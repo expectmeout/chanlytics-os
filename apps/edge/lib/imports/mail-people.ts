@@ -55,7 +55,7 @@ const providerOf = (row: MailboxConnectionRow): "google" | "microsoft" =>
 
 /** The lists this grant may read, in order: the provider's, less what the owner left unticked. */
 const listsOf = (row: MailboxConnectionRow): ContactList[] =>
-  LISTS[providerOf(row)].filter((l) => grantHolds(providerOf(row), row.scopes ?? [], l));
+  LISTS[providerOf(row)].filter((l) => grantHolds(providerOf(row), row.scopes, l));
 
 async function contactsPageOf(row: MailboxConnectionRow, token: string, page: string | null) {
   if (row.provider === "microsoft") return listGraphContacts(token, page);

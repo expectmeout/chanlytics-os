@@ -1,6 +1,6 @@
 /**
- * A real session's boot seeds no thread (the wiring's second audit, X6-1, X6-3), run on the app's own seeds
- * (bridge/seed-globals.ts), the Inbox's store and the bell over them, as a signed-in tab loads them.
+ * A real session's boot seeds no thread (the wiring's second audit, X6-1, X6-3), run on the Inbox's store and the bell
+ * over it, as a signed-in tab loads them (the boot's seeds on the window went with decision 0151).
  *
  * The seeds published the demo's eleven threads under INBOX_DATA in every session, and the Inbox's store answered the demo's
  * rows until its first read landed: on a real workspace the bell, the top bar's search and Ask's palette read those people as
@@ -15,8 +15,7 @@ import { surfaceValue } from "../_bridge-holds.mjs";
 
 installStubReact();
 const win = globalThis.window;
-// A signed-in tab, as the app's own page boots it.
-await importSrc("apps/dashboard/src/bridge/seed-globals.ts");
+// A signed-in tab: the boot publishes nothing on the window (decision 0151), and the stores hold what their reads land.
 const { inboxData, conversationsData, REAL_CHANNEL_LABELS } = await importSrc(
   "apps/dashboard/src/surfaces/inbox/store.ts",
 );

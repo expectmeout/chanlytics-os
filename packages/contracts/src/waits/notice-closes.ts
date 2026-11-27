@@ -32,7 +32,7 @@ import {
   type ServerNotificationKind,
 } from "../today/notifications/feed-input";
 import { runWaitsOnYou, type RunDays, type WaitingRun } from "./waits";
-import { isOneOf, keysOf } from "../shared/unknown";
+import { isOneOf, keysOf, entryOf } from "../shared/unknown";
 
 /**
  * What one surface holds of the subjects a waiting row is about, and when it read them. A surface read BEFORE a notice was kept
@@ -372,8 +372,7 @@ const JUDGES: Record<WaitSource, (row: Row, about: { type: string; id: string },
   };
 
 /** How a row's kind ends, where it is one the edge keeps: none for a row the browser derives. */
-const noticeEndOf = (kind: string): NoticeEnd | null =>
-  Object.hasOwn(NOTICE_ENDS, kind) ? NOTICE_ENDS[kind as ServerNotificationKind] : null;
+const noticeEndOf = (kind: string): NoticeEnd | null => entryOf(NOTICE_ENDS, kind) ?? null;
 
 /**
  * Whether the thing a kept row announced still waits: true, false once it is settled, null where the row announces no wait or

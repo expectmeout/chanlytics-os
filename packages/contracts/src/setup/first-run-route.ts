@@ -7,7 +7,8 @@
  * first-run.ts carried its steps, words, phone and Try into every first load, about 29 KB compressed (the loadability
  * review, 19 Oct 2026). first-run-door.ts held them until the setup folder needed its place (25 Oct 2026).
  */
-import { ROLE_PERMS, type Role } from "../config/workspace-config/role-perms";
+import { ROLE_PERMS } from "../config/workspace-config/role-perms";
+import { entryOf } from "../shared/unknown";
 
 /**
  * The first run's steps, in their order, by the word an address names each by: first-run.ts FIRST_RUN_STEPS is made
@@ -73,6 +74,6 @@ export function shouldLandOnFirstRun(
   landed: boolean,
 ): boolean {
   // Whoever may set the workspace up: its owner, and the partner who brought it (0012).
-  if (landed || answering || !ROLE_PERMS[role as Role]?.settings) return false;
+  if (landed || answering || !entryOf(ROLE_PERMS, role)?.settings) return false;
   return route === "" || route === "today";
 }

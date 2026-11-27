@@ -7,8 +7,7 @@
  * bookings and price questions are each one question on Settings (business/choices: the class with the switch or the
  * rule it goes with), and money, which nothing can change, is said once, on Limits (the Settings wiring review, 18 Oct
  * 2026). The dials write the reply row's limits through one route. The limits card shows the runtime's actual numbers:
- * two the charter's, the rest this workspace's own. Settings' page (settings.jsx) still
- * draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves; the mockup's
+ * two the charter's, the rest this workspace's own. Settings' page imports it; the mockup's
  * seeded twin (its own matrix, defaults and guardrails, kept in the browser) left with it.
  */
 import { useState, type ReactNode, type ComponentProps } from "react";
@@ -22,6 +21,7 @@ import {
   tokensPerReply,
   type AskStopped,
   type BudgetDial,
+  valueAt,
 } from "@chanlytics/contracts";
 import type { PolicyDials } from "@/bridge/inbox-verbs";
 import { modeLabel, uiRows, type UiRow } from "@/bridge/policy-store";
@@ -36,7 +36,7 @@ import { SetDial, SetRow, dialAct } from "./controls";
 import { contentGroupOf } from "./content-rows";
 import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
-import { stopLineOf, stopSaid, stoppedAdsLineOf, type StoppedAd } from "./stop-words";
+import { askStoppedOf, stopLineOf, stopSaid, stoppedAdsLineOf, type StoppedAd } from "./stop-words";
 import { autonomyVerbs } from "./verbs";
 
 /** A step of a dial: its word, and the value it stores. */
@@ -434,7 +434,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
   const matrix = rows
     .filter((r) => !AUT_ASKED_ELSEWHERE.has(r.cls) && !AUT_MOVED_WITH.has(r.cls) && !AUT_CONTENT.has(r.cls))
     .map((r) => (r.cls === "campaign" ? { ...r, ...AUT_MANY_ROW } : r));
-  const ask = (read.settings?.config as { ask?: { alone?: boolean; stopped?: AskStopped } } | null | undefined)?.ask;
+  const ask = valueAt(read.settings?.config, "ask");
 
   return (
     <>
@@ -450,7 +450,11 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
         </section>
       ) : null}
 
-      <AskOnItsOwn alone={ask?.alone === true} stopped={ask?.stopped ?? null} flash={flash} />
+      <AskOnItsOwn
+        alone={valueAt(ask, "alone") === true}
+        stopped={askStoppedOf(valueAt(ask, "stopped"))}
+        flash={flash}
+      />
 
       <AutMatrix
         phone={phone}

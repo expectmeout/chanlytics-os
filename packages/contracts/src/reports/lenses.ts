@@ -300,8 +300,7 @@ export interface LensWho {
 }
 
 /** Whether a lens's rule lets this workspace see it. */
-const shownTo = (l: LensRow, lensWho: LensWho): boolean =>
-  l.shownWhen === "always" || (l.shownWhen === "ads_on" && lensWho.adsOn);
+const shownTo = (l: LensRow, lensWho: LensWho): boolean => l.shownWhen === "always" || lensWho.adsOn;
 
 /** The lenses shown to this person in this workspace, in the strip's order. */
 export function lensesFor(lensWho: LensWho): LensRow[] {

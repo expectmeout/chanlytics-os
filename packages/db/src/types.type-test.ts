@@ -42,7 +42,10 @@ void _readsTheSet;
 type Contacts = Database["public"]["Tables"]["contacts"]["Row"];
 type Messages = Database["public"]["Tables"]["messages"]["Row"];
 type DueDrafts = Database["public"]["Functions"]["reply_drafts_due"]["Returns"][number];
+type Recalled = Database["public"]["Functions"]["search_ask"]["Returns"][number];
 type _Ids = [
+  // A function's own id is its text, not a column nothing could hold.
+  Holds<Exactly<Recalled["id"], string>>,
   Holds<Exactly<Contacts["id"], ContactId>>,
   Holds<Exactly<Contacts["tenant_id"], TenantId>>,
   Holds<Exactly<Messages["contact_id"], ContactId | null>>,

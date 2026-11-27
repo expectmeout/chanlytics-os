@@ -202,7 +202,7 @@ async function proposeModes(
     toolContext.tenantId,
     otherSelected.ids.map(heldContactId),
   );
-  const words = PERSON_MODE_WORDS[input.mode] ?? input.mode;
+  const words = PERSON_MODE_WORDS[input.mode];
   const acts = notAlready(
     otherSelected.ids,
     (id) => (modes.get(id) ?? "inherit") === input.mode,

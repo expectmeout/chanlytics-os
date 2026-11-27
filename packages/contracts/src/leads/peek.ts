@@ -535,10 +535,12 @@ export function toLeadPeekVM(lead: LeadRowDto, search: LeadSearchDto | null, tz:
       },
       locked: { title: "Texts and WhatsApp", line: LEAD_LOCKED_LINE },
     },
-    groups: [
-      { how: "seen", checks: seen },
-      { how: "read", checks: read },
-    ].filter((g) => g.checks.length > 0) as LeadPeekVM["groups"],
+    groups: (
+      [
+        { how: "seen", checks: seen },
+        { how: "read", checks: read },
+      ] satisfies LeadPeekVM["groups"]
+    ).filter((g) => g.checks.length > 0),
     others,
     // Where it was found and when, in one short line: "#19 on Google Maps · Sep 20". The three steps behind it are a
     // few words each, and the minute each happened lives in its own hover: they happen within a minute or two of each

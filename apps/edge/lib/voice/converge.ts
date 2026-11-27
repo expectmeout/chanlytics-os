@@ -58,6 +58,7 @@ import {
   newDraftNote,
   voiceNumberBinding,
   isRetellAgentId,
+  wordsTableOf,
 } from "@chanlytics/channels/voice";
 import { resolveChannel } from "@chanlytics/db/channels";
 import { listVoiceAgentsBeforeANumber } from "@chanlytics/db/facts";
@@ -67,7 +68,7 @@ import { edgeFnUrl } from "../shared/dashboard-origin.js";
 import { signatureOnly } from "../shared/door-auth.js";
 import { logger, refuseFailure } from "../shared/log.js";
 import type { Admitted } from "../shared/admin-auth.js";
-import { E164 } from "@chanlytics/contracts";
+import { E164, listOrEmpty, valueAt } from "@chanlytics/contracts";
 import { listActiveVoiceAgentRows } from "@chanlytics/db/lines";
 
 interface Body {
@@ -150,12 +151,14 @@ async function shellPlanOf(
   before: Record<string, unknown>,
   out: Record<string, unknown>,
 ): Promise<{ llmId: string; plan: VoiceConvergencePlan } | null> {
-  const engine = (before.response_engine ?? {}) as { type?: string; llm_id?: string; version?: number | null };
-  if (engine.type !== "retell-llm" || typeof engine.llm_id !== "string") {
+  const engineType = valueAt(before, "response_engine", "type");
+  const llmId = valueAt(before, "response_engine", "llm_id");
+  const version = valueAt(before, "response_engine", "version");
+  if (engineType !== "retell-llm" || typeof llmId !== "string") {
     out.shell = { error: "not_a_retell_llm" };
     return null;
   }
-  const llm = await getRetellLlm(cfg, engine.llm_id, engine.version ?? null);
+  const llm = await getRetellLlm(cfg, llmId, typeof version === "number" ? version : null);
   if (!llm) {
     out.shell = { error: "llm_unreadable" };
     return null;
@@ -165,17 +168,17 @@ async function shellPlanOf(
   const secret = signatureOnly() ? null : env.RETELL_FN_SECRET;
   const headers = signatureOnly()
     ? null
-    : ((booking?.headers as Record<string, string> | undefined) ?? (secret ? { "x-fn-secret": secret } : null));
+    : (wordsTableOf(booking?.headers) ?? (secret ? { "x-fn-secret": secret } : null));
   const plan = planVoiceConvergence(llm, desiredVoiceShell(url, headers));
   out.shell = {
-    llm_id: engine.llm_id,
+    llm_id: llmId,
     llm_version: llm.version,
     drift: plan.drift,
     notes: plan.notes,
     unknown_tools: plan.unknownTools,
     patch_keys: plan.llmPatch ? Object.keys(plan.llmPatch) : [],
   };
-  return { llmId: engine.llm_id, plan };
+  return { llmId, plan };
 }
 
 /**
@@ -191,11 +194,9 @@ async function pinPlan(
     return { pinned: false, refused: "the latest version is a draft: publish it first, or the line switches back" };
   const bound = await getPhoneNumber(cfg, params.number);
   if (!bound) return { pinned: false, refused: "the number could not be read" };
-  const ours = ((bound.inbound_agents ?? []) as Array<{ agent_id?: string; agent_version?: unknown }>).find(
-    (a) => a.agent_id === params.agentId,
-  );
+  const ours = listOrEmpty(bound.inbound_agents).find((a) => valueAt(a, "agent_id") === params.agentId);
   if (!ours) return { pinned: false, refused: "the number does not answer in this agent: a pin never moves a line" };
-  if (ours.agent_version === "latest_published") return { pinned: true, already: true };
+  if (valueAt(ours, "agent_version") === "latest_published") return { pinned: true, already: true };
   if (!params.apply) return { pinned: false, would_pin: true };
   const put = await updatePhoneNumber(cfg, params.number, {
     inbound_agents: voiceNumberBinding({ agentId: params.agentId, pinned: true }),

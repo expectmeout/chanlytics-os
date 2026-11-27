@@ -226,7 +226,14 @@ function channelsLine(channels: readonly CampaignChannelVM[]): string | null {
     : "A text or an email keeps no read receipt.";
 }
 
-export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
+/**
+ * A campaign report as the view model reads it: campaign_series answers both its days (whole) and its sources
+ * (coalesced), but a report built by hand may leave one out, and it reads as none.
+ */
+type CampaignReportAsRead = Omit<CampaignReportDto, "series" | "sources"> &
+  Partial<Pick<CampaignReportDto, "series" | "sources">>;
+
+export function toCampaignReportVM(dto: CampaignReportAsRead): CampaignReportVM {
   const days = dto.days;
   const series = dto.series ?? [];
   const current = series.slice(-days);

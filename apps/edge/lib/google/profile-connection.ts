@@ -165,8 +165,7 @@ export async function connectProfile(
   const prior = await findGoogleConnection(db, tenantId);
   if (prior.error) return { ok: false, error: "connection_write_failed", detail: logFailure("write", prior.error) };
   const saved = await saveGoogleConnection(db, tenantId, row);
-  if (saved.error || !saved.data)
-    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
+  if (saved.error) return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
   try {
     await storeCredentials(db, tenantId, {
       refresh_token: grant.refresh_token,
@@ -303,8 +302,7 @@ export async function bindLocation(
     last_synced_at: null,
     sync_error: null,
   });
-  if (saved.error || !saved.data)
-    return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
+  if (saved.error) return { ok: false, error: "connection_write_failed", detail: logFailure("write", saved.error) };
   const read = await syncProfile(db, saved.data, tz, now, net);
   // Its hours, services and prices, days closed and words, for Check (decision 0073, R17); its website read after.
   await readProfileDetails(db, saved.data, now, net);
@@ -320,7 +318,7 @@ export async function bindLocation(
   );
   // The row as it stands after the read; a read of it that fails answers with the row just saved.
   const after = await rereadGoogleConnection(db, conn.tenant_id);
-  return { ok: true, connection: after.error ? saved.data : (after.data ?? saved.data), read };
+  return { ok: true, connection: after.error ? saved.data : after.data, read };
 }
 
 /**

@@ -95,7 +95,7 @@ export function templateNameOk(name: string): boolean {
 
 /** A name Meta accepts, from anything a person typed: lowercase, digits and underscores. */
 export function slugTemplateName(raw: string): string {
-  return String(raw ?? "")
+  return raw
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -179,7 +179,7 @@ export function templateBodyTooLong(body: string): boolean {
 /** The numbered slots a body names, sorted and unique. */
 export function placeholdersOf(body: string): number[] {
   const set = new Set<number>();
-  for (const m of String(body ?? "").matchAll(NUMBERED_SLOT)) set.add(Number(m[1]));
+  for (const m of body.matchAll(NUMBERED_SLOT)) set.add(Number(m[1]));
   return [...set].sort((a, b) => a - b);
 }
 
@@ -224,10 +224,8 @@ function buttonChecked(
   draftButton: TemplateDraftInput["button"],
 ): { ok: true; button: TemplateDraft["button"] } | { ok: false; error: string } {
   if (!draftButton) return { ok: true, button: null };
-  const text = String(draftButton.text ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-  const url = String(draftButton.url ?? "").trim();
+  const text = draftButton.text.replace(/\s+/g, " ").trim();
+  const url = draftButton.url.trim();
   if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
   if (text.length > TEMPLATE_BUTTON_TEXT_MAX)
     return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
@@ -265,7 +263,7 @@ export function validateTemplateDraft(templateDraftInput: TemplateDraftInput): T
   const slots = placeholdersOf(body);
   if (!placeholdersSequential(slots))
     return { ok: false, error: "Number the values {{1}}, {{2}}, {{3}} in order, with no gaps." };
-  const examples = (templateDraftInput.examples ?? []).map((e) => String(e ?? "").trim());
+  const examples = (templateDraftInput.examples ?? []).map((e) => e.trim());
   if (examples.length !== slots.length)
     return {
       ok: false,

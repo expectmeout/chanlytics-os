@@ -302,7 +302,7 @@ export async function steerHeldDraft(
   const words = wordsForTheWire(channel, item.text, thread.textedBefore);
 
   const delayAsked = valueAt(m.meta, "delay_ms");
-  const delayMs = typeof delayAsked === "number" ? delayAsked : replyDelayMs("veto", rt.policy?.reply?.limits);
+  const delayMs = typeof delayAsked === "number" ? delayAsked : replyDelayMs("veto", rt.policy.reply?.limits);
 
   // New first, then retire the old — see the header.
   const newId = await queueDraft(

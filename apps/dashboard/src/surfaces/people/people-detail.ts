@@ -13,6 +13,9 @@ import {
   type PersonVM,
   type AskedPurpose,
   MIN_MS,
+  finiteOrZero,
+  listOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
 import { commitVerb, type VerbResult } from "@/bridge/verbs/commit";
@@ -437,9 +440,15 @@ interface ManyResult {
 /** A batch door's answer, in the bar's words. Not ours, or gone: not done, and said so -- it is not an error to have selected a row that changed underneath you. */
 function manyResult(r: ApiResult<unknown>, asked: number, verb = "recorded"): ManyResult {
   if (!r.ok) return { ok: false, done: 0, failed: asked, message: r.message };
-  const d = r.data as { done: number; failed: { id: string; message: string }[]; skipped: string[] };
+  const d = {
+    done: finiteOrZero(valueAt(r.data, "done")),
+    failed: listOrEmpty(valueAt(r.data, "failed")),
+    skipped: listOrEmpty(valueAt(r.data, "skipped")),
+  };
   const failed = d.failed.length + d.skipped.length;
-  const why = d.failed[0]?.message ?? (d.skipped.length ? "no longer in this workspace" : undefined);
+  const firstFailure = valueAt(d.failed, 0, "message");
+  const why =
+    typeof firstFailure === "string" ? firstFailure : d.skipped.length ? "no longer in this workspace" : undefined;
   return {
     ok: failed === 0,
     done: d.done,
@@ -745,6 +754,7 @@ export async function setPersonBusiness(id: string, leadId: string | null): Prom
  * What the shell's pages still reach a person's steps and deals through: only what one reads (the hover's warm, a step's
  * day and its done, the thread's deal acts). The sheets, cards and notes import their rules from contracts; published here
  * too, every page's first load carried the deal and step sheets' rules for nobody (the loadability review, 19 Oct 2026).
+ * The sheets and People's scopes reach the frame through sheets/frame-parts.ts.
  */
 export function installPeopleCourier(): void {
   // A pointer at a person's link: their read, and the page's own code where it is not in yet (profileCode, above).

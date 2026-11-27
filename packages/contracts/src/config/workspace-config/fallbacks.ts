@@ -4,6 +4,7 @@
  */
 import { resolveFacts, type KnownFacts } from "../facts";
 import type { BrainConfig } from "./brain-config-schema";
+import { isOneOf } from "../../shared/unknown";
 
 /** The details a message sent in the business's name may name, as the owner writes them. */
 export type FallbackDetail = "business" | "booking link" | "phone";
@@ -65,7 +66,20 @@ export function isProductFallback(key: keyof BrainConfig["fallbacks"], text: str
 
 const DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
 const namesADetail = (text: string) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
-const detailOf = (raw: string) => raw.toLowerCase().replace(/\s+/g, " ") as FallbackDetail;
+/** The details a message may name, as it names them once read in lower case with one space. */
+const FALLBACK_DETAILS = ["business", "booking link", "phone"] as const satisfies readonly FallbackDetail[];
+
+/** A detail a message names, or none for words that are no detail. */
+const detailOf = (raw: string): FallbackDetail | null => {
+  const words = raw.toLowerCase().replace(/\s+/g, " ");
+  return isOneOf(FALLBACK_DETAILS, words) ? words : null;
+};
+
+/** What a detail is filled with: nothing for none, or one the workspace lacks. */
+const detailValue = (values: Record<FallbackDetail, string | null>, raw: string): string | null => {
+  const detail = detailOf(raw);
+  return detail ? values[detail] : null;
+};
 
 function fillDetails(text: string, values: Record<FallbackDetail, string | null>): string {
   if (!namesADetail(text)) return text;
@@ -76,8 +90,8 @@ function fillDetails(text: string, values: Record<FallbackDetail, string | null>
       // Sentence by sentence, so a detail the workspace lacks takes only its own sentence with it.
       return line
         .split(/(?<=[.!?])\s+/)
-        .filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1] ?? "")]))
-        .map((s) => s.replace(DETAIL, (_, name: string) => values[detailOf(name)] as string))
+        .filter((s) => [...s.matchAll(DETAIL)].every((m) => detailValue(values, m[1] ?? "")))
+        .map((s) => s.replace(DETAIL, (_, name: string) => detailValue(values, name) ?? ""))
         .join(" ");
     })
     .join("\n")

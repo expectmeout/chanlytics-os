@@ -332,7 +332,7 @@ export function toBroadcastVM(broadcast: BroadcastDto, tz: string, now = new Dat
   const attempted = counts.sent + counts.skipped + counts.failed;
   return {
     ...broadcast,
-    stateLabel: BROADCAST_STATE_LABELS[broadcast.state] ?? broadcast.state,
+    stateLabel: BROADCAST_STATE_LABELS[broadcast.state],
     when: whenLabel(broadcast.finished_at ?? broadcast.started_at ?? broadcast.scheduled_for, tz, now),
     deliveredPct: counts.sent > 0 ? Math.round((counts.delivered / counts.sent) * 100) : null,
     readPct: readShare(counts),

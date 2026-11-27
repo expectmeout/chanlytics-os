@@ -39,7 +39,7 @@ export async function findVisitChangesSince(
     .order("created_at", { ascending: false })
     .limit(ARRIVALS_READ_MAX);
   if (error) throw new DbFailure(error, "cannot read the visits' changes");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -54,5 +54,5 @@ export async function canBookingsArrive(db: Db, tenantId: TenantId): Promise<boo
     .in("source", [...BOOKING_VIAS])
     .limit(1);
   if (error) throw new DbFailure(error, "cannot read whether bookings arrive");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }

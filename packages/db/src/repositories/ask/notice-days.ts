@@ -14,7 +14,7 @@ export async function listBusinessesForMorning(
 ): Promise<Array<{ id: TenantId; timezone: string; lastDay: string | null }>> {
   const { data, error } = await db.from("tenants").select("id, timezone, status").eq("status", "active").limit(5000);
   if (error) throw new DbFailure(error, "tenants");
-  const rows = data ?? [];
+  const rows = data;
   if (rows.length === 0) return [];
   // The newest day of each: a morning looks back no further than yesterday, wherever on earth it is.
   const since = new Date(Date.now() - 2 * DAY_MS).toISOString().slice(0, 10);
@@ -27,8 +27,8 @@ export async function listBusinessesForMorning(
   // A morning said twice is worse than one a tick late: a read that fails throws, and the next tick looks again.
   if (days.error) throw new DbFailure(days.error, "ask_notice_days");
   const last = new Map<string, string>();
-  for (const d of days.data ?? []) if (!last.has(d.tenant_id)) last.set(d.tenant_id, d.day);
-  return rows.map((r) => ({ id: r.id, timezone: r.timezone ?? "UTC", lastDay: last.get(r.id) ?? null }));
+  for (const d of days.data) if (!last.has(d.tenant_id)) last.set(d.tenant_id, d.day);
+  return rows.map((r) => ({ id: r.id, timezone: r.timezone, lastDay: last.get(r.id) ?? null }));
 }
 
 /** Who may act on what Ask noticed, first among them: the owners, then the partners. */
@@ -43,7 +43,7 @@ export async function listOwnerSeats(
     .in("role", ["owner", "partner"])
     .limit(5);
   if (error) throw new DbFailure(error, "memberships");
-  return [...(data ?? [])].sort((a, b) => (a.role === "owner" ? -1 : 0) - (b.role === "owner" ? -1 : 0));
+  return [...data].sort((a, b) => (a.role === "owner" ? -1 : 0) - (b.role === "owner" ? -1 : 0));
 }
 
 /** What was said since a day: not said again. */
@@ -51,7 +51,7 @@ export async function listAskNoticeKeysSince(db: Db, tenantId: TenantId, sinceDa
   const { data, error } = await db.from("ask_notice_days").select("key").eq("tenant_id", tenantId).gte("day", sinceDay);
   // What could not be read is not "nothing said": the business's morning waits for the next tick rather than say one twice.
   if (error) throw new DbFailure(error, "ask_notice_days");
-  return (data ?? []).flatMap((r) => (r.key ? [r.key] : []));
+  return data.flatMap((r) => (r.key ? [r.key] : []));
 }
 
 /** Today was looked at, and this was said, or nothing. */

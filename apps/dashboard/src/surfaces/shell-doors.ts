@@ -1,25 +1,12 @@
 /**
- * The shell's doors, read the one way (decision 0015): what a TSX surface asks of a page of the shell it has no module for
- * is read off the window by name when the page asks, never when this loads, so a stand-in window a test builds later is
- * the one read. Each surface's own `shell.ts` says which names it reads and how each is typed; what they share is here:
- * the three readers, the role gate and the toast. Each door is a line to delete on the day its owner moves.
+ * The doors every surface's own `shell.ts` shares (decision 0015): the role gate and the toast, the frame's own, imported
+ * (frame-verbs.ts). Nothing is read off the window (decision 0151).
  */
 import type { ReactNode } from "react";
-import { useFrameToast, windowFn, windowObject, windowValue } from "./frame-verbs";
+import { useFrameToast } from "./frame-verbs";
 
-/*
- * The three readers are frame-verbs' (OW6: the one set of them, with no copy beside it), named as the surfaces' `shell.ts`
- * files use them: a name off the window whatever it holds, a function the shell published, an object it published.
- */
-export { windowValue };
-export const fn = windowFn;
-export const object = windowObject;
-
-/** A role gate's props, spread after a control's handlers: `{}` where the role may act (frame/gate.ts `gate`). */
-export function gate(perm: string, doing?: string): Record<string, unknown> {
-  const g = fn<[string, string | undefined], Record<string, unknown>>("gate");
-  return g ? g(perm, doing) : {};
-}
+/* A role gate's props for a control: the frame's own (frame-verbs.ts gate, over frame/gate.ts). */
+export { gate } from "./frame-verbs";
 
 /** What the shell's one toast takes (frame/flash.tsx `usePPToast`): a message, its tone, and what pressing does. */
 export interface Flash {

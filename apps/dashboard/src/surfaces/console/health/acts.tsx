@@ -15,7 +15,8 @@ import {
   type ConsoleAct,
   type ConsoleWhy,
   type HealthAct,
-  type JobKind,
+  isOneOf,
+  JOB_KINDS,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import type { Flash } from "../parts";
@@ -77,22 +78,28 @@ async function take(run: Run, why: ConsoleWhy): Promise<{ ok: boolean; msg: stri
         .then((r) =>
           r.ok ? { ok: true, msg: HEALTH_WORDS.redriven(r.data.scheduled) } : { ok: false, msg: r.message },
         );
-    case "run_kind_again":
+    case "run_kind_again": {
+      const kind = run.jobKind;
+      if (!isOneOf(JOB_KINDS, kind)) return { ok: false, msg: HEALTH_WORDS.kindUnknown };
       return consoleVerbs
-        .requeueKind({ kind: run.jobKind as JobKind, since: run.sinceIso, why })
+        .requeueKind({ kind, since: run.sinceIso, why })
         .then((r) =>
           r.ok
             ? { ok: true, msg: HEALTH_WORDS.ranKindAgain(r.data.requeued, r.data.refused) }
             : { ok: false, msg: r.message },
         );
-    case "pause_kind":
+    }
+    case "pause_kind": {
+      const kind = run.jobKind;
+      if (!isOneOf(JOB_KINDS, kind)) return { ok: false, msg: HEALTH_WORDS.kindUnknown };
       return consoleVerbs
-        .pauseKind({ kind: run.jobKind as JobKind, paused: run.paused, why })
+        .pauseKind({ kind, paused: run.paused, why })
         .then((r) =>
           r.ok
             ? { ok: true, msg: r.data.paused ? HEALTH_WORDS.pausedNow : HEALTH_WORDS.resumedNow }
             : { ok: false, msg: r.message },
         );
+    }
   }
 }
 

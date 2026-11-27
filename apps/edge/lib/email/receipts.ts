@@ -38,7 +38,6 @@
  * the write throws, the door answers 503, and the receipt comes again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { emitEvent } from "@chanlytics/db/events";
 import { recordLeadAddressBounced } from "@chanlytics/db/campaigns";
 import {
   recordEmailNo,
@@ -97,15 +96,13 @@ export async function applyEmailReceipt(db: Db, emailReceipt: EmailReceipt, nowI
   // (00176, 00424). Before the suppression, so a retry of a half-applied receipt still counts it once.
   if (emailReceipt.type === "complained") await stampEmailComplaint(db, { ...row, at: nowIso });
   if (effect.suppress) {
-    const contactId = await suppressEmailOf(db, {
+    await suppressEmailOf(db, {
       ...row,
       addresses: emailReceipt.to,
       reason: effect.suppress,
       at: nowIso,
     });
-    const stopped = { reason: effect.suppress };
-    if (contactId)
-      await emitEvent(db, emailReceipt.tenantId, "contact.email_suppressed", "contact", contactId, stopped);
+    // Its event is written with the stop (00721 contact_email_suppress).
     // A reach-out's email that bounced for good: its lead's address is invalid, as the finder's own check would say
     // (C11). After the address stops, so a lead that cannot be marked (the receipt comes again) is already not written to.
     if (effect.suppress === "hard_bounce" && sent?.leadId)

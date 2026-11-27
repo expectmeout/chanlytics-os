@@ -52,7 +52,7 @@ type HeldRows = Parameters<typeof heldDraftsByClass>[0];
 
 /** The policies the settings read carries, as the runtime reads them (class to mode), or null while none is read. */
 function policyMap(): { map: Record<string, { mode: string }>; held: HeldRows } | null {
-  const p = policiesNow() as { rows?: { class?: string; mode?: string }[]; held?: HeldRows } | null | undefined;
+  const p = policiesNow();
   if (!p || !Array.isArray(p.rows)) return null;
   const map: Record<string, { mode: string }> = {};
   for (const r of p.rows) if (r && r.class && r.mode) map[r.class] = { mode: r.mode };

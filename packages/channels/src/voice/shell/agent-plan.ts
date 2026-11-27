@@ -15,6 +15,7 @@ import {
   type VoiceConvergencePlan,
   type VoiceModelConfig,
   type VoiceShellTarget,
+  wordsTableOf,
 } from "./tools";
 
 /**
@@ -121,7 +122,7 @@ export function voiceShellDrift(
 ): { converged: boolean; drift: string[] } {
   const booking = (live.general_tools ?? []).find((t) => t.name === "send_booking_link");
   const url = typeof booking?.url === "string" ? booking.url : fnUrl;
-  const headers = (booking?.headers as Record<string, string> | undefined) ?? null;
+  const headers = wordsTableOf(booking?.headers);
   const plan = planVoiceConvergence(live, desiredVoiceShell(url, secretRetired ? null : headers));
   const drift = [...plan.drift];
   // Once retired, a tool still carrying the header is the plan's own drift: a header the shell does not set.
@@ -208,7 +209,7 @@ export function planAgentSettings(
   // The analysis fields: ours present and unchanged; anything else on the
   // agent (a preset, a field added by hand) is kept beside them.
   const liveFields = Array.isArray(live.post_call_analysis_data)
-    ? (live.post_call_analysis_data.filter((f) => f !== null && typeof f === "object") as Record<string, unknown>[])
+    ? live.post_call_analysis_data.filter((f): f is Record<string, unknown> => f !== null && typeof f === "object")
     : [];
   const missingFields = CALL_ANALYSIS_FIELDS.filter((f) => !liveFields.some((l) => sameAnalysisField(l, f)));
   if (missingFields.length) {

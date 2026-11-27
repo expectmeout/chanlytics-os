@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { addressOf, callerName, UUID } from "@chanlytics/contracts";
 import { load } from "../../../shared/reader";
-import { call as callReader } from "../../../readers/call";
+import { call as callReader } from "../../../readers/voice/call";
 import { noteRow, str, readUnlessNotFound } from "../context/tool-reads";
 import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { propose, refuse } from "../context/context";

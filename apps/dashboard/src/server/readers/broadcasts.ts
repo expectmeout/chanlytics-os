@@ -59,7 +59,7 @@ export const broadcasts: Reader<
 > = {
   name: "broadcasts",
   async read(rc) {
-    const [list, ready, month_sent, month_sent_next, open_to_customers] = await Promise.all([
+    const [list, ready, monthSent, monthSentNext, openToCustomers] = await Promise.all([
       listBroadcasts(rc.ctx, rc.tenantId),
       findChannelsReadyOrNull(rc.ctx, rc.tenantId, { withPause: true }),
       readMonthSentOrNull(rc.ctx.supabase, rc.tenantId, rc.now),
@@ -80,7 +80,13 @@ export const broadcasts: Reader<
       ),
     ]);
     return {
-      data: { ...list, ready, month_sent, month_sent_next, open_to_customers },
+      data: {
+        ...list,
+        ready,
+        month_sent: monthSent,
+        month_sent_next: monthSentNext,
+        open_to_customers: openToCustomers,
+      },
       rows: list.broadcasts.map(runRef),
       stamp: readerStamp(),
     };
@@ -97,14 +103,14 @@ export const broadcasts: Reader<
 export const broadcastTouches: Reader<undefined, { touched_at: Record<string, string[]> | null }> = {
   name: "broadcastTouches",
   async read(rc) {
-    const touched_at = await getRecentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
+    const touchedAt = await getRecentTouches(rc.ctx.supabase, rc.tenantId, rc.now).catch((e: unknown) => {
       log.error("broadcast_touches_failed", {
         tenant_id: rc.tenantId,
         error: e instanceof Error ? e.message : String(e),
       });
       return null;
     });
-    return { data: { touched_at }, rows: [], stamp: readerStamp() };
+    return { data: { touched_at: touchedAt }, rows: [], stamp: readerStamp() };
   },
 };
 

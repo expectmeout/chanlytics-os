@@ -30,12 +30,10 @@ import { FrameHead } from "@/surfaces/kit/head/frame-head";
 import { NewConversationHost } from "@/surfaces/inbox/new-conversation/host";
 import { BookingToolHost } from "@/surfaces/settings/booking-tool/host";
 import { loadPrefs, choosePref, documentStamps, type Prefs, type ChosenPref } from "./device-prefs";
-import "./seed-globals"; // must evaluate before the manifest
-import "./manifest";
 // frame.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-// What the frame installs as it loads, and the surfaces it reads (bridge/boot): after the manifest, as they always were.
+// What the frame installs as it loads, and the surfaces it reads (bridge/boot).
 import { bootFrame } from "./boot/installs";
 import { FRAME_SURFACES } from "./boot/surfaces";
 import { switchWorkspace } from "./surface-data";
@@ -50,7 +48,6 @@ import {
 } from "./surface-runner";
 import { catchUpLiveFeed, joinLiveFeed } from "./hearing/live-feed";
 import { surfaceHook } from "./surface-status";
-import { fillDoors } from "../surfaces/frame-doors";
 import { ChanlyticsApp } from "@/surfaces/frame/app-shell";
 import { useFirstRowsLetGo } from "@/surfaces/frame/first-rows";
 import { SURFACE_LABELS, publishShellStatus, shellStatusOf } from "./shell";
@@ -60,7 +57,7 @@ import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
 import { FailedRead } from "@/surfaces/kit/empty/empty";
 import { JoinedNote } from "./invitations/joined-note";
-import { PRIMARY_PART, valueAt, vitalsPageOf } from "@chanlytics/contracts";
+import { PRIMARY_PART, vitalsPageOf } from "@chanlytics/contracts";
 import { whoIsLooking } from "./who";
 import { routeGateOpen, routePartsOf, routeSurfaces } from "./surface-registry";
 import { routeOnScreen } from "./workspace";
@@ -95,12 +92,6 @@ bootFrame();
 
 /** How often a tab asks which build the site runs, beside every return to it and every return online. */
 const VERSION_CHECK_MS = 15 * MIN_MS;
-
-// The mockup's own data-before-mount contract (boot gate): the shell's contracts and the seeded charter, which the frame's
-// helpers publish (surfaces/frame/frame-globals.ts). The frame itself is imported (surfaces/frame/app-shell.tsx, the
-// one-system plan's step 7e). The seeded Inbox (INBOX_DATA) is a demo session's alone: a real session's is its first
-// read's, which no page waits on to mount (X6-1).
-const REQUIRED = ["CHANLY", "POLICY"] as const;
 
 /** The workspace's own surface, which FrameApp draws again on (surface-status.ts surfaceHook): the pages hear their own. */
 const useSurface = surfaceHook({ useCallback, useSyncExternalStore });
@@ -212,7 +203,6 @@ function useShellApp(
           routeNow={route}
           surfaceRoutes={SURFACE_ROUTES}
           sharedPage={SHARED_PAGE}
-          fillDoors={fillDoors}
         />
         {/* The head Glass draws into the shell's places (kit/head/frame-head.tsx): beside the shell, in one tree. */}
         <FrameHead look={look} />
@@ -267,8 +257,6 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
     publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));
   }, []);
 
-  const missing = useMemo(() => REQUIRED.filter((k) => !valueAt(window, k)), []);
-
   // A press on the theme, the look or the rail: device-prefs.ts checks it and keeps it, and this holds the result.
   const choose = useCallback(
     (key: ChosenPref, v: string) => setPrefs((p) => choosePref(browserStorage, p, key, v)),
@@ -321,25 +309,6 @@ export default function FrameApp({ routePage, route }: { routePage?: ReactNode; 
       clearInterval(t);
     };
   }, [publishStatus]);
-
-  if (missing.length) {
-    return (
-      <div
-        style={{
-          height: "100vh",
-          display: "grid",
-          placeItems: "center",
-          fontFamily: "Geist, sans-serif",
-          color: "#666",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "#333" }}>Chanlytics didn&apos;t finish loading</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>Missing: {missing.join(", ")} · refresh to retry.</div>
-        </div>
-      </div>
-    );
-  }
 
   /**
    * An account that belongs to nowhere gets the create screen, not the app.

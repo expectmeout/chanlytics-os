@@ -10,10 +10,8 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Params, RouteKey } from "@/client/api";
 import { onSurfaceMoved, surfaceVersion } from "@/bridge/surface-status";
-import type { replies } from "@/bridge/reach-out/replies";
 import { provided } from "@/bridge/provided";
-import { fn, object } from "../../shell-doors";
-import { agentIdFor } from "../shell";
+import { canDo } from "../../frame-verbs";
 
 /* ------------------------------- what a page hands over ------------------------------- */
 
@@ -68,9 +66,6 @@ export function hrefOf<K extends RouteKey>(key: K, params?: Params<K>): string |
 
 /* ---------------------------- the reach-out readings ---------------------------- */
 
-/** What the bridge's strip reads of a thread: its id and its timeline's bubbles (`replies.stripFor`). */
-export type StripThread = Parameters<typeof replies.stripFor>[0];
-
 /** The replies to a reach-out and the words they are drawn in (reach-out/replies.ts, provided as `replies`), or nothing where they are not installed. */
 export function repliesDoor() {
   return provided("replies");
@@ -79,19 +74,9 @@ export function repliesDoor() {
 /* ---------------------------------- roles ---------------------------------- */
 
 /**
- * Whether the role gate lets this member approve, where the role store is absent as much as where it says yes (the
- * standalone harness has none): the call back the header's dock draws is offered to everyone then.
+ * Whether the role gate lets this member approve, where the role store is absent as much as where it says yes (frame/gate.ts
+ * `canDo` lets anyone act where there is no store): the call back the header's dock draws is offered to everyone then.
  */
 export function mayApproveOrNoRoles(): boolean {
-  const can = fn<[string], boolean>("canDo");
-  return !can || can("approve");
-}
-
-/* ------------------------------- the demo's trust ------------------------------- */
-
-/** An agent's 30-day edit rate from the demo's trust digest (`TRUST`), as the veto bar says it; nothing where there is none. */
-export function trustRateFor(agentName: string): number | null {
-  const trust = object<{ agent?: (id: string) => unknown; rate?: (row: unknown) => number }>("TRUST");
-  const row = trust && trust.agent ? trust.agent(agentIdFor(agentName)) : null;
-  return row && trust && trust.rate ? trust.rate(row) : null;
+  return canDo("approve");
 }

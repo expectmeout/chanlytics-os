@@ -41,7 +41,7 @@ import { postBandOf, postUndrawable } from "@/server/files/post-check";
 import { colourOnDark } from "@/server/posts/layout";
 import { postPhoneOf } from "@/server/posts/phone";
 import * as readers from "@/server/readers/facts";
-import { getKnownFacts } from "@/server/readers/settings";
+import { getKnownFacts } from "@/server/readers/settings/settings";
 import { load, readerContext } from "@/server/shared/reader";
 import { readBrandKit } from "@/server/workspace/brand-kit";
 import type { Member } from "@/server/shared/route";

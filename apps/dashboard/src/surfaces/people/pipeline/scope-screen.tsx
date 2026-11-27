@@ -26,6 +26,7 @@ import { PipelineRailRows } from "./rail";
 import { PipelinePassDock, PipelinePassMany } from "./row";
 import { PIPE_BULK_ACTS, PIPE_LAYOUTS, pipeComposeIn } from "./scope-bits";
 import type { PipelineState } from "./scope-hook";
+import { entryOf } from "@chanlytics/contracts";
 
 type LinePart = PipelineState["line"][number];
 
@@ -222,7 +223,7 @@ export function pipelineTools(s: PipelineState) {
             }}
             data-testid={`pipeline-view-${v}`}
           >
-            {words.views[v as "list" | "board"]}
+            {entryOf(words.views, v)}
           </button>
         ))}
       </div>

@@ -661,10 +661,12 @@ const CLAIMED = {
   },
 };
 
-test("a first workspace whose sign-up came from a preview's link claims it on arrival, whatever the posture", async () => {
+test("a first workspace whose sign-up came from a preview's link claims it on arrival, whatever the posture", async (t) => {
   for (const posture of ["open", "invite", "waitlist"]) {
     const w = standIn(CLAIMED);
     globalThis.window = w;
+    // The claim goes through the page's own-route client, on the global fetch the window's is.
+    t.mock.method(globalThis, "fetch", w.fetch);
     const created = [];
     const props = { email: "owner@fixture.example", posture, initial: FROM_PREVIEW, onCreated: (x) => created.push(x) };
     const tree = render(props);
@@ -687,12 +689,13 @@ test("a first workspace whose sign-up came from a preview's link claims it on ar
   }
 });
 
-test("a claim refused leaves the form, filled in, with the door's own sentence", async () => {
+test("a claim refused leaves the form, filled in, with the door's own sentence", async (t) => {
   const w = standIn({
     status: 409,
     body: { ok: false, error: { code: "conflict", message: "Fixture Barbers is already set up." } },
   });
   globalThis.window = w;
+  t.mock.method(globalThis, "fetch", w.fetch);
   const props = { email: "owner@fixture.example", posture: "open", initial: FROM_PREVIEW, onCreated() {} };
   render(props);
   const tree = await settle(props);

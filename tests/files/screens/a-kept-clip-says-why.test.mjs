@@ -21,7 +21,7 @@ const { RETURN_BUDGETS, SOURCE_GRACE, TAKE_BUDGETS, TAKE_HAND_OUT } = await impo
   at("apps/edge/lib/files/takes/budgets.ts")
 );
 
-const { fileDtoOf } = await importSrc("apps/dashboard/src/server/readers/files.ts");
+const { fileDtoOf } = await importSrc("apps/dashboard/src/server/readers/files/files.ts");
 const { VIDEO_TILE_WORDS } = await importSrc("packages/contracts/src/files/tile-words.ts");
 
 const facts = {

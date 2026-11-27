@@ -33,7 +33,7 @@ import {
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
 import { NOW, ZONE, handoffDay, peopleWithSteps } from "./_world.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const went = [];
 const flashes = [];
@@ -45,13 +45,11 @@ bridgeHolds({
   },
 });
 installStubReact({
-  appNavigate: (to) => went.push(to),
-  usePPToast: () => [null, (m) => flashes.push(m)],
-  canDo: () => true,
-  gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const W = globalThis.window;
 // Need you as the page draws it, with the card its arrangement names (Today, calm).
 const { NeedYouOnToday: NeedYou } = await import("../zones/_on-today.mjs");
@@ -265,7 +263,7 @@ const clear = () => {
       },
     },
   });
-  W.openStepSheet = (ask) => opened.push(ask);
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openStep: (ask) => opened.push(ask) } } });
   setSurfaceValue("today", handoffDay());
 };
 /** Today with nobody waiting on a person: To do's first holds the card. */
@@ -277,7 +275,6 @@ const nobodyWaits = () => {
 after(() => {
   bridgeHolds({ values: { people: undefined } });
   bridgeHolds({ parts: { personNotes: undefined } });
-  delete W.openStepSheet;
   setSurfaceValue("today", undefined);
 });
 

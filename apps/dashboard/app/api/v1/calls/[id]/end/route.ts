@@ -31,12 +31,12 @@ export const POST = write({
         502,
       );
     }
-    let decision_id: string | null = null;
+    let decisionId: string | null = null;
     try {
-      decision_id = await recordDecision(ctx, call.tenant_id, "call", call.id, "end_call", {});
+      decisionId = await recordDecision(ctx, call.tenant_id, "call", call.id, "end_call", {});
     } catch (e) {
       log.error("end_call_unrecorded", { call: call.id, error: e instanceof Error ? e.message : String(e) });
     }
-    return { ok: true, decision_id };
+    return { ok: true, decision_id: decisionId };
   },
 });

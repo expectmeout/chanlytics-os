@@ -278,7 +278,7 @@ const countryKey = (c: string) =>
  * complete in every way that matters, so it is read rather than refused.
  */
 function placeOf(input: Pick<ProposeLeadSearch, "city" | "region">): { city: string | null; state: string | null } {
-  const region = (input.region ?? "").trim();
+  const region = input.region.trim();
   const city = (input.city ?? "").trim();
   const direct = stateCode(region);
   if (direct) return { city: city || null, state: direct };

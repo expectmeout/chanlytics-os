@@ -48,7 +48,7 @@ export async function listYesesSince(db: Db, tenantId: TenantId, since: Date): P
  */
 export async function getDealOnFile(db: Db, tenantId: TenantId): Promise<boolean> {
   const r = await db.from("deals").select("id").eq("tenant_id", tenantId).limit(1);
-  return !r.error && (r.data?.length ?? 0) > 0;
+  return !r.error && r.data.length > 0;
 }
 
 /** An open deal of a person's, as a card names it: its id and its service. */
@@ -70,7 +70,7 @@ export async function openDealsOf(db: Db, tenantId: TenantId, contactId: Contact
     .in("stage", ["proposed", "won"])
     .order("created_at", { ascending: false });
   if (result.error) throw new DbFailure(result.error);
-  return (result.data ?? []).map((d) => ({ id: d.id, service: d.service }));
+  return result.data.map((d) => ({ id: d.id, service: d.service }));
 }
 
 /** A deal as the record holds it now, for what is owed while it stands: whose it is, and the stage it is in. */

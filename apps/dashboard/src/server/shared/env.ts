@@ -59,6 +59,7 @@ const SCHEMA = {
   NEXT_PUBLIC_SUPABASE_URL: url,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalText,
   NEXT_PUBLIC_LEAD_MAP_BASE: optionalText,
+  NEXT_PUBLIC_E2E: optionalText,
   NEXT_PUBLIC_PAGE_FIRST: optionalText,
   // Written by the build, never set by hand: the frame's stylesheet files, page by page (next.config.ts).
   NEXT_PUBLIC_SHEETS: optionalText,
@@ -127,6 +128,7 @@ const READ: { readonly [K in Name]: () => string | undefined } = {
   NEXT_PUBLIC_SUPABASE_URL: () => publicEnv.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: () => publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_LEAD_MAP_BASE: () => publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE,
+  NEXT_PUBLIC_E2E: () => publicEnv.NEXT_PUBLIC_E2E,
   NEXT_PUBLIC_PAGE_FIRST: () => publicEnv.NEXT_PUBLIC_PAGE_FIRST,
   NEXT_PUBLIC_SHEETS: () => publicEnv.NEXT_PUBLIC_SHEETS,
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: () => publicEnv.NEXT_PUBLIC_VAPID_PUBLIC_KEY,

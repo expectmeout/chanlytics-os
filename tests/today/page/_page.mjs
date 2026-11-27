@@ -13,10 +13,10 @@
  */
 import { after } from "node:test";
 import { toTodayVM, zoneDayKey, clockTime } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, kitPages } from "../../_stub-react.mjs";
+import { again, all, byTestId, classes, find, fresh, installStubReact, kitPages, textOf } from "../../_stub-react.mjs";
 import { headline as periodHeadline } from "../_headline.mjs";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { askDoor, bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 export const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
@@ -92,16 +92,9 @@ export const { surfaceMoved: surfaceLanded } = await import("../../../apps/dashb
 bridgeHolds({
   parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
 });
-Object.assign(globalThis, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  appNavigate: (to) => went.push(to),
-  askAbout: (a) => asked.push(a),
-  usePPToast: () => [null, (m) => flashes.push(m)],
-  canDo: () => true,
-  gate: () => ({}),
-  useHotkey: () => {},
-  refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
-});
+bridgeHolds({ doors: askDoor({ ask: (a) => asked.push(a) }) });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 // A verb the queue asks of the Inbox goes through the typed client to `fetch`: the workspace it names is this tab's, and
 // the refresh a landed write runs reads through the runner (nothing to boot). Any read is refused unless a test holds it.

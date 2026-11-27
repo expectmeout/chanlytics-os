@@ -70,7 +70,7 @@ function stateDetailOf(
   if (state === "waiting_on_you") return theirTurnWords(last) ?? "";
   if (state === "opted_out") return at.consent.sub;
   if (state === "new") return `first contact ${first.label}`;
-  if (state === "quiet") return `last heard from ${ago(at.askedMs as number, at.tz, nowMs)}`;
+  if (state === "quiet") return `last heard from ${ago(at.askedMs ?? 0, at.tz, nowMs)}`;
   if (state === "unheard") return last.ts === null ? "no contact recorded" : "they have not written or called";
   return "";
 }

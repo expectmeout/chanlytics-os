@@ -7,28 +7,28 @@
  * gives after a press. `doing` names what this control does where the permission's own words would mislead -- snoozing
  * is an `approve` act. Engine fns double-guard with canDo(action) so hotkeys and bulk paths respect roles.
  *
- * Each reads the role store (identity.ts) off the window and the tip from the bridge's store (provided.ts) when it is
- * asked, as the JSX did: a test stands in for either, until the gates are imported everywhere (the one-system plan, step 9).
+ * Each reads the role store (identity.ts, provided as `roles`) and the tip from the bridge's store (provided.ts) when it
+ * is asked: a test hands in a stand-in for either with `provide`.
  */
 import { roleGate, type Role } from "@chanlytics/contracts";
 import { provided } from "@/bridge/provided";
 import type { GateProps } from "../frame-verbs";
 
-/** Whether the role acting may do a permission's act: with no role store, it may. */
-export const canDo = (a: string): boolean => {
-  const store = window.ST_STORE;
-  return !store || store.can?.(a) === true;
+/** Whether the role acting may do a permission's act, asked as `doing` where a control names its own: with no role store, it may. */
+export const canDo = (a: string, doing?: string): boolean => {
+  const store = provided("roles");
+  return !store || store.can?.(a, doing) === true;
 };
 
 /** Whether the member, as they are acting (View-as included), stands on this rung or above it; with no store, no. */
 export const mayAtLeast = (rung: string): boolean => {
-  const store = window.ST_STORE;
+  const store = provided("roles");
   return !!(store && store.mayAtLeast && store.mayAtLeast(rung as Role));
 };
 
 /** Why the role acting may not do it, in contracts' words. */
 export const gateTitle = (a: string, doing?: string): string => {
-  const store = window.ST_STORE;
+  const store = provided("roles");
   const said = roleGate(
     store && typeof store.myRole === "function" ? store.myRole() : "viewer",
     a as Parameters<typeof roleGate>[1],
@@ -43,10 +43,11 @@ export const gateTitle = (a: string, doing?: string): string => {
  * the reason at the control, which is how a finger gets to read it.
  */
 export const gatedProps = (reason: string): GateProps => {
-  const refuse = (e: { preventDefault: () => void; stopPropagation: () => void; currentTarget: Element }) => {
+  const refuse = (e: { preventDefault: () => void; stopPropagation: () => void; currentTarget: Element | null }) => {
     e.preventDefault();
     e.stopPropagation();
-    provided("tip")?.show(e.currentTarget);
+    // The reason at the control pressed; a press with no element to show it at (a key's, a script's) shows none.
+    if (e.currentTarget) provided("tip")?.show(e.currentTarget);
   };
   return {
     disabled: false,
@@ -68,4 +69,4 @@ export const gatedProps = (reason: string): GateProps => {
 };
 
 /** What a role gate spreads onto a control: nothing where the role may act, `gatedProps` with its reason where not. */
-export const gate = (a: string, doing?: string): GateProps => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
+export const gate = (a: string, doing?: string): GateProps => (canDo(a, doing) ? {} : gatedProps(gateTitle(a, doing)));

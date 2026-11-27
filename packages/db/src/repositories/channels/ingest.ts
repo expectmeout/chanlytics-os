@@ -18,8 +18,7 @@ import {
   HOUR_MS,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
-import { emitEvent } from "../events/events";
-import { dbLog, dbLogAndGoOn } from "../../shared/observe";
+import { dbLog } from "../../shared/observe";
 import { noChannelColumns, noRelationshipColumn } from "../campaigns/channels";
 import { noStopColumn } from "../workspace/rows";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -192,54 +191,35 @@ export async function recordOutbound(
     /** The wire it goes out on: where the person last wrote. WhatsApp unless said. */
     channel?: "whatsapp" | "sms" | "email" | "instagram";
   },
+  /** A failed row's event, written with it: what the send door says of the failure. */
+  failed?: Record<string, Json>,
 ): Promise<string | null> {
   // An email's row is written before its words leave, under the id its request is frozen with (core deliver.ts): an
   // id minted here, after the send, is one no receipt can name.
   if (params.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
-  const { data, error } = await db
-    .from("messages")
-    .insert({
+  // The row, the thread's stamp and the send's event in one transaction (00721 message_outbound_record): message.sent
+  // for a row that went out, the send moment first_replies reads (00035) and the line the owner's Activity shows as "A
+  // message went out"; a queued draft gets its one from the settle when it leaves, and a failure is message.send_failed.
+  // A provider id kept already (a retry) is benign: null, and nothing written.
+  const { data, error } = await db.rpc("message_outbound_record", {
+    p_row: {
       tenant_id: params.tenantId,
       conversation_id: params.conversationId,
       contact_id: params.contactId,
       channel: params.channel ?? "whatsapp",
-      direction: "outbound",
       sender: params.sender,
       type: params.type ?? "text",
       body: params.body,
       external_id: params.externalId,
       status: params.status ?? "sent",
       meta: params.meta ?? {},
-    })
-    .select("id")
-    .single();
-  if (error) {
-    // duplicate wamid (retry) is benign
-    if (error.code === "23505") return null;
-    throw new DbFailure(error, "record_outbound");
-  }
-  // A queued draft or a failed row has not gone out. The event that says a
-  // message did is the send moment first_replies reads (00035) and the line the
-  // owner's Activity shows as "A message went out", so it is written only for a
-  // row that was sent: a draft gets its one event from deliver() when it
-  // actually leaves, and a failure is message.send_failed there. The thread is
-  // stamped either way.
-  const status = params.status ?? "sent";
-  await Promise.all([
-    // The message is kept either way: a stamp that fails is said, and the thread's next message stamps it.
-    db
-      .from("conversations")
-      .update({ last_message_at: new Date().toISOString() })
-      .eq("id", params.conversationId)
-      .then(({ error: stampError }) => {
-        if (stampError) dbLogAndGoOn("stamping the thread's last message")(new DbFailure(stampError, "thread stamp"));
-      }),
-    status === "sent"
-      ? emitEvent(db, params.tenantId, "message.sent", "message", data.id, { sender: params.sender })
-      : Promise.resolve(),
-  ]);
-  return data.id;
+    },
+    ...(failed ? { p_told: { kind: "failed", data: failed } } : {}),
+  });
+  if (error) throw new DbFailure(error, "record_outbound");
+  // The door answers null for a provider id kept already, though the generated type says an id.
+  return data;
 }
 
 /**
@@ -267,7 +247,7 @@ export async function getOrCreateContact(
     .eq("tenant_id", tenantId)
     .eq("id", created.contact_id)
     .single();
-  if (error || !data) throw new DbFailure(error ?? { message: "no answer" }, "get_or_create_contact reselect");
+  if (error) throw new DbFailure(error, "get_or_create_contact reselect");
   return data;
 }
 
@@ -394,16 +374,16 @@ async function threadOf(
     // indistinguishable, to the customer, from the person they are talking to.
     .select("id, paused_until, last_inbound_on_whatsapp")
     .single();
-  if (cErr || !conv) throw new Error(`resolve_outbound_target conversation: ${cErr?.message}`);
+  if (cErr) throw new DbFailure(cErr, "resolve_outbound_target conversation");
 
   return {
     contactId: contact.id,
     conversationId: conv.id,
     pausedUntil: conv.paused_until ?? null,
     waInboundAt: conv.last_inbound_on_whatsapp ?? null,
-    consent: contact.consent ?? null,
-    dnc: contact.dnc ?? false,
-    marketing_consent: contact.marketing_consent ?? null,
+    consent: contact.consent,
+    dnc: contact.dnc,
+    marketing_consent: contact.marketing_consent,
     consent_channels: contact.consent_channels ?? null,
     marketing_channels: contact.marketing_channels ?? null,
   };
@@ -554,7 +534,7 @@ export async function recordStatusByExternalId(
     dbLog().error("record_status_failed", { tenant_id: tenantId, external_id: externalId, error: error.message });
     throw new DbFailure(error, "record_status");
   }
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /**
@@ -636,7 +616,7 @@ export async function pauseConversation(
     });
     return false;
   }
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     dbLog().error("pause_conversation_noop", { tenant_id: tenantId, conversation_id: conversationId });
     return false;
   }

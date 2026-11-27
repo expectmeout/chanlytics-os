@@ -6,7 +6,7 @@
 // file-length ratchet (800 lines). Hookless, as the card is: the folds hold the hooks.
 
 import type { GuardrailKey } from "@chanlytics/contracts";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps } from "react";
 import { BUSINESS_TAB } from "@/bridge/business-tab";
 import { Icon } from "../../kit/icon/icon";
 import { FailedRead } from "../../kit/empty/empty";
@@ -20,6 +20,7 @@ import { recFolds } from "../../kit/record/registry";
 import type { BtFold } from "./gestures/fold";
 import { businessTabSave } from "./saver";
 import type { policiesNow } from "./shell";
+import { listOrEmpty, recordOrEmpty, textOrEmpty } from "@chanlytics/contracts";
 
 /** What a fold hands its body (BtFold's contract says each). */
 export type Fields = Parameters<ComponentProps<typeof BtFold>["body"]>[0];
@@ -46,7 +47,7 @@ export const BtaVoice = ({
         label={null}
         aria-labelledby="rec-fold-tone-label"
         rows={2}
-        value={draft as string}
+        value={typeof draft === "string" ? draft : ""}
         onChange={(v) => update(() => v, ["tone"])}
         problem={problems.tone || null}
         placeholder="Friendly and to the point."
@@ -105,7 +106,7 @@ export const BtaLanguages = ({
   problems,
   readOnly,
 }: Pick<Fields, "draft" | "rows" | "press" | "problems" | "readOnly">) => {
-  const chosen = Array.isArray(draft) ? (draft as string[]) : [];
+  const chosen = listOrEmpty(draft).filter((x): x is string => typeof x === "string");
   // `blank` is the language an add appends: rows() is a builder over the live draft, so it is built for each add.
   const list = (adding: string | null) =>
     rows({
@@ -120,7 +121,7 @@ export const BtaLanguages = ({
   const remove = (i: number) =>
     langs.removeAt(i, (gone) => (
       <>
-        Removed <b>{gone as ReactNode}</b>
+        Removed <b>{textOrEmpty(gone)}</b>
       </>
     ));
   // A name already chosen, however it is written, is not added twice: "spanish" and "Spanish" are one language.
@@ -203,9 +204,6 @@ const BTA_RULES: [GuardrailKey, string, string][] = [
   ["no_health_advice", "No health advice", "No health advice"],
 ];
 
-/** The guardrails draft: the four rules, each a switch. */
-type RulesDraft = Partial<Record<GuardrailKey, unknown>>;
-
 /**
  * One of the four rules: its label with how far it goes as one quiet word under it, and the switch, which carries the
  * rule's sentence as its description (the sentence is read under "How these rules work", BtaRuleHow). A rule that is
@@ -249,7 +247,7 @@ const BtaRule = ({
         ) : (
           <RecordSwitch
             on={on}
-            onChange={(v) => update((d) => ({ ...(d as RulesDraft), [ruleKey]: v }))}
+            onChange={(v) => update((d) => ({ ...recordOrEmpty(d), [ruleKey]: v }))}
             labelledBy={`bt-rule-${ruleKey}-label`}
             describedBy={`bt-rule-${ruleKey}-says`}
             readOnly={readOnly}
@@ -294,7 +292,7 @@ export const BtaRules = ({
   readOnly,
   unread,
 }: Pick<Fields, "draft" | "update" | "readOnly"> & { unread: string | null }) => {
-  const rules = draft as RulesDraft;
+  const rules = recordOrEmpty(draft);
   return (
     <div className="bt-stack" data-testid="rec-rules-switches">
       {unread ? (
@@ -440,7 +438,7 @@ export const BtaHandoff = ({
         label={null}
         aria-labelledby="bt-escalate-when-label"
         rows={4}
-        value={draft as string}
+        value={typeof draft === "string" ? draft : ""}
         onChange={(v) => update(() => v, ["escalate_when"])}
         problem={problems.escalate_when || null}
         placeholder={"They ask for the owner by name\nThey're unhappy with how it went"}

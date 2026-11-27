@@ -228,12 +228,8 @@ bridgeHolds({
     activeWorkspaceId: "t-1",
   },
 });
-Object.assign(W, {
-  CHANLY: { nav() {} },
-  usePPToast: () => [null, (t) => toasts.push(t)],
-});
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 installRoleStore(W);
-W.mayAtLeast = (rung) => W.ST_STORE.mayAtLeast(rung);
 const quietly = async (fn) => {
   const e = console.error;
   console.error = () => {};

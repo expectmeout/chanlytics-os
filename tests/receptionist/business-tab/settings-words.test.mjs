@@ -12,14 +12,14 @@
  * - The Calendar's words (C3): the Business card said the hours as 09:00–18:00 beside a Calendar in 9 AM, and the
  *   editor checked the calendar's address as "the link", the booking link's word.
  * Contracts run as they are; the Settings page (surfaces/settings/frame/page.tsx) runs on a stub React, with the words
- * the bridge publishes (seed-globals).
+ * it imports.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { smsStateRow, connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 const { setupSteps, verbForRoute, formatPhoneDisplay, stateOf } = contracts;
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -269,8 +269,6 @@ globalThis.window = {
   setTimeout: (fn, ms) => setTimeout(fn, ms),
   clearTimeout: (h) => clearTimeout(h),
 };
-// What the bridge publishes before the pages run: the phone checks, the broken-config words, the hard limits' words.
-await import("../../../apps/dashboard/src/bridge/seed-globals.ts");
 
 let cells = new Map();
 let frames = [];
@@ -280,7 +278,6 @@ const slot = () => {
   return `${f.key}#${f.hook++}`;
 };
 const saved = [];
-globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.Sparkline = "Sparkline";
@@ -358,8 +355,8 @@ globalThis.React = {
   isValidElement: (n) => !!n && typeof n === "object" && "type" in n && "props" in n,
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+drawsInPlace();
+holdFrameParts();
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
@@ -374,13 +371,9 @@ bridgeHolds({
   },
 });
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
-  canDo: () => true,
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws. Autonomy's rows are the seam's
 // policies, its one door a module object a test stands a door in on.
@@ -597,9 +590,10 @@ test("a settings control is named by the row it sits in: what the row hands it l
   // put another file's keys in force. This stub draws a component when it is created, before
   // the row clones it; the row's clone is drawn here, as React draws it.
   workspace();
-  const wasGate = globalThis.window.gate;
-  // A gate that can be told apart from nothing, so where it lands shows.
-  globalThis.window.gate = () => ({ "data-gated": "" });
+  const wasGate = provided("roles");
+  // A gate that can be told apart from nothing, so where it lands shows: the dials' own permission is refused, which the
+  // frame's gate marks `data-gated` (frame/gate.ts), and everything else is let through.
+  holdRoles({ can: (perm) => perm !== "autonomy" });
   /** The element a control draws: a dial on a desk draws the choice of a few, which draws the group. */
   const element = (drawn) => (typeof drawn.type === "function" ? element(drawn.rendered) : drawn);
   const controls = (tab, name) =>
@@ -629,6 +623,6 @@ test("a settings control is named by the row it sits in: what the row hands it l
       "a test id handed to a dial lands on its group",
     );
   } finally {
-    globalThis.window.gate = wasGate;
+    bridgeHolds({ parts: { roles: wasGate } });
   }
 });

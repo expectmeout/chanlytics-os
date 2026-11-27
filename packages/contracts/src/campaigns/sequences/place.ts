@@ -17,6 +17,7 @@ import type { SequenceState } from "./sequence";
 import type { SequencePeopleGroup, SequencePersonDraftDto, SequencePersonReplyDto, SequenceStepDto } from "./dto";
 import { scheduleDays, scheduleWait } from "./schedule";
 import { sequenceLeftWords } from "./words/next";
+import { entryOf } from "../../shared/unknown";
 
 /* ------------------------------------------------------------------------------------------------- the reads -- */
 
@@ -131,7 +132,7 @@ const NOT_PLANNED_WORDS: Partial<Record<ReachOutWhyNot, string>> = {
 
 /** Why a lead on a list is not planned, or null where its next batch can take it. */
 export const placeNotPlannedOf = (reason: string | null): string | null =>
-  reason ? (NOT_PLANNED_WORDS[reason as ReachOutWhyNot] ?? null) : null;
+  reason ? (entryOf(NOT_PLANNED_WORDS, reason) ?? null) : null;
 
 /**
  * The leads on a sequence's list Check again is for (decision 0131): added and not planned because their address could

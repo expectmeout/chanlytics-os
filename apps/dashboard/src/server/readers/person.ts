@@ -219,6 +219,28 @@ async function campaignsOfPerson(rc: ReaderContext, id: ContactId) {
   return { campaigns, sequences };
 }
 
+/**
+ * Their messages, escalations and the decisions on them and on their threads (a person with no thread still has their
+ * own: the receptionist paused for them is recorded against them): the one read that waits, for the threads' ids.
+ */
+async function readPersonThreads(rc: ReaderContext, id: ContactId, convIds: string[]) {
+  const sb = rc.ctx.supabase;
+  if (!convIds.length) {
+    return {
+      byConv: new Map<string, MessageDto[]>(),
+      escalations: [],
+      decisions: await listPersonDecisions(sb, rc.tenantId, id, []),
+    };
+  }
+  const [msgs, escs, decided] = await Promise.all([
+    personMessages(rc, convIds),
+    listHoldsOfThreads(sb, convIds),
+    listPersonDecisions(sb, rc.tenantId, id, convIds),
+  ]);
+  if (escs.error) throw new DbFailure(escs.error);
+  return { byConv: groupMessages(msgs), escalations: escs.data, decisions: decided };
+}
+
 export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
   name: "person",
   async read(rc, { id: asked }) {
@@ -229,25 +251,9 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
     const rowRead = findPersonRow(sb, tenantId, id);
     // A query builder runs again each time it is awaited: the conversations are read once and handed to both readers.
     const convsRead = listPersonThreads(sb, tenantId, id);
-    // Their messages, escalations and the decisions on them and on their threads (a person with no thread still has
-    // their own: the receptionist paused for them is recorded against them): the one read that waits, for the threads' ids.
-    const threadRead = convsRead.then(async (convs) => {
-      const convIds = convs.error ? [] : (convs.data ?? []).map((c) => c.id);
-      if (!convIds.length) {
-        return {
-          byConv: new Map<string, MessageDto[]>(),
-          escalations: [],
-          decisions: await listPersonDecisions(sb, tenantId, id, []),
-        };
-      }
-      const [msgs, escs, decided] = await Promise.all([
-        personMessages(rc, convIds),
-        listHoldsOfThreads(sb, convIds),
-        listPersonDecisions(sb, tenantId, id, convIds),
-      ]);
-      if (escs.error) throw new DbFailure(escs.error);
-      return { byConv: groupMessages(msgs), escalations: escs.data ?? [], decisions: decided };
-    });
+    const threadRead = convsRead.then((convs) =>
+      readPersonThreads(rc, id, convs.error ? [] : convs.data.map((c) => c.id)),
+    );
     // Their appointments on the owner's calendar, when one is connected: the feed is read now, and matched to them once
     // their row says who they are. Never fatal: a feed that cannot be read costs this line, not the profile. A row that
     // could not be read is the route's to say, not the calendar's.
@@ -351,9 +357,9 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         // Who their next step is for (00166), from the team the notes were read with.
         ...stepFor(row, notes.team, rc.userId),
       },
-      identities: idents.data ?? [],
-      conversations: (convs.data ?? []).map((c) => toConversationDto(c, byConv.get(c.id) ?? [], rc.userId)),
-      calls: (calls.data ?? []).map(toCallDto),
+      identities: idents.data,
+      conversations: convs.data.map((c) => toConversationDto(c, byConv.get(c.id) ?? [], rc.userId)),
+      calls: calls.data.map(toCallDto),
       escalations,
       decisions,
       receptionist_mode: personPol.data?.mode ?? null,
@@ -364,7 +370,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       ...(notes.team ? { note_team: notes.team } : {}),
       ...proposalLinkOf(own.data),
       booking_link: fromConfig.bookingLink,
-      consent_history: (history.data ?? []).map(consentChangeOf),
+      consent_history: history.data.map(consentChangeOf),
       ...campaigns,
       lead,
       doubts,

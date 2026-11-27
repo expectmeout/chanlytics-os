@@ -42,7 +42,9 @@ const skip =
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= URL_;
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = skip ? null : await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { conversations } = skip ? {} : await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = skip
+  ? {}
+  : await import(at("apps/dashboard/src/server/readers/conversations/conversations.ts"));
 const { MESSAGE_COLUMNS } = skip ? {} : await import(at("packages/db/src/repositories/conversations/reads.ts"));
 
 /** A transaction on this machine's database that never commits: `body` runs in a DO block that raises what it `seen`. */
@@ -324,7 +326,7 @@ test(
   { skip },
   async () => {
     const { escalations } = await import(at("apps/dashboard/src/server/readers/escalations.ts"));
-    const { calls } = await import(at("apps/dashboard/src/server/readers/calls.ts"));
+    const { calls } = await import(at("apps/dashboard/src/server/readers/voice/calls.ts"));
     const rc = () =>
       kernel.readerContext(
         { supabase: member, userId: memberId, email: null, params: {} },

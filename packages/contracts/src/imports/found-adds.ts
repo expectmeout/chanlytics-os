@@ -16,7 +16,7 @@
  */
 import { PROFILE_LIMITS } from "../config/workspace-config/config-rules";
 import { FOUND_WORDS, type FoundVM, type foundOf } from "./business-reads";
-import { valueAt } from "../shared/unknown";
+import { valueAt, recordOrEmpty } from "../shared/unknown";
 
 type Profile = Record<string, unknown>;
 const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -25,14 +25,22 @@ const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
  * What the record holds, as foundOf weighs what was found against it: its services, its days closed, its notes and its
  * booking rules' notes. Its own words are never offered over (null): the business's words go in as a note.
  */
+/** A stored row's field as words, or none. */
+const wordsAt = (row: unknown, key: string): string | null => {
+  const words = valueAt(row, key);
+  return typeof words === "string" ? words : null;
+};
+
 export function foundRecordOf(profile: Profile): Parameters<typeof foundOf>[1] {
-  const rules = (profile.booking_rules || {}) as { notes?: string[] };
+  const ruleNotes = asList(valueAt(profile, "booking_rules", "notes")).filter(
+    (t): t is string => typeof t === "string",
+  );
   return {
-    services: asList(profile.services) as { name?: string }[],
-    closures: asList(profile.closures) as { date?: string }[],
+    services: asList(profile.services).map((s) => ({ name: wordsAt(s, "name") })),
+    closures: asList(profile.closures).map((c) => ({ date: wordsAt(c, "date") })),
     notes: [
-      ...(asList(profile.notes) as { title?: string; text?: string }[]),
-      ...(rules.notes ?? []).map((t) => ({ title: null, text: t })),
+      ...asList(profile.notes).map((n) => ({ title: wordsAt(n, "title"), text: wordsAt(n, "text") })),
+      ...ruleNotes.map((t) => ({ title: null, text: t })),
     ],
     description: null,
   };
@@ -69,8 +77,8 @@ export function withFoundClosure(profile: Profile, found: FoundVM["closed"][numb
 
 /** A booking rule in its own words, among the rules' notes. */
 function withFoundRule(p: Profile, text: string): Profile {
-  const br = (p.booking_rules || {}) as { notes?: string[] };
-  return { ...p, booking_rules: { ...br, notes: [...(br.notes ?? []), text.slice(0, PROFILE_LIMITS.ruleNote)] } };
+  const br = recordOrEmpty(p.booking_rules);
+  return { ...p, booking_rules: { ...br, notes: [...asList(br.notes), text.slice(0, PROFILE_LIMITS.ruleNote)] } };
 }
 
 /** An answer, or the business's own words, as a thing it should know; a booking rule goes with the rules. */

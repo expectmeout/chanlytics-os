@@ -11,6 +11,7 @@ import { letterHtml } from "../../look/letter";
 import type { WorkspaceLook } from "../../look/look";
 import { DAY_MS } from "../../shared/time";
 import { fmtDate } from "../person-helpers";
+import { valueAt } from "../../shared/unknown";
 
 /** meta.source of a sign-up's confirmation email: what the yes door, the limits and the person's page find it by. */
 export const SIGNUP_CONFIRM_SOURCE = "signup_confirm";
@@ -264,8 +265,7 @@ interface HeldMessage {
 
 /** Whether a held message is a sign-up's confirmation email (meta.source, as the edge wrote it). */
 function isSignupAsk(m: HeldMessage): boolean {
-  const meta = m.meta && typeof m.meta === "object" ? (m.meta as { source?: unknown }) : null;
-  return m.direction === "outbound" && m.channel === "email" && meta?.source === SIGNUP_CONFIRM_SOURCE;
+  return m.direction === "outbound" && m.channel === "email" && valueAt(m.meta, "source") === SIGNUP_CONFIRM_SOURCE;
 }
 
 /** What the person's page asks of a website sign-up's confirmation: the first ask, or another once one ended. */

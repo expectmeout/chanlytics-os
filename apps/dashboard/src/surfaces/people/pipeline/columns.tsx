@@ -166,7 +166,11 @@ export const pipeGlassColumns = (): PipelineColumn[] => {
   if (PIPE_GLASS_COLUMNS) return PIPE_GLASS_COLUMNS;
   const w = P.words.columns;
   const classic = pipeColumns();
-  const kept = (key: string) => classic.find((c) => c.key === key) as PipelineColumn;
+  const kept = (key: string): PipelineColumn => {
+    const column = classic.find((c) => c.key === key);
+    if (!column) throw new Error(`The pipeline has no column ${key}`);
+    return column;
+  };
   PIPE_GLASS_COLUMNS = [
     {
       key: "name",

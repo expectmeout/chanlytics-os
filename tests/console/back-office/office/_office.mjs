@@ -48,7 +48,7 @@ import {
   pageVitalsWords,
 } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../../../_stub-react.mjs";
-import { bridgeHolds } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
 
 export const clock = (sweep, healthy, detail = null) => ({
   sweep,
@@ -285,15 +285,11 @@ globalThis.React = { Fragment: "Fragment" };
 
 bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", platform_admin: true } } }, { fresh: true });
 globalThis.window = {
-  canDo: () => true,
-  // The shared toast, as frame-globals provides it: [node, flash].
-  usePPToast: () => [null, () => {}],
   // The shell registers listeners on the window it is given.
   addEventListener() {},
   removeEventListener() {},
 };
-
-globalThis.Icon = () => null;
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 // The kit's attention row, which the screens import: the walker below reads the props each row was handed and does
 // not expand it.
@@ -307,19 +303,18 @@ globalThis.document ??= {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 
-globalThis.ReactDOM ??= { createPortal: (node) => node };
+drawsInPlace();
 
-(await import("../../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-
-globalThis.Confirm = kitPages.Confirm;
+holdFrameParts();
 
 Object.assign(globalThis.window, kitPages);
+globalThis.Confirm = kitPages.Confirm;
 
 Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPages.FailedRead });
 
 globalThis.window.AttnRow = ATTN;
 
-globalThis.window.usePPToast = () => [null, () => {}];
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 // The Console is TSX: its hooks come from "react", which under this runner has none, so each one is the stub's of the
 // moment -- mount() below gives the stub new hooks for every mount.

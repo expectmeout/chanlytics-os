@@ -51,7 +51,7 @@ import {
   writeBroadcastSend,
   claimBroadcastSend,
 } from "@chanlytics/db/campaigns";
-import { emitEvent, finishBroadcast } from "@chanlytics/db/events";
+import { finishBroadcast } from "@chanlytics/db/events";
 import { findMailboxOfTenant } from "@chanlytics/db/email";
 import { closeRunStartNotices } from "@chanlytics/db/notices";
 import { resolveOutboundTarget, resolveOutboundTargetForContact } from "@chanlytics/db/channels";
@@ -264,7 +264,7 @@ function peoplePorts(
     contacts: async (ids) => {
       const { data, error } = await listBatchPeople(db, tenantId, ids);
       if (error) throw new DbFailure(error, "broadcast_send: cannot read the people");
-      return new Map((data ?? []).map((c) => [c.id, c]));
+      return new Map(data.map((c) => [c.id, c]));
     },
     // The appointments a visit run's reminders were drawn for, by the calendar's key (00348, decision 0002).
     appointments: (keys) => getAppointmentStates(db, tenantId, keys),
@@ -391,11 +391,9 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
           "broadcast_send: cannot mark the broadcast failed",
           await failBroadcastRun(db, { tenantId: job.tenant_id, broadcastId: id }, failure, new Date().toISOString()),
         );
+        // On the ledger beside the finished runs: its row's move to failed writes broadcast.stopped, with how many it
+        // reached first (00721).
         if (!moved?.length) return;
-        // On the ledger beside the finished runs (broadcast.sent), best effort: the owner's alert comes next, and a count
-        // that cannot be read is said as none rather than stop the run from saying why it stopped.
-        const sent = await countRecipients(db, job.tenant_id, id, "sent").catch(() => null);
-        await emitEvent(db, job.tenant_id, "broadcast.stopped", "broadcast", id, { failure, sent });
       },
       startSending: async (id) => {
         const rows = must(

@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -91,13 +91,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  CHANLY: {
-    nav() {},
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-    IX_NOW: "12:04",
-    CONF: { SAFE: 0.8, MED: 0.5 },
-  },
-  gate: () => ({}),
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -105,7 +98,7 @@ installStubReact({
 });
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { InboxThread, ixSwipeBack } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const walk = (n, fn) => {

@@ -31,7 +31,7 @@ type Db = SupabaseClient<Database>;
 export async function getMailboxSenderVerdicts(db: Db, tenantId: TenantId): Promise<Map<string, MailboxSenderVerdict>> {
   const { data, error } = await db.from("mailbox_senders").select("sender, verdict").eq("tenant_id", tenantId);
   if (error) throw new DbFailure(error, "cannot read what the workspace said of its senders");
-  return new Map((data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const));
+  return new Map(data.map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const));
 }
 
 /**
@@ -77,10 +77,8 @@ export async function listMailboxSendersOf(db: Db, tenantId: TenantId): Promise<
   ]);
   if (left.error) throw new DbFailure(left.error, "cannot read what the mailbox left");
   if (said.error) throw new DbFailure(said.error, "cannot read what the workspace said of its senders");
-  const verdicts = new Map(
-    (said.data ?? []).map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const),
-  );
-  const shown = (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person");
+  const verdicts = new Map(said.data.map((r) => [r.sender, r.verdict === "person" ? "person" : "automated"] as const));
+  const shown = left.data.filter((r) => senderVerdictOf(verdicts, r.address) !== "person");
   const about = await readingsAbout(
     db,
     tenantId,
@@ -88,7 +86,7 @@ export async function listMailboxSendersOf(db: Db, tenantId: TenantId): Promise<
   );
   return {
     left: shown.map((r) => ({ ...r, about: about.get(r.address) ?? null })),
-    said: (said.data ?? []).map((r) => ({ ...r, verdict: r.verdict === "person" ? "person" : "automated" })),
+    said: said.data.map((r) => ({ ...r, verdict: r.verdict === "person" ? "person" : "automated" })),
   };
 }
 
@@ -127,7 +125,7 @@ async function readingsAbout(db: Db, tenantId: TenantId, addresses: string[]): P
     .eq("tenant_id", tenantId)
     .in("address", addresses);
   if (error) throw new DbFailure(error, "cannot read what the senders were read to be");
-  return new Map((data ?? []).flatMap((r) => (r.about ? [[r.address, r.about] as const] : [])));
+  return new Map(data.flatMap((r) => (r.about ? [[r.address, r.about] as const] : [])));
 }
 
 const isSenderKind = (v: unknown): v is SenderKind => isOneOf(SENDER_KINDS, v);
@@ -206,7 +204,7 @@ export async function getTalksWith(db: Db, tenantId: TenantId, address: string):
     .is("merged_into_contact_id", null)
     .limit(PEOPLE_AT_AN_ADDRESS);
   if (error) throw new DbFailure(error, "cannot read who has the address");
-  if (!people?.length) return false;
+  if (!people.length) return false;
   if (people.some((p) => p.acquired_via !== null && OWNER_DOORS.has(p.acquired_via))) return true;
   const { data: said, error: saidError } = await db
     .from("messages")
@@ -219,7 +217,7 @@ export async function getTalksWith(db: Db, tenantId: TenantId, address: string):
     .or("channel.neq.email,direction.eq.outbound")
     .limit(SAID_READ);
   if (saidError) throw new DbFailure(saidError, "cannot read what was said with the address");
-  return (said ?? []).some((m) => m.channel !== "email" || m.sender !== "ai");
+  return said.some((m) => m.channel !== "email" || m.sender !== "ai");
 }
 
 /**
@@ -256,7 +254,7 @@ export async function getMailboxPeopleSince(
     .contains("meta", { mailbox_id: mailboxId })
     .limit(CAME_IN_READ_MAX);
   if (error) throw new DbFailure(error, "cannot read who wrote to the mailbox");
-  return new Set((data ?? []).map((r) => r.contact_id)).size;
+  return new Set(data.map((r) => r.contact_id)).size;
 }
 
 /**
@@ -274,5 +272,5 @@ export async function getMailboxLeftSince(db: Db, tenantId: TenantId, since: Dat
     getMailboxSenderVerdicts(db, tenantId),
   ]);
   if (left.error) throw new DbFailure(left.error, "cannot read what the mailbox left");
-  return (left.data ?? []).filter((r) => senderVerdictOf(verdicts, r.address) !== "person").length;
+  return left.data.filter((r) => senderVerdictOf(verdicts, r.address) !== "person").length;
 }

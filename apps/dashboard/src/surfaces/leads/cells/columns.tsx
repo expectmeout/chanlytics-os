@@ -10,11 +10,17 @@
  * that sort are the sorts `leads_page` takes, and the server sorts them (the table runs on the read's order); the filters'
  * columns hold the page's narrowings, which the read applies: the Excluded view's chip, the band's fit, the Filter's reach.
  */
-import { LEAD_COLUMN_GROUPS, LEAD_RATED_HINT, LEAD_REVIEW_ACT_WORDS, type LeadRowVM } from "@chanlytics/contracts";
+import {
+  LEAD_COLUMN_GROUPS,
+  LEAD_RATED_HINT,
+  LEAD_REVIEW_ACT_WORDS,
+  type LeadRowVM,
+  recordOrEmpty,
+} from "@chanlytics/contracts";
 import { leadRowActOf, leadStatusOf, type LeadRowActKind } from "../row-status";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
-import { canDo, gate, hasTouchSwipe, touchSwipe } from "../../frame-verbs";
+import { canDo, gate, touchSwipe } from "../../frame-verbs";
 import { plRowCard } from "../../people/cells/row-card";
 import { plPhoneNow } from "../../people/words";
 import { ROW_ACTS_PX, type DataCard, type DataColumn, type RowPick } from "../../kit/table/columns";
@@ -399,7 +405,7 @@ export const leadViewNow = (saved: View): View => {
   delete kept.widths;
   const columns = kept.columns;
   if (columns && typeof columns === "object" && !Array.isArray(columns)) {
-    const choices: Record<string, unknown> = { ...(columns as Record<string, unknown>) };
+    const choices: Record<string, unknown> = { ...recordOrEmpty(columns) };
     delete choices.fit;
     delete choices.why;
     kept.columns = choices;
@@ -418,7 +424,7 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
   // Needs review on a phone (Ruben, 25 Sep): a thumb slides the row -- right to keep, left to exclude, the bell's way (the
   // shell's touchSwipe) -- over the act's word. The doors are the cell context's, the same the bench and the bar press; a
   // member who may not find leads gets no slide.
-  const slides = l.cls === "review" && !!(x && x.canFind) && hasTouchSwipe();
+  const slides = l.cls === "review" && !!(x && x.canFind);
   const W = LEAD_REVIEW_ACT_WORDS;
   // One status (the phone walk of 3 Nov 2026): a lead in a sequence wears its place there, "Waits for your OK" in amber,
   // and its line says the step and the sequence; "New" beside "Waits for your OK" read as two answers to one question.

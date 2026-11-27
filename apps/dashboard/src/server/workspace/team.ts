@@ -35,6 +35,7 @@ import { requireSecondFactor, type RouteContext } from "../shared/with-route";
 import { log } from "@/server/shared/log";
 import type { TenantId } from "@chanlytics/contracts";
 import { logKeptGoing, logAndGoOn } from "@chanlytics/log";
+import { asFailedReply } from "@chanlytics/db/shared";
 
 /**
  * Team operations: the roster, an invitation, a role change, a removal, and the sign-in that completes an invitation.
@@ -134,7 +135,7 @@ export async function getTeamRoster(db: SupabaseClient<Database>, tenantId: Tena
   ]);
   if (members.error) throw new DbFailure(members.error);
   if (invites.error) throw new DbFailure(invites.error);
-  return { members: rosterOf(members.data ?? []), invites: invites.data ?? [] };
+  return { members: rosterOf(members.data), invites: invites.data };
 }
 
 /** The team as team_roster answers it (00022), as the pages name its members: here and in Setup (setup_rows' roster). */
@@ -145,7 +146,7 @@ export function rosterOf(rows: Database["public"]["Functions"]["team_roster"]["R
     email: m.email,
     display_name: m.display_name,
     role: m.role,
-    joined_at: m.joined_at ?? null,
+    joined_at: m.joined_at,
   }));
 }
 
@@ -213,7 +214,7 @@ export async function inviteMember(
     if (withdrawn.error)
       log.error("db_failed", {
         tenant_id: tenantId,
-        code: withdrawn.error.code ?? null,
+        code: asFailedReply(withdrawn.error).code ?? null,
         error: withdrawn.error.message,
       });
     log.error("team_invite_email_failed", { tenant_id: tenantId, error: mailErr.message });
@@ -311,7 +312,11 @@ export async function resendInvite(
     p_was: String(renewed.was),
   });
   if (withdrawn.error)
-    log.error("db_failed", { tenant_id: tenantId, code: withdrawn.error.code ?? null, error: withdrawn.error.message });
+    log.error("db_failed", {
+      tenant_id: tenantId,
+      code: asFailedReply(withdrawn.error).code ?? null,
+      error: withdrawn.error.message,
+    });
   if (mailErr.code === EMAIL_HAS_ACCOUNT)
     throw new AppError(
       "conflict",
@@ -362,7 +367,7 @@ async function readOpenInvites(email: string | null): Promise<InviteToAccept[] |
   try {
     // A person's open invitations, whichever workspaces they are to: by design, read by their address.
     const { data, error } = await listInvitesForAddress(teamDb(), email.toLowerCase(), new Date().toISOString());
-    return error ? null : (data ?? []);
+    return error ? null : data;
   } catch (e) {
     logKeptGoing("open invitations of an address", e);
     return null;
@@ -421,7 +426,7 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
     if (stamped.error)
       log.error("db_failed", {
         tenant_id: inv.tenant_id,
-        code: stamped.error.code ?? null,
+        code: asFailedReply(stamped.error).code ?? null,
         error: stamped.error.message,
       });
     seated.push(inv);

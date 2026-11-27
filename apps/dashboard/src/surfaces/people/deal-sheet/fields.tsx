@@ -322,7 +322,10 @@ function howField({ sheet, draft, set, problem, busy }: FieldsProps) {
         label={how.label}
         value={draft.how}
         options={how.options}
-        onChange={(v) => set({ how: v as DealSheetDraft["how"] })}
+        onChange={(v) => {
+          const picked = how.options.find((o) => o.value === v);
+          if (picked) set({ how: picked.value });
+        }}
         busy={busy}
         testid="deal-sheet-how-way"
       />

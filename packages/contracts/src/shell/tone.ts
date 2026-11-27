@@ -312,7 +312,7 @@ export function stateLabel(kind: StateKind, value: unknown): string {
  */
 export function stateWordList(): Array<{ kind: StateKind; value: string; label: string }> {
   return Object.entries(LABEL_OF).flatMap(([kind, words]) =>
-    Object.entries(words ?? {}).map(([value, label]) => ({ kind: kind as StateKind, value, label })),
+    Object.entries(words).map(([value, label]) => ({ kind: kind as StateKind, value, label })),
   );
 }
 

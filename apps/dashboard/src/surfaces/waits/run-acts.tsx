@@ -22,8 +22,8 @@ import {
   type BroadcastVM,
 } from "@chanlytics/contracts";
 import { approvalDaysNow, bcWhenWords } from "../campaigns/broadcasts/when-words";
-import { canDo } from "../frame-verbs";
-import { fn, type Flash } from "../shell-doors";
+import { canDo, refusalToast } from "../frame-verbs";
+import type { Flash } from "../shell-doors";
 import { surfaceValue } from "../surface-values";
 import { provided } from "@/bridge/provided";
 
@@ -113,10 +113,9 @@ const answerField = (data: object | undefined, field: string): unknown => (data 
 /** The broadcasts surface's verbs (provided as `broadcasts`): stop a run, approve one; nothing before they are installed. */
 export const broadcastVerbs = (): RunVerbs | undefined => provided("broadcasts");
 
-/** The toast a refused verb raises, in the shell's words (`window.refusalToast`): its lead, then the server's reason. */
+/** The toast a refused verb raises, in the shell's words (frame/refusal.tsx `refusalToast`): its lead, then the server's reason. */
 function refusalFlash(res: unknown, lead: string): Flash {
-  const say = fn<[unknown, string], Flash>("refusalToast");
-  return say ? say(res, lead) : { msg: lead };
+  return refusalToast(typeof res === "object" ? res : null, lead);
 }
 
 /** What an accepted approve answered, as the words of when it goes read it: an object, else nothing. */

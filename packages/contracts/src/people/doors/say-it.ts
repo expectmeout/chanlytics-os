@@ -15,6 +15,7 @@ import { NOTE_MAX } from "../../notes/person-notes";
 import { NO_DAY, type StepDraft, type StepSheetVM } from "../../notes/step-sheet";
 import type { DealSheetDraft, DealSheetVM } from "../../deals/sheet/deal-sheet";
 import { foldName } from "../../calendar/service-offer";
+import { isOneOf } from "../../shared/unknown";
 
 /** The sheets a line may fill. */
 export const SAY_IT_VERBS = ["deal", "note"] as const;
@@ -107,9 +108,6 @@ export const SAY_IT_WORDS = {
   failed: "Couldn't read that just now.",
 } as const;
 
-const DEAL_PER_SET: readonly string[] = DEAL_PERS;
-const DEAL_REASON_SET: readonly string[] = DEAL_LOST_REASONS;
-
 /** An amount as the sheet's box holds one: digits and one point, or "" where none was said. */
 function amountOf(raw: string): string {
   const digits = raw.replace(/[^0-9.]/g, "");
@@ -126,12 +124,10 @@ export function dealFill(sayItDealAnswer: SayItDealAnswer): SayItDealFill {
   return {
     service: sayItDealAnswer.service.trim().slice(0, 80),
     value: amountOf(sayItDealAnswer.value),
-    per: DEAL_PER_SET.includes(sayItDealAnswer.per) ? (sayItDealAnswer.per as DealPer) : "",
+    per: isOneOf(DEAL_PERS, sayItDealAnswer.per) ? sayItDealAnswer.per : "",
     link: sayItDealAnswer.link.trim().slice(0, 600),
     valid_until: isRealDate(day) ? day : "",
-    reason: DEAL_REASON_SET.includes(sayItDealAnswer.lost_reason)
-      ? (sayItDealAnswer.lost_reason as DealLostReason)
-      : "",
+    reason: isOneOf(DEAL_LOST_REASONS, sayItDealAnswer.lost_reason) ? sayItDealAnswer.lost_reason : "",
     note: sayItDealAnswer.note.trim().slice(0, 200),
   };
 }

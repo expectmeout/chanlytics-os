@@ -30,10 +30,11 @@ import {
   FIRST_RUN_TITLE,
   businessNameOf,
   DAY_KEY,
+  entryOf,
 } from "@chanlytics/contracts";
 import type { SetupRowVM, SetupVM } from "@chanlytics/contracts";
 
-export { FIRST_RUN_ROUTE, firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "@chanlytics/contracts";
+export { firstRunStepRoute, FIRST_RUN_FIND_ROUTE } from "@chanlytics/contracts";
 
 interface FirstRunStepDef {
   key: FirstRunStepKey;
@@ -232,7 +233,7 @@ export const FIRST_RUN_WORDS = {
     /** A refusal from Google that Connections has no words for. */
     failed: "Google did not connect. Try again.",
     /** The callback's own refusals that mean the account manages no location of this business. */
-    notManagerWhy: ["no_locations", "no_location", "not_on_maps", "accounts_unreadable"] as readonly string[],
+    notManagerWhy: ["no_locations", "no_location", "not_on_maps", "accounts_unreadable"],
   },
   /** Your workspace, building (canvas 1B): what is done, what waits on the owner, and what comes next, beside Find. */
   building: {
@@ -410,7 +411,7 @@ export function rehearseAsksOf(
 export function unsureHoursWords(days: readonly string[]): string | null {
   if (!days.length) return null;
   if (days.length >= 7) return "Google's hours for every day couldn't be copied: add yours.";
-  const names = days.map((d) => (DAY_NAMES as Record<string, string>)[d] ?? d);
+  const names = days.map((d) => entryOf(DAY_NAMES, d) ?? d);
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   return `Google's hours for ${list} couldn't be copied: check ${days.length === 1 ? "that day" : "those days"}.`;
 }
@@ -615,9 +616,6 @@ function faceOf(options: {
   }
 }
 
-/** Which steps are done, by step. */
-type StepsDone = Record<FirstRunStepKey, boolean>;
-
 /**
  * Where the workspace is in the first run, and what the step on screen draws. `at` is the address's step (or `find`,
  * the business step with Find asked for); `who` is who is looking, for Find: nobody may link without it.
@@ -635,15 +633,15 @@ function shownStep(
 }
 
 export function firstRunOf(vm: SetupVM, at?: string | null, firstRunWho?: FirstRunWho): FirstRunVM {
-  const done = Object.fromEntries(FIRST_RUN_STEP_KEYS.map((k) => [k, stepDone(vm, k)])) as StepsDone;
-  const open = FIRST_RUN_STEPS.find((s) => !done[s.key]);
+  const done = (key: FirstRunStepKey) => stepDone(vm, key);
+  const open = FIRST_RUN_STEPS.find((s) => !done(s.key));
   const complete = !open;
   const current: FirstRunStepKey = open ? open.key : "live";
   const steps: FirstRunStepVM[] = FIRST_RUN_STEPS.map((def, i) => ({
     key: def.key,
     name: def.name,
     number: i + 1,
-    state: def.key === current && !complete ? "current" : done[def.key] ? "done" : "ahead",
+    state: def.key === current && !complete ? "current" : done(def.key) ? "done" : "ahead",
     rows: def.rows.map((id) => setupRowOf(vm, id)).filter((r): r is SetupRowVM => r !== null),
     to: def.key === current ? FIRST_RUN_ROUTE : firstRunStepRoute(def.key),
   }));

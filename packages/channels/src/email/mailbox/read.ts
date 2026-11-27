@@ -125,7 +125,7 @@ interface GmailPart {
 function headersOfList(list: GmailHeader[] | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   for (const h of list ?? [])
-    if (typeof h?.name === "string" && typeof h.value === "string") {
+    if (typeof h.name === "string" && typeof h.value === "string") {
       const k = h.name.toLowerCase();
       if (!(k in out)) out[k] = h.value;
     }

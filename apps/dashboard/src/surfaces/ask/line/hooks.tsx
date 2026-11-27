@@ -20,7 +20,7 @@ import {
   useHoldPress,
   useHoldSpace,
 } from "../hooks";
-import { tabMemory } from "../shell";
+import { tabMemoryOfWindow } from "../shell";
 import {
   arDiscBox,
   arDocked,
@@ -327,7 +327,7 @@ export const useArMemory = ({ open, A, query, setQuery, active, asked, openThrea
   // Open: what the tab kept comes back. A kept conversation is read first and the words go back after it, since
   // opening a thread empties the field; a request the shell sent as it opened (asked) wins over a kept conversation.
   useEffect(() => {
-    const m = tabMemory();
+    const m = tabMemoryOfWindow();
     if (!open || !A || !m) return;
     const kept = m.draft("ask");
     const words = typeof kept === "string" && kept && !query ? kept : null;
@@ -341,7 +341,7 @@ export const useArMemory = ({ open, A, query, setQuery, active, asked, openThrea
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once each opening, with what that draw holds: a later change is not what the tab kept
   }, [open]);
   useEffect(() => {
-    const m = tabMemory();
+    const m = tabMemoryOfWindow();
     if (!m) return;
     if (query.trim()) m.keepDraft("ask", query);
     else if (open) m.dropDraft("ask");
@@ -351,7 +351,7 @@ export const useArMemory = ({ open, A, query, setQuery, active, asked, openThrea
   const id = active ? active.id : null;
   const conversing = !!active;
   useEffect(() => {
-    const m = tabMemory();
+    const m = tabMemoryOfWindow();
     const had = threadWas.current;
     threadWas.current = id;
     if (!m) return;
@@ -429,9 +429,9 @@ export const useArSeedKeys = ({
   // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (`askAbout({ thread })`, any caller). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useEffect(() => {
-    const onSeed = (e: Event) => {
+    const onSeed = (e: CustomEvent<AskedSeed>) => {
       takeAskedOfTheLine();
-      asked.current = (e && (e as CustomEvent<AskedSeed>).detail) || {};
+      asked.current = e.detail || {};
       setTick((n) => n + 1);
     };
     window.addEventListener("ask:seed", onSeed);

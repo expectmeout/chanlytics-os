@@ -105,5 +105,5 @@ export async function scrubProviderEvents(db: Db, tenantId: TenantId, needles: r
   // A database before 00336 has no ledger, so nothing is kept to scrub: the dashboard may deploy first (either order).
   if (error && (error.code === "PGRST202" || error.code === "42883")) return 0;
   if (error) throw new DbFailure(error, "provider_events_scrub");
-  return data ?? 0;
+  return data;
 }

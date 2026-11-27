@@ -628,7 +628,7 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<Dis
         `Job ${job.id}: ${refused}.`,
         job.tenant_id,
       )
-      ?.catch(logAndGoOn("paging the platform"));
+      .catch(logAndGoOn("paging the platform"));
     throw new CertainFailure(`${job.kind}: ${refused}`, `it was never run: ${refused}`);
   }
   // What the payload holds that its kind does not say (contracts JOB_PAYLOADS): names only, and only said for now.

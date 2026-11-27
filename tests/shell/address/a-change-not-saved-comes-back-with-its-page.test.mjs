@@ -38,6 +38,7 @@ import {
   saveFoldOf,
   cancelFoldOf,
 } from "../../_business-tab-harness.mjs";
+import { bridgeHolds, holdRoles, provided } from "../_bridge-holds.mjs";
 
 after(() => unmount());
 
@@ -292,8 +293,8 @@ test("a page that learns only after it is drawn that the person may change it op
   redrawTab();
   await leave();
 
-  const may = W.canDo;
-  W.canDo = () => false;
+  const may = provided("roles");
+  holdRoles({ can: () => false });
   try {
     drawTab();
     redrawTab();
@@ -301,7 +302,7 @@ test("a page that learns only after it is drawn that the person may change it op
     assert.deepEqual(openRows(tree), [], "no editor for a role not known yet");
     redrawTab();
   } finally {
-    W.canDo = may;
+    bridgeHolds({ parts: { roles: may } });
   }
   tree = redrawTab();
   assert.deepEqual(openRows(tree), ["website"], "the role read: the row opens");

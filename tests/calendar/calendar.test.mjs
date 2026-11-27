@@ -20,6 +20,7 @@ import {
   zoneMidnight,
 } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
+import { drawsInPlace } from "../shell/_bridge-holds.mjs";
 import { DESK, PHONE, cascadeOf, declared, element } from "../_css.mjs";
 
 // The calendar route is imported below for the policy it declares; a module that ever builds a service client reads
@@ -929,6 +930,8 @@ const boxAt = (top, more = {}) => ({ getBoundingClientRect: () => ({ top, bottom
 test("a swipe across the days on a phone turns them as ‹ and › do, and nothing follows the finger", async () => {
   const b = browserFor({ phone: true });
   try {
+    // A page's turn is drawn at once (frame-verbs drawnNow, React's flushSync), which this runner's react-dom has not.
+    drawsInPlace();
     const { touchSwipe } = await importSrc("apps/dashboard/src/surfaces/kit/motion/swipe.ts");
     const { swipePagesOf } = await importSrc("apps/dashboard/src/surfaces/calendar/acts.tsx");
     const moved = [];

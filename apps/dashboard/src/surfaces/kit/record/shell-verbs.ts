@@ -10,6 +10,7 @@
  * installs what the frame owns after the kit loads and a test builds its world after that.
  */
 import { provided, type BridgeParts } from "@/bridge/provided";
+import { tabStops } from "../focus/trap";
 
 declare global {
   interface Window {
@@ -28,10 +29,8 @@ export function showTip(el: Element | null): void {
   if (el && tip) tip.show(el);
 }
 
-/** The tab stops inside a part, in order (kit/focus/trap.ts `tabStops`); none where the frame has no such verb. */
-export function tabStops(root: Element): HTMLElement[] {
-  return window.tabStops ? window.tabStops(root) : [];
-}
+/** The tab stops inside a part, in order (kit/focus/trap.ts). */
+export { tabStops };
 
 /** The tab's memory of a page's work half-done (`tabMemory`): nothing where the tab keeps none (the standalone mockup). */
 export function tabMemory(): BridgeParts["tabMemory"] | undefined {

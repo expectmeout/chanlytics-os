@@ -103,6 +103,7 @@ export {
   PARAM_SOURCES,
   paramLabel,
   paramSaid,
+  paramSpecOf,
   parseParamSpec,
   parseParamSpecs,
   playbooksStillSending,

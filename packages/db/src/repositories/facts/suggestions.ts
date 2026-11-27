@@ -10,6 +10,7 @@ import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { recordOrNull, DbFailure } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
+import { nullableIn } from "../../shared/answers";
 
 type Db = SupabaseClient<Database>;
 
@@ -41,7 +42,7 @@ const texts = (v: unknown): string[] =>
 export async function listFactCorrectionsBatch(db: Db, limit: number): Promise<FactCorrectionRow[]> {
   const { data, error } = await db.rpc("fact_candidates", { p_limit: limit });
   if (error) throw new DbFailure(error, "fact_candidates");
-  return (data ?? []).flatMap((row) =>
+  return nullableIn(data, "conversation_id", "words", "said").flatMap((row) =>
     row.source === "steer" || row.source === "reply"
       ? [
           {
@@ -53,8 +54,8 @@ export async function listFactCorrectionsBatch(db: Db, limit: number): Promise<F
             said: row.said ?? null,
             asked: texts(row.asked),
             known: texts(row.known),
-            notes_count: row.notes_count ?? 0,
-            workspace_today: row.workspace_today ?? 0,
+            notes_count: row.notes_count,
+            workspace_today: row.workspace_today,
           },
         ]
       : [],
@@ -107,10 +108,8 @@ export async function listFactSuggestionsWaiting(db: Db, tenantId: TenantId): Pr
     .order("created_at", { ascending: false })
     .limit(WAITING_MAX);
   if (error) throw new DbFailure(error, "fact_suggestions_waiting");
-  return (data ?? []).flatMap((r) =>
-    (r.source === "steer" || r.source === "reply") && r.title && r.body && r.quote
-      ? [{ ...r, source: r.source, title: r.title, body: r.body, quote: r.quote }]
-      : [],
+  return data.flatMap((r) =>
+    r.title && r.body && r.quote ? [{ ...r, source: r.source, title: r.title, body: r.body, quote: r.quote }] : [],
   );
 }
 
@@ -125,8 +124,7 @@ export async function findFactSuggestionById(
     .eq("id", id)
     .maybeSingle();
   if (error) throw new DbFailure(error, "fact_suggestion_by_id");
-  if (!data || (data.source !== "steer" && data.source !== "reply") || !data.title || !data.body || !data.quote)
-    return null;
+  if (!data || !data.title || !data.body || !data.quote) return null;
   return { ...data, source: data.source, title: data.title, body: data.body, quote: data.quote };
 }
 

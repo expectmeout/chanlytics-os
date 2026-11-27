@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf, press } from "../_stub-react.mjs";
-import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -41,16 +41,9 @@ installStubReact({
 const SRC = "../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: contracts.stateOf } } });
-Object.assign(globalThis, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate() {},
-  canDo: () => true,
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { installTabMemory } = await import(`${SRC}/bridge/tab-memory.ts`);
 installTabMemory(globalThis);
 const TM = provided("tabMemory");

@@ -17,7 +17,7 @@ import {
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { fresh, installStubReact, quiet, redrawWanted, unmount } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 import { fromDashboard, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -142,8 +142,9 @@ test("the wiring: the bridge names nobody on the window, and the chip and the ro
   // It redraws as who is looking is read: the sidebar, drawn, hears the workspace read land on the window and asks to be
   // drawn again, and lets the event go once it is gone. (Every surface event is heard by this harness's seam too, so the
   // sidebar's own listener is the one asked here.)
-  // The frame publishes its globals as it boots (frame-globals.ts installFrameGlobals), the toast hook the sidebar asks among them.
-  (await importSrc("apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+  // The frame's parts held as the frame holds them as it boots (tests/shell/_bridge-holds.mjs holdFrameParts), the toast
+  // the sidebar asks among them.
+  holdFrameParts();
   const { Sidebar } = await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx");
   const heard = { added: [], removed: [] };
   const was = { add: globalThis.window.addEventListener, remove: globalThis.window.removeEventListener };

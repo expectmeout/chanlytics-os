@@ -232,7 +232,7 @@ export interface BcSlotWords {
   chooseSource: (i: number, kind: ParamSourceKind) => void;
   filled: string[];
   previewValues: string[];
-  specs: (string | { kind: ParamSourceKind })[];
+  specs: (string | { kind: Exclude<ParamSourceKind, "text"> })[];
   /** Nothing stops it and it is not on its way: `say` is null (reach.ts bcStopOf is the one rule for both). */
   ready: boolean;
   say: BcSay | null;
