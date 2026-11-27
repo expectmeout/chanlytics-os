@@ -236,12 +236,16 @@ export async function takeFileOffGoogle(
     GOOGLE_ASKED_MS,
   );
   if (a.status !== 200 || a.body?.ok !== true) throw refusedBy(a);
-  await takenDownOnGoogle(member, row.id, input.name);
+  await takenDownOnGoogle(ctx, member, row.id, input.name);
   return { down: true };
 }
 
-/** Its placement, where one was kept, marked taken down: the sheet then reads it as off Google. A post made before is its events'. */
-async function takenDownOnGoogle(member: Member, fileId: string, name: string): Promise<void> {
-  const placed = await findPlacementByName(serviceDb(), member.tenantId, fileId, name);
+/**
+ * Its placement, where one was kept, marked taken down: the sheet then reads it as off Google. A post made before is its
+ * events'. Found on the member's own session (a member reads a post's id, file and Google name, posts_member_select); the
+ * move is the service role's door, after Google said it came down.
+ */
+async function takenDownOnGoogle(ctx: RouteContext, member: Member, fileId: string, name: string): Promise<void> {
+  const placed = await findPlacementByName(ctx.supabase, member.tenantId, fileId, name);
   if (placed) await movePost(serviceDb(), { postId: placed, from: ["published"], to: "taken_down" });
 }

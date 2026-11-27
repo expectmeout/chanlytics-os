@@ -78,4 +78,8 @@ the caller's own workspace; none takes a value the route worked out.
   for a booking through `workspace_own_fields_write`, a first search's milestone in the search doors), and the two reads
   a member's session was refused got theirs (`ask_mornings_seen`, `workspace_model_standing`): 35 reaches in 32 modules
   to 32 in 29. What is kept is what no member may do from a browser; the settings as stored stay the server's, since
-  the calendar feed's link they hold opens the owner's calendar.
+  the calendar feed's link they hold opens the owner's calendar. The same day, a post's placement found for its
+  take-down from Google moved to the member's session (posts_member_select): 31 in 29. What is left is argued in
+  `SERVICE_ROLE_KEPT`: a broadcast's holds past the month's allowance stay a second write after the run, whose update
+  the run's triggers read (a run every person of which left is ended, an enrolment moves), and a member's reply keeps its
+  send job the server's, its destination and words the route's.
