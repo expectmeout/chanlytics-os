@@ -14,10 +14,10 @@ import {
   ROLE_WORDS,
   DISPLAY_NAME_MAX,
 } from "@chanlytics/contracts";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-import { installStubReact } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { fresh, installStubReact, quiet, redrawWanted, unmount } from "../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 import { fromDashboard, stepRunning } from "../shell/boot/_frame-boot.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -120,7 +120,7 @@ test("the wiring: the identity the seam fetches at boot carries the name, nowher
   assert.equal(nowhere.user.display_name, "Ada Lovelace", "and a person in no workspace yet");
 });
 
-test("the wiring: the bridge names nobody on the window, and the chip and the roster say the given name, never one made from the email", () => {
+test("the wiring: the bridge names nobody on the window, and the chip and the roster say the given name, never one made from the email", async () => {
   // The words are contracts', imported where they are said (decision 0151): the bridge publishes none of them.
   installIdentity(globalThis.window);
   assert.equal("__identity" in globalThis.window, false, "no window name for the words");
@@ -139,13 +139,40 @@ test("the wiring: the bridge names nobody on the window, and the chip and the ro
   );
   bridgeHolds({ who: { me: { email: "ana@salon.example", display_name: "Ana Ruiz", role: "operator" } } });
   assert.deepEqual([sbWho().name, sbWho().role, sbWho().named], ["Ana Ruiz", "Operator", true]);
-  // It redraws as who is looking is read: the one listener, still read until the chip is drawn here.
-  assert.ok(
-    readCode("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx").includes(
-      'window.addEventListener("surface:workspace", bump);',
-    ),
-    "the chip redraws as who is looking is read",
+  // It redraws as who is looking is read: the sidebar, drawn, hears the workspace read land on the window and asks to be
+  // drawn again, and lets the event go once it is gone. (Every surface event is heard by this harness's seam too, so the
+  // sidebar's own listener is the one asked here.)
+  // The frame's parts held as the frame holds them as it boots (tests/shell/_bridge-holds.mjs holdFrameParts), the toast
+  // the sidebar asks among them.
+  holdFrameParts();
+  const { Sidebar } = await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx");
+  const heard = { added: [], removed: [] };
+  const was = { add: globalThis.window.addEventListener, remove: globalThis.window.removeEventListener };
+  globalThis.window.addEventListener = (type, fn, ...rest) => (
+    heard.added.push([type, fn]),
+    was.add(type, fn, ...rest)
   );
+  globalThis.window.removeEventListener = (type, fn, ...rest) => (
+    heard.removed.push([type, fn]),
+    was.remove(type, fn, ...rest)
+  );
+  try {
+    fresh();
+    Sidebar({ active: "today", onNavigate() {} });
+    const own = heard.added.filter(([type]) => type === "surface:workspace").map(([, fn]) => fn);
+    assert.equal(own.length, 1, "the chip redraws as who is looking is read: one listener while it is drawn");
+    quiet();
+    own[0](new Event("surface:workspace"));
+    assert.ok(redrawWanted(), "and hearing it asks for a draw");
+    unmount();
+    assert.ok(
+      heard.removed.some(([type, fn]) => type === "surface:workspace" && fn === own[0]),
+      "an unmounted sidebar lets it go",
+    );
+  } finally {
+    globalThis.window.addEventListener = was.add;
+    globalThis.window.removeEventListener = was.remove;
+  }
   // A person names themselves on Profile: drawn in workspace/settings-owner-panes/ ("your name is a row on Profile"). The
   // Team card reads the same words as the chip, each row its member's given name or their address, drawn in
   // team/team-card.test.mjs ("each person is the name they gave, else their address").

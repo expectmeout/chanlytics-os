@@ -371,6 +371,25 @@ test("a paused subscription pauses the workspace and rings once; resuming turns 
   assert.equal(first(writes(db, "events").at(-1)).kind, "billing.resumed");
 });
 
+test("two events for one change: the one that loses the race writes nothing and rings nothing, and says it raced", async () => {
+  // Stripe sends several events for one change within milliseconds, and two applied side by side each saw the old row.
+  // The row and the switch are one write that holds only while the row is what the reading was planned against
+  // (billing_apply, 00382: the database's half, a-reading-and-the-switch-are-one-write.db.test.mjs): here it answers
+  // that the row moved first, as the loser's does. Read as subscription.ts's text in billing.test.mjs until 26 Nov 2026.
+  const db = fakeDb(tables({ billing_accounts: [row({ status: "active" })] }), {}, { billing_apply: () => false });
+  setPg(db);
+  subs.set("sub_1", sub({ status: "paused" }));
+  const { result: res, lines } = await logged(() => deliver("customer.subscription.paused", sub({ status: "paused" })));
+  assert.equal(res.status, 200, "applied already, by the winner: nothing for Stripe to send again");
+  assert.deepEqual(await res.json(), { ok: true, status: "paused", switched: null });
+  assert.deepEqual(writes(db, "events"), [], "no event of its own");
+  assert.equal(writes(db, "tenants").length, 0, "no switch of its own");
+  assert.ok(
+    lines.some((l) => l.event === "billing_apply_raced"),
+    "and it says it raced",
+  );
+});
+
 test("a trial's bells say the day it ends where the business is: an end at 03:00 UTC is the evening before in New York", async () => {
   // 03:00 UTC is 22:00 or 23:00 the day before in New York, in summer or winter. By the server's clock, the owner was
   // told the day after the one their trial ends on.

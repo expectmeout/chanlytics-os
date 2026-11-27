@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { pausedVoiceFacts, shellStatusLine } from "@chanlytics/contracts";
-import { readCode, readRaw } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { runtime, text, world } from "../inbound/_world.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -71,45 +72,49 @@ test("the shell's one line: a pause outranks a newer build, and points at Billin
   assert.equal(shellStatusLine({ stale: true, degraded: [] }).action, "reload", "without the flag, nothing changes");
 });
 
-test("the wiring: the runtime reads the switch, every path honours it, the shell says so", () => {
-  const rt = readCode("apps/edge/lib/shared/tenant-runtime.ts");
-  // The read is packages/db's (decision 0111): the runtime's own row, with its status, in the one load.
-  const rows = readCode("packages/db/src/repositories/workspace/rows.ts");
-  assert.ok(
-    rows.includes('db.from("tenants").select("name, slug, timezone, status")') &&
-      rt.includes("findWorkspaceRuntimeRow(db, routed.tenantId)") &&
-      rt.includes('paused: t?.status === "paused"') &&
-      rt.includes("paused: false,"),
-    "one read, the same query the clock uses",
+test("the wiring: the runtime reads the switch, every path honours it, the shell says so", async () => {
+  // The runtime (edge lib/shared/tenant-runtime.ts), loaded over a database in memory: the workspace's own row, with
+  // its status, in the one load (packages/db's findWorkspaceRuntimeRow, decision 0111). A fresh workspace each case,
+  // since the runtime is cached per channel.
+  const { loadTenantRuntime } = await import(
+    pathToFileURL(path.join(here, "../../apps/edge/lib/shared/tenant-runtime.ts")).href
   );
-  const inbound = readCode("packages/core/src/inbound/reply-gates.ts");
-  assert.ok(
-    inbound.includes("workspacePaused: !!rt?.paused,") &&
-      inbound.includes('if (held === "paused") {') &&
-      /handToAPerson\(at, \{\s*reason: "paused",/.test(inbound),
-    "kept, held for a person, not answered",
-  );
-  const inboundRaw = readRaw("packages/core/src/inbound/reply-gates.ts");
-  assert.ok(
-    inboundRaw.indexOf('if (held === "paused") {') <
-      inboundRaw.indexOf("// E3: the reply policy is consulted BEFORE generation."),
-    "before the policy, which may still read auto",
-  );
-  const pb = readCode("apps/edge/lib/campaigns/playbooks/playbooks.ts");
-  // The context answers CONTEXT_PAUSED; the sweep counts it off and Run now refuses it in words
-  // (cron-playbooks-door.test.mjs and playbooks-run-door.test.mjs run both).
-  assert.ok(pb.includes('if (tenant?.status === "paused") return { error: CONTEXT_PAUSED };'));
-  // The batch's head, and the door's `paused` for a pause that lands mid-batch, stop the run in one place
-  // (broadcast-stops.ts stopForTheWorkspace): the run fails with its reason and the owner is told, in the words said once
-  // in broadcast-words.ts and contracts stoppedRunFix. broadcasts/core-broadcast/ runs both and asserts the words.
-  const jobs = ["packages/core/src/messages/broadcast/stops.ts", "packages/core/src/messages/broadcast/batch.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(jobs.includes('await stopForTheWorkspace(ports, b, "paused");'));
-  // A text asked for on the phone goes through the same gate, which refuses it
-  // before the wire: run in retell-fn-door.test.mjs.
-  // The phone's pause script replaces the prompt, never adds to it, and the
-  // calendar is not read for it: run in call-start.test.mjs.
-  // The line under the top bar reads the pause from the billing surface and
-  // opens Billing: mounted in shell/surfaces/status/.
+  const loaded = async (status, n) => {
+    const tenantId = `aaaaaaaa-0000-4000-8000-00000000p0${n}`;
+    const db = fakeDb(
+      {
+        tenants: [{ id: tenantId, name: "Harbor", slug: `harbor-${n}`, timezone: "America/New_York", status }],
+        tenant_config: [{ tenant_id: tenantId, config: {} }],
+        policies: [],
+      },
+      {},
+      { runtime_stamp: () => `stamp-${n}` },
+    );
+    return loadTenantRuntime(db, { tenantId, channelId: `ch-${n}`, kind: "whatsapp", credentialsRef: null });
+  };
+  assert.equal((await loaded("paused", 1)).paused, true, "billing paused it: the runtime says so");
+  assert.equal((await loaded("active", 2)).paused, false);
+
+  // A message to a paused workspace is kept, held for a person, not answered: run in inbound/phases/ ("the rate cap,
+  // the budget and a paused workspace all keep the customer's words"). And before the policy, which may still read
+  // auto or veto: the hold is the pause's, and no draft waits on a veto.
+  for (const mode of ["auto", "veto"]) {
+    const w = world({ rt: runtime({ paused: true, policy: { reply: { mode, limits: { reply_delay_ms: 60_000 } } } }) });
+    await w.run(text("are you open on Sunday?", `wamid.pause-${mode}`));
+    assert.deepEqual(
+      w.seen.escalations.map((e) => e.reason),
+      ["paused"],
+      `${mode}: held for a person`,
+    );
+    assert.deepEqual(w.seen.sent, [], `${mode}: nothing said`);
+  }
+  // A sequence's run: refused in its own words before anything is made, for Run now (playbooks-run-door.test.mjs,
+  // "billing paused the workspace") and counted off by the sweep (cron-playbooks-door.test.mjs). A broadcast's run fails
+  // with its reason and the owner is told, at the batch's head and for a pause that lands mid-batch
+  // (broadcasts/core-broadcast/a-run-claims-sends-and-stops.test.mjs, "a paused workspace fails the run"). A text asked
+  // for on the phone goes through the same gate, which refuses it before the wire: run in retell-fn-door.test.mjs. The
+  // phone's pause script replaces the prompt, never adds to it, and the calendar is not read for it: run in
+  // call-start.test.mjs. The line under the top bar reads the pause from the billing surface and opens Billing: mounted
+  // in shell/surfaces/status/. Pinned as tenant-runtime.ts's, rows.ts's, reply-gates.ts's, playbooks.ts's and the
+  // broadcast's stops' text until 26 Nov 2026.
 });

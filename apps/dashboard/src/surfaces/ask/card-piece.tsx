@@ -124,8 +124,7 @@ function usePieceStills(key: string | null, wanted: boolean, proposal: AskPropos
       );
     });
     return () => stop.abort();
-    // What is asked is the key's: the payload is read only as it changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- what is asked is the key's: the payload is read only as the key changes
   }, [key, wanted, held]);
   return held ? stills : null;
 }

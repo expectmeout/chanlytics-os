@@ -133,8 +133,7 @@ export default function CreateWorkspace({
     void (claiming ? claim(claiming) : create(kept, "")).then((made) => {
       if (!made) setMaking(false);
     });
-    // Once, on arrival: its inputs are sign-up's, and they do not change while the screen is open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival: its inputs are sign-up's, and they do not change while the screen is open
   }, []);
 
   // Behind a waitlist, the list's own rule as the screen opens (waitlist.ts), so a press does not wait on it.

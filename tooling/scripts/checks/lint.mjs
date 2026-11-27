@@ -25,7 +25,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
-import { HELD_STRICT, HELD_TYPED } from "../../../eslint.config.mjs";
+import { HELD_HOUSE, HELD_STRICT, HELD_TYPED } from "../../../eslint.config.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -219,7 +219,7 @@ export const flatWarnings = (warnings) =>
   );
 
 /** The typed rules held as warnings that the tree holds no finding of: each is an error from the change that says so. */
-export const heldButClean = (warnings, held = [...HELD_TYPED, ...HELD_STRICT]) => {
+export const heldButClean = (warnings, held = [...HELD_TYPED, ...HELD_STRICT, ...HELD_HOUSE]) => {
   const found = new Set(Object.values(warnings).flatMap((rules) => Object.keys(rules)));
   return held.filter((rule) => !found.has(rule));
 };
@@ -270,8 +270,8 @@ async function main() {
   const clean = heldButClean(warnings);
   if (clean.length) {
     console.error(
-      `the tree holds no finding of ${clean.join(", ")}: take ${clean.length === 1 ? "it" : "each"} out of HELD_TYPED ` +
-        "or HELD_STRICT in eslint.config.mjs, and the rule is an error from now on",
+      `the tree holds no finding of ${clean.join(", ")}: take ${clean.length === 1 ? "it" : "each"} out of HELD_TYPED, ` +
+        "HELD_STRICT or HELD_HOUSE in eslint.config.mjs, and the rule is an error from now on",
     );
     failed = true;
   }

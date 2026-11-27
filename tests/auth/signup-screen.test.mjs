@@ -193,6 +193,20 @@ test("nothing can be pressed until the server has named the door, and each door 
   }
 });
 
+test("an older API that names no posture is still understood: its code_required is the invite's door, else the open one", async () => {
+  // The API and the page ship separately (signup-posture.test.mjs runs the route's answer under each posture).
+  for (const [data, door] of [
+    [{ open: true, code_required: true }, "invite"],
+    [{ open: true, code_required: false }, "open"],
+  ]) {
+    cells = [];
+    answers = { GET: { status: 200, body: { ok: true, data } }, POST: CONFIRM };
+    draw();
+    await settle();
+    assert.equal(card().props["data-posture"], door, JSON.stringify(data));
+  }
+});
+
 test("a weak password is refused before anything is sent, in the rule's own words", async () => {
   await open("open", CONFIRM);
   fill("short");

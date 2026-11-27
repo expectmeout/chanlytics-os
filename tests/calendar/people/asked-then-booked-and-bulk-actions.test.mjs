@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toPersonVM, personActs, PEOPLE_LISTS } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
-import { DESK, PHONE, declared, givenOn } from "../../_css.mjs";
+import { DESK, PHONE, cascadeOf, declared, element } from "../../_css.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { logLineOf } from "../../_log-lines.mjs";
 import { fresh, again, all, byTestId, classes, find, press, textOf } from "../../_stub-react.mjs";
@@ -1193,10 +1193,12 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.ok(plMatcher(day)(booked), "the day they are coming");
   assert.ok(!plMatcher(day)({ ...booked, nextVisit: null }), "and only that: the day is the row's own");
   // The header that sticks is the kit's table's (kit.css, the gallery's Table family holds it); the cards are People's,
-  // asked of its sheet as the build's parser reads it (tests/_css.mjs givenOn; pinned as clients.css's text until 26 Nov
-  // 2026): at 900px and under a row is a card of three lines, and over it a table's row.
+  // asked of its sheet as the build's parser reads it (tests/_css.mjs cascadeOf; pinned as clients.css's text until 26
+  // Nov 2026): at 900px and under a row is a card of three lines, and over it a table's row.
   const areasAt = (width) =>
-    givenOn("apps/dashboard/src/styles/clients.css", ".cl-table tbody tr", { ...DESK, width })["grid-template-areas"];
+    cascadeOf(["apps/dashboard/src/styles/clients.css"], { ...DESK, width }).given(element(".cl-table", "tbody", "tr"))[
+      "grid-template-areas"
+    ];
   const card = declared('grid-template-areas: "sel name state" "sel last visits" "sel offers offers"');
   assert.deepEqual(
     [areasAt(PHONE.width), areasAt(900), areasAt(901)],

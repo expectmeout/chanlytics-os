@@ -19,8 +19,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import ts from "typescript";
-import { ROOT } from "../_source.mjs";
-import { WIRE_REGISTRY, dashboardWire, isSnakeCase, offTheWire, wireShapes } from "../_measures.mjs";
+import { ROOT } from "../../_source.mjs";
+import { WIRE_REGISTRY, dashboardWire, isSnakeCase, offTheWire, wireShapes } from "../../_measures.mjs";
 
 // The measure, kept honest: a handler whose module the checker could not resolve reads as `any`, a handler that takes
 // or answers `any` or `unknown` as a whole shows no names, and a walk that stopped at the top would see a clean wire,

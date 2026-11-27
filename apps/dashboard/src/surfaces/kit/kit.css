@@ -18,7 +18,7 @@
    (bridge/frame.css), whose list the harness's pages link too (tooling/scripts/e2e-harness/app-styles.mjs). In the built app the root layout's app/globals.css comes first, the
    tokens at its head, so its own rules, the pages' outside the shell, stand between the tokens and the kit; none of
    them names a kit class. It imports the kit in the change that first draws a kit class on a page outside the shell
-   (the plan's §3.3), which styles/kit-css.test.mjs holds: none does yet.
+   (the plan's §3.3), which repo/rules/the-kit-s-sheet-and-its-names.test.mjs holds: none does yet.
 
    The house's primitives came here from components.css and record.css in step 2.1: whole rules, with their comments,
    in the order they stood, so nothing a member sees changed. They still write some values as numbers

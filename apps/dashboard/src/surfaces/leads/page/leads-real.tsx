@@ -183,7 +183,7 @@ function useLeadsView({ leadsRoute, onNavigate }: { leadsRoute: string | null; o
   const filtersKey = `${viewRoute}|${JSON.stringify(chips)}|${read.readWords}`;
   useEffect(() => {
     setAllMatching(false);
-  }, [filtersKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filtersKey, setAllMatching]);
   useLeadChipsAddress({ leadView, addrPeek, narrow, nav });
   // Each view keeps its place by the address's view without its chips (viewRoute), its map with it; its chips are the
   // address's. The selection goes with the view, never with a narrowing: a chip, as the box, the fit and the Filter, keeps

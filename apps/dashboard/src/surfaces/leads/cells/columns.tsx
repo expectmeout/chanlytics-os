@@ -276,6 +276,7 @@ export const LEAD_COLUMNS: readonly DataColumn<LeadRowVM, LeadCellCtx, ColCtx>[]
         <CellLines
           end
           top={
+            // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- the only way a keyboard reaches the Found date's tip (when it was found, and from what); nothing is pressed there
             <span tabIndex={0} aria-describedby={`${l.id}-found-tip`}>
               {l.foundLabel}
             </span>

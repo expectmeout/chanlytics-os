@@ -1276,3 +1276,47 @@ test(
     );
   },
 );
+
+test(
+  "Setup counts a yes to offers it may send to: not one on the do-not-contact list, not one erased",
+  { skip },
+  async () => {
+    // setup_rows (00700), Setup's every row in one call, counted as the reachable view counts the offers audience. In a
+    // workspace of its own, so the people this file's other tests made are not counted.
+    const counted = ok(
+      await db
+        .from("tenants")
+        .insert({ slug: `setup-offers-${Date.now()}`, name: "Setup offers" })
+        .select("id")
+        .single(),
+    ).id;
+    try {
+      const person = (marketing_consent, over = {}) => ({
+        tenant_id: counted,
+        phone_e164: phone(),
+        consent: "opted_in",
+        marketing_consent,
+        dnc: false,
+        ...over,
+      });
+      ok(
+        await db
+          .from("contacts")
+          .insert([
+            person("opted_in"),
+            person("opted_in", { dnc: true }),
+            person("opted_in", { erased_at: new Date().toISOString() }),
+            person("unknown"),
+            person("opted_out", { consent: "unknown" }),
+          ]),
+      );
+      const rows = ok(await db.rpc("setup_rows", { p_tenant_id: counted, p_roster: false }));
+      assert.equal(rows.people.offers_yes, 1, "the one yes to offers it may send to");
+      assert.equal(rows.people.said_yes, 3, "beside the yes to messages, its own count");
+    } finally {
+      await db.from("contacts").delete().eq("tenant_id", counted);
+      await db.from("events").delete().eq("tenant_id", counted);
+      await db.from("tenants").delete().eq("id", counted);
+    }
+  },
+);

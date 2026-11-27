@@ -61,3 +61,37 @@ test("a person's key is the text of their uuid, and buckets do not share a count
   const again = await take("reply", user, 1);
   assert.equal(again.data.allowed, false);
 });
+
+test(
+  "one actor's one bucket is counted one hit at a time: a burst at the limit lets the limit through",
+  { skip },
+  async () => {
+    // take_rate holds an advisory lock on the bucket and the actor (00103), so hits that arrive together are counted in
+    // turn, and none reads the count before another's hit is written.
+    const actor = `ip:${randomUUID().replace(/-/g, "")}`;
+    actors.push(actor);
+    const burst = await Promise.all(Array.from({ length: 8 }, () => take("signup_ip", actor, 3)));
+    for (const r of burst) assert.equal(r.error, null, r.error?.message);
+    assert.equal(burst.filter((r) => r.data.allowed).length, 3, "exactly the limit, however they arrive");
+  },
+);
+
+test(
+  "the browser never counts: a signed-out caller is refused the counter, the service role counts",
+  { skip },
+  async () => {
+    const ANON = process.env.SUPABASE_ANON_KEY;
+    if (!ANON) return;
+    const stranger = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    const actor = `ip:${randomUUID().replace(/-/g, "")}`;
+    actors.push(actor);
+    const refused = await stranger.rpc("take_rate", {
+      p_bucket: "signup_ip",
+      p_actor: actor,
+      p_limit: 1,
+      p_window_ms: 60_000,
+    });
+    assert.ok(refused.error, "take_rate is the service role's alone");
+    assert.equal((await take("signup_ip", actor, 1)).data.allowed, true, "and the stranger's try counted nothing");
+  },
+);

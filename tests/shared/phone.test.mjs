@@ -27,8 +27,13 @@ import {
   FORWARD_IS_HANDOFF,
   shortCode,
   EVENT_KINDS,
+  forwardingMatch,
 } from "@chanlytics/contracts";
-import { readCode } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { text, world } from "../inbound/_world.mjs";
+
+const { pgSink } = await importSrc("apps/edge/lib/inbound/persist.ts");
 
 test("normalizePhone, pinned by value so the four layers can be compared", () => {
   assert.equal(normalizePhone("5551234567"), "+15551234567", "ten digits are North American");
@@ -90,19 +95,78 @@ test("every sentence is one an owner could act on", () => {
   }
 });
 
-test("the door asks, rather than deciding for itself", () => {
-  const route = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
-  assert.ok(route.includes("whyNotAPhone(rawPhone)"), "the words come from contracts, where the product's words live");
-  assert.ok(route.includes("const phone = normalizePhone(rawPhone);"), "and the rule is still normalizePhone's");
+test("the door asks, rather than deciding for itself", async () => {
+  // The people door (POST /api/v1/contacts), run as an operator adds a person: the words for a number that is not one
+  // come from contracts, where the product's words live, and the rule is still normalizePhone's.
+  const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
+  const contacts = await importSrc("apps/dashboard/app/api/v1/contacts/route.ts");
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const added = [];
+  const ctx = () => ({
+    supabase: fakeDb(
+      {
+        memberships: [
+          {
+            user_id: "u1",
+            tenant_id: T,
+            role: "operator",
+            tenants: { slug: "harbor" },
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+        tenants: [{ id: T, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+      },
+      {},
+      { create_person: (args) => (added.push(args), { contact_id: "p-new", existed: false }) },
+    ),
+    userId: "u1",
+    email: "ops@harbor.example",
+    params: {},
+  });
+  const add = (phone) => {
+    setRateStore(memoryStore());
+    return contacts.POST.run(
+      new Request(`http://localhost/api/v1/contacts?workspace=${T}`, {
+        method: "POST",
+        body: JSON.stringify({ name: "Ana", phone }),
+      }),
+      ctx(),
+    );
+  };
+  for (const raw of ["12345", "555-0142", "not a number"]) {
+    await assert.rejects(add(raw), (e) => {
+      assert.equal(e.code, "validation");
+      assert.equal(e.message, whyNotAPhone(raw) ?? "That is not a phone number.", raw);
+      return true;
+    });
+  }
+  assert.deepEqual(added, [], "nothing is added for a number that is not one");
+  await add("+1 (305) 555-0142");
+  assert.deepEqual(
+    added.map((a) => a.p_phone_e164),
+    [normalizePhone("+1 (305) 555-0142")],
+    "and a real one is kept as the rule spells it",
+  );
 });
 
 test("the shared normalizer is NOT tightened, because two of its callers fail open", () => {
   // forwarding: a destination that will not parse makes `dest` falsy, and the
   // whole guard is skipped — a line marked verified by the wrong call.
-  const fwd = readCode("packages/contracts/src/voice/forwarding.ts");
-  assert.ok(
-    fwd.includes("if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;"),
-    "still guarded only when dest parses",
+  // forwardingMatch (contracts voice/forwarding.ts), run: the call must have reached the destination only when the
+  // destination parses; a test window whose destination will not parse is matched by its window alone.
+  const window = { test_started_at: "2026-11-26T15:00:00Z", test_until: "2026-11-26T15:10:00Z" };
+  const call = (toE164) => ({ fromE164: "+13055550199", toE164, startedAtIso: "2026-11-26T15:02:00Z" });
+  const at = Date.parse("2026-11-26T15:03:00Z");
+  assert.equal(
+    forwardingMatch({ ...window, destination_e164: "+13055550142" }, call("+13055550100"), at),
+    false,
+    "guarded when dest parses",
+  );
+  assert.equal(forwardingMatch({ ...window, destination_e164: "+13055550142" }, call("+1 305 555 0142"), at), true);
+  assert.equal(
+    forwardingMatch({ ...window, destination_e164: "not a number" }, call("+13055550100"), at),
+    true,
+    "and only then",
   );
 
   // retell-fn: `asked ?? caller` turns a refusal into a text to the caller
@@ -129,37 +193,41 @@ test("a short code is a sender, never a person", () => {
   assert.match(whyNotAPhone("12345"), /short code/);
 });
 
-test("the receptionist records a short code and does not answer it", () => {
+test("the receptionist records a short code and does not answer it", async () => {
   // A carrier notice, a two-factor code or a bank alert lands on a business's
   // line like any other text. Nothing can be sent back to one from a ten-digit
   // number, so composing a reply spends a model call to produce a message
   // Twilio will refuse — and the failure then raises "Reply delivery failed"
   // at an owner who never wrote it.
-  const inbound = readCode("packages/core/src/inbound/ingest.ts");
-  assert.ok(inbound.includes("if (shortCode(from)) {"), "the guard reads the sender");
-
-  // It gates the REPLY, not the persist: an owner should be able to see what
-  // arrived on their line.
-  const guard = inbound.slice(inbound.indexOf("if (shortCode(from)) {"));
-  const body = guard.slice(0, guard.indexOf("return;") + "return;".length);
-  assert.ok(body.includes("await recordOrSay()"), "the message is still recorded");
-  assert.ok(body.includes("await sink.unreachableSender()"), "with a reason of its own");
-  assert.ok(
-    body.includes("await sink.processed(handledOf(SET_ASIDE))"),
-    "and marked handled, so nothing retries it, and says it was set aside",
-  );
-  assert.ok(body.includes("return;"), "and no reply is composed");
-
-  // Before the one-time code, the other set-aside, so the two cannot disagree
-  // about a sender that is both.
-  assert.ok(
-    inbound.indexOf("if (shortCode(from)) {") < inbound.indexOf("if (oneTimeCodeOf("),
-    "the unreachable check comes first",
-  );
-
+  // The receptionist's inbound path, run over its world (inbound/_world.mjs): a text from a short code is recorded, so
+  // an owner can see what arrived on their line, with a reason of its own; marked handled and set aside, so nothing
+  // retries it; and no reply is composed. It is asked before the one-time code, the other set-aside, so the two cannot
+  // disagree about a sender that is both: the order is inbound/the-gates-run-in-their-order.test.mjs's.
+  for (const body of ["Your carrier notice: your bill is ready.", "Your code is 482913."]) {
+    const w = world();
+    await w.run(text(body, `wamid.short-${body.length}`, "12345"));
+    assert.equal(w.seen.lines.length, 1, `${body}: recorded`);
+    assert.equal(w.seen.unreachable, 1, "as an unreachable sender, said once");
+    assert.deepEqual(w.seen.sent, [], "and nothing is sent back to it");
+    assert.deepEqual(
+      w.seen.handled.map((h) => [h.how, h.marked]),
+      [["blocked", true]],
+      "processed and set aside, so nothing retries it",
+    );
+  }
   assert.ok(EVENT_KINDS.includes("ingest.unreachable_sender"), "the event is one the product knows");
-  const persist = readCode("apps/edge/lib/inbound/persist.ts");
-  assert.ok(persist.includes('emitEvent(db, tenantId, "ingest.unreachable_sender", "message", ing.message_id, {})'));
+  // The edge's sink writes it (apps/edge/lib/inbound/persist.ts pgSink), about the message, once.
+  const t = { events: [] };
+  const sink = pgSink(fakeDb(t), "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", {
+    conversation_id: "c1",
+    contact_id: "p1",
+    message_id: "m1",
+  });
+  await sink.unreachableSender();
+  assert.deepEqual(
+    t.events.map((e) => [e.kind, e.subject_type, e.subject_id]),
+    [["ingest.unreachable_sender", "message", "m1"]],
+  );
 });
 
 test("F2: a transfer number that forwards to the receptionist is refused, and so is forwarding the transfer number", () => {

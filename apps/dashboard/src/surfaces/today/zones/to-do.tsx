@@ -103,8 +103,7 @@ export function useToDoRows({
   const noteThreads = rows.flatMap((r) => stepNoteWantOf(r)?.conversationId ?? []).join(",");
   useEffect(() => {
     void wantDrafts(rows.flatMap((r) => stepNoteWantOf(r) ?? []));
-    // The threads stand for the rows: a new step, or one with another thread, reads again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the threads stand for the rows: a new step, or one with another thread, reads again
   }, [noteThreads]);
   // What the group's foot says is left out counts only the rows drawn that the read still holds: a row acted on is no to-do
   // now, and must not hide one that is.

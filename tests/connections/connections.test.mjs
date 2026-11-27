@@ -21,7 +21,7 @@ import {
   CONNECTION_KINDS,
   CONNECTION_GROUP_WORDS,
 } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
-import { readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { bootRunsOneNamed } from "../shell/boot/_frame-boot.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
@@ -426,140 +426,75 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
   }
 });
 
-test("the wiring: the page draws rows from the same facts Setup reads, the old cards are gone, the edge says the audience", () => {
-  // The pane moved to TSX (decision 0015 step 11): the pane, its row, its parts and the business record's form, read in one
-  // go, and the text of any of them is "the page".
-  const parts = ["pane", "row", "record-form", "google-choose", "email-setup", "mailboxes-block"].map((f) =>
-    readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`),
-  );
-  const [pane, row, form] = parts;
-  const page = parts.join("\n");
-  // Its Disconnect (Remove until 20 Oct 2026) is in the listing's Settings, and asked only of a listing there is.
-  assert.ok(
-    row.includes(
-      'const removable = r.kind === "google_listing" && owner && (r.state === "connected" || r.state === "attention");',
-    ),
-    "Disconnect is offered only when there is a listing to disconnect",
-  );
-  assert.ok(
-    !page.includes("It is an operator action for now"),
-    "the off-channel sentence lives on the row (channels.ts), not in a note beneath it",
-  );
-  // The pane computes its rows from contracts' own function, over the facts Setup and Google already read.
-  assert.ok(
-    pane.includes("connectionRows(") &&
-      pane.includes("lineRequestedAt: setup ? setup.dto.requests.line : null,") &&
-      pane.includes("{ ready: google.dto.ready, listing: google.dto.listing, connection: google.dto.connection }") &&
-      pane.includes("calendar: setup ? setup.dto.calendar : null,"),
-  );
-  assert.ok(
-    !page.includes("INT_NOT_AVAILABLE") && !page.includes("<GoogleCard />") && !page.includes("<ConnectWhatsAppRow />"),
-    "one row model, no hand-built cards",
-  );
-  // The pane is its own file; Settings' page (surfaces/settings/frame, decision 0015 step 11) imports it and draws it
-  // for its tab, as it does Billing.
-  const shell = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
-  assert.ok(
-    shell.includes("<PaneIntegrationsReal row={row} />") && !shell.includes("const PaneIntegrationsReal"),
-    "the page renders the pane, it does not contain it",
-  );
-  assert.match(shell, /import \{ PaneIntegrationsReal \} from "\.\.\/connections\/pane";/);
-  assert.ok(pane.includes("export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | null }) => {"));
-  // A file of its own never uses a helper that lives in the file it came
-  // from: `useSetState` was an alias declared at the top of settings.jsx, so
-  // it left with the code and arrived undefined -- a break no source-reading
-  // test could see, and the browser found. The TSX imports what it uses; the
-  // toast is the verbs module's `useFrameToast`, not a window helper.
-  for (const f of [pane, row, form]) {
-    assert.ok(
-      !f.includes("useSetState") && !f.includes("useSetEffect"),
-      "an alias from settings.jsx cannot be used here",
-    );
-    assert.ok(!f.includes("usePPToast"), "the toast is reached through the verbs module, not the window");
-  }
-  assert.ok(
-    pane.includes('import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";') &&
-      pane.includes("const [toastNode, flash] = useFrameToast();"),
-  );
-  // No legacy page is loaded for the pane or the form any more (both files are gone, and the manifest that loaded them),
-  // and the form is drawn by the pane as the component it is.
-  assert.ok(pane.includes("<BusinessRecordForm line={ownLine} flash={flash} />"));
-  assert.ok(pane.includes("data-testid={`connections-${g}`}") && row.includes("data-testid={`connection-${r.kind}`}"));
-  assert.ok(
-    pane.includes('useSurface("channels")') &&
-      pane.includes('useSurface("setup")') &&
-      pane.includes('useSurface("google")'),
-    "repaints on every surface it reads",
-  );
-  assert.ok(
-    row.includes('verb.who === "owner" ? canDo("team") : canDo("approve")'),
-    "who may press is the row's to say, the page only checks",
-  );
-  // The rows and the group words are the page's model's own (they left contracts, which only Connections read),
-  // imported by the pane: nothing is published on the window for it, and nothing in the app installs the old door.
-  const fromModel = pane.match(/import \{([^}]*)\} from "\.\/model\/setup";/);
-  assert.ok(
-    fromModel && /\bconnectionRows\b/.test(fromModel[1]) && /\bCONNECTION_GROUP_WORDS\b/.test(fromModel[1]),
-    "the pane imports its model's rows and group words",
-  );
+test("the wiring: the page draws rows from the same facts Setup reads, the old cards are gone, the edge says the audience", async () => {
+  // The pane (surfaces/settings/connections, TSX since decision 0015 step 11) is drawn and pressed in
+  // workspace/settings-doors.test.mjs over the reads it hears (the channels', Setup's and Google's, through useSurface):
+  // every connection says one word, Settings opens what it is attached to with Disconnect last and asked first, the form
+  // of the business on record is the row's own body, a row's verb is gated by who may press it, and every group and row
+  // carries the address e2e finds it by. Settings draws the pane for its tab (settings-owner-panes/). Nothing of
+  // Connections is installed at boot: the pane imports its model's rows and words.
   assert.ok(!bootRunsOneNamed("installConnections"), "the frame's boot installs nothing of Connections'");
-  const edge = readCode("apps/edge/lib/shared/google/config.ts");
-  assert.ok(
-    edge.includes("export function googleAudience(): GoogleAudience | null {") &&
-      edge.includes('return a === "testing" || a === "unverified" || a === "verified" ? a : null;'),
-    "an unknown value says nothing rather than something wrong",
+
+  // The audience Google's consent screen has for our app, as the edge states it: one of three words, or nothing rather
+  // than something wrong (edge lib/shared/google/config.ts), and the dashboard keeps the same three (server/connections
+  // google.ts getGoogleReadiness). GET google answers it under `ready` (google/google-routes.test.mjs).
+  const { googleAudience, googleReadiness } = await importSrc("apps/edge/lib/shared/google/config.ts");
+  const kept = Object.fromEntries(
+    ["GOOGLE_OAUTH_AUDIENCE", "EDGE_URL", "EDGE_CALL_SECRET", "EDGE_PROVIDERS"].map((k) => [k, process.env[k]]),
   );
-  assert.ok(edge.includes("audience: googleAudience()"));
-  const server = readCode("apps/dashboard/src/server/connections/google.ts");
-  assert.ok(
-    /audience:\s*ready\.audience === "testing" \|\| ready\.audience === "unverified" \|\| ready\.audience === "verified"\s*\? ready\.audience\s*: null,/.test(
-      server,
-    ),
-  );
-  // The DTO's `ready` is made in GET google's handle (google-actions.ts), beside the Google reader's read.
-  const route = readCode(
-    "apps/dashboard/app/api/v1/google/route.ts",
-    "apps/dashboard/src/server/settings/google-actions.ts",
-    "apps/dashboard/src/server/connections/google.ts",
-  );
-  assert.ok(route.includes("ready: { places: ready.places, profile: ready.profile, audience: ready.audience }"));
-  const env = readRaw("apps/edge/.env.example");
-  assert.ok(env.includes("GOOGLE_OAUTH_AUDIENCE="), "the manifest names the switch");
+  const realFetch = globalThis.fetch;
+  try {
+    for (const [said, means] of [
+      ["testing", "testing"],
+      ["unverified", "unverified"],
+      ["verified", "verified"],
+      ["published", null],
+      ["", null],
+      [undefined, null],
+    ]) {
+      if (said === undefined) delete process.env.GOOGLE_OAUTH_AUDIENCE;
+      else process.env.GOOGLE_OAUTH_AUDIENCE = said;
+      assert.equal(googleAudience(), means, String(said));
+      assert.equal(googleReadiness().audience, means, `${said}: and the readiness the edge answers says the same`);
+    }
+    Object.assign(process.env, {
+      EDGE_URL: "https://edge.example.com",
+      EDGE_CALL_SECRET: "edge-secret",
+      EDGE_PROVIDERS: "live",
+    });
+    const { getGoogleReadiness } = await importSrc("apps/dashboard/src/server/connections/google.ts");
+    let audience = null;
+    globalThis.fetch = async () =>
+      Response.json({
+        ok: true,
+        ready: { places: true, profile: true, audience },
+        profile: { client_id: "cid", redirect_uri: "https://app.example.com/api/v1/google/callback" },
+      });
+    let at = Date.now();
+    for (const [edge, kept] of [
+      ["verified", "verified"],
+      ["testing", "testing"],
+      ["anything-else", null],
+    ]) {
+      audience = edge;
+      at += 60 * 60_000;
+      assert.equal((await getGoogleReadiness(at)).audience, kept, `the edge said ${edge}`);
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+    for (const [k, v] of Object.entries(kept))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  }
+  // The manifest names the switch: tests/repo/env-manifest.test.mjs holds .env.example to the edge's getters.
+  // Pinned as the pane's, the row's, the form's, Settings', the manifest's, the edge's config, the server's and the
+  // route's text until 26 Nov 2026.
 });
 
-test("every verb a row can offer is a verb the page runs", () => {
-  // A button that does nothing is worse than no button, and this is where one
-  // shipped: the sole-proprietor OTP row offered "Send it again" pointing at
-  // `verb:resend-otp`, which no page ever handled. The click did nothing at
-  // all, on the one row in this product where a person is against a 24-hour
-  // clock -- and nothing failed, because a verb is a string on one side and a
-  // switch case on the other with no type between them.
-  //
-  // This is that missing type. Anything the contract can put on a row has to be
-  // answered by the page that renders it, or by a route the shell knows.
-  const rows = readRaw("apps/dashboard/src/surfaces/settings/connections/model/setup.ts");
-  const offered = [...rows.matchAll(/to:\s*"verb:([a-z-]+)"/g)].map((m) => m[1]);
-  assert.ok(offered.length >= 5, "the verbs were found at all");
-  const page = readCode("apps/dashboard/src/surfaces/settings/connections/pane.tsx");
-  // A verb is run by its case, or by the table of verbs run in one step (pane.tsx ONE_STEP_VERBS).
-  const handled = [
-    ...[...page.matchAll(/case\s*"verb:([a-z-]+)":/g)].map((m) => m[1]),
-    ...[...page.matchAll(/"verb:([a-z-]+)":\s*(?:\(\)\s*=>|armDisconnect)/g)].map((m) => m[1]),
-  ];
-  for (const v of new Set(offered)) {
-    assert.ok(handled.includes(v), `verb:${v} is offered by a row and handled by nobody`);
-  }
-  assert.ok(!offered.includes("resend-otp"), "REGRESSION: the OTP row promised a resend this product cannot yet make");
-  // The row still tells the owner what to do -- reply from the handset -- and
-  // says who asks for a new code, rather than offering a button for it.
-  const otp = rows.slice(rows.indexOf('case "otp_waiting":'), rows.indexOf('case "registering":'));
-  assert.match(otp, /sentence: TEXTING_CODE_SENTENCE/, "in the one sentence Setup says it in");
-  assert.match(TEXTING_CODE_SENTENCE, /on your mobile/);
-  assert.match(TEXTING_CODE_SENTENCE, /Chanlytics asks for a new code/);
-  // That the row carries no verb at all is asserted on the RETURNED row above,
-  // where it is a fact rather than an absence of a substring -- this comment
-  // block itself names the retired verb, so a source scan here would match it.
-});
+// Every verb a row can offer is a verb the page runs: a verb is a string on one side and a switch case on the other with
+// no type between them, so the rule that stands in for that type is the repository's:
+// tests/repo/rules/a-connection-s-verb-is-one-its-page-runs.test.mjs. That the OTP row offers no resend is asserted on
+// the returned row above, where it is a fact rather than an absence of a substring.
 
 test("a WhatsApp number Meta flagged needs attention on Connections, in the words Broadcasts uses; a good one stays On; nothing is said when Meta has said nothing", () => {
   const flagged = connectionRows(
