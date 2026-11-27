@@ -83,9 +83,8 @@ export async function editTemplateWords(
   tenantId: TenantId,
   userId: string,
   target: {
+    /** The row's id: the edge's door reads its name and language from it. */
     id: string;
-    name: string;
-    language: string;
     components: unknown[];
     body: string;
     examples: string[];
@@ -95,7 +94,7 @@ export async function editTemplateWords(
   },
 ): Promise<TemplateCreateOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const { id, name, language, before, ...words } = target;
+  const { id, before, ...words } = target;
   const answer = await callEdge(
     "/api/admin/whatsapp/templates-edit",
     { tenant_id: tenantId, template_id: id, user_id: userId, before, ...words },
