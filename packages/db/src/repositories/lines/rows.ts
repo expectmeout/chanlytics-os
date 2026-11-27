@@ -6,10 +6,11 @@
  * it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../types";
+import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
+import { jsonCopyOf } from "../../shared/json";
 
-import type { SchemaSet, TenantId } from "@chanlytics/contracts";
+import { DbFailure, type SchemaSet, type TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 type LineUpdate = Database["public"]["Tables"]["lines"]["Update"];
 type LineKey = { id: string; tenant_id: TenantId };
@@ -78,9 +79,50 @@ export const listStuckLines = async (db: Db, cutoff: string, limit: number) =>
     .order("state_since", { ascending: true })
     .limit(limit);
 
-/** The line's row deleted. */
-export const deleteLineRow = async (db: Db, tenantId: TenantId, lineId: string) =>
-  tenantDb(db, tenantId).from("lines").delete().eq("id", lineId);
+/**
+ * A released line's row deleted, with line.released in the same transaction (00721 line_release_row): what was let go
+ * (`event`). False where the row was gone already; throws when it could not be written.
+ */
+export async function releaseLineRow(
+  db: Db,
+  tenantId: TenantId,
+  lineId: string,
+  event: Record<string, unknown>,
+): Promise<boolean> {
+  const { data, error } = await db.rpc("line_release_row", {
+    p_tenant_id: tenantId,
+    p_line_id: lineId,
+    p_data: jsonCopyOf(event),
+  });
+  if (error) throw new DbFailure(error, "cannot release the line's row");
+  return data === true;
+}
+
+/** A texting verdict's kind and what it says, written with the answer that reached it (00721). */
+export interface LineTextingTold {
+  kind: "texting_on" | "texting_approved" | "texting_rejected";
+  data: Record<string, Json>;
+}
+
+/**
+ * The carriers' answer on a line's texting kept, the row asked again either way, with the verdict's event where there
+ * is news (00721 line_texting_keep). False where the line is gone; throws when it could not be written.
+ */
+export async function keepLineTexting(
+  db: Db,
+  line: LineKey,
+  row: Pick<LineUpdate, "sms_state" | "reg_mock" | "last_error" | "state_since">,
+  event: LineTextingTold | null,
+): Promise<boolean> {
+  const { data, error } = await db.rpc("line_texting_keep", {
+    p_tenant_id: line.tenant_id,
+    p_line_id: line.id,
+    p_row: { ...row },
+    ...(event ? { p_told: { kind: event.kind, data: event.data } } : {}),
+  });
+  if (error) throw new DbFailure(error, "cannot keep the line's texting");
+  return data === true;
+}
 
 /** The numbers we gave these workspaces (ours or forwarded), oldest first: the release sweep's page. */
 export const listLinesOfWorkspaces = async (db: Db, tenantIds: TenantId[]) =>

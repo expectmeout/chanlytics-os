@@ -51,6 +51,7 @@ import {
   type ActivityRowDto,
   type NoteTurn,
   valueAt,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { JOURNAL_SCHEMA, checkJournal, journalSystemPrompt, journalUserContent, type JournalLine } from "./ask-journal";
 import { getActivitySubjects } from "@chanlytics/db/events";
@@ -79,8 +80,16 @@ interface NoteCandidate {
   dnc: boolean;
   last_suggested: string | null;
   workspace_today: number;
-  turns: NoteTurn[];
-  known: string[];
+  /** jsonb, as note_candidates builds it: read as it arrives (isNoteTurn). */
+  turns: unknown;
+  /** jsonb: the notes on file, newest first. */
+  known: unknown;
+}
+
+/** A turn of a candidate's jsonb as a note is written from it: the customer's or the business's, with its words. */
+function isNoteTurn(value: unknown): value is NoteTurn {
+  const turn = recordOrNull(value);
+  return !!turn && (turn.who === "customer" || turn.who === "business") && typeof turn.text === "string";
 }
 
 /** The model's answer to one look, with what it cost; null when there is no model to ask. */
@@ -142,14 +151,12 @@ export async function suggestNotes(deps: {
   }
   // The day's count per workspace, carried across this run's own suggestions so a busy batch keeps to the cap.
   const today = new Map<string, number>();
-  const candidates: unknown[] = data ?? [];
+  const candidates: unknown[] = data;
   for (const row of candidates as NoteCandidate[]) {
     out.looked += 1;
-    const turns = (Array.isArray(row.turns) ? row.turns : []).filter(
-      (t): t is NoteTurn => !!t && (t.who === "customer" || t.who === "business") && typeof t.text === "string",
-    );
+    const turns = (Array.isArray(row.turns) ? row.turns : []).filter(isNoteTurn);
     const known = (Array.isArray(row.known) ? row.known : []).filter((k): k is string => typeof k === "string");
-    const workspaceToday = Math.max(row.workspace_today ?? 0, today.get(row.tenant_id) ?? 0);
+    const workspaceToday = Math.max(row.workspace_today, today.get(row.tenant_id) ?? 0);
     const early = whyNotLook({
       source: row.source,
       turns,

@@ -112,7 +112,7 @@ async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
   const folder = fileFolderOf(job.tenant_id, fileId);
   const listed = await filesBucket(db).list(folder);
   if (listed.error) throw new DbFailure(listed.error, "file_purge");
-  const paths = (listed.data ?? []).map((f) => `${folder}/${f.name}`);
+  const paths = listed.data.map((f) => `${folder}/${f.name}`);
   if (paths.length) {
     const gone = await filesBucket(db).remove(paths);
     if (gone.error) throw new DbFailure(gone.error, "file_purge");

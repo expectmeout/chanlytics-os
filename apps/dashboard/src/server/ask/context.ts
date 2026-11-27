@@ -1,5 +1,13 @@
 import "server-only";
-import { MIN_MS, UUID, fenced, promptSafeName, type AskSurface, type PageContextDto } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  UUID,
+  entryOf,
+  fenced,
+  promptSafeName,
+  type AskSurface,
+  type PageContextDto,
+} from "@chanlytics/contracts";
 import { stableJson, type ReaderContext, type RowRef } from "../shared/reader";
 import type { WorkspaceShape } from "../readers/workspace/shape";
 import {
@@ -115,7 +123,8 @@ function pageRef(ctx: PageContextDto, label: string): RowRef {
 
 /** The provider's rows and aggregate, cut to the caps (D11) in the page's order, the cut said. */
 function assemble(ctx: PageContextDto, result: Provided): Built {
-  const title = PAGE_TITLES[ctx.surface] ?? PAGE_TITLES.other;
+  // The surface is the page's own word for itself: one no provider knows reads as any other page.
+  const title = entryOf(PAGE_TITLES, ctx.surface) ?? PAGE_TITLES.other;
   const seen = new Set<string>();
   const rows = result.rows.filter((r) => !seen.has(r.source) && !!seen.add(r.source));
   const base = clip(oneLine(result.aggregate), CONTEXT_CAPS.aggregate - CUT_ROOM);
@@ -144,7 +153,7 @@ function assemble(ctx: PageContextDto, result: Provided): Built {
 
 /** One build: the surface's provider, its failure caught and said in the aggregate, then the caps. */
 async function build(rc: ReaderContext, ctx: PageContextDto): Promise<Built> {
-  const provider = PROVIDERS[ctx.surface] ?? readOther;
+  const provider = entryOf(PROVIDERS, ctx.surface) ?? readOther;
   try {
     return assemble(ctx, await provider(rc, ctx));
   } catch (e) {
@@ -152,7 +161,7 @@ async function build(rc: ReaderContext, ctx: PageContextDto): Promise<Built> {
     return {
       ...assemble(ctx, {
         rows: [],
-        aggregate: `${PAGE_TITLES[ctx.surface] ?? "The page"}: could not be read just now`,
+        aggregate: `${entryOf(PAGE_TITLES, ctx.surface) ?? "The page"}: could not be read just now`,
       }),
       failed: true,
     };

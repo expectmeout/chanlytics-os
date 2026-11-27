@@ -35,7 +35,7 @@ import {
 } from "@chanlytics/contracts";
 import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
-import { emitEvent, failOpenDelivery } from "@chanlytics/db/events";
+import { failOpenDelivery } from "@chanlytics/db/events";
 import { failQueuedSend } from "@chanlytics/db/jobs";
 import { endPiece, endSourceTake, failCopyReturn, failShelfCopy, keepFileLook } from "@chanlytics/db/files";
 import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
@@ -215,11 +215,7 @@ async function failBroadcast(
   // No row means it finished by itself between the read and here, and there is
   // nothing to tell anyone about work that completed.
   if (!data.length) return [{ what: "broadcast", changed: false, ...far }];
-  // On the ledger as every stopped run is (broadcast.stopped), best effort: never a reason this settlement throws.
-  await emitEvent(db, job.tenant_id, "broadcast.stopped", "broadcast", broadcastId, {
-    failure: "run_interrupted",
-    sent: far.reached,
-  });
+  // On the ledger as every stopped run is: its row's move to failed wrote broadcast.stopped (00721).
   return [{ what: "broadcast", changed: true, notResumed: reason, ...far }];
 }
 

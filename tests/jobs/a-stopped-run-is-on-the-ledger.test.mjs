@@ -57,7 +57,7 @@ test("a run the send job stops (here a paused workspace) is on the ledger with i
   assert.equal(alerts.length, 1, "and the owner is told, as before");
 });
 
-test("a ledger that cannot see its recipients still writes the stop, with no count rather than a wrong one", async () => {
+test("a stop is its run's own row's move: its count is read in the write's transaction, so a read the job cannot make leaves no gap (00721)", async () => {
   const tables = { tenants: [{ id: T, status: "paused" }], broadcasts: [run()], broadcast_recipients: [], events: [] };
   const db = fakeDb(tables, { "sequence_sends.select": { message: "connection reset" } });
   await broadcastSend(
@@ -66,7 +66,7 @@ test("a ledger that cannot see its recipients still writes the stop, with no cou
   );
   assert.deepEqual(
     stoppedOf(tables).map((r) => r[4]),
-    [{ failure: "paused", sent: null }],
+    [{ failure: "paused", sent: 0 }],
   );
 });
 

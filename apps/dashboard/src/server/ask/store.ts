@@ -165,7 +165,7 @@ export async function listThreads(ctx: RouteContext, tenantId: TenantId): Promis
     THREADS_CAP,
   );
   if (error) throw new DbFailure(error);
-  return (data ?? []).map(toThreadVM);
+  return data.map(toThreadVM);
 }
 
 /**
@@ -223,7 +223,7 @@ export async function readThread(
   // each row again), says how each turn's history went: where a live replay's chain begins, before any raw is read.
   const { data: msgs, error: merr } = await listAskTurns(ctx.supabase, id, MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
-  const rows = (msgs ?? [])
+  const rows = msgs
     .reverse()
     .map(({ id: messageId, role, created_at, ...content }) => ({ id: messageId, role, created_at, content }));
   // What the thread's questions came with, as those files are now. Most threads have none, and read nothing more.
@@ -247,7 +247,7 @@ export async function readThread(
 export async function readRaws(ctx: RouteContext, ids: string[]): Promise<Map<string, unknown>> {
   const { data, error } = await listAskTurnsRaw(ctx.supabase, ids);
   if (error) throw new DbFailure(error);
-  return new Map((data ?? []).map((r) => [r.id, r.raw]));
+  return new Map(data.map((r) => [r.id, r.raw]));
 }
 
 /** A scope as the thread's column holds it: its three fields, or none. */
@@ -375,7 +375,7 @@ export async function setProposalOutcome(
     jsonCopyOf({ ...content, proposals: next }),
   );
   if (uerr) throw new Error(uerr.message);
-  if (!upd?.length) throw new AppError("not_found", "That turn is not yours.", 404);
+  if (!upd.length) throw new AppError("not_found", "That turn is not yours.", 404);
   return settled;
 }
 
@@ -385,5 +385,5 @@ export const CONVERSATION_GONE = "That conversation is not yours or is already g
 export async function deleteThread(ctx: RouteContext, id: string): Promise<void> {
   const { data, error } = await deleteAskThread(ctx.supabase, id);
   if (error) throw new DbFailure(error);
-  if (!data?.length) throw new AppError("not_found", CONVERSATION_GONE, 404);
+  if (!data.length) throw new AppError("not_found", CONVERSATION_GONE, 404);
 }

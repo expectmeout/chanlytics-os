@@ -129,7 +129,7 @@ export async function createWhatsappTemplate(
     created_by: userId,
   };
   const { data: saved, error } = await saveTemplateRow(db, tenantId, row);
-  if (error || !saved) return refuseFailure(503, "write_failed", error);
+  if (error) return refuseFailure(503, "write_failed", error);
   log.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: created.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: created.data.id, meta_status: status });
 }
@@ -351,7 +351,7 @@ export async function syncTemplates(
   const { data: existing, error: readError } = await listWhatsAppTemplateKeys(db, tenantId);
   // A read that failed is not no rows on file: every label would go back to Value 1, and Meta's sample be hidden again.
   if (readError) return { ok: false, status: 503, code: "read_failed", detail: logFailure("read", readError) };
-  const keep = new Map((existing ?? []).map((r) => [`${r.name}|${r.language}`, labelsOf(r.variables)]));
+  const keep = new Map(existing.map((r) => [`${r.name}|${r.language}`, labelsOf(r.variables)]));
   const now = new Date();
   const rows = listed.templates.map((t) => templateRow(t, tenantId, keep.get(`${t.name}|${t.language}`) ?? [], now));
   // Meta's sample lives in every new account and is nobody's message: hidden

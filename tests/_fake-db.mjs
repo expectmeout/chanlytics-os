@@ -8,7 +8,7 @@
  * the jobs sweep passed every such test and a full CI run before a single real
  * row in production found it. This is the missing half.
  *
- * It is a DOUBLE, not a database: no RLS, no triggers, and the comparisons are
+ * It is a DOUBLE, not a database: no RLS, one trigger (a line's moves, below), and the comparisons are
  * the handful the callers actually use. Its one real responsibility is to make
  * an unfaithful test fail loudly — any builder method it does not model throws
  * by name rather than returning undefined and letting a chain quietly evaluate
@@ -26,7 +26,7 @@
  * insert's missing key is NULL and an undefined one is not sent; a write with
  * no `.select()` answers no rows. Rows a fixture seeds are taken as they are:
  * only what the code under test sends is judged. What it still does not know:
- * triggers, which the `*.db.test.mjs` suites meet on the replayed stack, other
+ * triggers but that one, which the `*.db.test.mjs` suites meet on the replayed stack, other
  * CHECKs, defaults beyond `id`, `created_at` and the ones a unique key's
  * predicate reads (jobs.state is 'scheduled'), and foreign keys.
  */
@@ -1384,6 +1384,78 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     (tables[table] ??= []).push(fresh);
     return fresh;
   };
+  /**
+   * An event a derived door writes in its own transaction (00721), seen as an insert into `events` is. Its data came
+   * over the wire as an argument, so a key left undefined is not there, as JSON drops it.
+   */
+  const tellEvent = (given) => {
+    const row = { ...given, data: given.data === undefined ? {} : JSON.parse(JSON.stringify(given.data)) };
+    const kept = insertRow("events", row);
+    seen.push({ table: "events", op: "insert", values: [row] });
+    return kept;
+  };
+  /**
+   * The AFTER triggers this double runs, each of which writes a record's event in the write's own transaction (00721):
+   * a line's moves, and a booking email's appointment. `was` is null for a row the write made.
+   */
+  const afterWrite = (table, was, now) => {
+    if (table === "lines" && was) linesTellTheirMoves(was, now);
+    if (table === "appointment_notices") noticesTellBookings(was, now);
+    if (table === "sequence_batches" && was && now.state === "failed" && was.state !== "failed")
+      // 00721 sequence_batches_tell_a_stop: a run that moved to failed, with how many of its sends were sent first.
+      tellEvent({
+        tenant_id: now.tenant_id,
+        kind: "broadcast.stopped",
+        category: "message",
+        subject_type: "broadcast",
+        subject_id: now.id,
+        data: {
+          failure: now.failure ?? null,
+          sent: (tables.sequence_sends ?? []).filter((s) => s.batch_id === now.id && s.state === "sent").length,
+        },
+      });
+  };
+  /** 00721 appointment_notices_tell_bookings: a notice read as booked, changed or cancelled says so of its appointment. */
+  const noticesTellBookings = (was, now) => {
+    const kinds = { booked: "appointment.booked", changed: "appointment.moved", cancelled: "appointment.cancelled" };
+    const kind = kinds[now.outcome];
+    if (!kind || !now.appointment_id || (was && was.outcome === now.outcome)) return;
+    tellEvent({
+      tenant_id: now.tenant_id,
+      kind,
+      category: "appointment",
+      subject_type: "appointment",
+      subject_id: now.appointment_id,
+      data: { source: "booking_email", tool: now.tool },
+    });
+  };
+  /** 00721 lines_tell_their_moves: a line's move to answering or failed, or its forwarding to verified. */
+  const linesTellTheirMoves = (was, now) => {
+    const told = (kind, data) =>
+      tellEvent({ tenant_id: now.tenant_id, kind, category: "setup", subject_type: "line", subject_id: now.id, data });
+    if (now.voice_state !== was.voice_state && now.voice_state === "answering")
+      told("line.answering", {
+        e164: now.e164 ?? null,
+        provider: now.provider ?? null,
+        agent_id: now.retell_agent_id ?? null,
+        by: now.facts?.started_by ?? null,
+      });
+    if (now.voice_state !== was.voice_state && now.voice_state === "failed")
+      told("line.failed", {
+        step: now.step ?? null,
+        error: typeof now.last_error === "string" ? now.last_error.slice(0, 300) : null,
+        provider: now.provider ?? null,
+        by: now.facts?.started_by ?? null,
+      });
+    if (now.forwarding_state !== was.forwarding_state && now.forwarding_state === "verified") {
+      const facts = now.facts ?? {};
+      told("line.forwarding_verified", {
+        from: facts.verified_from ?? null,
+        call_id: facts.verified_call_id ?? null,
+        proof: facts.verified_proof ?? facts.verified_by ?? null,
+      });
+    }
+  };
   // Each page people_list answered, by its arguments: what people_reply_modes reads its page from, as people_page is.
   const peoplePages = new Map();
   const derived = {
@@ -1674,7 +1746,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
      * the statements they are (a suite reads the compare-and-set's filters and the switch's write), and a fault on
      * either refuses the whole door as the database would, with nothing of it kept.
      */
-    billing_apply: ({ p_tenant_id, p_row, p_expect, p_tenant_status }) => {
+    billing_apply: ({ p_tenant_id, p_row, p_expect, p_tenant_status, p_told = null }) => {
       const allowed = new Set([
         "stripe_customer_id",
         "stripe_subscription_id",
@@ -1728,7 +1800,345 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         });
         if (tenant) tenant.status = p_tenant_status;
       }
+      // What the ledger is told of the change, written with it (00721); a reading another one beat writes none.
+      if (p_told)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: `billing.${p_told.kind}`,
+          category: "billing",
+          subject_type: "subscription",
+          subject_id: null,
+          data: p_told.data ?? {},
+        });
       return true;
+    },
+    /**
+     * A mailbox's every move and its event (00721 mailbox_connection_move), over the rows a world holds: each move
+     * from only the states it may leave, its kind's event beside it, and no row and no event where the mailbox was
+     * elsewhere (false). A fault on `mailbox_connections.update` refuses the whole door, with nothing of it kept.
+     */
+    mailbox_connection_move: ({ p_tenant_id, p_id, p_move, p_by = null, p_why = null, p_detail = {}, p_at }) => {
+      const fault = faults["mailbox_connections.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.mailbox_connections ?? []).find((m) => m.tenant_id === p_tenant_id && m.id === p_id);
+      if (!row) return false;
+      const at = p_at ?? stampOf(tables);
+      const detail = p_detail ?? {};
+      const moves = {
+        stood: {
+          from: null,
+          patch: {
+            ...("dns" in detail ? { dns: detail.dns, dns_checked_at: at } : {}),
+            ...("history" in detail ? { history: detail.history } : {}),
+          },
+          kind: "mailbox_connection.connected",
+          data: (r) => ({ address: r.address, provider: r.provider, again: detail.again === true, by: p_by }),
+        },
+        paused: {
+          from: ["connected"],
+          patch: { state: "paused" },
+          kind: "mailbox_connection.paused",
+          data: (r) => ({ address: r.address, by: p_by }),
+        },
+        unpaused: {
+          from: ["paused"],
+          patch: { state: "connected" },
+          kind: "mailbox_connection.unpaused",
+          data: (r) => ({ address: r.address, by: p_by }),
+        },
+        resumed: {
+          from: ["held"],
+          patch: { state: "connected", held_why: null, held_at: null, counted_since: at },
+          kind: "mailbox_connection.resumed",
+          data: (r, was) => ({ address: r.address, why: was.held_why, by: p_by }),
+        },
+        held: {
+          from: ["connected", "paused"],
+          patch: { state: "held", held_why: p_why, held_at: at, judged_at: at },
+          kind: "mailbox_connection.held",
+          data: (r) => ({ ...detail, address: r.address, why: p_why }),
+        },
+        signed_out: {
+          from: ["connected", "paused", "held"],
+          patch: {
+            state: "reconnect",
+            held_why: null,
+            held_at: null,
+            last_error: "Signed out by its provider: connect it again.",
+            last_error_at: at,
+          },
+          kind: "mailbox_connection.signed_out",
+          data: (r) => ({ address: r.address, provider: r.provider }),
+        },
+        removed: {
+          from: null,
+          patch: {
+            state: "removed",
+            removed_at: at,
+            held_why: null,
+            held_at: null,
+            watch_id: null,
+            sync_lease_until: null,
+          },
+          kind: "mailbox_connection.removed",
+          data: (r) => ({ address: r.address, by: p_by }),
+        },
+      };
+      const move = moves[p_move];
+      if (!move)
+        throw Object.assign(new Error(`mailbox_connection_move: ${p_move} is no move a mailbox makes`), {
+          code: "22023",
+        });
+      if (move.from && !move.from.includes(row.state)) return false;
+      const was = { ...row };
+      Object.assign(row, move.patch);
+      seen.push({ table: "mailbox_connections", op: "update", values: move.patch, filters: [["eq", "id", p_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: move.kind,
+        category: "setup",
+        subject_type: "mailbox_connection",
+        subject_id: p_id,
+        data: move.data(row, was),
+      });
+      return true;
+    },
+    /** The owner's echo's pause and its event (00721 conversation_owner_echo_keep); false where the thread is not theirs. */
+    conversation_owner_echo_keep: ({ p_tenant_id, p_conversation_id, p_patch, p_until }) => {
+      const fault = faults["conversations.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const stray = Object.keys(p_patch ?? {}).find((k) => !["state", "paused_until", "last_message_at"].includes(k));
+      if (stray)
+        throw Object.assign(
+          new Error(`conversation_owner_echo_keep: ${stray} is not a column the owner's echo moves`),
+          {
+            code: "22023",
+          },
+        );
+      const conv = (tables.conversations ?? []).find((c) => c.tenant_id === p_tenant_id && c.id === p_conversation_id);
+      if (!conv) return false;
+      Object.assign(conv, p_patch);
+      seen.push({ table: "conversations", op: "update", values: p_patch, filters: [["eq", "id", p_conversation_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "conversation.owner_replied",
+        category: "message",
+        subject_type: "conversation",
+        subject_id: p_conversation_id,
+        data: { until: p_until },
+      });
+      return true;
+    },
+    /** A workspace's first of a milestone, once (00721 workspace_activation_note): true when this call wrote it. */
+    workspace_activation_note: ({ p_tenant_id, p_milestone, p_via }) => {
+      // Its read and its write are one statement's: either failing refuses the door.
+      const fault = faults["events.select"] ?? faults["events.insert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const had = (tables.events ?? []).some(
+        (e) => e.tenant_id === p_tenant_id && e.kind === "workspace.activated" && e.data?.milestone === p_milestone,
+      );
+      if (had) return false;
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "workspace.activated",
+        category: "setup",
+        subject_type: "workspace",
+        subject_id: p_tenant_id,
+        data: { milestone: p_milestone, via: p_via },
+      });
+      return true;
+    },
+    /** Mail to the person an email went to stops at that address, once, with its event (00721 contact_email_suppress). */
+    contact_email_suppress: ({ p_tenant_id, p_message_id, p_addresses = [], p_reason, p_at }) => {
+      if (!p_addresses?.length) return null;
+      const sentTo = (tables.messages ?? []).find(
+        (m) => m.tenant_id === p_tenant_id && m.id === p_message_id,
+      )?.contact_id;
+      if (!sentTo) return null;
+      const fault = faults["contacts.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const person = (tables.contacts ?? []).find(
+        (c) =>
+          c.tenant_id === p_tenant_id && c.id === sentTo && p_addresses.includes(c.email) && !c.email_suppressed_at,
+      );
+      if (!person) return null;
+      const values = { email_suppressed_at: p_at ?? stampOf(tables), email_suppressed_reason: p_reason };
+      Object.assign(person, values);
+      seen.push({ table: "contacts", op: "update", values, filters: [["eq", "id", person.id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "contact.email_suppressed",
+        category: "contact",
+        subject_type: "contact",
+        subject_id: person.id,
+        data: { reason: p_reason },
+      });
+      return person.id;
+    },
+    /**
+     * The send door's settle of a queued message with its event (00721 message_settle): seen as the update it was, the
+     * row moved only while queued, the event written either way, and a cancel that won the row said beside a send. A
+     * fault on `messages.update` refuses the whole door, event and all.
+     */
+    message_settle: ({ p_tenant_id, p_message_id, p_patch, p_told }) => {
+      const fault = faults["messages.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const filters = [
+        ["eq", "id", p_message_id],
+        ["eq", "status", "queued"],
+      ];
+      seen.push({ table: "messages", op: "update", values: p_patch, filters });
+      const row = (tables.messages ?? []).find(
+        (m) => m.id === p_message_id && m.tenant_id === p_tenant_id && m.status === "queued",
+      );
+      if (row) Object.assign(row, written("messages", p_patch));
+      const told = (kind, data) =>
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind,
+          category: "message",
+          subject_type: "message",
+          subject_id: p_message_id,
+          data,
+        });
+      if (p_told.kind === "sent") {
+        if (!row) told("message.send_raced_cancel", { wamid: p_patch.external_id ?? null });
+        told("message.sent", p_told.data ?? {});
+      } else told(p_told.kind === "blocked" ? "message.send_blocked" : "message.send_failed", p_told.data ?? {});
+      return Boolean(row);
+    },
+    /**
+     * A message the send door sent with no row yet (00721 message_outbound_record): inserted as it was, its thread
+     * stamped, message.sent for one that went out and message.send_failed where told; null for a provider id kept
+     * already. A fault on `messages.insert` refuses the door.
+     */
+    message_outbound_record: ({ p_row, p_told = null }) => {
+      const fault = faults["messages.insert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const values = { ...p_row, direction: "outbound", status: p_row.status ?? "sent" };
+      if (
+        values.external_id &&
+        (tables.messages ?? []).some((m) => m.tenant_id === values.tenant_id && m.external_id === values.external_id)
+      )
+        return null;
+      const row = insertRow("messages", values);
+      seen.push({ table: "messages", op: "insert", values: [values] });
+      const thread = (tables.conversations ?? []).find(
+        (c) => c.id === values.conversation_id && c.tenant_id === values.tenant_id,
+      );
+      const stamp = { last_message_at: stampOf(tables) };
+      if (thread) Object.assign(thread, stamp);
+      seen.push({
+        table: "conversations",
+        op: "update",
+        values: stamp,
+        filters: [["eq", "id", values.conversation_id]],
+      });
+      const told = (kind, data) =>
+        tellEvent({
+          tenant_id: values.tenant_id,
+          kind,
+          category: "message",
+          subject_type: "message",
+          subject_id: row.id,
+          data,
+        });
+      if (values.status === "sent") told("message.sent", { sender: values.sender });
+      if (p_told) told("message.send_failed", p_told.data ?? {});
+      return row.id;
+    },
+    /** A released line's row deleted with line.released (00721 line_release_row); false where it was gone. */
+    line_release_row: ({ p_tenant_id, p_line_id, p_data = {} }) => {
+      const fault = faults["lines.delete"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const all = tables.lines ?? [];
+      const line = all.find((l) => l.tenant_id === p_tenant_id && l.id === p_line_id);
+      if (!line) return false;
+      all.splice(all.indexOf(line), 1);
+      seen.push({ table: "lines", op: "delete", filters: [["eq", "id", p_line_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "line.released",
+        category: "setup",
+        subject_type: "line",
+        subject_id: p_line_id,
+        data: { e164: line.e164 ?? null, ...(p_data ?? {}) },
+      });
+      return true;
+    },
+    /** The carriers' answer kept with its verdict's kind (00721 line_texting_keep); false where the line is gone. */
+    line_texting_keep: ({ p_tenant_id, p_line_id, p_row = {}, p_told = null }) => {
+      const fault = faults["lines.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const stray = Object.keys(p_row ?? {}).find(
+        (k) => !["sms_state", "reg_mock", "last_error", "state_since"].includes(k),
+      );
+      if (stray)
+        throw Object.assign(new Error(`line_texting_keep: ${stray} is not a column the carriers' answer writes`), {
+          code: "22023",
+        });
+      const line = (tables.lines ?? []).find((l) => l.tenant_id === p_tenant_id && l.id === p_line_id);
+      if (!line) return false;
+      const values = { ...p_row, updated_at: stampOf(tables) };
+      Object.assign(line, values);
+      seen.push({ table: "lines", op: "update", values, filters: [["eq", "id", p_line_id]] });
+      if (p_told)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: `line.${p_told.kind}`,
+          category: "setup",
+          subject_type: "line",
+          subject_id: p_line_id,
+          data: p_told.data ?? {},
+        });
+      return true;
+    },
+    /** The business on record saved whole with business.recorded (00721 business_record_keep). */
+    business_record_keep: ({ p_tenant_id, p_row, p_data = {} }) => {
+      const fault = faults["business_records.upsert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const all = (tables.business_records ??= []);
+      const was = all.find((r) => r.tenant_id === p_tenant_id);
+      if (was) Object.assign(was, p_row, { tenant_id: p_tenant_id, updated_at: stampOf(tables) });
+      else insertRow("business_records", { ...p_row, tenant_id: p_tenant_id });
+      seen.push({
+        table: "business_records",
+        op: "upsert",
+        values: { ...p_row, tenant_id: p_tenant_id },
+        conflict: ["tenant_id"],
+      });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "business.recorded",
+        category: "setup",
+        subject_type: "tenant",
+        subject_id: p_tenant_id,
+        data: p_data ?? {},
+      });
+      return true;
+    },
+    /** The voice line's routing row made with voice.provisioned (00721 voice_channel_add); its id. */
+    voice_channel_add: ({ p_tenant_id, p_agent_id, p_e164 = null, p_config, p_data = {} }) => {
+      const fault = faults["tenant_channels.insert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = insertRow("tenant_channels", {
+        tenant_id: p_tenant_id,
+        kind: "voice",
+        external_id: p_agent_id,
+        number_e164: p_e164,
+        status: "active",
+        config: p_config,
+      });
+      seen.push({ table: "tenant_channels", op: "insert", values: [row] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "voice.provisioned",
+        category: "setup",
+        subject_type: "tenant_channel",
+        subject_id: row.id,
+        data: p_data ?? {},
+      });
+      return row.id;
     },
     /**
      * The one door a queued message is withdrawn by (00387 withdraw_queued), over the rows a world holds: each named
@@ -2271,6 +2681,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         const clash = uniqueViolation(keysOf(table), table, fresh, rows());
         if (clash) return { data: null, error: clash };
         rows().push(...fresh);
+        for (const r of fresh) afterWrite(table, null, r);
         return { data: q.selected ? fresh.map(drawn()) : null, error: null };
       }
 
@@ -2358,9 +2769,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         if (clash) return { data: null, error: clash };
         const out = [];
         for (const x of plan) {
+          const was = x.existing ? { ...x.existing } : null;
           if (x.existing) Object.assign(x.existing, x.sent);
           else rows().push(x.row);
           out.push(x.existing ?? x.row);
+          afterWrite(table, was, x.existing ?? x.row);
         }
         return { data: q.selected ? out.map(drawn()) : null, error: null };
       }
@@ -2382,7 +2795,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         hit.map((r) => movedBy(r, values)),
       );
       if (clash) return { data: null, error: clash };
-      for (const r of hit) Object.assign(r, written(table, values));
+      for (const r of hit) {
+        const was = { ...r };
+        Object.assign(r, written(table, values));
+        afterWrite(table, was, r);
+      }
       // `.select("a, b")` after an update reads those columns back, as PostgREST
       // does, and `.select("*")` the whole row: how a caller that must act on what
       // it just wrote avoids a second round trip, and how a permission-sensitive

@@ -105,7 +105,7 @@ function signedName(request: Request): string | null {
  * by. Now one line says which door, what failed and where, and the caller reads a code. The status is still a failure's,
  * so a provider still redelivers and a clock still counts a failed tick.
  */
-async function answerCaught(request: Request, answer: () => Promise<Response>): Promise<Response> {
+async function answerCaught(request: Request | undefined, answer: () => Promise<Response>): Promise<Response> {
   try {
     return await answer();
   } catch (failure) {
@@ -135,7 +135,7 @@ export function door<A extends unknown[] = []>(
   opts: { trustCaller?: boolean } = {},
 ): DoorAddress<A> {
   const trust = opts.trustCaller === true;
-  const answer = (request: Request, call: () => Promise<Response>): Promise<Response> => {
+  const answer = (request: Request | undefined, call: () => Promise<Response>): Promise<Response> => {
     // A door a test calls with no request at all (the health door's GET()) is still named, freshly.
     const id = request?.headers
       ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))

@@ -28,7 +28,6 @@ import {
   DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
-import { emitEvent } from "../events/events";
 import { runWaitingCounts } from "./reach-out/sheet";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -101,13 +100,8 @@ export async function failStrandedRun(db: Db, params: { tenantId: TenantId; id: 
     .eq("state", "scheduled")
     .select("id");
   if (error) throw new DbFailure(error, `stranded runs: cannot mark run ${params.id} not sent`);
-  if (!data.length) return false;
-  // On the ledger as every stopped run is (broadcast.stopped), best effort. Nobody got it: it never left `scheduled`.
-  await emitEvent(db, params.tenantId, "broadcast.stopped", "broadcast", params.id, {
-    failure: "run_interrupted",
-    sent: 0,
-  });
-  return true;
+  // On the ledger as every stopped run is: its row's move to failed writes broadcast.stopped (00721).
+  return data.length > 0;
 }
 
 /**

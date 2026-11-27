@@ -385,7 +385,7 @@ export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFac
   // actually send", and the deliveries it was written for -- call_started
   // and the per-turn transcript updates -- are exactly the ones with no
   // awaited work after them, so they were the ones it never recorded.
-  steps.push({ kind: "delivery", callId: res.call_id ?? null, data: deliveryRow(callEvent, res) });
+  steps.push({ kind: "delivery", callId: res.call_id, data: deliveryRow(callEvent, res) });
 
   const note = noteStep(event, n, res);
   if (note) steps.push(note);
@@ -416,7 +416,7 @@ export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFac
   if (copy) steps.push(copy);
   const dialler = notOwed === "toll_free_silent" || notOwed === "unverified_silent";
   const untold = notOwed === "not_a_customer" || (dialler && isMissedCall(n));
-  return { steps, about, untold, callId: res.call_id ?? null };
+  return { steps, about, untold, callId: res.call_id };
 }
 
 /**

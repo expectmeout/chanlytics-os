@@ -94,8 +94,7 @@ export async function sweepLines({ db, L }: SweepTick): Promise<Response> {
           return { ok: true };
         },
         alert: (subject, body) => notify({ tenantId: null, notifications: null }, { kind: "alert", subject, body }),
-        reportFailed: (tenant, row, error) =>
-          reportLineFailed(db, choice.name, tenant, row, row.step ?? "setting up", error, "sweep"),
+        reportFailed: (tenant, row, error) => reportLineFailed(tenant, row, row.step ?? "setting up", error, "sweep"),
         now: () => Date.now(),
         log: L,
       },

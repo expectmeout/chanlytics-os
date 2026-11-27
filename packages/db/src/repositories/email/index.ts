@@ -12,12 +12,13 @@ export {
   keepMailboxProviderWanted,
   listMailboxConnectionsOf,
   listMailboxesToTend,
+  moveMailboxConnection,
   noteCalendarGrant,
   patchMailboxConnection,
   putMailboxCredentials,
   stampEmailFromMailbox,
 } from "./connections";
-export type { ConnectRefusal, MailboxConnectionRow } from "./connections";
+export type { ConnectRefusal, MailboxConnectionRow, MailboxMove } from "./connections";
 export {
   clearForwardingConfirmation,
   findAnsweredReachOutEmail,

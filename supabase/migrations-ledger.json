@@ -722,6 +722,7 @@
     "00717_a_member_s_own_acts_ask_who_is_calling.sql": "9fab9db780b5996e783eefa4600a1e2643b6cfb62172f23bf84a92ce671e8f01",
     "00718_a_member_s_act_writes_its_own_event.sql": "e3c1e1eae8411887608915db355ac8eb95f29e1856c32cb59e8df298cac1da23",
     "00719_an_ad_s_comments_and_engagement_are_kept.sql": "46b6a5b0385ba8470688a7ee21092a94dd4180a9ec4cbba9bec44358412b83c1",
-    "00720_a_post_s_move_and_a_held_slot_are_kept_with_their_event.sql": "f8fa7bba66da4435ac7acf19c3464ee4e9edece3e4ebda3002502e90dd17cd71"
+    "00720_a_post_s_move_and_a_held_slot_are_kept_with_their_event.sql": "f8fa7bba66da4435ac7acf19c3464ee4e9edece3e4ebda3002502e90dd17cd71",
+    "00721_the_edge_s_changes_write_their_own_events.sql": "e265d02468efedfb40ed0c318365556d28431c0a133e755e6513062fd1a83720"
   }
 }

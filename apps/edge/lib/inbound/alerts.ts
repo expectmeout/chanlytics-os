@@ -162,7 +162,7 @@ export function handoffMessage({
   // The owner of a workspace with both wires connected opens the thread this
   // names. Saying "WhatsApp" for a text sends them to an app the conversation
   // is not in.
-  const where = CHANNEL_WORDS[ctx.channel ?? "whatsapp"] ?? CHANNEL_WORDS.whatsapp;
+  const where = CHANNEL_WORDS[ctx.channel ?? "whatsapp"];
   return {
     kind: "handoff",
     route: ctx.route ?? "inbox",

@@ -349,9 +349,10 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
  */
 export const GATEWAY_MODELS: readonly string[] = [
   ...new Set(
-    (["ask", "lead_json", "lead_suggest", "template_draft", "ad_draft", "form_draft"] as const).flatMap((p) =>
-      [MODEL_ROUTES[p].model, MODEL_ROUTES[p].fallback].filter((m): m is NonNullable<typeof m> => m !== null),
-    ),
+    (["ask", "lead_json", "lead_suggest", "template_draft", "ad_draft", "form_draft"] as const).flatMap((p) => [
+      MODEL_ROUTES[p].model,
+      MODEL_ROUTES[p].fallback,
+    ]),
   ),
 ];
 /**

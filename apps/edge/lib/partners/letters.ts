@@ -49,7 +49,7 @@ export async function sendPartnerLetters(db: Db, now: Date, ports: LetterPorts =
       log.warn("partner_letters_unread", { error: error.message });
       return out;
     }
-    const due = data ?? [];
+    const due = data;
     out.due = due.length;
     if (!due.length) return out;
     const from = ports.from === undefined ? platformFrom() : ports.from;

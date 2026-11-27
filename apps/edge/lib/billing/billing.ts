@@ -9,7 +9,6 @@ import {
   insertBillingClaim,
   reclaimBillingEvent,
 } from "@chanlytics/db/billing";
-import { emitEvent } from "@chanlytics/db/events";
 import {
   type BillingInvoiceDto,
   type BillingStatus,
@@ -34,7 +33,6 @@ import {
   type Db,
 } from "./subscription.js";
 import type { TenantId } from "@chanlytics/contracts";
-import { logAndGoOn } from "@chanlytics/log";
 
 export async function getInvoices(
   db: Db,
@@ -50,7 +48,7 @@ export async function getInvoices(
     return {
       ok: true,
       invoices: list.data.map((invoice) => ({
-        id: invoice.id ?? "",
+        id: invoice.id,
         number: invoice.number ?? null,
         status: invoice.status ?? null,
         amount_due: invoice.amount_due,
@@ -158,7 +156,7 @@ export async function startPlanNowFor(
   }
 }
 
-/** What a forgotten customer's ledger row names as its source. A constant, not a literal in the call: the event-kinds lint reads every dotted literal inside an emitEvent. */
+/** What a forgotten customer's ledger row names as its source (billing_apply writes it in billing.updated's data). */
 const DELETED_CUSTOMER = "customer.deleted";
 
 /**
@@ -185,13 +183,9 @@ export async function forgetCustomer(db: Db, row: BillingRow, customerId: string
     },
     expect: { stripe_customer_id: customerId },
     tenantStatus: null,
+    told: { kind: "updated", data: { source: DELETED_CUSTOMER, status: "none" } },
   });
-  if (!forgotten) return false;
-  const deleted = { source: DELETED_CUSTOMER, status: "none" };
-  await emitEvent(db, row.tenant_id, "billing.updated", "subscription", null, deleted).catch(
-    logAndGoOn("event billing.updated"),
-  );
-  return true;
+  return forgotten;
 }
 
 /**
@@ -315,7 +309,7 @@ export async function keepEvent(
   if (seen.data?.state === APPLIED) return { claim: "applied" };
   const up = await reclaimBillingEvent(db, id, lease, now.toISOString());
   if (up.error) throw new DbFailure(up.error);
-  if (!up.data?.length) return { claim: "held" };
+  if (!up.data.length) return { claim: "held" };
   // The id's field is not called `event`: that is the line's own name (log.ts), and a field of that name replaces it.
   logger({ hook: "stripe" }).warn("stripe_event_reclaimed", { event_id: id, type, tenant_id: tenantId });
   return { claim: "taken", lease };
@@ -331,7 +325,7 @@ export async function keepEvent(
 export async function completeEvent(db: Db, id: string, lease: string, tenantId: TenantId | null): Promise<boolean> {
   const up = await completeBillingEvent(db, id, lease);
   if (up.error) throw new DbFailure(up.error);
-  if (up.data?.length) return true;
+  if (up.data.length) return true;
   logger({ hook: "stripe" }).warn("stripe_event_claim_lost", { event_id: id, tenant_id: tenantId });
   return false;
 }
@@ -369,7 +363,8 @@ interface PaymentNote {
  */
 export async function notePayment(db: Db, row: BillingRow, paymentNote: PaymentNote, now = new Date()): Promise<void> {
   if (paymentNote.kind === "failed") {
-    await keepOnRow(db, row.tenant_id, { last_payment_failed_at: now.toISOString() });
+    // The bell and its mail before the stamp and its event: a mail still owed throws, and Stripe's retry stamps the row
+    // and writes the event once, after the mail went.
     const { mailOwed } = await tellOnce(
       db,
       row.tenant_id,
@@ -380,14 +375,14 @@ export async function notePayment(db: Db, row: BillingRow, paymentNote: PaymentN
       `stripe:${paymentNote.eventId}`,
     );
     if (mailOwed) throw new Error("the declined card's mail did not go; it goes on the retry");
-    await emitEvent(db, row.tenant_id, "billing.payment_failed", "subscription", null, {}).catch(
-      logAndGoOn("event billing.payment_failed"),
+    await keepOnRow(
+      db,
+      row.tenant_id,
+      { last_payment_failed_at: now.toISOString() },
+      { kind: "payment_failed", data: {} },
     );
   } else if (paymentNote.amountPaid === undefined || paymentNote.amountPaid > 0) {
-    await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() });
-    await emitEvent(db, row.tenant_id, "billing.paid", "subscription", null, {}).catch(
-      logAndGoOn("event billing.paid"),
-    );
+    await keepOnRow(db, row.tenant_id, { last_paid_at: now.toISOString() }, { kind: "paid", data: {} });
     // A paid invoice mends "A payment did not go through" and the trial's warning (contracts NOTICE_MENDS).
     await mendWarnings(db, { tenantId: row.tenant_id, by: { change: "billing.paid" }, subject: null, keptId: null });
   }
