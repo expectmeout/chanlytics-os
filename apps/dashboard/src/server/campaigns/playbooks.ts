@@ -18,6 +18,8 @@ import {
   type ConsentChannel,
   type FollowUpFactsDto,
   type PlaybookDto,
+  type PlaybookPolicyClass,
+  type PlaybookTrigger,
   type Touches,
   DbFailure,
 } from "@chanlytics/contracts";
@@ -39,14 +41,14 @@ import {
   isWorkspacePaused,
   listMessageVersionRows,
   listPlaybookChannels,
-  listMomentSteps,
+  listStepsWith,
   pageProposalsOut,
   type Touch,
   touchIndex,
 } from "@chanlytics/db/campaigns";
 import { listRow } from "@chanlytics/db/people";
 import { getPlaybookTotals } from "@chanlytics/db/reports";
-import { readAllRows } from "@chanlytics/db/shared";
+import { readAllRows, saysMissing } from "@chanlytics/db/shared";
 import type { RouteContext } from "@/server/shared/with-route";
 import { listRuns } from "@/server/campaigns/broadcasts/broadcasts";
 import { findCalendar } from "@/server/calendar/settings";
@@ -68,6 +70,9 @@ import type { TenantId, ContactId } from "@chanlytics/contracts";
  * are the send route's own, so a playbook can never name a template a
  * broadcast could not send or a slot the workspace cannot fill.
  */
+const COLUMNS =
+  "id, sequence_id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels, until, words_ok_at";
+
 /** One moment playbook's totals as the database counts them (playbook_totals, 00374): the card's shapes are read off it. */
 type TotalsRow = PlaybookTotalsDto[string];
 
@@ -279,17 +284,43 @@ const noTotals = (): PlaybookTotals => ({
  * count by, and Ask's shape names. A reach-out's steps are its own sheet's (Reach out, Part 4), never cards here.
  */
 export async function listPlaybookRows(ctx: RouteContext, tenantId: TenantId): Promise<PlaybookDto[]> {
-  const { data: rows, error } = await listMomentSteps(ctx.supabase, tenantId);
+  // The query is returned as it is built, and runs when it is awaited.
+  const read = (
+    columns: string,
+    moments = true,
+  ): PromiseLike<{ data: Record<string, unknown>[] | null; error: { message: string } | null }> =>
+    listStepsWith(ctx.supabase, tenantId, columns, moments) as ReturnType<typeof read>;
+  // A database 00168 has not reached has no list_key, and one 00155 has not reached no list_id: read again without
+  // them, and no playbook runs on a People list (or on any list).
+  let { data: rows, error } = await read(COLUMNS);
+  const missing = (col: string) => !!error && new RegExp(col).test(error.message) && saysMissing(error.message);
+  let columns = COLUMNS;
+  // A database 00298 has not reached has no channels, and every playbook there goes by WhatsApp: read again without it,
+  // and each of the reads below keeps that.
+  if (missing("channels")) {
+    columns = columns.replace(", channels", "");
+    ({ data: rows, error } = await read(columns));
+  }
+  // A database 00183 has not reached has no kind, and every playbook there is a moment.
+  const moments = !missing("kind");
+  if (!moments) ({ data: rows, error } = await read(columns, false));
+  if (missing("list_key")) ({ data: rows, error } = await read(columns.replace("list_key, ", ""), moments));
+  if (missing("list_id")) ({ data: rows, error } = await read(columns.replace("list_id, list_key, ", ""), moments));
   if (error) throw new DbFailure(error);
   // Each step's sequence's mode (decision 0064): what its batches do, which the run, Resume and Ask say by.
   const modes = await getSequenceModes(
     ctx.supabase,
     tenantId,
-    rows.map((r) => r.sequence_id),
+    (rows ?? []).map((r) => String(r.sequence_id)),
   );
-  return rows.map((r) => ({
-    ...r,
-    mode: modes.get(r.sequence_id) ?? "ask",
+  return (rows ?? []).map((r) => ({
+    ...(r as Omit<PlaybookDto, "params" | "trigger" | "policy_class" | "state" | "mode">),
+    mode: modes.get(String(r.sequence_id)) ?? "ask",
+    list_id: (r.list_id as string | null | undefined) ?? null,
+    list_key: (r.list_key as string | null | undefined) ?? null,
+    trigger: r.trigger as PlaybookTrigger,
+    policy_class: r.policy_class as PlaybookPolicyClass,
+    state: r.state as PlaybookDto["state"],
     params: parseParamSpecs(r.params),
   }));
 }
