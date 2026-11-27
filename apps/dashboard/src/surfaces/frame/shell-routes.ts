@@ -23,9 +23,8 @@ export interface RouteAt extends ShellRoute {
   routeKey: string;
 }
 
-/** The address the frame reads: the window's (a test's stand-in), else its own. */
-const frameAddress = () =>
-  (window.CHANLY && window.CHANLY.address ? window.CHANLY : CHANLY).address as typeof CHANLY.address;
+/** The address the frame reads (frame/constants.ts): the bridge's, else the hash's. */
+const frameAddress = () => CHANLY.address;
 
 // Is this route's data actually available? The bridge installs the route gate for the real surfaces (provided.ts); without
 // it, a page is ready. `own`: the route's own surface alone, without the bands its first draw waits for beside it (ROUTE_WAITS).

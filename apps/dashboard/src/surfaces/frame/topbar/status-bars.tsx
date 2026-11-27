@@ -1,7 +1,6 @@
 /**
  * The two lines under the top bar (moved from legacy/components/topbar.jsx, the one-system plan's step 7d): a call going
- * on, and the shell's one status. The frame's JSX draws them by their old names (`LiveCallBar`, `ShellStatusBar`,
- * frame-globals.ts) until the frame itself is TypeScript (step 7e). And yesterday's visits nobody has marked, in the
+ * on, and the shell's one status. The frame imports them. And yesterday's visits nobody has marked, in the
  * call's place while no call is up (`UnmarkedVisitsBar`), and what is next on the day while neither is (`NextVisitBar`).
  */
 import { useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
@@ -16,20 +15,19 @@ import {
   type CalendarLike,
 } from "@chanlytics/contracts";
 import { askCalls, routeDoor } from "../../frame-verbs";
-import { hearAskHeld } from "../../frame-doors";
+import { hearAskHeld, navigate } from "../../frame-doors";
 import { surfaceValue } from "../../surface-values";
 import { visitWordHere } from "../../workspace-word";
 import { provided } from "@/bridge/provided";
-import { frameChrome, frameGlyph, frameShell, frameSurfaceHook } from "../frame-window";
+import { frameChrome, frameShell } from "../frame-window";
+import { Icon } from "../../kit/icon/icon";
+import { useFrameSurfaces } from "../shell-hooks";
 
 const CLOCK_SECOND_MS = 1000;
 
-/** The live surface's hook, where the frame has one: drawn again when the calls are read again. */
-/** No redraw hook where the frame has none (the standalone mockup's): nothing is read again, so nothing moves. */
-const useNoSurface = (): number => 0;
+/** Drawn again when the calls are read again (the live surface). */
 const useLiveRead = () => {
-  const useSurface = frameSurfaceHook() ?? useNoSurface;
-  useSurface("live");
+  useFrameSurfaces("live");
 };
 
 /** The bars that move while a call lasts: drawn once, moved by the stylesheet, held still where motion is not welcome. */
@@ -44,7 +42,6 @@ const LIVE_WAVE = Array.from({ length: 6 }, (_, i) => <i key={i} />);
  * Live page applies between refreshes. Where it stands in the header is components.css's.
  */
 export function LiveCallBar() {
-  const Glyph = frameGlyph();
   const [, tick] = useReducer((n: number) => n + 1, 0);
   // Drawn again when the calls are read again (the live surface's own signal): a call ended on Live, or by the caller, is
   // a row that changed on the live feed, and nothing else announces it.
@@ -59,7 +56,7 @@ export function LiveCallBar() {
     return () => window.clearInterval(t);
   }, [up]);
   if (!bar) return null;
-  const open = () => window.CHANLY?.nav?.(bar.callId ? `live/${bar.callId}` : "live");
+  const open = () => navigate(bar.callId ? `live/${bar.callId}` : "live");
   const clock = (sinceMs: number | null) =>
     sinceMs === null ? null : (
       <span className="live-bar-clock tabular">
@@ -96,7 +93,7 @@ export function LiveCallBar() {
       </span>
       <span className="live-bar-act">
         <span className="live-bar-act-words">{bar.act}</span>
-        <Glyph name="chevron" size={11} />
+        <Icon name="chevron" size={11} />
       </span>
     </button>
   );
@@ -132,7 +129,6 @@ const NOT_BRIEFING = () => "idle" as const;
  * the call is the one that cannot wait.
  */
 export function BriefPlaying() {
-  const Glyph = frameGlyph();
   const [, tick] = useReducer((n: number) => n + 1, 0);
   useLiveRead();
   const state = useSyncExternalStore(watchBrief, briefNow, NOT_BRIEFING);
@@ -166,15 +162,14 @@ export function BriefPlaying() {
       </span>
       <span className="brief-bar-text">{words.brief}</span>
       <span className="brief-bar-clock tabular">{mmss(Math.max(0, Date.now() - startedAt.current))}</span>
-      <Glyph name="stop" size={11} />
+      <Icon name="stop" size={11} />
     </button>
   );
 }
 
 /** The Calendar's hook, where the frame has one: drawn again when its weeks are read again, or the day turns. */
 const useCalendarRead = () => {
-  const useSurface = frameSurfaceHook() ?? useNoSurface;
-  useSurface("calendar");
+  useFrameSurfaces("calendar");
 };
 
 /**
@@ -186,7 +181,6 @@ const useCalendarRead = () => {
  * those weeks are unread or could not be. A press opens the first, asking "Did they come?", as the Calendar's line did.
  */
 export function UnmarkedVisitsBar({ page }: { page: string }) {
-  const Glyph = frameGlyph();
   useCalendarRead();
   if (page === "today") return null;
   const cal = surfaceValue("calendar");
@@ -199,7 +193,7 @@ export function UnmarkedVisitsBar({ page }: { page: string }) {
     <button
       type="button"
       className="unmarked-bar"
-      onClick={() => window.CHANLY?.nav?.(first.to)}
+      onClick={() => navigate(first.to)}
       aria-label={`${lead}. ${VISIT_ASK_WORDS.question}`}
       data-testid="unmarked-bar"
     >
@@ -210,7 +204,7 @@ export function UnmarkedVisitsBar({ page }: { page: string }) {
         {asked.count}
       </span>
       <span className="unmarked-bar-act">
-        <Glyph name="chevron" size={11} />
+        <Icon name="chevron" size={11} />
       </span>
     </button>
   );
@@ -283,7 +277,7 @@ const statusLineNow = () => {
   const billing = provided("billing");
   const paused = !!(B && billing && billing.vm(B.dto).paused);
   const modelStanding = B?.dto.model_standing ?? null;
-  const previewing = (window.ST_STORE && window.ST_STORE.viewAsRole) || null;
+  const previewing = provided("roles")?.viewAsRole || null;
   const chrome = frameChrome();
   return chrome
     ? chrome.statusLine({
@@ -301,11 +295,11 @@ type StatusLine = NonNullable<ReturnType<typeof statusLineNow>>;
 const pressOf = (line: StatusLine | null, busy: boolean, setBusy: (b: boolean) => void) => () => {
   if (!line) return;
   if (line.action === "billing") {
-    window.CHANLY?.nav?.("admin/billing");
+    navigate("admin/billing");
     return;
   }
   if (line.action === "exit-preview") {
-    if (window.ST_STORE && window.ST_STORE.setViewAs) window.ST_STORE.setViewAs(null);
+    provided("roles")?.setViewAs?.(null);
     return;
   }
   if (line.action === "reload") {
@@ -323,7 +317,6 @@ const pressOf = (line: StatusLine | null, busy: boolean, setBusy: (b: boolean) =
 };
 
 export function ShellStatusBar() {
-  const Glyph = frameGlyph();
   useStatusRedraws();
   const [busy, setBusy] = useState(false);
   const line = statusLineNow();
@@ -332,7 +325,7 @@ export function ShellStatusBar() {
     <div className="shell-status-slot" role="status" aria-live="polite">
       {line && (
         <div className={`shell-status tone-${line.tone}`} data-kind={line.kind} data-testid="shell-status">
-          <Glyph name={SHELL_STATUS_ICON[line.kind] || "alert"} size={13} />
+          <Icon name={SHELL_STATUS_ICON[line.kind] || "alert"} size={13} />
           <span className="shell-status-words">
             <span className="shell-status-text">{line.text}</span>
             {line.detail && <span className="shell-status-detail">{line.detail}</span>}

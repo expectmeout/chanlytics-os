@@ -1,6 +1,6 @@
 /**
  * Confirm: the one way an act is confirmed (moved whole from data-bits.jsx, decision 0015: the kit's one implementation,
- * which seed-globals publishes as window.Confirm for the pages that still read it).
+ * imported where it is drawn).
  *
  * Armed inline, where the control that armed it was: the question names the thing, the detail says what happens, the
  * Yes names the verb and is a real button (red when the act destroys or cannot be undone), the No is quiet. Both are

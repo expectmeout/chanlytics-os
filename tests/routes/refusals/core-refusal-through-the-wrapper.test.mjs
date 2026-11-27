@@ -9,14 +9,14 @@
  * the built packages: the tests of the verbs import the source, where there is one class.
  *
  * So this one imports each package as a module of its own, as the suite builds them (core's bundle and contracts'),
- * and the wrapper over the contracts the dashboard resolves. The session is a stand-in bearer verifier, as auth/bearer.test.mjs does it.
+ * and the wrapper over the contracts the dashboard resolves. The session is a stand-in bearer verifier, as auth/session/bearer.test.mjs does it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));
 const { withRoute } = await import(at("apps/dashboard/src/server/shared/with-route.ts"));

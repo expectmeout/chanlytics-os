@@ -27,25 +27,23 @@ bridgeHolds({
     activeWorkspaceId: "w1",
   },
 });
-installStubReact({
-  usePPToast: () => [null, () => {}],
-});
+installStubReact({});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const W = globalThis.window;
 const { installShell } = await importSrc("apps/dashboard/src/bridge/shell.ts");
 installShell(W);
-// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
-W.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-// The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), as the frame imports it.
+const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+// The shortcuts sheet (surfaces/frame/shortcuts.tsx), as the frame imports it.
 const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
-Object.assign(W, { ShortcutsSheet: shortcutsSheet.ShortcutsSheet, openShortcuts: shortcutsSheet.openShortcuts });
 
 /** The sidebar and the sheet, as the shell draws them (surfaces/frame/shell-chrome.tsx). */
 const shell = (props = {}) =>
   W.React.createElement(
     "Fragment",
     null,
-    W.React.createElement(W.Sidebar, { onNavigate() {}, ...props }),
-    W.React.createElement(W.ShortcutsSheet, {}),
+    W.React.createElement(Sidebar, { onNavigate() {}, ...props }),
+    W.React.createElement(shortcutsSheet.ShortcutsSheet, {}),
   );
 /** A new shell: every cell and listener forgotten, then drawn. */
 const draw = (props) => {
@@ -143,13 +141,13 @@ test("the sheet opens on ? and by the opener it registers, never by an event, an
   assert.ok(byTestId(redraw(), "shortcuts-sheet"), "? opens it");
   key("Escape");
   assert.equal(byTestId(redraw(), "shortcuts-sheet"), null, "and Esc closes it");
-  W.openShortcuts();
+  shortcutsSheet.openShortcuts();
   assert.ok(byTestId(redraw(), "shortcuts-sheet"), "openShortcuts() opens it");
 });
 
 test("the sheet is the one place a key is drawn: every key the app answers to, the Calendar's among them", () => {
   draw();
-  W.openShortcuts();
+  shortcutsSheet.openShortcuts();
   const tree = redraw();
   const sheet = byTestId(tree, "shortcuts-sheet");
   assert.ok(sheet, "open");

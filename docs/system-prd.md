@@ -585,13 +585,13 @@ The ledger records the owner's `erase` decision, and a second row for a leg that
 ```mermaid
 flowchart LR
   P["proxy: the page gate"] --> L["(os) layout: prerendered, reads nothing"] --> H["FrameHost (client only)"]
-  H --> S[seed-globals] --> M["manifest: what the shell still draws by name"]
-  M --> C[hydrate the surface cache]
-  C --> I["one typed client, the couriers on window"]
+  H --> B["bootFrame: the bridge's parts, a step each"]
+  B --> C[hydrate the surface cache]
+  C --> I["one typed client, the couriers as the bridge's parts"]
   I --> R[startSurfaces: 22 overrides]
   R -->|"api(key) → /api/v1 ?workspace="| API[(app plane)]
   API -->|DTOs| VM[contracts view models]
-  VM -->|write| G["typed surface values, mirrored to a window name only for a page not yet moved"]
+  VM -->|write| G["typed surface values"]
   G -->|"surface:* events"| UI[the surfaces draw again]
   RT[Realtime, this workspace's topic] -->|a table changed| R
   UI -->|verbs| I
@@ -599,13 +599,13 @@ flowchart LR
 
 ### 11.1 Boot
 
-The proxy (the page gate) → `app/(os)/layout.tsx` (prerendered: it reads nothing of the request) → `page.tsx`, or `w/[workspace]/layout.tsx` for a workspace's own address (its route the catch-all `[[...route]]/page.tsx`'s) → `FrameHost` (client only, because `seed-globals.ts` and the shell's files read `window` at module scope: it imports the shell as `#frame-shell`, which only a browser's build resolves to `FrameApp`, and draws it under `ssr: false`) → `FrameApp`:
+The proxy (the page gate) → `app/(os)/layout.tsx` (prerendered: it reads nothing of the request) → `page.tsx`, or `w/[workspace]/layout.tsx` for a workspace's own address (its route the catch-all `[[...route]]/page.tsx`'s) → `FrameHost` (client only, because the shell's files read the browser as they load: it imports the shell as `#frame-shell`, which only a browser's build resolves to `FrameApp`, and draws it under `ssr: false`) → `FrameApp`:
 
-1. `seed-globals.ts` makes the bundle's React the `window.React` (one hook dispatcher) and publishes the contracts helpers the pages call (`ROLE_PERMS`, `__FACT_WORDS`, the phone checks, the clock, the tone map, the gate).
-2. `manifest.ts` imports, in the order the shared global scope requires, what the shell still draws by name: `seed-globals.ts`. Ask's face is the kit's (`surfaces/kit/face/ask-face.tsx`), which the frame imports, and Ask's Line, `surfaces/ask/`, is a chunk of its own, fetched once the frame is idle or the Line is first opened. The mockup's own files and the seeds they read were deleted on 17 October 2026. The standalone harness loads the same list (11.5).
+1. `bootFrame()` (`bridge/boot/installs.ts`) runs the boot's steps in their order (`FRAME_INSTALLS`): the clock, the role store, the tip, the toast, the couriers, the policy store, the bell, Ask and the rest, each a part of the bridge's one typed store (`bridge/provided.ts`) that a page reaches by import (decision 0151). Nothing is published on `window`, and the pages import the contracts helpers they call.
+2. Ask's face is the kit's (`surfaces/kit/face/ask-face.tsx`), which the frame imports, and Ask's Line, `surfaces/ask/`, is a chunk of its own, fetched once the frame is idle or the Line is first opened. The mockup's own files and the seeds they read were deleted on 17 October 2026. The standalone harness loads the same list (11.5).
 3. `hydrateSurfaceCache()` runs at module scope, before React's first render, restoring each surface's last real data from `sessionStorage` — per tab, dying with it, keyed by the build's commit and the workspace, capped at 2 MB, cleared on sign-out, on a 401 and on a workspace change. A refresh paints real, seconds-old data and never the mockup's seeds.
-4. **One typed client** (`src/client/api.ts`, pure, over `routes.generated.ts` from `gen/route-types.mjs`): every request names a route key, and the compiler knows what the route takes and answers, so a courier that hand-typed the server's answer stops compiling. It owns the envelope, the 401, the timeout and the refusal once (`refusalOf`), and **the refresh map** (`refresh-map.ts`): after a write lands, which surfaces could now be stale — one table keyed by route, replacing the list each of eleven couriers carried. The couriers on `window` — `__inboxVerb`, `__personDetail`, `__lists`, `__ask`, `__waConnect`, `__templates`, `__broadcasts`, `__playbooks`, `__calendar`, `__setup`, `__google`, `__billing`, `__connections`, `__businessRecord`, `__platform`, `__activity`, `__identity`, `__tz`, `__clock`, `__me`, `__workspace`, `__shell`, `__chrome`, `__notifs`, `__listRoute` and the `POLICY` store — are the only way a page, which cannot import, reaches the server, and each refreshes through the map, never a row the page invented while it waited.
-5. The route gate: a real route waits for its surface (`__surfaceGate`, with an eight-second escape hatch) instead of painting seeds.
+4. **One typed client** (`src/client/api.ts`, pure, over `routes.generated.ts` from `gen/route-types.mjs`): every request names a route key, and the compiler knows what the route takes and answers, so a courier that hand-typed the server's answer stops compiling. It owns the envelope, the 401, the timeout and the refusal once (`refusalOf`), and **the refresh map** (`refresh-map.ts`): after a write lands, which surfaces could now be stale — one table keyed by route, replacing the list each of eleven couriers carried. The couriers (the Inbox's verbs, a person's detail, the lists, Ask, the templates, the broadcasts, the playbooks, the calendar, setup, billing, the connections, the workspace, the shell, the bell and the policy store among them) are the bridge's parts (`provided.ts`), which a page reaches through `frame-verbs.ts`, and each refreshes through the map, never a row the page invented while it waited.
+5. The route gate: a real route waits for its surface (the bridge's `surfaceGate`, with an eight-second escape hatch) instead of painting seeds.
 6. `startSurfaces(SURFACES, joinLiveFeed)` starts the overrides of `SURFACES` (twenty-two in `FrameApp.tsx` on 10 October 2026, with Campaigns' own `campaign_results`; nineteen of them typed for a TSX surface in `surface-values.ts`). On a workspace page they fire at once with the name riding on every request; off one, the workspace surface goes first and the rest wait, so no read is issued the server would have to guess at. Once they are in, the runner joins the live feed it was handed; it never builds a Supabase client itself, so a node test mounts real surfaces over a feed of its own.
 
 ### 11.2 The SurfaceData seam
@@ -1410,7 +1410,7 @@ A Vercel variable reaches a running deployment only after a redeploy.
 
 ### 23.2 Scripts
 
-Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/db-paths-changed.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs` and `eval-judge.mjs`.
+Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `ops/delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `ops/filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `ops/optout-probe.mjs`, `ops/voice/voice-converge.mjs`, `ops/seed-memberships.mjs` and `ops/e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen/schema-sets.mjs`, `gen/route-types.mjs`, `gen/db-types.mjs`, `checks/dist.mjs`, `checks/changed/database.mjs`, `ops/golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs` and `eval-judge.mjs`.
 
 ### 23.3 Secrets
 

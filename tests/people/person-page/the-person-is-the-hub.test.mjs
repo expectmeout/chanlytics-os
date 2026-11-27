@@ -569,38 +569,31 @@ test("a proposal's send sits beside the booking link in More, 'again' once it we
 test("the Deal section stands on the Overview above Coming up for someone a deal is true of; with nothing on file it is no line on the page, the proposal started from More (0008, amended 18 Oct 2026); the card's settings have no Deal row", async () => {
   recFolds.reset();
   const asked = sheetAsks();
-  try {
-    const none = (await profile(withDeals([])))();
-    assert.equal(byTestId(none, "person-deal"), null, "nothing on file and no consultation waiting: no Deal section");
-    const tree = (await profile(withDeals([dealRow()])))();
-    const section = byTestId(tree, "person-deal");
-    assert.equal(textOf(find(section, (n) => n.type === "h2")), "Deals");
-    // In their story (the one page), its next act on Now's rung, then Notes and what is coming (VISITS has a visit ahead).
-    const story = find(tree, (n) => typeof n.type === "function" && n.type.name === "StoryParts");
-    const kids = story.rendered.props.children.filter((k) => k && typeof k === "object");
-    const at = kids.findIndex((k) => k.type === PersonDealCard);
-    assert.ok(at >= 0 && kids[at].props.rung, "the deal, in their story, its next act Now's");
-    assert.ok(kids.findIndex((k) => k.props?.["data-testid"] === "person-coming-up") > at, "then what is coming");
-    // Nothing recorded: the proposal starts from More, in the one sheet.
-    const more = find(none, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "person-more");
-    const start = itemsIn(more).find((i) => /^Start a proposal/.test(i.label));
-    assert.ok(start, "More offers a proposal to start");
-    start.onSelect();
-    assert.deepEqual(asked, [{ personId: "p1", mode: "propose" }], "the one sheet, for a new proposal");
-    // The card's settings are the three answers: the deal says itself once, in its own section.
-    const cls = (n) => String(n.props?.className || "");
-    assert.deepEqual(
-      all(byTestId(tree, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
-        textOf(find(r, (n) => cls(n) === "rec-row-key")),
-      ),
-      ["AI", "Messages", "Offers & news"],
-      "REGRESSION: the deal was a row of the card and a fold under it (canvas A's order: the answers, then who answers)",
-    );
-    assert.equal(byTestId(tree, "rec-row-person-deal"), null);
-    assert.ok(!all(tree, (n) => n.type === "h2").some((h) => textOf(h) === "Proposal"));
-  } finally {
-    delete globalThis.window.openDealSheet;
-  }
+  const none = (await profile(withDeals([])))();
+  assert.equal(byTestId(none, "person-deal"), null, "nothing on file and no consultation waiting: no Deal section");
+  const tree = (await profile(withDeals([dealRow()])))();
+  const section = byTestId(tree, "person-deal");
+  assert.equal(textOf(find(section, (n) => n.type === "h2")), "Deals");
+  const story = find(tree, (n) => typeof n.type === "function" && n.type.name === "StoryParts");
+  const kids = story.rendered.props.children.filter((k) => k && typeof k === "object");
+  const at = kids.findIndex((k) => k.type === PersonDealCard);
+  assert.ok(at >= 0 && kids[at].props.rung, "the deal, in their story, its next act Now's");
+  assert.ok(kids.findIndex((k) => k.props?.["data-testid"] === "person-coming-up") > at, "then what is coming");
+  const more = find(none, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "person-more");
+  const start = itemsIn(more).find((i) => /^Start a proposal/.test(i.label));
+  assert.ok(start, "More offers a proposal to start");
+  start.onSelect();
+  assert.deepEqual(asked, [{ personId: "p1", mode: "propose" }], "the one sheet, for a new proposal");
+  const cls = (n) => String(n.props?.className || "");
+  assert.deepEqual(
+    all(byTestId(tree, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
+      textOf(find(r, (n) => cls(n) === "rec-row-key")),
+    ),
+    ["AI", "Messages", "Offers & news"],
+    "REGRESSION: the deal was a row of the card and a fold under it (canvas A's order: the answers, then who answers)",
+  );
+  assert.equal(byTestId(tree, "rec-row-person-deal"), null);
+  assert.ok(!all(tree, (n) => n.type === "h2").some((h) => textOf(h) === "Proposal"));
 });
 
 test("a proposal out is a card: its service and value, its steps, its link and whether it went, its one next act as the outline button and the other moves as words, each opening the sheet or the thread", async () => {
@@ -706,7 +699,6 @@ test("a proposal out is a card: its service and value, its steps, its link and w
       bridgeHolds({ who: { me: { role: "owner" } } });
     }
   } finally {
-    delete globalThis.window.openDealSheet;
     putBack();
   }
 });

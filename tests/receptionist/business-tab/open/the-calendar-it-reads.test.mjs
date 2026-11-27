@@ -37,7 +37,7 @@ import {
   setSurfaceValue,
   surfaceValue,
 } from "./_open.mjs";
-import { bridgeHolds, provided } from "../../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../../shell/_bridge-holds.mjs";
 
 test("the booking tool row says where its calendar link reads and when, and keeps the address, the count and the source in its fold", () => {
   setSurfaceValue("calendar", calendarRead(readOk()));
@@ -669,11 +669,14 @@ test("a calendar with no tool behind it: the fold holds the link's one box, chec
 
 test("each act of When you're open is gated as a change to the settings, and named for what it acts on", () => {
   const asked = [];
-  const was = W.gate;
-  W.gate = (perm, doing) => {
-    asked.push([perm, doing]);
-    return {};
-  };
+  const was = provided("roles");
+  // What each control asks the role store, and as what (frame/gate.ts): it may.
+  holdRoles({
+    can: (perm, doing) => {
+      asked.push([perm, doing]);
+      return true;
+    },
+  });
   bridgeHolds({ parts: { workspace: { setTimezone: async () => ({ ok: true, tz: "", message: "" }) } } });
   try {
     const tree = drawTab();
@@ -701,7 +704,7 @@ test("each act of When you're open is gated as a change to the settings, and nam
       "Change what you book with",
     ]);
   } finally {
-    W.gate = was;
+    bridgeHolds({ parts: { roles: was } });
     bridgeHolds({ parts: { workspace: undefined } });
   }
 });

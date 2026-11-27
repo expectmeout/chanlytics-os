@@ -20,7 +20,7 @@
  *   resolves             options the app's tsconfig extends
  *   this decision        the workflow and this script
  *
- * Usage: git diff --name-only HEAD^1 HEAD | node tooling/scripts/checks/mobile-paths-changed.mjs
+ * Usage: git diff --name-only HEAD^1 HEAD | node tooling/scripts/checks/changed/mobile.mjs
  * Prints mobile=true or mobile=false on stdout, for $GITHUB_OUTPUT, and the reason on stderr, for the log. The answer
  * is never an exit code: a crash exits non-zero too, and a crash read as "not needed" would skip the check it exists
  * to run. An import that opens no file is a crash, for the same reason.
@@ -29,7 +29,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 /** The one module of the workspace the app imports: contracts' `./phone-app` export. */
 export const PHONE_APP_DOOR = "packages/contracts/src/mobile/phone-app.ts";
@@ -43,7 +43,7 @@ export const MOBILE_PATHS = [
   "pnpm-workspace.yaml",
   "tsconfig.base.json",
   ".github/workflows/ci.yml",
-  "tooling/scripts/checks/mobile-paths-changed.mjs",
+  "tooling/scripts/checks/changed/mobile.mjs",
 ];
 
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)["'](\.{1,2}\/[^"']+)["']/g;

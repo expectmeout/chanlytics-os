@@ -10,8 +10,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ canDo: () => true });
+installStubReact({});
 globalThis.location.pathname = "/w/studio/settings/activity";
 
 /** What GET activity answers now, and how many times it was asked; every other read is refused as not read here. */
@@ -36,7 +37,7 @@ test.after(() => {
 });
 
 const S = "../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { activity } = await import(`${S}/bridge/activity.ts`);
 const { PaneActivity } = await import(`${S}/surfaces/settings/activity/pane.tsx`);
 

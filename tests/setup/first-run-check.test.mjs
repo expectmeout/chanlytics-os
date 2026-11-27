@@ -12,7 +12,7 @@ import { profileRefusal } from "../../apps/dashboard/src/surfaces/settings/busin
 import { again, unmount, settle, all, byTestId, textOf, press } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { W, saving, settings, facts, typeInto, saveRow } from "../_business-tab-harness.mjs";
-import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -22,8 +22,8 @@ after(() => unmount());
 const flashes = [];
 Object.assign(W, {
   sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  usePPToast: () => [null, (m) => flashes.push(m)],
 });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
 // Setup's verbs are the module object the TSX calls; stubbed in place, and `window.__setup` is the same object.
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 Object.assign(setupVerbs, {
@@ -252,8 +252,8 @@ test("Check stays on screen once its last fact lands, and Rehearse it now goes o
 
 test("a role that may not change the business goes on with Rehearse it now and sends nothing it would be refused", async () => {
   const sent = courier();
-  const was = W.canDo;
-  W.canDo = (a) => a !== "settings";
+  const was = provided("roles");
+  holdRoles({ can: (a) => a !== "settings" });
   try {
     const tree = draw({ setup: dto({ services: 2 }), at: "receptionist" });
     byTestId(tree, "fr-onward").props.onClick();
@@ -261,7 +261,7 @@ test("a role that may not change the business goes on with Rehearse it now and s
     assert.deepEqual(sent, [], "nothing sent to a door that would refuse it");
     assert.equal(went.at(-1), "start/rehearse", "and the step goes on");
   } finally {
-    W.canDo = was;
+    bridgeHolds({ parts: { roles: was } });
     bridgeHolds({ parts: { workspace: undefined } });
   }
 });
@@ -447,26 +447,26 @@ test("+ Your own opens the services sheet", () => {
 
 test("a role that may not change the business sees the chips gated, a press saying why, and no way to the editors", () => {
   const sent = saving();
-  const was = { canDo: W.canDo, gate: W.gate };
-  const told = [];
-  W.canDo = (a) => a !== "settings";
-  W.gate = (perm, doing) => (perm === "settings" ? { "aria-disabled": true, onClick: () => told.push(doing) } : {});
+  const was = provided("roles");
+  holdRoles({ can: (a) => a !== "settings" });
   try {
     const tree = draw();
     const c = chip(tree, "services", "Packing");
     assert.equal(c.props["aria-disabled"], true);
     press(c);
-    press(chip(tree, "languages", "Spanish"));
+    const spanish = chip(tree, "languages", "Spanish");
+    press(spanish);
     assert.equal(sent.length, 0);
+    // The gate's own press (frame/gate.ts), which says why in each chip's words.
     assert.deepEqual(
-      told,
-      ["change your services", "change the languages it speaks"],
+      [c, spanish].map((n) => n.props["aria-description"]),
+      ["Only an owner can change your services.", "Only an owner can change the languages it speaks."],
       "the gate's own press, which says why",
     );
     assert.equal(byTestId(tree, "fr-chip-own-service"), null);
     assert.equal(byTestId(tree, "fr-chip-other-language"), null);
   } finally {
-    Object.assign(W, was);
+    bridgeHolds({ parts: { roles: was } });
   }
 });
 
@@ -560,15 +560,15 @@ test("nothing is offered over a link the record holds", () => {
 
 test("a role that may not change the business reads what the website names, and is offered no press, as with any disagreement", () => {
   const sent = saving();
-  const was = W.canDo;
-  W.canDo = (a) => a !== "settings";
+  const was = provided("roles");
+  holdRoles({ can: (a) => a !== "settings" });
   try {
     const offer = offerOf(draw({ setup: setupRead() }));
     assert.equal(offer.said, `Found on your website: ${FOUND}`);
     assert.equal(offer.use, null);
     assert.equal(sent.length, 0);
   } finally {
-    W.canDo = was;
+    bridgeHolds({ parts: { roles: was } });
   }
 });
 

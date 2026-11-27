@@ -2,7 +2,7 @@
  * The question ci.yml asks before it spends a runner on the phone app's check, and the wiring that asks it.
  *
  * The app is paused, and its check ran on every pull request and every push for an app almost none of them touch. It
- * runs now only when a change reaches what the app is built from (tooling/scripts/checks/mobile-paths-changed.mjs):
+ * runs now only when a change reaches what the app is built from (tooling/scripts/checks/changed/mobile.mjs):
  * its own tree, the one module of the workspace it imports and everything that module reaches, and what an install
  * resolves. The script follows the imports as text, since it runs before anything is installed; here the compiler's
  * own reading of the same files is what it is held to, so an import form the text misses fails this, not a merge.
@@ -19,10 +19,10 @@ import {
   PHONE_APP_DOOR,
   couldThePhoneAppHaveChanged,
   phoneAppModules,
-} from "../../../tooling/scripts/checks/mobile-paths-changed.mjs";
+} from "../../../tooling/scripts/checks/changed/mobile.mjs";
 import { ROOT } from "../../_source.mjs";
 
-const CLI = fileURLToPath(new URL("../../../tooling/scripts/checks/mobile-paths-changed.mjs", import.meta.url));
+const CLI = fileURLToPath(new URL("../../../tooling/scripts/checks/changed/mobile.mjs", import.meta.url));
 const read = (file) => fs.readFileSync(path.join(ROOT, file), "utf8");
 const ask = (files) => spawnSync(process.execPath, [CLI], { input: files.join("\n") + "\n", encoding: "utf8" });
 
@@ -85,7 +85,7 @@ test("a change to the app, to a module its door reaches, or to what an install r
     "pnpm-workspace.yaml",
     "tsconfig.base.json",
     ".github/workflows/ci.yml",
-    "tooling/scripts/checks/mobile-paths-changed.mjs",
+    "tooling/scripts/checks/changed/mobile.mjs",
   ])
     assert.equal(couldThePhoneAppHaveChanged([file]), true, file);
   // A module of contracts the door does not reach, the dashboard, the edge, a migration, a document: none is the app's.
@@ -134,7 +134,7 @@ test("ci.yml asks the question first, of the change itself, and every step after
   assert.ok(
     steps[1].includes("id: changed") &&
       steps[1].includes("git diff --name-only HEAD^1 HEAD") &&
-      steps[1].includes('node tooling/scripts/checks/mobile-paths-changed.mjs >> "$GITHUB_OUTPUT"'),
+      steps[1].includes('node tooling/scripts/checks/changed/mobile.mjs >> "$GITHUB_OUTPUT"'),
     "then the question, of the change's own files",
   );
   assert.ok(steps[1].includes("workflow_dispatch"), "a run asked for by hand is a yes");

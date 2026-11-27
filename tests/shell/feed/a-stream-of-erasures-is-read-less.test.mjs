@@ -15,14 +15,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { changesOf } from "../../_live-feed.mjs";
-import { historyOf, legacyAddress } from "../address/_address.mjs";
+import { historyOf } from "../address/_address.mjs";
 import { registeredSurfaces } from "../hearing/_reads.mjs";
 import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const listening = new Map();
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
-  __afterTheMoveMs: 0,
   location: { pathname: "/w/acme", search: "", hash: "#/people", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {
     if (!listening.has(type)) listening.set(type, new Set());
@@ -36,6 +35,7 @@ const win = {
     return true;
   },
 };
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 globalThis.window = win;
 historyOf(win);
 globalThis.document = { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} };
@@ -46,7 +46,6 @@ globalThis.CustomEvent ??= class CustomEvent {
   }
 };
 bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
-win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { startSurfaces } = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const REAL = [];
 for (const { name, file } of registeredSurfaces()) REAL.push((await importSrc(file))[name]);

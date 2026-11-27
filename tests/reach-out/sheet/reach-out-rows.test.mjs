@@ -18,7 +18,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
@@ -26,18 +26,12 @@ const W = globalThis;
 const went = [];
 const toasts = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
-Object.assign(W, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  appNavigate: (to) => went.push(to),
-  // The role store's gate is the frame's own (window.gate, canDo, gateTitle), over this role and contracts' table.
-  ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  useHotkey: () => {},
-});
+bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 // The shell's own parts (Confirm, StatePill, the role gate, the record kit) are still JSX the frame loads.
-const SRC = "../../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 // The shell's toast is the frame's own; the home raises its notices through it, and a test reads them here.
-W.usePPToast = () => [null, (t) => toasts.push(t)];
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 // The pages and their panes are TSX (decision 0015): New's Write to leads.
 const S = "../../../apps/dashboard/src/surfaces";
 // The Library's pane is a chunk of its own (campaigns-code.tsx): fetched here as a reach for a message's door fetches it,

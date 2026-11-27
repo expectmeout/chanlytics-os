@@ -19,10 +19,11 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);
 const { readAdsAhead, readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
 const { warmAds } = await import(`${S}/surfaces/campaigns/ads/warm.ts`);

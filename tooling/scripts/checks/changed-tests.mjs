@@ -59,7 +59,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const TESTS = "tests";
 
 /** Run on every change: the repository's rules, the ratchets and the docs' truth, where the five reds of 3 Oct were. */
-export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TESTS}/routes/wire-casing.test.mjs`];
+export const ALWAYS = [`${TESTS}/repo`, `${TESTS}/types`, `${TESTS}/docs`, `${TESTS}/routes/wire/wire-casing.test.mjs`];
 
 /**
  * At most this many test files a pull request runs, the folders it names and the tests its imports reach. The slowest of

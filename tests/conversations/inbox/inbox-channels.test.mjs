@@ -11,7 +11,6 @@ import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({});
-Object.assign(globalThis, { CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } } });
 const S = "../../../apps/dashboard/src";
 const { InboxThread } = await import(`${S}/surfaces/inbox/thread/thread.tsx`);
 const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/outcome-pill.tsx`);

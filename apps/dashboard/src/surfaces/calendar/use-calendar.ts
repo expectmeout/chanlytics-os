@@ -192,7 +192,7 @@ export function useVisitAddress(p: VisitAddressAsk) {
       shut.current = false;
       setOpenId(block.id);
     } else if (p.covered && p.fetchedAt >= now.at) now.done = true;
-  }, [visitId, days, p.covered, p.fetchedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visitId, days, p.covered, p.fetchedAt, setOpenId]);
 
   /** Open a block's panel: its address pushed, or replaced when a visit's panel is already the address's. */
   const open = (b: CalendarBlockVM) => {
@@ -296,7 +296,7 @@ function useWindowRead(p: ReadAsk) {
     return () => {
       readSeq.current += 1;
     };
-  }, [view, anchor, covered]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view, anchor, covered]); // eslint-disable-line react-hooks/exhaustive-deps -- a read for each view, anchor and cover: `read` is this draw's own, and the setter does not change
   return read;
 }
 

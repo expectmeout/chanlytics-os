@@ -13,9 +13,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { importSrc } from "../../_source.mjs";
-import { DESK, givenOn } from "../../_css.mjs";
+import { cascadeOf, declared, element } from "../../_css.mjs";
 import { installStubReact, fresh, again, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -169,7 +170,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   const LR = await import("../../_stub-react.mjs");
   LR.installStubReact();
   const went = [];
-  globalThis.CHANLY = { nav: (to) => went.push(to) };
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
   const { PersonLists, ListsGroup } = await importSrc("apps/dashboard/src/surfaces/people/person/lists.tsx");
   const picked = [];
@@ -220,10 +221,10 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   setSurfaceValue("people", undefined);
   // The rail's new list (rail/new-list.tsx, lists/rule-editor.tsx) is named in a row beside its press: the field takes the
   // row's width and gives it back to the press, as People's sheet gives it (pinned as clients.css's text until 26 Nov 2026).
-  const field = givenOn("apps/dashboard/src/styles/clients.css", ".cl-rail-newlist input", DESK);
+  const field = cascadeOf(["apps/dashboard/src/styles/clients.css"]).given(element(".cl-rail-newlist", "input"));
   assert.deepEqual(
     [field.flex, field["min-width"]],
-    ["1", "0"],
+    [declared("flex: 1").flex, "0"],
     "the new list's name takes the row, and shrinks for its press",
   );
 });
@@ -234,8 +235,8 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   );
   assert.equal(reg.SURFACE_STATES.segments, "real", "the route is real: it lands on People");
   assert.equal(reg.ROUTE_SURFACE.segments, "people", "the same facts as People, never a second fetch");
-  // REGRESSION: a second page of the same people. The address is People's (above), and no page of its own is loaded:
-  // the frame's manifest loads the seed's globals alone (pinned as manifest.ts's text until 26 Nov 2026).
+  // REGRESSION: a second page of the same people. The address is People's (above), and no page of its own is loaded
+  // (the manifest that loaded the shell's pages went with decision 0151).
   assert.equal(reg.surfaceStateFor("segments"), "real");
   assert.equal(reg.routeSurfaceFor("segments"), "people");
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are

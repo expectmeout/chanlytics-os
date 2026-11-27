@@ -9,7 +9,7 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { DESK, givenOn } from "../../_css.mjs";
+import { cascadeOf, element } from "../../_css.mjs";
 import { shiftKey } from "@chanlytics/contracts";
 import { toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
 import { installStubReact, fresh, all, byTestId, textOf, classes, find, press } from "../../_stub-react.mjs";
@@ -20,7 +20,7 @@ import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 const navigated = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({});
-Object.assign(globalThis, { CHANLY: { nav: (to) => navigated.push(to), R: { admin: (pane) => `admin/${pane}` } } });
+bridgeHolds({ doors: { navigate: (to) => navigated.push(to) } });
 globalThis.window.fetch = async () =>
   new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "not read here" } }), { status: 500 });
 bridgeHolds({
@@ -346,9 +346,10 @@ test("a spread wears the ordinal ramp by place, and a sixth or seventh value sta
   const seven = colors(7);
   assert.equal(seven.length, 7);
   // The ramp's steps as each theme defines them, asked of the charts' sheet as the build's parser reads it (tests/_css.mjs
-  // givenOn; pinned as charts.css's text until 26 Nov 2026).
+  // cascadeOf, the document's root in each theme; pinned as charts.css's text until 26 Nov 2026).
+  const charts = cascadeOf(["apps/dashboard/src/styles/charts.css"]);
   for (const theme of ["light", "dark"]) {
-    const steps = Object.keys(givenOn("apps/dashboard/src/styles/charts.css", `[data-theme="${theme}"]`, DESK))
+    const steps = Object.keys(charts.given(element(`html[data-theme="${theme}"]`)))
       .filter((p) => /^--chart-ramp-\d+$/.test(p))
       .map((p) => `var(${p})`);
     assert.ok(steps.length >= 5, `the ramp's steps are the stylesheet's, in the ${theme} theme`);

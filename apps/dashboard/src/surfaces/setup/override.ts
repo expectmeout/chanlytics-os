@@ -11,6 +11,7 @@ import { surfaceCode } from "@/bridge/surfaces/code";
 import { declareReads } from "@/bridge/surface-registry";
 import { goToRoute, routeOnScreen } from "@/bridge/workspace";
 import { surfaceValue } from "../surface-values";
+import { filledDoors, navigate } from "../frame-doors";
 
 /** Setup's read and verbs: fetched once, shared (bridge/surfaces/code.ts). */
 const setupCode = surfaceCode("setup", () => import("./surface"));
@@ -116,7 +117,8 @@ export function installSetup(win: Window = window): void {
     } catch {
       /* still land, once */
     }
-    if (win.appNavigate) win.appNavigate(FIRST_RUN_ROUTE);
+    // The frame's own move where it has drawn its doors (frame-doors.ts), which keeps its Back; else the bridge's.
+    if (filledDoors().includes("navigate")) navigate(FIRST_RUN_ROUTE);
     else goToRoute(FIRST_RUN_ROUTE, {}, win);
   });
 }

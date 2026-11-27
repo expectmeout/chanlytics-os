@@ -66,8 +66,7 @@ export function usePostDraft(start: PostPlan, wanted: boolean): PostDraft {
       clearTimeout(timer);
       stop.abort();
     };
-    // What is asked is the key's: the plan and the shape are read only as it changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- what is asked is the key's: the plan and the shape are read only as it changes, and the words as they stand then
   }, [key, wanted, hasWords, atOnce]);
   const answered = answer?.key === key ? answer : null;
   const current = atOnce ?? answered?.picture ?? null;

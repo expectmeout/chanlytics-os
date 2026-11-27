@@ -8,7 +8,6 @@ import { Icon } from "../../kit/icon/icon";
 import { Meter } from "../../kit/meter/meter";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
 import { gate, useToast } from "../shell";
-import { trustRateFor } from "./shell-thread";
 import { steerDraft } from "../verbs";
 import type { Thread, Veto } from "../types";
 import { Button } from "../../kit/button/button";
@@ -98,16 +97,6 @@ function vetoSays(thread: VetoThread, remaining: number | null | undefined, paus
   );
 }
 
-/** The demo's edit rate for the agent, when the trust digest has one. */
-function vetoTrust(thread: VetoThread) {
-  const rate = trustRateFor(thread.agent.name);
-  return rate !== null ? (
-    <span className="ix-veto-trust" data-tip="30-day edit rate — under 5% is the earn-more-autonomy signal">
-      {thread.agent.name} · {rate}% edit rate
-    </span>
-  ) : null;
-}
-
 export const VetoBar = ({
   thread,
   remaining,
@@ -144,7 +133,6 @@ export const VetoBar = ({
         {thread.veto.why.facts.length ? ` · used: ${thread.veto.why.facts.join(", ")}` : ""}
       </span>
     )}
-    {vetoTrust(thread)}
     <span className="ix-veto-spacer"></span>
     {remaining != null && (
       <>

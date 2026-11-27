@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { apiGet } from "../workspace";
+import { moveInPage } from "../address";
 import { expectFocusInside, expectNoSidewaysScroll, sheetFloat, sheetFoot } from "../signals";
 
 /**
@@ -41,13 +42,11 @@ async function openRecord(page: Page, pane: Pane = "workspace"): Promise<void> {
 }
 
 /**
- * Another page of the record, moved to in the page's own hand (the rail's move), so what a test put on the window (the
- * stand-in settings door) is still there: a reload would put the bridge's own door back.
+ * Another page of the record, moved to as the rail moves (one page's two addresses: the history pushed, e2e/address.ts
+ * moveInPage), so the page and what it read stay as they were: a reload would read the settings again.
  */
 async function goToPane(page: Page, pane: Pane): Promise<void> {
-  await page.evaluate((to) => {
-    (window as unknown as { CHANLY: { address: { go: (r: string) => void } } }).CHANLY.address.go(to);
-  }, `admin/${pane}`);
+  await moveInPage(page, `admin/${pane}`);
   await expect(page.getByTestId(FIRST_DRAWN[pane])).toBeVisible({ timeout: 40_000 });
 }
 

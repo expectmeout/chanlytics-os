@@ -39,20 +39,12 @@ const partsOf = (tree) => ({
   veils: all(tree, (n) => n.props?.className === "more-backdrop"),
 });
 
-/** A thumb's reader, as frame-globals gives the page one: what the list asks of it, kept to be pulled by the test. */
-function withThumb(run) {
-  const asked = [];
-  const was = globalThis.touchSwipe;
-  globalThis.touchSwipe = (o) => {
-    asked.push(o);
-    return { onTouchStart() {}, onTouchEnd() {} };
-  };
-  try {
-    return run(asked);
-  } finally {
-    globalThis.touchSwipe = was;
-  }
-}
+/** A thumb down a list from its top, as a browser reports one, on its own handlers (kit/motion/swipe.ts touchSwipe). */
+const pull = (on, dy) => {
+  const at = { dataset: {}, removeAttribute() {} };
+  on.onTouchStart({ touches: [{ clientX: 200, clientY: 300 }], currentTarget: at, target: null, stopPropagation() {} });
+  on.onTouchEnd({ changedTouches: [{ clientX: 200, clientY: 300 + dy }], currentTarget: at, stopPropagation() {} });
+};
 
 const KINDS = [
   [
@@ -77,8 +69,9 @@ const KINDS = [
 ];
 
 for (const [kind, draw] of KINDS) {
-  test(`${kind} holds its list as the phone's sheet: marked for it, over the veil, closed by a pull that is its own`, () =>
-    withThumb((asked) => {
+  test(`${kind} holds its list as the phone's sheet: marked for it, over the veil, closed by a pull that is its own`, () => {
+    const media = globalThis.matchMedia;
+    try {
       fresh();
       let tree = again(draw);
       let parts = partsOf(tree);
@@ -92,17 +85,19 @@ for (const [kind, draw] of KINDS) {
       parts = partsOf(tree);
       assert.equal(parts.root.props.open, true);
       // The pull: on a phone only, and its touch is its own, so a picker in a sheet does not pull the sheet too.
-      const pull = asked.at(-1);
-      assert.equal(typeof pull.onDown, "function");
-      globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
-      assert.equal(pull.when(), true, "a phone's width");
       globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
-      assert.equal(pull.when(), false, "a desk's list is never pulled");
+      pull(parts.popup.props, 200);
+      tree = again(draw);
+      assert.equal(partsOf(tree).root.props.open, true, "a desk's list is never pulled");
       const kept = [];
       parts.popup.props.onTouchStart({ stopPropagation: () => kept.push(1) });
       assert.deepEqual(kept, [1], "kept its own");
-      pull.onDown();
+      globalThis.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+      pull(partsOf(tree).popup.props, 200);
       tree = again(draw);
-      assert.equal(partsOf(tree).root.props.open, false, "let go past a third, the list goes");
-    }));
+      assert.equal(partsOf(tree).root.props.open, false, "let go past a third, on a phone's width, the list goes");
+    } finally {
+      globalThis.matchMedia = media;
+    }
+  });
 }

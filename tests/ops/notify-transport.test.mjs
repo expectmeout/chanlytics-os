@@ -200,11 +200,12 @@ test("a transport that throws (a timeout, a DNS failure) is false and logged, ne
   const w = wire(new Error("The operation was aborted due to timeout"));
   try {
     await withEnv({ RESEND_API_KEY: "re_test" }, async () => {
-      assert.equal(await post("a@x", ["b@y"], "s", "t"), false);
+      assert.equal(await post("a@x", ["b@y"], "Reminder for +1 917 555 0100 tomorrow", "t"), false);
     });
     const line = lineFor(log.lines, "notify_failed");
     assert.ok(line);
     assert.match(line, /aborted due to timeout/);
+    assert.ok(line.includes("[number]") && !line.includes("917"), "the subject names the customer; the log must not");
   } finally {
     log.restore();
     w.restore();

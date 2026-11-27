@@ -41,7 +41,7 @@ import {
   toPersonVM,
   went,
 } from "./_person-page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------- the words, in contracts ------------------------------- */
 
@@ -206,15 +206,15 @@ test("REGRESSION (B19, B15): a profile goes back to People, and names following 
   // Back is the frame's own (the People view they came from, with its place), and People itself where the frame has none.
   said.back.go();
   assert.deepEqual(went, ["back"]);
-  const frameBack = globalThis.window.appBackToPeople;
-  delete globalThis.window.appBackToPeople;
+  const frameBack = heldDoors().backToPeople;
+  bridgeHolds({ doors: { backToPeople: undefined } });
   try {
     went.length = 0;
     draw();
     standingSaid().back.go();
     assert.deepEqual(went, ["clients"]);
   } finally {
-    globalThis.window.appBackToPeople = frameBack;
+    bridgeHolds({ doors: { backToPeople: frameBack } });
   }
   const mode = byTestId(tree, "receptionist-mode");
   assert.deepEqual(
@@ -577,7 +577,7 @@ test("the timeline's linked rows are the doors themselves -- a message's door hi
   }
   const doors = all(tree, (n) => n.props?.["data-testid"] === "timeline-open");
   for (const d of doors)
-    assert.match(d.props.href, /^#\/(inbox|calendar)\//, `a hash route, the app's own: ${d.props.href}`);
+    assert.match(d.props.href, /^\/w\/salon\/(inbox|calendar)\//, `the workspace's own address: ${d.props.href}`);
   assert.ok(doors.length >= 2, "the message and the escalation open somewhere");
   for (const d of doors) {
     assert.equal(d.type, "a", "a row that goes somewhere is a link, so it has a URL and a keyboard reaches it");

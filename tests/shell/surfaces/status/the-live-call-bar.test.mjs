@@ -7,14 +7,15 @@ import { toLiveVM } from "@chanlytics/contracts";
 import { importSrc } from "../../../_source.mjs";
 import { personDto } from "../../../consent/_person-row.mjs";
 import {
-  PAGES,
-  address,
   clearPeople,
   find,
   fire,
+  frameDoors,
   frames,
   history,
   mount,
+  PAGES,
+  PART,
   personDetail,
   placeAt,
   readCaches,
@@ -77,7 +78,7 @@ test("the live bar names who is on the line and opens that call; with nobody on 
   const drawn = () => {
     setCells([]);
     frames.begin();
-    return win.LiveCallBar({});
+    return PART.LiveCallBar({});
   };
 
   bridgeHolds({ values: { live: undefined } });
@@ -93,7 +94,7 @@ test("the live bar names who is on the line and opens that call; with nobody on 
   assert.match(textOf(bar), /Rosa Díaz/, "the caller in full: one call is named, in the header");
   assert.equal(bar.props["aria-label"], "Rosa Díaz is on the line. Open Live");
   const went = [];
-  win.CHANLY = { nav: (to) => went.push(to), address };
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   bar.props.onClick();
   assert.deepEqual(went, ["live/c-live"], "REGRESSION: it opened the list, so a second call would be a guess");
 
@@ -115,8 +116,8 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
     const { tree, title } = mount(hash);
     return {
       title,
-      tabs: find(tree, (n) => n.type === "SurfaceTabs"),
-      nav: find(tree, (n) => n.type === "Sidebar").props.active,
+      tabs: find(tree, (n) => n.type === PART.SurfaceTabs),
+      nav: find(tree, (n) => n.type === PART.Sidebar).props.active,
     };
   };
 
@@ -160,7 +161,7 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
 test("the route that is still `messages` is Campaigns' (decision 0060, D4: it was the Library, and Messages folded into Campaigns on 17 Nov 2026)", () => {
   const { tree, title } = mount("#/messages");
   assert.equal(title, "Campaigns · Chanlytics", "Campaigns, where every message is now, never a page of the Inbox's");
-  const strip = find(tree, (n) => n.type === "SurfaceTabs");
+  const strip = find(tree, (n) => n.type === PART.SurfaceTabs);
   assert.equal(strip.props.page, "messages", "the route is untouched: every deep link still works");
   assert.ok(
     find(tree, (n) => n.type === "RoutePage"),
@@ -257,9 +258,9 @@ test("a person's page on a cold load is the layout's, and the frame names them b
     );
     assert.ok(!find(held.tree, (n) => n.type === "LeadsReal"), "and no page of the frame is drawn in their place");
     assert.match(held.title, /Zoe Martin/, "named from the copy the tab kept of them");
-    const crumbs = find(held.tree, (n) => n.type === "Topbar").props.crumbs;
+    const crumbs = find(held.tree, (n) => n.type === PART.Topbar).props.crumbs;
     assert.equal(crumbs[0].label, "People");
-    assert.equal(crumbs[0].go, win.appBackToPeople, "its People is the profile's own Back");
+    assert.equal(crumbs[0].go, frameDoors().backToPeople, "its People is the profile's own Back");
     assert.equal(crumbs[1], "Zoe Martin");
 
     readCaches.clearReadCaches();
@@ -299,7 +300,7 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   const closed = mount("#/clients").tree;
   assert.equal(wrap(closed).props.role, undefined, "the sidebar on a desk, or the drawer shut, is no dialog");
   assert.equal(wrap(closed).props["aria-label"], undefined);
-  find(closed, (n) => n.type === "Topbar").props.onMenu();
+  find(closed, (n) => n.type === PART.Topbar).props.onMenu();
   const open = redraw();
   assert.match(String(wrap(open).props.className), /\bopen\b/, "the drawer is open");
   assert.equal(
@@ -311,7 +312,7 @@ test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigat
   assert.equal(wrap(open).props["aria-modal"], undefined, "not modal: it does not move focus into itself");
   assert.ok(ask(closed) && ask(open), "REGRESSION: the ✦ stays with the bar while the drawer is open");
   // Its press opens AI (pinned as shell-chrome.tsx's text in ask/line/ until 25 Nov 2026).
-  const line = (tree) => find(tree, (n) => n.type === "AskBar");
+  const line = (tree) => find(tree, (n) => n.type === PART.AskBar);
   assert.equal(line(open).props.open, false, "AI is closed until asked");
   ask(open).props.onClick();
   const asked = redraw();
@@ -369,6 +370,41 @@ test("a route whose surface has not landed is an empty pane that says it is read
     assert.ok(
       find(landed.tree, (n) => n.type === "RoutePage"),
       "the page is there",
+    );
+  } finally {
+    globalThis.setTimeout = keepTimeout;
+    bridgeHolds({ parts: { surfaceGate: undefined } });
+  }
+});
+
+test("the gate is asked for the pane on screen, its param with it: one thread in, another still reading", () => {
+  // A second Inbox thread or Settings tab is a pane of its own to wait for, where its page is one mount across them
+  // (the-page-and-the-shell-s-doors.test.mjs): the shell asks the gate for the page and its param (shell-hooks.ts
+  // useRouteGate), pinned as its source's text in chrome.test.mjs until 26 Nov 2026.
+  shell.installShell(win);
+  const asked = [];
+  const keepTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = () => 0;
+  bridgeHolds({
+    parts: {
+      surfaceGate: (page, param) => {
+        asked.push([page, param]);
+        return param === "th-1";
+      },
+    },
+  });
+  try {
+    assert.ok(
+      find(mount("#/inbox/th-1").tree, (n) => n.type === "RoutePage"),
+      "the thread whose pane is in draws",
+    );
+    assert.ok(
+      !find(mount("#/inbox/th-2").tree, (n) => n.type === "RoutePage"),
+      "another thread of the page still reads",
+    );
+    assert.ok(
+      asked.some(([page, param]) => page === "inbox" && param === "th-2"),
+      "asked with its param",
     );
   } finally {
     globalThis.setTimeout = keepTimeout;
@@ -452,17 +488,10 @@ test("a move between two views of one strip arrives as the Inbox's tabs do -- Pe
   // move, and draws at once. A person's page is People's view since it is drawn over the list (people-route.tsx, 20 Oct
   // 2026): the frame's view stays on screen, and the person comes in over the list by an entrance of the page's own.
   shell.installShell(win);
-  // Where a view stands on a strip is the strip's (surface-tabs.tsx stripPlace), over People's scope words (people-globals.ts).
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
-  const strip = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  Object.assign(win, {
-    SurfaceTabs: strip.SurfaceTabs,
-    stripPlace: strip.stripPlace,
-    stripSlide: strip.stripSlide,
-    stripSwipe: strip.stripSwipe,
-  });
-  const words = await importSrc("apps/dashboard/src/surfaces/people/words.ts");
-  Object.assign(win, { plScopes: words.plScopes, plScopeRoute: words.plScopeRoute });
+  // Where a view stands on a strip is the strip's (surface-tabs.tsx stripPlace), over People's scope words (people/words.ts).
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
+  await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
+  await importSrc("apps/dashboard/src/surfaces/people/words.ts");
   const view = (t) =>
     find(t, (n) => typeof n.props?.className === "string" && n.props.className.includes("route-view"));
   const stays = (t) => view(t).props.className.split(/\s+/).includes("route-stay");

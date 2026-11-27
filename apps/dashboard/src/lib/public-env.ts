@@ -41,6 +41,13 @@ export const publicEnv = {
   get NEXT_PUBLIC_VAPID_PUBLIC_KEY(): string | undefined {
     return blankAsUnset(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
   },
+  /**
+   * "1" in the nightly e2e's own build alone (.github/workflows/nightly-e2e.yml): Ask's client is put on the window for
+   * the specs that ask it what a page would send (bridge/ask.ts). Unset everywhere a customer is, so nothing of it ships.
+   */
+  get NEXT_PUBLIC_E2E(): string | undefined {
+    return blankAsUnset(process.env.NEXT_PUBLIC_E2E);
+  },
   /** Where the lead map's basemap bundle lives: an origin or a same-origin path. Unset, the map stays a plot. */
   get NEXT_PUBLIC_LEAD_MAP_BASE(): string | undefined {
     return blankAsUnset(process.env.NEXT_PUBLIC_LEAD_MAP_BASE);

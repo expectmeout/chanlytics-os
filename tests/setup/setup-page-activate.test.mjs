@@ -15,7 +15,7 @@ import { FIRST_RUN_WORDS } from "../../apps/dashboard/src/surfaces/setup/first-r
 import { hookFrames } from "../_hook-frames.mjs";
 import { useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -99,7 +99,6 @@ const calls = {
   find: [],
   link: [],
 };
-globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 bridgeHolds({ parts: { billing: {} } }, { fresh: true });
 globalThis.window = {
@@ -126,24 +125,22 @@ globalThis.window = {
       return { ok: true, read: true, message: "" };
     },
   },
-  usePPToast: () => [null, (m) => calls.flash.push(m)],
-  // The frame's own move, which the rows go through (frame-verbs navigate): `CHANLY.nav`.
-  CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
-  canDo: () => true,
   addEventListener() {},
   removeEventListener() {},
 };
+bridgeHolds({ doors: { navigate: (to) => calls.nav.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 globalThis.document ??= {
   body: {},
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
-globalThis.ReactDOM ??= { createPortal: (node) => node };
+drawsInPlace();
 globalThis.window.addEventListener ??= () => {};
 globalThis.window.removeEventListener ??= () => {};
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
-globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
+holdFrameParts();
+// The shell's toast is the bridge's `toast` part; this harness keeps its own flash.
+bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 
 /** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
 let cells = [];
@@ -205,6 +202,9 @@ useStubHooks(globalThis.React);
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { SetupRows } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
+// The line verbs as the module wrote them, kept before the rows' stand-ins take their place: run against the window's
+// fetch in "Setup's line verbs ask their routes".
+const lineVerbs = setupVerbs.lines;
 Object.assign(setupVerbs, {
   later: async (ids, change) => {
     calls.later.push([ids, change]);
@@ -319,11 +319,40 @@ test("the page: the row's Turn on reaches the bridge with the capability's name,
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
 });
 
+test("the page: the billing row's Start the trial and Update the card are Billing's own verbs, each pressed once", async () => {
+  // A row's verb (surfaces/setup/rows/acts.tsx pressVerb) for a workspace that pays by card: Checkout and Stripe's portal,
+  // through Billing's verbs (settings/billing/surface.ts), which billing/billing.test.mjs runs to Stripe's pages.
+  const { pressVerb } = await importSrc("apps/dashboard/src/surfaces/setup/rows/acts.tsx");
+  const { billingVerbs } = await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts");
+  const pressed = [];
+  const kept = { checkout: billingVerbs.checkout, portal: billingVerbs.portal };
+  Object.assign(billingVerbs, {
+    checkout: async () => (pressed.push("checkout"), { ok: true, message: "" }),
+    portal: async () => (pressed.push("portal"), { ok: false, message: "The portal is closed." }),
+  });
+  const flashed = [];
+  const k = {
+    flash: (f) => flashed.push(f),
+    once: async (_to, run) => run(),
+    toggleChooser() {},
+    toggleForwarding() {},
+    openForwarding() {},
+  };
+  try {
+    await pressVerb({ label: "Start the trial", to: "verb:billing-checkout" }, k);
+    await pressVerb({ label: "Update the card", to: "verb:billing-portal" }, k);
+  } finally {
+    Object.assign(billingVerbs, kept);
+  }
+  assert.deepEqual(pressed, ["checkout", "portal"]);
+  assert.equal(flashed.length, 1, "a door that refuses says so");
+  assert.equal(flashed[0].tone, "danger");
+  assert.deepEqual(calls.nav, [], "and nothing navigated away: Stripe's pages are Billing's to open");
+});
+
 test("REGRESSION (S15): an operator sees Turn on gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
   const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
-  Object.assign(globalThis.window, {
-    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-  });
+  bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   try {
     const tree = mount();
     let row = null;
@@ -348,7 +377,7 @@ test("REGRESSION (S15): an operator sees Turn on gated before the press, with th
     );
     assert.equal(calls.nav.length, before.nav);
   } finally {
-    delete globalThis.window.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });
 
@@ -531,11 +560,51 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
   tree = mount();
   const confirm = byTestId(tree, "setup-confirm");
   assert.ok(confirm, "a pick opens the confirm");
+  assert.equal(textOf(byTestId(tree, "setup-buy")), "Get this number");
   const before = calls.flash.length;
   await byTestId(tree, "setup-buy").props.onClick();
   await tick();
   assert.deepEqual(calls.buy, [["+13055550143", "305"]]);
   assert.match(String(calls.flash[before].msg.props.children.join("")), /is yours · setting it up now/);
+});
+
+test("Setup's line verbs ask their routes: search, buy once, and retry, each with what the row knows", async () => {
+  // surfaces/setup/surface.ts setupVerbs.lines, over the tab's API client and this window's fetch: what leaves is the
+  // route's request, and what comes back is read as the row reads it.
+  const sent = [];
+  const answers = {
+    "/api/v1/lines/search": { numbers: [{ e164: "+13055550142", friendly: "(305) 555-0142" }] },
+    "/api/v1/lines/buy": { ok: true, queued: true },
+    "/api/v1/lines/retry": { ok: false, queued: false },
+  };
+  const was = { fetch: globalThis.window.fetch, location: globalThis.window.location };
+  globalThis.window.location = { ...was.location, pathname: "/w/harbor/start", search: "", hash: "" };
+  globalThis.window.fetch = async (url, init) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    sent.push([init?.method ?? "GET", u.pathname, init?.body ? JSON.parse(init.body) : null]);
+    return Response.json({ ok: true, data: answers[u.pathname] ?? {} });
+  };
+  try {
+    const found = await lineVerbs.search("305");
+    assert.deepEqual([found.ok, found.numbers.map((n) => n.e164)], [true, ["+13055550142"]]);
+    assert.deepEqual(await lineVerbs.buy("+13055550142", "305"), { ok: true, queued: true, message: "" });
+    assert.deepEqual(await lineVerbs.retry("l1"), {
+      ok: false,
+      queued: false,
+      message: "It stopped again — a person at Chanlytics has it.",
+    });
+    assert.deepEqual(
+      sent.filter(([, p]) => p.startsWith("/api/v1/lines/")),
+      [
+        ["POST", "/api/v1/lines/search", { area_code: "305" }],
+        ["POST", "/api/v1/lines/buy", { number: "+13055550142", area_code: "305" }],
+        ["POST", "/api/v1/lines/retry", { line_id: "l1" }],
+      ],
+    );
+  } finally {
+    globalThis.window.fetch = was.fetch;
+    globalThis.window.location = was.location;
+  }
 });
 
 /* ---- forwarding: save the carrier and the mode, read the code, open the test window ---- */
@@ -731,9 +800,7 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
   assert.equal(calls.nav.at(-1), "start/find", "one finder: the business step's, which opens on Find");
   assert.equal(calls.find.length, 0, "nothing is searched from the row");
   const before = calls.nav.length;
-  Object.assign(globalThis.window, {
-    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-  });
+  bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   try {
     fresh();
     const denied = googleRow();
@@ -741,7 +808,7 @@ test("the page: the Google row's Find it opens the first run's Find, and only an
     await denied.cta.onClick();
     assert.equal(calls.nav.length, before, "reached any other way, the door goes nowhere for an operator");
   } finally {
-    delete globalThis.window.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });
 
@@ -880,9 +947,7 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
     if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props;
   });
   await lineRow.cta.onClick();
-  Object.assign(globalThis.window, {
-    ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" },
-  });
+  bridgeHolds({ parts: { roles: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" } } });
   const searched = calls.search.length;
   try {
     tree = mount();
@@ -892,7 +957,7 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
     await tick();
     assert.equal(calls.search.length, searched, "REGRESSION: Enter searched past the gated Find numbers");
   } finally {
-    delete globalThis.window.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
 
     setSurfaceValue("setup", { dto, role: "owner", vm, fetchedAt: NOW });
   }

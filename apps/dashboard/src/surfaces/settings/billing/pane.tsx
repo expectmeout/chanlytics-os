@@ -3,8 +3,7 @@
  *
  * The row as Stripe last wrote it, the plan as Stripe states it (never a figure typed here), and the two doors to
  * Stripe's own pages: Checkout for the card and the trial, the portal for the card, the invoices and cancel. A workspace
- * on a direct arrangement sees that, and no button that charges. Settings' page (settings.jsx) still draws it by its old
- * name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
+ * on a direct arrangement sees that, and no button that charges. Settings' page imports it.
  *
  * Drawn as Profile and the Business tab are (7 Oct 2026): the kit's record card, each fact a record row (the plan and
  * where it stands, the card on file, who may change it, where the WhatsApp bill is), the doors under the plan's words,

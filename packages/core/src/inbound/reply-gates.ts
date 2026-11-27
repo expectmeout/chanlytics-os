@@ -181,7 +181,8 @@ export async function hasConfirmedYes(at: Answering, bodyText: string): Promise<
     const name = confirmationNameOf({
       channel,
       filed: await filedCampaignName(at),
-      workspace: rt?.known?.workspace?.name ?? null,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the suite's runtime (tests/inbound/_world.mjs) comes without what the platform knows
+      workspace: rt.known?.workspace?.name ?? null,
       receptionist: brainCfg?.business_name ?? null,
     });
     // A DM's START in a DM's words: no carrier's program, rates or HELP line to name (contracts dmBackOnConfirmation).
@@ -300,6 +301,7 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
     nowMs: Date.now(),
     sentToday: thread.replies.length,
     dailyCap: maxRepliesDay,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- tests/billing/billing-pause.test.mjs reads this line as written
     workspacePaused: !!rt?.paused,
     bookingHeld: false,
     mode: replyMode,
@@ -383,8 +385,8 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
       brainCfg,
       personMode,
       replyMode,
-      configBroken: !!rt?.configBroken,
-      loadFailed: !!rt?.loadFailed,
+      configBroken: !!rt.configBroken,
+      loadFailed: !!rt.loadFailed,
     });
     const outcome = await sink.escalate(hold.reason, hold.details);
     // Told from its event when it was written (decision 0043), once per hold: a person's own hold saying itself again
@@ -398,8 +400,8 @@ export async function holdForThePerson(at: Answering, bodyText: string): Promise
       mode: replyMode,
       person_mode: personMode,
       persona: !!brainCfg,
-      config_broken: !!rt?.configBroken,
-      load_failed: !!rt?.loadFailed,
+      config_broken: !!rt.configBroken,
+      load_failed: !!rt.loadFailed,
       escalation: outcome ?? "n/a",
       alerted: alertNeeded,
     });

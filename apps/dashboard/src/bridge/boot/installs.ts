@@ -20,8 +20,11 @@ import { warmSequenceRoute } from "@/surfaces/campaigns/sequences/verbs";
 import { installCalendar } from "@/surfaces/calendar/verbs";
 import { calendarRunsOverride, readRunsSoon } from "@/surfaces/calendar/runs-surface";
 import { installFirstRows } from "@/surfaces/frame/first-rows";
+import { installTip } from "@/surfaces/frame/tip";
+import { hearFocusOutside } from "@/surfaces/kit/focus/trap";
 import { installLeadMap } from "@/surfaces/leads/map/lead-map";
 import { installPeopleCourier, warmPersonOnScreen } from "@/surfaces/people/people-detail";
+import { installPeopleFrameParts } from "@/surfaces/people/sheets/frame-parts";
 import { campaignsLensOpensOn } from "@/surfaces/reports/campaigns-one-code";
 import { policiesNow } from "@/surfaces/settings/business/shell";
 import { installBilling } from "@/surfaces/settings/billing/surface";
@@ -33,7 +36,7 @@ import { installArrival } from "../arrival";
 import { installAsk } from "../ask";
 import { drawComing, pageDrawn } from "../hearing/page-waits";
 import { installFreshnessReports } from "../hearing/freshness";
-import { installIdentity } from "../identity";
+import { installIdentity, installRoleStore } from "../identity";
 import { installInboxVerbs } from "../inbox-verbs";
 import { installNotifications } from "../notifications";
 import { installPolicyStore } from "../policy-store";
@@ -72,6 +75,7 @@ import {
 } from "../workspace";
 import { installClock } from "../zone";
 import { FRAME_SURFACES } from "./surfaces";
+import { usePPToast } from "../../surfaces/frame/flash";
 
 /** A step of the boot: what it is called, and what it runs. */
 export interface FrameInstall {
@@ -219,16 +223,26 @@ export const FRAME_INSTALLS: readonly FrameInstall[] = [
   },
   // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
   { name: "clock", run: installClock },
+  // Who is acting, which every gate asks from the first draw (identity.ts): made here, completed by `identity` below.
+  { name: "roleStore", run: installRoleStore },
+  // Where focus last stood outside a dialog, for it to go back to when the dialog closes (kit/focus/trap.ts), heard
+  // before the one tooltip a control shows (frame/tip.ts), as the frame heard them before.
+  { name: "focusOutside", run: hearFocusOutside },
+  { name: "tip", run: installTip },
+  // The one toast every page raises (frame/flash.tsx usePPToast), read where a part draws it.
+  { name: "toast", run: () => provide("toast", usePPToast) },
   // What a tab keeps for its pages -- a view's place, a half-done draft -- before any page reads it (tab-memory.ts).
   { name: "tabMemory", run: installTabMemory },
   { name: "inboxVerbs", run: installInboxVerbs },
   { name: "peopleCourier", run: installPeopleCourier },
+  // People's two sheets and the asks that open them, and its scopes, the strip's order (people/sheets/frame-parts.ts).
+  { name: "peopleFrameParts", run: installPeopleFrameParts },
   // The streets under the lead map, when the product hosts a basemap (surfaces/leads/map/lead-map.ts); unset, the page
   // keeps its square.
   { name: "leadMap", run: () => installLeadMap(publicEnv.NEXT_PUBLIC_LEAD_MAP_BASE) },
-  // After the manifest (which seeds window.POLICY) and before React: the approval chips and the matrix read the
-  // workspace's real modes from the first paint, including from the cache.
-  { name: "policyStore", run: () => installPolicyStore(window, policiesNow) },
+  // Before React: the approval chips and the matrix read the workspace's real modes from the first paint, including from
+  // the cache.
+  { name: "policyStore", run: () => installPolicyStore(policiesNow) },
   // The bell: fed by the rows the surfaces already hold, read state on this device, and a system alert when something
   // new needs the owner while the app is in the background. Listens for the surface events, so it must be installed
   // before the first fetch resolves.
@@ -258,7 +272,7 @@ export const FRAME_INSTALLS: readonly FrameInstall[] = [
   { name: "settingsPaneOnScreen", run: settingsPaneOnScreen },
   { name: "pageSpeed", run: measurePages },
   // Each surface's own signal (surface-status.ts): its events counted against its key, before React draws anything. The
-  // pages redraw on it through `useSurface` (seed-globals.ts), and FrameApp on the workspace's.
+  // pages redraw on it through `useSurface` (surface-status.ts), and FrameApp on the workspace's.
   { name: "surfaceSignals", run: () => hearSurfaces(FRAME_SURFACES) },
   // What a page draws and has not read is read once as it comes on screen (surface-registry.ts readWhatWasMissed): a
   // surface that let a message pass while its page was elsewhere (onlyOnItsPage) or that a pass left for its page

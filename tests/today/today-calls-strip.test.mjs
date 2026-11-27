@@ -28,11 +28,10 @@ import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 const went = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({
-  appNavigate: (to) => went.push(to),
-  canDo: () => true,
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 // Need you as the page draws it, with the card its arrangement names (Today, calm).
 const { NeedYouOnToday: NeedYou } = await import("./zones/_on-today.mjs");
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");

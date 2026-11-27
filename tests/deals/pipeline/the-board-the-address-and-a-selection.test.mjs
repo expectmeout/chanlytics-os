@@ -63,7 +63,8 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
-import { bridgeHolds, surfaceValue, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, surfaceValue } from "../../shell/_bridge-holds.mjs";
+const { askOnScreen } = await import("../../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 test("a viewer's cards do not drag, and a phone keeps the list whatever was chosen", async () => {
   await fresh();
@@ -438,8 +439,8 @@ test("a view nobody touched is not written to the workspace: a first open saves 
 
 test("a viewer sees New proposal and why they may not press it, and a press opens nothing", async () => {
   await fresh();
-  const keep = globalThis.window.ST_STORE;
-  globalThis.window.ST_STORE = { can: () => false, myRole: () => "viewer" };
+  const keep = provided("roles");
+  bridgeHolds({ parts: { roles: { can: () => false, myRole: () => "viewer" } } });
   try {
     let tree = draw();
     const open = newOpen(tree);
@@ -456,7 +457,7 @@ test("a viewer sees New proposal and why they may not press it, and a press open
     assert.equal(stopped, true, "the gate's own press, which says why");
     assert.equal(byTestId(tree, "pipeline-new"), null, "nothing opened");
   } finally {
-    globalThis.window.ST_STORE = keep;
+    bridgeHolds({ parts: { roles: keep } });
   }
 });
 
@@ -558,7 +559,7 @@ test("each card wears its deal's steps beside the time in stage, hidden from a s
 test("a row's menu: the deal's own acts where the member may record one, then their thread and their page; an act asks the one sheet", async () => {
   await fresh();
   const asked = [];
-  globalThis.window.openDealSheet = (a) => asked.push(a);
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: (a) => asked.push(a) } } });
   const menuOf = (tree, id) => find(rowNode(tree, id), (n) => n.type === Menu);
   let items = listOf(menuOf(draw(), "wes"));
   assert.deepEqual(
@@ -648,10 +649,17 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
     return { ...d, deals: [d.deals[0], web] };
   };
   const asked = [];
-  globalThis.window.openDealSheet = (a) => {
-    asked.push(a);
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (a) => {
+          asked.push(a);
+          return true;
+        },
+      },
+    },
+  });
   let tree = draw();
   assert.deepEqual(
     rowIds(tree),
@@ -666,7 +674,7 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
     "a person is read by their own id, never a row's",
   );
   assert.deepEqual(
-    globalThis.window.__askOnScreen.ids,
+    askOnScreen().ids,
     ["hana", "sara", "noa", "wes", "nia", "noa", "cat"],
     "Ask hears whose each row is, in the rows' order",
   );
@@ -702,8 +710,8 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
   items.at(-1).onClick();
   assert.deepEqual(opened, ["noa", "noa"]);
   // A selection of both rows passes both deals, each at the version its own read says, and both rows leave it.
-  const keepToast = globalThis.window.usePPToast;
-  globalThis.window.usePPToast = () => [null, () => {}];
+  const keepToast = provided("toast");
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   try {
     tree = draw();
     const table = find(tree, (n) => n.type === DataTable);
@@ -726,7 +734,7 @@ test("a person with two open deals is two rows (0029): each is read, peeked, ope
       "both rows passed, and left",
     );
   } finally {
-    globalThis.window.usePPToast = keepToast;
+    bridgeHolds({ parts: { toast: keepToast } });
   }
 });
 
@@ -884,8 +892,8 @@ test("the Pipeline's groups swap in with the kit's rise on a rail pick, the tabl
 test("a selection: People's bar leads with Mark as passed · N; why is asked once, the bridge records them, what it came to is said once, and only those who passed leave the selection", async () => {
   const seen = await fresh();
   const flashes = [];
-  const keepToast = globalThis.window.usePPToast;
-  globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+  const keepToast = provided("toast");
+  bridgeHolds({ parts: { toast: () => [null, (f) => flashes.push(f)] } });
   const dealOfRow = (id) => surfaceValue("people").rows.find((r) => r.id === id).deal;
   // The bridge reads each person afresh (people-detail.ts passDeals): Wes is still a proposal out, Nia has become a
   // client since the rows were drawn.
@@ -950,7 +958,7 @@ test("a selection: People's bar leads with Mark as passed · N; why is asked onc
       "only Wes, who passed, leaves the selection: the one that had changed, and the client, stay picked",
     );
   } finally {
-    globalThis.window.usePPToast = keepToast;
+    bridgeHolds({ parts: { toast: keepToast } });
   }
 });
 
@@ -1050,7 +1058,7 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   );
   await fresh({ people: [...peopleNow(), ...many] });
   const asked = [];
-  globalThis.window.openDealSheet = (a) => asked.push(a);
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: (a) => asked.push(a) } } });
   let tree = draw();
   click(byTestId(withHead(tree), "pipeline-view-board"));
   tree = draw();

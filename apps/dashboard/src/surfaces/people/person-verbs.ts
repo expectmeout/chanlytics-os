@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { backToPeople } from "../frame-doors";
 import { useFrameToast } from "../frame-verbs";
 import { currentWorkspace } from "@/bridge/who";
+import { threadVerbs as inboxThreadVerbs } from "../inbox/thread/thread-verbs";
 import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
 
 /** What the shell's one flash takes, as a person's page raises it: words, a tone, an Undo or a door in the toast. */
@@ -16,36 +17,10 @@ export interface PersonFlash {
   tone?: string;
   msg: ReactNode;
   ms?: number;
-  undo?: (() => void) | null;
-  action?: { label: string; onClick: () => void };
+  undo?: (() => unknown) | null;
+  action?: { label: string; onClick: () => unknown } | null;
 }
 export type FlashFn = (flash: PersonFlash) => void;
-
-/** The thread a reply is sent in, as the Inbox's verbs name it. */
-interface ThreadRef {
-  id: string;
-  conversationId: string;
-  escalationId: null;
-  who: string;
-}
-
-/** The Inbox's verbs on a real thread (thread-pane.jsx): what a person's sheet asks of them. */
-interface ThreadVerbs {
-  verb(
-    thread: ThreadRef,
-    name: string,
-    payload: { text: string },
-    okMessage: string,
-    undoable: boolean,
-  ): Promise<boolean>;
-}
-
-declare global {
-  interface Window {
-    /** The Inbox's verbs on a real thread (thread-pane.jsx), spoken through the given flash. */
-    threadVerbs?: (flash: FlashFn) => ThreadVerbs;
-  }
-}
 
 /** What a rejected read says, if it said anything: its message, else nothing. */
 export function saidBy(e: unknown): string {
@@ -71,17 +46,13 @@ export function workspaceName(): string {
   return currentWorkspace()?.name ?? "";
 }
 
-/** Whether the Inbox's reply courier is drawn in this shell. */
+/** Whether the Inbox's reply courier is drawn in this shell: it is, imported (inbox/thread/thread-verbs.tsx). */
 export function hasThreadVerbs(): boolean {
-  return !!window.threadVerbs;
+  return true;
 }
 
-/** The Inbox's verbs, speaking through `flash`; asked only once `hasThreadVerbs` says they are there. */
-export function threadVerbs(flash: FlashFn): ThreadVerbs {
-  const own = window.threadVerbs;
-  if (!own) throw new Error("The Inbox's reply courier is not in this shell.");
-  return own(flash);
-}
+/** The Inbox's verbs on a real thread, speaking through the toast they are handed (inbox/thread/thread-verbs.tsx). */
+export const threadVerbs = inboxThreadVerbs;
 
 /** Hear one of the window's own events (`deal:sheet`, `step:sheet`, `surface:clients`); the answer lets go. */
 export function hear(type: string, fn: (detail: Record<string, unknown>) => void): () => void {

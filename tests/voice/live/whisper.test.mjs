@@ -18,6 +18,7 @@ import { DECISION_VERBS, DECISION_SUBJECTS, toLiveVM } from "@chanlytics/contrac
 import { updateLiveCall } from "@chanlytics/channels/voice";
 import { fakeDb } from "../../_fake-db.mjs";
 import { installStubReact, fresh, again, find, byTestId } from "../../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 test("the ledger knows a whisper on a call, and the database agrees", async () => {
   assert.ok(DECISION_VERBS.includes("whisper"));
@@ -109,11 +110,11 @@ const call = (over = {}) => ({
 });
 
 test("the page offers it only on a live call, behind the gate the server enforces", async () => {
-  installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  installStubReact({ setInterval: () => 1, clearInterval() {} });
   const S = "../../../apps/dashboard/src";
   // The role gate the buttons ask (surfaces/frame), drawn for real; the toast is this harness's own.
-  (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-  globalThis.usePPToast = () => [null, () => {}];
+  holdFrameParts();
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
   const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
   const { whisperCall } = await import(`${S}/bridge/inbox-verbs.ts`);
@@ -147,7 +148,7 @@ test("the page offers it only on a live call, behind the gate the server enforce
     // Behind the same door the server enforces (operator or owner: the `approve` gate): where the role may not, the
     // control stays, says so, and sends nothing.
     withCalls([call()]);
-    globalThis.ST_STORE = { can: (action) => action !== "approve" };
+    bridgeHolds({ parts: { roles: { can: (action) => action !== "approve" } } });
     try {
       let tree = mount();
       type(tree, "offer the 3pm slot");
@@ -157,11 +158,11 @@ test("the page offers it only on a live call, behind the gate the server enforce
       assert.ok(gated.props["data-gated"] !== undefined);
       await gated.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: {} });
       assert.deepEqual(sent, [], "and pressing it sends nothing");
-      globalThis.ST_STORE = { can: () => true };
+      bridgeHolds({ parts: { roles: { can: () => true } } });
       tree = mount();
       assert.equal(sendButton(tree).props["aria-disabled"], undefined, "a role that may approve is not gated");
     } finally {
-      delete globalThis.ST_STORE;
+      bridgeHolds({ parts: { roles: undefined } });
     }
 
     // No nudge to speak: a whisper is used when it fits, which may be a later turn.

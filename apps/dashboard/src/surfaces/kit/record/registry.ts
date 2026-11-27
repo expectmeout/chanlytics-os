@@ -127,8 +127,7 @@ function createRecFolds() {
   const hold = (e: BeforeUnloadEvent) => {
     if (!dirty() && !saving()) return;
     e.preventDefault();
-    // Chrome asks only when the event's returnValue is set
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Chrome asks only when the event's returnValue is set
     e.returnValue = "";
   };
   // Each listener hears every change, whatever another does: one that throws is reported and the rest still hear.

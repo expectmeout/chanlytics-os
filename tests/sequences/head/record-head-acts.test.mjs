@@ -9,7 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SEQUENCE_ACT_WORDS, SEQUENCE_WORDS, sequenceActsOf, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, byTestId } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -22,18 +22,11 @@ bridgeHolds({
   },
   parts: { chrome: { state: stateOf }, surfaceState: () => "live" },
 });
-installStubReact({
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate() {},
-  canDo: () => true,
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-  useHotkey: () => {},
-});
+installStubReact({});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const S = "../../../apps/dashboard/src";
 (await import(`${S}/bridge/zone.ts`)).installClock();
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { useRecordActs, HeadActs, RecordNotice, RecordQuestion, phoneFootOf } = await import(
   `${S}/surfaces/campaigns/sequences/record-acts.tsx`
 );

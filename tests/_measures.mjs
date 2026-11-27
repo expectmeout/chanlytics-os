@@ -28,6 +28,7 @@ import {
   linesOf,
   windowUse,
   copiesAmong,
+  topLevelNames,
   castsIn,
   tableNames,
   tablesWrittenIn,
@@ -85,6 +86,29 @@ const TREES = repoFiles(["apps", "packages", "tooling/scripts", "tests", "e2e"])
 const SHELL = SRC.filter((f) => /^apps\/dashboard\/(src|mockup)\//.test(f));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
+/**
+ * The URL trees, where a folder is a path a request names (docs/naming.md; CLAUDE.md, "Where new code goes"): a door's
+ * folder holds the doors its address holds, so it is not grouped by domain and its size is not a directory's.
+ */
+const URL_TREE = /^apps\/dashboard\/app\/|^apps\/edge\/api\/|^apps\/mobile\/src\/app\//;
+/**
+ * React Native's idiom, one `const styles = StyleSheet.create({…})` beside each component of the phone app: a screen's
+ * own styles, not a helper spelled out in three files.
+ */
+function isOwnStyleSheet(sf, name) {
+  return sf.statements.some(
+    (st) =>
+      ts.isVariableStatement(st) &&
+      st.declarationList.declarations.some(
+        (d) =>
+          ts.isIdentifier(d.name) &&
+          d.name.text === name &&
+          !!d.initializer &&
+          ts.isCallExpression(d.initializer) &&
+          d.initializer.expression.getText(sf) === "StyleSheet.create",
+      ),
+  );
+}
 /** The doors: the edge's provider webhooks, sweeps and admin doors, and the dashboard's member routes. */
 export const ROUTES = SRC.filter((f) => /^apps\/edge\/api\/|^apps\/dashboard\/app\/api\//.test(f) && /\.tsx?$/.test(f));
 /**
@@ -598,6 +622,19 @@ export function doorsWithoutEventsIn(sql, { reached = reachedFromOutside(sql) } 
   return out;
 }
 
+/**
+ * The places the dashboard writes on the window for code that is not the app's, each with why. Every other write
+ * is a part the bridge holds (bridge/provided.ts) or a module's own value (decision 0151).
+ */
+export const WINDOW_CONTRACTS = {
+  "apps/dashboard/src/bridge/app-bridge.ts":
+    "the phone app's door: its native shell calls `window.__appBridge` by that name, from outside the page",
+  "apps/dashboard/src/bridge/ask.ts":
+    "the nightly e2e's specs, in its own build alone (NEXT_PUBLIC_E2E=1): they ask `window.__ask` what the page would send (e2e/ask.spec.ts, e2e/today/today.spec.ts) from outside the bundle; no customer's page has it, and nothing of the app reads it",
+  "apps/dashboard/src/surfaces/settings/connections/whatsapp.ts":
+    "Meta's SDK: it calls `window.fbAsyncInit` once loaded, and its sign-in opens through `window.open`, which the page wraps for that press alone",
+};
+
 export const MEASURES = [
   {
     name: "functions over the limit",
@@ -628,7 +665,7 @@ export const MEASURES = [
     measure: () => {
       const perDir = {};
       for (const f of TREES) {
-        if (!SOURCE.test(f)) continue;
+        if (!SOURCE.test(f) || URL_TREE.test(f)) continue;
         const dir = path.posix.dirname(f);
         perDir[dir] = (perDir[dir] ?? 0) + 1;
       }
@@ -642,7 +679,8 @@ export const MEASURES = [
     mode: "set",
     measure: () => {
       const files = {};
-      for (const f of SHELL) for (const n of windowUse(parse(f)).names) files[n] = (files[n] ?? 0) + 1;
+      for (const f of SHELL.filter((file) => !(file in WINDOW_CONTRACTS)))
+        for (const n of windowUse(parse(f)).names) files[n] = (files[n] ?? 0) + 1;
       return files;
     },
     advice: "No new global: feed the surface through the seam (surface-data.ts), or reuse one that exists.",
@@ -650,7 +688,11 @@ export const MEASURES = [
   {
     name: "window publishers",
     file: "window-publishers.json",
-    measure: () => perFile(SHELL, (sf) => windowUse(sf).publishers),
+    measure: () =>
+      perFile(
+        SHELL.filter((f) => !(f in WINDOW_CONTRACTS)),
+        (sf) => windowUse(sf).publishers,
+      ),
     advice: "Publish nothing new on window: import it, or add the name to a component that already publishes.",
   },
   {
@@ -686,7 +728,14 @@ export const MEASURES = [
   {
     name: "copies",
     file: "copies.json",
-    measure: () => copiesAmong(SRC.filter(notARoute).map(parse), COPY_LIMIT),
+    measure: () => {
+      const files = SRC.filter(notARoute).map(parse);
+      const copies = copiesAmong(files, COPY_LIMIT);
+      const declaring = (name) => files.filter((sf) => topLevelNames(sf).includes(name));
+      return Object.fromEntries(
+        Object.entries(copies).filter(([name]) => !declaring(name).every((sf) => isOwnStyleSheet(sf, name))),
+      );
+    },
     advice:
       "Give it one home and import it from there — a helper declared in three files is a fact spelled out three times — or, when the new one is a different thing, give it a name that says which.",
   },
@@ -1056,7 +1105,7 @@ export const RULE_SCAN = {
     "A rule test reads what its rule is about and no more. Where the rule can be asked of the code (a type, a parsed config, a list the code exports), ask it there and drop the read.",
 };
 
-/* ---- The wire's names (routes/wire-casing.test.mjs) ---- */
+/* ---- The wire's names (routes/wire/wire-casing.test.mjs) ---- */
 
 /**
  * The typed client's registry: every /api/v1 handler under the key route-policy.json gives it, as a type that

@@ -15,7 +15,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 // New exports are read at run time, so a missing one fails its own test and not the file.
 const contracts = await import("@chanlytics/contracts");
@@ -138,7 +138,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -147,7 +146,7 @@ installStubReact({
 globalThis.document.visibilityState = "hidden";
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pages spread and call (gate, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const { InboxList } = await import(`${S}/inbox/pages/inbox-list.tsx`);
 const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);

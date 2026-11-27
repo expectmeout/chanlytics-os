@@ -15,8 +15,6 @@ import {
 import { importSrc } from "../../../_source.mjs";
 import { keysDrawn } from "../../../_keys.mjs";
 import {
-  PAGES,
-  address,
   backToPeople,
   clearPeople,
   cvRoute,
@@ -26,6 +24,8 @@ import {
   heard,
   history,
   mount,
+  PAGES,
+  PART,
   placeAt,
   setCells,
   setDeep,
@@ -40,13 +40,16 @@ import {
 } from "./_status.mjs";
 import { bridgeHolds, provided, surfaceValue } from "../../_bridge-holds.mjs";
 
+/** The frame's doors (surfaces/frame-doors.ts), which it fills as it draws: what a page presses to move or open Ask. */
+const frameDoors = await importSrc("apps/dashboard/src/surfaces/frame-doors.ts");
+
 test("the line under the top bar: a live region that is always there, the words, and the one press", async () => {
   const kept = provided("shell");
   setDeep(true);
   setCells([]);
   const bar = () => {
     frames.begin();
-    return win.ShellStatusBar({});
+    return PART.ShellStatusBar({});
   };
   const cta = (tree) => find(tree, (n) => n.props?.["data-testid"] === "shell-status-cta");
   bridgeHolds({ parts: { chrome: { statusLine: shellStatusLine } } });
@@ -122,7 +125,7 @@ test("the line under the top bar: a live region that is always there, the words,
   setSurfaceValue("billing", { dto, fetchedAt: Date.now() });
   bridgeHolds({ parts: { billing: { vm: (d, nowMs) => toBillingVM(d, nowMs) } } });
   const went = [];
-  win.CHANLY = { nav: (to) => went.push(to), address };
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   status = { stale: true, degraded: [] };
   tree = bar();
   assert.match(textOf(tree), /AI is paused/, "and outranks a newer build");
@@ -154,12 +157,12 @@ test("the shell names the tab from the crumbs it draws, counts what needs you, a
   const top = find(tree, (n) => n.props?.className === "frame-top");
   const kids = top.props.children.filter((k) => k && typeof k === "object");
   const at = (type) => kids.findIndex((k) => k.type === type);
-  assert.ok(at("Topbar") >= 0, "the top bar");
+  assert.ok(at(PART.Topbar) >= 0, "the top bar");
   // A call happening right now is the one thing on this line that stops being
   // true by itself, so it sits above the status line; both are above the page,
   // on a phone as on a desk, and each draws nothing when it has nothing to say.
-  assert.equal(at("LiveCallBar"), at("Topbar") + 1, "a call in progress, first");
-  assert.equal(at(win.ShellStatusBar), at("Topbar") + 2, "then the line, above the page, on a phone as on a desk");
+  assert.equal(at(PART.LiveCallBar), at(PART.Topbar) + 1, "a call in progress, first");
+  assert.equal(at(PART.ShellStatusBar), at(PART.Topbar) + 2, "then the line, above the page, on a phone as on a desk");
   setSurfaceValue("inbox", { THREADS: [] });
   setSurfaceValue("today", undefined);
 });
@@ -303,7 +306,7 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
     );
     assert.equal(on.title, "Emily Chen · Conversations · Inbox · Chanlytics", "named in the trail");
     assert.equal(
-      find(mount("#/conversations/phone:cv-4").tree, (n) => n.type === "Sidebar").props.active,
+      find(mount("#/conversations/phone:cv-4").tree, (n) => n.type === PART.Sidebar).props.active,
       "calls",
       "and the nav lights the tab, not the raw word",
     );
@@ -351,7 +354,7 @@ test("a link to a call opens that call on Live, named in the crumbs -- the route
   shell.installShell(win);
   setSurfaceValue("live", { now: [{ callId: "c-9", who: "Rosa Díaz" }], recent: [], fetchedAtMs: 1 });
   try {
-    const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
+    const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === PART.Topbar).props.crumbs;
     assert.equal(
       crumbs("#/live/c-9").at(-1),
       "Rosa Díaz",
@@ -402,7 +405,7 @@ test("REGRESSION (C9): a link to a run opens that run, named in the crumbs, on t
     const at = (hash) => {
       const { tree } = mount(hash);
       return {
-        crumbs: find(tree, (n) => n.type === "Topbar").props.crumbs,
+        crumbs: find(tree, (n) => n.type === PART.Topbar).props.crumbs,
         key: find(tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key,
       };
     };
@@ -507,8 +510,8 @@ test("a page can say the same place more exactly: a replaced address makes no en
     setDeep(true);
     assert.equal(key(again), key(tree), "the same page, on the address it asked for, with no event to wait for");
     assert.ok(find(again, (n) => n.type === "RoutePage"));
-    // A push is the shell's own navigate, which the shell's CHANLY.nav hands a route to (surfaces/frame/constants.ts).
-    win.appNavigate("clients/leads");
+    // A push is the shell's own navigate, the door the frame filled as it drew (surfaces/frame-doors.ts).
+    frameDoors.navigate("clients/leads");
     assert.equal(win.location.pathname, "/w/acme/people/leads", "and a plain navigation is still pushed");
     assert.equal(history.pushed.at(-1), "/w/acme/people/leads");
     assert.equal(history.replaced.length, before.replaced + 1);
@@ -555,7 +558,7 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
   try {
     // The list is People's page (an App Router page, its rows open a person by the shell's own door: navigate).
     mount("#/clients/list:L1");
-    win.appNavigate("clients/p-1");
+    frameDoors.navigate("clients/p-1");
     assert.equal(win.location.pathname, "/w/acme/people/p-1", "the profile is a new entry");
     arrive("#/clients/p-1");
     profileBack();
@@ -569,15 +572,15 @@ test("REGRESSION: a person's Back returns to the list they were opened from -- i
     assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/people"], "by a link: People");
     // Opened from another page's door: People, never a Back out to the Inbox.
     mount("#/inbox/th-1");
-    win.appNavigate("clients/p-1");
+    frameDoors.navigate("clients/p-1");
     arrive("#/clients/p-1");
     profileBack();
     assert.deepEqual([h.backs, win.location.pathname], [0, "/w/acme/people"], "from the Inbox: People");
     // Back to the profile from somewhere else: the entry before it is not known to be the list, so People.
     mount("#/clients/list:L1");
-    win.appNavigate("clients/p-1");
+    frameDoors.navigate("clients/p-1");
     arrive("#/clients/p-1");
-    win.appNavigate("calendar");
+    frameDoors.navigate("calendar");
     arrive("#/clients/p-1");
     profileBack();
     assert.deepEqual(
@@ -620,7 +623,7 @@ test("REGRESSION: a run opened from the Inbox closes back to it by the browser's
     configurable: true,
     get: () => `https://app.example.com${win.location.pathname}${win.location.search || ""}${win.location.hash || ""}`,
   });
-  // The frame as the bridge draws it, filling the doors a page asks for (FrameApp's fillDoors).
+  // The frame as the bridge draws it, filling the doors a page asks for (app-shell.tsx `fillDoors`).
   const draw = () => {
     setDeep(false);
     frames.begin();
@@ -677,11 +680,10 @@ test("REGRESSION: a run opened from the Inbox closes back to it by the browser's
 
 test("REGRESSION (C13): a link to a playbook lands on its sequence, named in the crumbs -- the route dropped the id", () => {
   shell.installShell(win);
-  const keepGate = win.gate;
-  win.gate = win.gate || (() => ({}));
+  const keepGate = provided("roles");
   setSurfaceValue("sequences", { sequences: [{ id: "pb-1", name: "Win-back", starts: "moment" }] });
   try {
-    const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.crumbs;
+    const crumbs = (hash) => find(mount(hash).tree, (n) => n.type === PART.Topbar).props.crumbs;
     // The old Playbooks list is retired (contracts retiredRouteOf): `outbound/<id>` lands on its sequence in one move
     // (decision 0060), which the frame names.
     assert.equal(retiredRouteOf("outbound/pb-1"), "campaigns/sequences/pb-1");
@@ -696,7 +698,7 @@ test("REGRESSION (C13): a link to a playbook lands on its sequence, named in the
     assert.deepEqual(crumbs("#/campaigns/sequences/pb-gone"), ["Campaigns"], "one the list does not hold names none");
   } finally {
     setSurfaceValue("sequences", undefined);
-    win.gate = keepGate;
+    bridgeHolds({ parts: { roles: keepGate } });
   }
 });
 
@@ -704,9 +706,8 @@ test("REGRESSION (C13): a link to a playbook lands on its sequence, named in the
 
 test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no primary act in the top bar until the page is ready -- Book and New campaign opened Ask over the skeleton or the failure pane", () => {
   shell.installShell(win);
-  const keepGate = win.gate;
-  win.gate = () => ({});
-  const right = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.right;
+  const keepGate = provided("roles");
+  const right = (hash) => find(mount(hash).tree, (n) => n.type === PART.Topbar).props.right;
   try {
     assert.equal(
       right("#/calendar"),
@@ -727,7 +728,7 @@ test("REGRESSION (N10): a real workspace's Calendar and Campaigns offer no prima
   } finally {
     setSurfaceValue("calendar", undefined);
     setSurfaceValue("playbooks", undefined);
-    win.gate = keepGate;
+    bridgeHolds({ parts: { roles: keepGate } });
   }
 });
 
@@ -773,13 +774,13 @@ test("REGRESSION (N16): an address under soon/ opens a page that has shipped, an
 
 test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and System and says which is on -- it flipped light and dark and dropped System", () => {
   shell.installShell(win);
-  globalThis.usePPToast = () => [null, () => {}];
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const chosen = [];
   const themeButton = (themePref, theme) => {
     setDeep(true);
     setCells([]);
     frames.begin();
-    const tree = win.Topbar({
+    const tree = PART.Topbar({
       crumbs: ["Today"],
       theme,
       themePref,
@@ -809,7 +810,6 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
     setCells([]);
     frames.begin();
     placeAt("#/today");
-    globalThis.ShellStatusBar = win.ShellStatusBar;
     const shellTree = win.ChanlyticsApp({
       ...PAGES,
       theme: "dark",
@@ -819,19 +819,19 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
       onTheme() {},
     });
     assert.equal(
-      find(shellTree, (n) => n.type === "Topbar").props.themePref,
+      find(shellTree, (n) => n.type === PART.Topbar).props.themePref,
       "system",
       "REGRESSION: the top bar was handed only the resolved theme",
     );
   } finally {
     setDeep(true);
-    delete globalThis.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
 test("the bell's close is the member looking: opening it marks nothing, closing it by its button or the popover's own close marks every row seen, once (Today in three zones, 2 Nov 2026)", () => {
   shell.installShell(win);
-  globalThis.usePPToast = () => [null, () => {}];
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   let seen = 0;
   const row = {
     id: "n-1",
@@ -856,7 +856,7 @@ test("the bell's close is the member looking: opening it marks nothing, closing 
     },
   });
   const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
-  const draw = () => win.Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  const draw = () => PART.Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
   try {
     setDeep(true);
     setCells([]);
@@ -874,19 +874,19 @@ test("the bell's close is the member looking: opening it marks nothing, closing 
     assert.equal(seen, 2, "closed by the popover (a press outside, Escape): the same");
   } finally {
     bridgeHolds({ parts: { bell: undefined } });
-    delete globalThis.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
 test("REGRESSION: the top bar's Ask button says Ask Chanlytics and draws no key -- ⌘K stood in it and in its tip, beside the ? sheet that lists it", () => {
   shell.installShell(win);
-  globalThis.usePPToast = () => [null, () => {}];
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   try {
     setDeep(true);
     setCells([]);
     frames.begin();
     let asked = 0;
-    const tree = win.Topbar({
+    const tree = PART.Topbar({
       crumbs: ["Today"],
       theme: "dark",
       themePref: "dark",
@@ -903,7 +903,7 @@ test("REGRESSION: the top bar's Ask button says Ask Chanlytics and draws no key 
     ask.props.onClick();
     assert.equal(asked, 1, "pressed, it opens AI (pinned as topbar.tsx's text in ask.test.mjs until 25 Nov 2026)");
   } finally {
-    delete globalThis.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
@@ -921,7 +921,6 @@ test("the look travels as the theme does: stamped beside it on every root the sh
     setCells([]);
     frames.begin();
     placeAt(hash);
-    globalThis.ShellStatusBar = win.ShellStatusBar;
     const theme = { theme: "light", themePref: "light", onTheme() {} };
     return win.ChanlyticsApp({ ...PAGES, ...theme, look: "glass", onLook, sidebar: "open", onSidebar() {} });
   };
@@ -944,7 +943,7 @@ test("the look travels as the theme does: stamped beside it on every root the sh
         `${hash}: the look beside the theme`,
       );
     }
-    const sidebar = find(drawAt("#/today"), (n) => n.type === "Sidebar");
+    const sidebar = find(drawAt("#/today"), (n) => n.type === PART.Sidebar);
     assert.equal(sidebar.props.look, "glass", "the account menu is handed the look in force");
     assert.equal(sidebar.props.onLook, onLook, "and changes it through the shell's own prop, as the theme");
   } finally {
@@ -959,7 +958,6 @@ test("the first run keeps AI: the palette is drawn over the step, closed, and th
   bridgeHolds({ parts: { surfaceState: undefined } });
   const draw = () => {
     frames.begin();
-    globalThis.ShellStatusBar = win.ShellStatusBar;
     return win.ChanlyticsApp({
       ...PAGES,
       theme: "dark",
@@ -972,7 +970,7 @@ test("the first run keeps AI: the palette is drawn over the step, closed, and th
   const bars = (tree) => {
     const out = [];
     walk(tree, (n) => {
-      if (n.type === "AskBar") out.push(n);
+      if (n.type === PART.AskBar) out.push(n);
     });
     return out;
   };
@@ -990,7 +988,7 @@ test("the first run keeps AI: the palette is drawn over the step, closed, and th
     // which read their step from the path.
     assert.deepEqual(
       kids.map((k) => k.type),
-      ["RoutePage", "AskBar"],
+      ["RoutePage", PART.AskBar],
       "the step, then the palette over it",
     );
     assert.equal(kids[0], PAGES.routePage, "the page the layout gave the frame, as it is");
@@ -1006,11 +1004,11 @@ test("the first run keeps AI: the palette is drawn over the step, closed, and th
     bars(tree)[0].props.onClose();
     tree = draw();
     assert.equal(bars(tree)[0].props.open, false, "its close closes it");
-    win.appAsk();
-    assert.equal(bars(draw())[0].props.open, true, "askAbout's door (appAsk) opens it too");
+    frameDoors.openAsk();
+    assert.equal(bars(draw())[0].props.open, true, "askAbout's door (openAsk) opens it too");
     for (const type of ["Sidebar", "Topbar", "ShortcutsSheet"])
       assert.equal(
-        find(tree, (n) => n.type === type),
+        find(tree, (n) => n.type === PART[type]),
         undefined,
         `no ${type} on the first run`,
       );
@@ -1030,7 +1028,7 @@ test("the first run keeps AI: the palette is drawn over the step, closed, and th
   }
 });
 
-test("the frame fills the bridge's doors as it renders (a move, AI, a person's Back, a page's Back to its opener) and publishes no door name of its own when the bridge gave it the filler; without one it publishes them as it always did (surfaces/frame-doors.ts)", () => {
+test("the frame fills the bridge's doors as it renders (a move, AI, a person's Back, a page's Back to its opener), and publishes no door name on the window, with a filler handed in or with its own (surfaces/frame-doors.ts, decision 0151)", () => {
   shell.installShell(win);
   const keptState = provided("surfaceState");
   bridgeHolds({ parts: { surfaceState: undefined } });
@@ -1038,7 +1036,6 @@ test("the frame fills the bridge's doors as it renders (a move, AI, a person's B
   const kept = Object.fromEntries(NAMES.map((k) => [k, win[k]]));
   const draw = (extra = {}) => {
     frames.begin();
-    globalThis.ShellStatusBar = win.ShellStatusBar;
     return win.ChanlyticsApp({
       ...PAGES,
       theme: "dark",
@@ -1059,10 +1056,11 @@ test("the frame fills the bridge's doors as it renders (a move, AI, a person's B
     assert.equal(filled.length, 1, "filled once, as the frame renders");
     assert.deepEqual(Object.keys(filled[0]).sort(), ["backFrom", "backToPeople", "navigate", "openAsk"]);
     for (const k of Object.keys(filled[0])) assert.equal(typeof filled[0][k], "function", `${k} is a door`);
-    for (const k of NAMES) assert.equal(win[k], undefined, `the frame does not publish ${k}: the bridge does`);
-    // No bridge (the standalone mockup, a test): the frame publishes the names itself.
+    for (const k of NAMES) assert.equal(win[k], undefined, `the frame does not publish ${k}`);
+    // With none handed in, the frame fills the registry itself (frame-doors.ts fillDoors), and still publishes no name.
     draw();
-    for (const k of NAMES) assert.equal(typeof win[k], "function", `${k} is published by the frame without a filler`);
+    for (const k of NAMES) assert.equal(win[k], undefined, `nor ${k} with the frame's own filler`);
+    assert.deepEqual([...frameDoors.filledDoors()].sort(), ["backFrom", "backToPeople", "navigate", "openAsk"]);
   } finally {
     setDeep(true);
     for (const k of NAMES) {
@@ -1078,20 +1076,13 @@ test("People has no tab strip -- its one real tab is People, and Lists and Leads
   // publishes it; its hooks are this file's stub's.
   const { useStubHooks } = await import("../../../_stub-react.mjs");
   useStubHooks(globalThis.React);
-  globalThis.ViewTabs = (await importSrc("apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
-  const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  Object.assign(win, {
-    SurfaceTabs: surfaceTabs.SurfaceTabs,
-    stripPlace: surfaceTabs.stripPlace,
-    stripSlide: surfaceTabs.stripSlide,
-    stripSwipe: surfaceTabs.stripSwipe,
-  });
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
+  await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
   const tabsAt = (param) => {
     setDeep(true);
     setCells([]);
     frames.begin();
-    return win.SurfaceTabs({ page: "clients", param, onNavigate() {} });
+    return PART.SurfaceTabs({ page: "clients", param, onNavigate() {} });
   };
   for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"])
     assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
@@ -1153,5 +1144,52 @@ test("⌘B folds the sidebar to its rail and back on a desk, and does nothing on
     bridgeHolds({ parts: { shell: kept } });
     bridgeHolds({ who: { workspaces: undefined } });
     bridgeHolds({ who: { activeWorkspaceId: undefined } });
+  }
+});
+
+test("the rail is the sidebar folded, and the chrome draws the keys' sheet on every page", () => {
+  // The shell as drawn (surfaces/frame/shell-chrome.tsx), where chrome.test.mjs read its source until 26 Nov 2026: the
+  // device's preference "rail" folds the sidebar and marks its wrap, "open" does neither; ⌘B moving between the two on a
+  // desk alone is pressed in the test above.
+  placeAt("#/inbox");
+  const drawAt = (sidebar) => {
+    setDeep(false);
+    setCells([]);
+    frames.begin();
+    const tree = win.ChanlyticsApp({
+      ...PAGES,
+      theme: "dark",
+      themePref: "dark",
+      sidebar,
+      onSidebar() {},
+      onTheme() {},
+    });
+    setDeep(true);
+    return tree;
+  };
+  for (const [sidebar, folded] of [
+    ["rail", true],
+    ["open", false],
+  ]) {
+    const tree = drawAt(sidebar);
+    const wrap = find(tree, (n) =>
+      String(n.props?.className ?? "")
+        .split(" ")
+        .includes("side-wrap"),
+    );
+    assert.equal(
+      String(wrap.props.className).split(" ").includes("rail"),
+      folded,
+      `${sidebar}: the wrap says the rail`,
+    );
+    assert.equal(
+      find(tree, (n) => n.type === "Sidebar" || n.type?.name === "Sidebar").props.collapsed,
+      folded,
+      sidebar,
+    );
+    assert.ok(
+      find(tree, (n) => n.type === "ShortcutsSheet" || n.type?.name === "ShortcutsSheet"),
+      `${sidebar}: the keys' sheet is the chrome's, drawn on every page for ? to open`,
+    );
   }
 });

@@ -16,8 +16,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, formatPhoneDisplay } from "@chanlytics/contracts";
-import { useStubHooks, kitPages } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 
@@ -96,7 +96,6 @@ const slot = () => {
 const went = [];
 const toasts = [];
 const saved = [];
-globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.Sparkline = "Sparkline";
@@ -188,8 +187,8 @@ globalThis.React = {
     cell.cleanup = fn();
   },
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+drawsInPlace();
+holdFrameParts();
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "MoreMenu", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
@@ -204,13 +203,10 @@ bridgeHolds({
   },
 });
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, (t) => toasts.push(t)],
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner can ${doing}.`,
-  canDo: () => true,
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 await import("./_business-parts.mjs");
 // The page is the TSX module (decision 0015 step 11); it imports every pane it draws, and the panes read the settings
 // read over the seam.

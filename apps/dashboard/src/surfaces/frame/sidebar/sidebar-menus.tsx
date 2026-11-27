@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import type { FrameFlash } from "../../frame-verbs";
 import { warmSettingsPane } from "../../settings/frame/pane-reads";
-import { frameBell, frameChrome, frameGlyph, framePortal, frameShell } from "../frame-window";
+import { frameBell, frameChrome, frameShell } from "../frame-window";
 import {
   SbWorkspaceFace,
   sbWho,
@@ -19,6 +19,10 @@ import {
   sbWorkspacesRead,
   type SbWho,
 } from "./sidebar-who";
+import { Icon } from "../../kit/icon/icon";
+import { createPortal } from "react-dom";
+import { touchSwipe } from "../../kit/motion/swipe";
+import { openShortcuts } from "../shortcuts";
 
 interface MenuRect {
   left: number;
@@ -110,15 +114,14 @@ const sbMenuStyle = (rect: MenuRect | null, side: "up" | "down"): CSSProperties 
 const sbMenuRoot = (menu: SbMenuState): Element | null => {
   const from = menu.ref.current;
   const root = from && from.closest ? from.closest(".app-root") : null;
-  return root && framePortal() ? root : null;
+  return root;
 };
 
 // At the foot (a phone's action sheet) a pull down from its top lets the menu go, following the finger, as every sheet's
 // does (kit/motion/swipe.ts touchSwipe; Ruben, 8 Oct 2026). The touch stays the menu's own: it is drawn at the app's root
 // and is still the drawer's child to React, and the drawer reads a swipe across as its own close.
 const sbMenuPull = (menu: SbMenuState) => {
-  if (!window.touchSwipe) return {};
-  const pull = window.touchSwipe({ onDown: menu.close, when: () => !sbBeside() });
+  const pull = touchSwipe({ onDown: menu.close, when: () => !sbBeside() });
   const own =
     <E extends { stopPropagation?: () => void }>(handle: ((e: E) => void) | undefined) =>
     (e: E) => {
@@ -175,7 +178,7 @@ export function SbMenu({
     </>
   );
   const root = sbMenuRoot(menu);
-  const portal = framePortal();
+  const portal = createPortal;
   return root && portal ? portal(drawn, root) : drawn;
 }
 
@@ -183,7 +186,6 @@ export function SbMenu({
 // settings. Switching goes through the shell, which re-runs every surface. ⌘1–9 switch too (app-shell.tsx); the ? sheet
 // says so, and nothing here draws a key.
 export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) => void; close: () => void }) {
-  const Glyph = frameGlyph();
   const all = sbWorkspacesRead() ? sbWorkspaces() : [];
   const active = sbWorkspace() || null;
   const role = sbWho().role;
@@ -210,7 +212,7 @@ export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) 
               {w.name}
               {roleWords ? <span className="sb-ws-role">{roleWords}</span> : null}
             </span>
-            {current && <Glyph name="check" size={12} />}
+            {current && <Icon name="check" size={12} />}
           </button>
         );
       })}
@@ -225,7 +227,7 @@ export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) 
           }}
           data-testid="sb-ws-new"
         >
-          <Glyph name="plus" size={13} />
+          <Icon name="plus" size={13} />
           <span className="more-item-label">New workspace</span>
         </button>
       )}
@@ -237,7 +239,7 @@ export function WorkspaceMenu({ onNavigate, close }: { onNavigate: (to: string) 
           onNavigate("admin");
         }}
       >
-        <Glyph name="cog" size={13} />
+        <Icon name="cog" size={13} />
         <span className="more-item-label">Workspace settings</span>
       </button>
     </>
@@ -261,7 +263,6 @@ interface UserMenuProps {
  * Notifications "all basically leading to the same kind of page"). Your role and your address are one line under the name.
  */
 function UserMenuHead({ who, go }: { who: SbWho; go: (to: string) => () => void }) {
-  const Glyph = frameGlyph();
   return (
     <button className="more-item sb-menu-head" role="menuitem" onClick={go("admin/profile")} data-testid="sb-me">
       <span className="avatar">{who.initials}</span>
@@ -274,7 +275,7 @@ function UserMenuHead({ who, go }: { who: SbWho; go: (to: string) => () => void 
         </span>
       </span>
       {!who.named && <span className="more-item-meta">Add your name</span>}
-      <Glyph name="chevron" size={13} />
+      <Icon name="chevron" size={13} />
     </button>
   );
 }
@@ -285,13 +286,12 @@ function UserMenuHead({ who, go }: { who: SbWho; go: (to: string) => () => void 
  * while this device is not alerted, to turn them on where the one switch is (decision 0137); otherwise Settings reaches it.
  */
 function UserMenuDoors({ go }: { go: (to: string) => () => void }) {
-  const Glyph = frameGlyph();
   const bell = frameBell();
   const alerts = bell ? bell.alerts() : null;
   return (
     <>
       <button className="more-item" role="menuitem" onClick={go("admin")} data-testid="sb-me-settings">
-        <Glyph name="cog" size={13} />
+        <Icon name="cog" size={13} />
         <span className="more-item-label">Settings</span>
       </button>
       {alerts && alerts.can && !alerts.on && (
@@ -301,7 +301,7 @@ function UserMenuDoors({ go }: { go: (to: string) => () => void }) {
           onClick={go("admin/notifications")}
           data-testid="sb-me-notifications"
         >
-          <Glyph name="bell" size={13} />
+          <Icon name="bell" size={13} />
           <span className="more-item-label">Turn on notifications</span>
         </button>
       )}
@@ -320,7 +320,6 @@ function UserMenuLooks({
   look,
   onLook,
 }: Pick<UserMenuProps, "themePref" | "onTheme" | "look" | "onLook">) {
-  const Glyph = frameGlyph();
   const chrome = frameChrome();
   const themes = chrome ? chrome.themes : [];
   const looks = chrome && chrome.lookOffered ? chrome.looks : [];
@@ -340,7 +339,7 @@ function UserMenuLooks({
               onClick={() => onTheme(t.id)}
               data-testid={`sb-theme-${t.id}`}
             >
-              <Glyph name={t.icon} size={14} />
+              <Icon name={t.icon} size={14} />
             </button>
           ))}
         </div>
@@ -373,7 +372,6 @@ function UserMenuLooks({
 // keys, and a phone needs no keys; Ruben, 23 Sep 2026), and sign out.
 export function UserMenu(props: UserMenuProps) {
   const { close } = props;
-  const Glyph = frameGlyph();
   const signOut = () => {
     close();
     frameShell()?.signOut();
@@ -392,22 +390,22 @@ export function UserMenu(props: UserMenuProps) {
       <div className="more-divider" />
       {/* The sheet registers its opener (shortcuts.tsx openShortcuts), so this is a call and not a window event; the row's
           words name no key, the sheet is the one place a key is drawn. */}
-      {sbBeside() && window.openShortcuts && (
+      {sbBeside() && (
         <button
           className="more-item"
           role="menuitem"
           onClick={() => {
             close();
-            window.openShortcuts?.();
+            openShortcuts();
           }}
           data-testid="sb-me-shortcuts"
         >
-          <Glyph name="keyboard" size={13} />
+          <Icon name="keyboard" size={13} />
           <span className="more-item-label">Keyboard shortcuts</span>
         </button>
       )}
       <button className="more-item danger" role="menuitem" onClick={signOut} data-testid="sb-signout">
-        <Glyph name="logout" size={13} />
+        <Icon name="logout" size={13} />
         <span className="more-item-label">Sign out</span>
       </button>
     </>

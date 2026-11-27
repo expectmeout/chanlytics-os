@@ -17,8 +17,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, find, byTestId, kitPages, textOf } from "../_stub-react.mjs";
-import { bridgeHolds, surfaceValue } from "../shell/_bridge-holds.mjs";
+import { again, byTestId, find, fresh, installStubReact, kitPages, textOf } from "../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts, surfaceValue } from "../shell/_bridge-holds.mjs";
+const { gate } = await import("../../apps/dashboard/src/surfaces/frame/gate.ts");
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -68,20 +69,21 @@ const asRole = (r) => {
 };
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({
-  ST_STORE: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now, get: (k, fallback) => fallback },
-  CHANLY: { nav() {}, R: {} },
-  appNavigate() {},
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
 });
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// The record kit, as the app publishes it (surfaces/kit/kit-globals.ts), for the pages that still draw it by name.
+bridgeHolds({
+  parts: {
+    roles: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now, get: (k, fallback) => fallback },
+  },
+});
+holdFrameParts();
+// The record kit, on the stub's window, where these tests draw it by name (the pages import it).
 Object.assign(globalThis.window, kitPages);
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
-globalThis.useHotkey = () => {};
 /** Where a pressed gate shows its reason: the tip, anchored to the control. */
 const shown = [];
 bridgeHolds({ parts: { tip: { show: (el) => shown.push(el) } } });
@@ -104,7 +106,7 @@ const press = (over = {}) => ({
 test("REGRESSION (A7): a control a role may not press stays reachable -- focusable, described, and saying why when pressed; it was disabled with a title nobody could reach", () => {
   asRole("viewer");
   const reason = "Only an owner or operator can snooze a conversation.";
-  const g = globalThis.window.gate("approve", "snooze a conversation");
+  const g = gate("approve", "snooze a conversation");
   assert.equal(g.disabled, false, "REGRESSION: a disabled button takes no focus and fires no hover");
   assert.equal(g.title, undefined, "no native title beside the styled tip");
   assert.equal(g["aria-disabled"], true);
@@ -152,12 +154,8 @@ test("REGRESSION (A7): a control a role may not press stays reachable -- focusab
     assert.equal(control[h], undefined, `${h} is replaced too: Hold to talk would otherwise start the microphone`);
 
   asRole("operator");
-  assert.deepEqual(
-    globalThis.window.gate("approve", "snooze a conversation"),
-    {},
-    "a role that may gets nothing added",
-  );
-  assert.equal(globalThis.window.gate("settings")["data-tip"], "Only an owner can change the business details.");
+  assert.deepEqual(gate("approve", "snooze a conversation"), {}, "a role that may gets nothing added");
+  assert.equal(gate("settings")["data-tip"], "Only an owner can change the business details.");
 });
 
 test("a busy menu refuses the way a role does: the reason reachable, the press inert", () => {
@@ -192,7 +190,7 @@ test("REGRESSION (A12): a menu item takes a gate -- the Inbox menu's Snooze did 
             onClick: () => {
               snoozed += 1;
             },
-            gate: globalThis.window.gate("approve", "snooze a conversation"),
+            gate: gate("approve", "snooze a conversation"),
           },
         ],
       }),
@@ -223,7 +221,7 @@ test("a row's main button takes a gate, and Enter on a button inside a row does 
         onClick: () => {
           approved += 1;
         },
-        gate: globalThis.window.gate("approve", "approve a run"),
+        gate: gate("approve", "approve a run"),
       },
       onOpen: () => {
         opened += 1;
@@ -316,9 +314,7 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
       broadcasts: { approve: async () => ({ ok: true, data: {} }), cancel: async () => ({ ok: true, data: {} }) },
     },
   });
-  Object.assign(globalThis.window, {
-    usePPToast: () => [null, () => {}],
-  });
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
   // What the head counts, and so what the card holds, is read with the Inbox and the runs' own read (surfaces/needs-you.ts):
   // the Inbox read and empty, the runs as the window has them.

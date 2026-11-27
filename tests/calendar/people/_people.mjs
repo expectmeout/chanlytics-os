@@ -18,7 +18,7 @@ import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../../_log-lines.mjs";
 import { installStubReact, installRoleStore, fresh, again } from "../../_stub-react.mjs";
-import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 // The profile's route runs below over a database in memory; a module that ever builds a service client reads these,
 // and nothing dials it.
@@ -40,9 +40,9 @@ setRateStore(memoryStore());
  * (_stub-react.mjs), over the sample business's people (sample.ts) through the surface's own mapping (surface-map.ts).
  * The page was one legacy file (people.jsx, with people-table.jsx beside it) that these pins scanned; it is a folder of
  * TSX now, and what it shows is asked of what it draws. Installed on first use, so the tests that do not draw it keep the
- * bare node they had: the role store (who is acting), the toast and the shell's move (CHANLY.nav, recorded in `went`).
+ * bare node they had: the role store (who is acting), the toast and the shell's move (the frame's navigate door, recorded in `went`).
  */
-/** The shell's moves (`CHANLY.nav`) both worlds below record: one window, so the last to install its `nav` is the one called. */
+/** The shell's moves (the navigate door) both worlds below record: one door, so the last to hand one in is the one called. */
 export const moved = [];
 
 export let harness = null;
@@ -52,13 +52,16 @@ export async function peopleHarness() {
   installStubReact();
   installRoleStore(globalThis.window);
   const went = moved;
-  Object.assign(globalThis.window, {
-    mayAtLeast: (rung) => globalThis.window.ST_STORE.mayAtLeast(rung),
-    canDo: (action) => !!ROLE_PERMS[whoIsLooking().me.role]?.[action],
-    gate: () => ({}),
-    usePPToast: () => [null, () => {}],
-    CHANLY: { nav: (route) => went.push(route) },
+  // Who is acting decides, once someone is: a part drawn before anyone is looking (the open visit) is not refused, as
+  // the window's `gate` here never refused one.
+  holdRoles({
+    can: (action) => {
+      const role = whoIsLooking()?.me?.role;
+      return role ? !!ROLE_PERMS[role]?.[action] : true;
+    },
   });
+  bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const src = (p) => importSrc(`apps/dashboard/src/surfaces/${p}`);
   const { setSurfaceValue } = await src("surface-values.ts");
   const { peopleSample } = await src("people/sample.ts");
@@ -401,9 +404,7 @@ export async function profileUi() {
       activeWorkspaceId: HARBOR,
     },
   });
-  Object.assign(globalThis, {
-    CHANLY: { nav: (to) => went.push(to) },
-  });
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const P = "apps/dashboard/src/surfaces/people";
   const { hero, openWith } = await importSrc(`${P}/person/hero.tsx`);
   const { PersonNotes } = await importSrc(`${P}/person/notes.tsx`);

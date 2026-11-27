@@ -55,6 +55,9 @@ for (const [where, viewport] of [
     test("an email with a long link keeps every line inside its card", async ({ page }) => {
       await signIn(page);
       await page.goto("/#/inbox");
+      // The home sends the tab to the workspace's own address, carrying the hash it read as it woke. Until it has, the
+      // next load would only change that hash, and the move under way would carry the old one: wait for the workspace.
+      await page.waitForURL((url) => url.pathname.startsWith("/w/"));
       const id = await samsThread(page);
       test.skip(!id, `this spec reads ${SAM.name}'s seeded thread in the nightly's own workspace (${SLUG})`);
       await page.goto(`/#/inbox/th-${id}`);

@@ -27,7 +27,7 @@ import {
   find,
 } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { bridgeHolds, whoIsLooking } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, holdRoles, whoIsLooking } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -218,7 +218,6 @@ test("a call's note names the thread it went to, never a channel the caller may 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -274,16 +273,13 @@ globalThis.React = {
     return snapshot();
   },
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
+drawsInPlace(); // the bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces
 globalThis.document = {
   body: {},
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  CHANLY: { nav() {}, R: {} },
-  gate: () => ({}),
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
@@ -293,11 +289,11 @@ bridgeHolds(
   { parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou }, surfaceState: () => "live" } },
   { fresh: true },
 );
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 // The record kit, published as the app publishes it before any page loads.
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
-// The kit's components (Confirm, StatePill, ...) are on the window the pages read them off (seed-globals, in the app).
+// The kit's components (Confirm, StatePill, ...), on the stub's window, where these tests draw them by name.
 Object.assign(globalThis.window, kitPages);
 // The shell's doors the TSX Campaigns pages reach (by name, through the bridge's verbs), kept for the tests that draw them at the foot.
 const shellDoors = {};
@@ -368,10 +364,7 @@ Object.assign(globalThis, { EmptyState: kitPages.EmptyState, FailedRead: kitPage
 globalThis.PolicyChip = kitPages.PolicyChip;
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
-globalThis.useHotkey = () => {};
 Object.assign(globalThis.window, {
-  canDo: () => true,
-  appNavigate() {},
   setInterval: () => 1,
   clearInterval() {},
   dispatchEvent() {},
@@ -433,7 +426,6 @@ test("with every line up and nothing waiting, nothing above or in the work says 
 });
 /* ---------------- the Inbox: Hold all, and a missing link ---------------- */
 
-globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
 // The Inbox (surfaces/inbox, TSX), drawn over the rows the seam holds; the one thread it mounts is thread-pane.tsx's.
 const SRC = "../../apps/dashboard/src";
 const { Inbox } = await import(`${SRC}/surfaces/inbox/pages/inbox-page.tsx`);
@@ -651,9 +643,8 @@ test("REGRESSION: in Day view the arrows move one day -- they moved seven", asyn
 
 test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -- it quoted the mockup's '128 auto-sent · 9% edited'", () => {
   const { PolicyChip } = kitPages;
-  Object.assign(globalThis.window, {
-    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
-    TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },
+  bridgeHolds({
+    parts: { policy: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" } },
   });
   // The workspace's policies read, as the settings read lands them (whole: what follows that read reads every part).
   const was = surfaceValue("settings");
@@ -677,10 +668,11 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
   } finally {
     setSurfaceValue("settings", was);
   }
+  // Before the workspace's policies are read, the same words: no figures (the demo's seeded table went with demo mode).
   cells = [];
   frames.begin();
-  const demo = PolicyChip({ cls: "reengage" });
-  assert.ok(String(demo.props["data-tip"]).includes("128 auto-sent"), "the demo keeps its own figures");
+  const unread = PolicyChip({ cls: "reengage" });
+  assert.equal(unread.props["data-tip"], "Workspace policy · Settings · Autonomy");
 });
 
 /* ------------- Campaigns: an approve says when the run really goes ------------- */
@@ -710,7 +702,6 @@ const inTokyo = (nowIso, fn) => {
       activeWorkspaceId: "t-tokyo",
     },
   });
-  Object.assign(globalThis.window, {});
   Date.now = () => Date.parse(nowIso);
   try {
     return fn();
@@ -720,7 +711,6 @@ const inTokyo = (nowIso, fn) => {
       who: { workspaces: before.ws, activeWorkspaceId: before.active },
       values: { broadcasts: before.bc },
     });
-    Object.assign(globalThis.window, {});
   }
 };
 
@@ -869,7 +859,7 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
     outcome: async () => true,
     commit: async () => ({ ok: true, receipt: "", undo: null }),
   });
-  globalThis.window.canDo = () => true;
+  holdRoles({ can: () => true });
   const t = askText("en");
   const buttons = (tree) => {
     const out = [];
@@ -951,7 +941,7 @@ test("a deal card's Open goes to the person's page: a kind the card's maps did n
     // Where a card's Open goes is the contract's (ask/answer/normalize.ts), as the bridge publishes it.
     cardOpenRoute,
   });
-  globalThis.window.canDo = () => true;
+  holdRoles({ can: () => true });
   const buttons = (tree) => {
     const out = [];
     walk(tree, (n) => {
@@ -1038,8 +1028,6 @@ const campaignsWorld = async () => {
   });
   installStubReact({
     ...shellDoors,
-    // The policy store the chip on a card reads (the shell publishes it; policy-store.ts).
-    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
     location: {
       pathname: "/w/studio",
       hash: "#/outbound",
@@ -1048,12 +1036,12 @@ const campaignsWorld = async () => {
       replace() {},
       reload() {},
     },
-    usePPToast: () => [null, (t) => toasts.push(t)],
-    CHANLY: { nav() {}, R: {} },
-    appNavigate() {},
-    useHotkey: () => {},
     setInterval: () => 1,
     clearInterval() {},
+  });
+  bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
+  bridgeHolds({
+    parts: { policy: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" } },
   });
   Object.assign(globalThis.window, kitPages);
   const { MessageInPlace } = await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);

@@ -33,7 +33,7 @@ import {
 } from "@chanlytics/contracts";
 import { cvRoute, inChannel } from "@/surfaces/inbox/cv-rules";
 import { surfaceValue } from "@/surfaces/surface-values";
-import { askOnScreenOf, type OnScreenKey } from "./on-screen";
+import { askOnScreen, type OnScreen, type OnScreenKey } from "./on-screen";
 import { surfaceFor } from "./palette";
 
 type Route = { page: string; param: string | null };
@@ -47,7 +47,7 @@ const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 /** What a page said it drew, when it is the page asked about: a key that is another page's is not believed. */
 const drawn = (win: object, key: OnScreenKey, kind: AskContextRowKind): Provided => {
-  const s = askOnScreenOf(win);
+  const s = askOnScreen();
   if (!s || s.key !== key) return { rows: [] };
   const labels = arr<string>(s.labels);
   return {
@@ -116,11 +116,11 @@ const leads: Provider = (_w, route) => {
 
 const pipeline: Provider = (w, route) => {
   // The page on screen says what it drew: the Pipeline, or People's own page for the moment a move from it takes.
-  const got = askOnScreenOf(w)?.key === "people" ? drawn(w, "people", "person") : drawn(w, "pipeline", "person");
+  const got = askOnScreen()?.key === "people" ? drawn(w, "people", "person") : drawn(w, "pipeline", "person");
   return { ...got, view: got.view ?? parsePipelineRoute(`clients/${route.param ?? "pipeline"}`)?.view ?? null };
 };
 
-const calendar: Provider = (w) => drawn(w, "calendar", "person");
+const calendarOnScreen: Provider = (w) => drawn(w, "calendar", "person");
 
 /**
  * Reports' view is what it shows, read through the seam (the surface's value), as the server's context provider describes
@@ -173,7 +173,7 @@ const contentContext = (param: string, view: unknown): Provided => {
  * and Ask was told a person looking at their ads was looking at their sequences. Content too (contentContext).
  */
 /** Ads and Content, where the page says it is drawn: Ads a word and no row, Content its view and the piece open. */
-function drawnTabOf(route: Parameters<Provider>[1], onScreen: ReturnType<typeof askOnScreenOf>): Provided | null {
+function drawnTabOf(route: Parameters<Provider>[1], onScreen: OnScreen | null): Provided | null {
   if (route.page !== "campaigns") return null;
   if (route.param && isAdsParam(route.param) && onScreen?.key === "ads")
     return { view: onScreen.view === ASK_ADS_VIEW.example ? ASK_ADS_VIEW.example : ASK_ADS_VIEW.today, rows: [] };
@@ -183,7 +183,7 @@ function drawnTabOf(route: Parameters<Provider>[1], onScreen: ReturnType<typeof 
 }
 
 const campaigns: Provider = (w, route) => {
-  const onScreen = askOnScreenOf(w);
+  const onScreen = askOnScreen();
   const drawn = drawnTabOf(route, onScreen);
   if (drawn) return drawn;
   // Messages folded into Campaigns (17 Nov 2026): its old route, and every address of Campaigns, is Sequences'.
@@ -240,7 +240,7 @@ const PROVIDERS: Partial<Record<AskSurface, Provider>> = {
   people,
   leads,
   pipeline,
-  calendar,
+  calendar: calendarOnScreen,
   reports,
   campaigns,
   settings,

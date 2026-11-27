@@ -21,7 +21,8 @@ import {
   takesBookingRequests,
 } from "@chanlytics/contracts";
 import { unmount, all, byTestId, textOf, press } from "../../_stub-react.mjs";
-import { drawTab, POLICIES, redrawTab, saving, settingsHeld, W } from "../../_business-tab-harness.mjs";
+import { drawTab, POLICIES, redrawTab, saving, settingsHeld } from "../../_business-tab-harness.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 after(() => unmount());
 
@@ -271,15 +272,15 @@ test("a role that may not change the settings reads each answer, and is offered 
   const policies = { ...POLICIES(), role: "viewer" };
   const tree = drawTab({ policies });
   // The harness's role is the page's; a viewer's rows carry the answer as their value, with nothing to press.
-  const gated = W.canDo;
-  W.canDo = () => false;
+  const gated = provided("roles");
+  holdRoles({ can: () => false });
   try {
     const t = drawTab({ policies });
     assert.equal(byTestId(t, "booking_choice-menu"), null);
     assert.match(textOf(byTestId(t, "rec-row-booking_choice")), new RegExp(BOOKING_CHOICE_WORDS.options.link.label));
     assert.equal(byTestId(t, "price_choice-menu"), null);
   } finally {
-    W.canDo = gated;
+    bridgeHolds({ parts: { roles: gated } });
   }
   assert.ok(byTestId(tree, "booking_choice-menu"), "an owner's has one");
 });
