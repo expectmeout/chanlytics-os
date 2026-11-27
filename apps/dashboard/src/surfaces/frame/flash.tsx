@@ -31,7 +31,7 @@ import type { FrameFlash } from "../frame-verbs";
 import { provided } from "@/bridge/provided";
 import { createPortal } from "react-dom";
 import { navigate } from "../frame-doors";
-import { answersClosest, isDomNode } from "../dom-reads";
+import { answersClosest } from "../dom-reads";
 
 /** A toast's shape, as contracts' toastShape says it from the flash it was asked for. */
 interface ToastShape {
@@ -162,7 +162,7 @@ export const usePPToast = (place?: string): [ReactNode, (flash: FrameFlash) => v
   useEffect(() => {
     const away = (e: Event) => {
       const box = stack.current;
-      if (box && box.contains && isDomNode(e.target) && box.contains(e.target)) return;
+      if (box && box.contains && e && e.target && box.contains(e.target as Node)) return;
       const going = shown.current.filter((x) => !x.stays).map((x) => x.id);
       going.forEach((id) => {
         const t = timers.current[id];
