@@ -271,8 +271,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
       return;
     }
     void show(wanted);
-    // `show`, `wanted`, `live` and `pendingKey` are this draw's own; the four below say the address and the surface.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `show`, `wanted`, `live` and `pendingKey` are this draw's own; the four below say the address and the surface
   }, [addressKey, wantedKey, liveKey, settled]);
   // The date range is the head's act at every width: a capsule at the strip's right, with what its word leaves out
   // beside it on a desk.

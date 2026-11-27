@@ -135,7 +135,7 @@ export function usePlControls<R extends TableRow, X, C>(args: ControlsArgs<R, X,
   // The columns this workspace declares (Visits needs a calendar), each headed in its words; held still while what the
   // workspace is does not change, so a memoised row sees the same list from one draw to the next.
   const colKey = JSON.stringify(colCtx);
-  const declared = useMemo(() => columnsIn(cols, colCtx), [cols, colKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const declared = useMemo(() => columnsIn(cols, colCtx), [cols, colKey]); // eslint-disable-line react-hooks/exhaustive-deps -- held still while what the workspace is does not change: `colKey` stands for `colCtx`
   // The columns a desk draws: every one this scope can show that this member has not turned off, in their order. A
   // phone draws one card a row instead, and its sort is its menu's.
   const deskColumns = useMemo(
