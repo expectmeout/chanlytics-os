@@ -469,3 +469,36 @@ test("D1-hold-words: Conversations' pill for a thread a teammate has names them 
     rosterIs(null);
   }
 });
+
+test("a call still going opens on its own clock, run from when it started, and its one press opens Live: there is nothing to listen in to", (t) => {
+  // Its row's pill says a missed call is missed (the-pages-say-only-what-is-true.test.mjs); here, the call on screen.
+  // voice/calls/call-lifecycle.test.mjs read conversations-page.tsx's text for this until 26 Nov 2026.
+  const started = new Date(NOW.getTime() - 95_000).toISOString();
+  t.mock.timers.enable({ apis: ["Date"], now: NOW });
+  const ongoing = toCallVM(
+    call({ status: "ongoing", started_at: started, updated_at: started, ended_at: null, duration_ms: null }),
+    ZONE,
+    NOW,
+  );
+  assert.equal(ongoing.live, true, "a call the heartbeat says is going");
+  went.length = 0;
+  try {
+    withRows([ongoing]);
+    fresh();
+    const live = () => find(page({ initialId: ongoing.id }), byTestId("cv-call-live"));
+    assert.match(
+      textOf(live()),
+      /On the phone now\s*1:35/,
+      "a minute and a half since it started, not since the page opened",
+    );
+    t.mock.timers.tick(25_000);
+    assert.match(textOf(live()), /On the phone now\s*2:00/, "and it runs on the wall clock");
+    assert.ok(!/Listen in/.test(textOf(live())), "no audio to listen to while it goes");
+    const go = find(live(), (n) => n.props?.className?.includes?.("ix-state-go"));
+    assert.match(textOf(go), /Open Live/);
+    go.props.onClick();
+    assert.deepEqual(went, ["live"], "its press opens Live, where it can be heard and steered");
+  } finally {
+    withRows([]);
+  }
+});

@@ -13,23 +13,35 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { toInboxThreadVM, isHeldDraft, draftSendsAtMs } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, find } from "../../_stub-react.mjs";
+import { toInboxThreadVM, isHeldDraft, draftSendsAtMs, stateOf, replyWaitsOnYou } from "@chanlytics/contracts";
+import { installStubReact, fresh, again, find, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
+bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact();
 const S = "../../../apps/dashboard/src/surfaces/inbox";
-const { VW_STORE, VW_UTIL } = await import(`${S}/store.ts`);
+const { VW_STORE, VW_UTIL, IX_STORE } = await import(`${S}/store.ts`);
 const { Composer } = await import(`${S}/thread/composer.tsx`);
+const { Inbox } = await import(`${S}/pages/inbox-page.tsx`);
+const { InboxList } = await import(`${S}/pages/inbox-list.tsx`);
+const { InboxThread } = await import(`${S}/thread/thread.tsx`);
+const { ThreadStatus } = await import(`${S}/thread/status.tsx`);
+const { VetoBar } = await import(`${S}/thread/veto.tsx`);
+const { TimelineEntry } = await import(`${S}/thread/timeline.tsx`);
+const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+bridgeHolds({ parts: { chrome: { state: stateOf, replyWaits: replyWaitsOnYou } } });
+// The page's own clocks stand still: the countdown is read from the deadline and the clock the test moves.
+Object.assign(globalThis, {
+  location: { pathname: "/w/marisas", hash: "", origin: "https://app.chanlytics.com", assign() {}, replace() {} },
+  setTimeout: () => 1,
+  clearTimeout() {},
+  setInterval: () => 1,
+  clearInterval() {},
+});
+holdFrameParts();
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(here, "../../..");
-const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
 const NOW = new Date("2026-08-29T12:00:00.000Z");
 const msg = (over = {}) => ({
@@ -117,18 +129,80 @@ test("the draft bubble is marked pending, not shown as sent", () => {
 
 /* -------------------------------- the engine ------------------------------ */
 
-const inbox = read("apps/dashboard/src/surfaces/inbox/pages/inbox-state.tsx");
-const timeline = read("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx");
-const status = read("apps/dashboard/src/surfaces/inbox/thread/status.tsx");
+/** A real thread holding a draft the server sends at 12:01:00, a minute after NOW. */
+const holding = () =>
+  toInboxThreadVM(
+    conv([
+      msg({ id: "m0", direction: "inbound", sender: "customer", body: "Are you open Sunday?", status: "received" }),
+      msg({ id: "m3", status: "queued", meta: { delay_ms: 90_000 }, body: "We open at 9." }),
+    ]),
+    null,
+    ZONE,
+    NOW,
+  );
+/**
+ * The Inbox drawn over one thread, as its read lands it: what it handed the pane (the one thread's, thread-pane.tsx) and
+ * the list, whose row says when the draft sends (`sendingIn`, the page's own countdown).
+ */
+const inboxOver = (thread) => {
+  setSurfaceValue("inbox", {
+    INBOX_BUCKETS: [
+      { id: "escalated", label: "Needs you" },
+      { id: "done", label: "Handled" },
+    ],
+    INBOX_VIEWS: [],
+    CHANNEL_LABELS: {},
+    INBOX_BASELINE: {},
+    THREADS: [thread],
+  });
+  fresh();
+  return () => {
+    const tree = again(() => Inbox({}));
+    return {
+      pane: find(tree, (n) => n.type === InboxThread).props,
+      list: find(tree, (n) => n.type === InboxList).props,
+    };
+  };
+};
 
-test("REGRESSION: a real thread never fabricates its own sent bubble", () => {
-  // The mockup mutates the timeline at zero. Doing that on real data would put
-  // a message in the transcript that may never have reached the customer.
-  assert.match(inbox, /if \(t\.real\) \{[\s\S]{0,400}?refreshInbox/);
+test("a real countdown reads the SERVER's deadline, on the clock as it moves: the pane's and the row's", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: NOW });
+  VW_STORE.state = {};
+  const vm = holding();
+  assert.equal(vm.veto.endsAtMs, NOW.getTime() + 60_000, "the deadline the view model carries");
+  const inbox = inboxOver(vm);
+  let drawn = inbox();
+  assert.equal(drawn.pane.veto, 60, "a minute to the server's deadline");
+  assert.equal(drawn.list.sendingIn(vm.id), 60, "and the row says the same");
+  t.mock.timers.tick(45_500);
+  drawn = inbox();
+  assert.equal(drawn.pane.veto, 15, "the same deadline, read again as the clock moves");
+  assert.equal(drawn.list.sendingIn(vm.id), 15, "on the row too");
+  VW_STORE.state = {};
 });
 
-test("a real countdown reads the SERVER's deadline", () => {
-  assert.match(inbox, /t\.veto\.endsAtMs \?\? NaN\) - Date\.now\(\)/);
+test("REGRESSION: a real thread never fabricates its own sent bubble: at zero the Inbox reads the thread again", (t) => {
+  // The mockup mutates the timeline at zero. Doing that on real data would put
+  // a message in the transcript that may never have reached the customer.
+  t.mock.timers.enable({ apis: ["Date"], now: new Date(NOW.getTime() + 61_000) });
+  VW_STORE.state = {};
+  const vm = holding();
+  IX_STORE.clear(vm.id);
+  try {
+    const { pane } = inboxOver(vm)();
+    assert.equal(pane.veto, 0, "past the deadline: sending, never a number below zero");
+    const drawn = pane.thread;
+    assert.deepEqual(
+      drawn.timeline.map((e) => [e.type, e.body]),
+      vm.timeline.map((e) => [e.type, e.body]),
+      "the thread as the server read it: no bubble written in the tab",
+    );
+    assert.equal(drawn.state, vm.state, "and its state the server's");
+    assert.equal(IX_STORE.get(vm.id), null, "no decision recorded for a send the tab never made");
+    assert.equal(VW_STORE.state["draft:m3"]?.tries, 1, "the Inbox asked for the thread again, once, past the deadline");
+  } finally {
+    VW_STORE.state = {};
+  }
 });
 
 test("VW_UTIL's simulated timer is kept off real threads", () => {
@@ -146,8 +220,30 @@ test("VW_UTIL's simulated timer is kept off real threads", () => {
 // one-thread.test.mjs proves it there.
 
 test("the draft bubble is visually distinct from a sent one", () => {
-  assert.match(timeline, /const held = !!entry\.pending;/);
-  assert.match(timeline, /tl-held-tag/);
+  const vm = toInboxThreadVM(
+    conv([msg({ id: "m1", status: "sent" }), msg({ id: "m3", status: "queued", meta: { delay_ms: 90_000 } })]),
+    null,
+    ZONE,
+    NOW,
+  );
+  const bubbleOf = (entry) => {
+    fresh();
+    return again(() => TimelineEntry({ entry, thread: vm, channelLabels: { whatsapp: "WhatsApp" } }));
+  };
+  const [sent, held] = ["m1", "m3"].map((id) =>
+    bubbleOf(vm.timeline.find((e) => e.type === "msg" && e.messageId === id)),
+  );
+  const tagOf = (tree) =>
+    find(tree, (n) =>
+      String(n.props?.className ?? "")
+        .split(" ")
+        .includes("tl-held-tag"),
+    );
+  const isHeld = (tree) => find(tree, (n) => /\btl-msg\b/.test(String(n.props?.className ?? ""))).props.className;
+  assert.equal(textOf(tagOf(held)), "Not sent yet", "the draft says it has not gone");
+  assert.match(isHeld(held), /\bheld\b/, "and its bubble is drawn held");
+  assert.equal(tagOf(sent), null, "a sent bubble says nothing of the kind");
+  assert.doesNotMatch(isHeld(sent), /\bheld\b/);
 });
 
 test("REGRESSION: the VetoBar shows on a HANDLED real thread", () => {
@@ -156,7 +252,20 @@ test("REGRESSION: the VetoBar shows on a HANDLED real thread", () => {
   // the receptionist answered and nothing escalated — which is exactly the
   // state a held draft sits in. The old gate hid the controls in the common
   // case and left the draft unstoppable from the UI.
-  assert.match(status, /hasVeto\(thread\) &&\s*!decided &&\s*\(thread\.real \|\| thread\.state !== "done"\)/);
+  // The bar stands over a thread whose conversation is still being read (`partial`); once it is drawn, under the draft's
+  // own bubble (thread.tsx heldDraftRow).
+  const vm = { ...holding(), partial: true, state: "done" };
+  const barOn = (thread, over = {}) => {
+    fresh();
+    const tree = again(() =>
+      ThreadStatus({ thread, decided: false, veto: 42, onVetoAct() {}, onTakeOver() {}, onHandBack() {}, ...over }),
+    );
+    return find(tree, (n) => n.type === VetoBar);
+  };
+  assert.ok(barOn(vm), "REGRESSION: hidden on a handled real thread, the draft unstoppable");
+  assert.equal(barOn(vm).props.remaining, 42, "counting down to the server's deadline");
+  assert.equal(barOn(vm, { decided: true }), null, "a draft decided has no bar");
+  assert.equal(barOn({ ...vm, real: false }), null, "the mockup's own 'done' still means decided");
 });
 
 /**
