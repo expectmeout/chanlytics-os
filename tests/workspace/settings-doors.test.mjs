@@ -331,6 +331,28 @@ const stripe = () => {
   return called;
 };
 
+test("Billing is the real pane: its plan's card, and what the browser came back from Stripe with, said once in the pane", () => {
+  // The pane's parts e2e reaches by name (billing-real, billing-note), drawn where billing.test.mjs read the pane's
+  // text until 26 Nov 2026.
+  asRole("owner");
+  billing({ status: "trialing", trial_end: "2026-09-29T12:00:00Z" });
+  stripe();
+  const verbs = provided("billing");
+  const kept = { outcome: verbs.outcome, outcomeWords: verbs.outcomeWords };
+  try {
+    assert.ok(byTestId(render(Billing, { flash() {} }), "billing-real"), "the plan's card");
+    assert.equal(
+      byTestId(render(Billing, { flash() {} }), "billing-note"),
+      null,
+      "nothing to say when nothing came back",
+    );
+    Object.assign(verbs, { outcome: () => "done", outcomeWords: { done: "Your card is saved." } });
+    assert.equal(textOf(byTestId(render(Billing, { flash() {} }), "billing-note")), "Your card is saved.");
+  } finally {
+    Object.assign(verbs, kept);
+  }
+});
+
 test("REGRESSION (one gate): Billing's doors to Stripe stay on the page for a role that may not open them, gated, saying why -- they were disabled with no reason at the control", () => {
   asRole("operator");
   billing({ status: "none" });
@@ -629,6 +651,78 @@ test("every connection says one word: Connect where it is not joined, Settings w
   press(byTestId(listing, "google-remove"));
   await flush();
   assert.match(textOf(settle(Connections)), /Disconnect the listing\?/);
+});
+
+test("the pane draws one row model in its groups: Disconnect only where there is a listing and an owner, an owner's verb gated for anyone else", async () => {
+  // Read as the pane's, the row's and the form's text in connections/connections.test.mjs until 26 Nov 2026.
+  const drawnAs = async (role, listing) => {
+    asRole(role);
+    seam({
+      channels: [],
+      setup: null,
+      google: { dto: { ready: { places: true, profile: true }, listing, connection: null } },
+    });
+    render(Connections);
+    await flush();
+    return settle(Connections);
+  };
+  const tree = await drawnAs("owner", {
+    place_id: "p1",
+    name: "Northside Studio",
+    address: "1 Main St, Springfield",
+    maps_uri: null,
+    business_status: "OPERATIONAL",
+    rating: 4.8,
+    review_count: 31,
+    linked_at: "2026-09-15T14:00:00Z",
+    checked_at: "2026-09-25T09:00:00Z",
+    check_error: null,
+  });
+  for (const g of ["connected", "available", "later"])
+    assert.ok(byTestId(tree, `connections-${g}`), `the ${g} group, by its address`);
+  press(byTestId(tree, "connection-google_listing-settings"));
+  assert.ok(byTestId(settle(Connections), "google-remove"), "an owner may disconnect a listing there is");
+  // A listing that needs attention (its last check failed) is still one to disconnect.
+  const ailing = await drawnAs("owner", {
+    place_id: "p1",
+    name: "Northside Studio",
+    address: "1 Main St, Springfield",
+    maps_uri: null,
+    business_status: "OPERATIONAL",
+    rating: 4.8,
+    review_count: 31,
+    linked_at: "2026-09-15T14:00:00Z",
+    checked_at: "2026-09-25T09:00:00Z",
+    check_error: "Google did not answer",
+  });
+  press(
+    byTestId(ailing, "connection-google_listing-settings") ??
+      byTestId(ailing, "connection-google_listing-fix") ??
+      byTestId(ailing, "connection-google_listing-why"),
+  );
+  assert.ok(byTestId(settle(Connections), "google-remove"), "a listing that needs attention can still be disconnected");
+  // No listing: nothing to disconnect, only a way to connect one.
+  const none = await drawnAs("owner", null);
+  assert.equal(byTestId(none, "google-remove"), null);
+  // Who may press is the row's to say, the page only checks: a viewer meets the owner's Connect gated, never pressable.
+  const viewer = await drawnAs("viewer", {
+    place_id: "p1",
+    name: "Northside Studio",
+    address: "1 Main St, Springfield",
+    maps_uri: null,
+    business_status: "OPERATIONAL",
+    rating: 4.8,
+    review_count: 31,
+    linked_at: "2026-09-15T14:00:00Z",
+    checked_at: "2026-09-25T09:00:00Z",
+    check_error: null,
+  });
+  const connect = byTestId(viewer, "google-connect");
+  assert.ok(connect, "the door stays on the page");
+  assert.ok(
+    connect.props.disabled || connect.props["aria-disabled"] || connect.props["data-gated"],
+    "gated for a viewer",
+  );
 });
 
 test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Disconnect does -- it disconnected Google at once", async () => {

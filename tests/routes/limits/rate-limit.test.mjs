@@ -1,5 +1,5 @@
 /**
- * Request limits (review F45) and the production guard (F42).
+ * Request limits (review F45); the production guard (F42) is routes/deployment.test.mjs's.
  *
  * Nothing limited any route: a session could send thirty templates a minute,
  * mint invitations without end, or hammer the two plpgsql aggregates. And the
@@ -14,12 +14,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { OPEN_READ_PATHS } from "@chanlytics/contracts";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { importSrc, readCode } from "../_source.mjs";
-import { asText } from "../_log-lines.mjs";
+import { importSrc } from "../../_source.mjs";
+import { asText } from "../../_log-lines.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { takeRate, resetRates, RATE, memoryStore, postgresStore, memoryByConfiguration, setRateStore } = await import(
-  pathToFileURL(path.join(here, "../../apps/dashboard/src/server/shared/rate-limit.ts")).href
+  pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/shared/rate-limit.ts")).href
 );
 
 test("the limit is per person per bucket, refuses with 429 and a retry hint, and forgets after the window", async () => {
@@ -165,7 +165,7 @@ test("the ceilings are ones a person never reaches and a script reaches at once"
   assert.ok(RATE.reply.limit <= 60 && RATE.reply.windowMs <= 60_000, "a reply reaches a real person");
   // What a cold load spends of `aggregate`: each of its first reads (GET open, then GET open/rest) that the bucket counts,
   // once, and its page's own beside them. A read added to the bucket here moves the floor, never the script's ceiling.
-  const policy = JSON.parse(readFileSync(path.join(here, "../route-policy.json"), "utf8")).routes;
+  const policy = JSON.parse(readFileSync(path.join(here, "../../route-policy.json"), "utf8")).routes;
   const counted = OPEN_READ_PATHS.filter((read) => policy[`GET ${read}`]?.rate === "aggregate");
   assert.ok(
     RATE.aggregate.limit >= 60 * (counted.length + 1),
@@ -208,31 +208,8 @@ test("every route that sends, spends or aggregates counts against its bucket", a
   assert.deepEqual([reply.role, reply.rate], ["operator", "reply"]);
 });
 
-test("F42: only the production dashboard reaches the live store or a live call — an unset VERCEL_ENV is not production", () => {
-  // The doors that were service.ts, now by domain; the count is theirs together.
-  const service = [
-    "apps/dashboard/src/server/conversations/live-call.ts",
-    "apps/dashboard/src/server/conversations/thread-control.ts",
-    "apps/dashboard/src/server/connections/whatsapp.ts",
-    "apps/dashboard/src/server/campaigns/meta-templates.ts",
-    "apps/dashboard/src/server/campaigns/playbook-run.ts",
-    "apps/dashboard/src/server/campaigns/reach-outs/reach-outs.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.equal(
-    (service.match(/if \(!deployment\.providersLive\)/g) ?? []).length,
-    15,
-    "the whisper, the steer, a thread's draft, the sign-up config, the number connection, the check of what Meta holds about the number, the template sync, create, edit and delete, the playbook run, the offer of a freed hour (Today's Offer it), the end and the hand-over of a call, and a reach-out's preview",
-  );
-  // The pause mirror was the eleventh, and is gone with the store it mirrored
-  // into. The regression it carried is kept as a rule about the guard itself:
-  // an unset VERCEL_ENV is a laptop, and a laptop is not production.
-  assert.ok(
-    !service.includes('process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"'),
-    "REGRESSION: plain local dev reached the live providers",
-  );
-});
+// F42, the production guard: only the production dashboard reaches the live store or a live call, and an unset
+// VERCEL_ENV is not production. Every one of its doors is run as a laptop runs it in routes/deployment.test.mjs.
 
 test("REGRESSION: the limiter's refusal and the client's retry hint say a wait in the one place's words, whatever the wait", async () => {
   // The limiter kept its own `human` beside contracts' `waitWords` (scorecard row 76), so a change to one left a refusal

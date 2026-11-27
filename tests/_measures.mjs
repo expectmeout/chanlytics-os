@@ -1088,7 +1088,7 @@ export const RULE_SCAN = {
     "A rule test reads what its rule is about and no more. Where the rule can be asked of the code (a type, a parsed config, a list the code exports), ask it there and drop the read.",
 };
 
-/* ---- The wire's names (routes/wire-casing.test.mjs) ---- */
+/* ---- The wire's names (routes/wire/wire-casing.test.mjs) ---- */
 
 /**
  * The typed client's registry: every /api/v1 handler under the key route-policy.json gives it, as a type that

@@ -1,6 +1,6 @@
 /**
  * A database's refusal reaches a person in the door's words (decision 0114). The rest of this is proved over fakes
- * (routes/db-refusal.test.mjs); this is the one place the real thing is asked, since only a real database can say what a
+ * (routes/refusals/db-refusal.test.mjs); this is the one place the real thing is asked, since only a real database can say what a
  * reply carries: a real door's refusal, through a real repository, to the answer a route gives, and Postgres's own
  * sentences against the words that replace them. Local stack only, and it leaves nothing behind.
  */

@@ -15,6 +15,9 @@ import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+// A deployment whose providers are live, read as the modules load (server/shared/env.ts deployment): a line act reaches the
+// edge wherever the edge has a credential, which a test gives it (below), and no further.
+process.env.EDGE_PROVIDERS = "live";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -204,6 +207,53 @@ test("a line act the edge could not do is failed, not refused: refused says the 
     world.platform_acts.map((r) => [r.act, r.outcome, r.outcome_note]),
     [["line_retry", "failed", "no_edge_credential"]],
   );
+});
+
+test("each line act is its own edge operation, never one the caller chose", async () => {
+  // A route that forwarded an arbitrary op to /api/admin/lines would be a back door with extra steps: the master key to
+  // every edge operation, including ones nobody reviewed for this surface. Each act's own route sends its one operation
+  // (server/console/platform.ts EDGE_OP), whatever else the body says: a refile is the owner's own registration with
+  // the flag only support may set, a replace that again with the flag that files a new campaign (a second vetting
+  // fee, never implied by refile), and a retry says who pressed it.
+  const kept = Object.fromEntries(["EDGE_URL", "EDGE_CALL_SECRET"].map((k) => [k, process.env[k]]));
+  Object.assign(process.env, { EDGE_URL: "https://edge.example.com", EDGE_CALL_SECRET: "edge-secret" });
+  const realFetch = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (url, init = {}) => {
+    sent.push({ path: new URL(String(url)).pathname, body: JSON.parse(String(init.body)) });
+    return Response.json({ ok: true });
+  };
+  try {
+    for (const [action, op] of [
+      ["retry", { op: "retry", tenant_id: A, line_id: L1, by: "support" }],
+      ["refile", { op: "register", tenant_id: A, line_id: L1, refile: true }],
+      ["replace", { op: "register", tenant_id: A, line_id: L1, refile: true, replace: true }],
+      ["release", { op: "release", tenant_id: A, line_id: L1 }],
+    ]) {
+      service({ events: [] });
+      sent.length = 0;
+      const act = await route(`platform/lines/${action}`);
+      await act.POST.run(post({ tenant_id: A, line_id: L1, why: WHY }), ctxFor("owner"));
+      assert.deepEqual(sent, [{ path: "/api/admin/lines", body: op }], `${action}: its own operation`);
+    }
+    service({ events: [] });
+    sent.length = 0;
+    const smuggled = retry.POST.run(post({ tenant_id: A, line_id: L1, why: WHY, op: "provision" }), ctxFor("owner"));
+    await smuggled.then(
+      () =>
+        assert.deepEqual(
+          sent.map((c) => c.body.op),
+          ["retry"],
+          "the caller's op is never the edge's",
+        ),
+      (e) => assert.equal(e.code, "validation", "or the body is refused for it"),
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    for (const [k, v] of Object.entries(kept))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  }
 });
 
 /* ------------------------------------------------------------------------------------------------------- Requests */

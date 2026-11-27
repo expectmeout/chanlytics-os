@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { fakeDb } from "../_fake-db.mjs";
+import { NAME, world, worldFaulted } from "./_pages.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -61,82 +61,6 @@ const textOf = (n) =>
           : textOf(n.props?.children);
 const byTestId = (tree, id) => nodes(tree).find((n) => n.props?.["data-testid"] === id) ?? null;
 const ids = (tree) => nodes(tree).flatMap((n) => (n.props?.["data-testid"] ? [n.props["data-testid"]] : []));
-
-const NAME = "Harbor Moving";
-/** The business on record, every column the table has. */
-const RECORD = (tenant_id) => ({
-  tenant_id,
-  legal_name: "Harbor Moving LLC",
-  trade_name: null,
-  street: "1 Example Street",
-  street_secondary: null,
-  city: "Miami",
-  region: "FL",
-  postal_code: "33101",
-  country: "US",
-  contact_email: "owner@example.com",
-  contact_first_name: "Ada",
-  contact_last_name: "Lovelace",
-  contact_phone: "+13055550199",
-  contact_title: "Owner",
-  contact_job_position: "CEO",
-  website_url: "",
-  about: "Moves homes and offices across Miami.",
-  industry: "PROFESSIONAL_SERVICES",
-  business_type: "Limited Liability Corporation",
-  company_type: "private",
-  ein: "12-3456789",
-  created_at: "2026-10-01T00:00:00Z",
-  updated_at: "2026-10-01T00:00:00Z",
-});
-
-/** A receptionist whole enough to parse (a config the schema rejects reads as none), listing one service. */
-const BRAIN = {
-  business_name: NAME,
-  booking_link: "https://book.example.com/harbor",
-  system_prompt: "Answer as the front desk: brief, warm, and never a price or a booking over text.",
-  fallbacks: { greeting: "g", error: "e", non_text: "n" },
-  profile: { services: [{ name: "Local move", duration_min: 240 }] },
-};
-
-let made = 0;
-/** One workspace's world, under a slug of its own (the reader is a request cache's). */
-function world({
-  status = "active",
-  left_empty_at = null,
-  billing = { mode: "stripe", status: "active" },
-  record = true,
-} = {}) {
-  const id = `aaaaaaaa-0000-4000-8000-${String(++made).padStart(12, "0")}`;
-  const slug = `harbor-${made}`;
-  const tables = {
-    tenants: [{ id, name: NAME, slug, status, left_empty_at }],
-    billing_accounts: billing ? [{ tenant_id: id, ...billing }] : [],
-    // `record`: the business on record, or columns over it (true is it as written above).
-    business_records: record ? [{ ...RECORD(id), ...(record === true ? {} : record) }] : [],
-    tenant_config: [{ tenant_id: id, config: { brain: BRAIN } }],
-    tenant_channels: [
-      {
-        tenant_id: id,
-        kind: "whatsapp",
-        status: "active",
-        number_e164: "+13055550100",
-        created_at: "2026-10-01T00:00:00Z",
-      },
-      { tenant_id: id, kind: "sms", status: "active", number_e164: "+13055550101", created_at: "2026-10-01T00:00:00Z" },
-      {
-        tenant_id: id,
-        kind: "voice",
-        status: "active",
-        number_e164: "+13055550102",
-        created_at: "2026-10-01T00:00:00Z",
-      },
-    ],
-  };
-  const db = fakeDb(tables);
-  setServiceClient(db);
-  return { slug, db };
-}
 
 /** Every page of a world, drawn as each route draws it. */
 async function pagesOf(slug) {
@@ -291,23 +215,6 @@ test("REGRESSION (X4-7): a read that fails fails the page -- the sign-up page no
     await assert.rejects(findBusinessPage(faulted), words, `/b: ${table}`);
   }
 });
-
-/** A world whose read of one table is refused, by its slug. */
-function worldFaulted(table) {
-  const id = `bbbbbbbb-0000-4000-8000-${String(++made).padStart(12, "0")}`;
-  const slug = `faulted-${made}`;
-  const tables = {
-    tenants: [{ id, name: NAME, slug, status: "active", left_empty_at: null }],
-    billing_accounts: [{ tenant_id: id, mode: "stripe", status: "active" }],
-    business_records: [RECORD(id)],
-    tenant_config: [{ tenant_id: id, config: {} }],
-    tenant_channels: [
-      { tenant_id: id, kind: "sms", status: "active", number_e164: "+13055550101", created_at: "2026-10-01T00:00:00Z" },
-    ],
-  };
-  setServiceClient(fakeDb(tables, { [`${table}.select`]: { message: "statement timeout" } }));
-  return slug;
-}
 
 test("the business's own page and its terms show the published columns of the record and none other: each column a marker of its own, read by the real reader and drawn by the real pages (the wiring's second audit, X4-4)", async (t) => {
   t.after(() => setServiceClient(null));

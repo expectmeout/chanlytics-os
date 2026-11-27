@@ -52,15 +52,20 @@ import {
   messageAboutOfTrigger,
   channelNeverCarries,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 import { campaignFactsFor } from "../../apps/edge/lib/lines/a2p-campaign-facts.ts";
-import { personRow } from "./_person-row.mjs";
+import { personDto, personRow } from "./_person-row.mjs";
+import { fakeDb } from "../_fake-db.mjs";
+import { updateCampaignRequest } from "@chanlytics/channels/lines";
+import { resolveOutboundTarget } from "@chanlytics/db/channels";
 
 // People's Offers column and its sort, from the code the page runs (surfaces/people/), not a scan of it.
 const { PL_COLUMNS } = await importSrc("apps/dashboard/src/surfaces/people/cells/columns.tsx");
 const { compareSortValues } = await importSrc("apps/dashboard/src/surfaces/kit/table/use-data-table.ts");
 const { firstDirOf } = await importSrc("apps/dashboard/src/surfaces/kit/table/columns.ts");
+const { outboundGate } = await importSrc("packages/core/src/messages/outbound-gate.ts");
+const { peopleCsv } = await importSrc("apps/dashboard/src/server/shared/export-file.ts");
 
 test("which question a customer's message answers", () => {
   // The split. One pattern used to match both, so one message gave one yes.
@@ -231,12 +236,9 @@ test("the database records the two answers apart, and neither writer reaches acr
   // consent/consent-channels.db, consent/consent-evidence.db). Pinned as 00095's text until 25 Nov 2026.
 
   // The yes rides its message (00592): ingest_inbound keeps it in the transaction that keeps the message, once the stop
-  // this message may carry is read back, and the edge writes it through no second door.
-  const kept = readRaw("supabase/migrations/00592_a_message_and_the_yes_it_carries_are_kept_together.sql");
-  assert.match(
-    kept,
-    /if p_opt_in_marketing and v_consent is distinct from 'opted_out' and v_dnc is not true then\s+perform public\.set_marketing_consent\(/,
-  );
+  // this message may carry is read back, and the edge writes it through no second door. Run on the stack in
+  // intake/a-delivery-taken-in-again-changes-no-consent.db.test.mjs: a YES OFFERS kept once with its words, and none
+  // under a stop that stands. Pinned as 00592's text until 26 Nov 2026.
   // That the repository makes no second call is run: consent-history.test.mjs (one call, the ingest's).
 
   // people_list carries both, or no page can compute an audience: the function, redefined since 00096 through 00680,
@@ -477,23 +479,39 @@ test("the resubmit sends everything Twilio will accept, and says what it will no
   // CREATE call, but not specifically mentioned in the update table, cannot be
   // edited under any circumstances" -- opt-in, opt-out and help information, and
   // the use case. Those need a delete and a recreate, which is a new fee.
-  const ch = readCode("packages/channels/src/lines/a2p/brand-campaign.ts");
-  const upd = ch.slice(ch.indexOf("export function updateCampaignRequest"));
-  const body = upd.slice(0, upd.indexOf("return {"));
-  for (const field of ["Description", "MessageFlow", "MessageSamples", "PrivacyPolicyUrl", "TermsAndConditionsUrl"]) {
-    assert.ok(upd.includes(field), field);
-  }
-  assert.ok(
-    !/OptInMessage|OptInKeywords|UsAppToPersonUsecase|BrandRegistrationSid/.test(body),
-    "sending a field Twilio refuses is a failed resubmit",
+  // The request the resubmit sends (channels lines/a2p updateCampaignRequest), made from a workspace's whole filing:
+  // what an update may correct goes, and nothing else does, however much the facts it is handed hold.
+  const facts = campaignFactsFor(FILED);
+  const update = updateCampaignRequest("MG1", "CP1", facts);
+  assert.equal(update.method, "POST");
+  assert.equal(
+    update.url,
+    "https://messaging.twilio.com/v1/Services/MG1/Compliance/Usa2p/CP1",
+    "the campaign's own url",
   );
-  // And the caller no longer computes four fields for them to be dropped
-  // silently by a narrower parameter type.
-  const edge = readCode("apps/edge/lib/lines/a2p-refile.ts");
-  assert.match(edge, /privacyPolicyUrl: string; termsUrl: string \}/);
-  assert.match(edge, /privacyPolicyUrl: facts\.privacyPolicyUrl,/);
-  // The one that cannot be corrected says so where somebody would look for it.
-  assert.match(readRaw("apps/edge/lib/lines/a2p-campaign-facts.ts"), /NOT correctable after the first filing/);
+  assert.deepEqual(
+    Object.keys(update.form).sort(),
+    [
+      "AgeGated",
+      "Description",
+      "DirectLending",
+      "HasEmbeddedLinks",
+      "HasEmbeddedPhone",
+      "MessageFlow",
+      "MessageSamples",
+      "PrivacyPolicyUrl",
+      "TermsAndConditionsUrl",
+    ],
+    "sending a field Twilio refuses (OptInMessage, OptInKeywords, the use case, the brand) is a failed resubmit",
+  );
+  assert.deepEqual(
+    [update.form.Description, update.form.MessageFlow, update.form.PrivacyPolicyUrl, update.form.TermsAndConditionsUrl],
+    [facts.description, facts.messageFlow, facts.privacyPolicyUrl, facts.termsUrl],
+  );
+  assert.deepEqual(update.form.MessageSamples, facts.samples.slice(0, 5));
+  // And the caller hands the two policy URLs through rather than computing fields to be dropped: the edge's resubmit,
+  // run over Twilio's wire in lines/filing/a2p-refile.test.mjs ("the two URLs an update may correct travel", "nothing
+  // the update cannot edit is sent"). The opt-in message the update cannot reach is the first filing's, held above.
 });
 
 /* ========================================================================== *
@@ -501,23 +519,48 @@ test("the resubmit sends everything Twilio will accept, and says what it will no
  * place that WRITES it.
  * ========================================================================== */
 
-test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the message's purpose", () => {
+test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the message's purpose", async () => {
   // 00095's own header names this path: "The voice agent's booking-link text is
   // gated on opted_out alone, so 'consent = unknown' sails through. Two proactive
   // sends, two different bars, decided per call site rather than by anything about
   // the message." The broadcast wire was moved to `mayMessageFor`; this was not, so
   // for a while the product had two bars again. Nothing in this file read it.
-  const gate = readCode("packages/core/src/messages/outbound-gate.ts");
-  assert.match(gate, /import \{\s*mayMessageFor/, "the gate asks the one predicate rather than holding a copy");
-  // Asked on the channel the message goes out on (step 2): a yes covers the channels it was given for. And with what the
-  // message is about (decision D1), a fact the caller states: by email the business's own news asks for a yes, a visit's
-  // message does not.
-  assert.match(
-    gate,
-    /const may = mayMessageFor\(outboundFacts\.contact, outboundFacts\.purpose, \{\s*proactive: outboundFacts\.proactive,\s*channel: outboundFacts\.channel,\s*about: outboundFacts\.about,?\s*\}\);/,
-  );
-  assert.match(gate, /about: MessageAbout;/, "required of every caller, as the purpose is");
-  assert.ok(!/optedOut: boolean/.test(gate), "REGRESSION: a pre-decided boolean cannot answer a per-purpose question");
+  // The gate (core messages/outbound-gate.ts), run: whatever it is asked, its consent answer is the one predicate's, so
+  // the two cannot disagree. With what the message is about (decision D1) and its purpose it reaches the predicate in
+  // messages/outbound-gate.test.mjs ("what the message is about reaches the one predicate", "a promotional message needs
+  // the offers answer"); here, over every answer a person can hold, and on the channel the message goes out on (step 2):
+  // a yes covers the channels it was given for.
+  const open = { pausedUntilMs: null, replyMode: "auto", bookingHeld: false, sentToday: 0, dailyCap: 3, nowMs: 0 };
+  for (const consent of ["unknown", "opted_in", "opted_out"])
+    for (const marketing_consent of ["unknown", "opted_in", "opted_out"])
+      for (const purpose of ["conversational", "marketing"])
+        for (const proactive of [true, false])
+          for (const channel of ["whatsapp", "sms"]) {
+            const contact = { consent, dnc: false, marketing_consent, consent_channels: ["whatsapp"] };
+            const may = mayMessageFor(contact, purpose, { proactive, channel, about: "theirs" });
+            assert.deepEqual(
+              outboundGate({ ...open, contact, purpose, proactive, channel, about: "theirs" }),
+              { allowed: may.ok, refusal: may.reason },
+              JSON.stringify({ consent, marketing_consent, purpose, proactive, channel }),
+            );
+          }
+  const yesOnWhatsApp = {
+    consent: "opted_in",
+    dnc: false,
+    marketing_consent: "unknown",
+    consent_channels: ["whatsapp"],
+  };
+  const asked = (channel) =>
+    outboundGate({
+      ...open,
+      contact: yesOnWhatsApp,
+      purpose: "conversational",
+      proactive: true,
+      channel,
+      about: "theirs",
+    });
+  assert.equal(asked("whatsapp").allowed, true, "the yes was given on WhatsApp");
+  assert.equal(asked("sms").allowed, false, "and is not a yes to be texted first");
 
   // The voice path itself is run in retell-fn-door.test.mjs. Its purpose is STATED
   // as a fact about the message, not read from a column that is NULL for this very
@@ -531,9 +574,43 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
 
   // The resolver has to project the column, or the gate above reads undefined and
   // fails closed on every promotional send it is ever asked about.
-  const repo = readCode("packages/db/src/repositories/channels/ingest.ts");
-  // And the channels each yes covers (step 2), or every yes reads as WhatsApp alone.
-  assert.match(repo, /\.select\("id, consent, dnc, marketing_consent, consent_channels, marketing_channels"\)/);
+  // The resolver (db channels/ingest.ts resolveOutboundTarget), run over a database in memory that answers only the
+  // columns a select names: the target carries the yes to offers, and the channels each yes covers (step 2), or every
+  // yes reads as WhatsApp alone. Handed to the gate, a yes to offers on record is one.
+  const T = "aaaaaaaa-0000-4000-8000-00000000c001";
+  const db = fakeDb({
+    contacts: [
+      {
+        id: "c-1",
+        tenant_id: T,
+        phone_e164: "+13055550142",
+        consent: "opted_in",
+        dnc: false,
+        marketing_consent: "opted_in",
+        consent_channels: ["whatsapp", "sms"],
+        marketing_channels: ["whatsapp"],
+      },
+    ],
+    conversations: [{ id: "cv-1", tenant_id: T, contact_id: "c-1", last_message_at: "2026-11-01T00:00:00Z" }],
+  });
+  const target = await resolveOutboundTarget(db, { tenantId: T, phoneE164: "+1 305 555 0142", create: false });
+  assert.deepEqual(
+    [target.marketing_consent, target.consent_channels, target.marketing_channels],
+    ["opted_in", ["whatsapp", "sms"], ["whatsapp"]],
+    "the resolver projects the yes to offers and the channels each yes covers",
+  );
+  assert.equal(
+    outboundGate({
+      ...open,
+      contact: target,
+      purpose: "marketing",
+      proactive: true,
+      channel: "whatsapp",
+      about: "ours",
+    }).allowed,
+    true,
+    "so the gate reads a yes to offers that is on record, and does not fail closed on it",
+  );
 });
 
 test("the fact has a WRITE path: two callers, which is what 00095 designed for", () => {
@@ -541,29 +618,19 @@ test("the fact has a WRITE path: two callers, which is what 00095 designed for",
   // desk recording a form the customer signed." Only the first existed, so a salon
   // holding thirty signed consent slips had no way to record any of them -- and
   // both controls that looked like they did wrote the conversational column.
-  const kept = readRaw("supabase/migrations/00592_a_message_and_the_yes_it_carries_are_kept_together.sql");
-  assert.match(kept, /perform public\.set_marketing_consent\(/, "the customer's own message, kept with it (00592)");
-  // A person at the desk: the member's one call (00356 record_consent), which hands the offers door the workspace it
-  // read the person from (the edge calls that door with no session, so it takes the workspace as a parameter), and
-  // writes the history line with the answer. consent-paths.test.mjs runs the route through it.
-  const desk = readRaw("supabase/migrations/00356_an_answer_and_its_history_line_are_one_write.sql");
-  assert.match(
-    desk,
-    /public\.set_marketing_consent\(v_tenant, p_contact_id, p_consent, p_source, p_note, null, p_message_id\)/,
-    "and a person at the desk, with no evidence of the session's own",
-  );
+  // The customer's own message is kept with it (00592, run on the stack in intake/a-delivery-taken-in-again-changes-
+  // no-consent.db.test.mjs). A person at the desk: the member's one call (00356 record_consent), which hands the offers
+  // door the workspace it read the person from (the edge calls that door with no session, so it takes the workspace as a
+  // parameter), and writes the history line with the answer: run on the stack in consent-paths.db.test.mjs ("a
+  // person's answer and its line in their history are one write"), and its route in consent-paths.test.mjs. Pinned as
+  // 00592's and 00356's text until 26 Nov 2026.
 
-  // The bulk sibling, because a signed-form yes usually arrives for a class at once.
-  const bridge = readCode("apps/dashboard/src/surfaces/people/people-detail.ts");
-  assert.match(bridge, /export async function setPersonMarketingConsentMany/);
-  assert.match(
-    bridge,
-    /const take = \[\.\.\.new Set\(ids\)\]\.slice\(0, 50\);/,
-    "fifty at most, one refresh at the end",
-  );
+  // The bulk sibling, because a signed-form yes usually arrives for a class at once: sixty selected are one request to
+  // the offers door, fifty at most, run over the wire in calendar/people/asked-then-booked-and-bulk-actions.test.mjs
+  // ("bulk actions: ... one request each, fifty at most").
 });
 
-test('every read of "said yes to offers" points at the offers column', () => {
+test('every read of "said yes to offers" points at the offers column', async () => {
   // Six of these were still on the old column after the split, and each one lied
   // in the same direction: it counted people who had said yes to SOMETHING and
   // called them a promotional audience.
@@ -591,27 +658,12 @@ test('every read of "said yes to offers" points at the offers column', () => {
   );
   assert.equal(peopleListAction("lapsed", [noNumber, talkOnly]).enabled, false, "and nobody reachable means no button");
 
-  const setup = [
-    "packages/contracts/src/setup/rows/business.ts",
-    "packages/contracts/src/setup/rows/channels.ts",
-    "packages/contracts/src/setup/rows/steps.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.match(setup, /const offers = setupInputs\.consent\.offers;/, "the Setup row reads the offers count");
-  const server = [
-    "apps/dashboard/src/server/setup/channel-rows.ts",
-    "apps/dashboard/src/server/setup/setup.ts",
-    // The counts themselves, in Setup's rows (setup_rows, 00700).
-    "supabase/migrations/00700_setup_reads_its_rows_at_once.sql",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.match(
-    server,
-    /'offers_yes', count\(\*\) filter \(where c\.marketing_consent = 'opted_in' and c\.dnc = false\)/,
-    "and it is counted the way the reachable view counts it",
-  );
+  // The Setup row reads the offers count, not the yes to messages: its read and its row run in setup/setup.test.mjs
+  // ("REGRESSION: a yes to offers with no number to send one to is a yes", where three yeses to messages and one to
+  // offers read "1 person said yes to offers.").
+  // The counts themselves are Setup's rows' (setup_rows, 00700), counted the way the reachable view counts them: a yes
+  // to offers from somebody not on the do-not-contact list, run on the stack in consent-channels.db.test.mjs ("Setup
+  // counts a yes to offers it may send to"). Pinned as 00700's text until 26 Nov 2026.
 
   // The column titled Offers reads the offers answer, and sorting by it sorts by it: People's own column and sort
   // (surfaces/people/), run over rows that differ in the two yeses. The conversational yes moves neither.
@@ -647,8 +699,24 @@ test('every read of "said yes to offers" points at the offers column', () => {
   // above is exactly as told, whichever way it is asked.
   assert.equal(firstDirOf(PL_COLUMNS, "offers"), "asc", "a first press on Offers lists the yeses first");
 
-  const exp = readCode("apps/dashboard/src/server/shared/export-file.ts");
-  assert.match(exp, /\["offers_consent", \(r\) => r\.marketing_consent \?\? "unknown"\]/);
+  // The people file (server/shared/export-file.ts peopleCsv), made: its offers column is the offers answer, whatever
+  // the yes to messages says, and a row from before the column says it was not asked.
+  const csv = peopleCsv(
+    [
+      personDto({ id: "y", consent: "unknown", marketing_consent: "opted_in" }),
+      personDto({ id: "n", consent: "opted_in", marketing_consent: "opted_out" }),
+      { ...personDto({ id: "u", consent: "opted_in" }), marketing_consent: undefined },
+    ],
+    "UTC",
+  );
+  const [head, ...lines] = csv.trim().split(/\r?\n/);
+  const at = head.split(",").indexOf("offers_consent");
+  assert.ok(at >= 0, "the file has an offers column");
+  assert.deepEqual(
+    lines.map((l) => l.split(",")[at]),
+    ["opted_in", "opted_out", "unknown"],
+    "the offers column is the offers answer",
+  );
 });
 
 test("every reason the wire can write has words the owner can read", () => {

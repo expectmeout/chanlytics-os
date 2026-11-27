@@ -21,7 +21,7 @@ import {
   mediaVM,
   messageText,
 } from "@chanlytics/contracts";
-import { givenOn } from "../../_css.mjs";
+import { cascadeOf, element } from "../../_css.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dto = await import(
@@ -134,9 +134,9 @@ test("the thread draws the attachment from one component, wherever it opens", ()
   // without the bridge: media/an-attachment-is-drawn-by-its-kind.test.mjs (pinned as its text until 26 Nov 2026). The
   // thread drawing it in the bubble that carried it, from the message's own route: inbox/thread-on-a-phone.test.mjs,
   // where timeline.tsx's text was read here until 26 Nov 2026.
-  // The picture's own rule, asked of the parsed sheet under any query (read as its text until 26 Nov 2026): never wider
-  // than the thread, and bounded in height.
-  const picture = givenOn("apps/dashboard/src/styles/components.css", ".tl-media img", null);
+  // The picture as the thread draws it, asked of its sheet (tests/_css.mjs cascadeOf; read as its text until 26 Nov 2026):
+  // never wider than the thread, and bounded in height.
+  const picture = cascadeOf(["apps/dashboard/src/styles/components.css"]).given(element(".tl-media", "img"));
   assert.deepEqual([picture["max-width"], picture["max-height"]], ["100%", "280px"]);
 });
 

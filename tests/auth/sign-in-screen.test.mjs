@@ -1,8 +1,7 @@
 /**
  * The sign-in screen, drawn: what the address brings, the password door, the code door and the code step's resend.
  *
- * auth-gate.test.mjs and signup.test.mjs hold the page's text (the calls it must make, the words it must not say).
- * These run it: the real page (app/login/page.tsx) with its real children and contracts, on a stub React whose hook
+ * These run it, where auth-gate.test.mjs and signup.test.mjs held the page's text until 26 Nov 2026: the real page (app/login/page.tsx) with its real children and contracts, on a stub React whose hook
  * cells sit where React keeps them (_hook-frames.mjs), over a stand-in window and a stand-in for the Supabase browser
  * client, which answers each auth call as the test says and records what it was asked.
  */
@@ -220,6 +219,19 @@ const lead = () => textOf(find((n) => n.type === "p"));
 const alerts = () => textOf(find((n) => n.props?.role === "alert" && n.props["aria-live"] === "assertive"));
 
 /* ------------------------------ what the address brings ------------------------------ */
+
+test("the page points at sign-up, and at a reset for somebody who has forgotten their password", async () => {
+  await open("/login");
+  const links = [];
+  walk(tree, (n) => {
+    if (n.type === "a" && typeof n.props?.href === "string") links.push(n.props.href);
+  });
+  assert.ok(links.includes("/signup"), `a way to sign up, among ${links.join(", ")}`);
+  assert.ok(
+    links.some((h) => h.startsWith("/reset-password")),
+    "and a way out for somebody who has forgotten it",
+  );
+});
 
 test("the address it arrives at: the email fills the field and leaves the address, the route after # stays", async () => {
   await open("/login?email=ann%40luna.example#/inbox/t1");

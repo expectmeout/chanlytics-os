@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameSteer, whisperText, toInboxThreadVM, stateOf } from "@chanlytics/contracts";
-import { givenOn } from "../../_css.mjs";
+import { cascadeOf, declared, element } from "../../_css.mjs";
 import { installStubReact, settle, fresh, again, find, textOf } from "../../_stub-react.mjs";
 import { bridgeHolds, holdFrameParts, holdRoles } from "../../shell/_bridge-holds.mjs";
 import { until } from "../../shared/_until.mjs";
@@ -181,7 +181,7 @@ test("the rewrite box sends the owner's line and says the new draft waits its tu
     stop();
     globalThis.fetch = wire;
   }
-  // The rewrite's field takes the row's room and gives way to it, asked of the parsed sheet under any query.
-  const field = givenOn("apps/dashboard/src/styles/components.css", ".ix-steer-input", null);
-  assert.deepEqual([field.flex, field["min-width"]], ["1", "0"]);
+  // The rewrite's field takes the row's room and gives way to it, asked of its sheet (tests/_css.mjs cascadeOf).
+  const field = cascadeOf(["apps/dashboard/src/styles/components.css"]).given(element("input.ix-steer-input"));
+  assert.deepEqual([field.flex, field["min-width"]], [declared("flex: 1").flex, "0"]);
 });

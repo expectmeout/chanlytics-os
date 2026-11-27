@@ -8,10 +8,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(here, "../..");
+const ROOT = path.resolve(here, "../../..");
 const { postgresStore, memoryStore, setRateStore, takeRate, RATE } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/shared/rate-limit.ts")).href
 );
@@ -105,29 +104,9 @@ test("every route awaits the count — a limiter that is not awaited limits noth
     }
   }
   assert.ok(sites >= 40, `forty call sites, found ${sites}`);
-  // The live function is 00103's: the actor is text (a hashed network counts
-  // as one, 00059's uuid could not), and the uuid signature is dropped there.
-  const mig = readCode("supabase/migrations/00103_a_limit_counts_a_stranger.sql");
-  assert.ok(
-    mig.includes("alter table public.rate_hits alter column actor type text using actor::text;"),
-    "a stranger is an actor",
-  );
-  assert.ok(
-    mig.includes("drop function if exists public.take_rate(text, uuid, int, int);"),
-    "the old signature is gone, so the store cannot call it by mistake",
-  );
-  assert.ok(
-    mig.includes(
-      "create or replace function public.take_rate(p_bucket text, p_actor text, p_limit int, p_window_ms int)",
-    ),
-  );
-  assert.ok(
-    mig.includes("pg_advisory_xact_lock(hashtext(p_bucket || ':' || p_actor"),
-    "one actor's one bucket at a time",
-  );
-  assert.ok(
-    mig.includes("revoke all on function public.take_rate(text, text, int, int) from public, anon, authenticated;"),
-    "the browser never counts",
-  );
-  assert.ok(mig.includes("grant execute on function public.take_rate(text, text, int, int) to service_role;"));
+  // The live function is 00103's, run on the stack in rate-limit.db.test.mjs: a hashed network is an actor (00059's
+  // uuid could not count one), a person's key is the text of their uuid (which PostgREST could not choose between two
+  // signatures for, so the old one is gone), a burst at the limit lets the limit through (one actor's one bucket at a
+  // time), and a signed-out caller is refused the counter, which is the service role's alone. Pinned as 00103's text
+  // until 26 Nov 2026.
 });

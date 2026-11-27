@@ -19,6 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import { normalizeInbound } from "@chanlytics/channels/whatsapp";
 import { smsKeywordConsent } from "@chanlytics/channels/lines";
+import { FROM, text, world } from "../inbound/_world.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -164,52 +165,53 @@ test("the patterns are anchored and case-insensitive", () => {
 });
 
 /* ---- the edge routes on KIND, not on the storage column ---- */
-{
-  const { readCode } = await import("../_source.mjs");
-  // The gates that route on KIND (gates.ts) and the one that answers a late message (reply-gates.ts).
-  const edgeSrc = ["gates", "reply-gates"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
+// Run over the receptionist's world (inbound/_world.mjs: the verb for real, its ports as fakes), where these read the
+// gates' source (core inbound/gates.ts, reply-gates.ts) until 26 Nov 2026. A reaction or a system notice ends the request
+// without an ack, before the unreadable branch or never: a customer tapping a thumbs-up got "sorry, I can't read that",
+// the receptionist muted itself for 24h, an escalation opened and the owner was emailed. RUN, order and all, in
+// inbound/phases/ ("a thumbs-up or a system notice").
 
-  // A reaction or a system notice ends the request without an ack, before the
-  // unreadable branch or never: a customer tapping a thumbs-up got "sorry, I
-  // can't read that", the receptionist muted itself for 24h, an escalation
-  // opened and the owner was emailed. RUN, order and all, in
-  // inbound/phases/ ("a thumbs-up or a system notice").
+const now = () => String(Math.floor(Date.now() / 1000));
+const shared = {
+  "a location": { type: "location", location: { latitude: 25.7, longitude: -80.2, name: "Harbor Nails" } },
+  "a contact card": {
+    type: "contacts",
+    contacts: [{ name: { formatted_name: "Ana Ruiz" }, phones: [{ phone: "+13055550199" }] }],
+  },
+};
 
-  test("a location or contact card escalates WITHOUT the cannot-read apology", () => {
-    // Both are legible to a person and normalizeInbound already wrote them as
-    // a sentence. Acknowledging them as unreadable tells the customer we did
-    // not receive what they plainly sent.
-    const at = edgeSrc.indexOf('n.kind === "location"');
-    assert.ok(at > -1, "readable non-text kinds must be routed by kind");
-    // Bound the slice to THIS branch. A fixed character window runs on into
-    // the unreadable branch below, which does send the apology — so the
-    // assertion would have been reading the code it exists to rule out.
-    const rest = edgeSrc.slice(at);
-    const branch = rest.slice(0, rest.indexOf("\n  }") + 4);
+test("a location or contact card escalates WITHOUT the cannot-read apology", async () => {
+  // Both are legible to a person and normalizeInbound already wrote them as a sentence. Acknowledging them as unreadable
+  // tells the customer we did not receive what they plainly sent.
+  for (const [name, m] of Object.entries(shared)) {
+    const w = world();
+    await w.run({ from: FROM, id: `wamid.${m.type}`, timestamp: now(), ...m });
     // handToAPerson (core handled.ts) writes the hold, tells the owner and stamps the message, every time.
-    assert.ok(/handToAPerson\(at, \{\s*reason: "non_text"/.test(branch), "a person has to be told");
-    assert.ok(!branch.includes("fallbacks.non_text"), "must not send the unreadable acknowledgement");
-    assert.ok(!branch.includes("sink.pause"), "must not mute the receptionist");
-  });
+    assert.deepEqual(
+      w.seen.escalations.map((e) => e.reason),
+      ["non_text"],
+      `${name}: a person has to be told`,
+    );
+    assert.deepEqual(w.seen.sent, [], `${name}: must not send the unreadable acknowledgement`);
+    assert.deepEqual([w.seen.pauses, w.thread().pausedUntil], [[], 0], `${name}: must not mute the receptionist`);
+  }
+});
 
-  test("a late message is answered or escalated, never dropped in silence", () => {
-    // Meta redelivers for days, so any outage longer than the guard turned its
-    // whole backlog into customers who wrote and were never answered.
-    assert.ok(
-      readCode("packages/core/src/inbound/steps.ts").includes("STALE_REPLY_MS"),
-      "there must be a horizon past which a person answers",
-    );
-    const at = edgeSrc.indexOf('age === "stale"');
-    assert.ok(at > -1);
-    const branch = edgeSrc.slice(at, at + 700);
-    // handToAPerson (core handled.ts) escalates and tells the owner in one step.
-    assert.ok(
-      /handToAPerson\(\s*at,\s*\{\s*reason: "stale"/.test(branch),
-      "escalate and tell, rather than return quietly",
-    );
-    assert.ok(!/wa_skip_stale/.test(edgeSrc), "the silent drop must be gone, not merely bypassed");
-  });
-}
+test("a late message is answered or escalated, never dropped in silence", async () => {
+  // Meta redelivers for days, so any outage longer than the guard turned its whole backlog into customers who wrote and
+  // were never answered. Past the horizon (core inbound/steps.ts STALE_REPLY_MS) a person answers: escalated and told,
+  // rather than returned quietly.
+  const w = world();
+  const hoursAgo = (h) => String(Math.floor((Date.now() - h * 3_600_000) / 1000));
+  await w.run({ ...text("Are you open on Sunday?", "wamid.late"), timestamp: hoursAgo(5) });
+  assert.deepEqual(
+    w.seen.escalations.map((e) => e.reason),
+    ["stale"],
+    "escalate and tell, rather than return quietly",
+  );
+  assert.deepEqual(w.seen.sent, [], "and nothing is said this late in AI's name");
+  assert.equal(w.seen.processed, 1, "the message is handled, never left for a retry to drop");
+});
 
 /* --------------------------- a stop, as a sentence -------------------------- */
 
