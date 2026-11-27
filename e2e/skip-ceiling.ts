@@ -24,17 +24,29 @@ import type { Reporter, TestCase, TestResult, FullResult } from "@playwright/tes
  *
  * Only bites on a run that declares it holds credentials, so a developer's
  * credential-free run is untouched.
+ *
+ * A test is judged once, at the end, by whether it ever ran: only a test that
+ * was skipped in every try is a skip. A serial group skips the rest of its tests
+ * in the try where one of them failed, then runs them all again in the retry,
+ * and Playwright counts those as "did not run", not skipped. Counted try by try,
+ * one flaky test turned the night red as "2 specs skipped for want of data or
+ * credentials" when nothing was missing (#2701's nightly, 27 Nov 2026).
  */
 export const DELIBERATE = /\bset E2E_[A-Z_]+/;
 export const QUARANTINE = /^quarantine: /;
 
 export class SkipCeiling implements Reporter {
+  // Every try's end, by its test: Playwright hands a retry the same test.
+  private tries = new Map<TestCase, TestResult[]>();
   private counted = new Map<string, number>();
   private deliberate = 0;
   private quarantined: string[] = [];
 
   onTestEnd(test: TestCase, result: TestResult): void {
-    if (result.status !== "skipped") return;
+    this.tries.set(test, [...(this.tries.get(test) ?? []), result]);
+  }
+
+  private count(test: TestCase): void {
     const why =
       test.annotations.find((a) => a.type === "skip" || a.type === "fixme")?.description ?? "(no reason given)";
     if (QUARANTINE.test(why)) {
@@ -49,6 +61,7 @@ export class SkipCeiling implements Reporter {
   }
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult["status"] } | undefined> {
+    for (const [test, results] of this.tries) if (results.every((r) => r.status === "skipped")) this.count(test);
     if (this.quarantined.length)
       console.log(`\n${this.quarantined.length} quarantined:\n${this.quarantined.map((q) => `  ${q}`).join("\n")}`);
     if (process.env.REQUIRE_SERVICE_CREDENTIALS !== "1") return undefined;
