@@ -84,7 +84,7 @@ type FoldHold = ReturnType<typeof useRecordFold>;
 
 /**
  * Ask for the sheet from anywhere: a person, what to do (contracts DEAL_SHEET_MODES), the deal a move is about, and a new
- * proposal's service. True when it was asked for. Published under `window.openDealSheet` for the pages that have not moved.
+ * proposal's service. True when it was asked for. Handed to every page by People's courier (people-detail.ts, provided as `sheets`).
  */
 export function openDealSheet({
   personId = null,

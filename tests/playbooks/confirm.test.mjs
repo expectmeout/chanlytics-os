@@ -15,7 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf, classes } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 /* ------------------------------ the harness ------------------------------ */
 
@@ -33,12 +33,11 @@ bridgeHolds({
 installStubReact({
   StatStrip: "StatStrip",
   StatCell: "StatCell",
-  CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
-  gate: () => ({}),
 });
+bridgeHolds({ doors: { navigate: (to) => calls.nav.push(to) } });
 const S = "../../apps/dashboard/src";
 // The one Confirm is the shell's (surfaces/frame), and so are the Team card's menu and state pill: JSX the frame loads.
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { Confirm, MoreMenu } = globalThis;
 // The Broadcasts and Playbooks pages are TSX (decision 0015): their verbs are imported, and their surfaces are the seam's.
 const { BcRunVerbs } = await import(`${S}/surfaces/campaigns/broadcasts/run.tsx`);

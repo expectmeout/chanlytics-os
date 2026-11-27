@@ -24,13 +24,13 @@
  * search past the loaded rows) is the real one over the fake wire below, so a test says what the verb SENT, not what a
  * stand-in was told. The Leads scope, the person page and the ? sheet are still JSX and are loaded beside it.
  */
-import { legacyAddress, historyOf } from "../../shell/address/_address.mjs";
-import { installRoleStore, kitPages, peoplePages, useStubHooks } from "../../_stub-react.mjs";
+import { historyOf } from "../../shell/address/_address.mjs";
+import { installRoleStore, kitPages, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { CONSENT_SOURCES, ROLE_PERMS, mayReceive, offersYesRefusal, stateOf } from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, holdPeopleParts } from "../../shell/_bridge-holds.mjs";
 
 export const TID = "t-salon";
 
@@ -344,8 +344,6 @@ export const opened = [];
 
 export const went = [];
 
-globalThis.Icon = "Icon";
-
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -398,16 +396,12 @@ globalThis.React = {
 // A page that has left the shell is TSX and takes its hooks from the react module, which has none under this runner.
 useStubHooks();
 
-globalThis.ReactDOM = { createPortal: (node) => node };
+drawsInPlace();
 
 // The hooks the TSX imports from the react module (it has none under this runner): the stub's own.
 useStubHooks(globalThis.React);
 
-// The shell's own hook (bridge/surface-status.ts) for the JSX pages this file still loads: these tests draw once, and
-// the redraw is proved in shell/surfaces. PeopleReal, being TSX, reads People through the real useSurface.
-globalThis.useSurface = () => 0;
-
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 Object.assign(globalThis.window, kitPages);
 
@@ -436,8 +430,6 @@ globalThis.MoreMenu = kitPages.MoreMenu;
 
 globalThis.Confirm = kitPages.Confirm;
 
-globalThis.useHotkey = () => {};
-
 // Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops: People draws no peek, and the
 // Leads scope a test here draws over it needs them named.
 globalThis.leadArmOnReturn = () => () => undefined;
@@ -446,24 +438,15 @@ globalThis.leadPeekFocus = () => () => undefined;
 
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, (t) => flashes.push(t)],
   AttnRow: () => null,
-  CHANLY: {
-    nav: (to) => went.push(to),
-    address: await legacyAddress(),
-    R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}` },
-  },
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
-
-// People's parts the shell still reads by name (people-globals.ts: the strip's scopes, the deal and step sheets), on the
-// window and as the bare names a classic script reads. The saved lists' verbs are imported by the pages that press them
-// (lists/actions.ts), and the page itself is TSX, imported here.
-Object.assign(globalThis.window, peoplePages);
-
-Object.assign(globalThis, peoplePages);
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
+// People's parts the frame draws with (the strip's scopes, the deal and step sheets), as People's courier hands them.
+holdPeopleParts();
 
 export const { PeopleReal } = await import("../../../apps/dashboard/src/surfaces/people/page/people-real.tsx");
 
@@ -528,13 +511,8 @@ export const barMenuOf = (tree, words) => {
 export const itemOf = (menu, label) => menu.props.items.find((i) => i.label === label);
 
 // The shell's ? sheet, whose Esc is heard before People's.
-// The shortcuts sheet (surfaces/frame/shortcuts.tsx), under the names the frame draws and calls it by.
+// The shortcuts sheet (surfaces/frame/shortcuts.tsx), as the frame imports it.
 export const shortcutsSheet = await importSrc("apps/dashboard/src/surfaces/frame/shortcuts.tsx");
-
-Object.assign(globalThis.window, {
-  ShortcutsSheet: shortcutsSheet.ShortcutsSheet,
-  openShortcuts: shortcutsSheet.openShortcuts,
-});
 
 /** A tree walked once per node: a drawn component is its children as it was given them and what it rendered, and the two share nodes. */
 export const walk = (n, fn, seen = new Set()) => {

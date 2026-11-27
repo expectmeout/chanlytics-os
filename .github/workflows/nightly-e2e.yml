@@ -203,6 +203,8 @@ jobs:
             echo "SUPABASE_ANON_KEY=$anon"
             echo "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon"
+            # Ask's client on the window, for the specs that ask it what a page would send (bridge/ask.ts): this build only.
+            echo "NEXT_PUBLIC_E2E=1"
           } >> "$GITHUB_ENV"
       - name: Build this commit
         run: pnpm --filter @chanlytics/dashboard build

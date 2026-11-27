@@ -5,8 +5,7 @@
  * channels read, surfaces/channels/surface.ts), Setup's facts, Google -- so its rows cannot disagree with Setup. What it asks for itself (live.ts) is what
  * only an open page wants: the one-time codes sent to the workspace's own line, and what Meta holds about the number when the
  * kept answer is missing or stale. Three
- * groups: Connected, Available, Later. "Later" is a row's state, not a list at the bottom. Settings' page (settings.jsx)
- * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
+ * groups: Connected, Available, Later. "Later" is a row's state, not a list at the bottom. Settings' page imports it.
  */
 import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
 import {

@@ -15,7 +15,7 @@
  * the member's choice in the tab, by `id` (record/remember.ts): a fold a page wants left as it was across the walk from
  * person to person and a phone's tab switches; a fold held open by `forceOpen` is not a choice, and writes nothing.
  *
- * Not Base UI's Collapsible: the record kit's parts ride every page's route (kit-globals.ts), where no Base UI part
+ * Not Base UI's Collapsible: the record kit's parts ride every page's route, where no Base UI part
  * does, and a button and a region are all this needs.
  *
  * `look="group"` is a group of a page's rail (a person's Messages and receptionist, canvas A's "fold with a summary"):

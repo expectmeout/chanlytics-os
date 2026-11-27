@@ -15,7 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { PERSON_ROW, TZ, here, movesWhileRead, msg, peopleWorld, personExportLink } from "./_exports.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 test("GET /export: owners only, the workspace named, one JSON file that parses and carries every section", async () => {
   const { setRateStore, memoryStore } = await import(
@@ -645,15 +645,10 @@ test("Settings offers the door the privacy page promises: one link, owners only,
     { fresh: true },
   );
   globalThis.window = {
-    canDo: (perm) => perm === "export",
-    gate: (perm, doing) =>
-      globalThis.window.canDo(perm)
-        ? {}
-        : { "aria-disabled": true, "data-tip": `Only an owner can ${doing}.`, onClick: (e) => e.preventDefault() },
     addEventListener: () => {},
     removeEventListener: () => {},
   };
-  globalThis.Icon = "Icon";
+  holdRoles({ can: (perm) => perm === "export" });
   // The card is the TSX module's (settings/frame/workspace.tsx), which imports the record kit's row.
   const { WorkspaceData: Card } = await import("../../../apps/dashboard/src/surfaces/settings/frame/workspace.tsx");
   assert.equal(typeof Card, "function", "exported, or nothing below tests anything");
@@ -688,7 +683,7 @@ test("Settings offers the door the privacy page promises: one link, owners only,
   assert.ok(text.includes("a link to each file a customer sent"), "and that a file a customer sent comes as a link");
   assert.equal(/everything/i.test(text), false, "REGRESSION: 'everything', above Delete this workspace");
   // Not an owner: the link stays on the card, gated -- refused where it is, saying why (the one gate).
-  globalThis.window.canDo = () => false;
+  holdRoles({ can: () => false });
   const denied = render(Card({}));
   const gated = denied.find((n) => n.props?.["data-testid"] === "set-export-all");
   assert.equal(gated?.props["aria-disabled"], true, "offered, and refused where it is");

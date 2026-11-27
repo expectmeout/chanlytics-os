@@ -130,14 +130,13 @@ test("marked on the Calendar, the composers are left for the pages that draw the
   // (whereDrawn) would have left the strip on the old count. Its queue draws Sent's runs, which count no visit, and none of the
   // audiences, which are the composer's.
   const win = {
-    // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
-    __afterTheMoveMs: 0,
     location: globalThis.location,
     addEventListener(_t, fn) {
       this.on = fn;
     },
     removeEventListener() {},
   };
+  bridgeHolds({ parts: { afterTheMoveMs: 0 } });
   const read = [];
   const stop = readWhatWasMissed([playbooksOverride, audiencesOverride], (k) => read.push(...k), win);
   try {
@@ -211,14 +210,13 @@ test("off those pages the reads are forgotten, not made: each is read as its pag
 
 test("a Reports read forgotten off its page is kept for it: the overview reads once as Reports comes on screen", () => {
   const win = {
-    // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
-    __afterTheMoveMs: 0,
     location: globalThis.location,
     addEventListener(_t, fn) {
       this.on = fn;
     },
     removeEventListener() {},
   };
+  bridgeHolds({ parts: { afterTheMoveMs: 0 } });
   const read = [];
   setStatus("reports", "live");
   const stop = readWhatWasMissed(
@@ -314,14 +312,13 @@ test("the playbooks and the audiences hear the appointments the live feed tells 
 
 test("an appointment passed over on another page is read once when the playbooks' page comes on screen; People owes nothing", () => {
   const win = {
-    // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
-    __afterTheMoveMs: 0,
     location: globalThis.location,
     addEventListener(_t, fn) {
       this.on = fn;
     },
     removeEventListener() {},
   };
+  bridgeHolds({ parts: { afterTheMoveMs: 0 } });
   const read = [];
   const stop = readWhatWasMissed([peopleOverride, playbooksOverride], (k) => read.push(...k), win);
   try {

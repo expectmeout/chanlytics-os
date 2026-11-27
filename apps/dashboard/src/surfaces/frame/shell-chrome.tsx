@@ -7,7 +7,7 @@
  * frame's kit step.
  */
 import { Component } from "react";
-import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
+import type { ErrorInfo, PointerEvent, ReactNode } from "react";
 import { askDockRef } from "@/bridge/ask/dock";
 import { AskLine } from "@/bridge/ask/line";
 import { AskDisc } from "../kit/face/ask-face";
@@ -17,10 +17,8 @@ import { FailedRead } from "../kit/empty/empty";
 import { reportDoor } from "../kit/empty/report-door";
 import { useHeadUnder } from "../kit/head/standing";
 import { headSlotDrawn } from "../kit/head/frame-head";
-import type { viewDeck } from "../kit/motion/view-deck";
 import { LeaveHost } from "../kit/record/leave-ask";
 import type { SurfaceViews } from "../routes";
-import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
 import { BriefPlaying, LiveCallBar, NextVisitBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
 import { markLeftFrom, PhoneAskFace } from "./phone-ask-face";
 import { PhoneTabs } from "./phone-tabs";
@@ -31,6 +29,9 @@ import { NAV_ROUTE, shellAddress } from "./shell-routes";
 import { Sidebar } from "./sidebar/sidebar";
 import { SurfaceTabs, stripNameOf, stripSwipe, stripViewRef } from "./surface-tabs";
 import { Topbar } from "./topbar/topbar";
+import { Icon } from "../kit/icon/icon";
+import { viewDeck } from "../kit/motion/view-deck";
+import { provided } from "@/bridge/provided";
 
 // ---- Error state --------------------------------------------------------
 class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error | null }> {
@@ -50,11 +51,10 @@ class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error
   }
   override render() {
     if (!this.state.err) return this.props.children;
-    const Glyph = frameGlyph();
     return (
       <div className="soon err">
         <div className="soon-glyph">
-          <Glyph name="alert" size={22} />
+          <Icon name="alert" size={22} />
         </div>
         {/* What broke is the report's (componentDidCatch, above), for Health: a person is never shown an error's own text (docs/words.md). */}
         <div className="soon-title">This page didn&apos;t load</div>
@@ -64,7 +64,7 @@ class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error
             Reload
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => shellAddress().go("today")}>
-            <Glyph name="home" size={12} /> Go to Today
+            <Icon name="home" size={12} /> Go to Today
           </button>
           {reportDoor.open && (
             <Button size="sm" variant="quiet" onClick={() => reportDoor.open?.("this page", "wrong")}>
@@ -79,7 +79,7 @@ class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error
 
 /** A real surface whose read failed: never the mockup's seeds in its place. */
 function SurfaceUnavailable({ onNavigate }: { onNavigate: (to: string) => void }) {
-  const Failed = fromGlobal("FailedRead", FailedRead);
+  const Failed = FailedRead;
   return (
     <Failed
       kind="page"
@@ -115,7 +115,6 @@ export const sharedViewer = ({
   navigate: (to: string) => void;
   sharedPage: ReactNode;
 }) => {
-  const Glyph = frameGlyph();
   return (
     <div className="shared-root" data-theme={theme} data-look={look}>
       <div className="shared-banner">
@@ -128,7 +127,7 @@ export const sharedViewer = ({
           Exit preview
         </button>
         <button className="btn btn-primary btn-sm" onClick={() => navigate("today")}>
-          <Glyph name="sparkle" size={12} /> Get Chanlytics
+          <Icon name="sparkle" size={12} /> Get Chanlytics
         </button>
       </div>
       <div className="shared-body">{sharedPage}</div>
@@ -137,7 +136,7 @@ export const sharedViewer = ({
 };
 
 /** Ask's Line, by the name the frame's JSX drew it by. */
-const askBar = () => fromGlobal("AskBar", AskLine);
+const askBar = () => AskLine;
 
 // The first run: full screen, the frame's chrome set aside, after all hooks as the shared viewer is. Its page is an App
 // Router page (surfaces/setup/first-run/). Ask is the one piece of the chrome it keeps: ⌘K opens the Line over the step.
@@ -204,7 +203,7 @@ function PageSlot({
  * Called twice, once for each place; one draws, the other draws nothing. The slot says whose views it holds (`data-strip`).
  */
 const glassHead = ({ glass, pane, where, page, param, views, navigate, primaryAction }: HeadAt) => {
-  const Strip = fromGlobal("SurfaceTabs", SurfaceTabs);
+  const Strip = SurfaceTabs;
   if (!glass) return where === "over" ? <Strip page={page} param={param} views={views} onNavigate={navigate} /> : null;
   if ((where === "over") !== pane) return null;
   return (
@@ -264,7 +263,7 @@ interface ChromeAt {
 
 /** On a phone the sidebar is a drawer; open, it is a dialog, so a page's keys hold still behind it. Not aria-modal. */
 const sideWrap = (s: ChromeAt) => {
-  const Side = fromGlobal("Sidebar", Sidebar);
+  const Side = Sidebar;
   return (
     <div
       className={`side-wrap ${s.navOpen ? "open" : ""} ${s.sidebar === "rail" ? "rail" : ""}`}
@@ -300,9 +299,9 @@ const sideWrap = (s: ChromeAt) => {
  * it under the page with the list it goes back to (kit/motion/held-list.ts).
  */
 const frameTop = (s: ChromeAt, glass: boolean) => {
-  const Bar = fromGlobal("Topbar", Topbar);
-  const Live = fromGlobal("LiveCallBar", LiveCallBar);
-  const Status = fromGlobal("ShellStatusBar", ShellStatusBar);
+  const Bar = Topbar;
+  const Live = LiveCallBar;
+  const Status = ShellStatusBar;
   return (
     <div className="frame-top" data-chrome="" inert={askDocked(s) || undefined}>
       {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
@@ -339,12 +338,10 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
   );
 };
 
-type DeckView = (typeof viewDeck)["view"];
-
 /** The view is the deck's to move: it registers as it mounts and says which side it arrives from; a phone swipes it. */
 const routeMain = (s: ChromeAt, glass: boolean) => {
-  const deck = fromWindow<{ view: DeckView } | null>("viewDeck", null);
-  const swipe = fromWindow("stripSwipe", stripSwipe);
+  const deck = viewDeck;
+  const swipe = stripSwipe;
   return (
     <main
       id="main"
@@ -434,7 +431,6 @@ const phoneAsk = (s: ChromeAt) => {
   // Inside the native app AI keeps a screen of its own over the circle, which goes while it is open, as ever.
   if (s.askOpen && inApp()) return false;
   const docked = askDocked(s);
-  const Glyph = frameGlyph();
   // The circle is one element, open or closed: closed, the three on it are the press that opens AI; open on a phone,
   // the three have left for AI's home and the circle holds AI's one press, drawn into it by the Line (D8, D9).
   return (
@@ -442,7 +438,7 @@ const phoneAsk = (s: ChromeAt) => {
       <AskDisc testId="phone-ask-disc" />
       {/* The mic, as AI closes: it stays a moment and fades as the three come home, so the circle is never empty (D9). */}
       <span className="phone-ask-mic" aria-hidden="true">
-        <Glyph name="mic" size={15} />
+        <Icon name="mic" size={15} />
       </span>
       {/* Kept drawn while AI holds the circle (ask.css hides it), so the three are whole the moment they come home. */}
       <button
@@ -477,16 +473,16 @@ const askLine = (s: ChromeAt) => {
   return <Bar open={s.askOpen} onClose={() => closeAsk(s)} />;
 };
 
-/** The one deal sheet (0008), opened from anywhere by window.openDealSheet, and the one step sheet (0007, amended). */
-const sheetHost = (name: "DealSheetHost" | "StepSheetHost") => {
-  const Host = fromWindow<ComponentType | null>(name, null);
+/** The one deal sheet (0008) and the one step sheet (0007, amended): People's, which its courier hands the frame. */
+const sheetHost = (name: "DealHost" | "StepHost") => {
+  const Host = provided("sheets")?.[name];
   return Host ? <Host /> : null;
 };
 
 /** The app's chrome around the route view. */
 export const appChrome = (s: ChromeAt) => {
   const glass = s.look === "glass";
-  const Sheet = fromGlobal("ShortcutsSheet", ShortcutsSheet);
+  const Sheet = ShortcutsSheet;
   return (
     <div className="app-root" data-theme={s.theme} data-look={s.look}>
       {/* The first stop for Tab: a way past the sidebar and the bars to the page (drawn only while it has focus). */}
@@ -516,8 +512,8 @@ export const appChrome = (s: ChromeAt) => {
       <Sheet />
       {/* Report a problem (decision 0066): the sheet any failed card, the error screen and Profile open. */}
       <ReportHost />
-      {sheetHost("DealSheetHost")}
-      {sheetHost("StepSheetHost")}
+      {sheetHost("DealHost")}
+      {sheetHost("StepHost")}
     </div>
   );
 };

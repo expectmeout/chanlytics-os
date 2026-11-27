@@ -1,7 +1,6 @@
 /**
  * Settings › Activity: what happened in the workspace, and who did it (moved from legacy/pages/activity.jsx, decision
- * 0015 step 11). Settings' page draws it by its old name, `PaneActivity`, which seed-globals publishes
- * (settings/globals.ts).
+ * 0015 step 11). Settings' page imports it.
  *
  * Both ledgers -- the decisions people (and the receptionist, and the system) made, and the events that happened --
  * have existed since the first slice and were readable by an owner only inside one person's timeline. This is the page:

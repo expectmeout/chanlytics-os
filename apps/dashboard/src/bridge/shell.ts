@@ -33,7 +33,7 @@ import { addressApi, type GoOptions } from "./workspace";
 import { refreshAllSurfaces } from "./surface-runner";
 import type { Connection, SurfaceStatus } from "./surface-status";
 import { crumbsShown } from "@/surfaces/kit/head/standing";
-import { provide } from "./provided";
+import { provide, provided } from "./provided";
 
 declare module "./provided" {
   interface BridgeParts {
@@ -97,13 +97,6 @@ export interface ChromeWords {
   crumbsShown: typeof crumbsShown;
 }
 
-declare global {
-  interface Window {
-    /** Inside the native app (app-bridge.ts): the phone this page registered, forgotten before a sign-out. */
-    __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
-  }
-}
-
 /** The shell's verbs and the chrome's words, provided for the frame and the pages (provided.ts). */
 export function installShell(win: Window = window): void {
   provide("shell", {
@@ -130,7 +123,7 @@ export function installShell(win: Window = window): void {
       // (app-bridge.ts forgetPhone: two seconds at most, then the sign-out
       // goes on). The shell used to intercept the sign-out to ask for this,
       // and replayed it as a GET the route does not answer.
-      const forget = win.__appBridge?.forgetPhone() ?? Promise.resolve();
+      const forget = provided("phoneDoor")?.forgetPhone() ?? Promise.resolve();
       void forget.finally(() => {
         // A real form post: the server clears the session and redirects, and
         // the browser follows it the way a link would.

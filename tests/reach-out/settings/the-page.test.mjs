@@ -26,6 +26,7 @@ import {
   settingsRowRoute,
 } from "../../../apps/dashboard/src/surfaces/settings/frame/tabs.ts";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 after(() => unmount());
 
@@ -608,15 +609,15 @@ test("someone who can only read is told so, and offered no press", async () => {
           })
         : new Response(JSON.stringify({ ok: false }), { status: 500 }),
     );
-  const may = globalThis.window.canDo;
-  globalThis.window.canDo = () => false;
+  const may = provided("roles");
+  holdRoles({ can: () => false });
   try {
     const viewer = drawTab({ part: "outreach", config: {} });
     assert.equal(byTestId(viewer, "rec-standing-act"), null);
     assert.equal(byTestId(viewer, "rec-row-act-offer"), null, "and no row opens");
     assert.equal(textOf(byTestId(viewer, "rec-viewer-note")), "Only an owner can change these, or connect a mailbox.");
   } finally {
-    globalThis.window.canDo = may;
+    bridgeHolds({ parts: { roles: may } });
   }
   unmount();
 });
@@ -661,12 +662,9 @@ test("each press says who may do it: an operator approves a batch, and the press
       },
     ],
   };
-  const may = globalThis.window.canDo;
-  const gated = globalThis.window.gate;
-  globalThis.window.canDo = (action) => action === "approve";
-  // The shell's gate (frame/gate.ts) over the same role: a press it refuses stays, and says who can.
-  globalThis.window.gate = (action) =>
-    globalThis.window.canDo(action) ? {} : { "aria-disabled": true, "aria-description": "Only an owner can do this." };
+  const may = provided("roles");
+  // The shell's gate (frame/gate.ts) over this role: a press it refuses stays, and says who can.
+  holdRoles({ can: (action) => action === "approve" });
   try {
     let tree = await drawOnRead({}, { standing: waiting }, head(/ready for your approval/));
     assert.equal(textOf(byTestId(tree, "rec-standing-act")), "Read and approve", "an OK is theirs to give");
@@ -683,8 +681,7 @@ test("each press says who may do it: an operator approves a batch, and the press
       "the lead finder is the owner's and the partner's",
     );
   } finally {
-    globalThis.window.canDo = may;
-    globalThis.window.gate = gated;
+    bridgeHolds({ parts: { roles: may } });
   }
   unmount();
 });
@@ -850,19 +847,19 @@ test("the rail lists it as Cold email, in a group of its own after Autonomy, and
 
 test("Try it is the role's to press as the preview door is: a viewer's press is refused, and nothing opens", () => {
   // The door that writes the trial takes an operator and spends Ask's day (route-policy.json reach-outs/preview); the
-  // stand-in refuses what a viewer may not approve, as the frame's gate does, its handler spread over the act's.
-  const before = globalThis.window.gate;
-  globalThis.window.gate = (action, doing) =>
-    action === "approve" ? { "aria-disabled": true, "data-refused": doing, onClick: () => {} } : {};
+  // role held is a viewer's, refused what a viewer may not approve: the frame's gate spreads its refusal over the act's.
+  const before = provided("roles");
+  holdRoles({ can: (action) => action !== "approve" });
   try {
     let tree = page();
     const act = byTestId(tree, "rec-row-act-try_lead");
-    assert.equal(act.props["data-refused"], "write a trial email");
+    assert.equal(act.props["aria-disabled"], true);
+    assert.equal(act.props["aria-description"], "Only an owner or operator can write a trial email.");
     press(act);
     tree = redrawTab();
     assert.equal(byTestId(tree, "rec-try-none"), null, "the sheet stays shut");
   } finally {
-    globalThis.window.gate = before;
+    bridgeHolds({ parts: { roles: before } });
   }
 });
 

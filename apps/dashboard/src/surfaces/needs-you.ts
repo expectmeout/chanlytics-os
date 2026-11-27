@@ -214,7 +214,7 @@ export function needsYouMoved(): void {
 
 /**
  * The count, as a hook: drawn again when the number changes, and by nothing else. The shell's pages that have not moved read
- * it by name (`window.useNeedsYou`, published from seed-globals); a surface imports it.
+ * it, and a surface, by import.
  */
 export function useNeedsYou(): number | null {
   return useSyncExternalStore(hearNeedsYou, needsYouNow, needsYouNow);

@@ -20,7 +20,6 @@ import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stu
 import {
   POLICIES,
   SETUP,
-  W,
   drawTab,
   landPolicies,
   landTemplates,
@@ -31,7 +30,7 @@ import {
   redrawTab,
   went,
 } from "../../_business-tab-harness.mjs";
-import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 after(() => unmount());
@@ -391,9 +390,9 @@ test("the card is drawn on every render, after How it answers and before the ser
 });
 
 test("a viewer reads the whole card and is offered no door", () => {
-  const was = W.canDo;
+  const was = provided("roles");
   try {
-    W.canDo = () => false;
+    holdRoles({ can: () => false });
     const card = canCard(drawTab({ profile: { ...marisa, handoff_number: undefined } }));
     const transfer = byTestId(card, "rec-can-transfer");
     assert.match(textOf(transfer), /takes a message/i, "the sentence is theirs to read");
@@ -403,7 +402,7 @@ test("a viewer reads the whole card and is offered no door", () => {
       "and the row behind the door would not open for them",
     );
   } finally {
-    W.canDo = was;
+    bridgeHolds({ parts: { roles: was } });
   }
 });
 

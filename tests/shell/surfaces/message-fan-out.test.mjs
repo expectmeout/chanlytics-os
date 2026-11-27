@@ -18,15 +18,13 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { changesOf, toldFor } from "../../_live-feed.mjs";
-import { historyOf, legacyAddress } from "../address/_address.mjs";
+import { historyOf } from "../address/_address.mjs";
 import { registeredSurfaces } from "../hearing/_reads.mjs";
 import { bridgeHolds } from "../_bridge-holds.mjs";
 
 const heard = new Map();
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
-  // A move's owed reads are made once its motion is over (bridge/hearing/after-the-move.ts): no motion here.
-  __afterTheMoveMs: 0,
   location: { pathname: "/w/acme", search: "", hash: "#/today", assign() {}, replace() {}, reload() {} },
   addEventListener(type, fn) {
     if (!heard.has(type)) heard.set(type, new Set());
@@ -40,6 +38,7 @@ const win = {
     return true;
   },
 };
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 globalThis.window = win;
 historyOf(win);
 // On screen: a hidden page reads, of what the feed tells, only what says itself in the tab's title and badge, and holds the
@@ -59,7 +58,6 @@ const settle = async (n = 10) => {
 
 // The address the bridge gives the pages, and the pages' way to it: a route moves with popstate, as Back does.
 bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
-win.CHANLY = { nav() {}, address: await legacyAddress() };
 const runner = await importSrc("apps/dashboard/src/bridge/surface-runner.ts");
 const status = await importSrc("apps/dashboard/src/bridge/surface-status.ts");
 const { wantsRefresh } = await importSrc("apps/dashboard/src/bridge/surface-realtime.ts");
@@ -936,7 +934,6 @@ test("the page that owns what it draws is an explicit one: the surface registry 
 let cells = {};
 let redraws = 0;
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   Component: class {},
@@ -979,31 +976,25 @@ globalThis.React = {
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
     cells[k] = { deps, cleanup: fn() };
   },
+  // As React's: a store's notice redraws only when what it says has changed (the needs-you count the frame reads
+  // beside the route's own surfaces is the same number after most reads).
   useSyncExternalStore: (subscribe, snapshot) => {
     const k = frames.key();
     const prev = cells[k];
     if (prev && typeof prev.cleanup === "function") prev.cleanup();
-    cells[k] = {
-      cleanup: subscribe(() => {
-        redraws += 1;
-      }),
-    };
-    return snapshot();
+    const cell = { said: snapshot() };
+    cell.cleanup = subscribe(() => {
+      const now = snapshot();
+      if (Object.is(now, cell.said)) return;
+      cell.said = now;
+      redraws += 1;
+    });
+    cells[k] = cell;
+    return cell.said;
   },
 };
-globalThis.useSurface = status.surfaceHook(globalThis.React, registry.routeSurfaces);
-for (const name of ["Sidebar", "Topbar", "LiveCallBar", "ShellStatusBar", "SurfaceTabs", "AskBar", "ShortcutsSheet"])
-  globalThis[name] = name;
 registry.installRouteGate();
 registry.installSurfaceRegistry();
-win.drawRoute = (r) => ({
-  activeNav: r.page,
-  crumbs: [r.page],
-  pane: false,
-  primaryAction: null,
-  content: null,
-  mountKey: r.routeKey,
-});
 // The frame (surfaces/frame/app-shell.tsx), under the name these tests draw it by; TypeScript, so its hooks are this
 // file's stub's (the "react" module's, set from it).
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
@@ -1181,7 +1172,8 @@ test("every surface a page names to useSurface is a real one: a key that is no o
   const ts = (await import("typescript")).default;
   const real = new Set(REAL.map((o) => o.key));
   const named = [];
-  // The frame's parts, which left the shell's pages for TypeScript and call the shell's hook by name (surfaces/frame).
+  // The frame's parts, which left the shell's pages for TypeScript and call the frame's own hook by name (surfaces/frame,
+  // shell-hooks.ts useFrameSurfaces).
   for (const file of repoFiles(["apps/dashboard/src/surfaces/frame"], {
     keep: /\.(jsx|tsx)$/,
   })) {
@@ -1190,7 +1182,7 @@ test("every surface a page names to useSurface is a real one: a key that is no o
       if (
         ts.isCallExpression(n) &&
         ts.isIdentifier(n.expression) &&
-        n.expression.text === "useSurface" &&
+        (n.expression.text === "useSurface" || n.expression.text === "useFrameSurfaces") &&
         n.arguments[0]
       ) {
         const arg = n.arguments[0];

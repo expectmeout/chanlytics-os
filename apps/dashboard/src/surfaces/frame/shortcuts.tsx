@@ -2,12 +2,13 @@
  * The shortcuts sheet (moved from legacy/components/shortcuts.jsx, the one-system plan's step 7b): every key the app
  * answers to, listed from one table (contracts' SHORTCUTS through `__chrome`). It opens on "?" outside a field and from
  * the account menu's Keyboard shortcuts row on a desk, which calls `openShortcuts()` (a phone needs no keys, and the row
- * is not drawn there); Escape and the backdrop close it. The frame's JSX draws it by its old name (`ShortcutsSheet`,
- * published by frame-globals.ts with `openShortcuts`) until the frame itself is TypeScript (step 7e).
+ * is not drawn there); Escape and the backdrop close it. The frame imports it, and the account menu `openShortcuts`.
  */
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRootFlag } from "../kit/motion/root-flags";
-import { frameChrome, frameGlyph } from "./frame-window";
+import { frameChrome } from "./frame-window";
+import { Icon } from "../kit/icon/icon";
+import { dialogRef } from "../kit/focus/trap";
 
 // The sheet's own opener, handed here while the sheet is drawn: openShortcuts() asks it. A door is a call to the sheet
 // that answers it, never an event on the window (shortcuts:open had a listener and no sender, and nothing said so).
@@ -22,7 +23,6 @@ export const openShortcuts = (): void => {
 const sepOf = (keys: readonly string[], k: string) => (keys.length === 2 && /^⌘[19]$/.test(k) ? "to" : "");
 
 export function ShortcutsSheet() {
-  const Glyph = frameGlyph();
   const [open, setOpen] = useState(false);
   // Whether the sheet is up, for the one listener below.
   const shown = useRef(false);
@@ -64,13 +64,13 @@ export function ShortcutsSheet() {
         role="dialog"
         aria-modal="true"
         aria-label="Keyboard shortcuts"
-        ref={window.dialogRef ? window.dialogRef("shortcuts") : undefined}
+        ref={dialogRef("shortcuts")}
         data-testid="shortcuts-sheet"
       >
         <div className="sb-sheet-head">
           <span className="sb-sheet-title">Keyboard shortcuts</span>
           <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setOpen(false)} aria-label="Close">
-            <Glyph name="x" size={14} />
+            <Icon name="x" size={14} />
           </button>
         </div>
         {groups.map((g) => (

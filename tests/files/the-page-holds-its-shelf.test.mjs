@@ -6,7 +6,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
-import { historyOf, legacyAddress } from "../shell/address/_address.mjs";
+import { historyOf } from "../shell/address/_address.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 const listening = new Map();
@@ -16,7 +16,6 @@ let answerTo = () => ({});
 
 bridgeHolds({ who: { activeWorkspaceId: "ws-1" } });
 const win = {
-  __afterTheMoveMs: 0,
   location: {
     pathname: "/w/acme/admin/files",
     search: "",
@@ -48,6 +47,7 @@ const win = {
     });
   },
 };
+bridgeHolds({ parts: { afterTheMoveMs: 0 } });
 globalThis.window = win;
 historyOf(win);
 globalThis.document = { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} };
@@ -58,7 +58,6 @@ globalThis.CustomEvent ??= class CustomEvent {
   }
 };
 bridgeHolds({ parts: { shell: (await importSrc("apps/dashboard/src/bridge/workspace.ts")).addressApi(win) } });
-win.CHANLY = { nav() {}, address: await legacyAddress() };
 const { filesOverride, showFiles, showMoreFiles } = await importSrc("apps/dashboard/src/surfaces/files/surface.ts");
 /** A shelf pressed: all of its kinds, and no words found by. */
 const showShelf = (shelf) => showFiles({ shelf, kind: null, about: null });

@@ -10,23 +10,23 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
-import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
 const role = { real: "owner" };
 bridgeHolds({ parts: { clock: { zone: () => "America/New_York" } } });
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  ST_STORE: {
-    myRole: () => role.real,
-    can: (a) => !!(contracts.ROLE_PERMS[role.real] || {})[a],
-    get: (k, fallback) => fallback,
+bridgeHolds({
+  parts: {
+    roles: {
+      myRole: () => role.real,
+      can: (a) => !!(contracts.ROLE_PERMS[role.real] || {})[a],
+      get: (k, fallback) => fallback,
+    },
   },
 });
-const SRC = "../../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { ReplyStrip, ReplyChip, useReplyDraftDoor } =
   await import("../../../apps/dashboard/src/surfaces/inbox/thread/reply-strip.tsx");
 const bridge = await import("../../../apps/dashboard/src/bridge/reach-out/replies.ts");

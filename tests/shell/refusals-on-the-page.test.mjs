@@ -14,16 +14,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refusalOf, stateOf, toTodayVM } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
-import { kitPages, installStubReact, useStubHooks, fresh as freshTree, again as againTree } from "../_stub-react.mjs";
+import { again as againTree, fresh as freshTree, installStubReact, kitPages, useStubHooks } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds, surfaceValue } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, surfaceValue } from "./_bridge-holds.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -79,16 +78,13 @@ globalThis.React = {
   // A store outside React, read as it stands (this test draws once): all Today's queue asks of it.
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
-globalThis.useSurface = () => 0; // the bridge's hook: this test draws once
+drawsInPlace(); // the bridge's hook: this test draws once
 globalThis.document = {
   body: {},
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
-  gate: () => ({}),
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {},
@@ -96,11 +92,9 @@ globalThis.window = {
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
-  canDo: () => true,
-  appNavigate() {},
 };
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
@@ -108,7 +102,6 @@ for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError
   globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
-globalThis.useHotkey = () => {};
 // Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops that return their own cleanup.
 globalThis.leadArmOnReturn = () => () => undefined;
 globalThis.leadPeekFocus = () => () => undefined;
@@ -174,8 +167,8 @@ test("FieldError: one sentence under the box it belongs to, announced, with the 
   assert.equal(FieldError({ message: "" }), null);
 });
 
-test("a refusal as a toast: the danger tone, the page's words for what did not happen, then why", () => {
-  const toast = globalThis.window.refusalToast;
+test("a refusal as a toast: the danger tone, the page's words for what did not happen, then why", async () => {
+  const toast = (await importSrc("apps/dashboard/src/surfaces/frame/refusal.tsx")).refusalToast;
   assert.equal(typeof toast, "function", "one shape for a refusal's toast");
   const owner = refused("Only an owner can do this.", "forbidden", 403, { needs: "owner" });
   const said = toast(owner, "Not stopped");
@@ -412,7 +405,6 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
     },
   });
   Object.assign(globalThis.window, {
-    usePPToast: () => [null, (p) => flashes.push(p)],
     // The server refuses every change: the client names the refusal, as it does in the browser.
     fetch: async (url, init = {}) => {
       wire.push(`${init.method ?? "GET"} ${new URL(String(url), "https://app.chanlytics.com").pathname}`);
@@ -429,6 +421,7 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
       );
     },
   });
+  bridgeHolds({ parts: { toast: () => [null, (p) => flashes.push(p)] } });
   setSurfaceValue(
     "today",
     toTodayVM(
@@ -718,11 +711,8 @@ test("REGRESSION: a template the route refuses says why under the form as a fiel
   bridgeHolds({ who: { me: { role: "owner" } }, parts: { surfaceState: () => "live" } });
   installStubReact({
     ...doors,
-    usePPToast: () => [null, () => {}],
-    CHANLY: { nav() {}, R: {} },
-    appNavigate() {},
-    useHotkey: () => {},
   });
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   Object.assign(globalThis.window, kitPages);
   const SRC = "../../apps/dashboard/src";
   const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);

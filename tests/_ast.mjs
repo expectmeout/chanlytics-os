@@ -277,11 +277,25 @@ function scopeOf(decl) {
   return ts.isVariableStatement(list.parent) ? list.parent.parent : list.parent;
 }
 
+/** Whether a parameter's type says it is a window: `Window`, a type named for one (`PolicyWindow`), or one joined with it. */
+function windowTyped(t) {
+  if (!t) return false;
+  if (ts.isTypeReferenceNode(t)) {
+    const name = ts.isIdentifier(t.typeName) ? t.typeName.text : t.typeName.right.text;
+    return /Window$/.test(name);
+  }
+  if (ts.isIntersectionTypeNode(t) || ts.isUnionTypeNode(t)) return t.types.some(windowTyped);
+  if (ts.isTypeQueryNode(t)) return ts.isIdentifier(t.exprName) && t.exprName.text === "window";
+  return false;
+}
+
 /**
  * A test for "this expression is the window" in one file: `window` or `globalThis`
- * under any cast, or a name bound to one (`const w = window as unknown as {…}`).
- * A name is resolved to its nearest declaration, so a `w` that is a parameter or
- * some other value in another function is not the window because one `w` is.
+ * under any cast, or a name bound to one (`const w = window as unknown as {…}`), a
+ * parameter included where it defaults to the window or its type says it is one
+ * (`win: Window = window`, `win: PolicyWindow`): a write through it is a write to the
+ * window, whoever handed it in. A name is resolved to its nearest declaration, so a
+ * `w` that is some other value in another function is not the window because one `w` is.
  */
 function windowTest(sf) {
   const declared = new Map(); // scope node → Map(name → initializer or null)
@@ -295,7 +309,8 @@ function windowTest(sf) {
   };
   const collect = (n) => {
     if (ts.isVariableDeclaration(n)) bind(n.name, scopeOf(n), n.initializer);
-    else if (ts.isParameter(n)) bind(n.name, n.parent, null);
+    else if (ts.isParameter(n))
+      bind(n.name, n.parent, n.initializer ?? (windowTyped(n.type) ? ts.factory.createIdentifier("window") : null));
     ts.forEachChild(n, collect);
   };
   collect(sf);

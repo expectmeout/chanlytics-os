@@ -339,11 +339,8 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
       activeWorkspaceId: "t-marisa",
     },
   });
-  installStubReact({
-    usePPToast: () => [null, () => {}],
-    canDo: () => true,
-    gate: () => ({}),
-  });
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const SRC = "../../apps/dashboard/src";
   // Get their yes is People's sheet (the Campaigns wiring review's lane 7), drawn from Sent's read.
   const { GetYesSheet } = await import(`${SRC}/surfaces/people/sheets/get-yes-sheet.tsx`);

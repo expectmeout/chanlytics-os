@@ -2,7 +2,7 @@
 // over what its page already holds, the rows in the page's order, forty at most, kind and id only; the row the words
 // name by its place or its name; and the surfaces as the palette places them. Ask reads two things only (OW6): the typed
 // store, which a surface publishes its value to, and the on-screen ledger a page that holds its rows in state says it
-// drew (bridge/ask/on-screen.ts, here a fixture window's `__askOnScreen`).
+// drew (bridge/ask/on-screen.ts, here a fixture's `onScreen`, said to the ledger as a page says it).
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { PageContextSchema } from "@chanlytics/contracts";
@@ -10,7 +10,7 @@ import { PageContextSchema } from "@chanlytics/contracts";
 const { pageContext, focusFromWords } = await import("../../apps/dashboard/src/bridge/ask/context.ts");
 const { askPalette, surfaceFor } = await import("../../apps/dashboard/src/bridge/ask/palette.ts");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
-const { askOnScreenOf, askOnScreenKey, setAskOnScreen } =
+const { askOnScreen, askOnScreenKey, setAskOnScreen } =
   await import("../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 /** The typed store as a page publishes it, held for one test and put back after it. */
@@ -31,6 +31,8 @@ const route = (hash) => {
 };
 /** A context for a page, over `globals`, asked in `thread`; checked against the one schema the route reads it with. */
 const ctx = (globals, hash, words, thread) => {
+  // What the page said it drew, as a page says it (on-screen.ts setAskOnScreen): the fixture's, or nothing.
+  setAskOnScreen(globals.onScreen ?? null);
   const c = pageContext(globals, route(hash), words, thread);
   const read = PageContextSchema.safeParse(c);
   assert.ok(read.success, `a context the route takes: ${JSON.stringify(read.error?.issues ?? [])}`);
@@ -81,27 +83,24 @@ test("Today: its queue in order -- a person's row as their thread, a call as the
 
 test("the Inbox, People, the Pipeline and the Calendar: what the page said it drew, believed only for the page asked about", () => {
   const shown = { key: "inbox", ids: [U(1), U(2)], labels: ["Rosa", "Ana"], view: "needs" };
-  const inbox = ctx({ __askOnScreen: shown }, `inbox/th-${U(2)}`);
+  const inbox = ctx({ onScreen: shown }, `inbox/th-${U(2)}`);
   assert.deepEqual(inbox.rows, [
     { kind: "thread", id: U(1) },
     { kind: "thread", id: U(2) },
   ]);
   assert.equal(inbox.view, "needs");
   assert.deepEqual(inbox.focus, { kind: "thread", id: U(2), label: "this conversation" }, "the row the route opens");
-  assert.deepEqual(ctx({ __askOnScreen: shown }, "clients").rows, [], "the Inbox's rows are not People's");
-  const people = ctx({ __askOnScreen: { key: "people", ids: [U(3)], labels: ["Luis"], view: "seg:vip" } }, "clients");
+  assert.deepEqual(ctx({ onScreen: shown }, "clients").rows, [], "the Inbox's rows are not People's");
+  const people = ctx({ onScreen: { key: "people", ids: [U(3)], labels: ["Luis"], view: "seg:vip" } }, "clients");
   assert.deepEqual([people.rows, people.view], [[{ kind: "person", id: U(3) }], "seg:vip"]);
   // Where deals are off the Pipeline's address draws People, which says what it drew.
-  assert.deepEqual(ctx({ __askOnScreen: { key: "people", ids: [U(3)] } }, "clients/pipeline").rows, [
+  assert.deepEqual(ctx({ onScreen: { key: "people", ids: [U(3)] } }, "clients/pipeline").rows, [
     { kind: "person", id: U(3) },
   ]);
-  const pipe = ctx(
-    { __askOnScreen: { key: "pipeline", ids: [U(4)], view: "open" } },
-    `clients/pipeline:v-open:p-${U(4)}`,
-  );
+  const pipe = ctx({ onScreen: { key: "pipeline", ids: [U(4)], view: "open" } }, `clients/pipeline:v-open:p-${U(4)}`);
   assert.deepEqual([pipe.surface, pipe.rows, pipe.view], ["pipeline", [{ kind: "person", id: U(4) }], "open"]);
   assert.deepEqual(pipe.focus, { kind: "person", id: U(4), label: "this person" }, "the peek's person");
-  const cal = ctx({ __askOnScreen: { key: "calendar", ids: [U(5)], view: "2026-09-21/7" } }, "calendar");
+  const cal = ctx({ onScreen: { key: "calendar", ids: [U(5)], view: "2026-09-21/7" } }, "calendar");
   assert.deepEqual([cal.rows, cal.view], [[{ kind: "person", id: U(5) }], "2026-09-21/7"]);
   assert.deepEqual(ctx({}, "calendar").rows, [], "a page not drawn yet: no rows");
 });
@@ -248,7 +247,7 @@ test("Campaigns is Sequences (decision 0060): its rows are the list's in its ord
 
 test("Ads: the page says what it shows, in a word and no row; it is never asked about as Sequences, and an address Sequences draws is", () => {
   holding("sequences", { sequences: [{ id: U(1), name: "Win back", starts: "moment" }] });
-  const onAds = (view) => ({ __askOnScreen: { key: "ads", ids: [], view } });
+  const onAds = (view) => ({ onScreen: { key: "ads", ids: [], view } });
   const today = ctx(onAds("ads"), "campaigns/ads");
   assert.deepEqual(
     [today.surface, today.view, today.rows],
@@ -283,7 +282,7 @@ test("a link kept from the home to a reach-out names the page at its address, fo
 
 test("forty rows at most, kind and id only -- a row's name never leaves the tab -- and a global in a shape no provider knows gives none rather than a throw", () => {
   const ids = Array.from({ length: 55 }, (_, i) => U(i + 1));
-  const c = ctx({ __askOnScreen: { key: "people", ids, labels: ids.map((_, i) => `P${i}`) } }, "clients");
+  const c = ctx({ onScreen: { key: "people", ids, labels: ids.map((_, i) => `P${i}`) } }, "clients");
   assert.equal(c.rows.length, 40);
   assert.deepEqual(c.rows[0], { kind: "person", id: U(1) });
   assert.ok(!JSON.stringify(c).includes("P0"), "labels stay in the tab");
@@ -297,10 +296,11 @@ test("forty rows at most, kind and id only -- a row's name never leaves the tab 
     },
   });
   assert.deepEqual(ctx({}, "today").rows, [], "a provider that throws gives no rows");
-  // The ledger is believed only in a shape it has: a window that holds none of its own, or a record with no key, is none.
-  assert.equal(askOnScreenOf({}), null);
-  assert.equal(askOnScreenOf({ __askOnScreen: { ids: ["a"] } }), null);
-  assert.deepEqual(ctx({ __askOnScreen: "people" }, "clients").rows, []);
+  // Nothing said is none, and a ledger with no key of a page names no rows.
+  setAskOnScreen(null);
+  assert.equal(askOnScreen(), null);
+  assert.deepEqual(ctx({ onScreen: { ids: ["a"] } }, "clients").rows, []);
+  assert.deepEqual(ctx({ onScreen: "people" }, "clients").rows, []);
 });
 
 test("Ask is told what is on screen one way (OW6): a window name no page of the shell publishes under is not read by a provider, and the ledger has one writer and one reader", () => {
@@ -325,25 +325,20 @@ test("Ask is told what is on screen one way (OW6): a window name no page of the 
     "messages",
   ])
     assert.deepEqual(ctx(old, hash).rows, [], `${hash}: only the typed store is read`);
-  // The ledger: one function writes the window's name, the key it holds is read back, and taking it back empties it.
-  const was = globalThis.window;
-  const win = {};
-  globalThis.window = win;
-  try {
-    setAskOnScreen({ key: "calendar", ids: [U(5)], labels: ["Ana"], view: "2026-09-21/7" });
-    assert.equal(askOnScreenKey(), "calendar");
-    assert.deepEqual(win.__askOnScreen.ids, [U(5)]);
-    assert.deepEqual(
-      ctx(win, "calendar").rows,
-      [{ kind: "person", id: U(5) }],
-      "the provider reads what the writer wrote",
-    );
-    setAskOnScreen(null);
-    assert.equal(askOnScreenKey(), null);
-    assert.deepEqual(ctx(win, "calendar").rows, []);
-  } finally {
-    globalThis.window = was;
-  }
+  // The ledger: one function writes it, the key it holds is read back, and taking it back empties it. Nothing of it is
+  // on the window (decision 0151): the module holds it.
+  setAskOnScreen({ key: "calendar", ids: [U(5)], labels: ["Ana"], view: "2026-09-21/7" });
+  assert.equal(askOnScreenKey(), "calendar");
+  assert.deepEqual(askOnScreen()?.ids, [U(5)]);
+  assert.equal(globalThis.window?.__askOnScreen, undefined, "nothing on the window");
+  assert.deepEqual(
+    pageContext({}, route("calendar")).rows,
+    [{ kind: "person", id: U(5) }],
+    "the provider reads what the writer wrote",
+  );
+  setAskOnScreen(null);
+  assert.equal(askOnScreenKey(), null);
+  assert.deepEqual(pageContext({}, route("calendar")).rows, []);
 });
 
 test("the row the words name: by its place, in English or Spanish, or by its name, whole; a place in time is not a row; the words win over the route", () => {
@@ -389,7 +384,7 @@ test("the row the words name: by its place, in English or Spanish, or by its nam
     "a name under three letters never",
   );
   // Through the page, asked in no thread: the words name a row, over the route's own.
-  const g = { __askOnScreen: { key: "inbox", ids: [U(1), U(2)], labels: ["Rosa Díaz", "Ana"] } };
+  const g = { onScreen: { key: "inbox", ids: [U(1), U(2)], labels: ["Rosa Díaz", "Ana"] } };
   assert.deepEqual(ctx(g, `inbox/th-${U(1)}`, "and the second one?").focus, { kind: "thread", id: U(2), label: "Ana" });
   assert.deepEqual(ctx(g, `inbox/th-${U(1)}`, "what now?").focus, {
     kind: "thread",
@@ -399,7 +394,7 @@ test("the row the words name: by its place, in English or Spanish, or by its nam
 });
 
 test("in an open thread a row by its place is the last answer's item at that place (the Phase 5 plan, D7), in the answer's order: a broadcast as the run its page spells, an answer from before the Line by the rows it cited; an item of a kind no focus has names none -- never the page's row at that place; past the answer's items, the page's rows; a name is the page's; no thread, the page's as ever", () => {
-  const g = { __askOnScreen: { key: "inbox", ids: [U(1), U(2), U(3)], labels: ["Rosa Díaz", "Ana", "Luis"] } };
+  const g = { onScreen: { key: "inbox", ids: [U(1), U(2), U(3)], labels: ["Rosa Díaz", "Ana", "Luis"] } };
   const item = (kind, id, label) => ({
     title: label,
     meta: "",

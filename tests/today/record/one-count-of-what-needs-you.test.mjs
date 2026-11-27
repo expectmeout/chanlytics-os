@@ -40,13 +40,10 @@ import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({
-  appNavigate() {},
-  usePPToast: () => [null, () => {}],
-  canDo: () => true,
-  gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const W = globalThis.window;
 const SRC = "apps/dashboard/src";
 const { needsYouNow, hearNeedsYou, needsYouMoved, needsYouActed } = await importSrc(`${SRC}/surfaces/needs-you.ts`);

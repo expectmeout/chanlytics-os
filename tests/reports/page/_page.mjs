@@ -38,7 +38,7 @@ import { ownHeld } from "../receptionist/_receptionist-world.mjs";
 import { held as peopleHeld, dtoWith as peopleDto } from "../people/_people-world.mjs";
 import { dtoWith as campaignsLedger, held as campaignsHeld } from "../campaigns/_campaign-world.mjs";
 import { reachOuts as campaignsReachOuts } from "../campaigns/_reach-out-world.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors } from "../../shell/_bridge-holds.mjs";
 
 export const went = [];
 
@@ -89,11 +89,8 @@ export const { setStatus } = await import(`${S}/bridge/surface-status.ts`);
 export const { startSurfaces } = await import(`${S}/bridge/surface-runner.ts`);
 
 // The shell's doors, which the surface reaches through the bridge's verbs (surfaces/frame-verbs.ts).
-Object.assign(globalThis, {
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
-  usePPToast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])],
-  canDo: () => true,
-});
+bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push([m.tone, textOf(m.msg)])] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 // The page reads through the runner, which the period's own door refreshes through; nothing to boot.
 export let stopRunner = startSurfaces([], () => () => {});
@@ -414,19 +411,23 @@ export const moves = [];
 export let rangeWorkspaces = 0;
 
 export const followingMoves = async (run) => {
-  const nav = globalThis.CHANLY.nav;
+  const nav = heldDoors().navigate;
   const { hash, pathname } = globalThis.location;
   globalThis.location.pathname = `/w/range-${(rangeWorkspaces += 1)}`;
   moves.length = 0;
-  globalThis.CHANLY.nav = (to, opts) => {
-    moves.push([to, opts?.replace === true]);
-    globalThis.location.hash = `#/${to}`;
-    lensAt = `/w/harbor/${to}`;
-  };
+  bridgeHolds({
+    doors: {
+      navigate: (to, opts) => {
+        moves.push([to, opts?.replace === true]);
+        globalThis.location.hash = `#/${to}`;
+        lensAt = `/w/harbor/${to}`;
+      },
+    },
+  });
   try {
     await run();
   } finally {
-    globalThis.CHANLY.nav = nav;
+    bridgeHolds({ doors: { navigate: nav } });
     globalThis.location.hash = hash;
     globalThis.location.pathname = pathname;
     lensAt = LENS_PATHS[0];

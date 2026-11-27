@@ -754,6 +754,7 @@ export async function setPersonBusiness(id: string, leadId: string | null): Prom
  * What the shell's pages still reach a person's steps and deals through: only what one reads (the hover's warm, a step's
  * day and its done, the thread's deal acts). The sheets, cards and notes import their rules from contracts; published here
  * too, every page's first load carried the deal and step sheets' rules for nobody (the loadability review, 19 Oct 2026).
+ * The sheets and People's scopes reach the frame through sheets/frame-parts.ts.
  */
 export function installPeopleCourier(): void {
   // A pointer at a person's link: their read, and the page's own code where it is not in yet (profileCode, above).

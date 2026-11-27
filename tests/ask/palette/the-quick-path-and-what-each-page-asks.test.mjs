@@ -58,7 +58,7 @@ import {
   textOf,
   typed,
 } from "./_palette.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ the quick path (the review's A1) ------------------------------ */
 
@@ -573,11 +573,11 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
 
 test("on Leads the Line is the finder: describe the businesses, Find businesses with the day's chip and the consent line; the words go as typed on the leads surface; the card is read, a change said to AI, and its one press opens the search once approved", async () => {
   const hash = globalThis.window.location.hash;
-  const chanly = globalThis.window.CHANLY;
+  const chanly = heldDoors();
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
   setSurfaceValue("leads", { suggestions: { items: [{ words: "100 nail salons in Queens, NY" }] }, searches: [] });
-  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   try {
     ask([]);
     const askedWith = [];
@@ -645,7 +645,7 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
   } finally {
     await closes();
     globalThis.window.location.hash = hash;
-    globalThis.window.CHANLY = chanly;
+    bridgeHolds({ doors: chanly });
     setSurfaceValue("leads", undefined);
   }
 });
@@ -731,11 +731,11 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): the 
 
 test("on Leads a card that answers a search commits through AI's door with no undo, and the Line goes to the search's question", async () => {
   const hash = globalThis.window.location.hash;
-  const chanly = globalThis.window.CHANLY;
+  const chanly = heldDoors();
   const went = [];
   globalThis.window.location.hash = "#/clients/leads";
   setSurfaceValue("leads", { suggestions: { items: [] }, searches: [] });
-  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const answering = {
     ...LEAD_CARD,
     id: "p2",
@@ -793,7 +793,7 @@ test("on Leads a card that answers a search commits through AI's door with no un
   } finally {
     await closes();
     globalThis.window.location.hash = hash;
-    globalThis.window.CHANLY = chanly;
+    bridgeHolds({ doors: chanly });
     setSurfaceValue("leads", undefined);
   }
 });

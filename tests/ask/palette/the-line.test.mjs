@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { PROPOSAL_GATE, ROLE_PERMS } from "@chanlytics/contracts";
+import { ROLE_PERMS } from "@chanlytics/contracts";
 import {
   AskHooks,
   CLOSED,
@@ -47,7 +47,7 @@ import {
   typed,
   until,
 } from "./_palette.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ N3 ------------------------------ */
 
@@ -492,26 +492,16 @@ test("the tab holds the follow-ups that came due: read once the boot is in, said
 });
 
 test("a follow-up of AI's come due lights AI's door: the top bar's capsule draws the kit's dot after its words while one is due, heard as each read lands", async () => {
-  // The top bar, its bell and its two lines (surfaces/frame), under the names the frame draws them by.
+  // The top bar, its bell and its two lines (surfaces/frame), as the frame imports them.
   const topbarParts = {
     ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/topbar.tsx")),
     ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/status-bars.tsx")),
     ...(await importSrc("apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx")),
   };
-  Object.assign(globalThis.window, {
-    Topbar: topbarParts.Topbar,
-    LiveCallBar: topbarParts.LiveCallBar,
-    ShellStatusBar: topbarParts.ShellStatusBar,
-    NotifPopover: topbarParts.NotifPopover,
-  });
-  const Topbar = (props) => globalThis.window.Topbar(props);
+  const Topbar = (props) => topbarParts.Topbar(props);
   const was = askCalls();
   let due = [DUE("plumbers")];
   holdAsk({ ...was, followUpsDue: () => due });
-  // The shell's names the top bar reads bare, as the page's globals: the toast and the demo's presence menu.
-  const bare = { usePPToast: globalThis.window.usePPToast, MoreMenu: "MoreMenu" };
-  const before = Object.fromEntries(Object.keys(bare).map((k) => [k, globalThis[k]]));
-  Object.assign(globalThis, bare);
   try {
     render(Topbar, { crumbs: [] });
     let tree = await later(Topbar, { crumbs: [] });
@@ -526,7 +516,6 @@ test("a follow-up of AI's come due lights AI's door: the top bar's capsule draws
     assert.equal(byTestId(tree, "tb-ask-due"), null, "gone once none is due");
   } finally {
     holdAsk(was);
-    Object.assign(globalThis, before);
   }
 });
 
@@ -912,11 +901,10 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
   const calls = ask([]);
   const committed = [];
   const MSG = "cccccccc-cccc-4ccc-8ccc-000000000002";
-  const was = { store: globalThis.window.ST_STORE, gate: globalThis.window.PROPOSAL_GATE };
+  const was = { store: provided("roles") };
   let role = "operator";
-  // As the shell's are: the gate each kind checks (the bridge publishes contracts' PROPOSAL_GATE) and the member's role.
-  globalThis.window.PROPOSAL_GATE = PROPOSAL_GATE;
-  globalThis.window.ST_STORE = { can: (a) => !!(ROLE_PERMS[role] || {})[a], myRole: () => role };
+  // As the shell's is: the member's role, which the gate each kind checks asks (contracts' PROPOSAL_GATE, imported).
+  bridgeHolds({ parts: { roles: { can: (a) => !!(ROLE_PERMS[role] || {})[a], myRole: () => role } } });
   // An invitation made before an operator was refused one (a thread read back): its gate is `team`, an owner's.
   const card = {
     id: "p1",
@@ -968,8 +956,7 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
     assert.deepEqual(committed, ["p1"]);
     assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Invited ada@example.com as viewer"));
   } finally {
-    globalThis.window.ST_STORE = was.store;
-    globalThis.window.PROPOSAL_GATE = was.gate;
+    bridgeHolds({ parts: { roles: was.store } });
   }
   await closes();
 });
@@ -977,8 +964,8 @@ test("a card's press is gated by the shell's rule: a role its gate refuses reads
 test("open, show or see: the Line goes there as the answer lands, and the place is offered once", async () => {
   const calls = ask([]);
   const went = [];
-  const chanly = globalThis.window.CHANLY;
-  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  const chanly = heldDoors();
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const CV = "bbbbbbbb-bbbb-4bbb-8bbb-000000000001";
   askCalls().send = async (input, on) => {
     calls.sent.push(input.text);
@@ -1008,7 +995,7 @@ test("open, show or see: the Line goes there as the answer lands, and the place 
     assert.deepEqual(went, [`conversations/cv-${CV}`], "the page went there as the answer landed");
     assert.equal(closed, 0, "and on a desk Ask stays open beside it (Ruben, 16 Oct 2026)");
   } finally {
-    globalThis.window.CHANLY = chanly;
+    bridgeHolds({ doors: chanly });
   }
   await closes();
 });
@@ -1016,8 +1003,8 @@ test("open, show or see: the Line goes there as the answer lands, and the place 
 test("a turn since the Line: Say is drawn as it is written, the headline then the detail, Show and Do wait for the final message, and its answer's Open is followed though one door draws the call as its item", async () => {
   const calls = ask([]);
   const went = [];
-  const chanly = globalThis.window.CHANLY;
-  globalThis.window.CHANLY = { ...chanly, nav: (to) => went.push(to) };
+  const chanly = heldDoors();
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const CV = "bbbbbbbb-bbbb-4bbb-8bbb-000000000002";
   const call = { kind: "call", id: CV, label: "Nora", to: `conversations/cv-${CV}`, door: true };
   const answer = {
@@ -1071,7 +1058,7 @@ test("a turn since the Line: Say is drawn as it is written, the headline then th
     assert.deepEqual(went, [`conversations/cv-${CV}`], "yet the Open they asked for is followed as the answer lands");
     assert.equal(closed, 0, "beside Ask, which stays open on a desk");
   } finally {
-    globalThis.window.CHANLY = chanly;
+    bridgeHolds({ doors: chanly });
   }
   await closes();
 });

@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { installStubReact, fresh, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { CONTENT_SHEET_WORDS, CONTENT_WORDS, parseAds } from "@chanlytics/contracts";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../../apps/dashboard/src/surfaces/campaigns/content";
 const { runAsAdOf } = await import(`${S}/model/run-as-ad.ts`);
 const { RunAsAd, runAsAdActsOf } = await import(`${S}/viewer/run-as-ad.tsx`);
