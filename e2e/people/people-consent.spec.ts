@@ -31,13 +31,15 @@ test.describe("Consent for one person", () => {
     await page.getByTestId("rec-row-act-person-visit").click();
     const control = page.getByTestId("consent-control");
     await expect(control).toBeVisible();
-    const segs = control.locator(".cl-prof-autonomy").first().locator(".cl-prof-aut-seg");
+    const segs = control.locator(".cl-prof-autonomy").first().locator(".rec-seg-btn");
     await expect(segs).toHaveCount(3);
     await expect(segs.nth(0)).toHaveText("Yes");
     await expect(segs.nth(1)).toHaveText("Not asked");
     await expect(segs.nth(2)).toHaveText("No");
     // Exactly one segment reflects the answer on record.
-    await expect(control.locator(".cl-prof-autonomy").first().locator(".cl-prof-aut-seg.active")).toHaveCount(1);
+    await expect(control.locator(".cl-prof-autonomy").first().locator('.rec-seg-btn[aria-pressed="true"]')).toHaveCount(
+      1,
+    );
     // The e2e account is an owner, so the control is live.
     await expect(segs.nth(0)).toBeEnabled();
 

@@ -466,10 +466,10 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
       : null,
     grounds: slides
       ? [
-          <span key="keep" className="pl-card-ground keep" aria-hidden="true">
+          <span key="keep" className="pl-item-ground keep" aria-hidden="true">
             {W.keep}
           </span>,
-          <span key="exclude" className="pl-card-ground exclude" aria-hidden="true">
+          <span key="exclude" className="pl-item-ground exclude" aria-hidden="true">
             {W.exclude}
           </span>,
         ]
@@ -479,17 +479,17 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
     // so in words, since no email sequence can reach it (Ruben, 14 Nov 2026: 35 picked, none with an email).
     facts: [
       l.rated ? (
-        <span key="rated" className="pl-card-rated" data-testid="lead-rated">
+        <span key="rated" className="pl-item-rated" data-testid="lead-rated">
           <Icon name="star" size={11} />
           {l.rated.score} · {l.rated.count}
         </span>
       ) : null,
       l.emailState === "none" ? (
-        <span key="email" className="pl-card-last" data-testid="lead-no-email">
+        <span key="email" className="pl-item-last" data-testid="lead-no-email">
           {l.emailWord}
         </span>
       ) : null,
-      <span key="found" className="pl-card-last" data-testid="lead-found">
+      <span key="found" className="pl-item-last" data-testid="lead-found">
         {l.foundLine}
       </span>,
     ],
@@ -500,5 +500,5 @@ const ldCardCell = (l: LeadRowVM, x: LeadCellCtx, pick?: RowPick) => {
 export const LEAD_CARD: DataCard<LeadRowVM, LeadCellCtx> = {
   label: "Business",
   cell: ldCardCell,
-  rowClass: "pl-card-row",
+  rowClass: "pl-item-row",
 };

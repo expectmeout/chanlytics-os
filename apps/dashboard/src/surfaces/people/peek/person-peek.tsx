@@ -1,6 +1,6 @@
 /**
  * A person seen over People's list on a desk (canvas A, PEEK-01): the pane beside the rows the Pipeline's and Leads' peeks
- * are (`aside.pk.pl-peek`, not a modal sheet, so the list behind it stays pressable and J and K walk it). Its head is who
+ * are (`aside.pk.pl-aside`, not a modal sheet, so the list behind it stays pressable and J and K walk it). Its head is who
  * they are and where they stand (their row's, until their read lands, then the page's own sentence), with the arrows that
  * walk the view ("‹ 4 of 24 ›") and Close; its body is the person page's own parts, unchanged: Up next, their last words
  * and their newest note; its foot the door to their thread and the door to their full page. Every word is contracts'.
@@ -114,7 +114,7 @@ export function PersonPeek(p: PersonPeekProps) {
   return (
     <aside
       ref={p.asideRef}
-      className="pk pl-peek pp-peek"
+      className="pk pl-aside pp-peek"
       role="dialog"
       aria-label={W.label(name)}
       data-testid="person-peek"

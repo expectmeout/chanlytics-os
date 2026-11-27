@@ -24,6 +24,7 @@ import { PipelineTrack } from "./row";
 import { P } from "./pipe";
 import type { PipelineSection } from "./pipe";
 import { isDomNode } from "../../dom-reads";
+import { customProperties } from "../../kit/variants";
 
 /** A card in hand: who, the column it left, and its row. */
 interface BoardDrag {
@@ -65,10 +66,10 @@ const PipelineCard = ({
   const p = r.person;
   const W = P.words.board;
   return (
-    <div className="pipe-card-wrap">
+    <div className="pipe-item-wrap">
       <article
         id={`person-${r.id}`}
-        className={`pipe-card${cursor === r.id ? " focused" : ""}${dragging ? " is-dragging" : ""}`}
+        className={`pipe-item${cursor === r.id ? " focused" : ""}${dragging ? " is-dragging" : ""}`}
         // eslint-disable-next-line jsx-a11y-x/no-noninteractive-element-to-interactive-role -- kept as the JSX drew it: a card is a button too, so a keyboard opens the peek
         role="button"
         tabIndex={cursor === r.id ? 0 : -1}
@@ -101,48 +102,56 @@ const PipelineCard = ({
         }
         onDragEnd={canDrag ? onDragEnd : undefined}
       >
-        <div className="pipe-card-top">
-          <Face person={{ name: p.name, initials: p.initials }} className="pipe-card-face" />
-          <span className={`pipe-card-name${isIdentifierName(p.name) ? " tabular" : ""}`}>{r.name}</span>
+        <div className="pipe-item-top">
+          <Face person={{ name: p.name, initials: p.initials }} size="sm" />
+          <span className={`pipe-item-name${isIdentifierName(p.name) ? " tabular" : ""}`}>{r.name}</span>
           {/* They asked to stop: a card is where a person is picked up to answer, so it says it (D1-stop-unseen). */}
           {p.stopped && <StoppedMark className="pipe-stopped" testid="pipe-card-stopped" />}
         </div>
         {r.service ? (
-          <div className="pipe-card-service" data-testid="pipe-service">
+          <div className="pipe-item-service" data-testid="pipe-service">
             {r.service}
           </div>
         ) : null}
         <PipelineTrack steps={r.track} />
         {r.value || r.inStage ? (
-          <div className="pipe-card-line">
+          <div className="pipe-item-line">
             {r.value ? (
-              <span className="pipe-card-value" data-testid="pipe-value">
+              <span className="pipe-item-value" data-testid="pipe-value">
                 {r.value}
               </span>
             ) : (
               <span />
             )}
             {r.inStage ? (
-              <span className="pipe-card-stage" data-testid="pipe-in-stage">
+              <span className="pipe-item-stage" data-testid="pipe-in-stage">
                 {r.inStage}
               </span>
             ) : null}
           </div>
         ) : null}
-        {r.chip ? <StatePill kind="tone" value={r.chip.tone} label={r.chip.words} testid="pipe-chip" /> : null}
+        {r.chip ? (
+          <StatePill
+            kind="tone"
+            value={r.chip.tone}
+            label={r.chip.words}
+            className="pipe-item-state"
+            testid="pipe-chip"
+          />
+        ) : null}
         {/* Their next step (0007, amended): one quiet line, its day in the warn ink once it has come. */}
         {r.next ? (
-          <div className="pipe-card-next" data-due={r.next.due} data-testid="pipe-next">
+          <div className="pipe-item-next" data-due={r.next.due} data-testid="pipe-next">
             <span className="pipe-next-words">{r.next.words}</span>
             <span className="pipe-next-when">{r.next.when}</span>
           </div>
         ) : null}
       </article>
       {canDrag && moves.length ? (
-        <span className="pipe-card-menu">
+        <span className="pipe-item-acts">
           <Menu
             label={`${W.menu} ${r.name}`}
-            trigger={moreButton({ title: `${W.menu} ${r.name}`, testid: "pipe-card-menu" })}
+            trigger={moreButton({ title: `${W.menu} ${r.name}`, testid: "pipe-item-acts" })}
             groups={menuGroups([
               { header: W.move },
               ...moves.map((m) => ({ label: m.label, onClick: () => onMove(r, group, m.key) })),
@@ -219,7 +228,7 @@ function columnCards(s: PipelineSection, b: BoardProps, cap: number) {
   const { columns, cursor = null, canDrag = false, drag = null, moveOf, onOpen, onWarm = null, every = {} } = b;
   const { onDragStart, onDragEnd, onMove = () => {}, onEvery = () => {} } = b;
   return (
-    <div className="pipe-col-cards">
+    <div className="pipe-col-deals">
       {s.collapsed
         ? null
         : (every[s.key] ? s.rows : s.rows.slice(0, cap)).map((r) => (
@@ -262,7 +271,7 @@ export const PipelineBoard = (props: BoardProps) => {
   // the four then fit without a sideways scroll.
   const template = columns.map((s) => (s.collapsed ? "minmax(120px, 0.6fr)" : "minmax(200px, 1fr)")).join(" ");
   return (
-    <div className="pipe-board" style={{ gridTemplateColumns: template }} data-testid="pipeline-board">
+    <div className="pipe-board" style={customProperties({ "--cols": template })} data-testid="pipeline-board">
       {columns.map((s) => {
         // What dropping the card in hand here would ask for; null where it asks for nothing, and the column says so.
         const can = drag ? moveOf(drag.from, s.key, drag.row) : null;

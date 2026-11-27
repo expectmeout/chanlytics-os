@@ -57,7 +57,7 @@ function _tableTakes(
     hidden: true,
     filter: (p, v) => p.visits >= Number(v),
   };
-  const card: DataCard<Person, Known> = { label: "Person", cell: () => td, rowClass: "pl-card-row" };
+  const card: DataCard<Person, Known> = { label: "Person", cell: () => td, rowClass: "pl-item-row" };
   const needs = {
     table: model,
     rows: [] as Person[],

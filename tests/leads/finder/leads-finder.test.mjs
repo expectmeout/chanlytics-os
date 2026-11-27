@@ -846,7 +846,7 @@ test("the running strip says what is true, and its Stop is the only thing to pre
   click(byTestId(tree, "strip-stop"));
   assert.deepEqual(acted, [["stop", undefined]], "Stop carries nothing: the search it belongs to is the page's");
   const bar = find(tree, (n) => n.props?.className === "lf-strip-bar");
-  assert.equal(bar.props.style.width, "43%");
+  assert.equal(bar.props.style["--done"], "43%");
   const early = drawStrip(withRound({ counted: 12 }), []);
   assert.match(
     textOf(byTestId(early, "strip-parts")),
@@ -951,7 +951,7 @@ test("REGRESSION: only an ending that found what it was for wears the check and 
   const marked = (search) => {
     const tree = drawStrip(search, []);
     return [
-      all(tree, (n) => n.props?.className === "ok-mark").length,
+      all(tree, (n) => n.props?.className === "ok-sign").length,
       all(tree, (n) => /lf-strip-bar/.test(n.props?.className ?? "")).length,
     ];
   };

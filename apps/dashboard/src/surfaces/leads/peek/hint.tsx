@@ -27,7 +27,7 @@ export const ldCheckMark = (how: "seen" | "read", answer: "yes" | "no" | "unknow
   };
   if (answer === "unknown")
     return (
-      <span className="pk-ck-mark pk-ck-ask">
+      <span className="pk-ck-sign pk-ck-ask">
         <svg {...p}>
           <path d="M6 6.2a2 2 0 113 1.8v1" />
           <circle cx="8" cy="11.6" r="0.8" fill="currentColor" stroke="none" />
@@ -36,7 +36,7 @@ export const ldCheckMark = (how: "seen" | "read", answer: "yes" | "no" | "unknow
     );
   if (answer === "no")
     return (
-      <span className={`pk-ck-mark pk-ck-cross${how === "read" ? " pk-ck-read" : ""}`}>
+      <span className={`pk-ck-sign pk-ck-cross${how === "read" ? " pk-ck-read" : ""}`}>
         <svg {...p}>
           <path d={LD_MARKS.cross} />
         </svg>
@@ -44,14 +44,14 @@ export const ldCheckMark = (how: "seen" | "read", answer: "yes" | "no" | "unknow
     );
   if (how === "read")
     return (
-      <span className="pk-ck-mark pk-ck-read">
+      <span className="pk-ck-sign pk-ck-read">
         <svg {...p}>
           <circle cx="8" cy="8" r="5.5" strokeDasharray="2.5 2.5" />
         </svg>
       </span>
     );
   return (
-    <span className="pk-ck-mark pk-ck-check">
+    <span className="pk-ck-sign pk-ck-check">
       <svg {...p}>
         <path d={LD_MARKS.check} />
       </svg>

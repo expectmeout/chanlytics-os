@@ -10,7 +10,7 @@ import { createElement, useState } from "react";
 import type { HTMLAttributes, ReactNode, SyntheticEvent } from "react";
 
 export const LeadTip = ({ id, children, testid }: { id: string; children?: ReactNode; testid?: string }) => (
-  <span className="ld-tip" role="tooltip" id={id} data-testid={testid}>
+  <span className="ui-tip ld-hint" role="tooltip" id={id} data-testid={testid}>
     {children}
   </span>
 );
@@ -28,7 +28,7 @@ export const LeadCard = ({
 }) => (
   // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-noninteractive-element-interactions -- the click is only stopped here, so a press inside the card is not the row's
   <div
-    className="ld-card panel panel-pop"
+    className="ld-glance panel panel-pop"
     role="group"
     id={id}
     aria-label={label}
@@ -86,7 +86,7 @@ export const ldPlacePop = (e: SyntheticEvent<HTMLElement> | null | undefined, ki
     ? (pane.querySelector<HTMLElement>("thead") || { offsetHeight: 0 }).offsetHeight || 0
     : 0;
   // A card drawn on arrival (LeadHover) is not there yet to be found: its trigger says which it is.
-  const need = LD_POP_ROOM[kind ?? (el.querySelector(":scope > .ld-card") ? "card" : "tip")];
+  const need = LD_POP_ROOM[kind ?? (el.querySelector(":scope > .ld-glance") ? "card" : "tip")];
   const below = box.bottom - at.bottom;
   const above = at.top - (box.top + head);
   el.classList.toggle("ld-up", below < need && above > below);

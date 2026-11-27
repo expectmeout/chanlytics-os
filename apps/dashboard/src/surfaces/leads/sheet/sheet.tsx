@@ -604,7 +604,7 @@ function deskOf(d: SheetDraw) {
   const foot = leadSheetFoot(d, true);
   return (
     <aside
-      className="lw lw-desk pl-peek"
+      className="lw lw-desk pl-aside"
       role="dialog"
       aria-label={d.vm ? d.vm.name : d.p.pile ? d.p.pile.searchName : W.label}
       data-testid="lead-peek"

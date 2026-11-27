@@ -99,7 +99,7 @@ export function mountStreets(
           continue;
         }
         const wrap = document.createElement("div");
-        wrap.className = "ld-pin-mark";
+        wrap.className = "ld-pin-here";
         const btn = document.createElement("button");
         btn.type = "button";
         dressPin(btn, spec, picked);

@@ -571,8 +571,7 @@
 .lm-banner, .ix-exp-panel { animation: route-in 0.2s var(--ease-out); }
 
 /* --- Press feedback everywhere --- */
-.btn:active,
-.cl-tab:active { transform: translateY(0.5px) scale(0.985); }
+.btn:active { transform: translateY(0.5px) scale(0.985); }
 
 /* --- Charts draw themselves --- */
 .conf-meter-fill { transition: width 0.5s var(--ease-out); }

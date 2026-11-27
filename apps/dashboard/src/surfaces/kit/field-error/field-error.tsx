@@ -10,18 +10,21 @@
  */
 import type { ReactNode } from "react";
 import { Icon } from "../icon/icon";
+import { cx } from "../variants";
 
 interface FieldErrorProps {
   id?: string | null;
   message?: ReactNode;
   testid?: string | null;
+  /** The page's, for its layout. */
+  className?: string;
 }
 
 /** What is wrong with a field, drawn only when there is something to say. */
-export function FieldError({ id = null, message = null, testid = null }: FieldErrorProps) {
+export function FieldError({ id = null, message = null, testid = null, className }: FieldErrorProps) {
   if (!message) return null;
   return (
-    <span className="field-error" id={id || undefined} role="alert" data-testid={testid || undefined}>
+    <span className={cx("field-error", className)} id={id || undefined} role="alert" data-testid={testid || undefined}>
       <Icon name="alert" size={11} />
       <span className="field-error-words">{message}</span>
     </span>

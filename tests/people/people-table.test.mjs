@@ -60,7 +60,7 @@ test("People's columns: Person fills and is never hidden, four show until turned
   );
   assert.equal(firstDirOf(PL_COLUMNS, "next"), "asc", "the soonest step first on the first press (0007)");
   assert.deepEqual(PL_CARD.label, "Person");
-  assert.equal(PL_CARD.rowClass, "pl-card-row", "a phone's card wears the card rules' class");
+  assert.equal(PL_CARD.rowClass, "pl-item-row", "a phone's card wears the card rules' class");
 });
 
 test("Came from waits in the Columns menu (canvas P1: with it the table outgrew the pane at 1440)", () => {

@@ -90,7 +90,7 @@ const RAIL_EMPTY_OPEN = 3;
 export function RailEmpty({ labels, testid = null }: { labels: readonly ReactNode[]; testid?: string | null }) {
   if (!labels.length) return null;
   const line = (
-    <p className="cl-rail-empty" data-testid={testid || undefined}>
+    <p className="cl-rail-none" data-testid={testid || undefined}>
       {"Empty now: "}
       {labels.map((l, i) => (
         <Fragment key={i}>

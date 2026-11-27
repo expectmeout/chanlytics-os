@@ -465,11 +465,11 @@ function heroId(c: PageCtx) {
           there when none is waiting. */}
       <div className="cl-prof-headline">{headLineOf(c, "line")}</div>
       <div className="cl-prof-notices">{headLineOf(c, "notice")}</div>
-      {/* The one state (canvas A): theirs as People's row says it, a dot and its word, amber only for what needs
+      {/* The one state (canvas A): theirs as People's row says it, in the kit's lit pill, amber only for what needs
           someone; the receptionist's standing is Messages and receptionist's. */}
       <span className="cl-prof-now" data-state={head.state} data-testid="person-now">
         <Wash scope={p.id} value={head.state} said={PERSON_WASH_WORDS.state(head.word)}>
-          <StatePill kind="person" value={head.state} label={head.word} testid="person-standing" />
+          <StatePill kind="person" value={head.state} label={head.word} lit testid="person-standing" />
         </Wash>
         {/* On a phone its sentence, or a stand-in's story, rides the state's line (Ruben, 12 and 17 Nov 2026). */}
         {c.phone && (head.sentence || head.story) ? (

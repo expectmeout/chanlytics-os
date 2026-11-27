@@ -295,7 +295,7 @@ export const plTyping = (el: Element | null): boolean => {
 export const PL_CONTROL =
   'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
 /** The page's own overlays, which the listener names apart: the peek, the plan panel and the phone's plan sheet. */
-const PL_OWN = ":not(.pl-peek):not(.pl-plan)";
+const PL_OWN = ":not(.pl-aside):not(.pl-plan)";
 /**
  * What can be open over the page and has the keys while it is: a menu, Ask, the ? sheet, the notifications, a sidebar
  * menu, the phone's drawer. Only the app's (every one sits inside .app-root) and the kit's own Menu and Sheet, which are

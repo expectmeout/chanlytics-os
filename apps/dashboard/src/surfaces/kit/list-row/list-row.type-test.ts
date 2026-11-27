@@ -38,7 +38,7 @@ function _listRowTakes(
     name: "Aisha Rahman",
     end: line,
     said: "asked about Saturday",
-    facts: [null, "2 h ago", line("pl-card-visit")],
+    facts: [null, "2 h ago", line("pl-item-visit")],
     note: "Next step: call back on Monday",
     ref: row,
   });

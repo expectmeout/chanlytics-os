@@ -375,10 +375,10 @@ test("a phone sheet's list is rows of one shape, and a step inside a sheet has a
     },
     testid: "r",
   });
-  assert.equal(row.type, "button");
-  assert.match(row.props.className, /\bpp-sheet-row\b/);
+  assert.equal(find(row, (n) => n.type === "button")?.props["data-testid"], "r", "the kit's button");
+  assert.match(row.props.className, /\bpp-pane-act\b/);
   assert.ok(
-    find(row, (n) => n.props?.className === "pp-sheet-row-next"),
+    find(row, (n) => n.props?.className === "pp-pane-row-next"),
     "a row that opens a step says so",
   );
   click(row);
@@ -762,7 +762,7 @@ test("on a phone the Lists sheet is compact: the groups name its blocks, an empt
       full.map((l) => `${l.label}${l.count}`).sort(),
       "a row for each list with somebody in it",
     );
-    const lines = [...new Set(all(sheet, (n) => n.props?.className === "cl-rail-empty"))];
+    const lines = [...new Set(all(sheet, (n) => n.props?.className === "cl-rail-none"))];
     assert.equal(lines.length, 1, "one quiet line for the sheet, not one a group");
     const said = textOf(lines[0]);
     for (const l of empty)
@@ -774,7 +774,7 @@ test("on a phone the Lists sheet is compact: the groups name its blocks, an empt
     const row = rowsIn(sheet).find((b) => b.props["aria-current"] === "true");
     assert.ok(row && textOf(row.props.children).startsWith(picked.label), "the picked list keeps its row");
     assert.doesNotMatch(
-      all(sheet, (n) => n.props?.className === "cl-rail-empty")
+      all(sheet, (n) => n.props?.className === "cl-rail-none")
         .map(textOf)
         .join(" "),
       new RegExp(`\\b${picked.label}\\b`),
@@ -799,7 +799,7 @@ test("a desktop's rail keeps every list and its heading: compact is the phone's 
   ];
   assert.equal(rows.length, surfaceValue("people").lists.length, "an empty list has its row on a desktop");
   assert.equal(
-    find(tree, (n) => n.props?.className === "cl-rail-empty"),
+    find(tree, (n) => n.props?.className === "cl-rail-none"),
     null,
   );
   assert.ok(find(tree, (n) => n.props?.className === "cl-rail-label" && /Ready-made lists/.test(textOf(n))));

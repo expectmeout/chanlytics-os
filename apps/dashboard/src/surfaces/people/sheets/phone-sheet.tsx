@@ -6,6 +6,7 @@
  */
 import type { ReactNode } from "react";
 import type { GateProps } from "../../frame-verbs";
+import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import type { SheetBack } from "../../kit/sheet/sheet";
 
@@ -45,18 +46,20 @@ export function PhoneSheetRow({
   gate?: GateProps | null;
 }) {
   return (
-    <button
-      type="button"
-      className={`pp-sheet-row${danger ? " danger" : ""}`}
+    <Button
+      variant="quiet"
+      size="touch"
+      tone={danger ? "danger" : undefined}
+      className="pp-pane-act"
       disabled={disabled}
       onClick={onClick}
       data-testid={testid}
       {...(gate || {})}
     >
       {icon ? <Icon name={icon} size={16} /> : null}
-      <span className="pp-sheet-row-words">{label}</span>
-      {meta ? <span className="pp-sheet-row-meta">{meta}</span> : null}
-      {next ? <Icon name="chevron" size={14} className="pp-sheet-row-next" /> : null}
-    </button>
+      <span className="pp-pane-row-words">{label}</span>
+      {meta ? <span className="pp-pane-row-meta">{meta}</span> : null}
+      {next ? <Icon name="chevron" size={14} className="pp-pane-row-next" /> : null}
+    </Button>
   );
 }
