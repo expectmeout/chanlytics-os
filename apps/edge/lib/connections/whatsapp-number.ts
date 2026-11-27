@@ -233,7 +233,7 @@ async function readNumberIds(
       log.info("wa_connect_number_unreadable", { waba_id: wabaId, error: numbers.error });
       return refuse(502, "number_unreadable", numbers.error);
     }
-    const ids = (numbers.data.data ?? []).map((n) => String(n.id ?? "")).filter((id) => ID.test(id));
+    const ids = (numbers.data.data ?? []).map((n) => String(n.id)).filter((id) => ID.test(id));
     if (ids.length === 0) {
       log.info("wa_connect_number_missing", { waba_id: wabaId });
       return refuse(502, "number_missing");
@@ -418,7 +418,7 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
   // 7. Only now may the number route. Counted, as every permission-sensitive update is: a row that did not turn
   // active is a failed connect, not a quiet one.
   const live = await setStatus(row.id, "active");
-  if (live.error || !live.data?.length) {
+  if (live.error || !live.data.length) {
     log.info("wa_connect_channel_write_failed", { at: "activate", error: live.error?.message ?? "no row" });
     return refuse(500, "channel_write_failed");
   }

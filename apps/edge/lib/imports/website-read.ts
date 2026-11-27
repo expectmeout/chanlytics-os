@@ -115,11 +115,11 @@ export async function readWebsite(
   const worn = await wearSiteLook(db, { tenantId, page: home });
   const look: Json = { logo_url: worn.logo_url, accent: worn.accent, worn: { ...worn.worn } };
   // Where it says its customers book, off the same home page (3c-4), kept for Check to offer, model or no model.
-  const booking_page = bookingPageOfSite(url, home);
-  if (!env.ANTHROPIC_API_KEY) return keep({ look, booking_page }, WEBSITE_UNREAD_WORDS.failed);
+  const bookingPage = bookingPageOfSite(url, home);
+  if (!env.ANTHROPIC_API_KEY) return keep({ look, booking_page: bookingPage }, WEBSITE_UNREAD_WORDS.failed);
   // The booking platform's page, read beside the site's own (the onboarding PRD's P8): where a salon's services,
   // prices and minutes are kept. Read once, and said to the model as the page customers book on.
-  const booking = await bookingPageToRead(db, tenantId, home.url, booking_page);
+  const booking = await bookingPageToRead(db, tenantId, home.url, bookingPage);
   // Side by side, and each short of what the reading needs: a page that is slow costs a page, never the whole read.
   const spare = () => deadline - Date.now() - READING_ROOM_MS;
   const linked = spare() >= PAGE_LEAST_MS ? await pagesBeside(home) : [];
@@ -137,7 +137,7 @@ export async function readWebsite(
   const pages = [{ at: url, page: home, booking: false }, ...beside].filter(
     (p): p is { at: string; page: SitePage; booking: boolean } => !!p.page,
   );
-  const booking_read = pages.some((p) => p.booking);
+  const bookingRead = pages.some((p) => p.booking);
   // The photographs these pages show and the videos they play, for the Library's Inbox (decision 0099, and Content's
   // empty state): the owner says which are theirs. What was seen is kept with the read, so the page can say what came of it.
   let media: Json | undefined;
@@ -177,7 +177,7 @@ export async function readWebsite(
     answer = answered?.answer ?? null;
   } catch (e) {
     log.warn("website_read_failed", { step: "reading", error: errField(e) });
-    return keep({ look, booking_page, ...(media ? { media } : {}) }, WEBSITE_UNREAD_WORDS.failed);
+    return keep({ look, booking_page: bookingPage, ...(media ? { media } : {}) }, WEBSITE_UNREAD_WORDS.failed);
   }
   const facts = businessReadFactsOf(answer);
   const film = filmShotsOf(answer);
@@ -185,7 +185,7 @@ export async function readWebsite(
   // wrote, and the second colour and the type the site's own branding uses. The owner's own look, once said, wins.
   const kit = siteKitOf(answer, home.brand);
   const found = facts.services.length + facts.rules.length + facts.answers.length + facts.closed.length;
-  log.info("website_read", { pages: pages.length, services: facts.services.length, found, booking: !!booking_page });
+  log.info("website_read", { pages: pages.length, services: facts.services.length, found, booking: !!bookingPage });
   const kept: Json = {
     services: facts.services,
     closed: facts.closed,
@@ -193,8 +193,8 @@ export async function readWebsite(
     answers: facts.answers,
     description: facts.description,
     look,
-    booking_page,
-    booking_read,
+    booking_page: bookingPage,
+    booking_read: bookingRead,
     ...(media ? { media } : {}),
     // What to film for a video, from what the site says it does (Content's empty state): kept only where it wrote some.
     ...(film.length ? { film: film.map((f) => ({ what: f.what, how: f.how, seconds: f.seconds })) } : {}),

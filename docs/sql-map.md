@@ -151,7 +151,7 @@ being read is dropped by a migration.
 | `campaign_stuck` | reader | a signed-in person, the server | code `apps/dashboard/src/surfaces/reports/lenses/campaigns-now.tsx`, `packages/contracts/src/reports/metrics.ts` and 1 more | Reports › Campaigns, what is stuck as it stands now (no window): |
 | `capability_activate` | door | a signed-in person, the server | code `apps/dashboard/src/server/setup/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | An owner (or the partner who brought it) switches a channel on (00108, 00514): |
 | `capability_deactivate` | door | a signed-in person, the server | code `apps/dashboard/src/server/setup/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | An owner (or the partner who brought it) takes a channel's activation back (00108, 00514): |
-| `change_playbook` | reader | a signed-in person, the server | code `packages/contracts/src/shared/enums.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member changes a playbook in place and its line in the ledger together (the change_playbook door): |
+| `change_playbook` | reader | a signed-in person, the server | code `packages/contracts/src/shared/enums/decisions.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member changes a playbook in place and its line in the ledger together (the change_playbook door): |
 | `channel_keep_quality` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts` | Keeps the rating Meta holds for a workspace's WhatsApp number (K9): |
 | `channel_keep_standing` | the server's | the server | code `packages/contracts/src/lines/number-standing.ts`, `packages/db/src/repositories/jobs/sweeps.ts` | Keeps what Meta holds about a workspace's WhatsApp number (whether it may send, what stands in the way, its display name's review, the business's verification and tier): |
 | `claim_conversation_control` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `conversation_take_over` | Take the live hold on a thread, or renew one this holder already has. |
@@ -616,7 +616,7 @@ being read is dropped by a migration.
 | `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613, 00657): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
 | `piece_version_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/versions.ts` | A member's press, with the settings permission (00708): |
-| `piece_version_kept` | the server's | the server | code `apps/edge/lib/files/piece-make.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | When a new version's drawn bytes are kept (00708; |
+| `piece_version_kept` | the server's | the server | code `apps/edge/lib/files/piece-make.ts`, `apps/edge/lib/shared/log-events/content.ts` and 1 more | When a new version's drawn bytes are kept (00708; |
 | `piece_version_ready` | the server's | the server | code `packages/db/src/repositories/files/versions.ts` | When a new version's file plays (00708; |
 | `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts`; SQL `post_approve_whole` | A member's door, with the settings permission (00681; |
 | `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00706; |
@@ -671,7 +671,7 @@ being read is dropped by a migration.
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
 | `posts_read_due` | the server's | the server | code `packages/db/src/repositories/content/posts-held.ts` | The workspaces due their daily read of what their places hold (the content status review of 24 November 2026, piece 4): |
 | `posts_take_down_start` | the server's | the server | SQL `post_take_down_begin` | The walk a take-down starts on posts, the service's (00682, 00716; |
-| `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
+| `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events/content.ts` and 1 more | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |
 | `preview_claim` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | Make it mine (0079): the signed-in caller claims a ready preview by its token. |
 | `preview_end` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A preview past its thirty days (0079): |
@@ -711,7 +711,7 @@ being read is dropped by a migration.
 | `reach_out_again_count` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Who a sequence to leads would try again after p_days, and from when (00608, decision 0120): |
 | `reach_out_again_set` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/sequences/batches.ts` | Try again after p_days, or never (null) (00608, decision 0120): |
 | `reach_out_audience` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`; SQL `reach_out_add`, `reach_out_people_of` and 2 more | Who a reach-out's first step may write to (Part 3, rebuilt on reach_out_why_not in 00426): |
-| `reach_out_booked` | the server's | the server | code `packages/contracts/src/shared/enums.ts`, `packages/db/src/repositories/campaigns/sequences/runs.ts`; SQL `reach_out_booked_from` | The calendar sweep's door (Reach out Part 5, G19, N3): |
+| `reach_out_booked` | the server's | the server | code `packages/contracts/src/shared/enums/jobs.ts`, `packages/db/src/repositories/campaigns/sequences/runs.ts`; SQL `reach_out_booked_from` | The calendar sweep's door (Reach out Part 5, G19, N3): |
 | `reach_out_booked_from` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts` | The booking door (reach_out_booked) over one appointment of the record (00389), booked or kept and not vanished: |
 | `reach_out_chain_of` | the server's | the server | SQL `sequence_create_leads` |  |
 | `reach_out_chain_people` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/leads.ts` | Who is in a reach-out (00426), for a member: |
@@ -763,7 +763,7 @@ being read is dropped by a migration.
 | `reach_out_why_not` | the server's | the server | SQL `reach_out_add`, `reach_out_audience` and 1 more | The one predicate (00426): |
 | `receptionist_series` | reader | a signed-in person, the server | code `packages/contracts/src/reports/metrics.ts`, `packages/db/src/repositories/reports/series.ts` | Reports › Receptionist: |
 | `record_consent` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | A member records a person's answer and its line in their history together (00356): |
-| `record_deal` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/deals.ts`, `packages/contracts/src/shared/enums.ts` and 1 more | A member records a deal and its line in the ledger together (00357): |
+| `record_deal` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/deals.ts`, `packages/contracts/src/shared/enums/decisions.ts` and 1 more | A member records a deal and its line in the ledger together (00357): |
 | `record_provider_stop` | the server's | the server | code `packages/db/src/repositories/campaigns/offers-answer.ts` | A no a provider reported on the person's behalf (the carrier's 21610 on a text, WhatsApp's 131050 on an offer), recorded with its contact.consent_changed event in one transaction (00383): |
 | `record_workspace_created` | trigger | the server | trigger `tenants_record_created on tenants` | Writes the workspace.created event for a new tenants row, from any path. |
 | `recording_opened` | door | a signed-in person, the server | code `packages/db/src/repositories/voice/call-rows.ts` | A member opened a call's recording (00277): |

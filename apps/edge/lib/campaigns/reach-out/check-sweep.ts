@@ -40,12 +40,12 @@ export async function sweepReachOutChecks({ db, L, started }: SweepTick): Promis
       return waiting ? json(503, { ok: false, error: "check_unset" }) : json(200, { ok: true, unset: true });
     }
     const out = await checkSends({ db, now: new Date(), started, log: L });
-    const took_ms = Date.now() - started;
+    const tookMs = Date.now() - started;
     if (out.calls > 0 && out.calls_failed === out.calls) {
-      L.error("reach_out_check_unanswered", { ...out, took_ms });
+      L.error("reach_out_check_unanswered", { ...out, took_ms: tookMs });
       return json(503, { ok: false, error: "model_unavailable", ...out });
     }
-    if (out.read > 0 || out.released > 0) L.info("reach_out_checked", { ...out, took_ms });
+    if (out.read > 0 || out.released > 0) L.info("reach_out_checked", { ...out, took_ms: tookMs });
     return json(200, { ok: true, ...out });
   } catch (e) {
     // A read or a write that failed: the tick's answer says so, and sweep_health reads it as the clock's.
