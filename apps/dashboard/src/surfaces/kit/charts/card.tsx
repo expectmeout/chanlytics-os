@@ -5,7 +5,7 @@
  * which wait for the pointer or the keyboard (charts.css) and stay while the table shows. The card is the kit's panel. The
  * card owns the series: `config` is published as --color-<key> on its <section>.
  */
-import { lazy, Suspense, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode, Ref } from "react";
 import { csvCell } from "@chanlytics/contracts";
 import { holdStill } from "../../frame-verbs";
@@ -13,6 +13,7 @@ import { downloadCsv } from "../download";
 import { Button } from "../button/button";
 import { Icon } from "../icon/icon";
 import type { SegmentedOption } from "../segmented/segmented";
+import { SegmentedOnDraw } from "../segmented/on-draw";
 import { ckVars } from "./geometry";
 import type { ChartConfig } from "./geometry";
 import { ChartLegend } from "./parts";
@@ -123,33 +124,6 @@ const CARD_SHOWS: readonly SegmentedOption<CardShows>[] = [
   { value: "table", label: "Table", testid: "card-table" },
 ];
 
-/**
- * The switch is the kit's Segmented, Base UI's radio group, loaded as the card first draws rather than with the page:
- * on every page's first load it carried a few KB to Reports, and through the bundler's shared chunks fourteen more to
- * the Inbox and nine to People, which draw no chart (26 Nov 2026). Reports' period control loads it so already.
- */
-const CardSwitch = lazy(() => import("../segmented/segmented").then((m) => ({ default: m.Segmented<CardShows> })));
-
-/** The switch's own markup while it loads: its place held, inert and unread, so nothing moves as it arrives. */
-function CardSwitchWaits({ shows }: { shows: CardShows }) {
-  return (
-    <div className="rec-seg" aria-hidden="true" inert>
-      {CARD_SHOWS.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={option.value === shows}
-          tabIndex={-1}
-          className="rec-seg-btn"
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // The card every chart lives in, the kit's panel. The twin is `table` when the page has one of its own, or made from
 // `twin`.
 export function ChartCard({
@@ -187,15 +161,14 @@ export function ChartCard({
         {data && (
           <div className="ck-chart-actions">
             {switchable && (
-              <Suspense fallback={<CardSwitchWaits shows={showTable ? "table" : "chart"} />}>
-                <CardSwitch
-                  ref={switchRef}
-                  label={`Show ${title} as`}
-                  value={showTable ? "table" : "chart"}
-                  onValueChange={switchTo}
-                  options={CARD_SHOWS}
-                />
-              </Suspense>
+              // The kit's Segmented, loaded as the card first draws (segmented/on-draw.tsx), its place held till then.
+              <SegmentedOnDraw
+                ref={switchRef}
+                label={`Show ${title} as`}
+                value={showTable ? "table" : "chart"}
+                onValueChange={switchTo}
+                options={CARD_SHOWS}
+              />
             )}
             <Button
               variant="quiet"

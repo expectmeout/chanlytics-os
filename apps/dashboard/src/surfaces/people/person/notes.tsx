@@ -19,7 +19,6 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
-import { Panel } from "../../kit/panel/panel";
 import { RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
 import { tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { menuGroups, moreButton } from "../menu-groups";
@@ -559,7 +558,7 @@ function composer(c: Card, acts: Acts, pane = false) {
   const W = NOTE_WORDS;
   const left = NOTE_MAX - draft.text.length;
   return (
-    <Panel variant="field" size="sm" className={`cl-prof-note-compose${draft.text ? " is-open" : ""}`}>
+    <div className={`panel panel-field panel-sm cl-prof-note-compose${draft.text ? " is-open" : ""}`}>
       <textarea
         ref={pane ? takeNoteBox : undefined}
         className="rec-input rec-input-words"
@@ -595,7 +594,7 @@ function composer(c: Card, acts: Acts, pane = false) {
             </>,
           )
         : null}
-    </Panel>
+    </div>
   );
 }
 

@@ -9,7 +9,7 @@
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
-import { Segmented } from "../../kit/segmented/segmented";
+import { SegmentedOnDraw } from "../../kit/segmented/on-draw";
 import { confTone, fmtDelta, ROUTES } from "../constants";
 import { gate, keyPress, navigate } from "../shell";
 import type { Approval, Evidence, NextStep, Thread, Verdict, VerdictOption } from "../types";
@@ -138,7 +138,7 @@ function approvalPlan(props: ApprovalCardProps) {
             <span className="ix-param-label" aria-hidden="true">
               {plan.param.label}
             </span>
-            <Segmented
+            <SegmentedOnDraw
               label={plan.param.label}
               value={String(planParam)}
               options={plan.param.options.map((o, i) => ({ value: String(i), label: o.label }))}

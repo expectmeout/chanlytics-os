@@ -86,18 +86,18 @@ function lightboxSide(vm: LeadPeekVM) {
       {vm.week.length ? (
         <div className="ld-lb-block" data-testid="lightbox-week">
           <div className="pk-label">{W.openHours}</div>
-          {vm.week.map((d) => (
-            <div key={d.day} className={`ld-lb-day${d.today ? " today" : ""}`} data-testid="lightbox-day">
-              <span className="d">{d.day.slice(0, 3)}</span>
+          {vm.week.map((day) => (
+            <div key={day.day} className={`ld-lb-day${day.today ? " today" : ""}`} data-testid="lightbox-day">
+              <span className="d">{day.day.slice(0, 3)}</span>
               <span className="ld-lb-track">
-                {d.bar ? (
+                {day.bar ? (
                   <span
                     className="ld-lb-bar"
-                    style={customProperties({ "--bar-x": `${d.bar.x}%`, "--bar-w": `${d.bar.w}%` })}
+                    style={customProperties({ "--bar-x": `${day.bar.x}%`, "--bar-w": `${day.bar.w}%` })}
                   />
                 ) : null}
               </span>
-              <span className="h">{d.short}</span>
+              <span className="h">{day.short}</span>
             </div>
           ))}
         </div>

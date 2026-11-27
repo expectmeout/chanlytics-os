@@ -8,7 +8,7 @@ import { PIPELINE_PHONE_SORTS, pipelineCsv } from "./board-view";
 import { Button } from "../../kit/button/button";
 import { downloadCsv } from "../../kit/download";
 import { Menu } from "../../kit/menu/menu";
-import { Segmented } from "../../kit/segmented/segmented";
+import { SegmentedOnDraw } from "../../kit/segmented/on-draw";
 import { gate } from "../../frame-verbs";
 import { menuGroups } from "../menu-groups";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
@@ -210,8 +210,8 @@ export function pipelineTools(s: PipelineState) {
     <div className="pg-tools">
       {/* Which columns show, a member's own, kept in their view: the kit's menu (kit/table/columns-menu.tsx). */}
       {!board ? <TableColumnsMenu state={table} columns={declared} desk /> : null}
-      {/* The list or the board: the kit's Segmented, kept in the member's view. */}
-      <Segmented
+      {/* The list or the board: the kit's Segmented, loaded as it is drawn, kept in the member's view. */}
+      <SegmentedOnDraw
         label={words.views.label}
         value={layout}
         className="pipe-views"

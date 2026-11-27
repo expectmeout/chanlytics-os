@@ -3275,6 +3275,9 @@ textarea.rec-input.rec-input-words:focus-visible {
   color: var(--ink);
   box-shadow: var(--armed-ring);
 }
+.rec-seg-btn[data-armed]:focus-visible {
+  box-shadow: var(--focus-ring), var(--armed-ring);
+}
 .rec-seg-btn:disabled {
   opacity: 0.5;
   cursor: default;

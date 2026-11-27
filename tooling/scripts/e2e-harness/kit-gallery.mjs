@@ -2387,7 +2387,6 @@ export const FAMILIES = [
       // words at the 16px a phone never zooms into (kit.css .rec-input-touch).
       {
         id: "rec-field-touch",
-        width: "phone",
         html:
           `<div class="rec-field"><label><span class="rec-field-label">Name the list</span>` +
           `<input type="text" class="rec-input rec-input-touch" value="Saturday regulars"></label>` +
