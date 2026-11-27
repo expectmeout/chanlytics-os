@@ -14,12 +14,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useAskDocked } from "@/bridge/ask/dock";
 import type { ReactNode } from "react";
 import { isAdsParam } from "@chanlytics/contracts";
-import type { fillDoors as FillDoors } from "../frame-doors";
+import { fillDoors as fillFrameDoors } from "../frame-doors";
 import type { HeadFirst } from "../kit/head/standing";
 import type { SurfaceRoute } from "../routes";
 import { useRootFlag } from "../kit/motion/root-flags";
 import { firstRowsMeetRoute } from "./first-rows";
-import { frameChrome, frameSurfaceHook, fromWindow } from "./frame-window";
+import { frameChrome } from "./frame-window";
 import { drawRoute } from "./route-table";
 import { appChrome, firstRunScreen, sharedViewer } from "./shell-chrome";
 import {
@@ -32,6 +32,7 @@ import {
   useShellKeys,
   useShellNavigate,
   useShellRouting,
+  useFrameSurfaces,
   useTabTitle,
   useViewFade,
 } from "./shell-hooks";
@@ -50,12 +51,10 @@ interface ChanlyticsAppProps {
   surfaceRoutes?: Readonly<Record<string, SurfaceRoute>> | null;
   sharedPage?: ReactNode;
   routeNow?: string | null;
-  fillDoors?: typeof FillDoors | null;
+  fillDoors?: typeof fillFrameDoors;
 }
 
 // Where there is no bridge (the standalone mockup) nothing is read again, so nothing moves: this stand-in answers nothing new.
-const useSurfaceStill = (): number => 0;
-
 /**
  * The crumbs, told to the head Glass draws in the frame's places. Leads is a scope of People, picked in the page's own
  * strip, so its head is People's; Conversations and Live are tabs of the Inbox's family, so each keeps its own name and no
@@ -110,7 +109,7 @@ export function ChanlyticsApp({
   surfaceRoutes = null,
   sharedPage = null,
   routeNow = null,
-  fillDoors = null,
+  fillDoors = fillFrameDoors,
 }: ChanlyticsAppProps) {
   // The member's kept choice on a wide desk; on a small one, its rail until they open it (shell-hooks.ts useDeskSidebar).
   const { sidebar, onSidebar } = useDeskSidebar(keptSidebar, keepSidebar);
@@ -124,28 +123,23 @@ export function ChanlyticsApp({
   const { page, param } = at;
   // Drawn again when a surface the route on screen is drawn from moves (surface-registry.ts routeSurfaces), and not for any
   // other surface's read. The pages hear their own.
-  const useSurface = frameSurfaceHook() ?? useSurfaceStill;
-  useSurface({ page, param });
+  useFrameSurfaces({ page, param });
   const gate = useRouteGate(at);
   const { demoGated, arm } = gate;
   const { navigate, backToPeople, backFrom } = useShellNavigate(setRoute);
   const openAsk = useCallback(() => setAskOpen(true), []);
 
   // The doors every page uses (surfaces/frame-doors.ts), filled before the pages under this draw: the frame's own move,
-  // its Ask, and a person's Back to the People view they were opened from. The bridge hands the frame the filler as
-  // `fillDoors`. Without a bridge (the standalone mockup, a test) the frame publishes them itself, as it always did.
-  if (fillDoors) fillDoors({ navigate, openAsk, backToPeople, backFrom });
-  else Object.assign(window, { appNavigate: navigate, appAsk: openAsk, appBackToPeople: backToPeople });
+  // its Ask, and a person's Back to the People view they were opened from (`fillDoors`: the doors' own filler, or a
+  // test's, which catches what the frame hands them).
+  fillDoors({ navigate, openAsk, backToPeople, backFrom });
 
   useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick, follows: routeNow === null });
   useShellKeys({ setAskOpen, sidebar, onSidebar });
   const { navOpen, setNavOpen } = useNavDrawer();
 
-  // The route table's answer (route-table.tsx), the honesty gate applied; by the window's name first, a test's stand-in.
-  const drawn = fromWindow(
-    "drawRoute",
-    drawRoute,
-  )({
+  // The route table's answer (route-table.tsx), the honesty gate applied.
+  const drawn = drawRoute({
     ...at,
     demoGated,
     navigate,

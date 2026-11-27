@@ -131,8 +131,7 @@ test("a browser sees the attachment's facts and never its storage path", () => {
 // where the route's, message-media.ts's and reads.ts's text was read until 26 Nov 2026.
 
 test("the thread draws the attachment from one component, wherever it opens", () => {
-  // The component is the kit's (surfaces/kit/media), which seed-globals publishes as window.TlMedia for the pages that
-  // still draw it by name (the harness bundle's test holds that publish). What it draws, for each kind, and nothing
+  // The component is the kit's (surfaces/kit/media), which the pages import. What it draws, for each kind, and nothing
   // without the bridge: media/an-attachment-is-drawn-by-its-kind.test.mjs (pinned as its text until 26 Nov 2026).
   // The thread drawing it, and its style, wait for the Inbox's world (lane 7) and the stylesheets.
   assert.ok(

@@ -31,12 +31,13 @@ bridgeHolds({
 });
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
 // The shell's way of moving, as far as a pick needs it: the address says the route it was sent to.
-globalThis.window.CHANLY = {
-  ...(globalThis.window.CHANLY ?? {}),
-  nav: (route) => {
-    globalThis.location.hash = `#/${route}`;
+bridgeHolds({
+  doors: {
+    navigate: (route) => {
+      globalThis.location.hash = `#/${route}`;
+    },
   },
-};
+});
 const keepError = console.error;
 console.error = () => {};
 const { reviews, reviewsOverride, forgetReviews } = await importSrc(

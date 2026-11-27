@@ -379,7 +379,7 @@ test("a receptionist is set up with no booking link: the box says it is optional
 /* ------------------------------------ who may do it ------------------------------------ */
 
 test("a role that may not change the business is told why, and nothing opens for it", () => {
-  W.ST_STORE = { can: (perm) => perm !== "settings", myRole: () => "viewer" };
+  bridgeHolds({ parts: { roles: { can: (perm) => perm !== "settings", myRole: () => "viewer" } } });
   try {
     const sent = saving();
     let tree = drawCreate();
@@ -391,6 +391,6 @@ test("a role that may not change the business is told why, and nothing opens for
     assert.equal(foldOpen(tree), false, "and the fold never opens");
     assert.equal(sent.length, 0);
   } finally {
-    delete W.ST_STORE;
+    bridgeHolds({ parts: { roles: undefined } });
   }
 });

@@ -115,7 +115,7 @@ type FoldHold = ReturnType<typeof useRecordFold>;
 
 /**
  * Ask for the sheet from anywhere: a person, the deal a new step names, or the step to change; a note (`note`); or a line
- * for many (`personIds`, `onDone`). True when it was asked for. Published under `window.openStepSheet` for the pages
+ * for many (`personIds`, `onDone`). True when it was asked for. Handed to every page by People's courier (people-detail.ts, provided as `sheets`), for the pages
  * that have not moved.
  */
 export function openStepSheet({

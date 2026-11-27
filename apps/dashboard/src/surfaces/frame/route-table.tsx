@@ -6,14 +6,13 @@
  * draws its chrome around the page the layout gave it (`routePage`), as `surfaceRoutes` (surfaces/routes.ts) says.
  *
  * No hooks here: drawRoute is a function of the address and of what the window holds at the draw, called during the
- * frame's own render. The frame's JSX reads it off the window (frame-globals.ts publishes it) until the frame itself is
- * TypeScript (step 7e), when the parked pages' landing becomes the catch-all page's own. Drawn as the JSX drew it, raw
+ * frame's own render, which imports it. Drawn as the JSX drew it, raw
  * buttons and all, until the frame's kit step (eslint KIT_PENDING).
  */
 import type { ReactNode } from "react";
 import type { HeadFirst } from "../kit/head/standing";
 import type { SurfaceAct, SurfaceRoute, SurfaceViews } from "../routes";
-import { frameGlyph } from "./frame-window";
+import { Icon } from "../kit/icon/icon";
 
 type Crumb = string | { label: string; to?: string; go?: unknown };
 
@@ -90,18 +89,17 @@ const soonTitle = (page: string) => SOON_META[page]?.title || page;
 
 function ComingSoon({ surface, onNavigate }: { surface: string; onNavigate: (to: string) => void }) {
   const meta = SOON_META[surface] || { icon: "dot", title: surface, blurb: "" };
-  const Glyph = frameGlyph();
   return (
     <div className="soon">
       <div className="soon-glyph">
-        <Glyph name={meta.icon} size={22} />
+        <Icon name={meta.icon} size={22} />
       </div>
       <div className="soon-title">{meta.title}</div>
       <div className="soon-blurb">{meta.blurb}</div>
       <span className="soon-chip">Not in this release</span>
       <div className="soon-actions">
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
-          <Glyph name="home" size={12} /> Back to Today
+          <Icon name="home" size={12} /> Back to Today
         </button>
       </div>
     </div>
@@ -110,17 +108,16 @@ function ComingSoon({ surface, onNavigate }: { surface: string; onNavigate: (to:
 
 // ---- Not-found states -----------------------------------------------------
 function NotFound({ onNavigate }: { raw: string; onNavigate: (to: string) => void }) {
-  const Glyph = frameGlyph();
   return (
     <div className="soon">
       <div className="soon-glyph">
-        <Glyph name="search" size={22} />
+        <Icon name="search" size={22} />
       </div>
       <div className="soon-title">Page not found</div>
       <div className="soon-blurb">This link doesn&apos;t open anything here.</div>
       <div className="soon-actions">
         <button className="btn btn-sm" onClick={() => onNavigate("today")}>
-          <Glyph name="home" size={12} /> Go to Today
+          <Icon name="home" size={12} /> Go to Today
         </button>
       </div>
     </div>
@@ -191,11 +188,10 @@ export const SHELL_ROUTES: readonly RouteRow[] = [
 // with demo mode (16 Nov 2026).
 function surfaceAct(act: SurfaceAct): ReactNode {
   const cls = `btn ${act.primary ? "btn-primary " : ""}btn-sm`;
-  const Glyph = frameGlyph();
   if (act.href) {
     return (
       <a className={cls} href={act.href} target="_blank" rel="noreferrer" data-testid={act.testid}>
-        <Glyph name={act.glyph} size={12} />
+        <Icon name={act.glyph} size={12} />
         {" " + act.label}
       </a>
     );

@@ -1,17 +1,18 @@
 /**
- * It moves as one: a thumb's gestures and an overlay's leaving (frame-globals touchSwipe, leaving).
+ * It moves as one: a thumb's gestures and an overlay's leaving (kit/motion/swipe.ts touchSwipe, leaving).
  *
  * On a phone a sheet, the lead's peek and Ask's palette were closed only by their buttons, or at best by a flick read at
  * the touch's end, and an open thread only by its arrow. Every overlay also went in one frame. Now a let-go follows the
  * finger (the wash behind fading with it), leaves the way it was pulled or settles back, and an overlay React takes
  * away leaves by a still copy of itself.
  *
- * Run against frame-globals itself, on elements that answer what the helpers ask of them.
+ * Run against the real helpers, on elements that answer what the helpers ask of them.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 import { until } from "../shared/_until.mjs";
+import { holdFrameParts } from "./_bridge-holds.mjs";
 
 let reduced = false;
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", ...over });
@@ -37,8 +38,9 @@ globalThis.React = {
   useRef: (v) => ({ current: v }),
   Fragment: "Fragment",
 };
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-const { touchSwipe, leaving, leaveOverlay } = globalThis.window;
+holdFrameParts();
+const { touchSwipe } = await import("../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
+const { leaving, leaveOverlay } = await import("../../apps/dashboard/src/surfaces/kit/motion/leaving.ts");
 const { holdMoves } = await import("../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1101,17 +1103,10 @@ test("a strip is walked only where the shell is narrow, and there only where the
   // People's strip is walked to 900px, where its page is one column, and any other only on a phone (5 Oct 2026). That is
   // the stylesheet's to say now, by the token that says how far a page travels (`--view-travel`: the tokens', and
   // People's to 900px in components.css): the strip's pager asks the deck whether a finger walks the page on screen.
-  const { viewPager } = await import("../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
+  await import("../../apps/dashboard/src/surfaces/kit/view-tabs/pager.ts");
   const { viewDeck } = await import("../../apps/dashboard/src/surfaces/kit/motion/view-deck.ts");
-  Object.assign(globalThis.window, { viewPager, viewDeck });
-  // The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+  // The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
   const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-  Object.assign(globalThis.window, {
-    SurfaceTabs: surfaceTabs.SurfaceTabs,
-    stripPlace: surfaceTabs.stripPlace,
-    stripSlide: surfaceTabs.stripSlide,
-    stripSwipe: surfaceTabs.stripSwipe,
-  });
   const keep = globalThis.window.matchMedia;
   let width = 800;
   let token = "100%";
@@ -1149,7 +1144,7 @@ test("a strip is walked only where the shell is narrow, and there only where the
     view.contains = (other) => other === view;
     view.querySelector = (sel) => (takenOver && sel === "[data-takeover]" ? {} : null);
     viewDeck.view("frame")(view);
-    drag(globalThis.window.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
+    drag(surfaceTabs.stripSwipe(), view, [300, 300], [200, 300], [100, 300]);
     return pressed;
   };
   try {

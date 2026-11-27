@@ -23,7 +23,7 @@ import {
   zoneDayKey,
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, quiet, redrawWanted } from "../../_stub-react.mjs";
-import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-14T14:00:00Z");
@@ -46,14 +46,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  CHANLY: {
-    nav() {},
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-    IX_NOW: "12:04",
-    CONF: { SAFE: 0.8, MED: 0.5 },
-  },
-  canDo: () => true,
-  gate: () => ({}),
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -61,7 +53,7 @@ installStubReact({
 });
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const { InboxThread } = await import(`${S}/inbox/thread/thread.tsx`);
 const { MoreMenu } = await import(`${S}/kit/more-menu/more-menu.tsx`);
@@ -447,7 +439,11 @@ test("REGRESSION: who the thread is with opens their page -- the face, the name 
   const link = find(draw(vm, { onOpenClient: (id) => went.push(id) }), byTestId("ix-th-person"));
   assert.ok(link, "a link to the person");
   assert.equal(link.type, "a");
-  assert.equal(link.props.href, "#/clients/k1", "their page's address, so a long press or a new tab opens it too");
+  assert.equal(
+    link.props.href,
+    "/w/marisas/people/k1",
+    "their page's address, so a long press or a new tab opens it too",
+  );
   assert.ok(
     find(link, hasClass("face")) && find(link, hasClass("ix-th-name")) && find(link, byTestId("ix-th-sub")),
     "the face, the name and the line under it are one door, a thumb tall",
@@ -498,7 +494,7 @@ test("REGRESSION: on a phone too, More opens the thread's sheet and who it is op
     assert.equal(more.props.trigger.props.className, "ix-th-more", "the ⋯ on its round, at the head's right");
     const link = find(tree, byTestId("ix-th-person"));
     assert.ok(link && link.type === "a", "who it is, one link to their page");
-    assert.equal(link.props.href, "#/clients/k1");
+    assert.equal(link.props.href, "/w/marisas/people/k1");
     assert.equal(
       find(link, (n) => n.type === Menu),
       undefined,
@@ -838,7 +834,7 @@ test("a step due under the head: what, and when it was due, with Done outside th
   const readAgain = [];
   const w = globalThis.window;
   bridgeHolds({ parts: { refreshSurface: provided("refreshSurface") } });
-  const keep = { dispatchEvent: w.dispatchEvent, gate: w.gate };
+  const keep = { dispatchEvent: w.dispatchEvent, roles: provided("roles") };
   bridgeHolds({
     parts: {
       refreshSurface: (key) => {
@@ -963,18 +959,20 @@ test("a step due under the head: what, and when it was due, with Done outside th
     assert.equal(textOf(find(draw(vm), byTestId("ix-th-step-for"))), "For Maria");
     peopleAre({ rows: [{ id: "k1", deal: null, nextStep: stepOf(0) }] });
     assert.equal(find(draw(vm), byTestId("ix-th-step")).props["data-due"], "today");
-    // A viewer's Done refuses at the control, and says why: the gate's handlers are the button's.
-    const refused = [];
-    w.gate = (a) => (a === "approve" ? { "aria-disabled": true, onClick: () => refused.push(a) } : {});
+    // A viewer's Done refuses at the control, and says why: the gate's handlers are the button's (frame/gate.ts).
+    holdRoles({ can: (a) => a !== "approve" });
     pressed.length = 0;
-    find(draw(vm), byTestId("ix-th-step-done")).props.onClick();
-    assert.deepEqual([refused, pressed], [["approve"], []]);
+    const refused = find(draw(vm), byTestId("ix-th-step-done"));
+    assert.equal(refused.props["aria-disabled"], true);
+    assert.ok(refused.props["aria-description"], "and says who can");
+    refused.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: null });
+    assert.deepEqual(pressed, []);
   } finally {
-    Object.assign(w, keep);
+    w.dispatchEvent = keep.dispatchEvent;
+    bridgeHolds({ parts: { roles: keep.roles } });
     peopleAre(undefined);
     bridgeHolds({ parts: { personNotes: undefined } });
     bridgeHolds({ parts: { clock: undefined } });
-    delete w.openStepSheet;
   }
 });
 
@@ -982,17 +980,24 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
   const vm = toInboxThreadVM(conv(), asked, ZONE, NOW);
   const itemsOf = (tree) => itemsIn(find(tree, (n) => n.type === Menu));
   const shape = (tree) => menuShape(find(tree, (n) => n.type === Menu));
-  const was = { deal: provided("deal"), open: globalThis.window.openDealSheet };
+  const was = { deal: provided("deal"), open: provided("sheets")?.openDeal };
   const opened = [];
   // What happens, in order: the Actions button taking focus, and the sheet asked for.
   const order = [];
   // The kit the courier publishes (people-detail.ts window.__deal), and the sheet's door (components/deal-sheet.jsx).
   bridgeHolds({ parts: { deal: { menu: dealMenuActs, actWords: DEAL_ACT_WORDS } } });
-  globalThis.window.openDealSheet = (ask) => {
-    opened.push(ask);
-    order.push("sheet");
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (ask) => {
+          opened.push(ask);
+          order.push("sheet");
+          return true;
+        },
+      },
+    },
+  });
   // The header's More button, as the page has it.
   const actions = { focus: () => order.push("actions") };
   globalThis.document.querySelector = (sel) => (sel === ".ix-th-head .ix-th-more" ? actions : null);
@@ -1069,7 +1074,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     peopleAre(undefined);
     delete globalThis.document.querySelector;
     bridgeHolds({ parts: { deal: was.deal } });
-    globalThis.window.openDealSheet = was.open;
+    bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: was.open } } });
   }
 });
 
@@ -1091,7 +1096,7 @@ test("an owner reading a person's email thread may say they are not a person fro
     ZONE,
     NOW,
   );
-  const was = { may: globalThis.window.mayAtLeast, store: globalThis.sessionStorage };
+  const was = { may: provided("roles")?.mayAtLeast, store: globalThis.sessionStorage };
   const kept = new Map();
   globalThis.sessionStorage = {
     getItem: (k) => kept.get(k) ?? null,
@@ -1101,7 +1106,7 @@ test("an owner reading a person's email thread may say they are not a person fro
   const opened = [];
   const itemsOf = (vm) => itemsIn(find(draw(vm, { onOpenClient: (id) => opened.push(id) }), (n) => n.type === Menu));
   try {
-    globalThis.window.mayAtLeast = (rung) => rung === "owner";
+    holdRoles({ atLeast: (rung) => rung === "owner" });
     const item = itemsOf(email).find((it) => it.label === "Not a customer…");
     assert.ok(item, "offered beside the person's other acts");
     assert.equal(item.tone, "danger");
@@ -1117,10 +1122,10 @@ test("an owner reading a person's email thread may say they are not a person fro
       !itemsOf(toInboxThreadVM(conv(), asked, ZONE, NOW)).some((it) => it.label === "Not a customer…"),
       "a WhatsApp thread: not a mail sender",
     );
-    globalThis.window.mayAtLeast = () => false;
+    holdRoles({ atLeast: () => false });
     assert.ok(!itemsOf(email).some((it) => it.label === "Not a customer…"), "only an owner deletes a person");
   } finally {
-    globalThis.window.mayAtLeast = was.may;
+    holdRoles({ atLeast: was.may });
     globalThis.sessionStorage = was.store;
   }
 });
@@ -1145,7 +1150,7 @@ test("an owner's first email from someone asks under the conversation whether it
       NOW,
     );
   const row = (over = {}) => ({ id: "k9", threads: 1, deal: null, nextVisitLine: null, lastVisitLine: null, ...over });
-  const was = { may: globalThis.window.mayAtLeast, store: globalThis.sessionStorage };
+  const was = { may: provided("roles")?.mayAtLeast, store: globalThis.sessionStorage };
   const kept = new Map();
   globalThis.sessionStorage = {
     getItem: (k) => kept.get(k) ?? null,
@@ -1155,7 +1160,7 @@ test("an owner's first email from someone asks under the conversation whether it
   const opened = [];
   const ask = (vm) => find(draw(vm, { onOpenClient: (id) => opened.push(id) }), byTestId("ix-first-email"));
   try {
-    globalThis.window.mayAtLeast = (rung) => rung === "owner";
+    holdRoles({ atLeast: (rung) => rung === "owner" });
     peopleAre({ rows: [row()] });
     const line = ask(email());
     assert.ok(line, "the line under the conversation");
@@ -1179,11 +1184,11 @@ test("an owner's first email from someone asks under the conversation whether it
     }
     peopleAre({ rows: [row()] });
     assert.equal(ask(toInboxThreadVM(conv(), asked, ZONE, NOW)), undefined, "a WhatsApp thread: not a mail sender");
-    globalThis.window.mayAtLeast = () => false;
+    holdRoles({ atLeast: () => false });
     assert.equal(ask(email()), undefined, "only an owner says a person is not one");
   } finally {
     peopleAre(undefined);
-    globalThis.window.mayAtLeast = was.may;
+    holdRoles({ atLeast: was.may });
     globalThis.sessionStorage = was.store;
   }
 });

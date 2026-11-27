@@ -172,8 +172,6 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
   const verbs = () =>
     BcRunVerbs({ row: toBroadcastVM(stale, ZONE), ...acts, approve: (row) => void broadcasts.approve(row.id) });
   try {
-    // Where the shell gates a control (frame-globals gatedProps), the button carries the verb's own sentence.
-    globalThis.window.gatedProps = (reason) => ({ "aria-disabled": true, "data-tip": reason, onClick() {} });
     let approve = byTestId(verbs(), "bc-approve");
     assert.equal(approve.props["aria-disabled"], true);
     assert.match(
@@ -184,7 +182,6 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     await settle();
     assert.deepEqual(approvals, [], "REGRESSION: Approve on a run the verb refuses");
     // And where it does not (the standalone page), the press still approves nothing.
-    delete globalThis.window.gatedProps;
     approve = byTestId(verbs(), "bc-approve");
     press(approve);
     await settle();
@@ -207,7 +204,6 @@ test("a waiting run whose day has passed is not offered an Approve the route ref
     assert.equal(runApprovalRefusal(reach, days), null, "the predicate itself");
     assert.match(runApprovalRefusal(stale, days), /that day has passed/);
   } finally {
-    delete globalThis.window.gatedProps;
     broadcasts.approve = keep;
   }
 });

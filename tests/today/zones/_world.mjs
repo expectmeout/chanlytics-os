@@ -5,8 +5,8 @@
  */
 import { after } from "node:test";
 import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, kitPages, all, textOf } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { again, all, fresh, installStubReact, kitPages, textOf } from "../../_stub-react.mjs";
+import { askDoor, bridgeHolds, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 export const ZONE = "America/New_York";
 export const NOW = new Date("2026-09-18T20:00:00Z");
@@ -24,17 +24,10 @@ bridgeHolds({
   },
   parts: { clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) } },
 });
-Object.assign(globalThis, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  appNavigate: (to) => went.push(to),
-  askAbout: (a) => asked.push(a),
-  usePPToast: () => [null, (m) => flashes.push(m)],
-  canDo: () => true,
-  mayAtLeast: () => true,
-  gate: () => ({}),
-  useHotkey: () => {},
-  refusalToast: (res, lead) => ({ msg: `${lead}: ${res.error}`, tone: "danger" }),
-});
+holdRoles({ atLeast: () => true });
+bridgeHolds({ doors: askDoor({ ask: (a) => asked.push(a) }) });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 /** What the pages asked of the wire, by method and path, and the answer each test holds (`answer`), refused by default. */
 export const wire = [];

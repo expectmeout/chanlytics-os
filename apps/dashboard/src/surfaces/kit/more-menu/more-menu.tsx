@@ -1,11 +1,11 @@
 /**
  * MoreMenu: the shared 3-dot popover (moved whole from data-bits.jsx, decision 0015: the kit's one implementation, which
- * seed-globals publishes as window.MoreMenu for the pages that still read it).
+ * imported where it is drawn).
  *
  * items: [{ label, icon, onClick, danger, meta, gate } | { divider:true } | { header:"…" }]
  * Renders its own trigger button; closes on backdrop, Escape, or item click.
  * `gated` (a sentence) keeps the whole menu shut and says why; an item's `gate`
- * is window.gate(...)'s props, spread after its click, so a refused item stays in
+ * is the role gate's props (frame/gate.ts `gate`), spread after its click, so a refused item stays in
  * the menu, says why when pressed, and leaves the menu open.
  * `escape` is for a menu opened inside a pane that scrolls (the People rail): see moreFit.
  * An item with `checked` (true or false) is one of a set: a menuitemradio, ticked when true. `metaBelow` draws its
@@ -52,7 +52,7 @@ interface MoreMenuItem {
   title?: string;
   /** One of a set (a sort, say): ticked when true, drawn on every one. */
   checked?: boolean;
-  /** The honesty gate's props (`window.gate(...)`), spread after the item's click. */
+  /** The honesty gate's props (frame/gate.ts `gate`), spread after the item's click. */
   gate?: Record<string, unknown>;
   /** What the item stands for, where a set's items are values (a time, "09:30"): said as its `data-value`. */
   value?: string;

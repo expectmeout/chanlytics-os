@@ -481,11 +481,8 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     pane.includes('import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";') &&
       pane.includes("const [toastNode, flash] = useFrameToast();"),
   );
-  // No legacy page is loaded for the pane or the form any more (both files are gone), and the form is drawn by the pane
-  // as the component it is.
-  const manifest = readCode("apps/dashboard/src/bridge/manifest.ts");
-  for (const f of ["integrations-real.jsx", "business-record.jsx", "sending-domains.jsx"])
-    assert.ok(!manifest.includes(`@/legacy/pages/${f}`), f);
+  // No legacy page is loaded for the pane or the form any more (both files are gone, and the manifest that loaded them),
+  // and the form is drawn by the pane as the component it is.
   assert.ok(pane.includes("<BusinessRecordForm line={ownLine} flash={flash} />"));
   assert.ok(pane.includes("data-testid={`connections-${g}`}") && row.includes("data-testid={`connection-${r.kind}`}"));
   assert.ok(

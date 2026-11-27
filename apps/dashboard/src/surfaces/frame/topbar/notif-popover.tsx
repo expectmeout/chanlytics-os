@@ -4,8 +4,8 @@
  * contracts bellSections through the bell's own `sections`) and open with a press. On a phone the notes are a sheet from
  * the bottom, as every other sheet there is (components.css, the bell's sheet), and a thumb slides a note away or marks
  * it read. An unread note, and a group with one in it, carries a check that reads it where it stands (decision 0124:
- * a dot goes only by a press, so a desk needs one that does not open the note). The frame's JSX and bell-rows.test
- * draw it by its old name (`NotifPopover`, frame-globals.ts) until the frame itself is TypeScript (step 7e). Drawn as
+ * a dot goes only by a press, so a desk needs one that does not open the note). The frame and bell-rows.test
+ * import it. Drawn as
  * the JSX drew it, raw buttons and all, until the frame's kit step.
  */
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -16,7 +16,10 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Sheet } from "../../kit/sheet/sheet";
 import { useRootFlag } from "../../kit/motion/root-flags";
-import { frameBell, frameGlyph } from "../frame-window";
+import { frameBell } from "../frame-window";
+import { touchSwipe } from "../../kit/motion/swipe";
+import { holdStill } from "../../kit/motion/hold-still";
+import { dialogRef } from "../../kit/focus/trap";
 
 /** A note the bell draws: the server's row (BellRow). */
 export interface BellNote {
@@ -135,7 +138,6 @@ interface BellDraw {
  * keyboard's focus); on a phone a note is slid instead, and a group, which cannot be slid, shows its own.
  */
 function bellCheck(title: string, onPress: () => void) {
-  const Glyph = frameGlyph();
   return (
     <button
       className="tbn-read"
@@ -147,25 +149,22 @@ function bellCheck(title: string, onPress: () => void) {
         onPress();
       }}
     >
-      <Glyph name="check" size={11} />
+      <Icon name="check" size={11} />
     </button>
   );
 }
 
 function bellNote(d: BellDraw, n0: BellNote, inGroup: boolean) {
-  const Glyph = frameGlyph();
   const n = d.asIs.get(n0.id) || n0;
   const verb = tbnVerb(n);
   // On a phone a thumb slides the note (kit/motion/swipe.ts touchSwipe): left over Dismiss, right over Mark read while it
   // is unread. The read note comes back read; the dismissed one stays aside while its slot folds.
-  const swipe = window.touchSwipe
-    ? window.touchSwipe({
-        onAway: () => d.fold(n.id),
-        onBack: n.unread && d.onRead ? () => d.read(n.id) : null,
-        when: tbnPhone,
-        onGrab: tbnMoving,
-      })
-    : {};
+  const swipe = touchSwipe({
+    onAway: () => d.fold(n.id),
+    onBack: n.unread && d.onRead ? () => d.read(n.id) : null,
+    when: tbnPhone,
+    onGrab: tbnMoving,
+  });
   return (
     <div
       key={n.id}
@@ -198,7 +197,7 @@ function bellNote(d: BellDraw, n0: BellNote, inGroup: boolean) {
             {/* The mark says what kind of note this is, never its tone: a warning's title says that (components.css). */}
             {!inGroup && (
               <span className="mark tbn-icon">
-                <Glyph name={n.icon} size={13} />
+                <Icon name={n.icon} size={13} />
               </span>
             )}
             <span className="tbn-body">
@@ -211,7 +210,7 @@ function bellNote(d: BellDraw, n0: BellNote, inGroup: boolean) {
           </button>
           {n.unread && d.onRead && bellCheck(n.title, () => d.read(n.id))}
           <button className="tbn-x" data-tip="Dismiss" aria-label={`Dismiss “${n.title}”`} onClick={() => d.fold(n.id)}>
-            <Glyph name="x" size={10} />
+            <Icon name="x" size={10} />
           </button>
         </div>
       </div>
@@ -220,12 +219,10 @@ function bellNote(d: BellDraw, n0: BellNote, inGroup: boolean) {
 }
 
 /** A switch that holds the page still where the frame has it, else the change alone. */
-const holdIt = (e: MouseEvent<HTMLButtonElement> | null, change: () => void) =>
-  (window.holdStill || ((_: Element | null | undefined, f: () => void) => f()))(e && e.currentTarget, change);
+const holdIt = (e: MouseEvent<HTMLButtonElement> | null, change: () => void) => holdStill(e && e.currentTarget, change);
 
 function bellLine(d: BellDraw, l: BellLine) {
   if (l.count < 2) return bellNote(d, l.row, false);
-  const Glyph = frameGlyph();
   const open = d.openGroup === l.key;
   const unreadIds = l.members.flatMap((m) => ((d.asIs.get(m.id) || m).unread ? [m.id] : []));
   const unread = unreadIds.length > 0;
@@ -241,7 +238,7 @@ function bellLine(d: BellDraw, l: BellLine) {
         >
           {unread && <span className="tbn-dot" />}
           <span className="mark tbn-icon">
-            <Glyph name={l.row.icon} size={13} />
+            <Icon name={l.row.icon} size={13} />
           </span>
           <span className="tbn-body">
             <span className="tbn-line1">
@@ -251,7 +248,7 @@ function bellLine(d: BellDraw, l: BellLine) {
             <span className="tbn-msg">{l.row.title}</span>
           </span>
           <span className="tbn-chev" aria-hidden="true">
-            <Glyph name="chevron-down" size={12} />
+            <Icon name="chevron-down" size={12} />
           </span>
         </button>
         {unread && d.onRead && bellCheck(l.title ?? l.row.title, () => d.readMany(unreadIds))}
@@ -275,13 +272,12 @@ function bellFoot(onSettings: () => void) {
 
 /** The list: All caught up over an empty bell, else each section and its lines. */
 function bellList(d: BellDraw, items: BellNote[], readHere: Set<string>) {
-  const Glyph = frameGlyph();
   const sections = tbnSections(items.map((n) => (readHere.has(n.id) ? { ...n, unread: true } : n)));
   return (
     <div className="tbn-list">
       {tbnCaughtUp(items) && (
         <div className="tbn-empty">
-          <Glyph name="check" size={18} />
+          <Icon name="check" size={18} />
           <span>All caught up</span>
         </div>
       )}
@@ -382,7 +378,7 @@ export function NotifPopover({
         role="dialog"
         aria-modal="true"
         aria-label="Notifications"
-        ref={window.dialogRef ? window.dialogRef("bell") : undefined}
+        ref={dialogRef("bell")}
       >
         <header className="tbn-head">
           <span className="tbn-title">Notifications</span>

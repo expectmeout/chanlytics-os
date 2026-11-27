@@ -3,7 +3,7 @@
  * [data-tip] element, on hover and on keyboard focus. A pressed gate shows its reason at once, at the control (a tap has no
  * hover): the provided `tip`'s `show(el)`. Under a finger a tip goes after a plain toast's 3 s, and focus shows one to a
  * keyboard alone: a tapped tip stood until the next tap (Ruben, 18 Oct 2026). Installed once, where the page loads
- * (frame-globals.ts), and provided as `tip` (bridge/provided.ts), which a gate's press and the record kit's marks ask for.
+ * (installed by the boot, bridge/boot/installs.ts), and provided as `tip` (bridge/provided.ts), which a gate's press and the record kit's marks ask for.
  */
 import { provide, provided } from "@/bridge/provided";
 

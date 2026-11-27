@@ -45,7 +45,7 @@ promised to anyone. From `apps/dashboard/mockup/CLAUDE.md:3-7`:
 
 So the mockup's unbuilt half is not distance-to-100%. It is _after_ 100%, by an
 explicit decision recorded in three places (`mockup/CLAUDE.md`,
-`surface-registry.ts:36-41`, `bridge/manifest.ts:56-60`). This map counts
+`surface-registry.ts:36-41`, and the manifest until it went with decision 0151). This map counts
 it separately and never folds it into the gap.
 
 ---

@@ -8,6 +8,14 @@
 import { VIEW_CHANGE_MS } from "@chanlytics/contracts";
 import { getSurfaceStatuses } from "../surface-status";
 import { hearAddress } from "../workspace";
+import { provided } from "../provided";
+
+declare module "../provided" {
+  interface BridgeParts {
+    /** How long a move's owed reads wait for its motion to end: a test says 0, having none (after-the-move.ts). */
+    afterTheMoveMs: number;
+  }
+}
 
 /** Hear each move of the address: `dueAt` says what the move owes, and `read` reads it, as above. Answers the stop. */
 export function hearMoves(dueAt: () => string[], read: (keys: string[]) => void, win: Window = window): () => void {
@@ -26,8 +34,8 @@ export function hearMoves(dueAt: () => string[], read: (keys: string[]) => void,
     for (const key of held) owed.add(key);
     if (now.length) read(now);
     if (!owed.size || later !== null) return;
-    // A test's window says 0: it has no motion to wait out.
-    const wait = (win as { __afterTheMoveMs?: number }).__afterTheMoveMs ?? VIEW_CHANGE_MS;
+    // A test says 0 (provided as `afterTheMoveMs`): it has no motion to wait out.
+    const wait = provided("afterTheMoveMs") ?? VIEW_CHANGE_MS;
     if (wait > 0) later = setTimeout(readOwed, wait);
     else readOwed();
   };

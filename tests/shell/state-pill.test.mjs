@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../_stub-react.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -230,7 +230,6 @@ const frames = hookFrames();
 const fresh = () => {
   cells = [];
 };
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -281,23 +280,21 @@ globalThis.React = {
   },
   useSyncExternalStore: (subscribe, snapshot) => snapshot(),
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
+drawsInPlace();
 globalThis.document = {
   body: {},
   addEventListener() {},
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
-  CHANLY: { nav() {}, R: {} },
-  gate: () => ({}),
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
   clearTimeout() {},
 };
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } }, { fresh: true });
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// The pill is the kit's (surfaces/kit/pill), which seed-globals publishes as window.StatePill: contracts' stateOf, always.
+holdFrameParts();
+// The pill is the kit's (surfaces/kit/pill), which the pages import: contracts' stateOf, always.
 const { StatePill } = kitPages;
 
 const walk = (n, fn) => {

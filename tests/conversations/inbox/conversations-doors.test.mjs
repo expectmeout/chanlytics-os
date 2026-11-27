@@ -178,14 +178,7 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-Object.assign(globalThis, {
-  CHANLY: {
-    nav: (to) => went.push(to),
-    R: { client: (id) => `clients/${id}`, thread: (id) => `inbox/${id}` },
-    IX_NOW: "12:04",
-    CONF: { SAFE: 0.8, MED: 0.5 },
-  },
-});
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const S = "../../../apps/dashboard/src";
 const { ConversationsPage } = await import(`${S}/surfaces/inbox/pages/conversations-page.tsx`);
 const { OutcomePill } = await import(`${S}/surfaces/inbox/pages/outcome-pill.tsx`);

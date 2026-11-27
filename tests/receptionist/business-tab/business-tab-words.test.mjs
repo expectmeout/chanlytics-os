@@ -13,7 +13,8 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
-import { W, drawTab, redrawTab, marisa, openFold } from "../../_business-tab-harness.mjs";
+import { drawTab, redrawTab, marisa, openFold } from "../../_business-tab-harness.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 after(() => unmount());
 
@@ -49,12 +50,12 @@ const everything = () => {
   // The blocks' text is the composed prompt, not the page's words; their heads and doors are the page's.
   const heads = all(sheet, (n) => classes(n).some((c) => c === "bt-prompt-block-head" || c === "rec-sheet-head"));
   drawn.push({ where: "the prompt sheet's heads", tree: heads });
-  const was = W.canDo;
-  W.canDo = () => false;
+  const was = provided("roles");
+  holdRoles({ can: () => false });
   try {
     drawn.push({ where: "a viewer's page", tree: drawTab() });
   } finally {
-    W.canDo = was;
+    bridgeHolds({ parts: { roles: was } });
   }
   drawn.push({ where: "a record with nothing in it", tree: drawTab({ profile: {} }) });
   return drawn;

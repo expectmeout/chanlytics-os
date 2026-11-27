@@ -22,7 +22,6 @@ import { bridgeHolds } from "../_bridge-holds.mjs";
 let cells = [];
 // Where each hook keeps its state: by the component that calls it, as React keeps it (_hook-frames.mjs).
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -76,11 +75,6 @@ globalThis.window = {
   location: { hash: "", pathname: "/w/marisas", origin: "https://app.chanlytics.com" },
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
-  CHANLY: { nav() {}, agentIdFor: (n) => String(n).toLowerCase().replace(/ /g, "-") },
-  usePPToast: () => [null, () => {}],
-  gate: () => ({}),
-  canDo: () => true,
-  gateTitle: () => null,
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent() {
@@ -91,23 +85,16 @@ globalThis.window = {
   setInterval: () => 1,
   clearInterval() {},
 };
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 globalThis.document = { addEventListener() {}, removeEventListener() {}, body: { appendChild() {} } };
 
-const win = globalThis.window;
-// The sidebar (surfaces/frame/sidebar/sidebar.tsx), under the name the frame draws it by.
-win.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
-// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
-// publishes it (seed-globals.ts); its hooks are this file's stub's.
+// The sidebar (surfaces/frame/sidebar/sidebar.tsx), as the frame imports it.
+const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs imports; its hooks are this
+// file's stub's.
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
-globalThis.ViewTabs = (await import("../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
-// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+// The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-Object.assign(win, {
-  SurfaceTabs: surfaceTabs.SurfaceTabs,
-  stripPlace: surfaceTabs.stripPlace,
-  stripSlide: surfaceTabs.stripSlide,
-  stripSwipe: surfaceTabs.stripSwipe,
-});
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -138,7 +125,7 @@ const hasClass = (n, cls) => typeof n.props?.className === "string" && n.props.c
 const nav = (active) => {
   cells = [];
   frames.begin();
-  const tree = win.Sidebar({ active, onNavigate() {} });
+  const tree = Sidebar({ active, onNavigate() {} });
   return findAll(tree, (n) => hasClass(n, "nav-item")).map((n) => ({
     label: textOf(n.props.children.find((c) => c && c.type === "span")),
     active: hasClass(n, "active"),
@@ -149,7 +136,7 @@ const nav = (active) => {
 const strip = (page, param = null) => {
   cells = [];
   frames.begin();
-  const tree = win.SurfaceTabs({ page, param, onNavigate() {} });
+  const tree = surfaceTabs.SurfaceTabs({ page, param, onNavigate() {} });
   if (!tree) return null;
   return findAll(tree, (n) => hasClass(n, "stabs-tab")).map((b) => ({
     label: textOf(b.props.children.filter((c) => typeof c === "string")).trim(),
@@ -235,22 +222,32 @@ test("the Inbox strip offers the three views, and says which one you are on", ()
 });
 
 test("the strip's badge is the count that already exists, not a second reading of it", () => {
-  // The one number every surface says (surfaces/needs-you.ts, published as `window.useNeedsYou`): the strip is handed it and
+  // The one number every surface says (surfaces/needs-you.ts needsYouNow, over Today's read): the strip is handed it and
   // counts nothing of its own, so no row of INBOX_DATA can make it say another.
-  bridgeHolds({ values: { inbox: { THREADS: [{ id: "c1", real: true, needsYou: true }] } } });
-  win.useNeedsYou = () => 2;
-  assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
-  assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");
-  assert.match(
-    strip("inbox")[0].tally,
-    /\btally-warn\b/,
-    "amber: it counts people who need you, as the Needs you pill does",
-  );
-  win.useNeedsYou = () => 0;
-  assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
-  win.useNeedsYou = () => null;
-  assert.equal(strip("inbox")[0].badge, null, "and none before the Inbox has been read");
-  delete win.useNeedsYou;
+  const waiting = (...ids) => ({
+    standing: { paused: false },
+    queue: {
+      rows: ids.map((id) => ({ id: `q-${id}`, kind: "handoff", conversationId: id, who: id, waitedMs: 3_600_000 })),
+    },
+  });
+  bridgeHolds({
+    values: { inbox: { THREADS: [{ id: "c1", real: true, needsYou: true }] }, today: waiting("th-1", "th-2") },
+  });
+  try {
+    assert.equal(strip("inbox")[0].badge, "2", "REGRESSION: the tab counted rows of its own");
+    assert.match(strip("inbox")[0].tally, /\btally\b/, "a tab's count is the one tally");
+    assert.match(
+      strip("inbox")[0].tally,
+      /\btally-warn\b/,
+      "amber: it counts people who need you, as the Needs you pill does",
+    );
+    bridgeHolds({ values: { today: waiting() } });
+    assert.equal(strip("inbox")[0].badge, null, "nothing waiting draws no badge");
+    bridgeHolds({ values: { today: undefined } });
+    assert.equal(strip("inbox")[0].badge, null, "and none before Today has been read");
+  } finally {
+    bridgeHolds({ values: { today: undefined } });
+  }
 });
 
 test("the strip is not drawn on a surface that has no second view", () => {
@@ -262,16 +259,16 @@ test("the strip is not drawn on a surface that has no second view", () => {
 // A phone's page swipes across its strip, and a tap slides the same way (frame/surface-tabs.tsx stripPlace and stripSlide,
 // docs/superpowers/specs/2026-09-25-swipe-between-tabs-design.md): a view from the tab beside comes in from its side.
 test("a view from the tab beside comes in from that side: the strip's own order, and nowhere off a strip", () => {
-  const at = (page) => win.stripPlace(page, null);
+  const at = (page) => surfaceTabs.stripPlace(page, null);
   assert.deepEqual(at("inbox"), { strip: "inbox", at: 0 });
   assert.deepEqual(at("live"), { strip: "inbox", at: 2 });
   assert.equal(at("messages"), null, "Campaigns has no strip: its rooms are reached from its home");
   assert.equal(at("outbound"), null);
   assert.equal(at("today"), null);
   assert.equal(at("content"), null, "a demo-only tab is on no real workspace's strip");
-  assert.equal(win.stripSlide(at("inbox"), at("conversations")), "next");
-  assert.equal(win.stripSlide(at("live"), at("inbox")), "prev");
-  assert.equal(win.stripSlide(at("inbox"), at("inbox")), null, "a thread opened on the same tab is not a move");
-  assert.equal(win.stripSlide(at("live"), at("outbound")), null, "a page off every strip is somewhere else");
-  assert.equal(win.stripSlide(null, at("inbox")), null);
+  assert.equal(surfaceTabs.stripSlide(at("inbox"), at("conversations")), "next");
+  assert.equal(surfaceTabs.stripSlide(at("live"), at("inbox")), "prev");
+  assert.equal(surfaceTabs.stripSlide(at("inbox"), at("inbox")), null, "a thread opened on the same tab is not a move");
+  assert.equal(surfaceTabs.stripSlide(at("live"), at("outbound")), null, "a page off every strip is somewhere else");
+  assert.equal(surfaceTabs.stripSlide(null, at("inbox")), null);
 });

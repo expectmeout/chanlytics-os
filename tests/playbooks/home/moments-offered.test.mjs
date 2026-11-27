@@ -158,11 +158,7 @@ bridgeHolds({
   },
   parts: { chrome: { state: stateOf } },
 });
-installStubReact({
-  canDo: () => true,
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
+installStubReact({});
 const SRC = "../../../apps/dashboard/src";
 const { playbooksOverride } = await import(`${SRC}/surfaces/campaigns/playbooks/surface.ts`);
 const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);

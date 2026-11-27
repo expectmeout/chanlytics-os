@@ -102,22 +102,25 @@ function clearSignupMark(win: Window): void {
   }
 }
 
-/** The window as Meta's SDK leaves it: its global, the hook it calls once loaded, and the load this page started. */
+/** The window as Meta's SDK leaves it: its global, and the hook it calls once loaded (the SDK's own contract with a page). */
 declare global {
   interface Window {
-    /** Meta's SDK, once its script has run; the hook it calls as it does; and this page's promise of it. */
+    /** Meta's SDK, once its script has run, and the hook it calls as it does. */
     FB?: FB;
     fbAsyncInit?: () => void;
-    __fbReady?: Promise<FB>;
   }
 }
+
+/** The load each window started, kept until it settles: a second press waits on the same one. */
+const FB_READY = new WeakMap<Window, Promise<FB>>();
 
 /** Load Meta's SDK once; resolve with the global it defines. */
 function loadSdk(win: Window, appId: string, version: string): Promise<FB> {
   const w = win;
   if (w.FB) return Promise.resolve(w.FB);
-  if (w.__fbReady) return w.__fbReady;
-  w.__fbReady = new Promise<FB>((resolve, reject) => {
+  const loading = FB_READY.get(w);
+  if (loading) return loading;
+  const ready = new Promise<FB>((resolve, reject) => {
     w.fbAsyncInit = () => {
       const fb = w.FB;
       if (!fb) {
@@ -138,12 +141,13 @@ function loadSdk(win: Window, appId: string, version: string): Promise<FB> {
     s.crossOrigin = "anonymous";
     s.onerror = () => {
       // A load that failed is not kept: the next press fetches Meta's SDK again rather than repeat this failure.
-      w.__fbReady = undefined;
+      FB_READY.delete(w);
       reject(new Error("sdk_failed"));
     };
     w.document.head.appendChild(s);
   });
-  return w.__fbReady;
+  FB_READY.set(w, ready);
+  return ready;
 }
 
 /** What a press needs in hand to ask for Meta's window at once: Meta's SDK, and the configuration the sign-up runs. */

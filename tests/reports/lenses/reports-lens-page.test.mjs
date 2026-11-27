@@ -23,7 +23,7 @@ import { ownHeld } from "../receptionist/_receptionist-world.mjs";
 import { dtoWith, held as peopleHeld } from "../people/_people-world.mjs";
 import { dtoWith as campaignsLedger, held as campaignsHeld } from "../campaigns/_campaign-world.mjs";
 import { reachOuts as campaignsReachOuts } from "../campaigns/_reach-out-world.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 const reads = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
@@ -376,7 +376,7 @@ test("a period with nothing in it says so on each lens that draws sections, and 
 
 test("Reviews says why nothing is drawn where nothing is linked, in the fold's words: a deployment that cannot look a listing up says so and offers no door, one that can says what the lens would show, and the door to find it is for a person who may use it", () => {
   workspace();
-  const wasCanDo = globalThis.canDo;
+  const wasCanDo = provided("roles");
   const door = (tree) => find(byTestId(tree, "google-none"), (n) => n.type === "button");
   const found = lensEmpty("reviews", { since: "Aug 29", until: "Sep 4" });
   try {
@@ -385,7 +385,7 @@ test("Reviews says why nothing is drawn where nothing is linked, in the fold's w
       ["an operator", (action) => action === "approve"],
       ["a viewer", () => false],
     ]) {
-      globalThis.canDo = may;
+      holdRoles({ can: may });
       // Nothing can be looked up or connected: the words say so, and no door leads anywhere.
       const unavailable = draw("reviews", { reviews: REVIEWS_UNAVAILABLE });
       assert.equal(REVIEWS_UNAVAILABLE.vm.state, "unavailable");
@@ -411,7 +411,7 @@ test("Reviews says why nothing is drawn where nothing is linked, in the fold's w
       else assert.equal(door(unlinked), null, `${who}: the words without a door`);
     }
   } finally {
-    globalThis.canDo = wasCanDo;
+    bridgeHolds({ parts: { roles: wasCanDo } });
   }
 });
 

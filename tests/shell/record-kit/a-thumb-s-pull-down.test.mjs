@@ -5,10 +5,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { unmount, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { W, bookingRules, dialogOf, draw, drawFold, fakeNode, offer, popupOf, redraw, thumb } from "./_record-kit.mjs";
+const { touchSwipe } = await import("../../../apps/dashboard/src/surfaces/kit/motion/swipe.ts");
 
 test("touchSwipe reads one way from a thumb's travel: across when it went further across, down only from a scroller's top", () => {
   const went = [];
-  const ways = W.touchSwipe({
+  const ways = touchSwipe({
     onLeft: () => went.push("left"),
     onRight: () => went.push("right"),
     onDown: () => went.push("down"),
@@ -29,7 +30,7 @@ test("touchSwipe reads one way from a thumb's travel: across when it went furthe
   assert.deepEqual(went, ["left", "right", "down", "down"], "and from its top, a pull down");
   // `when` gates the pull down alone: a peek walks its pile wherever it is.
   const gated = [];
-  const off = W.touchSwipe({ onLeft: () => gated.push("left"), onDown: () => gated.push("down"), when: () => false });
+  const off = touchSwipe({ onLeft: () => gated.push("left"), onDown: () => gated.push("down"), when: () => false });
   thumb(off, -120, 0);
   thumb(off, 0, 120);
   assert.deepEqual(gated, ["left"]);

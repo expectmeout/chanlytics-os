@@ -27,10 +27,17 @@ import { api } from "./api";
 import { sealSurfaceCache } from "./surface-cache";
 import { setPageBehind } from "./hearing/front";
 import { goToRoute, hearAddress, pathWorkspace, routeOnScreen, workspaceHref } from "./workspace";
-import { provided } from "./provided";
+import { provide, provided } from "./provided";
 import { whoIsLooking } from "./who";
 import { surfaceValue } from "../surfaces/surface-values";
 import type { AddressParts } from "@chanlytics/contracts";
+
+declare module "./provided" {
+  interface BridgeParts {
+    /** Inside the phone app, its door's own forget, for a sign-out to ask before it goes (installAppBridge). */
+    phoneDoor: { forgetPhone(): Promise<void> };
+  }
+}
 
 interface BridgeWindow {
   document: {
@@ -147,6 +154,8 @@ export function installAppBridge(
     receive: (raw: string) => answerShell(answering, raw),
     forgetPhone: () => forgetPhone(doors, post, phone),
   };
+  // And to the page's own sign-out (shell.ts signOut), which forgets this phone first.
+  provide("phoneDoor", { forgetPhone: () => forgetPhone(doors, post, phone) });
   // A file the page made (the kit's `downloadCsv`, surfaces/kit/download.ts), asked for with a cancelable `app:file`: taken to the app's share sheet,
   // and the event cancelled so the page does not also try the download a WebView drops. One that is no file the app
   // would take is left to the page.
@@ -187,6 +196,7 @@ export function installAppBridge(
     pushes.stop();
     offBell();
     delete win.__appBridge;
+    provide("phoneDoor", undefined);
   };
 }
 

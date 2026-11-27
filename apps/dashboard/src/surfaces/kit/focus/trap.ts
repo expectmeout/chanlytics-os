@@ -12,6 +12,7 @@
  * kit's sheet does. Escape is the page's own. dialogRef(key) is the ref that does it for an element's life, one per key as
  * `leaving` is, carrying `leaving`'s way out too. The modals outside the record kit take one of these.
  */
+import { leaving } from "../motion/leaving";
 
 const TAB_STOP_KINDS = "button, a[href], input, select, textarea, [tabindex]";
 
@@ -87,7 +88,7 @@ const dialogRefs = new Map<string, (el: HTMLElement | null) => void>();
 export const dialogRef = (key: string): ((el: HTMLElement | null) => void) => {
   const had = dialogRefs.get(key);
   if (had) return had;
-  const leave = window.leaving ? window.leaving(key) : null;
+  const leave = leaving(key);
   let release: (() => void) | null = null;
   const ref = (el: HTMLElement | null) => {
     if (release) {

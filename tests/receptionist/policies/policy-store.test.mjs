@@ -1,18 +1,18 @@
 /**
  * The policy store adapter, EXECUTED.
  *
- * The mockup's three policy readers (Settings matrix, the approval chip, Fleet)
- * all go through `window.POLICY`. This pins that the adapter answers from the
- * workspace's real rows when they exist, says no mode while they are not read
- * (the seeded store only in a demo session), never invents a mode for a
- * missing row, keeps money locked, and only ever writes through the courier
- * for a class that is enforced.
+ * The policy readers (Settings matrix, the approval chip, Fleet) all go
+ * through the bridge's `policy` part (provided.ts). This pins that the adapter
+ * answers from the workspace's real rows when they exist, says no mode while
+ * they are not read, never invents a mode for a missing row, keeps money
+ * locked, and only ever writes through the courier for a class that is
+ * enforced.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
@@ -141,12 +141,6 @@ test("uiRows maps stored rows onto the mockup's ids, never invents a mode, and k
 
 test("the installed store answers from real rows, and writes only through the courier for an enforced class", async () => {
   const calls = [];
-  const seed = {
-    MODES: ["Auto", "Veto", "Ask", "Never"],
-    ROWS: [{ id: "reply", def: "Auto" }],
-    modeOf: () => "SEED",
-    set: () => calls.push("seed-set"),
-  };
   bridgeHolds({
     parts: {
       setPolicy: async (cls, mode) => {
@@ -154,12 +148,9 @@ test("the installed store answers from real rows, and writes only through the co
       },
     },
   });
-  const win = {
-    POLICY: seed,
-  };
   // The rows as the settings read holds them (settings/business/shell.ts policiesNow): read.
-  installPolicyStore(win, () => REAL);
-  const S = win.POLICY;
+  installPolicyStore(() => REAL);
+  const S = provided("policy");
   assert.equal(S.real(), true);
   assert.equal(S.modeOf("reply"), "Veto");
   assert.equal(S.modeOf("book"), "Auto");
@@ -181,21 +172,15 @@ test("the installed store answers from real rows, and writes only through the co
 
 test("REGRESSION: a workspace whose policies are not read yet has no modes -- its chips said the mockup's seeded ones until settings landed, and all visit when it never did", () => {
   const calls = [];
-  const seed = {
-    MODES: ["Auto", "Veto", "Ask", "Never"],
-    ROWS: [{ id: "reply", def: "Veto" }],
-    modeOf: () => "Veto",
-    set: (id, m) => calls.push([id, m]),
-  };
-  // A cold tab before GET settings lands, or after it failed twice: the app's window, no demo, no rows.
-  const win = { POLICY: seed };
+  bridgeHolds({ parts: { setPolicy: async (cls, mode) => calls.push([cls, mode]) } });
+  // A cold tab before GET settings lands, or after it failed twice: no rows.
   let held;
-  installPolicyStore(win, () => held);
-  const S = win.POLICY;
+  installPolicyStore(() => held);
+  const S = provided("policy");
   assert.equal(S.modeOf("reply"), null, "REGRESSION: the seed's Veto beside a real approval");
   assert.equal(S.row("reply").mode, null, "the chip's row states no mode either");
   assert.equal(S.row("money").mode, "Never", "but money, which the database locks whatever we can read");
-  assert.notDeepEqual(S.ROWS, seed.ROWS, "the rows are the charter's, not the seed's");
+  assert.equal(S.ROWS.length, UI_ROWS.length, "the rows are the charter's");
   S.set("reply", "Ask");
   assert.deepEqual(calls, [], "and nothing is written against rows nobody has read");
   // Settings lands: the same store answers from the workspace's rows.
@@ -205,14 +190,13 @@ test("REGRESSION: a workspace whose policies are not read yet has no modes -- it
 });
 
 test("a failed policies read is its own state, not the seeds", () => {
-  const seed = { MODES: [], ROWS: [{ id: "reply" }], modeOf: () => "SEED", set: () => {} };
-  const win = { POLICY: seed };
-  installPolicyStore(win, () => null);
+  installPolicyStore(() => null);
+  const S = provided("policy");
   // null = the bridge ran and the read FAILED. The pane renders "could not
   // load"; the store must not quietly serve the mockup's charter meanwhile.
-  assert.equal(win.POLICY.real(), false);
-  assert.equal(win.POLICY.modeOf("reply"), null, "no modes at all — never the mockup's charter beside a real approval");
-  assert.equal(win.POLICY.row("money").mode, "Never", "except money, which the database locks whatever we can read");
-  win.POLICY.set("reply", "Ask");
-  assert.equal(win.POLICY.modeOf("reply"), null, "nothing to write against");
+  assert.equal(S.real(), false);
+  assert.equal(S.modeOf("reply"), null, "no modes at all — never the mockup's charter beside a real approval");
+  assert.equal(S.row("money").mode, "Never", "except money, which the database locks whatever we can read");
+  S.set("reply", "Ask");
+  assert.equal(S.modeOf("reply"), null, "nothing to write against");
 });

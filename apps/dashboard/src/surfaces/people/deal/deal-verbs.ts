@@ -6,7 +6,7 @@
  *
  * A line to delete on the day the step sheet is TSX: its verb is then an import.
  */
-import { windowValue } from "../../frame-verbs";
+import { provided } from "@/bridge/provided";
 
 /**
  * What the note sheet is asked for: a person, the deal a new step names (and the act its card leads with, which suggests
@@ -20,10 +20,8 @@ export interface StepSheetAsk {
   note?: boolean;
 }
 
-const opener = (): ((ask: StepSheetAsk) => unknown) | null => {
-  const fn = windowValue("openStepSheet");
-  return typeof fn === "function" ? (fn as (ask: StepSheetAsk) => unknown) : null;
-};
+/** The step sheet's ask (People's, sheets/doors.tsx), as the courier hands it to every page; none before it is installed. */
+const opener = (): ((ask: StepSheetAsk) => unknown) | null => provided("sheets")?.openStep ?? null;
 
 /** Whether the shell has a step sheet to open. */
 export function stepSheetOffered(): boolean {

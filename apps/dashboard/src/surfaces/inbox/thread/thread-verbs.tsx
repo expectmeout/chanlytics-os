@@ -16,7 +16,9 @@ import { cancelSend, inboxVerb, sendHeldNow, type InboxVerb } from "../verbs";
 type Payload = Parameters<typeof inboxVerb>[2];
 
 /** What the verb is asked, in the order the deal sheet and the pane ask it: a rest, so the call keeps its five words. */
-type VerbCall = [t: RealThread, name: InboxVerb, payload: Payload, okMsg: ReactNode, undoable?: boolean];
+/** The thread a verb acts on, as far as it reads it: a person's deal sheet names one this way, without the Inbox's whole row. */
+type VerbThread = Pick<RealThread, "id" | "conversationId" | "escalationId" | "who">;
+type VerbCall = [t: VerbThread, name: InboxVerb, payload: Payload, okMsg: ReactNode, undoable?: boolean];
 
 /** What a send's receipt says of the message and how long it can be stopped; nothing where the answer carries none. */
 function receiptOf(data: unknown): { messageId: string | undefined; cancelableUntil: string | undefined } | null {

@@ -1,11 +1,11 @@
 /**
  * The doors every page uses to move and to ask (surfaces/frame-doors.ts), EXECUTED: the frame fills the registry as it renders,
- * a page imports the door, the names the pages that have not moved read go through the same registry, and a door nobody
- * filled says so once and does nothing. The frame's side (it fills them, once, as it renders) is shell/surfaces/
+ * a page imports the door, no door is a window name, and a door nobody filled says so once and does nothing. The frame's side (it fills them, once, as it renders) is shell/surfaces/
  * shell/surfaces/status/; the route table's address for a door the shell did not give is routeDoor's, below.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 globalThis.window = globalThis;
 const heard = [];
@@ -22,14 +22,12 @@ const { routeDoor } = await import("../../apps/dashboard/src/surfaces/frame-verb
 
 const warned = [];
 const realWarn = console.warn;
-const STAND_INS = ["CHANLY", "askAbout", "appAsk", "appNavigate", "appBackToPeople", "routeDoor", "location"];
-
 beforeEach(() => {
   doors.emptyDoors();
   heard.length = 0;
   warned.length = 0;
   console.warn = (...args) => void warned.push(args);
-  for (const name of STAND_INS) delete globalThis[name];
+  delete globalThis.location;
 });
 afterEach(() => {
   console.warn = realWarn;
@@ -107,22 +105,23 @@ test("a question a page words itself is asked in the language the Line last spok
   assert.equal(doors.askedWords({}, "es"), undefined, "a door with no question opens the field");
 });
 
-test("the names the pages that have not moved read go through the registry, and the person's Back is no window name", () => {
-  assert.deepEqual(Object.keys(doors.DOOR_NAMES).sort(), ["appAsk", "appNavigate", "askAbout"]);
-  assert.equal(doors.DOOR_NAMES.appAsk, doors.openAsk);
-  assert.equal(doors.DOOR_NAMES.askAbout, doors.askAbout);
+test("no door is a window name: the module publishes none for a page to read, and a door is the registry's alone", () => {
+  for (const name of ["DOOR_NAMES", "standIn", "moveByName"]) assert.equal(name in doors, false, `${name} is gone`);
   const { calls, doors3 } = frame();
-  doors.fillDoors(doors3);
-  doors.DOOR_NAMES.appNavigate("calendar", { replace: true });
-  doors.DOOR_NAMES.appNavigate("today");
-  doors.DOOR_NAMES.appAsk();
-  assert.deepEqual(calls, [["navigate", "calendar", { replace: true }], ["navigate", "today"], ["openAsk"]]);
+  doors.fillDoors({ navigate: doors3.navigate });
+  doors.navigate("calendar", { replace: true });
+  doors.openAsk();
+  assert.deepEqual(calls, [["navigate", "calendar", { replace: true }]], "the door handed in answers");
+  assert.deepEqual(
+    warned.map((w) => w.join(" ")),
+    ["door_missing openAsk"],
+    "and one nobody handed in says it is missing",
+  );
 });
 
 test("a door nobody filled does nothing and says so once, not once a press", () => {
   doors.navigate("today");
   doors.navigate("today", { replace: true });
-  doors.DOOR_NAMES.appNavigate("inbox");
   doors.openAsk();
   doors.openAsk();
   doors.backToPeople(); // its fallback is a move to People: the move is the door that is missing
@@ -140,38 +139,16 @@ test("a door nobody filled does nothing and says so once, not once a press", () 
   );
 });
 
-test("where the frame has filled nothing, a stand-in window's doors answer, as a test's or the mockup's do; the module's own published names are never taken for one", () => {
-  const seen = [];
-  globalThis.CHANLY = { nav: (...args) => void seen.push(["CHANLY.nav", ...args]) };
-  globalThis.appAsk = () => void seen.push(["appAsk"]);
-  globalThis.appBackToPeople = () => void seen.push(["appBackToPeople"]);
-  doors.navigate("clients");
-  doors.navigate("clients/c-1", { replace: true });
-  doors.openAsk();
-  doors.backToPeople();
-  assert.deepEqual(seen, [
-    ["CHANLY.nav", "clients"],
-    ["CHANLY.nav", "clients/c-1", { replace: true }],
-    ["appAsk"],
-    ["appBackToPeople"],
-  ]);
-  globalThis.askAbout = (about) => void seen.push(["askAbout", about]);
-  doors.askAbout({ prompt: "p" });
-  assert.deepEqual(seen.at(-1), ["askAbout", { prompt: "p" }], "its own door, not the event");
-  assert.deepEqual(heard, [], "which the stand-in did not send");
-  // Published as the pages read them, the module's own functions are not a stand-in for themselves.
-  Object.assign(globalThis, doors.DOOR_NAMES);
-  doors.emptyDoors();
-  assert.doesNotThrow(() => doors.askAbout({ prompt: "q" }), "no door calling itself");
-  assert.equal(heard.at(-1).type, "ask:seed");
-  assert.doesNotThrow(() => doors.openAsk());
-});
-
-test("a link to a route the shell's routeDoor did not make is the address a workspace's route has, never the retired #/ one", () => {
-  globalThis.location = { pathname: "/w/studio/today" };
-  assert.equal(routeDoor("inbox/th-1").href, "/w/studio/inbox/th-1");
-  assert.equal(routeDoor("calendar").href, "/w/studio/calendar");
-  // Off a workspace page (the standalone mockup has no workspace path) the hash is the address.
+test("a link to a route is the frame's address: the workspace's own path, as the bridge's shell gives it, never the retired #/ one", () => {
+  // The bridge's shell (bridge/shell.ts, provided as `shell`), which every workspace page holds from the boot.
+  bridgeHolds({ parts: { shell: { route: () => "today", href: (to) => `/w/studio/${to}`, warm() {} } } });
+  try {
+    assert.equal(routeDoor("inbox/th-1").href, "/w/studio/inbox/th-1");
+    assert.equal(routeDoor("calendar").href, "/w/studio/calendar");
+  } finally {
+    bridgeHolds({ parts: { shell: undefined } });
+  }
+  // With no shell held (the standalone mockup had no workspace path) the hash is the address.
   globalThis.location = { pathname: "/" };
   assert.equal(routeDoor("calendar").href, "#/calendar");
   const { calls, doors3 } = frame();

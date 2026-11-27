@@ -44,6 +44,7 @@ import {
   type,
   workspace,
 } from "./_settings-owner-panes.mjs";
+import { bridgeHolds, heldDoors, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ one gate ------------------------------ */
 
@@ -123,23 +124,23 @@ test("REGRESSION (one gate): Team shows Invite to a role that may not invite, ga
 
   // An owner previewing as an operator sees what an operator sees; as themself, an ordinary Invite.
   workspace("owner");
-  globalThis.window.ST_STORE.viewAsRole = "operator";
+  provided("roles").viewAsRole = "operator";
   assert.equal(buttonSaying(settings("team"), "Invite").props["aria-disabled"], true, "View-as narrows the gate");
-  globalThis.window.ST_STORE.viewAsRole = null;
+  provided("roles").viewAsRole = null;
   assert.equal(buttonSaying(settings("team"), "Invite").props["aria-disabled"], undefined, "and an owner may");
 });
 
 test("REGRESSION (one gate): Activity follows an owner's View-as preview like every other gate -- it asked the signed-in role", () => {
   workspace("owner");
   const A = stand(feed());
-  globalThis.window.ST_STORE.viewAsRole = "viewer";
+  provided("roles").viewAsRole = "viewer";
   const tree = settings("activity");
   assert.ok(
     textOf(tree).includes("Only an owner can read the activity log"),
     "REGRESSION: a preview as a viewer read the whole log",
   );
   assert.equal(A.asked.length, 0, "and nothing is read for it");
-  globalThis.window.ST_STORE.viewAsRole = null;
+  provided("roles").viewAsRole = null;
 });
 
 test("REGRESSION (S21): Activity says it is reading and names its filters -- the first load showed nothing, and three filters had no name", async () => {
@@ -693,10 +694,9 @@ test("Replies says how many people are set differently, by mode, and each of the
   assert.match(textOf(line), /3 people/);
   assert.match(textOf(line), /2 Never · 1 Ask me first/, "never first: what holds AI back");
   // Its menu names the newest, each in the person page's own word for their mode, and a press opens their page.
-  const W = globalThis.window;
-  const nav = W.CHANLY;
+  const nav = heldDoors();
   const went = [];
-  W.CHANLY = { ...(nav || {}), nav: (route) => went.push(route) };
+  bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
   try {
     press(byTestId(tree, "aut-own-modes-menu"));
     tree = settle("autonomy");
@@ -712,7 +712,7 @@ test("Replies says how many people are set differently, by mode, and each of the
     press(items[1]);
     assert.deepEqual(went, ["clients/k2"]);
   } finally {
-    W.CHANLY = nav;
+    bridgeHolds({ doors: nav });
   }
   // What the owner's corrections suggest is How it answers' now (item 8), so Autonomy draws no card of them.
   workspace("owner", {

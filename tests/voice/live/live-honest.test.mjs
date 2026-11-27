@@ -27,6 +27,7 @@ import {
   quiet,
   redrawWanted,
 } from "../../_stub-react.mjs";
+import { bridgeHolds, heldDoors, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -99,15 +100,15 @@ const flashes = [];
 const went = [];
 const sent = [];
 installStubReact({
-  CHANLY: { nav: (to) => went.push(to) },
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 const S = "../../../apps/dashboard/src";
 // What the shell still owns and the page draws by name: the role gate, the door to a person, the state pill (surfaces/frame).
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-// frame-globals also publishes the shell's toast hook; this harness keeps its own flash.
-globalThis.usePPToast = () => [null, (m) => flashes.push(m)];
+holdFrameParts();
+// The shell's toast is the bridge's `toast` part; this harness keeps its own flash.
+bridgeHolds({ parts: { toast: () => [null, (m) => flashes.push(m)] } });
 const { StatePill } = globalThis;
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
@@ -194,7 +195,7 @@ test("REGRESSION (A20, L8): an ended call's card leads with what the caller want
   const door = byTestId(tree, "lm-head-avatar");
   assert.ok(door, "the caller's face is the door to their page");
   assert.equal(door.type, "a");
-  assert.equal(door.props.href, "#/clients/c7", "and it opens the person's page");
+  assert.equal(door.props.href, "/w/studio/people/c7", "and it opens the person's page");
   assert.match(door.props["aria-label"], /Emily Chen/, "named for a reader, as the face itself is decoration");
   assert.ok(!find(tree, (n) => n.type === "button" && textOf(n).includes("Open profile")), "no button says it twice");
   assert.ok(!textOf(tree).includes("Open client"));
@@ -230,7 +231,7 @@ test("REGRESSION: who is calling opens their page, and their number rings them -
   const who = byTestId(tree, "lm-head-person");
   assert.ok(who, "the caller's name is a link");
   assert.equal(who.type, "a");
-  assert.equal(who.props.href, "#/clients/c7", "to their page");
+  assert.equal(who.props.href, "/w/studio/people/c7", "to their page");
   assert.equal(textOf(who), "Emily Chen");
   const tel = find(tree, (n) => n.type === "a" && String(n.props?.href || "").startsWith("tel:"));
   assert.ok(tel, "the number is a link that rings them");
@@ -381,8 +382,8 @@ test("the call open is the address's: a row opens it by replacing the address, n
   });
   withLive([call(), ada]);
   const navs = [];
-  const keep = globalThis.window.appNavigate;
-  globalThis.window.appNavigate = (to, opts) => navs.push([to, opts]);
+  const keep = heldDoors();
+  bridgeHolds({ doors: { navigate: (to, opts) => navs.push([to, opts]) } });
   try {
     const rows = callRows(mount());
     rows.find((r) => r.props["data-call-id"] === "c-live-2").props.onClick();
@@ -397,7 +398,7 @@ test("the call open is the address's: a row opens it by replacing the address, n
     fresh();
     assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "and a refresh opens it again");
   } finally {
-    globalThis.window.appNavigate = keep;
+    bridgeHolds({ doors: keep });
   }
 });
 

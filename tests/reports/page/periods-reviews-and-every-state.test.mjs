@@ -79,7 +79,7 @@ import {
   toReceptionistReportVM,
   went,
 } from "./_page.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------------------ states ------------------------------------------ */
 
@@ -497,12 +497,12 @@ test("Google's reviews under the period, from the Business Profile: five figures
     assert.ok(byTestId(waiting, "google-reply"), "a review through the Business Profile can be answered");
     // By a member who may approve, and by nobody else: a viewer reads the review and answers nothing (pinned as
     // reports/google.tsx's text in google/profile/ until 26 Nov 2026).
-    const asWho = globalThis.canDo;
-    globalThis.canDo = () => false;
+    const asWho = provided("roles");
+    holdRoles({ can: () => false });
     try {
       assert.equal(byTestId(card(page(), "reviews-waiting"), "google-reply"), null, "a viewer: no reply to send");
     } finally {
-      globalThis.canDo = asWho;
+      bridgeHolds({ parts: { roles: asWho } });
     }
     // A review is drawn once: Ana waits above, so the latest has none of its own, and says why.
     const latest = card(tree, "chart-google-latest");
@@ -793,11 +793,15 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
   const [ana] = NORTHSIDE.reviews;
   const answered = { ...ana, reply_text: "Thank you, Ana!", replied_at: "2026-09-04T14:00:00Z" };
   // The shell's toast, as the shell holds it: the state of the component that asked for it, drawn only while that component is.
-  const shellToast = globalThis.usePPToast;
-  globalThis.usePPToast = () => {
-    const [said, say] = globalThis.React.useState(null);
-    return [said ? globalThis.React.createElement("div", { "data-testid": "toast" }, textOf(said.msg)) : null, say];
-  };
+  const shellToast = provided("toast");
+  bridgeHolds({
+    parts: {
+      toast: () => {
+        const [said, say] = globalThis.React.useState(null);
+        return [said ? globalThis.React.createElement("div", { "data-testid": "toast" }, textOf(said.msg)) : null, say];
+      },
+    },
+  });
   keepReportPeriod("7d");
   holdReviews(NORTHSIDE, northsideLedger());
   reviewReply.posted.length = 0;
@@ -854,7 +858,7 @@ test("a reply from a waiting row says it is on Google: the answer takes the revi
     );
   } finally {
     reviewReply.now = null;
-    globalThis.usePPToast = shellToast;
+    bridgeHolds({ parts: { toast: shellToast } });
     setLensAt(LENS_PATHS[0]);
     setSurfaceValue("reports_reviews", undefined);
     // The answer's re-read of Today, not served here, is asked for again 2 and 10 s later (RETRY_AFTER_MS): drop it.
@@ -977,7 +981,7 @@ test("on a phone the reviews that wait come first, ahead of the figures; with no
 
 test("the doors out of the Reviews lens are for a person who may use them: the words stay for the rest", () => {
   const places = { ...NORTHSIDE, connection: null, reviews: [{ ...NORTHSIDE.reviews[0], origin: "places" }] };
-  const asWho = globalThis.canDo;
+  const asWho = provided("roles");
   const door = (tree) => find(byTestId(tree, "reviews-connect"), (n) => n.type === "button");
   try {
     for (const [who, may] of [
@@ -985,7 +989,7 @@ test("the doors out of the Reviews lens are for a person who may use them: the w
       ["an operator", (action) => action === "approve"],
       ["a viewer", () => false],
     ]) {
-      globalThis.canDo = may;
+      holdRoles({ can: may });
       const V = holdReviews(places, null);
       const tree = page();
       assert.ok(textOf(byTestId(tree, "reviews-connect")).includes(V.lines.connect), `${who}: the words`);
@@ -996,7 +1000,7 @@ test("the doors out of the Reviews lens are for a person who may use them: the w
       } else assert.equal(door(tree), null, `${who}: no door to what they may not do`);
     }
   } finally {
-    globalThis.canDo = asWho;
+    bridgeHolds({ parts: { roles: asWho } });
     setSurfaceValue("reports_reviews", undefined);
   }
 });

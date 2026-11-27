@@ -25,6 +25,7 @@ import {
   W,
   went,
 } from "../../_business-tab-harness.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 
 // The last page this file drew goes as React would take it away (the harness says why).
 after(() => unmount());
@@ -413,8 +414,8 @@ test("the Autonomy tab's rules open the Autonomy tab", () => {
 });
 
 test("a role that may not change the business reads the whole prompt, and is offered no door into a row", () => {
-  const was = W.canDo;
-  W.canDo = () => false;
+  const was = provided("roles");
+  holdRoles({ can: () => false });
   try {
     const tree = drawPrompt();
     assert.ok(sheetOf(tree), "reading is not changing");
@@ -423,7 +424,7 @@ test("a role that may not change the business reads the whole prompt, and is off
       assert.equal(byTestId(tree, `rec-prompt-door-${b.id}`), null, `${b.id} offers no door`);
     }
   } finally {
-    W.canDo = was;
+    bridgeHolds({ parts: { roles: was } });
   }
 });
 

@@ -24,12 +24,15 @@ async function readConfig(page: Page): Promise<unknown> {
   return { config: data.config, version: data.version };
 }
 
-/** Details open, moved to in the page's own hand, so Back stays in the one document. */
+/**
+ * Details open, as a person opens it: the account's menu, then Settings, which a desk opens on Details. The frame's own
+ * move, so Back stays in the one document.
+ */
 async function openDetails(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    (window as unknown as { CHANLY: { address: { go: (r: string) => void } } }).CHANLY.address.go("admin/workspace");
-  });
+  await page.getByTestId("sb-account").click();
+  await page.getByTestId("sb-me-settings").click();
   await expect(page.getByTestId("rec-card-who")).toBeVisible({ timeout: 40_000 });
+  expect(routeOf(page.url())).toBe("admin");
 }
 
 /** The Website typed, key by key, as a person types it, and not saved. */
@@ -63,7 +66,7 @@ test.describe("leaving a page with a change not saved", () => {
     await placeRow(page, "People").click();
     await expect(question(page)).toBeInViewport({ ratio: 1 });
     await expect(question(page)).toContainText("Leave without saving?");
-    expect(routeOf(page.url())).toBe("admin/workspace");
+    expect(routeOf(page.url())).toBe("admin");
     await page.getByTestId("leave-no").click();
     await expect(question(page)).toBeHidden();
     await expect(typed(page)).toHaveValue(WEBSITE);
@@ -80,7 +83,7 @@ test.describe("leaving a page with a change not saved", () => {
     await typeWebsite(page);
     await pressBack(page);
     await expect(question(page)).toBeInViewport({ ratio: 1 });
-    expect(routeOf(page.url()), "the address never moved").toBe("admin/workspace");
+    expect(routeOf(page.url()), "the address never moved").toBe("admin");
     await page.getByTestId("leave-no").click();
     await expect(typed(page)).toHaveValue(WEBSITE);
     // The Stay was a press on the page, so the browser lets the next Back be asked about too.

@@ -8,10 +8,11 @@ import assert from "node:assert/strict";
 import { installStubReact, fresh, again, all, byTestId, find, redrawWanted, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
+import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { CARD, CONNECT } = await import(`${S}/surfaces/campaigns/ads/connect/words.ts`);
