@@ -292,7 +292,7 @@ a.fr-import-door:focus-visible, a.fr-import-aside:focus-visible { outline: 2px s
   .fr-phone { display: grid; position: sticky; top: 0; z-index: 2; padding-top: env(safe-area-inset-top, 0px); }
   .fr-phone-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 16px 4px; font-size: var(--text-base); font-weight: var(--weight-medium); }
   .fr-bar { height: 2px; background: var(--line); }
-  .fr-bar > span { display: block; width: var(--done); height: 100%; background: var(--ink); transition: width var(--duration-fast) var(--ease-out); }
+  .fr-bar::before { content: ""; display: block; width: var(--done); height: 100%; background: var(--ink); transition: width var(--duration-fast) var(--ease-out); }
   /* The receptionist's one line: the whole width, its words taking what the face and the chevron leave. */
   .fr-strip { justify-content: flex-start; gap: 10px; width: 100%; border-bottom: 1px solid var(--line); border-radius: 0; padding: 0 16px; }
   .fr-strip-words { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
@@ -337,6 +337,6 @@ a.fr-import-door:focus-visible, a.fr-import-aside:focus-visible { outline: 2px s
 }
 @media (prefers-reduced-motion: reduce) {
   .fr-pulse { animation: none; }
-  .fr-bar > span { transition: none; }
+  .fr-bar::before { transition: none; }
   .fr-steady > * { transition: none; }
 }

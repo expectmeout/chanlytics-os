@@ -54,9 +54,9 @@ export function ShortcutsSheet() {
   const chrome = frameChrome();
   // Open, it holds the page (aria-modal), said on the document's root (kit/motion/root-flags.ts).
   useRootFlag("modalOpen", open && !!chrome);
-  if (!chrome) return null;
-  // Shut, it holds no keys: the sheet is the one place a key is drawn, and only while it is up.
-  const groups = open ? chrome.shortcutGroups(chrome.shortcuts) : [];
+  // Shut, it draws nothing: the kit's Sheet plays its leaving as it goes (kit/sheet/sheet.tsx useLeavesWhenLetGo).
+  if (!open || !chrome) return null;
+  const groups = chrome.shortcutGroups(chrome.shortcuts);
   return (
     <Sheet
       open={open}

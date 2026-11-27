@@ -240,6 +240,10 @@ const AskCardBody = ({
   return <AskCardChange p={p} t={t} idle={idle} alike={alike} more={more} />;
 };
 
+/** A card's classes: the kit's panel, unless it is the quiet one drawn inside another's; its state, and shut. */
+const askJobClass = (state: string, shut: boolean, quiet: boolean) =>
+  `${quiet ? "" : "panel "}ask-job ${state}${shut ? " ask-shut" : ""}${quiet ? " ask-quiet" : ""}`;
+
 export const AskCard = ({
   p,
   messageId,
@@ -274,11 +278,7 @@ export const AskCard = ({
   const lead = idle ? searchCardView(p) : null;
   const goes = whatGoes(p, lead, { post, piece, folder });
   return (
-    <div
-      className={`${quiet ? "" : "panel "}ask-job ${state}${shut ? " ask-shut" : ""}${quiet ? " ask-quiet" : ""}`}
-      data-testid="ask-card"
-      data-kind={p.kind}
-    >
+    <div className={askJobClass(state, shut, quiet)} data-testid="ask-card" data-kind={p.kind}>
       {quiet ? null : <AskCardHead p={headCardOf(p, post, folder)} fold={idle ? step.fold : null} />}
       {body ? (
         <AskCardBody

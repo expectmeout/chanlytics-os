@@ -66,6 +66,16 @@ test("a quiet row's boxes and its remove wait for the row, and a finger sees the
   );
 });
 
+test("REGRESSION: under a finger an icon button is a square, and a phone's wash keeps Safari's bar clear", () => {
+  // The hours' sheet's remove stood 28px wide once Settings' own 44px went (the whole browser suite, 27 Nov 2026).
+  const touch = at(phone, "html.frame-on", "body", ".rec-fold-sheet", "button.btn.btn-icon.btn-sm");
+  assert.deepEqual([touch["min-width"], touch["min-height"]], ["44px", "44px"], "as wide as a finger, and as tall");
+  // The drawer's wash lost its filter, and iOS 26 paints a grey band over a filterless one (mobile.css held it).
+  const wash = at(phone, "div.sheet-backdrop.nav-wash");
+  assert.equal(wash["backdrop-filter"], declared("backdrop-filter: blur(0)")["backdrop-filter"], "the drawer's wash");
+  assert.equal(at(phone, "div.sheet-backdrop")["backdrop-filter"], wash["backdrop-filter"], "and every sheet's");
+});
+
 test("AI's line is one line of placeholder, and a phone's words are 16px", () => {
   const words = desk.given(element(".app-root", "div.line-box", "textarea.line-field::placeholder"));
   assert.deepEqual([words["white-space"], words["text-overflow"]], ["nowrap", "ellipsis"]);

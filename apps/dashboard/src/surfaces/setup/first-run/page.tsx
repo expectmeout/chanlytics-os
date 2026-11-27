@@ -332,9 +332,7 @@ function tops(o: {
             {W.laterShort}
           </button>
         </div>
-        <div className="fr-bar" aria-hidden="true">
-          <span style={customProperties({ "--done": `${fr.progress}%` })} />
-        </div>
+        <div className="fr-bar" aria-hidden="true" style={customProperties({ "--done": `${fr.progress}%` })} />
         <button
           type="button"
           className="btn btn-ghost fr-strip"

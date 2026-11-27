@@ -4707,8 +4707,14 @@ a.list-row {
     bottom: var(--foot-clear, 0px);
     mask-image: var(--foot-fade, none);
   }
+  /* The backdrop-filter is for the browser's bar, not the page: a childless, see-through, screen-sized fixed box is what
+     Safari on iOS 26 calls a dimming layer, and it paints its status-bar strip with that colour blended over the page (a
+     grey band while a sheet or the drawer is open). A fixed box with a backdrop-filter it paints in the page's own colour.
+     A blur of zero changes nothing on the page; it is the filter's presence that counts (Ruben, 21 Oct 2026; mobile.css
+     held it for the drawer's wash). */
   .sheet-backdrop {
     background: var(--surface-veil);
+    backdrop-filter: blur(0);
   }
   /* A sheet floats clear of the screen's sides and foot (tokens.css --sheet-float, --sheet-foot), or stands on the
      keyboard. */
@@ -8911,6 +8917,11 @@ html.frame-on .rec-row-act {
 @media (pointer: coarse) {
   html.frame-on .btn {
     min-height: 44px;
+  }
+  /* An icon button is a square a finger can land on: as wide as it is tall (Settings and its sheets held it at 44 wide,
+     and the touch check of Business's sheets reads it). */
+  html.frame-on .btn-icon {
+    min-width: 44px;
   }
   /* A pill is words and a tally is a number: neither is pressed, so neither
      takes a floor (every list row used to undo one on .pill). A chip that is
