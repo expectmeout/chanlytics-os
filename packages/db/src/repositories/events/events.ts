@@ -67,13 +67,6 @@ interface TableData {
     from?: string;
     to?: string;
   };
-  /** A message deleted from the Library, and one sent to WhatsApp for approval: its name, its language, and who. */
-  "template.removed": { name: string; language: string; by: string };
-  /**
-   * `before`: the words WhatsApp had approved that a change sent back replaced (Messages, 12 Nov 2026), so a refusal of the
-   * new ones can go back to them; absent where the change was to words not approved, or the message was new.
-   */
-  "template.submitted": { name: string; language: string; by: string; before?: string };
   "usage.ask_tokens": JsonObject;
   "usage.llm_tokens": Record<string, unknown>;
   "webhook.auth": { provider: "retell" } & JsonObject;
@@ -109,8 +102,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
   "settings.changed": { category: "system", version: 1 },
-  "template.removed": { category: "message", version: 1 },
-  "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
   "webhook.auth": { category: "ingest", version: 1 },

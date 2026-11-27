@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { AppError, DbFailure, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
 import type { TenantId } from "@chanlytics/contracts";
-import { deleteTemplate, recordTemplateEvent } from "@/server/campaigns/meta-templates";
+import { deleteTemplate } from "@/server/campaigns/meta-templates";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { templateScope } from "@/server/shared/verbs";
 import { WHATSAPP_ACCOUNT_MISSING, WHATSAPP_NO_TOKEN } from "@/server/campaigns/whatsapp-refusals";
@@ -111,8 +111,7 @@ export async function deleteTemplateRow(ctx: RouteContext, tpl: TemplateRow) {
       result.reason === "not_found" ? 404 : 502,
     );
   }
-  // Its row is gone, so the ledger names it: a broadcast or a playbook that sent it still says the name. The edge writes
-  // it with the delete (00722, `told`); one from before that is told here.
-  if (!result.told) await recordTemplateEvent(tpl.tenant_id, "removed", tpl, ctx.userId);
+  // Its row is gone, so the ledger names it: a broadcast or a playbook that sent it still says the name. The edge's door
+  // wrote template.removed with the delete (00722).
   return { deleted: true, id, name: tpl.name, language: tpl.language, at_meta: result.atMeta };
 }
