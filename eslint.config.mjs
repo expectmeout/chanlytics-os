@@ -169,12 +169,12 @@ export const HELD_STRICT = ["@typescript-eslint/no-unnecessary-condition"];
 
 /**
  * The house's own rules, a plugin of this file's. A disable says why beside it (`-- <why>`), so a warning kept on purpose
- * is read where it stands, and the keeps (133 in apps, packages, e2e and tooling on 26 Nov 2026) cannot grow unseen; a
- * disable that disables nothing is an error (linterOptions, below). Held while the tree has disables that say nothing:
- * 40 that day, all but one react-hooks/exhaustive-deps, each to say why as its file is next changed. lint.mjs fails the
- * run once none is left, so the change that says the last turns it an error.
+ * is read where it stands, and the keeps in apps, packages, e2e and tooling cannot grow unseen; a disable that disables
+ * nothing is an error (linterOptions, below). An error since 26 Nov 2026, when the last 40 that said nothing said why
+ * (three were a setter their hook had left out of its list, and took it). A house rule that comes in over findings is
+ * held here, a warning, and lint.mjs fails the run once none is left, so the change that clears the last turns it an error.
  */
-export const HELD_HOUSE = ["house/disable-says-why"];
+export const HELD_HOUSE = [];
 const DISABLE = /^\s*eslint-disable(?:-next-line|-line)?(?:\s|$)/;
 const HOUSE = {
   rules: {

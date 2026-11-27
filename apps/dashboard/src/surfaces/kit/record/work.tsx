@@ -65,8 +65,7 @@ export function useUnsavedWork(
     if (!mem) return;
     if (dirty) mem.keepDraft(kind, value, k);
     else drop();
-    // what is kept is the words as they were typed (json), never each draw's fresh copy of them
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- what is kept is the words as they were typed (json), never each draw's fresh copy of them; `drop` is this draw's own
   }, [kind, k, json, dirty]);
   useEffect(() => recFolds.hold(`${kind}:${k || ""}`, () => dirtyNow.current), [kind, k]);
   return {

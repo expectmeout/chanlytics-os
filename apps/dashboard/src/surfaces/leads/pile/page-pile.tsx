@@ -97,7 +97,7 @@ export function useLeadPileView(a: PileViewArgs) {
       return;
     }
     setAsked(standing);
-  }, [searchKey, pile.on]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchKey, pile.on]); // eslint-disable-line react-hooks/exhaustive-deps -- as the search opened changes, or the pile turns on or off; `aim` is this draw's own
   // A lead to decide on opened: the pile starts on it, or, while it is on, walks on from it.
   const klass = pileClassOf(a);
   const opened = a.peekId ? (leads.rows.find((r) => r.id === a.peekId) ?? null) : null;
@@ -106,7 +106,7 @@ export function useLeadPileView(a: PileViewArgs) {
     if (!toDecide || !openSearch || !klass || !opened) return;
     if (!on || pile.cls !== klass) pile.start(openSearch.id, klass, opened.id);
     else if (up && up.id !== opened.id) pile.anchor(opened.id);
-  }, [toDecide, opened ? opened.id : null]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [toDecide, opened ? opened.id : null]); // eslint-disable-line react-hooks/exhaustive-deps -- once each time a lead to decide on opens; the pile and the search are read as they stand
   // The sheet follows the lead that is up, once each time one comes up, so a sheet the owner closed stays closed until
   // the next.
   const lastUp = useRef<string | null>(null);
@@ -120,13 +120,13 @@ export function useLeadPileView(a: PileViewArgs) {
       if (lastUp.current !== null || a.peekId === upId) a.setPeekId(upId);
       lastUp.current = upId;
     }
-  }, [on, upId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [on, upId]); // eslint-disable-line react-hooks/exhaustive-deps -- once each time a lead comes up; `a` is this draw's own
   // The add door's answers for the leads open in a Ready pile, asked once each as they come in.
   const target = aim.target;
   const asking = on && pile.cls === "qualified" && target ? open.map((r) => r.id).join(",") : "";
   useEffect(() => {
     if (asking) void aim.check(asking.split(","));
-  }, [asking, target ? target.rootId : null]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [asking, target ? target.rootId : null]); // eslint-disable-line react-hooks/exhaustive-deps -- once for each set of leads and each pick; `aim` is this draw's own
   const door = pileAskOf(a, asked, () => {
     pileAsk.take();
     setAsked(null);

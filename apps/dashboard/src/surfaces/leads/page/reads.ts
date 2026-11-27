@@ -94,7 +94,7 @@ export const useLeadsRead = ({
   useEffect(() => {
     const t = setTimeout(() => setAsked({ view: viewRoute, q: words.trim() }), WORDS_READ_MS);
     return () => clearTimeout(t);
-  }, [words]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [words]); // eslint-disable-line react-hooks/exhaustive-deps -- a wait for each word typed: the view is the one they were typed in, read as the wait begins
   const chipped = chipsKey(chips);
   useEffect(() => {
     void leadsView({
@@ -107,7 +107,7 @@ export const useLeadsRead = ({
       dir: sortDir === "desc" ? "desc" : "asc",
       pileList,
     });
-  }, [viewRoute, chipped, q, sortBy, sortDir, pileList]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewRoute, chipped, q, sortBy, sortDir, pileList]); // eslint-disable-line react-hooks/exhaustive-deps -- the view's route stands for its search, list and class, and `chipped` for the chips
   // The next page, its own flag, so the button says Loading more… while THIS is out and not while a Keep is, and a second
   // press, or the scroll's own asking, while it loads asks for nothing.
   const [leadsMoreBusy, setLeadsMoreBusy] = useState(false);
@@ -209,7 +209,7 @@ export const useLeadChipsAddress = ({
     sent.current = inTable;
     const { searchId, list, cls } = leadView;
     nav(leadsRoute({ searchId, list, cls, chips: asked, peek: addrPeek }), { replace: true });
-  }, [inAddress, inTable]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [inAddress, inTable]); // eslint-disable-line react-hooks/exhaustive-deps -- the address follows the chips only as the address's or the table's change; the rest is read as it stands
 };
 
 /**

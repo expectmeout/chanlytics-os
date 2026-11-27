@@ -717,7 +717,7 @@ export function LeadSheet(p: LeadSheetProps) {
   const doorOwes = !!leadId && aim.checking(leadId);
   useEffect(() => {
     if (leadId && doorOwes) void aim.check([leadId]);
-  }, [leadId, pickId, doorOwes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [leadId, pickId, doorOwes]); // eslint-disable-line react-hooks/exhaustive-deps -- asked once while its answer is owed (use-aim.ts); `aim` is this draw's own
   const facts = vm
     ? sheetFactsOf(
         {
