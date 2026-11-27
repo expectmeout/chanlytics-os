@@ -18,7 +18,7 @@ import {
   sameName,
   SOURCE_WORDS,
 } from "@chanlytics/contracts";
-import { importSrc, readRaw } from "../../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 
 /** Marisa's Beauty Salon, exactly as the database held it. */
 const LIVE = {
@@ -368,17 +368,13 @@ test("a config change records who and what, and neither is the values", async ()
   // through tenant_config_write); pinned as 00085's text until 26 Nov 2026.
 });
 
-test("the editor is four steps, and the days sit beside the hours they qualify", () => {
-  // Fourteen headings in a row, in an order nobody chose: the weekly grid was four sections above the days it does
-  // not apply to, with the services and the calendar feed in between. Task 3.7 deleted that form; the four steps are
-  // the four cards of the Business page, in this order, and what each one draws is EXECUTED in its own test file
-  // (receptionist/business-tab/open/ asserts the cards in order, and the four rows of When you are open in theirs).
-  const page = readRaw("apps/dashboard/src/surfaces/settings/business/tab.tsx");
-  // Since 17 Oct 2026 the record is three pages: Details (Who you are, What you offer), Hours & booking (When you're
-  // open, Booking) and How it answers (How it talks, What it knows), each drawn in that order by tab.tsx.
-  const cards = [...page.matchAll(/<(Bt(?:Who|Offer|Open|Booking|Talks|Knows))Card\b/g)].map((m) => m[1]);
-  assert.deepEqual(cards, ["BtWho", "BtOffer", "BtOpen", "BtBooking", "BtTalks", "BtKnows"]);
-});
+// The editor is four steps, and the days sit beside the hours they qualify. Fourteen headings in a row, in an order
+// nobody chose: the weekly grid was four sections above the days it does not apply to, with the services and the
+// calendar feed in between. Task 3.7 deleted that form; since 17 Oct 2026 the record is three pages, Details (Who you
+// are, What you offer), Hours & booking (When you're open, Booking) and How it answers (How it talks, What it knows).
+// The cards are drawn in that order, the record's three pages in turn, and the rows of When you're open in theirs:
+// receptionist/business-tab/open/hours-the-zone-and-closed-days.test.mjs, where tab.tsx's text was read here until
+// 26 Nov 2026.
 
 test("languages is one control, not a grid plus a second control", () => {
   // The fourteen languages shouting, two of them chosen, went with the form (Task 3.7). The languages are one fold of

@@ -21,7 +21,6 @@ import {
   mediaVM,
   messageText,
 } from "@chanlytics/contracts";
-import { readRaw } from "../../_source.mjs";
 import { cascadeOf, element } from "../../_css.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -132,13 +131,9 @@ test("a browser sees the attachment's facts and never its storage path", () => {
 
 test("the thread draws the attachment from one component, wherever it opens", () => {
   // The component is the kit's (surfaces/kit/media), which the pages import. What it draws, for each kind, and nothing
-  // without the bridge: media/an-attachment-is-drawn-by-its-kind.test.mjs (pinned as its text until 26 Nov 2026).
-  // The thread drawing it, and its style, wait for the Inbox's world (lane 7) and the stylesheets.
-  assert.ok(
-    readRaw("apps/dashboard/src/surfaces/inbox/thread/timeline.tsx").includes(
-      "{entry.media && <TlMedia media={entry.media} />}",
-    ),
-  );
+  // without the bridge: media/an-attachment-is-drawn-by-its-kind.test.mjs (pinned as its text until 26 Nov 2026). The
+  // thread drawing it in the bubble that carried it, from the message's own route: inbox/thread-on-a-phone.test.mjs,
+  // where timeline.tsx's text was read here until 26 Nov 2026.
   // The picture as the thread draws it, asked of its sheet (tests/_css.mjs cascadeOf; read as its text until 26 Nov 2026):
   // never wider than the thread, and bounded in height.
   const picture = cascadeOf(["apps/dashboard/src/styles/components.css"]).given(element(".tl-media", "img"));

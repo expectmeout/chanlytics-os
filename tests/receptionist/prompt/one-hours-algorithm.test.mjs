@@ -16,7 +16,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composeSystemPrompt, hoursRuns } from "@chanlytics/contracts";
-import { readCode } from "../../_source.mjs";
 
 const base = { business_name: "X", phone_display: "p", booking_link: "https://b.example" };
 const LIVE = {
@@ -57,14 +56,8 @@ test("the runs and the composed prompt cannot disagree — same source", () => {
   assert.deepEqual(stated, runs);
 });
 
-test("the Settings card no longer keeps its own copy of the loop", () => {
-  // The card is the Business page since Task 3.7; the summary went with it, still a wrapper over the shared lines.
-  const pane = readCode("apps/dashboard/src/surfaces/settings/business/open.tsx");
-  assert.ok(
-    /import \{[^}]*\bcalendarHoursLines\b[^}]*\} from "@chanlytics\/contracts";/.test(pane) &&
-      pane.includes("calendarHoursLines(hours)"),
-    "it asks for the shared lines, which collapse the same runs",
-  );
-  assert.ok(!pane.includes("spans[j + 1].text === spans[index].text"), "the duplicated collapse loop must be gone");
-  // The words are the Calendar's too: one clock for the card and the board (C3), rendered in settings-words.test.mjs.
-});
+// The Settings card no longer keeps its own copy of the loop: the card is the Business page since Task 3.7, and its
+// hours line is drawn word for word as the shared lines collapse these same runs (contracts calendarHoursLines), in
+// receptionist/business-tab/open/hours-the-zone-and-closed-days.test.mjs ("the summary sentence is the one the composer
+// wrote"), where open.tsx's text was read here until 26 Nov 2026. The words are the Calendar's too: one clock for the
+// card and the board (C3), rendered in settings-words.test.mjs.

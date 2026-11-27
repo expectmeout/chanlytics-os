@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
 import { atRoute, routeOf } from "../address";
-import { givenOf, motionSettled, pullHeld, sheetFloat, sheetFoot } from "../signals";
+import { givenOf, motionSettled, pullHeld, restingTop, sheetFloat, sheetFoot } from "../signals";
 import { apiGet } from "../workspace";
 import { drawnIn } from "./ready";
 
@@ -1280,26 +1280,7 @@ test.describe("Phone shell on a real workspace", () => {
         await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: 562 }] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     };
-    // Where a row stands once the page is at rest: every animation running has finished (motionSettled), then two frames
-    // run at one place. Both readings are taken so, the one the Back is held to and the one after it.
-    const restingTop = async (at: ReturnType<typeof page.locator>) => {
-      await motionSettled(page);
-      return at.evaluate(
-        (el) =>
-          new Promise<number>((done) => {
-            let last = Number.NaN;
-            const look = () => {
-              const top = el.getBoundingClientRect().top;
-              if (Math.abs(top - last) < 0.5) done(top);
-              else {
-                last = top;
-                requestAnimationFrame(look);
-              }
-            };
-            requestAnimationFrame(look);
-          }),
-      );
-    };
+    // Where a row stands is read at rest (signals.ts restingTop): the one the Back is held to and the one after it.
     const places: Record<string, string> = {};
     // The room under the list is the list's own where the row's page is a thread: while the window scrolled an open thread
     // (#1781, until the thread became a screen of its own on 3 Nov 2026) it opened it at its end, and room left on the
@@ -1507,7 +1488,10 @@ test.describe("Phone shell on a real workspace", () => {
       const s = box.querySelector(".cl-tl-filters");
       if (s) window.scrollBy(0, s.getBoundingClientRect().top - 120);
     });
-    const top = async () => Math.round((await strip.boundingBox())!.y);
+    // Where the tabs stand, read at rest (signals.ts restingTop). Visible and the network quiet is not at rest: History's
+    // view comes in risen 4px and settling, and the first reading, taken as it came, stood 4px under the one a press later
+    // ("All moved the tabs", the nightlies' first tries, 26-27 Nov 2026), though nothing a press did moved them.
+    const top = async () => Math.round(await restingTop(strip));
     const start = await top();
     for (const tab of await strip.locator(".subtab").all()) {
       const word = (await tab.textContent())?.trim();
