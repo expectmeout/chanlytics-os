@@ -15,7 +15,7 @@ export const GET = read({
       findBilling(ctx.supabase, member.tenantId),
       getBillingReadiness(),
       callMinutesThisMonth(ctx.supabase, member.tenantId),
-      findModelStanding(member.tenantId),
+      findModelStanding(ctx.supabase, member.tenantId),
     ]);
     const billing: BillingDto = {
       ready: ready.ready,

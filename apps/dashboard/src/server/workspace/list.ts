@@ -38,7 +38,7 @@ import {
   listMyWorkspacesBeforeAccent,
   listMyWorkspacesBeforeWord,
   listMyWorkspacesOldest,
-  patchWorkspaceRowWith,
+  writeWorkspaceOwnFields,
 } from "@chanlytics/db/workspace";
 import { isPlatformAdmin } from "@/server/shared/back-office";
 import { env } from "@/server/shared/env";
@@ -49,7 +49,6 @@ import { saysMissing, asFailedReply } from "@chanlytics/db/shared";
 import { findProfileName } from "@chanlytics/db/auth";
 import { hasOpenInvites } from "./team";
 import type { OpenHandoverDto, TenantId } from "@chanlytics/contracts";
-import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** A workspace as the list says it: its zone, and its word for a booking (0041 J4, 00458), null where it never picked one. */
 interface WorkspaceRow {
@@ -66,16 +65,6 @@ interface WorkspaceRow {
   /** Its colour (00490), #rrggbb: what its emails to customers and the Colour row wear; null for none. */
   accent?: string | null;
 }
-
-/**
- * The columns every database has: what a PATCH of the zone, or a rename, reads back, so the save lands on a database
- * no newer migration reached, and the list's last read. Named, not indexed: a set added at the front of COLUMN_SETS
- * (the colour's, 00490) moved `COLUMN_SETS[2]` from this to the logo's set, and the zone's PATCH read back a path.
- */
-const OLDEST = "id, slug, name, status, timezone";
-
-/** What a PATCH of the word reads back: the row as it wrote it, its word with it, and never the logo's storage path. */
-const WORD_ANSWER = "id, slug, name, status, timezone, appointment_word";
 
 /** The error a read that names a newer column gets from a database the migration adding it has not reached. */
 const lacksNewer = (message: string): boolean =>
@@ -289,47 +278,54 @@ export async function patchWorkspace(ctx: RouteContext, req: Request, member: Me
     patch.appointment_word = word;
   }
 
+  const subject = zone ? "That workspace's timezone" : "What that workspace calls a booking";
   const { data, error } = await writeOwnFields(ctx, member.tenantId, patch);
   // A zone this server's Intl knows and the database does not (00365 refuses one written, as creation always did) is
   // the owner's to choose again, in the words a zone nobody knows is refused in, not a failure of ours.
   if (error?.code === "22023" && patch.timezone)
     throw new AppError("validation", `${patch.timezone} is not a timezone this system knows.`);
-  if (error) throw new DbFailure(error);
-  // A forbidden UPDATE comes back successful with zero rows in this stack, so
-  // the row count IS the permission check. Without this an owner whose policy
-  // or grant went missing would be told the zone was saved and see the old one
-  // on the next read.
-  const subject = zone ? "That workspace's timezone" : "What that workspace calls a booking";
-  if (!data?.length) throw new AppError("forbidden", `${subject} can't be changed from here.`, 403);
-  // On the ledger as every other setting is (settings-write.ts): which of the two moved and who by, never the value.
-  // They live on the tenant's row, not in its config, so a save of them left no trace. As the service role: a session
-  // may not insert into events.
-  await emitWorkspaceEvent(member.tenantId, "settings.changed", "workspace", member.tenantId, {
-    fields: Object.keys(patch).sort(),
-    by: ctx.userId,
-    version: null,
-  });
-  return { workspace: data[0] };
+  refuseOwnFields(error, data, subject);
+  return { workspace: data };
 }
 
 /**
- * The fields of the tenant row a business owns, written through the session: RLS (the settings permission) is the floor,
- * and the rows that come back are the check, since a forbidden UPDATE answers success with none.
+ * The fields of the tenant row a business owns, written through their door as the member signed in (00724
+ * workspace_own_fields_write): the member who may change its settings, and settings.changed (which fields, who, and a
+ * name's from and to) in the same write. The row as it now stands; null where there is none.
  */
 async function writeOwnFields(
   ctx: RouteContext,
   tenantId: TenantId,
   patch: { timezone?: string; appointment_word?: AppointmentWord; name?: string },
-) {
-  return (await patchWorkspaceRowWith(
-    ctx.supabase,
-    tenantId,
-    patch,
-    patch.appointment_word ? WORD_ANSWER : OLDEST,
-  )) as {
-    data: Partial<WorkspaceRow>[] | null;
-    error: { message: string; code?: string } | null;
+): Promise<{ data: Partial<WorkspaceRow> | null; error: { message: string; code?: string } | null }> {
+  const { data, error } = await writeWorkspaceOwnFields(ctx.supabase, tenantId, patch);
+  return { data: ownRowOf(data), error };
+}
+
+/** The row the door answered, as the list says a workspace; null for none. */
+function ownRowOf(raw: unknown): Partial<WorkspaceRow> | null {
+  const row = recordOrNull(raw);
+  if (!row) return null;
+  const textAt = (key: string) => (typeof row[key] === "string" ? row[key] : undefined);
+  return {
+    id: textAt("id"),
+    slug: textAt("slug"),
+    name: textAt("name"),
+    status: textAt("status"),
+    timezone: textAt("timezone"),
+    appointment_word: textAt("appointment_word") ?? null,
   };
+}
+
+/** A refusal of the door said in the workspace's words: not the caller's to change, or no row. */
+function refuseOwnFields(
+  error: { message: string; code?: string } | null,
+  data: Partial<WorkspaceRow> | null,
+  subject: string,
+): asserts data is Partial<WorkspaceRow> {
+  if (error?.code === "42501" || (!error && !data))
+    throw new AppError("forbidden", `${subject} can't be changed from here.`, 403);
+  if (error) throw new DbFailure(error);
 }
 
 /**
@@ -349,14 +345,6 @@ export async function renameWorkspace(
   const was = await findWorkspaceNamed(ctx.supabase, member.tenantId);
   if (!was || was.name === cleaned.name) return null;
   const { data, error } = await writeOwnFields(ctx, member.tenantId, { name: cleaned.name });
-  if (error) throw new DbFailure(error);
-  if (!data?.length) throw new AppError("forbidden", "That workspace's name can't be changed from here.", 403);
-  await emitWorkspaceEvent(member.tenantId, "settings.changed", "workspace", member.tenantId, {
-    fields: ["name"],
-    by: ctx.userId,
-    version: null,
-    from: was.name,
-    to: cleaned.name,
-  });
+  refuseOwnFields(error, data, "That workspace's name");
   return { from: was.name, to: cleaned.name };
 }

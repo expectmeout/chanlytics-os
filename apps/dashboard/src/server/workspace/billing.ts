@@ -18,7 +18,6 @@ import {
 import { deployment } from "../shared/env";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { log } from "@/server/shared/log";
-import { serviceDbIfConfigured } from "@/server/shared/service-db";
 import { findPlanForPage } from "@chanlytics/db/billing";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -45,12 +44,14 @@ export async function callMinutesThisMonth(db: SupabaseClient<Database>, tenantI
 }
 
 /**
- * What Anthropic has said of this workspace's profile (decision 0097): the service role's table, read for the shell's line.
- * Null when it could not be read: the line is said on the row's word alone. Never throws.
+ * What Anthropic has said of this workspace's profile (decision 0097): the service role's table, read for the shell's line
+ * through its door as the member (00724 workspace_model_standing). Null when it could not be read: the line is said on the
+ * row's word alone. Never throws.
  */
-export async function findModelStanding(tenantId: TenantId): Promise<ModelStanding | null> {
-  const db = serviceDbIfConfigured();
-  if (!db) return null;
+export async function findModelStanding(
+  db: SupabaseClient<Database>,
+  tenantId: TenantId,
+): Promise<ModelStanding | null> {
   try {
     return await findWorkspaceModelStanding(db, tenantId);
   } catch (e) {

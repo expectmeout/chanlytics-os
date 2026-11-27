@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 238 | 238 |
+| door | 241 | 241 |
 | reader | 98 | 0 |
 | the server's | 480 | 410 |
 | computed column | 3 | 0 |
 | trigger | 128 | 94 |
-| all | 947 | 742 |
+| all | 950 | 745 |
 
 ## Called by nothing
 
@@ -120,6 +120,7 @@ being read is dropped by a migration.
 | `ask_memory_write` | door | a signed-in person, the server | code `packages/db/src/repositories/ask/memory.ts` | The one writer of Ask's memory (decision 0070), by act, as the caller: |
 | `ask_message_words` | reader | a signed-in person, the server | SQL `search_ask` | The words of one stored Ask turn as recall reads them (00470): |
 | `ask_morning_write` | door | a signed-in person, the server | code `packages/db/src/repositories/ask/mornings.ts` | A member's morning with Ask (decision 0070), by act, the caller's own and only for a member who acts: |
+| `ask_mornings_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/ask/mornings.ts` | What the team's mornings offered since a day, newest first, at most 120 (decision 0087, 00724): |
 | `ask_stopped_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/rows.ts` | What a stop holds (what it paused, to start again), kept in Ask's own section of the settings (tenant_config.config.ask.stopped; |
 | `ask_tokens_day` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspace's Ask tokens (input, cache writes and output of every usage.ask_tokens event; |
 | `assemble_broadcast` | the server's | the server | code `packages/db/src/repositories/jobs/jobs.ts` | A broadcast's run, its people, its send job (when p_send_at is set) and the send_broadcast decision on it, in one transaction (00381): |
@@ -142,7 +143,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 40 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 41 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -497,7 +498,7 @@ being read is dropped by a migration.
 | `mark_processed` | the server's | the server | code `packages/db/src/repositories/channels/ingest.ts` |  |
 | `mark_visit` | door | a signed-in person, the server | code `apps/dashboard/src/server/calendar/visits.ts`, `packages/contracts/src/need-you/groups.ts` and 2 more | A member says what became of a visit (00397, decision 0002 step 8): |
 | `marketing_consent_on_erase` | trigger | the server | trigger `contacts_erase_clears_marketing on contacts` |  |
-| `may_read_workspace` | door | a signed-in person, the server | SQL `campaign_month_sent`, `lead_addresses_suppressed` and 10 more | Whether the caller (auth.uid(), never a parameter) may read this workspace: |
+| `may_read_workspace` | door | a signed-in person, the server | SQL `ask_mornings_seen`, `campaign_month_sent` and 12 more | Whether the caller (auth.uid(), never a parameter) may read this workspace: |
 | `media_sources_ring` | trigger | the server | trigger `media_sources_ring on media_sources` | A trigger on media_sources (00657): |
 | `member_decision` | door | a signed-in person, the server | SQL `change_playbook`, `message_call_back` and 5 more | A decision written as the caller's own (00357): |
 | `member_has_address` | the server's | the server | code `packages/db/src/repositories/calendar/notices.ts`; SQL `reach_out_booked_from` | Is this address a member's of the workspace: |
@@ -984,10 +985,12 @@ being read is dropped by a migration.
 | `withdraw_ai_drafts` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `conversation_take_over`, `member_withdraw_drafts` | The receptionist's queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00387). |
 | `withdraw_queued` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `claim_reply_turn`, `member_withdraw_message` and 2 more | The one door a queued message is withdrawn by (00387): |
 | `words_seen` | door | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/playbook-row.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member pressed a card of Ask's that showed this step's words: |
-| `workspace_activation_note` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts` | A workspace's first of a milestone (a line that answers, a first search, the funnel's steps), on the ledger once (00721): |
+| `workspace_activation_note` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts`; SQL `lead_people_search_create`, `lead_search_create` | A workspace's first of a milestone (a line that answers, a first search, the funnel's steps), on the ledger once (00721): |
 | `workspace_days` | door | a signed-in person, the server | nothing at run time | A workspace's rolled days between two dates, oldest first, for a member of that workspace (K10): |
+| `workspace_model_standing` | door | a signed-in person, the server | code `packages/db/src/repositories/ai/anthropic-profiles.ts` | What Anthropic has said of the workspace's profile (decision 0097, 00724): |
 | `workspace_notices_on_erase` | trigger | the server | trigger `contacts_erase_marks_its_notices on contacts` | Decision 0019 (00549): |
 | `workspace_notices_since` | reader | a signed-in person, the server | code `packages/db/src/realtime.ts` | Decision 0019 step 4 (00508): |
+| `workspace_own_fields_write` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/team.ts` | The workspace's own fields, its name, its zone and its word for a booking (p_set names those it sets), as a member who may change its settings (caller_has_permission 'settings'), with settings.changed |
 | `workspace_partner` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The owner's view of the workspace's partner (0018): |
 | `workspace_sending_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/rows.ts` | Stop everything on the workspace's own row (tenants.sending_stopped_at: |
 | `workspace_tell_at_commit` | trigger | the server | trigger `workspace_notices_told_at_commit on workspace_notices_pending` | Decision 0019 (00507): |

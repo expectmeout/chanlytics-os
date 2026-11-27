@@ -47,7 +47,8 @@ const tenants = () => [
   { id: B, slug: "bayside", name: "Bayside", status: "active", timezone: "America/New_York" },
 ];
 const ctxFor = (tables, params = {}, rpcs = {}) => ({
-  supabase: fakeDb(tables, {}, rpcs),
+  // The session's person: a member's door writes its line as theirs (00724's own fields among them).
+  supabase: fakeDb(tables, {}, rpcs, { userId: USER }),
   userId: USER,
   email: "ada@example.com",
   params,
@@ -236,8 +237,6 @@ test("where you are: every workspace with who is signed in; the active one by ge
 
 test("the zone: the owner's, the workspace named, checked against Intl, and a change that landed on no row is a refusal rather than a success", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
-  // The save is recorded as the service role (settings.changed): a ledger for it to land in.
-  setServiceClient(fakeDb({ events: [] }));
   await refused(
     workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }), ctxFor(tables)),
     "choose_workspace",
@@ -258,7 +257,12 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
   // choose again, in the refusal's own words, never a failure of ours.
   const databaseRefuses = {
     ...ctxFor(tables),
-    supabase: fakeDb(tables, { "tenants.update": { code: "22023", message: "Unknown timezone: America/Chicago" } }),
+    supabase: fakeDb(
+      tables,
+      { "tenants.update": { code: "22023", message: "Unknown timezone: America/Chicago" } },
+      {},
+      { userId: USER },
+    ),
   };
   await refused(
     workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), databaseRefuses),
@@ -267,8 +271,16 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
     "America/Chicago is not a timezone this system knows.",
   );
   const changed = await workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor(tables));
+  // The door answers the row as it now stands (00724), its word with it: null where it never picked one.
   assert.deepEqual(changed, {
-    workspace: { id: B, slug: "bayside", name: "Bayside", status: "active", timezone: "America/Chicago" },
+    workspace: {
+      id: B,
+      slug: "bayside",
+      name: "Bayside",
+      status: "active",
+      timezone: "America/Chicago",
+      appointment_word: null,
+    },
   });
   assert.equal(tables.tenants.find((t) => t.id === B).timezone, "America/Chicago");
   await refused(
@@ -281,8 +293,6 @@ test("the zone: the owner's, the workspace named, checked against Intl, and a ch
 
 test("what a workspace calls a booking: the owner's, one of the five, only what was sent written and read back, and a change that landed on no row is a refusal (0041 J4, 00458)", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants() };
-  // The save is recorded as the service role (settings.changed): a ledger for it to land in.
-  setServiceClient(fakeDb({ events: [] }));
   const ctx = () => ctxFor(tables);
   const NOTHING = "Send the workspace's timezone, or what it calls a booking.";
   await refused(
@@ -336,13 +346,12 @@ test("what a workspace calls a booking: the owner's, one of the five, only what 
     400,
   );
   assert.equal(tables.tenants.find((t) => t.id === B).appointment_word, "session");
-  // A zone alone reads back only what it wrote, so it saves on a database that has no word column yet.
+  // A zone alone writes the zone alone.
   const z = ctx();
   await workspaces.PATCH.run(send("PATCH", { timezone: "America/Denver" }, inB), z);
-  assert.equal(
-    z.supabase.seen.find((q) => q.table === "tenants" && q.op === "update").columns,
-    "id, slug, name, status, timezone",
-  );
+  assert.deepEqual(z.supabase.seen.find((q) => q.table === "tenants" && q.op === "update").values, {
+    timezone: "America/Denver",
+  });
   await refused(
     workspaces.PATCH.run(send("PATCH", { appointment_word: "meeting" }, inB), ctxFor({ ...tables, tenants: [] })),
     "forbidden",
@@ -761,25 +770,20 @@ test("a phone is registered on the account through the definer door, and forgott
 
 test("REGRESSION: the zone and the word for a booking are settings, and a save of either is on the ledger with who made it -- they live on the tenant's row, and left no trace", async () => {
   const tables = { memberships: both("viewer", "owner"), tenants: tenants(), events: [] };
-  // The ledger is written as the service role: a session may not insert into events.
-  setServiceClient(fakeDb(tables));
-  try {
-    await workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor(tables));
-    await workspaces.PATCH.run(
-      send("PATCH", { appointment_word: "meeting", timezone: "America/Denver" }, inB),
-      ctxFor(tables),
-    );
-    assert.deepEqual(
-      tables.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.data]),
-      [
-        [B, "settings.changed", "workspace", { fields: ["timezone"], by: USER, version: null }],
-        [B, "settings.changed", "workspace", { fields: ["appointment_word", "timezone"], by: USER, version: null }],
-      ],
-      "which of the two moved and who by, never the value",
-    );
-    await assert.rejects(workspaces.PATCH.run(send("PATCH", { timezone: "Mars/Olympus" }, inB), ctxFor(tables)));
-    assert.equal(tables.events.length, 2, "a refused save says nothing");
-  } finally {
-    setServiceClient(null);
-  }
+  // The ledger is written by the door that writes the row, in the same write (00724 workspace_own_fields_write).
+  await workspaces.PATCH.run(send("PATCH", { timezone: "America/Chicago" }, inB), ctxFor(tables));
+  await workspaces.PATCH.run(
+    send("PATCH", { appointment_word: "meeting", timezone: "America/Denver" }, inB),
+    ctxFor(tables),
+  );
+  assert.deepEqual(
+    tables.events.map((e) => [e.tenant_id, e.kind, e.subject_type, e.data]),
+    [
+      [B, "settings.changed", "workspace", { fields: ["timezone"], by: USER, version: null }],
+      [B, "settings.changed", "workspace", { fields: ["appointment_word", "timezone"], by: USER, version: null }],
+    ],
+    "which of the two moved and who by, never the value",
+  );
+  await assert.rejects(workspaces.PATCH.run(send("PATCH", { timezone: "Mars/Olympus" }, inB), ctxFor(tables)));
+  assert.equal(tables.events.length, 2, "a refused save says nothing");
 });

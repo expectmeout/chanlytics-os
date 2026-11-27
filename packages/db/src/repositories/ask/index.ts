@@ -18,7 +18,7 @@ export { askJournalDayRows, askJournalDue, getJournalMemberNames, keepAskJournal
 export type { AskJournalDueRow, JournalDecisionRow, JournalEventRow } from "./journal";
 export { askJournalDays, askMemoryLines, changeAskMemory, forgetAskMemory, keepAskMemory, searchAsk } from "./memory";
 export type { AskMemoryDoor, AskRecallRow } from "./memory";
-export { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "./mornings";
+export { askFirstAnswer, askMorningOf, askMorningsSeen, askMorningWrite } from "./mornings";
 export {
   countHeldReviewReplies,
   insertAskNoticeDay,

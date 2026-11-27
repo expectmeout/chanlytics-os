@@ -97,10 +97,14 @@ export const listMyWorkspacesOldest = async (db: Db) =>
 export const listMyRoles = async (db: Db, userId: string) =>
   db.from("memberships").select("tenant_id, role").eq("user_id", userId);
 
-/** The workspace's own fields written, the row back with `columns` (a set the caller types): none back, refused. */
-export const patchWorkspaceRowWith = async (
+/**
+ * The workspace's own fields, its name, its zone and its word for a booking, written through their door as the member
+ * signed in (00724 workspace_own_fields_write: the member who may change its settings, with settings.changed in the same
+ * write): the row as it now stands, null where there is no such workspace. A refusal is the door's code: 42501 not the
+ * caller's to change, 22023 a zone the database does not know.
+ */
+export const writeWorkspaceOwnFields = async (
   db: Db,
   tenantId: TenantId,
-  patch: Database["public"]["Tables"]["tenants"]["Update"],
-  columns: string,
-) => db.from("tenants").update(patch).eq("id", tenantId).select(columns);
+  set: { name?: string; timezone?: string; appointment_word?: string },
+) => db.rpc("workspace_own_fields_write", { p_tenant_id: tenantId, p_set: { ...set } });

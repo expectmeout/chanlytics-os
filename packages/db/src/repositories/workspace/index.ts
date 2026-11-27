@@ -114,11 +114,11 @@ export {
   listMyWorkspacesOldest,
   listOpenInvitations,
   lookupUserForInvite,
-  patchWorkspaceRowWith,
   readTeamRoster,
   removeFromTeam,
   renewTeamInvite,
   withdrawInviteRenewal,
   withdrawTeamInvite,
+  writeWorkspaceOwnFields,
 } from "./team";
 export { addToWaitlist, getWaitlistWaiting, markWaitlistInvited, refreshWaitlistRow } from "./waitlist";
