@@ -5,6 +5,7 @@
  * left to. Words pasted into a box stay that box's.
  */
 import { useEffect, useRef, useState } from "react";
+import { valueAt } from "@chanlytics/contracts";
 
 /** Whether what is being dragged holds files, rather than words or a link. */
 export const holdsFiles = (transfer: Pick<DataTransfer, "types"> | null): boolean =>
@@ -16,8 +17,8 @@ export const imagesIn = (transfer: Pick<DataTransfer, "files"> | null): File[] =
 
 /** Whether a person is typing where this came from. */
 function typedInto(target: EventTarget | null): boolean {
-  const element = target as HTMLElement | null;
-  return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA" || element?.isContentEditable === true;
+  const tag = valueAt(target, "tagName");
+  return tag === "INPUT" || tag === "TEXTAREA" || valueAt(target, "isContentEditable") === true;
 }
 
 /**

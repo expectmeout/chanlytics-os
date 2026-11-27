@@ -1,3 +1,4 @@
+import { valueAt } from "@chanlytics/contracts";
 /**
  * What the agent's events mean to the Line (docs/superpowers/specs/2026-10-03-ask-spoken-design.md, §3.5), pure, so
  * the spike's recorded events prove it. The vendor speaks everything the brain door streams, a read's label and the
@@ -73,14 +74,10 @@ const modeOf = (mode: unknown): "speaking" | "listening" => (mode === "speaking"
 
 /** What the agent spoke before the cut, wherever the vendor's callback put it: `corrected_response` on the object given, or on the event inside it. */
 function correctedOf(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-  const p = payload as {
-    corrected_response?: unknown;
-    agent_response_correction_event?: { corrected_response?: unknown };
-  };
-  if (typeof p.corrected_response === "string") return p.corrected_response;
-  const inner = p.agent_response_correction_event;
-  return inner && typeof inner.corrected_response === "string" ? inner.corrected_response : "";
+  const corrected = valueAt(payload, "corrected_response");
+  if (typeof corrected === "string") return corrected;
+  const inner = valueAt(payload, "agent_response_correction_event", "corrected_response");
+  return typeof inner === "string" ? inner : "";
 }
 
 export function reduceVoiceEvent(

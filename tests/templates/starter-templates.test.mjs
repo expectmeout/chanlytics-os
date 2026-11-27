@@ -40,7 +40,7 @@ import {
   validateTemplateDraft,
 } from "@chanlytics/contracts";
 import { starterPreview } from "../../apps/dashboard/src/surfaces/campaigns/templates/preview.ts";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { cascadeOf, cssOf, element } from "../_css.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { installStubReact } from "../_stub-react.mjs";
@@ -492,20 +492,13 @@ test("the pages: titles not names, the starter set in Settings, the message as t
     "Meta's sample is listed nowhere",
   );
   // The card is the WHOLE message as the customer sees it, its heading and its buttons too; a title, and nothing an
-  // owner does not act on. Read until the card is drawn with a heading and buttons.
-  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
-  assert.ok(
-    s.includes("<MessagePreview") &&
-      s.includes("header={row ? row.header : null}") &&
-      s.includes("buttons={row ? row.buttons : null}"),
-    "the card is the WHOLE message as the customer sees it: its heading and its buttons too",
-  );
+  // owner does not act on (where it was made, "Made here" or "From WhatsApp Manager", went from the open message:
+  // Messages, the canvas of 10 Nov 2026). Drawn in templates/sheet/the-sheet-shows-the-whole-message-and-renames-it.test.mjs,
+  // where message-row-parts.tsx's text was read here until 26 Nov 2026.
   // Integrations is Settings › Connections' TSX now (moved from integrations-real.jsx): that a connected number's
   // Settings point at Campaigns and the pane lists no template is drawn in
   // whatsapp/connect/a-connected-number-points-at-campaigns-and-lists-no-message.test.mjs (pane.tsx's and row.tsx's text
   // until 26 Nov 2026).
-  // Where it was made ("Made here", "From WhatsApp Manager") went from the open message (Messages, the canvas of 10 Nov 2026).
-  assert.ok(s.includes("tplTitle(") && !s.includes('"Made here"'), "a title, and nothing an owner does not act on");
   // Broadcasts' slot choices (moved from broadcasts.jsx), which the run's hook still works out. The send screen that drew
   // them, with its starter set's button and its preview, went with decision 0065's step 7: New writes a first message.
   // A starter's slots come filled in, each with what it may take: a source kept from before that a slot may not take
@@ -538,13 +531,9 @@ test("the pages: titles not names, the starter set in Settings, the message as t
   );
   assert.equal(kept.srcOf(3), "text", "a booking link the workspace has not set is not kept");
   assert.equal(slotsOf(["text", "text", "text", "booking_link"], true).srcOf(3), "booking_link", "and is, once set");
-  // The Templates composer (moved from templates-real.jsx): its form and its module, read as one until its start-from
-  // row is drawn.
-  const t = readCode(
-    "apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx",
-    "apps/dashboard/src/surfaces/campaigns/templates/composer.tsx",
-  );
-  assert.ok(t.includes('data-testid="tpl-start-from"') && !t.includes("starterWords") && !t.includes("WaBubble"));
+  // The Templates composer (moved from templates-real.jsx) starts from a starter: pressed in
+  // templates/sheet/the-sheet-shows-the-whole-message-and-renames-it.test.mjs, where its form's and its module's text
+  // was read here until 26 Nov 2026.
   // Campaigns' rules live in their own sheet; the starter list's own rows (.tpl-starter-*) went with the list.
   // Asked of the parsed sheet under any query (read as its text until 26 Nov 2026): the bubble's own rule gives it its
   // look there, and no selector names the starter list's rows.
@@ -699,11 +688,9 @@ test("a template's title: the workspace's own words, set through its door, shown
   // through the route in playbooks/routes/ ("one template: hidden or titled through the definer doors"); a title past
   // sixty refused on the stack (templates/template-versions.db.test.mjs). Pinned as the route's text until 25 Nov 2026.
   // The rename asks PUT templates/[id] with { title }, and a name is looked up among the workspace's rows
-  // (routes/the-library-s-verbs-ask-their-routes.test.mjs). The rename's own field and its Save, read until they are drawn:
-  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
-  for (const id of ["template-title", "template-title-save"]) assert.ok(s.includes(`data-testid="${id}"`), id);
-  // Rename, like Hide, is an item of the pane's kit Menu: its test id rides the item's `gate`.
-  assert.ok(s.includes('"data-testid": "template-rename"'), "template-rename");
+  // (routes/the-library-s-verbs-ask-their-routes.test.mjs). Rename, an item of the pane's kit Menu with its test id on the
+  // item's `gate`, its field and its Save, pressed: templates/sheet/the-sheet-shows-the-whole-message-and-renames-it.test.mjs,
+  // where message-row-parts.tsx's text was read here until 26 Nov 2026.
   // The default names of a broadcast and a playbook use the title: run in broadcasts/core-campaigns/. The composers read
   // it: GET templates answers its reader's payload, key for key (ask/readers/, "the templates, for the composers").
 });

@@ -183,7 +183,6 @@ test("the summary counts messages and calls separately", () => {
 /* ---- snoozing hides a thread; it must not discard what it was about ---- */
 {
   const { threadStanding } = await import("@chanlytics/contracts");
-  const { readCode } = await import("../_source.mjs");
 
   const conv = (over = {}) => ({
     id: "c1",
@@ -238,16 +237,8 @@ test("the summary counts messages and calls separately", () => {
   // wakes"), where what each touches is exactly its own door and the ledger. Pinned as snooze.ts's and wake.ts's text
   // until 26 Nov 2026.
 
-  test("Wake now is its own verb, not hand-back", () => {
-    // hand-back resolves the escalation AND returns the thread to the
-    // receptionist, so waking through it discarded the very request being
-    // pulled forward.
-    const inbox = readCode("apps/dashboard/src/surfaces/inbox/pages/inbox-acts.tsx");
-    const wakeFn = inbox.slice(inbox.indexOf("const wake = "));
-    const body = wakeFn.slice(0, wakeFn.indexOf("\n  };"));
-    assert.ok(body.includes('realVerb(t, "wake"'), "wake must call the wake verb");
-    assert.ok(!body.includes('"hand-back"'), "waking must not hand the thread back");
-  });
+  // Wake now is its own verb, not hand-back: pressed on the Inbox in inbox/inbox-list-honest.test.mjs ("Wake now asks the
+  // wake verb for the thread, never hand-back"), where inbox-acts.tsx's text was read here until 26 Nov 2026.
 }
 
 test("REGRESSION: the row and every bubble say which wire the words travelled, not WhatsApp for all of them", () => {

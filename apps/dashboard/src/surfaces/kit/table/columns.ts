@@ -10,6 +10,7 @@
  * the column it is and where it is pinned (rows.tsx), so pinning and widths are the kit's in one place.
  */
 import type { ReactElement, ReactNode } from "react";
+import { recordOrEmpty } from "@chanlytics/contracts";
 
 /** A row the table can draw: an id it is kept and selected by, and the name its box is read out with. */
 export interface TableRow {
@@ -213,7 +214,7 @@ export const choicesOf = (
 ): Record<string, boolean> => {
   const out: Record<string, boolean> = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
-  const saved = raw as Record<string, unknown>;
+  const saved = recordOrEmpty(raw);
   for (const c of columns) {
     const v = saved[c.key];
     if (!isLocked(c) && !c.hidden && typeof v === "boolean") out[c.key] = v;
@@ -258,7 +259,7 @@ export const widthsOf = (columns: readonly Pick<AnyDataColumn, "key" | "fixed" |
   const widths: Record<string, number> = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return widths;
   for (const c of columns) {
-    const v = (raw as Record<string, unknown>)[c.key];
+    const v = recordOrEmpty(raw)[c.key];
     if (!c.fixed && !c.hidden && typeof v === "number" && Number.isFinite(v))
       widths[c.key] = Math.min(TABLE_MAX_PX, Math.max(TABLE_MIN_PX, Math.round(v)));
   }

@@ -168,7 +168,8 @@ function moreWalk(e: { key: string; currentTarget: HTMLDivElement; preventDefaul
   const items = Array.from(pickAll(e.currentTarget, ".more-item"));
   if (!items.length) return;
   e.preventDefault();
-  items[to(items.indexOf(document.activeElement as HTMLElement), items.length)]?.focus();
+  const at = items.findIndex((item) => item === document.activeElement);
+  items[to(at, items.length)]?.focus();
 }
 
 /** How a menu is drawn: the item's press, whether it is a phone's sheet, and the headings of a grid opened to their group. */

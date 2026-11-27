@@ -101,7 +101,7 @@ export function labToCss(lab: Lab, alpha = 1): string {
  * as the browser reads them back after the build. Anything else is null.
  */
 export function parseColor(value: string | Lab | null | undefined): Lab | null {
-  if (Array.isArray(value)) return value as Lab;
+  if (typeof value === "object" && value !== null) return value;
   const str = String(value ?? "")
     .trim()
     .toLowerCase();
@@ -187,7 +187,11 @@ export function palette(theme: ThemeName, tokens: ThemeTokens = {}, tone: Tone =
   const onAccent = parseColor(tokens.accentFg) ?? ownLab(base.accentFg);
   if (tone === "accent") {
     const sh = SHADOW.accent;
-    const at = (t: readonly number[]) => t.map((f) => mixLab(onAccent, accent, f)) as [Lab, Lab, Lab];
+    const at = ([a, b, c]: readonly [number, number, number]): [Lab, Lab, Lab] => [
+      mixLab(onAccent, accent, a),
+      mixLab(onAccent, accent, b),
+      mixLab(onAccent, accent, c),
+    ];
     return {
       rest: at(ON_ACCENT.rest),
       live: at(ON_ACCENT.live),

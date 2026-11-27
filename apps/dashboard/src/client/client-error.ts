@@ -17,6 +17,7 @@ import {
   type ClientErrorBoundary,
   type PageDevice,
   type ReportedError,
+  valueAt,
 } from "@chanlytics/contracts";
 import { publicEnv } from "@/lib/public-env";
 
@@ -112,8 +113,8 @@ export function listenForShellErrors(
   report = reportClientError,
 ): () => void {
   const heard = (e: Event) => {
-    const detail = (e as CustomEvent<{ error?: unknown; page?: unknown } | null>).detail;
-    report("shell", detail?.error, typeof detail?.page === "string" ? detail.page : null);
+    const page = valueAt(e, "detail", "page");
+    report("shell", valueAt(e, "detail", "error"), typeof page === "string" ? page : null);
   };
   win.addEventListener(SHELL_ERROR_EVENT, heard);
   return () => win.removeEventListener(SHELL_ERROR_EVENT, heard);

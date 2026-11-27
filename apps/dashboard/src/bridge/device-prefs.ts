@@ -22,6 +22,8 @@ import {
   type SidebarPref,
   type Theme,
   type ThemePref,
+  recordOrEmpty,
+  isOneOf,
 } from "@chanlytics/contracts";
 
 export interface Prefs {
@@ -47,6 +49,12 @@ export type ChosenPref = "theme" | "look" | "sidebar";
 /** Where the preferences are kept, looked up at each read and write: FrameApp hands in the browser's. */
 type PrefStorage = () => Pick<Storage, "getItem" | "setItem">;
 
+/** The inbox's densities a device may keep. */
+const INBOX_DENSITIES = ["compact", "medium", "rich"] as const satisfies readonly Prefs["inboxDensity"][];
+
+/** The themes a stranger's page may have been put in. */
+const STRANGER_THEMES = ["light", "dark"] as const satisfies readonly Theme[];
+
 const PREF_DEFAULTS: Prefs = {
   theme: DEFAULT_THEME_PREF,
   sidebar: DEFAULT_SIDEBAR_PREF,
@@ -56,13 +64,16 @@ const PREF_DEFAULTS: Prefs = {
 /** This device's preferences, with anything unknown or stale replaced by the default, and a look only as chosen. */
 export function loadPrefs(storage: PrefStorage): Prefs {
   try {
-    const stored = JSON.parse(storage().getItem(DEVICE_PREFS_STORAGE) || "{}") as Partial<Prefs>;
-    const p = { ...PREF_DEFAULTS, ...stored };
+    const stored = recordOrEmpty(JSON.parse(storage().getItem(DEVICE_PREFS_STORAGE) || "{}"));
+    // A key a newer build keeps is carried on as it was: the set is written back whole.
+    const { look, stranger, ...rest } = stored;
     return {
-      ...p,
-      theme: themePrefOf(p.theme),
-      look: isLookPref(p.look) ? p.look : undefined,
-      sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar,
+      ...rest,
+      theme: themePrefOf(stored.theme ?? PREF_DEFAULTS.theme),
+      ...(isLookPref(look) ? { look } : {}),
+      sidebar: isSidebarPref(stored.sidebar) ? stored.sidebar : PREF_DEFAULTS.sidebar,
+      inboxDensity: isOneOf(INBOX_DENSITIES, stored.inboxDensity) ? stored.inboxDensity : PREF_DEFAULTS.inboxDensity,
+      ...(isOneOf(STRANGER_THEMES, stranger) ? { stranger } : {}),
     };
   } catch {
     return PREF_DEFAULTS;

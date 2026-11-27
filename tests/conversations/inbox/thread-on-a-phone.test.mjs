@@ -303,6 +303,29 @@ test("why it said that is a button a thumb can open, not a title only a mouse ca
   assert.ok(textOf(panel).includes("Hours"), "and the facts it used");
 });
 
+test("an attachment is drawn in its bubble by the kit's one component, from the message's own media route", async () => {
+  // What it draws for each kind is the kit's (media/an-attachment-is-drawn-by-its-kind.test.mjs); here, that the thread
+  // draws it in the bubble that carried it, where timeline.tsx's text was read until 26 Nov 2026.
+  const { TlMedia } = await import("../../../apps/dashboard/src/surfaces/kit/media/tl-media.tsx");
+  const photo = msg({
+    id: "11111111-1111-4111-8111-111111111111",
+    type: "media",
+    body: "",
+    media: { mime_type: "image/jpeg", fetch_state: "stored", filename: null, caption: "the cut I want" },
+  });
+  const tree = draw(conv([photo, ours()]));
+  const drawn = all(tree, (n) => n.type === TlMedia);
+  assert.equal(drawn.length, 1, "one attachment, drawn once");
+  const bubble = one(tree, (n) => byClass("tl-msg")(n) && all(n, (k) => k.type === TlMedia).length > 0);
+  assert.ok(bubble && byClass("client")(bubble), "in the customer's bubble that carried it");
+  assert.equal(drawn[0].props.media.messageId, photo.id, "its own message's");
+  assert.equal(
+    one(drawn[0], (n) => n.type === "a")?.props.href,
+    `/api/v1/messages/${photo.id}/media?workspace=marisas`,
+    "opened from the message's own media route",
+  );
+});
+
 test("a reply of ours says who sent it and what became of it in its corner, and says its time once", () => {
   const tree = draw(conv([msg(), ours({ sender: "human", body: "See you Friday!", status: "read" })]));
   const bubble = one(tree, (n) => byClass("tl-msg")(n) && textOf(n).includes("See you Friday!"));

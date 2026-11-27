@@ -39,6 +39,7 @@ import {
 } from "@chanlytics/contracts";
 import { deviceSealed } from "@/client/kept-on-device";
 import { hearPartReady, speedHost } from "@/client/page-speed";
+import { isHtmlElement } from "../dom-reads";
 
 /** The frame itself, never the outline under it. */
 const FRAME = ".app-root:not(.frame-outline)";
@@ -137,7 +138,8 @@ function stopArrivals(root: Element, copy: Element): void {
   root.querySelectorAll("*").forEach((el, i) => {
     if (getComputedStyle(el).animationName !== "none") kept[i]?.style.setProperty("animation", "none");
   });
-  if (getComputedStyle(root).animationName !== "none") (copy as HTMLElement).style.setProperty("animation", "none");
+  if (getComputedStyle(root).animationName !== "none" && isHtmlElement(copy))
+    copy.style.setProperty("animation", "none");
 }
 
 /** The screen as a copy holds it; or why it holds none, where it is not at rest or is too long to read before a first paint. */

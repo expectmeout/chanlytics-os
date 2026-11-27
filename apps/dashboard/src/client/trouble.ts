@@ -42,7 +42,7 @@
  * answered between. And what "has not failed" is judged by is the read's whole address, its query with it: a route that
  * fails for one period of a report and answers another is no reason to hold the other back. Pure: the clock, the chance and the timer are handed in, so it runs under node.
  */
-import { MIN_MS, SECOND_MS } from "@chanlytics/contracts";
+import { MIN_MS, SECOND_MS, valueAt } from "@chanlytics/contracts";
 
 /** This many reads failed in a row, on at least ROUTES_AT routes, and the server is not answering this tab. */
 const FAULTS_AT = 3;
@@ -67,6 +67,10 @@ const MENDING_MS = 10 * SECOND_MS;
  * What a read came to, for the tab's standing: the server answered (whatever it said), it did not, or the read's own
  * caller called it off, which says nothing of the server.
  */
+/** Whether a timer's handle can be let go of: a process's or a worker's, never a browser's number. */
+export const letsGo = (handle: unknown): handle is { unref: () => void } =>
+  typeof valueAt(handle, "unref") === "function";
+
 export type ReadVerdict = "answered" | "fault" | "called_off";
 
 /** A read let through: it says what it came to as it settles, with the wait the server named, if it named one. */
@@ -121,7 +125,7 @@ const browserTimer = (ms: number, fn: () => void): (() => void) => {
   const timer = setTimeout(fn, ms);
   // A test's process is not kept alive by a wait alone (a browser's timer is a number, with nothing to let go of).
   const handle: unknown = timer;
-  if (typeof handle === "object" && handle !== null && "unref" in handle) (handle as { unref: () => void }).unref();
+  if (letsGo(handle)) handle.unref();
   return () => clearTimeout(timer);
 };
 

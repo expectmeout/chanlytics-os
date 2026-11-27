@@ -5,6 +5,7 @@
  */
 import type { TouchEvent as ReactTouchEvent } from "react";
 import { FLICK_PX, FLICK_SPEED, GRAB_PX } from "./pull";
+import { answersClosest } from "../../dom-reads";
 
 /** How far up a pull from folded goes before a docked foot opens. */
 const DOCK_OPEN_PX = 16;
@@ -13,8 +14,7 @@ const DOCK_FOLD_PX = 64;
 
 /** Whether a touch began where words are typed, selected or scrolled: the field's, never the foot's. */
 function inField(target: EventTarget | null): boolean {
-  const at = target as Element | null;
-  return !!at && typeof at.closest === "function" && !!at.closest("textarea, input, select, [contenteditable]");
+  return answersClosest(target) && !!target.closest("textarea, input, select, [contenteditable]");
 }
 
 /** One touch on a docked foot: where it began, how far down it has taken the foot, and whether it is the foot's. */

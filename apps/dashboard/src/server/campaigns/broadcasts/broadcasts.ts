@@ -83,7 +83,7 @@ async function waitingBeyond(ctx: RouteContext, tenantId: TenantId, shown: reado
     if (!ids.length) return [];
     const { data, error } = await listRunRowsByIds(ctx.supabase, tenantId, ids);
     if (error) throw new DbFailure(error);
-    return data as BroadcastRow[];
+    return data;
   } catch (e) {
     log.error("broadcasts_waiting_read_failed", {
       tenant_id: tenantId,
@@ -110,7 +110,7 @@ export async function listBroadcasts(
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await listRecentRunRows(ctx.supabase, tenantId, RECENT + 1);
   if (error) throw new DbFailure(error);
-  const all = rows as BroadcastRow[];
+  const all = rows;
   const recent = all.slice(0, RECENT);
   const beyond = all.length > RECENT ? await waitingBeyond(ctx, tenantId, recent) : [];
   const counted = await withCounts(ctx, tenantId, [...recent, ...(beyond ?? [])]);
@@ -156,7 +156,7 @@ async function withHeld(ctx: RouteContext, tenantId: TenantId, rows: BroadcastDt
 export async function listRuns(ctx: RouteContext, tenantId: TenantId): Promise<BroadcastDto[]> {
   const { data: rows, error } = await listPlaybookRunRows(ctx.supabase, tenantId);
   if (error) throw new DbFailure(error);
-  return withCounts(ctx, tenantId, rows as BroadcastRow[]);
+  return withCounts(ctx, tenantId, rows);
 }
 
 /** A person's answer to the run, as the sheet draws it: which, about what, and when. */
@@ -334,7 +334,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
     ...threadOfRecipient(row, seen),
   }));
   return {
-    broadcast: toDto(row as BroadcastRow, await sheetCountsOf(counting, id, own)),
+    broadcast: toDto(row, await sheetCountsOf(counting, id, own)),
     recipients: people,
     reach_out: await findReachOutRun(ctx, tenantId, row),
   };

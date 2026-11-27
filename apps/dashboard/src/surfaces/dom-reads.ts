@@ -8,6 +8,10 @@ import { valueAt } from "@chanlytics/contracts";
 /** Whether a value is an element: a node of the DOM's own element type (`nodeType` 1). */
 export const isElementNode = (value: unknown): value is Element => valueAt(value, "nodeType") === 1;
 
+/** Whether a value answers `matches`: what a focus asks of the element it landed on. */
+export const answersMatches = (value: unknown): value is Pick<Element, "matches"> =>
+  typeof valueAt(value, "matches") === "function";
+
 /** Whether a value answers `closest`: what a press asks of the element it came from. */
 export const answersClosest = (value: unknown): value is Pick<Element, "closest"> =>
   typeof valueAt(value, "closest") === "function";

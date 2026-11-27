@@ -23,7 +23,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { normalizeCall, liveTurns, fetchRecording, getCall } from "@chanlytics/channels/voice";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
-import { readRaw, importSrc } from "../../_source.mjs";
+import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -416,9 +416,7 @@ test("a call's status is one the database holds, and the copy gives up at the cl
   assert.equal(RECORDING_MAX_ATTEMPTS, 3, "the copy gives up at the clock's own number");
 });
 
-test("the Conversations viewer runs a real live call's clock from its start, and no longer offers to 'listen in'", () => {
-  const src = readRaw("apps/dashboard/src/surfaces/inbox/pages/conversations-page.tsx");
-  assert.ok(src.includes("Math.floor((Date.now() - started) / 1000)"));
-  assert.ok(!src.includes("Listen in"), "there is no audio to listen to; the button opens Live");
-  // A missed call saying so on its row is drawn, not read: the-pages-say-only-what-is-true.test.mjs runs the row's pill.
-});
+// The Conversations viewer runs a real live call's clock from its start, and no longer offers to 'listen in': drawn with
+// the clock moved in conversations/inbox/conversations-doors.test.mjs ("a call still going opens on its own clock"), where
+// conversations-page.tsx's text was read here until 26 Nov 2026. A missed call saying so on its row is drawn, not read:
+// the-pages-say-only-what-is-true.test.mjs runs the row's pill.

@@ -1,3 +1,4 @@
+import { valueAt } from "@chanlytics/contracts";
 /**
  * What the keyboard covers (moved from legacy/components/data-bits.jsx, the one-system plan's step 2). A phone's keyboard
  * is laid over the page, on iOS and on Android alike: the layout keeps its height and only what the browser shows gets
@@ -52,13 +53,13 @@ export const keysRoomMade = (): void => {
 };
 
 /** A field the keyboard rises for: what makes the document expect it (and what a box on the keys rises for, keys-rise.ts). */
-export const typesIn = (el: EventTarget | null): boolean => {
-  const n = el as HTMLElement | null;
+export const typesIn = (el: unknown): boolean => {
+  const tag = valueAt(el, "tagName");
+  const type = valueAt(el, "type");
   return (
-    !!n &&
-    (n.tagName === "TEXTAREA" ||
-      n.isContentEditable === true ||
-      (n.tagName === "INPUT" && !NOT_TYPING.test((n as HTMLInputElement).type || "")))
+    tag === "TEXTAREA" ||
+    valueAt(el, "isContentEditable") === true ||
+    (tag === "INPUT" && !NOT_TYPING.test(typeof type === "string" ? type : ""))
   );
 };
 
@@ -127,7 +128,7 @@ export const watchKeyboard = (): (() => void) => {
   // field keeps them, and says so first).
   const focusOut = (e: Event) => {
     expect(false);
-    if (up && !typesIn((e as FocusEvent).relatedTarget)) leaving(true);
+    if (up && !typesIn(valueAt(e, "relatedTarget"))) leaving(true);
   };
   set();
   vv.addEventListener("resize", set);

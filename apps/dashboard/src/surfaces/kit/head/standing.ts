@@ -151,8 +151,8 @@ export function useStanding(standing: Standing | null): void {
   const token = useRef<symbol | null>(null);
   token.current ??= Symbol("standing");
   useLayoutEffect(() => {
-    const mine = token.current as symbol;
-    if (!standing) return undefined;
+    const mine = token.current;
+    if (!standing || !mine) return undefined;
     said = { token: mine, standing };
     tellStandingWatchers();
     return () => {

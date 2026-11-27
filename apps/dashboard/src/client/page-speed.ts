@@ -202,11 +202,14 @@ function ownReads(page: string): ReadonlySet<string> {
   return new Set(["page", "workspaces", "open", ...(page === "person" ? ["contacts"] : []), ...keys]);
 }
 
+/** Whether an entry is a resource's timing: what a resource observer hands over. */
+const isResourceEntry = (e: PerformanceEntry): e is PerformanceResourceTiming => e.entryType === "resource";
+
 /** The resources a wait can be, watched as they land, the latest few hundred. */
 function watchLanded(): Landed[] {
   const landed: Landed[] = [];
-  const take = (e: PerformanceEntry) => {
-    const r = e as PerformanceResourceTiming;
+  const take = (r: PerformanceEntry) => {
+    if (!isResourceEntry(r)) return;
     // A read the page waits on: one of its own (/api/v1/), or the router fetching a page it was asked to move to.
     const read = r.name.includes("/api/v1/") || r.name.includes("_rsc=");
     const chunk = !read && r.initiatorType === "script";

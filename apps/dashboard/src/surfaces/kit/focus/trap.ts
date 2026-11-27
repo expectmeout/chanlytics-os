@@ -13,13 +13,15 @@
  * `leaving` is, carrying `leaving`'s way out too. The modals outside the record kit take one of these.
  */
 import { leaving } from "../motion/leaving";
+import { answersClosest } from "../../dom-reads";
+import { valueAt } from "@chanlytics/contracts";
 
 const TAB_STOP_KINDS = "button, a[href], input, select, textarea, [tabindex]";
 
 /** What Tab stops at inside a box: enabled, in the tab order, and drawn. */
 export const tabStops = (box: Element): HTMLElement[] =>
   Array.from(box.querySelectorAll<HTMLElement>(TAB_STOP_KINDS)).filter(
-    (el) => !(el as HTMLButtonElement).disabled && el.tabIndex >= 0 && el.getClientRects().length > 0,
+    (el) => valueAt(el, "disabled") !== true && el.tabIndex >= 0 && el.getClientRects().length > 0,
   );
 
 /** Keep Tab inside `box`: from the dialog's keydown when the key is Tab. */
@@ -54,8 +56,8 @@ export function hearFocusOutside(): void {
   if (hearing || typeof document === "undefined" || !document.addEventListener) return;
   hearing = true;
   document.addEventListener("focusin", (e) => {
-    const t = e.target as Element | null;
-    if (!(t && t.closest && t.closest('[aria-modal="true"]'))) focusedOutside = e.target;
+    const t = e.target;
+    if (!(answersClosest(t) && t.closest('[aria-modal="true"]'))) focusedOutside = e.target;
   });
 }
 
