@@ -15,8 +15,7 @@ import "./setup-card-code";
 import { onRouteAsked } from "@/bridge/workspace";
 import { holdTodayForNote } from "./cold-email-note-read";
 import { holdTodayForContent } from "./content-note-read";
-import { dayWasRead } from "./day-read";
-import { arriveOnToday } from "./first-draw-read";
+import { arriveOnToday, dayWasRead } from "./first-draw-read";
 import { holdTodayForPeople } from "./people-read";
 
 // And Cold email's one line, which Today's first draw waits for where the tab opens on Today holding none
@@ -116,13 +115,14 @@ export const todayOverride: SurfaceOverride = {
   readAtMidnight: true,
   // And the rows that come and go by the clock alone, made again each minute while Today is on screen (hearing/clock.ts).
   // Nothing before the first read, which brings the code (todayCode) and what the clock makes the day again from.
-  // The cards beside the day read again as this lands, never as the clock makes the day again (day-read.ts): the load's
-  // own read, which the document's head started with theirs, they read with, so it is not said.
+  // The cards beside the day read again as this lands, never as the clock makes the day again (first-draw-read.ts
+  // useReadAsTheDayIsRead): the load's own read, which the document's head started with theirs, they read with, so it is
+  // not said.
   rederive: (now) => todayCode.now()?.rederiveToday(now) ?? false,
   apply: async (heard) => {
     const began = headStarted("today") ? null : Date.now();
-    const said = await (await todayCode()).applyToday(heard);
+    const status = await (await todayCode()).applyToday(heard);
     if (began !== null) dayWasRead(began);
-    return said;
+    return status;
   },
 };

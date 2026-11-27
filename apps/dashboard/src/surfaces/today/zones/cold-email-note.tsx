@@ -4,7 +4,7 @@
  * no cold email is never asked about it (decision 0113; its read says so first, from two reads), and a business that does
  * hears it where it looks each morning. Never a batch waiting for its OK: that is Need you's row over this card, and the
  * note leaves it to it (contracts coldEmailNoteOf, decision 0137). Its read is its own small one (GET settings/reach-out/note, ../cold-email-note-read.ts),
- * asked as Today is drawn and again as Today's own read lands, at most once a minute (../day-read.ts), never as the clock
+ * asked as Today is drawn and again as Today's own read lands, at most once a minute (../first-draw-read.ts useReadAsTheDayIsRead), never as the clock
  * makes the day again: a mailbox that needs reconnecting shows up while Today stays open. Its first draw is what the tab holds (a load that opens on Today waits for it, a return holds the
  * last answer), so the line stands with the page and never lands on it. It is a line by setting up (Today, calm, D17),
  * in no box: what it asks is setting-up work, so it joins Finish setting up where that draws a line, counted among what
@@ -17,7 +17,7 @@ import { gate, navigate } from "../../frame-verbs";
 import { Icon } from "../../kit/icon/icon";
 import { CalmList, CalmRow } from "../calm/lines";
 import { keptColdEmailNote, readColdEmailNote } from "../cold-email-note-read";
-import { useReadAsTheDayIsRead } from "../day-read";
+import { useReadAsTheDayIsRead } from "../first-draw-read";
 
 /** Cold email's note, as Today holds it: what the tab holds in the first draw, then what its own read says it is now. */
 export function useColdEmailNote(): Note | null {

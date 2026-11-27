@@ -5,7 +5,7 @@
  * and only where there is something to say: a business with nothing made this week and nothing being made is not told
  * about Content each morning. Its read is its own module (content-note-read.ts), which Today's first draw waits for where
  * the tab opens on Today holding none; kept in the tab by workspace, so a return draws it at once and reads again behind
- * it, and again as Today's own read lands, at most once a minute (day-read.ts), never as the clock makes the day again. A
+ * it, and again as Today's own read lands, at most once a minute (first-draw-read.ts useReadAsTheDayIsRead), never as the clock makes the day again. A
  * read that fails or is refused takes the line away: it claims nothing it could not read.
  *
  * The newest post that did not go out is a line of its own over it, with why, and opens the piece's sheet, where it is
@@ -42,7 +42,7 @@ import { Icon } from "../kit/icon/icon";
 import { todayAskOf, useTodayAsks } from "./calm/asks";
 import { CalmList, CalmRow } from "./calm/lines";
 import { keptContentToday, readContentToday } from "./content-note-read";
-import { useReadAsTheDayIsRead } from "./day-read";
+import { useReadAsTheDayIsRead } from "./first-draw-read";
 
 /** A piece where it did not post: in Needs you and straight to its sheet (Post it), as the page's amber line opens it. */
 const stoppedRouteOf = (fileId: string): string =>

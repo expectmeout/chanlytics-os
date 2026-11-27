@@ -73,7 +73,8 @@ function ColdEmailNote() {
 }
 const { holdTodayForNote, keptColdEmailNote } =
   await import("../../../apps/dashboard/src/surfaces/today/cold-email-note-read.ts");
-const { arriveOnToday, readTodaySoon } = await import("../../../apps/dashboard/src/surfaces/today/first-draw-read.ts");
+const { arriveOnToday, dayWasRead, readTodaySoon } =
+  await import("../../../apps/dashboard/src/surfaces/today/first-draw-read.ts");
 const { ROUTE_WAITS } = await import("../../../apps/dashboard/src/bridge/surface-registry.ts");
 const { afterBoot } = await import("../../../apps/dashboard/src/bridge/workspace.ts");
 const { PREFETCH_SLOT } = await import("@chanlytics/contracts");
@@ -83,7 +84,6 @@ const { codeOutFor, isSurfaceReady, markHydrated } =
   await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 const { applyToday } = await import("../../../apps/dashboard/src/surfaces/today/surface.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
-const { dayWasRead } = await import("../../../apps/dashboard/src/surfaces/today/day-read.ts");
 
 after(() => setSurfaceValue("today", undefined));
 
