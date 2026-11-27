@@ -321,6 +321,31 @@ export async function motionSettled(page: Page): Promise<void> {
 }
 
 /**
+ * Where a box's top stands once the page is at rest: every motion that ends has ended (motionSettled), then two frames
+ * run with it at one place. A page arrives risen 4px and settling (components.css `.route-view`, route-in, 240 ms), and
+ * a reading taken as it came in stood 4px from one taken a press later: a row carried back by a thumb (shell/phone.spec.ts,
+ * 26 Nov 2026) and History's tabs under a press (27 Nov 2026) each failed a first try so on the nightly.
+ */
+export async function restingTop(at: Locator): Promise<number> {
+  await motionSettled(at.page());
+  return at.evaluate(
+    (el) =>
+      new Promise<number>((done) => {
+        let last = Number.NaN;
+        const look = () => {
+          const top = el.getBoundingClientRect().top;
+          if (Math.abs(top - last) < 0.5) done(top);
+          else {
+            last = top;
+            requestAnimationFrame(look);
+          }
+        };
+        requestAnimationFrame(look);
+      }),
+  );
+}
+
+/**
  * A thumb down the screen from (x, y) by `by` pixels (up it where `by` is negative), through the browser's own input
  * (CDP), still down at the end: what the page does under it is read before `letGo`.
  */
