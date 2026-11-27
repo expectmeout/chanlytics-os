@@ -252,6 +252,11 @@ begin
      set most_minor = p_most_minor
    where a.tenant_id = p_tenant_id and a.platform = 'meta' and a.status = 'connected';
   get diagnostics v_kept = row_count;
+  if v_kept > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.most_set', 'ads', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('most_minor', p_most_minor, 'by', auth.uid())));
+  end if;
   return v_kept > 0;
 end $$;
 
@@ -1322,6 +1327,9 @@ begin
   on conflict (tenant_id) do update
      set account_id = excluded.account_id, draft = excluded.draft, kept_by = excluded.kept_by
   returning d.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.draft_kept', 'ads', 'ad_account', p_account_id,
+          jsonb_build_object('draft_id', v_id, 'by', v_actor));
   if public.has_permission(v_actor, p_tenant_id, 'ads') then
     -- The owner has it now: what told them it waited is closed.
     update public.notifications n
@@ -1606,6 +1614,9 @@ begin
   update public.ad_accounts c
      set next_read_at = least(coalesce(c.next_read_at, 'infinity'::timestamptz), now() + interval '1 minute')
    where c.id = v_ad.account_id and c.tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.cancel_asked', 'ads', 'ad', p_ad_id,
+          jsonb_strip_nulls(jsonb_build_object('by', p_actor, 'via', v_by)));
   return jsonb_build_object('outcome', 'asked', 'version', v_ad.version);
 end $$;
 
@@ -2630,6 +2641,11 @@ begin
     returning 1
   )
   select count(*) into v_rung from rung;
+  if v_moved > 0 or v_closed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.ways_in_kept', 'ads', 'ad_account', p_account_id,
+            jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed));
+  end if;
   return jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed);
 end $$;
 
@@ -3352,10 +3368,19 @@ CREATE FUNCTION public.ai_usage_purge(p_keep interval DEFAULT '400 days'::interv
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare v_count integer;
+declare
+  v_count integer;
 begin
-  delete from public.ai_usage where created_at < now() - p_keep;
-  get diagnostics v_count = row_count;
+  with gone as (
+    delete from public.ai_usage where created_at < now() - p_keep returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select g.tenant_id, 'retention.cleared', 'system', 'workspace', g.tenant_id,
+           jsonb_build_object('what', 'ai_usage', 'rows', count(*))
+      from gone g group by g.tenant_id
+    returning 1
+  )
+  select (select count(*) from gone)::integer into v_count;
   return v_count;
 end $$;
 
@@ -4002,6 +4027,9 @@ begin
             (case when jsonb_typeof(p_job) = 'object' then p_job else '{}'::jsonb end)
               || jsonb_build_object('broadcast_id', p_broadcast_id));
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_broadcast_id,
+          jsonb_build_object('from', 'pending_approval', 'to', 'scheduled', 'at', p_send_at, 'by', v_actor));
   return public.team_decision(p_tenant_id, v_actor, 'broadcast', p_broadcast_id, 'send_broadcast',
                               coalesce(p_decision, '{}'::jsonb), p_via, p_undo_of);
 end $$;
@@ -4433,7 +4461,15 @@ begin
                   end,
          version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
    where c.tenant_id = p_tenant_id;
-  return found;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ask.stop_kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('held', p_stopped is not null,
+                                               'paused', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(coalesce(p_stopped, '{}'::jsonb)) k),
+                                               'by', v_by)));
+  return true;
 end $$;
 
 
@@ -4988,6 +5024,11 @@ begin
      set nudged_at = now()
    where id = p_appointment_id and nudged_at is null and source = 'receptionist' and status = 'proposed'
   returning id into v_id;
+  if v_id is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'appointment.nudged', 'appointment', 'appointment', a.id, '{}'::jsonb
+      from public.appointments a where a.id = v_id;
+  end if;
   return v_id is not null;
 end $$;
 
@@ -6608,6 +6649,9 @@ begin
          control_ref   = p_ref,
          control_until = now() + make_interval(secs => p_seconds)
    where id = p_conversation_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_live and v_same then 'renewed' else 'claimed' end, 'holder', p_kind, 'by', p_by, 'seconds', p_seconds)));
   -- Renewed is the same holder going on; taking one from somebody else is a
   -- claim, and the caller is owed the difference -- it is the line in the log
   -- that says a person stepped into a call.
@@ -6898,6 +6942,9 @@ begin
      where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left';
   end if;
   select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_left then 'left' else coalesce(v_state, 'open') end, 'touch_id', p_touch_id, 'by', auth.uid())));
   return jsonb_build_object('state', v_state);
 end $$;
 
@@ -6945,6 +6992,9 @@ begin
           jsonb_build_object('touch_id', p_touch_id, 'step', 'send',
                              'attempt', floor(extract(epoch from clock_timestamp()) * 1000)::bigint::text),
           now());
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', 'sending', 'touch_id', p_touch_id, 'by', auth.uid())));
   return jsonb_build_object('sent', true, 'state', 'sending');
 end $$;
 
@@ -6972,7 +7022,13 @@ begin
          sent_at = case when p_sent then now() else a.sent_at end,
          updated_at = now()
    where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'sending';
-  return found;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_sent then 'sent' else 'failed' end, 'touch_id', p_touch_id)));
+  return true;
 end $$;
 
 
@@ -7397,6 +7453,9 @@ begin
     values (p_tenant_id, v_goal ->> 'goal', coalesce(v_goal -> 'detail', '{}'::jsonb),
             coalesce((v_goal ->> 'weight')::real, 1), v_actor);
   end loop;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_goals.kept', 'content', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('goals', jsonb_array_length(p_goals), 'by', v_actor)));
   return coalesce((select jsonb_agg(to_jsonb(g) order by g.created_at) from public.content_goals g
                     where g.tenant_id = p_tenant_id and g.active), '[]'::jsonb);
 end $$;
@@ -7466,6 +7525,9 @@ begin
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (p_tenant_id, 'content_plan', now(), jsonb_build_object('plan_id', v_plan.id))
   on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'drafting', 'week_of', p_week_of, 'asked_by', p_asked_by, 'by', auth.uid())));
   return jsonb_build_object('fate', 'drafting', 'plan_id', v_plan.id);
 end $$;
 
@@ -7512,6 +7574,9 @@ begin
   end loop;
   update public.content_plans set status = 'ready', fewer = nullif(btrim(coalesce(p_fewer, '')), ''), ready_at = now()
    where id = p_plan_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', p_plan_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'ready', 'slots', jsonb_array_length(p_slots))));
   return jsonb_build_object('fate', 'ready', 'slots', jsonb_array_length(p_slots));
 end $$;
 
@@ -7556,10 +7621,16 @@ begin
     end if;
   end loop;
   -- A week that has passed is done.
-  update public.content_plans p set status = 'done', done_at = now()
-    from public.tenants t
-   where t.id = p.tenant_id and p.status in ('ready', 'approved')
-     and p.week_of + 7 <= (now() at time zone t.timezone)::date;
+  with done as (
+    update public.content_plans p set status = 'done', done_at = now()
+      from public.tenants t
+     where t.id = p.tenant_id and p.status in ('ready', 'approved')
+       and p.week_of + 7 <= (now() at time zone t.timezone)::date
+    returning p.id, p.tenant_id
+  )
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select d.tenant_id, 'content_plan.moved', 'content', 'content_plan', d.id, jsonb_build_object('to', 'done')
+    from done d;
   return v_handed;
 end $$;
 
@@ -7679,6 +7750,9 @@ begin
            making_since = case when made_at is null then making_since end
      where id = p_plan_id;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', p_plan_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'approved', 'slots', v_matching, 'placed', v_put, 'by', v_actor)));
   return jsonb_build_object('fate', 'approved', 'approval_id', v_approval, 'slots', v_matching, 'placed', v_put);
 end $$;
 
@@ -7720,6 +7794,11 @@ begin
      or v_rung is null or v_rung not in ('veto', 'auto') then
     update public.content_plans set goes_at = null, make_queued_at = null
      where id = v_plan.id and status = 'ready' and (goes_at is not null or make_queued_at is not null);
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+              jsonb_strip_nulls(jsonb_build_object('to', 'let_go')));
+    end if;
     return jsonb_build_object('fate', case when p_goes_at is null then 'let_go'
                                            when v_plan.status <> 'ready' then v_plan.status
                                            when v_plan.stopped_at is not null then 'stopped'
@@ -7748,6 +7827,9 @@ begin
     values (p_tenant_id, 'content_week_go', v_due, jsonb_build_object('plan_id', p_plan_id::text))
     on conflict do nothing;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'held', 'goes_at', p_goes_at, 'mode', v_rung)));
   return jsonb_build_object('fate', 'held', 'goes_at', p_goes_at, 'due_at', v_due, 'mode', v_rung);
 end $$;
 
@@ -7780,6 +7862,11 @@ begin
    where tenant_id = p_tenant_id and id = p_plan_id and made_at is null
      and ((p_pass = 'prepare' and status = 'ready') or (p_pass = 'make' and status = 'approved'));
   v_found := found;
+  if v_found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', p_plan_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'made', 'pass', p_pass)));
+  end if;
   if not v_found then
     -- A pass the week has moved past (approved while it was being prepared): its place is free for the next.
     update public.content_plans set making_since = null
@@ -7828,6 +7915,9 @@ begin
   -- Nothing more of it is prepared: a making already begun still holds its place until it is said done.
   update public.content_plans set goes_at = null, stopped_at = now(), stopped_by = v_actor, make_queued_at = null
    where id = v_plan.id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'stopped', 'by', v_actor)));
   return jsonb_build_object('fate', 'stopped', 'plan_id', v_plan.id);
 end $$;
 
@@ -7879,6 +7969,9 @@ begin
      for update skip locked
   loop
     update public.content_plans set making_since = now(), make_tries = make_tries + 1 where id = v_plan.id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_plan.tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'making')));
     insert into public.jobs (tenant_id, kind, due_at, payload)
     values (v_plan.tenant_id, 'content_week_make', now(), jsonb_build_object('plan_id', v_plan.id::text))
     on conflict do nothing;
@@ -7942,84 +8035,6 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_rules integer, p_source text, p_again boolean, p_stale_before timestamp with time zone) IS 'A thread''s draft says it is being written, once a message, kind and edition (00538, decision 0093): true when this call took it. A row for this message and edition is left alone, unless it failed and this asks again, or its claim is older than p_stale_before.';
-
-
---
--- Name: conversation_draft_keep(uuid, uuid, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $_$
-declare
-  v_actor uuid := auth.uid();
-  v_row   public.conversation_drafts%rowtype;
-begin
-  -- The caller is auth.uid(), read here, never a parameter (00021's rule).
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  -- A member who acts: a viewer sends nothing, so nothing is drafted for one.
-  if not public.is_acting_member(p_tenant_id) then
-    return jsonb_build_object('error', 'not_acting');
-  end if;
-  if p_kind is null or p_kind not in ('reply', 'brief') then
-    raise exception 'conversation_draft_keep: kind is reply or brief' using errcode = '22023';
-  end if;
-  -- The words are an object of a draft's size: four thousand characters of message and a brief at most.
-  if p_words is null or jsonb_typeof(p_words) <> 'object' or octet_length(p_words::text) > 16000 then
-    raise exception 'conversation_draft_keep: the words are one draft''s' using errcode = '22023';
-  end if;
-  if not exists (select 1 from public.conversations c where c.id = p_conversation_id and c.tenant_id = p_tenant_id) then
-    return jsonb_build_object('error', 'not_found');
-  end if;
-  -- The message it answers is one of the thread's own.
-  if p_for_message_id is not null and not exists (
-    select 1 from public.messages m
-     where m.id = p_for_message_id and m.conversation_id = p_conversation_id and m.tenant_id = p_tenant_id
-  ) then
-    raise exception 'conversation_draft_keep: the message is the thread''s own' using errcode = '22023';
-  end if;
-  -- A dashboard a deploy behind (00538): its words say where the draft stands.
-  insert into public.conversation_drafts as d
-    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, why_failed)
-  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now(),
-          case
-            when p_kind = 'brief' and jsonb_typeof(p_words -> 'brief') = 'object' then 'ready'
-            when btrim(coalesce(p_words ->> 'text', '')) <> '' then 'ready'
-            when btrim(coalesce(p_words ->> 'pitch', '')) <> '' then 'pitch'
-            when jsonb_array_length(coalesce(nullif(p_words -> 'asks', 'null'::jsonb), '[]'::jsonb)) > 0 then 'asks'
-            else 'failed'
-          end,
-          'hold',
-          case when (p_words ->> 'rules') ~ '^[0-9]+$' then (p_words ->> 'rules')::integer end,
-          null)
-  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
-     set for_message_id = excluded.for_message_id,
-         words = excluded.words,
-         made_by = excluded.made_by,
-         made_at = excluded.made_at,
-         state = excluded.state,
-         source = excluded.source,
-         rules = excluded.rules,
-         why_failed = null
-  returning * into v_row;
-  return jsonb_build_object(
-    'conversation_id', v_row.conversation_id,
-    'kind', v_row.kind,
-    'for_message_id', v_row.for_message_id,
-    'words', v_row.words,
-    'made_at', v_row.made_at
-  );
-end $_$;
-
-
---
--- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) IS 'Keep Ask''s draft for a thread waiting on a person (decision 0071): a member who acts, the thread their workspace''s, the message it answers one of the thread''s own. One a thread and kind, the newest kept. Returns the draft, or {error: not_acting | not_found}.';
 
 
 --
@@ -8279,6 +8294,12 @@ begin
   -- Opened, never touched: last_message_at is the message's to stamp, when one lands.
   insert into public.conversations (tenant_id, contact_id) values (p_tenant_id, p_contact_id)
   on conflict (tenant_id, contact_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select c.tenant_id, 'conversation.opened', 'message', 'conversation', c.id,
+           jsonb_build_object('contact_id', p_contact_id, 'by', auth.uid())
+      from public.conversations c where c.tenant_id = p_tenant_id and c.contact_id = p_contact_id;
+  end if;
   select id into v_conversation from public.conversations
    where tenant_id = p_tenant_id and contact_id = p_contact_id;
   return v_conversation;
@@ -8463,6 +8484,9 @@ begin
   if v_id is null then
     return false;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.set_aside', 'message', 'conversation', v_id,
+          jsonb_strip_nulls(jsonb_build_object('why', p_why, 'by', auth.uid())));
   -- The platform's own close, as a reading's is: no member is named as resolving it, and no decision is recorded.
   update public.escalations
      set state = 'resolved'
@@ -8752,6 +8776,9 @@ begin
     (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', p_category, v_vars, v_title, v_parts, v_body, p_user)
   returning * into v_row;
 
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'made', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', p_user)));
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $_$;
 
@@ -9047,9 +9074,18 @@ CREATE FUNCTION public.deadman_mark_alerted(p_ids uuid[]) RETURNS integer
     AS $$
 declare v_count integer;
 begin
-  update escalations set deadman_alerted_at = now()
-   where id = any(p_ids) and deadman_alerted_at is null;
-  get diagnostics v_count = row_count;
+  with alerted as (
+    update escalations set deadman_alerted_at = now()
+     where id = any(p_ids) and deadman_alerted_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'escalation.alerted', 'message', 'workspace', a.tenant_id,
+           jsonb_build_object('handovers', count(*), 'by', 'deadman')
+      from alerted a group by a.tenant_id
+    returning 1
+  )
+  select count(*) into v_count from alerted;
   return v_count;
 end $$;
 
@@ -11002,7 +11038,12 @@ begin
        set copy_state = 'going', copy_why = null, updated_at = now()
       from chosen c
      where f.id = c.id and f.copy_state = 'here'
-    returning f.id, f.media_ref, f.seconds
+    returning f.id, f.tenant_id, f.media_ref, f.seconds
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select g.tenant_id, 'file_copy.moved', 'content', 'file', g.id, jsonb_build_object('to', 'going')
+      from going g
+    returning 1
   )
   select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'media_ref', g.media_ref, 'seconds', g.seconds)), '[]'::jsonb)
     into v_gone
@@ -11067,6 +11108,9 @@ begin
   if not found then
     return false;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_why is null then 'away' else 'lost' end, 'why', v_why)));
   -- There is room again: what waited for room in the videos is due now, as when a video is removed (00643).
   update public.source_items i
      set take_after = null
@@ -11096,7 +11140,13 @@ begin
   update public.files f
      set copy_state = 'here', copy_why = null, updated_at = now()
    where f.tenant_id = p_tenant_id and f.id = p_id and f.copy_state = 'going' and f.media_ref is not null;
-  return found;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'here')));
+  return true;
 end $$;
 
 
@@ -11171,12 +11221,18 @@ begin
   if v_why is not null then
     update public.files f set copy_state = 'lost', copy_why = v_why, media_ref = null, updated_at = now()
      where f.id = p_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'lost', 'why', v_why)));
     return jsonb_build_object('fate', 'lost', 'why', v_why);
   end if;
   if v_row.copy_state <> 'returning' then
     -- Its own length must fit, as a take's: no room is the caller's to make (file_copies_let_go), and to ask again.
     if public.file_video_room(p_tenant_id, v_row.seconds) = 'minutes' then
       update public.files f set copy_state = 'away', copy_why = 'room', updated_at = now() where f.id = p_id;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+              jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'room')));
       return jsonb_build_object('fate', 'room', 'seconds', v_row.seconds);
     end if;
     select count(*) into v_returns from public.files f
@@ -11187,6 +11243,9 @@ begin
       -- own number of returns a day still binds.
       if v_returns + 1 > p_workspace_returns_max then
         update public.files f set copy_state = 'away', copy_why = 'budget', updated_at = now() where f.id = p_id;
+        insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+        values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+                jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'budget', 'binds', 'workspace_returns')));
         return jsonb_build_object('fate', 'wait', 'binds', 'workspace_returns', 'until', v_until);
       end if;
     else
@@ -11200,6 +11259,9 @@ begin
       end;
       if v_binds is not null then
         update public.files f set copy_state = 'away', copy_why = 'budget', updated_at = now() where f.id = p_id;
+        insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+        values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+                jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'budget', 'binds', v_binds)));
         return jsonb_build_object('fate', 'wait', 'binds', v_binds, 'until', v_until);
       end if;
       update public.source_days d
@@ -11213,6 +11275,9 @@ begin
          copy_returned_at = case when v_row.copy_state = 'returning' then f.copy_returned_at else now() end,
          updated_at = now()
    where f.id = p_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'returning')));
   return jsonb_build_object('fate', 'go');
 end $$;
 
@@ -11239,7 +11304,13 @@ begin
      set copy_state = 'away', copy_why = p_why, media_ref = null, updated_at = now()
    where f.tenant_id = p_tenant_id and f.id = p_id
      and f.copy_state = 'returning' and f.media_ref is not distinct from p_media_ref;
-  return found;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', p_why)));
+  return true;
 end $$;
 
 
@@ -11292,6 +11363,11 @@ begin
    where f.tenant_id = p_tenant_id and f.id = p_file_id
      and ((f.copy_state = 'away' and v_why is not null)
           or (f.copy_state = 'lost' and v_why is distinct from f.copy_why));
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_file_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when v_why is null then 'away' else 'lost' end, 'why', v_why)));
+  end if;
   select * into v_row from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
   if not found then
     return jsonb_build_object('copy_state', null);
@@ -11720,6 +11796,9 @@ begin
      set copy_state = 'away', copy_why = 'failed', media_ref = null, updated_at = now()
    where f.id = v_row.id and f.removed_at is null and f.copy_state = 'returning' and f.media_ref = p_media_ref;
   if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'file.media_moved', 'content', 'file', v_row.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'failed', 'copy', true)));
     return jsonb_build_object('fate', 'unreturned', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id, 'made', false);
   end if;
   update public.files f
@@ -11732,6 +11811,9 @@ begin
   v_failed := found;
   -- A video made here that the platform could not read (00613): its piece says so.
   if v_failed then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'file.media_moved', 'content', 'file', v_row.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'error', left(coalesce(nullif(p_error, ''), 'ERR_UNKNOWN'), 80))));
     update public.pieces p set status = 'failed', failed_why = 'store', machine = null, updated_at = now()
      where p.tenant_id = v_row.tenant_id and p.file_id = v_row.id and p.status = 'making';
     v_made := found;
@@ -11768,6 +11850,11 @@ begin
   update public.files f set media_status = 'processing', updated_at = now()
    where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
      and f.removed_at is null;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.media_moved', 'content', 'file', p_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'processing', 'by', v_actor)));
+  end if;
 end $$;
 
 
@@ -11972,7 +12059,13 @@ CREATE FUNCTION public.file_purged(p_tenant_id uuid, p_id uuid) RETURNS void
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  delete from public.files f where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is not null;
+  with gone as (
+    delete from public.files f where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is not null
+    returning f.tenant_id, f.id
+  )
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select g.tenant_id, 'retention.cleared', 'system', 'file', g.id, jsonb_build_object('what', 'files', 'rows', 1)
+    from gone g;
 $$;
 
 
@@ -12161,6 +12254,9 @@ begin
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (p_tenant_id, 'file_shelve', now(), jsonb_build_object('file_id', p_file_id::text))
   on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'saving', 'again', true)));
   return true;
 end $$;
 
@@ -12222,6 +12318,9 @@ begin
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (p_tenant_id, 'file_shelve', now(), jsonb_build_object('file_id', p_file_id::text))
   on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'saving', 'bytes', p_bytes)));
   return jsonb_build_object('fate', 'begun');
 end $_$;
 
@@ -12269,11 +12368,17 @@ begin
     update public.file_archive_parts p set state = 'checked', checked_at = now()
      where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
     update public.file_archives a set state = 'checked', why = null, checked_at = now() where a.id = v_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'checked')));
     return 'checked';
   end if;
   update public.file_archive_parts p set state = 'failed', checked_at = null
    where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
   update public.file_archives a set state = 'failed', why = 'mismatch', checked_at = null where a.id = v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'why', 'mismatch')));
   -- A copy that is away with nothing left to give it back says so.
   perform public.file_copy_settle(p_tenant_id, p_file_id);
   return 'mismatch';
@@ -12313,6 +12418,9 @@ begin
    where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
   -- Not found, or other bytes: the file it is put from is gone or is not the video, so a copy that is away has
   -- nothing left to give it back, and says so. Refused (the shelf would not take it) loses nothing.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'why', p_why)));
   perform public.file_copy_settle(p_tenant_id, p_file_id);
   return true;
 end $$;
@@ -12540,7 +12648,12 @@ CREATE FUNCTION public.file_upload_lapsed(p_tenant_id uuid, p_id uuid) RETURNS b
     update public.files f set removed_at = now(), updated_at = now()
      where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
        and f.removed_at is null
-    returning f.id
+    returning f.tenant_id, f.id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select l.tenant_id, 'retention.cleared', 'system', 'file', l.id, jsonb_build_object('what', 'file_uploads', 'rows', 1)
+      from lapsed l
+    returning 1
   )
   select exists (select 1 from lapsed);
 $$;
@@ -13422,10 +13535,19 @@ declare
   v_gone integer;
 begin
   -- A held entry nobody let through goes after 30 days; a test after 7 (contracts RETENTION_DAYS).
-  delete from public.form_entries e
-   where (e.state = 'held' and e.created_at < now() - interval '30 days')
-      or (e.test and e.created_at < now() - interval '7 days');
-  get diagnostics v_gone = row_count;
+  with gone as (
+    delete from public.form_entries e
+     where (e.state = 'held' and e.created_at < now() - interval '30 days')
+        or (e.test and e.created_at < now() - interval '7 days')
+    returning e.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select g.tenant_id, 'retention.cleared', 'system', 'workspace', g.tenant_id,
+           jsonb_build_object('what', 'form_entries', 'rows', count(*))
+      from gone g group by g.tenant_id
+    returning 1
+  )
+  select (select count(*) from gone)::integer into v_gone;
   return v_gone;
 end $$;
 
@@ -13462,6 +13584,11 @@ begin
      set state = 'held', held_why = 'member'
    where tenant_id = p_tenant_id and id = p_entry_id and form_id is not null and state <> 'held' and not test;
   get diagnostics v_held = row_count;
+  if v_held > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.held', 'contact', 'form_entry', p_entry_id,
+            jsonb_strip_nulls(jsonb_build_object('why', 'member', 'by', auth.uid())));
+  end if;
   return v_held > 0;
 end $$;
 
@@ -13949,6 +14076,9 @@ begin
   -- Nothing changed since the live version: the form is live again as it was, and no version is made.
   if v_live is not null and v_live = v_form.draft then
     update public.forms set state = 'live', updated_at = now() where tenant_id = p_tenant_id and id = p_form_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', false, 'version_id', v_form.live_version_id, 'by', auth.uid())));
     return jsonb_build_object('version_id', v_form.live_version_id, 'made', false);
   end if;
   select coalesce(max(v.n), 0) + 1 into v_n from public.form_versions v
@@ -13961,6 +14091,9 @@ begin
    where tenant_id = p_tenant_id and id = v_form.live_version_id and replaced_at is null;
   update public.forms set state = 'live', live_version_id = v_version, updated_at = now()
    where tenant_id = p_tenant_id and id = p_form_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', true, 'version_id', v_version, 'n', v_n, 'by', auth.uid())));
   return jsonb_build_object('version_id', v_version, 'made', true, 'n', v_n);
 end $$;
 
@@ -14412,6 +14545,11 @@ begin
    where tenant_id = p_tenant_id and id = p_form_id and live_version_id is not null
      and state = case when coalesce(p_on, false) then 'off' else 'live' end;
   get diagnostics v_turned = row_count;
+  if v_turned > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when coalesce(p_on, false) then 'live' else 'off' end, 'by', auth.uid())));
+  end if;
   return v_turned > 0;
 end $$;
 
@@ -17251,6 +17389,11 @@ begin
     return coalesce(public.lead_spend_room(p_tenant_id, public.lead_check_estimate(v_held)),
       jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.'));
   end if;
+  if cardinality(v_ids) > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.checked_again', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', cardinality(v_ids), 'by', v_user)));
+  end if;
   return jsonb_build_object('scheduled', cardinality(v_ids), 'skipped', cardinality(p_lead_ids) - cardinality(v_ids));
 end $$;
 
@@ -17974,6 +18117,11 @@ begin
     on conflict (search_id, lead_id) do nothing;
     v_made := v_made + 1;
   end loop;
+  if v_made > 0 or v_held > 0 or v_left > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_round.tenant_id, 'lead.found', 'lead', 'lead_round', p_round_id,
+            jsonb_build_object('made', v_made, 'held', v_held, 'left_out', v_left));
+  end if;
   return jsonb_build_object('ok', true, 'made', v_made, 'held', v_held, 'left_out', v_left);
 end $_$;
 
@@ -18157,6 +18305,9 @@ begin
   end if;
   perform public.lead_blank(p_lead_id);
   update public.leads set erased_at = now(), version = version + 1 where id = p_lead_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'lead.erased', 'lead', 'lead', p_lead_id,
+          jsonb_strip_nulls(jsonb_build_object('by', v_user)));
   -- No operation row: this one is final.
   return jsonb_build_object('erased', true, 'already', false);
 end $$;
@@ -18243,6 +18394,11 @@ begin
    where tenant_id = p_tenant_id and id = any (coalesce(p_ids, '{}'::uuid[]))
      and exported_at is null and erased_at is null and blanked_at is null;
   get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.exported', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', v_n, 'by', v_user)));
+  end if;
   return v_n;
 end $$;
 
@@ -20267,6 +20423,9 @@ begin
     raise exception 'Sequence not found.' using errcode = 'P0002';
   end if;
   update public.lead_searches set adds_to = p_sequence_id where id = p_search_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'lead_search.changed', 'lead', 'lead_search', p_search_id,
+          jsonb_strip_nulls(jsonb_build_object('adds_to', p_sequence_id, 'by', auth.uid())));
   return jsonb_build_object('search_id', p_search_id, 'adds_to', p_sequence_id);
 end $$;
 
@@ -21089,6 +21248,9 @@ begin
           jsonb_build_object('removed_at', null, 'credited', v_credit),
           jsonb_build_object('round_id', r.id, 'removed', v_removed, 'credited', v_credited), 1, v_user)
   returning id into v_op;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead_search.undone', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('removed', v_removed, 'credited', v_credited, 'by', v_user));
   return jsonb_build_object('removed', v_removed, 'credited', v_credited, 'op_id', v_op, 'version', 1);
 end $$;
 
@@ -22702,6 +22864,9 @@ begin
   if v_found is null then
     raise exception 'No such forwarded line.' using errcode = 'P0002';
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'line.forwarding_tested', 'setup', 'line', p_line_id,
+          jsonb_strip_nulls(jsonb_build_object('test_until', v_until, 'by', auth.uid())));
   return jsonb_build_object('ok', true, 'test_until', v_until);
 end $$;
 
@@ -23155,6 +23320,9 @@ begin
            connected_at = now()
      where id = v_row.id
      returning * into v_row;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+            jsonb_build_object('made', false, 'provider', p_provider, 'by', p_user_id));
     return jsonb_build_object('id', v_row.id, 'made', false, 'state', v_row.state);
   end if;
   -- An address another workspace writes from is that workspace's.
@@ -23171,6 +23339,9 @@ begin
      left(coalesce(nullif(btrim(p_from_name), ''), split_part(v_address, '@', 1)), 80),
      coalesce(p_scopes, '{}'), coalesce(p_customer_domain, false), p_user_id)
   returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+          jsonb_build_object('made', true, 'provider', p_provider, 'by', p_user_id));
   return jsonb_build_object('id', v_row.id, 'made', true, 'state', v_row.state);
 end $$;
 
@@ -23482,6 +23653,9 @@ begin
   if v_message is null then
     return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.owner_emailed', 'message', 'conversation', v_conv,
+          jsonb_build_object('message_id', v_message, 'channel', 'email'));
 
   -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot
   -- both resolve them and write two decisions.
@@ -24900,6 +25074,9 @@ begin
   update jobs
      set payload = payload #- '{ig,item,message,text}' #- '{ig,item,message,attachments}'
    where tenant_id = p_tenant_id and kind = 'inbound_answer' and payload ->> 'message_id' = v_id::text;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'message.unsent', 'message', 'message', v_id,
+          jsonb_strip_nulls(jsonb_build_object('channel', 'instagram')));
   return jsonb_build_object('outcome', 'forgot', 'message_id', v_id, 'storage_path', v_media ->> 'storage_path');
 end $$;
 
@@ -26123,6 +26300,11 @@ begin
   update public.outside_forms o set listed = coalesce(p_listed, true)
    where o.tenant_id = p_tenant_id and o.id = p_form_id;
   get diagnostics v_set = row_count;
+  if v_set > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('listed', coalesce(p_listed, true), 'outside', true, 'by', auth.uid())));
+  end if;
   return v_set > 0;
 end $$;
 
@@ -26158,6 +26340,11 @@ begin
   -- Blank goes back to the name the site sends.
   update public.outside_forms o set name = v_name where o.tenant_id = p_tenant_id and o.id = p_form_id;
   get diagnostics v_renamed = row_count;
+  if v_renamed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', jsonb_build_array('name'), 'outside', true, 'by', auth.uid())));
+  end if;
   return v_renamed > 0;
 end $$;
 
@@ -26189,6 +26376,11 @@ begin
   update public.owner_claims set withdrawn_at = now()
    where tenant_id = p_tenant_id and id = p_claim_id and withdrawn_at is null;
   get diagnostics v_done = row_count;
+  if v_done > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'owner_claim.withdrawn', 'setup', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('claim_id', p_claim_id, 'by', auth.uid())));
+  end if;
   return v_done > 0;
 end $$;
 
@@ -26226,6 +26418,9 @@ begin
   insert into public.owner_claims (tenant_id, kind, text, source, valid_until, created_by)
   values (p_tenant_id, p_claim ->> 'kind', btrim(p_claim ->> 'text'), p_claim ->> 'source', v_until, v_actor)
   returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'owner_claim.kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('claim_id', v_row.id, 'claim', v_row.kind, 'source', v_row.source, 'by', v_actor)));
   return to_jsonb(v_row);
 end $$;
 
@@ -28514,6 +28709,11 @@ begin
    where c.id = p_contact_id
      and c.tenant_id = p_tenant_id
      and c.erased_at is null;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'contact.before_kept', 'contact', 'contact', p_contact_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(v_before) k), 'notes', v_notes is not null, 'by', (select auth.uid()))));
+  end if;
 end $$;
 
 
@@ -29287,6 +29487,9 @@ begin
     return jsonb_build_object('declined', false, 'why', 'settled');
   end if;
   update public.contacts set name_settled_at = now(), updated_at = now() where id = p_contact_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'contact.name_declined', 'contact', 'contact', p_contact_id,
+          jsonb_strip_nulls(jsonb_build_object('message_id', p_message_id, 'by', v_user)));
   return jsonb_build_object('declined', true, 'contact_id', p_contact_id);
 end $$;
 
@@ -30106,6 +30309,9 @@ begin
   -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (p_tenant_id, 'piece_make', now(), jsonb_build_object('piece_id', v_id, 'step', 'start', 'tick', '1'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'piece.moved', 'content', 'piece', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'making', 'edition', p_edition, 'by', v_actor)));
   return jsonb_build_object('fate', 'begun', 'piece_id', v_id);
 end $$;
 
@@ -30153,6 +30359,9 @@ begin
       values (v_piece.tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_piece.file_id, 'why', 'remove'));
     end if;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_piece.tenant_id, 'piece.moved', 'content', 'piece', v_piece.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'why', case when p_why = any (array['clips', 'draw', 'store']) then p_why else 'unknown' end)));
   return true;
 end $$;
 
@@ -30376,6 +30585,9 @@ begin
   -- Only from uploading: the platform's word may already have come.
   update public.files f set media_status = 'processing', updated_at = now()
    where f.id = v_piece.file_id and f.media_status = 'uploading' and f.removed_at is null;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_piece.tenant_id, 'piece.moved', 'content', 'piece', v_piece.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'sent')));
   return true;
 end $$;
 
@@ -30399,7 +30611,12 @@ CREATE FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) RETURNS boolea
     update public.pieces p set stage = p_stage, updated_at = now()
      where p.id = p_piece_id and p.status = 'making' and p.stage is distinct from p_stage
        and p_stage = any (array['queued', 'waiting_clip', 'from_drive', 'drawing', 'saving'])
-    returning p.id
+    returning p.id, p.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'piece.moved', 'content', 'piece', s.id, jsonb_build_object('to', 'making', 'stage', p_stage)
+      from staged s
+    returning 1
   )
   select exists (select 1 from staged);
 $$;
@@ -30426,7 +30643,13 @@ CREATE FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) RETURNS bool
            -- A machine kept is the drawing begun.
            stage = case when p_machine ? 'name' then 'drawing' else p.stage end
      where p.id = p_piece_id and p.status = 'making'
-    returning p.id
+    returning p.id, p.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'piece.moved', 'content', 'piece', s.id,
+           jsonb_strip_nulls(jsonb_build_object('to', 'making', 'step', p_machine ->> 'name'))
+      from stepped s
+    returning 1
   )
   select exists (select 1 from stepped);
 $$;
@@ -30588,6 +30811,9 @@ begin
                    where p.tenant_id = v_root.tenant_id and p.piece_id = v_root.id and p.approval_id is not null
                      and p.status = any (array['queued', 'preparing']));
   get diagnostics v_voided = row_count;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_root.tenant_id, 'piece.moved', 'content', 'piece', v_root.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'made', 'revision', v_n, 'voided', v_voided)));
   return jsonb_build_object('piece_id', v_root.id, 'revision', v_n, 'voided', v_voided, 'again', false);
 end $$;
 
@@ -30675,6 +30901,12 @@ begin
      where p.id = v_post.id;
     v_followed := v_followed + 1;
   end loop;
+  -- Its words changed, as a new version or on the posts still waiting: on the ledger once.
+  if v_n is not null or v_followed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'piece.moved', 'content', 'piece', v_piece.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'words', 'revision', v_n, 'followed', v_followed, 'by', v_actor, 'file_id', p_file_id)));
+  end if;
   return jsonb_build_object('revision', coalesce(v_n, v_piece.revision), 'followed', v_followed);
 end $$;
 
@@ -30734,6 +30966,9 @@ begin
   else
     raise exception 'A slot is made into a post or a video, or held with why.' using errcode = '22023';
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'plan_slot.moved', 'content', 'plan_slot', v_slot.id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_post is not null then 'post' when v_piece is not null then 'piece' else 'blocked' end, 'why', v_held ->> 'why', 'by', v_actor)));
   return jsonb_build_object('fate', 'made', 'slot_id', v_slot.id);
 end $$;
 
@@ -30825,7 +31060,13 @@ begin
    where s.tenant_id = p_tenant_id and s.id = p_slot_id and s.state = 'proposed'
      and s.file_id = (p_prepared ->> 'from')::uuid
      and p.tenant_id = p_tenant_id and p.id = s.plan_id and p.status = 'ready';
-  return found;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'plan_slot.moved', 'content', 'plan_slot', p_slot_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'prepared', 'file_id', p_prepared ->> 'file_id')));
+  return true;
 end $$;
 
 
@@ -30901,6 +31142,9 @@ begin
   else
     raise exception 'A slot is left out, put back, moved or approved.' using errcode = '22023';
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'plan_slot.moved', 'content', 'plan_slot', v_slot.id,
+          jsonb_strip_nulls(jsonb_build_object('to', v_to, 'from', v_slot.state, 'at', case when v_to = 'at' then p_change ->> 'at' end, 'by', v_actor)));
   return jsonb_build_object('fate', 'done', 'slot_id', v_slot.id, 'approval_id', v_approval);
 end $$;
 
@@ -32435,6 +32679,9 @@ begin
   exception when unique_violation then
     null;
   end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'queued', 'again', true)));
   return true;
 end $$;
 
@@ -32616,6 +32863,11 @@ begin
             v_piece.id, v_n, v_approval, nullif(v_place ->> 'capability_edition', '')::integer,
             nullif(v_place ->> 'good_until', '')::timestamptz)
     returning id into v_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+            jsonb_strip_nulls(jsonb_build_object(
+              'to', case when v_place ->> 'place' = 'google' and not v_later then 'publishing' else 'queued' end,
+              'place', v_place ->> 'place', 'approved', true, 'by', v_actor)));
     if v_place ->> 'place' in ('instagram', 'facebook') then
       -- Ten minutes ahead of its time, so the place has made it ready by then (a Page as Instagram, pass 5); as text, as a job's key is made of strings.
       insert into public.jobs (tenant_id, kind, due_at, payload)
@@ -32799,6 +33051,10 @@ begin
          error = case when p_outcome = 'ok' then p.error else coalesce(p_error, p.error) end,
          updated_at = now()
    where p.id = v_post;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select p.tenant_id, 'post.attempted', 'content', 'post', p.id,
+         jsonb_strip_nulls(jsonb_build_object('to', 'closed', 'outcome', p_outcome, 'http_status', p_http_status))
+    from public.posts p where p.id = v_post;
   return true;
 end $$;
 
@@ -32829,6 +33085,11 @@ begin
   insert into public.publish_attempts (tenant_id, post_id, attempt_no, step, request)
   values (v_tenant, p_post_id, p_attempt_no, p_step, coalesce(p_request, '{}'::jsonb))
   on conflict (post_id, attempt_no, step) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.attempted', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'open', 'attempt', p_attempt_no, 'step', p_step)));
+  end if;
   select * into v_row from public.publish_attempts a
    where a.post_id = p_post_id and a.attempt_no = p_attempt_no and a.step = p_step;
   update public.posts p set attempts = greatest(p.attempts, p_attempt_no), updated_at = now()
@@ -32999,6 +33260,11 @@ begin
     values (p_tenant_id, 'post', p_post_id, 'The post''s link', coalesce(v_lands, 'chat'), auth.uid())
     on conflict (tenant_id, subject_id) where subject_type = 'post' do nothing
     returning * into v_link;
+    if v_link.id is not null then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'link.made', 'content', 'post', p_post_id,
+              jsonb_strip_nulls(jsonb_build_object('link_id', v_link.id, 'lands', v_link.lands, 'by', auth.uid())));
+    end if;
     if v_link.id is null then
       select * into v_link from public.links l
        where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
@@ -33061,6 +33327,9 @@ begin
     return jsonb_build_object('fate', 'late', 'status', v_post.status);
   end if;
   update public.posts p set scheduled_for = p_when, updated_at = now() where p.id = p_post_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_post.tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'queued', 'to', 'queued', 'at', p_when, 'was', v_post.scheduled_for, 'by', auth.uid())));
   return jsonb_build_object('fate', 'moved');
 end $$;
 
@@ -33241,6 +33510,11 @@ begin
     set state = 'sent', by_hand = true, external_id = excluded.external_id, sent_at = excluded.sent_at,
         updated_at = now()
     where comment_answers.state <> 'sent';
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+            jsonb_strip_nulls(jsonb_build_object('to', 'sent', 'by_hand', true, 'touch_id', v_touch)));
+  end if;
   return true;
 end $$;
 
@@ -33280,6 +33554,9 @@ begin
    where p.id = p_post_id
      and (p.status = any (array['queued', 'preparing', 'held', 'failed']) or (p.place = 'hand' and p.status = 'published'));
   if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('from', v_status, 'to', 'pulled', 'by', auth.uid())));
     return jsonb_build_object('fate', 'pulled');
   end if;
   return jsonb_build_object('fate', 'late', 'status', v_status);
@@ -33332,6 +33609,9 @@ begin
   on conflict (file_id) where place = 'hand' and status = 'published'
   do update set permalink = coalesce(excluded.permalink, p.permalink), updated_at = now()
   returning p.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'published', 'by_hand', true, 'by', v_actor)));
   return jsonb_build_object('fate', 'kept', 'post_id', v_id);
 end $_$;
 
@@ -33517,6 +33797,9 @@ begin
   values (p_tenant_id, 'post_take_down', now(),
           jsonb_build_object('action_id', v_action.id, 'attempt', 'hand-' || floor(extract(epoch from now()))::bigint::text,
                              'by_hand', 'yes'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'taking_down', 'by_hand', true, 'by', auth.uid())));
   return jsonb_build_object('fate', 'asking');
 end $$;
 
@@ -33584,6 +33867,11 @@ begin
      set outcome = 'left_up', finished_at = now(), left_up_by = auth.uid()
    where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
      and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'left_up', 'by', auth.uid())));
+  end if;
   -- The bell's line for this piece at this place ends, for every device, once nothing of the piece there is left to
   -- its owner (00698): a story of it still to delete keeps the line.
   perform public.post_by_hand_bell_settle(p_tenant_id, v_post.file_id, v_post.place);
@@ -33628,6 +33916,11 @@ begin
   update public.remediation_actions r
      set outcome = p_outcome, said = nullif(left(btrim(coalesce(p_said, '')), 300), ''), finished_at = now()
    where r.id = v_action.id;
+  if v_action.target_type = 'post' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_action.tenant_id, 'post.moved', 'content', 'post', v_action.target_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when p_outcome = 'done' then 'taken_down' else 'take_down_' || p_outcome end)));
+  end if;
   if p_outcome = 'done' then
     update public.posts p set status = 'taken_down', held_reason = null, held_why = null, updated_at = now()
      where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id
@@ -33690,6 +33983,9 @@ begin
     -- One is on the ledger already: it asks.
     null;
   end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'publishing', 'to', 'checking', 'attempt', p_attempt)));
   return true;
 end $$;
 
@@ -34304,6 +34600,10 @@ begin
 
   insert into public.billing_accounts (tenant_id, mode, status) values (p_tenant_id, 'stripe', 'none')
   on conflict (tenant_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.provisioned', 'setup', 'workspace', p_tenant_id, '{}'::jsonb);
+  end if;
 end $$;
 
 
@@ -34657,11 +34957,21 @@ declare
   r       record;
 begin
   -- Untouched for 90 days: no person, no contact, no export. Set aside.
-  update public.leads
-     set stage = 'archived', closed_reason = 'stale'
-   where stage = 'ready' and contact_id is null and contacted_at is null and exported_at is null
-     and found_at < now() - interval '90 days' and erased_at is null and blanked_at is null;
-  get diagnostics v_n = row_count; v_total := v_total + v_n;
+  with stale as (
+    update public.leads
+       set stage = 'archived', closed_reason = 'stale'
+     where stage = 'ready' and contact_id is null and contacted_at is null and exported_at is null
+       and found_at < now() - interval '90 days' and erased_at is null and blanked_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'retention.cleared', 'system', 'workspace', s.tenant_id,
+           jsonb_build_object('what', 'leads_set_aside', 'rows', count(*))
+      from stale s group by s.tenant_id
+    returning 1
+  )
+  select count(*) into v_n from stale;
+  v_total := v_total + v_n;
   -- Set aside for 180 days since it was found: its details go.
   for r in select l.id from public.leads l
             where l.closed_reason = 'stale' and l.blanked_at is null and l.erased_at is null and l.found_at < now() - interval '180 days'
@@ -36910,6 +37220,10 @@ begin
   -- A send any unique rule refuses (a replay's, or a lead another reach-out planned first: one first send per lead,
   -- 00427) is left out of this run, never the run's failure.
   on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'broadcast.moved', 'message', 'broadcast', v_run,
+          jsonb_build_object('to', 'planned', 'state', p_run ->> 'state', 'sends',
+                             (select count(*) from public.sequence_sends s where s.batch_id = v_run)));
   return jsonb_build_object('id', v_run);
 end $$;
 
@@ -37115,6 +37429,9 @@ begin
   update public.templates set hidden_at = coalesce(hidden_at, now())
    where id in (select p.template_id from public.sequence_steps p where p.id = any (v_steps));
   delete from public.sequence_steps where id = p_root_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'playbook', p_root_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'reach_out', true, 'steps', cardinality(v_steps), 'by', auth.uid())));
   return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
 end $$;
 
@@ -39698,6 +40015,11 @@ begin
      and control_by is not distinct from p_by
      and control_ref is not distinct from p_ref;
   get diagnostics v_released = row_count;
+  if v_released > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'released', 'holder', p_kind, 'by', p_by)));
+  end if;
   return v_released > 0;
 end $$;
 
@@ -39739,6 +40061,9 @@ begin
     -- A playbook or a broadcast still names it (their template_id keys are not cascading): the owner moves them first.
     raise exception 'A playbook or broadcast still uses this version.' using errcode = 'P0001';
   end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', v_user)));
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $$;
 
@@ -40866,6 +41191,9 @@ begin
          body_preview = excluded.body_preview
   returning * into v_row;
 
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'saved', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', v_user)));
   return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
 end $_$;
 
@@ -41291,6 +41619,11 @@ begin
   update public.sequence_batches set state = 'canceled'
    where tenant_id = p_tenant_id and id = p_batch_id and state = p_from;
   get diagnostics v_n = row_count;
+  if v_n = 1 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_batch_id,
+            jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'canceled', 'by', auth.uid())));
+  end if;
   return v_n = 1;
 end $$;
 
@@ -42141,6 +42474,9 @@ begin
     -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
     delete from public.sequence_steps where id = p_sequence_id;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', p_sequence_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'was', v_q.state, 'steps', v_steps, 'by', v_actor)));
   return jsonb_build_object('id', p_sequence_id, 'steps', v_steps)
     || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'discard_sequence',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('name', v_q.name, 'was', v_q.state), p_via,
@@ -42183,7 +42519,13 @@ begin
        and case when g.lead_id is null then s.lead_id is null and s.contact_id = g.contact_id
                 else s.lead_id = g.lead_id end
        and s.state in ('planned', 'held', 'queued', 'drafted')
-    returning s.id)
+    returning s.id),
+  told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_strip_nulls(jsonb_build_object('people', count(*), 'why', v_why, 'by', p_by))
+      from gone g group by g.sequence_id
+    returning 1)
   select count(*) into v_n from gone;
   return v_n;
 end $$;
@@ -42823,6 +43165,11 @@ begin
   values (p_tenant_id, p_sequence_id, p_contact_id, p_occasion, p_due_at, p_due_at)
   on conflict (sequence_id, contact_id, occasion) do nothing;
   get diagnostics v_made = row_count;
+  if v_made > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'sequence.enrolled', 'message', 'sequence', p_sequence_id,
+            jsonb_strip_nulls(jsonb_build_object('occasion', p_occasion, 'due_at', p_due_at, 'contact_id', p_contact_id)));
+  end if;
   return case when v_made > 0 then 'enrolled' else 'already' end;
 end $$;
 
@@ -42909,13 +43256,21 @@ begin
   if p_starts_with is null or char_length(p_starts_with) < 3 or p_why is null then
     return 0;
   end if;
-  update public.sequence_occasions o
-     set state = 'left', why = left(p_why, 60), settled_at = now()
-   where o.tenant_id = p_tenant_id and o.state = 'waiting'
-     and left(o.occasion, char_length(p_starts_with)) = p_starts_with
-     -- All but one: a visit's occasions for its other starts, where the one for the start it has now stays.
-     and (p_except is null or o.occasion <> p_except);
-  get diagnostics v_left = row_count;
+  with gone as (
+    update public.sequence_occasions o
+       set state = 'left', why = left(p_why, 60), settled_at = now()
+     where o.tenant_id = p_tenant_id and o.state = 'waiting'
+       and left(o.occasion, char_length(p_starts_with)) = p_starts_with
+       and (p_except is null or o.occasion <> p_except)
+    returning o.sequence_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_build_object('people', count(*), 'why', left(p_why, 60), 'occasion', p_starts_with)
+      from gone g group by g.sequence_id
+    returning 1
+  )
+  select count(*) into v_left from gone;
   return v_left;
 end $$;
 
@@ -42987,6 +43342,9 @@ begin
       raise exception 'Draft not found.' using errcode = 'P0002';
     end if;
   end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'draft', 'once', true, 'kept', p_id is not null, 'by', v_actor)));
   return jsonb_build_object('id', v_id, 'state', 'draft')
     || public.team_decision(p_tenant_id, v_actor, 'sequence', v_id, 'make_sequence',
          coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('once', true, 'kept', p_id is not null), p_via,
@@ -45434,6 +45792,9 @@ begin
   update templates
      set hidden_at = case when p_hidden then coalesce(hidden_at, now()) else null end
    where id = p_template_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'template.changed', 'message', 'template', p_template_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_hidden then 'hidden' else 'shown' end, 'by', v_user)));
   return jsonb_build_object('template_id', p_template_id, 'hidden', p_hidden);
 end $$;
 
@@ -45469,6 +45830,9 @@ begin
     raise exception 'Template not found.' using errcode = 'P0002';
   end if;
   update templates set title = v_title where id = p_template_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'template.changed', 'message', 'template', p_template_id,
+          jsonb_strip_nulls(jsonb_build_object('fields', jsonb_build_array('title'), 'by', v_user)));
   return jsonb_build_object('template_id', p_template_id, 'title', v_title);
 end $$;
 
@@ -45961,6 +46325,78 @@ $$;
 --
 
 COMMENT ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) IS 'Whether a workspace''s business on record has no tax id: filed as one person, a sole proprietor (00439); null with nothing on record. The public page asks it to say where such a business is by city alone, without ever reading the tax id. Service role: the public pages read with it.';
+
+
+--
+-- Name: source_connection_connected(uuid, uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_door text;
+  v_name text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    raise exception 'source_connection_connected: no such connection' using errcode = 'P0002';
+  end if;
+  v_name := public.source_credentials_put(p_connection_id, p_secret);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.connected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'again', coalesce((p_told ->> 'again')::boolean, false),
+            'by', p_told ->> 'by')));
+  return v_name;
+end $$;
+
+
+--
+-- Name: FUNCTION source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) IS 'A footage account''s token kept in Vault as its connect stands (source_credentials_put), with source.connected (its door, whether it was connected before, who) in the same transaction (00723). P0002 where the connection is not the workspace''s. The service role''s.';
+
+
+--
+-- Name: source_connection_remove(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_door text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return false;
+  end if;
+  perform public.source_credentials_drop(p_connection_id);
+  delete from public.source_connections where id = p_connection_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.disconnected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'revoked', coalesce((p_told ->> 'revoked')::boolean, false),
+            'by', p_told ->> 'by')));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) IS 'A footage account removed: its token out of Vault (source_credentials_drop), then its row, with its folders and their items, and source.disconnected (its door, whether Google took the grant back, who) in the same transaction (00723). False where the connection is not the workspace''s. The service role''s.';
 
 
 --
@@ -46808,6 +47244,11 @@ begin
    where m.id = p_message_id and m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
      and m.meta ? 'email' and not (m.meta->'email' ? 'complained_at');
   get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'message.complained', 'message', 'message', p_message_id,
+            jsonb_strip_nulls(jsonb_build_object('at', p_at)));
+  end if;
   return v_n > 0;
 end $$;
 
@@ -47246,13 +47687,22 @@ declare
   v_n     integer;
 begin
   loop
-    delete from public.ask_voice_sessions s
-     where s.id in (
-       select c.id from public.ask_voice_sessions c
-        where c.token_expires_at < now() - p_after
-        limit 1000
-     );
-    get diagnostics v_n = row_count;
+    with gone as (
+      delete from public.ask_voice_sessions s
+       where s.id in (
+         select c.id from public.ask_voice_sessions c
+          where c.token_expires_at < now() - p_after
+          limit 1000
+       )
+      returning s.tenant_id
+    ), told as (
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      select g.tenant_id, 'retention.cleared', 'system', 'workspace', g.tenant_id,
+             jsonb_build_object('what', 'ask_voice_sessions', 'rows', count(*))
+        from gone g group by g.tenant_id
+      returning 1
+    )
+    select (select count(*) from gone)::integer into v_n;
     v_total := v_total + v_n;
     exit when v_n < 1000;
   end loop;
@@ -48145,10 +48595,19 @@ declare
   v_before timestamptz := coalesce(p_before, now() - interval '180 days');
   v_count integer;
 begin
-  update public.touches t
-     set contact_id = null, conversation_id = null, message_id = null, evidence = '{}'::jsonb, emptied_at = now()
-   where t.emptied_at is null and t.at < v_before and not t.new_person;
-  get diagnostics v_count = row_count;
+  with emptied as (
+    update public.touches t
+       set contact_id = null, conversation_id = null, message_id = null, evidence = '{}'::jsonb, emptied_at = now()
+     where t.emptied_at is null and t.at < v_before and not t.new_person
+    returning t.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select e.tenant_id, 'retention.cleared', 'system', 'workspace', e.tenant_id,
+           jsonb_build_object('what', 'touches', 'rows', count(*))
+      from emptied e group by e.tenant_id
+    returning 1
+  )
+  select (select count(*) from emptied)::integer into v_count;
   return v_count;
 end $$;
 
@@ -49188,6 +49647,40 @@ COMMENT ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p
 
 
 --
+-- Name: whatsapp_channel_activate(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.tenant_channels set status = 'active'
+   where id = p_channel_id and tenant_id = p_tenant_id and kind = 'whatsapp';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'channel.connected', 'system', 'channel', p_channel_id,
+          jsonb_build_object(
+            'kind', 'whatsapp',
+            'phone_number_id', p_told ->> 'phone_number_id',
+            'waba_id', p_told ->> 'waba_id',
+            'number_e164', p_told ->> 'number_e164',
+            'verified_name', p_told ->> 'verified_name',
+            'by', p_told ->> 'by'));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) IS 'A WhatsApp number''s row turned active once its token stands in Vault, with channel.connected (its ids, its name and who connected it) in the same transaction (00723). False where the row is not the workspace''s WhatsApp row. The service role''s.';
+
+
+--
 -- Name: withdraw_ai_drafts(uuid, uuid, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -49245,6 +49738,12 @@ begin
      where j.tenant_id = p_tenant_id and j.kind = 'outbound_send' and j.state = 'scheduled'
        and j.payload ->> 'message_id' = w.id::text
     returning j.id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'message.withdrawn', 'message', 'message', w.id,
+           jsonb_strip_nulls(jsonb_build_object('reason', p_reason ->> 'reason', 'by', auth.uid()))
+      from withdrawn w
+    returning 1
   )
   select coalesce(array_agg(w.id order by w.id), '{}'::uuid[]) into v_ids from withdrawn w;
   return v_ids;
@@ -51414,7 +51913,7 @@ CREATE TABLE public.conversation_drafts (
 -- Name: TABLE conversation_drafts; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_keep.';
+COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_claim and conversation_draft_write (00538), the service role''s.';
 
 
 --
@@ -71268,15 +71767,6 @@ GRANT ALL ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conver
 
 
 --
--- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO service_role;
-
-
---
 -- Name: FUNCTION conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -77360,6 +77850,22 @@ GRANT ALL ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) TO service_rol
 
 
 --
+-- Name: FUNCTION source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION source_connections_ring(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -78050,6 +78556,14 @@ GRANT ALL ON FUNCTION public.wake_stale_snoozes() TO service_role;
 
 REVOKE ALL ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) TO service_role;
+
+
+--
+-- Name: FUNCTION whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) TO service_role;
 
 
 --

@@ -1640,6 +1640,41 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const { tenant_id, config, version, updated_at, updated_by } = row;
       return { tenant_id, config, version, updated_at, updated_by: updated_by ?? null, feed_hidden: false };
     },
+    // A WhatsApp number's row turned active once its token stands, with channel.connected in the same write (00723).
+    whatsapp_channel_activate: ({ p_tenant_id, p_channel_id, p_told }) => {
+      writeFault("tenant_channels.update");
+      const row = (tables.tenant_channels ?? []).find(
+        (r) => r.id === p_channel_id && r.tenant_id === p_tenant_id && r.kind === "whatsapp",
+      );
+      if (!row) return false;
+      row.status = "active";
+      seen.push({
+        table: "tenant_channels",
+        op: "update",
+        values: { status: "active" },
+        filters: [
+          ["eq", "id", p_channel_id],
+          ["eq", "tenant_id", p_tenant_id],
+        ],
+      });
+      const said = (key) => (typeof p_told?.[key] === "string" ? p_told[key] : null);
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "channel.connected",
+        category: "system",
+        subject_type: "channel",
+        subject_id: p_channel_id,
+        data: {
+          kind: "whatsapp",
+          phone_number_id: said("phone_number_id"),
+          waba_id: said("waba_id"),
+          number_e164: said("number_e164"),
+          verified_name: said("verified_name"),
+          by: said("by"),
+        },
+      });
+      return true;
+    },
     // The versioned save, and with p_told its settings.changed in the same write (00722), as the member.
     tenant_config_write: ({ p_tenant_id, p_config, p_version, p_told = null }) => {
       writeFault("tenant_config.update");

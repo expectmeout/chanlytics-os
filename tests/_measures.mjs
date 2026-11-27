@@ -59,7 +59,7 @@ import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { CLOCKS } from "./clocks/_clocks.mjs";
 import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../tooling/scripts/gen/schema-snapshot.mjs";
 import { KEPT_WITH_NO_CALLER, clockOf, codeCallersOf, functionsOf, mapOf } from "../tooling/scripts/gen/sql-map.mjs";
-import { ACTIVITY_NOISE_PREFIXES, SCHEMA_SETS } from "@chanlytics/contracts";
+import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, EVENT_KINDS, SCHEMA_SETS } from "@chanlytics/contracts";
 import { ERASURE_STRATEGIES } from "@chanlytics/db/erasure";
 import { SUITES } from "../tooling/scripts/checks/test.mjs";
 import { NAME_RATCHETS } from "./repo/names/_names.mjs";
@@ -376,22 +376,24 @@ const ONE_STATEMENT = String.raw`(?:(?!\n\n)[\s\S])*?`;
 /** Why a door that writes rows keeps no fact: each kind of row that is the machine's, not a record's news. */
 const NO_FACT = {
   lease:
-    "A lease, a claim or a hand-out of work: the queue's own bookkeeping of who holds what until when. The door that does the work writes its fact when it lands.",
+    "A lease, a claim or a hand-out of work: the queue's own bookkeeping of who holds what until when, a reply queued with its send's job, an inbound message marked processed. The door that does the work writes its fact when it lands (message.sent at the send door).",
   meter:
-    "A meter: what an allowance spent, a link or a form was opened, an import counted, by day. A number Reports reads, not a fact a reaction follows.",
+    "A meter: what an allowance spent, a link or a form was opened, an import counted, by day, what a message cost at its provider. A number Reports reads, not a fact a reaction follows.",
   ownMark:
     "A member's own mark or device: what they have seen or read, how their lists sort, where their phone is told. Theirs alone, not news of the workspace's records.",
   providerId:
-    "The id a provider knows a caller by (whom Anthropic is told a call is for, decision 0097), made once: bookkeeping with the provider, which no reaction follows.",
+    "The id a provider knows a caller or a message by, made once: whom Anthropic is told a call is for (decision 0097), and an email's ids once it left (its Message-ID, its thread, the mailbox it went from, whether it left as the mailbox's own), stamped on a message whose message.sent the send door wrote. Bookkeeping with the provider, which no reaction follows.",
   aiWorking:
-    "AI's working copy, or its reading of the world: a draft while it is written, a turn kept for the evals (invariant 11), what it saw or heard in a file, the numbers a platform gave. The act that takes it up writes the fact.",
+    "AI's working copy, or its reading of the world: a draft while it is written, a turn kept for the evals (invariant 11), what it saw or heard in a file, the numbers a platform gave, how it handled a message that came in. The act that takes it up writes the fact.",
   platform:
-    "The platform's own, with no workspace to write an event in: the Console's staff, and its pause of a job kind.",
+    "The platform's own, with no workspace to write an event in: the Console's staff, its pause of a job kind, and the erasure key's re-keying of every workspace's tombstones, run by hand.",
+  partner:
+    "A partner's own account, kept apart from every workspace: each row of the ledger names a workspace (events.tenant_id), and a partner has none. Its own row says it: a code taken, its letters on or off, how far its letter is written.",
   projection: "A projection filled again from records that wrote their own events: a person's moments.",
   harness:
     "A sequence's own list, made inside sequence_create_leads, whose event says it; an e2e harness calls it alone to draw a state.",
   decided:
-    "Its fact is the decision it writes in the same transaction, the Activity log's line of it (a broadcast sent now); the steps' words_ok_at beside it is the plan's memory, read by contracts batchModeOf.",
+    "Its fact is the decision it writes in the same transaction (team_decision), the Activity log's line of it: a visit marked, a handover the owner settled from the Business app, a broadcast sent now (its steps' words_ok_at beside it is the plan's memory, read by contracts batchModeOf).",
 };
 
 /**
@@ -413,7 +415,9 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "lead_run_reconcile",
       "lead_run_record_start",
       "lead_run_release",
+      "mark_processed",
       "note_candidates",
+      "queue_send",
       "reach_out_recheck",
       "reach_out_release_unavailable",
       "reach_out_reply_tell_claim",
@@ -432,6 +436,7 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "import_ledger_note",
       "lead_site_reads_spent",
       "link_open",
+      "message_keep_cost",
       "reach_out_check_take",
       "reach_out_read_take",
       "source_take_spend",
@@ -450,7 +455,7 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "push_devices_forget_all",
       "words_seen",
     ],
-    providerId: ["anthropic_profile_claim"],
+    providerId: ["anthropic_profile_claim", "stamp_email_from_mailbox", "stamp_email_left_as", "stamp_email_sent"],
     aiWorking: [
       "ad_draft_writing",
       "ad_draft_written",
@@ -459,16 +464,18 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "file_look_keep",
       "file_moments_keep",
       "file_sound_keep",
+      "message_stamp_handled",
       "model_turn_keep",
       "piece_version_kept",
       "post_observations_keep",
       "reach_out_reply_draft",
       "touches_keep",
     ],
-    platform: ["job_kind_pause", "job_kind_resume", "platform_admin_add"],
+    platform: ["erasure_rekey", "job_kind_pause", "job_kind_resume", "platform_admin_add"],
+    partner: ["partner_become", "partner_letter_written", "partner_letters_set"],
     projection: ["person_moments_fill"],
     harness: ["reach_out_list_for"],
-    decided: ["assemble_broadcast"],
+    decided: ["assemble_broadcast", "conversation_echo_settles", "mark_visit"],
   }).flatMap(([why, doors]) => doors.map((d) => [`${d}()`, NO_FACT[why]])),
 );
 
@@ -476,8 +483,8 @@ export const NO_FACT_DOORS = Object.fromEntries(
  * The vault's doors (a credential put or dropped), each kept from the count only where the connection's own door
  * writes the connect or the disconnect as its event: `{ "door()": { by: "the covering door()", kind } }`, held by
  * repo/measures.test.mjs to a door that exists and writes that kind. A vault door no event covers is counted. The
- * mailbox's and the line's are covered since 00721, the Google profile's since 00722; a channel's and a source's come
- * with 00723.
+ * mailbox's and the line's are covered since 00721, the Google profile's since 00722, a channel's and a footage
+ * account's since 00723.
  */
 export const VAULT_DOORS_COVERED = {
   // A mailbox's token kept as its connect stands, and dropped as it is removed: mailbox_connection_move says each.
@@ -488,6 +495,13 @@ export const VAULT_DOORS_COVERED = {
   // The Google profile's token kept as its connect finishes, and dropped before its row goes (00722).
   "put_google_credentials()": { by: "google_connect_finish()", kind: "google.connected" },
   "drop_google_credentials()": { by: "google_connection_remove()", kind: "google.disconnected" },
+  // A channel's token kept as it connects: a WhatsApp number's row turns active with channel.connected
+  // (whatsapp_channel_activate, 00723), and an Instagram account's connect writes its own (instagram_account_connect).
+  "put_channel_credentials()": { by: "whatsapp_channel_activate()", kind: "channel.connected" },
+  // A footage account's token kept as its connect stands, and dropped as the account is removed (00723); a refresh
+  // keeps the token alone, as the same connection's.
+  "source_credentials_put()": { by: "source_connection_connected()", kind: "source.connected" },
+  "source_credentials_drop()": { by: "source_connection_remove()", kind: "source.disconnected" },
 };
 
 /** sql-map.mjs's callers, read once a process: the code's and the scripts' are a walk of every module. */
@@ -1443,6 +1457,80 @@ export function emittedKinds() {
     }
   }
   return by;
+}
+
+/** Whether Activity shows a kind: one it does not keep from its rows and its picker (contracts' noise kinds and families). */
+export const shownInActivity = (kind) =>
+  !ACTIVITY_NOISE_KINDS.includes(kind) && !ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
+
+/** The repository's migrations, in order: `[{ name, sql }]`. */
+const migrationTexts = () =>
+  fs
+    .readdirSync(path.join(ROOT, "supabase/migrations"))
+    .filter((n) => n.endsWith(".sql"))
+    .sort()
+    .map((n) => ({ name: n.replace(/\.sql$/, ""), sql: readRaw(`supabase/migrations/${n}`) }));
+
+/**
+ * Every function the migrations define, as its last definition left it: `Map(name → { kinds, migration })`, `kinds`
+ * the declared event kinds among the dotted literals of its `insert into events` statements (a kind a `case` picks is
+ * one of them). `each` is told every definition in order, with the kinds of the one before it (an empty set for a
+ * function's first).
+ */
+export function kindsByFunction(migrations = migrationTexts(), each = () => {}) {
+  const declared = new Set(EVENT_KINDS);
+  const last = new Map();
+  for (const { name: migration, sql } of migrations) {
+    for (const m of sql.matchAll(/\bcreate\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\(/gi)) {
+      const as = /\bas\s+(\$\w*\$)/i.exec(sql.slice(m.index));
+      if (!as) continue;
+      const open = m.index + as.index + as[0].length;
+      const body = sql.slice(open, sql.indexOf(as[1], open));
+      const kinds = new Set();
+      for (const ins of body.matchAll(/\binsert\s+into\s+(?:public\.)?events\b([\s\S]*?);/gi))
+        for (const lit of ins[1].matchAll(/'([a-z_]+\.[a-z_]+)'/g)) if (declared.has(lit[1])) kinds.add(lit[1]);
+      const fn = m[1].toLowerCase();
+      each({ fn, migration, kinds, before: last.get(fn)?.kinds ?? new Set() });
+      last.set(fn, { kinds, migration });
+    }
+  }
+  return last;
+}
+
+/**
+ * The migration the shown kinds are held from: every door it and the migrations after it define writes a kind Activity
+ * shows only where the door's own definition before wrote it, or where SHOWN_KINDS_NEW_TO_A_DOOR argues the pair.
+ */
+export const SHOWN_KINDS_HELD_FROM = "00723";
+
+/**
+ * A kind Activity shows says one act, often in one channel's words ("The owner replied from the WhatsApp Business app,
+ * and AI stepped back"), so a door that starts writing one puts that line in Activity for every call it takes, true
+ * or not. Each pair a migration from SHOWN_KINDS_HELD_FROM on makes, a door and a shown kind its definition before did
+ * not write, is argued here with the act, its words, and why they are true of this door: `{ "door() <- kind": why }`.
+ * The owner's own email first wrote the WhatsApp echo's kind here (00723, before review): it writes one of its own
+ * now, conversation.owner_emailed, kept from Activity's rows.
+ */
+export const SHOWN_KINDS_NEW_TO_A_DOOR = {
+  "whatsapp_channel_activate() <- channel.connected":
+    "A WhatsApp number connected: its words (\"A WhatsApp number was connected\") are this door's act, the number's row turned active, which the edge wrote after the row from TypeScript until the door (00723)",
+};
+
+/**
+ * Each door a migration from `from` on defines that writes a kind Activity shows which the door's definition before it
+ * did not write: `{ "door() <- kind": "the migration" }`. `shown` says which kinds Activity shows.
+ */
+export function shownKindsNewToADoor({
+  migrations = migrationTexts(),
+  from = SHOWN_KINDS_HELD_FROM,
+  shown = shownInActivity,
+} = {}) {
+  const found = {};
+  kindsByFunction(migrations, ({ fn, migration, kinds, before }) => {
+    if (migration < from) return;
+    for (const k of kinds) if (!before.has(k) && shown(k)) found[`${fn}() <- ${k}`] = migration;
+  });
+  return found;
 }
 
 /**

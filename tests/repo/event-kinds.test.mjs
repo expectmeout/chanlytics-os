@@ -17,12 +17,25 @@
  * check:debt): the kinds no SQL door writes, told from TypeScript after the fact they announce, each with how many
  * files write it. A fact and its event share a transaction (decision 0031, invariant 2), and doors-without-events sees
  * only the SQL side of that. The kinds may only go away (a set: the numbers are a record).
+ *
+ * And the kinds Activity shows (27 Nov 2026, 00723's review): a shown kind's words say one act, often in one channel's
+ * words, so from 00723 on a door that starts writing one is argued with its act (_measures.mjs SHOWN_KINDS_NEW_TO_A_DOOR).
+ * The owner's own email first wrote the WhatsApp echo's kind, a line in Activity for every email that said the owner
+ * replied from WhatsApp's app and AI stepped back; it writes a kind of its own now, kept from Activity's rows.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EVENT_KINDS, WABA_FIELDS } from "@chanlytics/contracts";
 import { readRaw, importSrc } from "../_source.mjs";
-import { EVENT_KIND, emittedKinds, walkTypeScript as walk } from "../_measures.mjs";
+import {
+  EVENT_KIND,
+  SHOWN_KINDS_NEW_TO_A_DOOR,
+  emittedKinds,
+  kindsByFunction,
+  shownInActivity,
+  shownKindsNewToADoor,
+  walkTypeScript as walk,
+} from "../_measures.mjs";
 
 const KIND = EVENT_KIND;
 const declared = new Set(EVENT_KINDS);
@@ -80,4 +93,46 @@ test("the computed family is the contracts' list, and nothing else is computed",
     }
   }
   assert.equal(computed, 1);
+});
+
+test("from 00723 on, a door starts writing a kind Activity shows only where the pair is argued with its act", () => {
+  assert.deepEqual(
+    Object.keys(shownKindsNewToADoor()).sort(),
+    Object.keys(SHOWN_KINDS_NEW_TO_A_DOOR).sort(),
+    "a door writes a kind Activity shows that its definition before did not: give its act a kind of its own, kept from Activity's rows (contracts ACTIVITY_NOISE_KINDS), or argue in SHOWN_KINDS_NEW_TO_A_DOOR that the kind's words are this door's act",
+  );
+});
+
+test("the owner's own email writes a kind of its own, kept from Activity's rows; the WhatsApp echo keeps the shown one", () => {
+  const doors = kindsByFunction();
+  assert.deepEqual([...doors.get("mailbox_owner_wrote").kinds], ["conversation.owner_emailed"]);
+  assert.equal(
+    shownInActivity("conversation.owner_emailed"),
+    false,
+    "no row of Activity's, nor a kind its picker offers",
+  );
+  assert.deepEqual([...doors.get("conversation_owner_echo_keep").kinds], ["conversation.owner_replied"]);
+  assert.equal(shownInActivity("conversation.owner_replied"), true);
+});
+
+test("the guard sees a door's new shown kind, and not one it wrote before, a hidden one, or one before it holds", () => {
+  const door = (name, kind) => `create or replace function public.${name}() returns void language plpgsql as $$
+begin
+  insert into public.events (tenant_id, kind) values (null, '${kind}');
+end $$;
+`;
+  const migrations = [
+    { name: "00001_first", sql: door("echo", "conversation.owner_replied") + door("early", "channel.connected") },
+    {
+      name: "00723_held",
+      sql: [
+        door("echo", "conversation.owner_replied"),
+        door("mailbox", "conversation.owner_replied"),
+        door("quiet", "conversation.owner_emailed"),
+      ].join(""),
+    },
+  ];
+  assert.deepEqual(shownKindsNewToADoor({ migrations, from: "00723" }), {
+    "mailbox() <- conversation.owner_replied": "00723_held",
+  });
 });

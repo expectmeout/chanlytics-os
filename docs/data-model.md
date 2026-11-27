@@ -1398,7 +1398,7 @@ Foreign keys:
 
 ### conversation_drafts
 
-Ask's drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace's; written through conversation_draft_keep.
+Ask's drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace's; written through conversation_draft_claim and conversation_draft_write (00538), the service role's.
 
 - Owned by: `packages/db/src/repositories/ask/reply-drafts.ts`
 - Primary key: `id`

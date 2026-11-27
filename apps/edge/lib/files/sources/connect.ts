@@ -43,12 +43,12 @@ import {
 } from "@chanlytics/contracts";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import {
+  connectSourceCredentials,
   deleteSourceConnection,
-  dropSourceCredentials,
   findSourceConnection,
   listMediaSourcesOfConnection,
   listSourceConnectionsOf,
-  putSourceCredentials,
+  removeSourceConnection,
   saveBlockedSourceConnection,
   saveSourceConnection,
   type SourceConnectionRow,
@@ -205,7 +205,9 @@ export async function connectDrive(db: Db, ask: ConnectAsk, log: Logger, now = n
     connected_at: now.toISOString(),
   });
   try {
-    await putSourceCredentials(db, {
+    // The token, and source.connected with it (00723): the connect stands once its token does.
+    await connectSourceCredentials(db, {
+      tenantId: ask.tenantId,
       id: connection.id,
       secret: {
         refresh_token: grant.refresh_token,
@@ -213,7 +215,8 @@ export async function connectDrive(db: Db, ask: ConnectAsk, log: Logger, now = n
         expires_at: now.getTime() + grant.expires_in * SECOND_MS,
         scope: grant.scope,
       },
-      ifRefreshToken: null,
+      again: known,
+      by: ask.userId,
     });
   } catch (error) {
     // Without its token a new row is a lie; a reconnect's row keeps the token it had, which may still read. The rule is
@@ -262,9 +265,9 @@ export async function disconnectDrive(
     );
     revoked = outcome === "given";
   }
-  // Before the row goes: it is what a token left in Vault would be found by, and a retry starts from it.
-  await dropSourceCredentials(db, connection.id);
-  await deleteSourceConnection(db, named.tenantId, connection.id);
+  // The token out of Vault, then the row (what a token left behind would be found by, and a retry starts from), with
+  // source.disconnected, in one transaction (00723).
+  await removeSourceConnection(db, { tenantId: named.tenantId, id: connection.id, revoked });
   log.info("source_disconnected", { connection: connection.id, revoked });
   return { removed: true, revoked };
 }

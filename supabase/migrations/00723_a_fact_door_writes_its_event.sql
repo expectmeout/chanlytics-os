@@ -1,0 +1,4786 @@
+-- 00723 · A fact door writes its event (lanes 9 and 2 of the code refinement plan, finished together, 26-27 Nov 2026:
+-- layer 10's invariant 2, a change and its event in one transaction, written by the door that makes the change).
+--
+-- Every door a caller outside the database reaches that writes a record and wrote no event now writes one, in its own
+-- transaction, or is argued in tests/_measures.mjs (NO_FACT_DOORS, VAULT_DOORS_COVERED). Each door below is re-made
+-- from the snapshot's own text (supabase/schema.sql at 00722) with its event added beside the write, its arguments, its
+-- grants and its comment as they were: an old caller's call lands as it did, and only the ledger gains a row.
+--
+--   The new kinds (48) are noise kinds by record: piece.moved, plan_slot.moved, content_plan.moved, file_copy.moved,
+--   form.moved, sequence.enrolled, conversation.control_moved, lead.found, retention.cleared, source.connected and the
+--   rest (packages/contracts enums/events.ts, each with its words). Every one is kept from Activity's rows and its
+--   picker: the page that owns each record says it as it stands. None is a row an owner sees yet.
+--
+--   ai_usage_purge, form_entries_purge, touches_age_out, sweep_voice_sessions, file_purged, file_upload_lapsed
+--                             The six clearances by age each write retention.cleared per workspace, with what they
+--                             cleared and how many; a run that cleared nothing writes none.
+--   conversation_draft_keep   Dropped: Ask's draft door as decision 0071 first wrote it, kept for a dashboard a deploy
+--                             behind 00538's conversation_draft_write, and called by nothing since October.
+--   whatsapp_channel_activate New: a WhatsApp number's row turned active once its token stands, with channel.connected,
+--                             where the edge set the row and then wrote the event from TypeScript, best effort.
+--   source_connection_connected, source_connection_remove
+--                             New: a footage account's token kept as its connect stands (source.connected), and the
+--                             account removed, token then row (source.disconnected); a token's refresh is the vault's
+--                             own door, source_credentials_put, and writes nothing.
+--   form_publish              Re-made: a form put live writes form.moved with its version.
+--
+-- Deploy order: apply first, then either. The re-made doors keep their signatures, and the new ones are called only by
+-- the new code. Old code against the new database writes as it did; the edge's old WhatsApp connect turns the row on
+-- itself and writes its own channel.connected, and the new code calls the door.
+set local lock_timeout = '3s';
+/* -- a door nothing calls, dropped -- */
+
+-- conversation_draft_keep kept Ask's reply draft as decision 0071 first wrote it, and stayed for a dashboard a deploy
+-- behind conversation_draft_write (00538). No dashboard since October calls it, and it wrote a record with no event: the
+-- drafts are written through conversation_draft_claim and conversation_draft_write, the service role's, as AI writes them.
+drop function if exists public.conversation_draft_keep(uuid, uuid, text, jsonb, uuid);
+
+comment on table public.conversation_drafts is 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_claim and conversation_draft_write (00538), the service role''s.';
+/* -- the six clearances by age: each run says what it cleared and how many, per workspace -- */
+
+-- A record past its keeping time (contracts RETENTION_DAYS) was cleared with nothing on the ledger: an AI's metered use,
+-- a website's held or test entry, a touch's evidence, a spoken session's token, a removed file's row, an upload that
+-- never finished. Each run now writes retention.cleared, one row per workspace it cleared something of, saying what and
+-- how many, in the clearance's own transaction; a run that cleared nothing writes none. The kind is kept from
+-- Activity's rows: it is the privacy page's promise kept, for Reports and for anyone who asks.
+
+create or replace function public.ai_usage_purge(p_keep interval default '400 days'::interval)
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_count integer;
+begin
+  with gone as (
+    delete from public.ai_usage where created_at < now() - p_keep returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select g.tenant_id, 'retention.cleared', 'system', 'workspace', g.tenant_id,
+           jsonb_build_object('what', 'ai_usage', 'rows', count(*))
+      from gone g group by g.tenant_id
+    returning 1
+  )
+  select (select count(*) from gone)::integer into v_count;
+  return v_count;
+end $$;
+
+create or replace function public.form_entries_purge()
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_gone integer;
+begin
+  -- A held entry nobody let through goes after 30 days; a test after 7 (contracts RETENTION_DAYS).
+  with gone as (
+    delete from public.form_entries e
+     where (e.state = 'held' and e.created_at < now() - interval '30 days')
+        or (e.test and e.created_at < now() - interval '7 days')
+    returning e.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select g.tenant_id, 'retention.cleared', 'system', 'workspace', g.tenant_id,
+           jsonb_build_object('what', 'form_entries', 'rows', count(*))
+      from gone g group by g.tenant_id
+    returning 1
+  )
+  select (select count(*) from gone)::integer into v_gone;
+  return v_gone;
+end $$;
+
+create or replace function public.touches_age_out(p_before timestamptz default null)
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_before timestamptz := coalesce(p_before, now() - interval '180 days');
+  v_count integer;
+begin
+  with emptied as (
+    update public.touches t
+       set contact_id = null, conversation_id = null, message_id = null, evidence = '{}'::jsonb, emptied_at = now()
+     where t.emptied_at is null and t.at < v_before and not t.new_person
+    returning t.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select e.tenant_id, 'retention.cleared', 'system', 'workspace', e.tenant_id,
+           jsonb_build_object('what', 'touches', 'rows', count(*))
+      from emptied e group by e.tenant_id
+    returning 1
+  )
+  select (select count(*) from emptied)::integer into v_count;
+  return v_count;
+end $$;
+
+create or replace function public.sweep_voice_sessions(p_after interval default '1 day'::interval)
+returns integer
+language plpgsql
+security definer
+set search_path to 'public'
+set lock_timeout to '3s'
+as $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+begin
+  loop
+    with gone as (
+      delete from public.ask_voice_sessions s
+       where s.id in (
+         select c.id from public.ask_voice_sessions c
+          where c.token_expires_at < now() - p_after
+          limit 1000
+       )
+      returning s.tenant_id
+    ), told as (
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      select g.tenant_id, 'retention.cleared', 'system', 'workspace', g.tenant_id,
+             jsonb_build_object('what', 'ask_voice_sessions', 'rows', count(*))
+        from gone g group by g.tenant_id
+      returning 1
+    )
+    select (select count(*) from gone)::integer into v_n;
+    v_total := v_total + v_n;
+    exit when v_n < 1000;
+  end loop;
+  return v_total;
+end $$;
+
+create or replace function public.file_purged(p_tenant_id uuid, p_id uuid)
+returns void
+language sql
+security definer
+set search_path to 'public'
+as $$
+  with gone as (
+    delete from public.files f where f.tenant_id = p_tenant_id and f.id = p_id and f.removed_at is not null
+    returning f.tenant_id, f.id
+  )
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select g.tenant_id, 'retention.cleared', 'system', 'file', g.id, jsonb_build_object('what', 'files', 'rows', 1)
+    from gone g;
+$$;
+
+create or replace function public.file_upload_lapsed(p_tenant_id uuid, p_id uuid)
+returns boolean
+language sql
+security definer
+set search_path to 'public'
+as $$
+  with lapsed as (
+    update public.files f set removed_at = now(), updated_at = now()
+     where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
+       and f.removed_at is null
+    returning f.tenant_id, f.id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select l.tenant_id, 'retention.cleared', 'system', 'file', l.id, jsonb_build_object('what', 'file_uploads', 'rows', 1)
+      from lapsed l
+    returning 1
+  )
+  select exists (select 1 from lapsed);
+$$;
+/* -- a piece's making, and a file's media: each move with its event -- */
+
+-- A video made here moves through its making (begun, a stage, a machine step, its bytes sent, failed, a new version
+-- ready, its words kept) and a file's media through the platform's (processing, failed): each move now writes
+-- piece.moved or file.media_moved in its own transaction, with where it moved to and, where a member moved it, who.
+-- Both are kept from Activity's rows: Files and the piece's own page say where each stands.
+
+-- piece_begin
+CREATE OR REPLACE FUNCTION public.piece_begin(p_tenant_id uuid, p_plan jsonb, p_look jsonb, p_key text, p_edition integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  v_id     uuid;
+  v_status text;
+begin
+  if v_actor is null and not v_service then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null
+     or (not v_service and not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- contracts PIECE_SHAPES: in blocks, as Ask arranges one, or as "Hook first", which a card made before blocks carries.
+  if p_plan is null or jsonb_typeof(p_plan) <> 'object'
+     or (p_plan ->> 'shape') is null or (p_plan ->> 'shape') not in ('hook_cut', 'blocks') then
+    raise exception 'No such shape.' using errcode = '22023';
+  end if;
+  if p_look is null or jsonb_typeof(p_look) <> 'object' then
+    raise exception 'A video is drawn in the business''s look.' using errcode = '22023';
+  end if;
+  -- A plan is a few moments and a few words, a look a name and an address: nothing larger is either.
+  if length(p_plan::text) > 8000 or length(p_look::text) > 2000 then
+    raise exception 'A plan is a few moments and a few words.' using errcode = '22023';
+  end if;
+  if p_key is null or char_length(p_key) not between 1 and 120 or p_edition is null or p_edition < 1 then
+    raise exception 'A press names its card and the template it is drawn by.' using errcode = '22023';
+  end if;
+  -- One at a time a workspace, so the count below is of what is there.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|pieces', 42));
+  select p.id, p.status into v_id, v_status from public.pieces p
+   where p.tenant_id = p_tenant_id and p.card_key = p_key;
+  -- Pressed before: the one video. One that was not made is tried anew by the same press, below.
+  if found and v_status <> 'failed' then
+    return jsonb_build_object('fate', 'here', 'piece_id', v_id);
+  end if;
+  -- contracts PIECES_MAKING_MAX: each is a machine that costs while it draws. One begun over an hour ago holds no machine
+  -- (a start waits half an hour at most, a machine lives eight minutes), so a video left waiting on the platform's word
+  -- never closes the door on the next.
+  if (select count(*) from public.pieces p
+       where p.tenant_id = p_tenant_id and p.status = 'making' and p.created_at > now() - interval '1 hour') >= 3 then
+    return jsonb_build_object('fate', 'busy', 'piece_id', null);
+  end if;
+  if v_id is null then
+    insert into public.pieces (tenant_id, shape, plan, look, edition, card_key, created_by)
+    values (p_tenant_id, p_plan ->> 'shape', p_plan, p_look, p_edition, p_key, v_actor)
+    returning id into v_id;
+  else
+    -- The same card's new try: its row begins again, by the plan and the look as they now stand. A file of the try before,
+    -- where one was kept and could not be read, stays in Files as it stands, and is this video's no longer.
+    update public.pieces p
+       set status = 'making', stage = 'queued', failed_why = null, machine = null, file_id = null, made_at = null,
+           shape = p_plan ->> 'shape', plan = p_plan, look = p_look, edition = p_edition, created_by = v_actor,
+           created_at = now(), updated_at = now()
+     where p.id = v_id;
+  end if;
+  -- As text: a job's once-only key is made of strings (job_dedupe_key_of).
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'piece_make', now(), jsonb_build_object('piece_id', v_id, 'step', 'start', 'tick', '1'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'piece.moved', 'content', 'piece', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'making', 'edition', p_edition, 'by', v_actor)));
+  return jsonb_build_object('fate', 'begun', 'piece_id', v_id);
+end $$;
+
+-- piece_end
+CREATE OR REPLACE FUNCTION public.piece_end(p_piece_id uuid, p_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_piece public.pieces;
+begin
+  select * into v_piece from public.pieces p where p.id = p_piece_id and p.status = 'making' for update;
+  if not found then
+    return false;
+  end if;
+  -- Its bytes all went (piece_sent): the video platform's word ends it, as it ends every video. Nothing here may throw it away.
+  if v_piece.file_id is not null and exists (
+       select 1 from public.files f
+        where f.id = v_piece.file_id and f.removed_at is null and f.media_status in ('processing', 'ready')) then
+    return false;
+  end if;
+  update public.pieces p
+     set status = 'failed', machine = null, updated_at = now(),
+         failed_why = case when p_why = any (array['clips', 'draw', 'store']) then p_why else 'unknown' end
+   where p.id = p_piece_id;
+  -- A file whose bytes never all went is no video: let go now, and its reservation with it, by the purge. Only the file
+  -- this video began: one it found already there (the same bytes) is another video's.
+  if v_piece.file_id is not null then
+    update public.files f set removed_at = now(), updated_at = now()
+     where f.id = v_piece.file_id and f.source = 'made' and f.media_status = 'uploading' and f.removed_at is null
+       and (f.made ->> 'piece') = v_piece.id::text;
+    if found then
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (v_piece.tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_piece.file_id, 'why', 'remove'));
+    end if;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_piece.tenant_id, 'piece.moved', 'content', 'piece', v_piece.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'why', case when p_why = any (array['clips', 'draw', 'store']) then p_why else 'unknown' end)));
+  return true;
+end $$;
+
+-- piece_sent
+CREATE OR REPLACE FUNCTION public.piece_sent(p_piece_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_piece public.pieces;
+begin
+  update public.pieces p set machine = null, updated_at = now()
+   where p.id = p_piece_id and p.status = 'making'
+  returning * into v_piece;
+  if not found then
+    return false;
+  end if;
+  -- Only from uploading: the platform's word may already have come.
+  update public.files f set media_status = 'processing', updated_at = now()
+   where f.id = v_piece.file_id and f.media_status = 'uploading' and f.removed_at is null;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_piece.tenant_id, 'piece.moved', 'content', 'piece', v_piece.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'sent')));
+  return true;
+end $$;
+
+-- piece_stage
+CREATE OR REPLACE FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with staged as (
+    update public.pieces p set stage = p_stage, updated_at = now()
+     where p.id = p_piece_id and p.status = 'making' and p.stage is distinct from p_stage
+       and p_stage = any (array['queued', 'waiting_clip', 'from_drive', 'drawing', 'saving'])
+    returning p.id, p.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'piece.moved', 'content', 'piece', s.id, jsonb_build_object('to', 'making', 'stage', p_stage)
+      from staged s
+    returning 1
+  )
+  select exists (select 1 from staged);
+$$;
+
+-- piece_step
+CREATE OR REPLACE FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with stepped as (
+    update public.pieces p
+       set machine = p_machine, updated_at = now(),
+           -- A machine kept is the drawing begun.
+           stage = case when p_machine ? 'name' then 'drawing' else p.stage end
+     where p.id = p_piece_id and p.status = 'making'
+    returning p.id, p.tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'piece.moved', 'content', 'piece', s.id,
+           jsonb_strip_nulls(jsonb_build_object('to', 'making', 'step', p_machine ->> 'name'))
+      from stepped s
+    returning 1
+  )
+  select exists (select 1 from stepped);
+$$;
+
+-- piece_version_ready
+CREATE OR REPLACE FUNCTION public.piece_version_ready(p_file_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_new    public.pieces;
+  v_root   public.pieces;
+  v_n      integer;
+  v_voided integer;
+begin
+  select * into v_new from public.pieces p
+   where p.file_id = p_file_id and p.revises is not null order by p.created_at desc limit 1;
+  if not found then
+    return null;
+  end if;
+  select r.revision into v_n from public.piece_renditions r
+   where r.piece_id = v_new.revises and r.file_id = p_file_id order by r.revision desc limit 1;
+  if not found then
+    return null;
+  end if;
+  select * into v_root from public.pieces p where p.id = v_new.revises for update;
+  if v_root.revision >= v_n then
+    return jsonb_build_object('piece_id', v_root.id, 'revision', v_root.revision, 'voided', 0, 'again', true);
+  end if;
+  update public.pieces p
+     set revision = v_n, file_id = p_file_id, plan = v_new.plan, look = v_new.look, made_at = now(), updated_at = now()
+   where p.id = v_root.id;
+  -- What was approved of the version before and still waits stops standing: it asks again (call 14).
+  update public.approvals a set voided_at = now(), voided_why = 'changed'
+   where a.voided_at is null
+     and a.id in (select p.approval_id from public.posts p
+                   where p.tenant_id = v_root.tenant_id and p.piece_id = v_root.id and p.approval_id is not null
+                     and p.status = any (array['queued', 'preparing']));
+  get diagnostics v_voided = row_count;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_root.tenant_id, 'piece.moved', 'content', 'piece', v_root.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'made', 'revision', v_n, 'voided', v_voided)));
+  return jsonb_build_object('piece_id', v_root.id, 'revision', v_n, 'voided', v_voided, 'again', false);
+end $$;
+
+-- piece_words_keep
+CREATE OR REPLACE FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor     uuid := auth.uid();
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  v_words     text := nullif(btrim(p_caption), '');
+  v_piece     public.pieces;
+  v_rev       public.piece_revisions;
+  v_n         integer;
+  v_post      public.posts;
+  v_old       public.approvals;
+  v_snapshot  jsonb;
+  v_approval  uuid;
+  v_followed  integer := 0;
+begin
+  if v_actor is null and not v_service then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null
+     or (not v_service and not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_piece from public.pieces p
+   where p.tenant_id = p_tenant_id and p.file_id = p_file_id order by p.created_at desc limit 1 for update;
+  if found then
+    select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_piece.revision;
+    -- A piece no placement was ever approved of keeps no version yet: its first is written at its first approval.
+    if found and (v_rev.captions ->> 'instagram' is distinct from coalesce(v_words, '')
+                  or v_rev.captions ->> 'google' is distinct from coalesce(v_words, '')) then
+      v_n := v_piece.revision + 1;
+      insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+      values (p_tenant_id, v_piece.id, v_n, v_rev.plan,
+              jsonb_build_object('instagram', coalesce(v_words, ''), 'google', coalesce(v_words, '')),
+              array['caption'], case when v_service then 'ai' else 'owner' end, v_actor);
+      update public.pieces p set revision = v_n, updated_at = now() where p.id = v_piece.id;
+    end if;
+  end if;
+  for v_post in
+    select * from public.posts p
+     where p.tenant_id = p_tenant_id and p.file_id = p_file_id and p.status = 'queued' and p.kind <> 'story'
+       and p.caption is distinct from v_words
+     for update
+  loop
+    v_approval := v_post.approval_id;
+    select * into v_old from public.approvals a where a.tenant_id = p_tenant_id and a.id = v_post.approval_id;
+    if found and v_old.voided_at is null then
+      -- The same bytes, this placement alone, with the new words and the version they are: a new approval, by this member.
+      v_snapshot := v_old.snapshot
+        || jsonb_build_object(
+             'revision', jsonb_build_object('piece_id', v_post.piece_id, 'n', coalesce(v_n, v_post.revision)),
+             'placements', (select coalesce(jsonb_agg(e || jsonb_build_object('caption', v_words)), '[]'::jsonb)
+                              from jsonb_array_elements(v_old.snapshot -> 'placements') e
+                             where e ->> 'place' = v_post.place and e ->> 'kind' = v_post.kind),
+             'renditions', (select coalesce(jsonb_agg(e), '[]'::jsonb)
+                              from jsonb_array_elements(v_old.snapshot -> 'renditions') e
+                             where e ->> 'shape' = public.post_shape(v_post.place, v_post.kind)));
+      insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by, policy_edition)
+      values (p_tenant_id, 'piece_revision',
+              coalesce((select r.id from public.piece_revisions r
+                         where r.piece_id = v_post.piece_id and r.n = coalesce(v_n, v_post.revision)), v_old.subject_id),
+              v_snapshot, public.approval_hash(v_snapshot), v_actor, v_old.policy_edition)
+      returning id into v_approval;
+    end if;
+    update public.posts p
+       set caption = v_words, approval_id = v_approval, revision = coalesce(v_n, p.revision),
+           approved_by = v_actor, approved_at = now(), updated_at = now()
+     where p.id = v_post.id;
+    v_followed := v_followed + 1;
+  end loop;
+  -- Its words changed, as a new version or on the posts still waiting: on the ledger once.
+  if v_n is not null or v_followed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'piece.moved', 'content', 'piece', v_piece.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'words', 'revision', v_n, 'followed', v_followed, 'by', v_actor, 'file_id', p_file_id)));
+  end if;
+  return jsonb_build_object('revision', coalesce(v_n, v_piece.revision), 'followed', v_followed);
+end $$;
+
+-- file_media_failed
+CREATE OR REPLACE FUNCTION public.file_media_failed(p_media_ref text, p_error text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row    public.files;
+  v_failed boolean;
+  v_made   boolean := false;
+begin
+  select * into v_row from public.files f where f.media_ref = p_media_ref;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_row.tenant_id::text || '|files', 42));
+  -- A copy that could not be prepared again (00654): the file stays as it was, away, with why, and lets go of the
+  -- failed copy's id (the caller deletes it at the platform). Its media_status is never touched: the video itself was
+  -- prepared once, and still is what its stills and its words say.
+  update public.files f
+     set copy_state = 'away', copy_why = 'failed', media_ref = null, updated_at = now()
+   where f.id = v_row.id and f.removed_at is null and f.copy_state = 'returning' and f.media_ref = p_media_ref;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'file.media_moved', 'content', 'file', v_row.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'failed', 'copy', true)));
+    return jsonb_build_object('fate', 'unreturned', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id, 'made', false);
+  end if;
+  update public.files f
+     set media_status = 'failed',
+         media_error = left(coalesce(nullif(p_error, ''), 'ERR_UNKNOWN'), 80),
+         look_status = case when f.look_status = 'waiting' then 'failed' else f.look_status end,
+         looked_at = now(),
+         updated_at = now()
+   where f.id = v_row.id and f.removed_at is null and f.media_status in ('uploading', 'processing');
+  v_failed := found;
+  -- A video made here that the platform could not read (00613): its piece says so.
+  if v_failed then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_row.tenant_id, 'file.media_moved', 'content', 'file', v_row.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'error', left(coalesce(nullif(p_error, ''), 'ERR_UNKNOWN'), 80))));
+    update public.pieces p set status = 'failed', failed_why = 'store', machine = null, updated_at = now()
+     where p.tenant_id = v_row.tenant_id and p.file_id = v_row.id and p.status = 'making';
+    v_made := found;
+  end if;
+  return jsonb_build_object('fate', case when v_failed then 'failed' else 'repeated' end,
+                            'tenant_id', v_row.tenant_id, 'file_id', v_row.id, 'made', v_made);
+end $$;
+
+-- file_media_processing
+CREATE OR REPLACE FUNCTION public.file_media_processing(p_tenant_id uuid, p_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.files f set media_status = 'processing', updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.kind = 'video' and f.media_status = 'uploading'
+     and f.removed_at is null;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.media_moved', 'content', 'file', p_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'processing', 'by', v_actor)));
+  end if;
+end $$;
+/* -- a week's plan and its slots: each move with its event -- */
+
+-- A week's content plan moves (asked for, held to go, stopped, approved, made, its making begun) and each of its slots
+-- (made into a post or a video, prepared, left out, put back, moved, approved): each now writes content_plan.moved or
+-- plan_slot.moved in its own transaction, with where it moved to and who, where a member did. The goals the owner set
+-- write content_goals.kept. All are kept from Activity's rows: Content draws the week as it stands.
+
+-- plan_slot_made
+CREATE OR REPLACE FUNCTION public.plan_slot_made(p_tenant_id uuid, p_slot_id uuid, p_made jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  v_slot   public.plan_slots;
+  v_post   uuid := nullif(p_made ->> 'post_id', '')::uuid;
+  v_piece  uuid := nullif(p_made ->> 'piece_id', '')::uuid;
+  v_held   jsonb := p_made -> 'held';
+begin
+  if v_actor is null and not v_service then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null
+     or (not v_service and not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_slot from public.plan_slots s where s.tenant_id = p_tenant_id and s.id = p_slot_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_slot.state <> 'approved' or v_slot.post_id is not null then
+    return jsonb_build_object('fate', v_slot.state);
+  end if;
+  if v_post is not null then
+    if not exists (select 1 from public.posts p where p.tenant_id = p_tenant_id and p.id = v_post) then
+      return jsonb_build_object('fate', 'gone');
+    end if;
+    update public.plan_slots set post_id = v_post, updated_at = now() where id = v_slot.id;
+  elsif v_piece is not null then
+    if not exists (select 1 from public.pieces p where p.tenant_id = p_tenant_id and p.id = v_piece) then
+      return jsonb_build_object('fate', 'gone');
+    end if;
+    update public.plan_slots set piece_id = v_piece, updated_at = now() where id = v_slot.id;
+  elsif jsonb_typeof(v_held) = 'object' then
+    update public.plan_slots set state = 'blocked', blocked_why = v_held ->> 'why',
+                                 blocked_reason = left(btrim(v_held ->> 'reason'), 400), updated_at = now()
+     where id = v_slot.id;
+  else
+    raise exception 'A slot is made into a post or a video, or held with why.' using errcode = '22023';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'plan_slot.moved', 'content', 'plan_slot', v_slot.id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_post is not null then 'post' when v_piece is not null then 'piece' else 'blocked' end, 'why', v_held ->> 'why', 'by', v_actor)));
+  return jsonb_build_object('fate', 'made', 'slot_id', v_slot.id);
+end $$;
+
+-- plan_slot_prepared
+CREATE OR REPLACE FUNCTION public.plan_slot_prepared(p_tenant_id uuid, p_slot_id uuid, p_prepared jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if coalesce((select auth.role()), '') <> 'service_role' then
+    raise exception 'Only the service prepares a slot.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_prepared) is distinct from 'object' or (p_prepared ->> 'file_id') is null
+     or (p_prepared ->> 'from') is null or (p_prepared ->> 'at') is null
+     or jsonb_typeof(p_prepared -> 'approval') is distinct from 'object' then
+    raise exception 'A prepared slot names its made file, the footage it was drawn from, its time and its approval.' using errcode = '22023';
+  end if;
+  -- Only as the slot stands: its footage swapped while its picture was drawn, the drawing is of what it no longer shows.
+  update public.plan_slots s set prepared = p_prepared, updated_at = now()
+    from public.content_plans p
+   where s.tenant_id = p_tenant_id and s.id = p_slot_id and s.state = 'proposed'
+     and s.file_id = (p_prepared ->> 'from')::uuid
+     and p.tenant_id = p_tenant_id and p.id = s.plan_id and p.status = 'ready';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'plan_slot.moved', 'content', 'plan_slot', p_slot_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'prepared', 'file_id', p_prepared ->> 'file_id')));
+  return true;
+end $$;
+
+-- plan_slot_set
+CREATE OR REPLACE FUNCTION public.plan_slot_set(p_tenant_id uuid, p_slot_id uuid, p_change jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor     uuid := auth.uid();
+  v_slot      public.plan_slots;
+  v_to        text := p_change ->> 'to';
+  v_approval  uuid;
+  v_snapshot  jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_slot from public.plan_slots s where s.tenant_id = p_tenant_id and s.id = p_slot_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_slot.state = 'posted' or v_slot.post_id is not null then
+    return jsonb_build_object('fate', 'posted');
+  end if;
+  if v_to = 'removed' then
+    update public.plan_slots set state = 'removed', blocked_why = null, blocked_reason = null, updated_at = now()
+     where id = v_slot.id;
+  elsif v_to = 'proposed' then
+    if v_slot.state not in ('removed', 'blocked', 'needs_footage') then
+      return jsonb_build_object('fate', v_slot.state);
+    end if;
+    update public.plan_slots set state = 'proposed', blocked_why = null, blocked_reason = null,
+                                 file_id = coalesce(nullif(p_change ->> 'file_id', '')::uuid, file_id),
+                                 updated_at = now()
+     where id = v_slot.id;
+  elsif v_to = 'at' then
+    if (p_change ->> 'at')::timestamptz <= now() then
+      return jsonb_build_object('fate', 'past');
+    end if;
+    update public.plan_slots set at = (p_change ->> 'at')::timestamptz, updated_at = now() where id = v_slot.id;
+  elsif v_to = 'approved' then
+    -- A proposed slot, or an approved one that could not be made, or whose video was not (Try again): its own approval,
+    -- and it is made anew.
+    if not (v_slot.state = 'proposed' or (v_slot.state = 'blocked' and v_slot.blocked_why = 'unmade')
+            or (v_slot.state = 'approved' and exists (select 1 from public.pieces p
+                                                     where p.tenant_id = p_tenant_id and p.id = v_slot.piece_id
+                                                       and p.status = 'failed'))) then
+      return jsonb_build_object('fate', v_slot.state);
+    end if;
+    v_snapshot := jsonb_build_object('slots', jsonb_build_array(jsonb_build_object(
+      'id', v_slot.id, 'place', v_slot.place, 'kind', v_slot.kind, 'at', v_slot.at, 'file_id', v_slot.file_id,
+      'title', v_slot.title, 'intent', v_slot.intent)));
+    insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by)
+    values (p_tenant_id, 'plan', v_slot.plan_id, v_snapshot, public.approval_hash(v_snapshot), v_actor)
+    returning id into v_approval;
+    update public.plan_slots set state = 'approved', approval_id = v_approval, blocked_why = null, blocked_reason = null,
+                                 piece_id = null, updated_at = now()
+     where id = v_slot.id;
+  else
+    raise exception 'A slot is left out, put back, moved or approved.' using errcode = '22023';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'plan_slot.moved', 'content', 'plan_slot', v_slot.id,
+          jsonb_strip_nulls(jsonb_build_object('to', v_to, 'from', v_slot.state, 'at', case when v_to = 'at' then p_change ->> 'at' end, 'by', v_actor)));
+  return jsonb_build_object('fate', 'done', 'slot_id', v_slot.id, 'approval_id', v_approval);
+end $$;
+
+-- content_plan_begin
+CREATE OR REPLACE FUNCTION public.content_plan_begin(p_tenant_id uuid, p_week_of date, p_asked_by text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_plan public.content_plans;
+begin
+  select * into v_plan from public.content_plans p
+   where p.tenant_id = p_tenant_id and p.week_of = p_week_of for update;
+  if found and v_plan.status in ('approved', 'done') then
+    return jsonb_build_object('fate', 'approved', 'plan_id', v_plan.id);
+  end if;
+  if found then
+    delete from public.plan_slots s where s.tenant_id = p_tenant_id and s.plan_id = v_plan.id;
+    update public.content_plans set status = 'drafting', fewer = null, ready_at = null, asked_by = p_asked_by,
+                                    asked_at = now()
+     where id = v_plan.id returning * into v_plan;
+  else
+    insert into public.content_plans (tenant_id, week_of, asked_by) values (p_tenant_id, p_week_of, p_asked_by)
+    returning * into v_plan;
+  end if;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'content_plan', now(), jsonb_build_object('plan_id', v_plan.id))
+  on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'drafting', 'week_of', p_week_of, 'asked_by', p_asked_by, 'by', auth.uid())));
+  return jsonb_build_object('fate', 'drafting', 'plan_id', v_plan.id);
+end $$;
+
+-- content_week_stop
+CREATE OR REPLACE FUNCTION public.content_week_stop(p_tenant_id uuid, p_plan_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_plan   public.content_plans;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_plan from public.content_plans p where p.tenant_id = p_tenant_id and p.id = p_plan_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_plan.status <> 'ready' then
+    return jsonb_build_object('fate', v_plan.status);
+  end if;
+  if v_plan.goes_at is null then
+    return jsonb_build_object('fate', 'asks');
+  end if;
+  -- Nothing more of it is prepared: a making already begun still holds its place until it is said done.
+  update public.content_plans set goes_at = null, stopped_at = now(), stopped_by = v_actor, make_queued_at = null
+   where id = v_plan.id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'stopped', 'by', v_actor)));
+  return jsonb_build_object('fate', 'stopped', 'plan_id', v_plan.id);
+end $$;
+
+-- content_week_hold
+CREATE OR REPLACE FUNCTION public.content_week_hold(p_tenant_id uuid, p_plan_id uuid, p_goes_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_plan    public.content_plans;
+  v_rung    text;
+  v_first   timestamptz;
+  v_spread  integer;
+  v_due     timestamptz;
+begin
+  if coalesce((select auth.role()), '') <> 'service_role' then
+    raise exception 'Only the service holds a week.' using errcode = '42501';
+  end if;
+  select * into v_plan from public.content_plans p where p.tenant_id = p_tenant_id and p.id = p_plan_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  select p.mode into v_rung from public.policies p
+   where p.tenant_id = p_tenant_id and p.class = 'plan_approve' and p.subject_type is null;
+  -- Let go: asked to, or a week no longer ready, stopped, or under a rung that asks. Nothing on a screen says it goes up,
+  -- and nothing of it is prepared.
+  if p_goes_at is null or v_plan.status <> 'ready' or v_plan.stopped_at is not null
+     or v_rung is null or v_rung not in ('veto', 'auto') then
+    update public.content_plans set goes_at = null, make_queued_at = null
+     where id = v_plan.id and status = 'ready' and (goes_at is not null or make_queued_at is not null);
+    if found then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+              jsonb_strip_nulls(jsonb_build_object('to', 'let_go')));
+    end if;
+    return jsonb_build_object('fate', case when p_goes_at is null then 'let_go'
+                                           when v_plan.status <> 'ready' then v_plan.status
+                                           when v_plan.stopped_at is not null then 'stopped'
+                                           else 'asks' end);
+  end if;
+  if p_goes_at < now() - interval '1 minute' or p_goes_at > now() + interval '8 days' then
+    raise exception 'A week is held to a time within the week ahead.' using errcode = '22023';
+  end if;
+  select min(s.at) into v_first from public.plan_slots s
+   where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.state = 'proposed';
+  -- Its approval is spread over the hour after its time, each well before its own first post, so a zone's 8:00 never
+  -- arrives at once.
+  v_spread := greatest(0, least(3600,
+    floor(extract(epoch from (coalesce(v_first, p_goes_at) - p_goes_at - interval '20 minutes')))::integer));
+  v_due := p_goes_at + make_interval(secs => (abs(hashtext(p_plan_id::text)::bigint) % (v_spread + 1))::integer);
+  -- Prepared ahead, in turn, the earliest first post first: its pictures drawn and their approvals readied, nothing placed.
+  update public.content_plans set goes_at = p_goes_at, make_queued_at = now(), first_post_at = v_first, made_at = null,
+                                  make_tries = 0
+   where id = v_plan.id;
+  -- One a plan: held again (the week drafted again, or a later time), its job moves with it.
+  update public.jobs j set due_at = v_due
+   where j.tenant_id = p_tenant_id and j.kind = 'content_week_go' and j.payload ->> 'plan_id' = p_plan_id::text
+     and j.state = 'scheduled';
+  if not found then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'content_week_go', v_due, jsonb_build_object('plan_id', p_plan_id::text))
+    on conflict do nothing;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'held', 'goes_at', p_goes_at, 'mode', v_rung)));
+  return jsonb_build_object('fate', 'held', 'goes_at', p_goes_at, 'due_at', v_due, 'mode', v_rung);
+end $$;
+
+-- content_week_approve
+CREATE OR REPLACE FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor     uuid := auth.uid();
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  v_plan      public.content_plans;
+  v_wanted    jsonb := coalesce(p_snapshot -> 'slots', '[]'::jsonb);
+  v_matching  integer;
+  v_approval  uuid;
+  v_rung      text;
+  v_slot      public.plan_slots;
+  v_placed    jsonb;
+  v_left      timestamptz;
+  v_put       integer := 0;
+  v_snapshot  jsonb := p_snapshot;
+begin
+  if v_actor is null and not v_service then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null
+     or (not v_service and not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_plan from public.content_plans p where p.tenant_id = p_tenant_id and p.id = p_plan_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_plan.status <> 'ready' then
+    return jsonb_build_object('fate', v_plan.status);
+  end if;
+  -- AI approves only a week held to a time that has come, not stopped, under a rung that still holds or sends it.
+  if v_service then
+    if v_plan.stopped_at is not null then
+      return jsonb_build_object('fate', 'stopped');
+    end if;
+    if v_plan.goes_at is null or v_plan.goes_at > now() + interval '1 minute' then
+      return jsonb_build_object('fate', 'held');
+    end if;
+    select p.mode into v_rung from public.policies p
+     where p.tenant_id = p_tenant_id and p.class = 'plan_approve' and p.subject_type is null;
+    if v_rung is null or v_rung not in ('veto', 'auto') then
+      update public.content_plans set goes_at = null, make_queued_at = null where id = v_plan.id;
+      return jsonb_build_object('fate', 'asks');
+    end if;
+    v_snapshot := p_snapshot || jsonb_build_object('rung', jsonb_build_object('class', 'plan_approve', 'mode', v_rung));
+  end if;
+  if jsonb_typeof(v_wanted) <> 'array' or jsonb_array_length(v_wanted) = 0 then
+    return jsonb_build_object('fate', 'nothing');
+  end if;
+  -- Every slot the snapshot names is this plan's, still proposed, and as the snapshot says it.
+  select count(*) into v_matching
+    from jsonb_array_elements(v_wanted) w
+    join public.plan_slots s on s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.id = (w ->> 'id')::uuid
+   where s.state = 'proposed' and s.place = w ->> 'place' and s.kind = w ->> 'kind'
+     and s.at = (w ->> 'at')::timestamptz and s.file_id is not distinct from nullif(w ->> 'file_id', '')::uuid;
+  if v_matching <> jsonb_array_length(v_wanted) then
+    return jsonb_build_object('fate', 'changed');
+  end if;
+  insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by)
+  values (p_tenant_id, 'plan', p_plan_id, v_snapshot, public.approval_hash(v_snapshot), v_actor)
+  returning id into v_approval;
+  update public.plan_slots s set state = 'approved', approval_id = v_approval, updated_at = now()
+    from jsonb_array_elements(v_wanted) w
+   where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.id = (w ->> 'id')::uuid;
+  -- 00714: a held week its owner approves by their own press leaves AI's making queue: that press makes it.
+  update public.content_plans set status = 'approved', approval_id = v_approval, approved_at = now(),
+                                  approved_by = v_actor, make_queued_at = null
+   where id = p_plan_id;
+  -- 00714: under the rung, each slot prepared ahead is placed now, in this transaction, as its own approval of the
+  -- bytes and words drawn for it (plan_slot_place: one post a slot), only while its time and its footage stand as they
+  -- were prepared and its time is more than five minutes off. What is not placed is made in turn after, the week queued
+  -- for it, its earliest slot first.
+  if v_service then
+    for v_slot in
+      select s.* from public.plan_slots s
+       where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.approval_id = v_approval
+         and s.prepared is not null and s.post_id is null
+         and (s.prepared ->> 'at')::timestamptz = s.at and s.at > now() + interval '5 minutes'
+         and (s.prepared ->> 'from')::uuid is not distinct from s.file_id
+       order by s.at
+    loop
+      begin
+        v_placed := public.plan_slot_place(p_tenant_id, v_slot.id, (v_slot.prepared ->> 'file_id')::uuid,
+                                           v_slot.prepared -> 'approval');
+      exception when others then
+        v_placed := jsonb_build_object('fate', 'refused');
+      end;
+      if v_placed ->> 'fate' = 'approved' then
+        v_put := v_put + 1;
+      end if;
+    end loop;
+    select min(s.at) into v_left from public.plan_slots s
+     where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id and s.approval_id = v_approval
+       and s.post_id is null and s.piece_id is null;
+    update public.content_plans
+       set make_queued_at = case when v_left is null then null else now() end, first_post_at = v_left,
+           made_at = case when v_left is null then now() end, make_tries = 0,
+           -- A preparing still under way keeps its place until it is said done; a finished pass holds none.
+           making_since = case when made_at is null then making_since end
+     where id = p_plan_id;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', p_plan_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'approved', 'slots', v_matching, 'placed', v_put, 'by', v_actor)));
+  return jsonb_build_object('fate', 'approved', 'approval_id', v_approval, 'slots', v_matching, 'placed', v_put);
+end $$;
+
+-- content_week_made
+CREATE OR REPLACE FUNCTION public.content_week_made(p_tenant_id uuid, p_plan_id uuid, p_pass text, p_cap integer, p_lease_seconds integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_found  boolean;
+begin
+  if coalesce((select auth.role()), '') <> 'service_role' then
+    raise exception 'Only the service says a week was made.' using errcode = '42501';
+  end if;
+  if p_pass is null or p_pass not in ('prepare', 'make') then
+    raise exception 'A week is prepared while held, or made once approved.' using errcode = '22023';
+  end if;
+  update public.content_plans set made_at = now()
+   where tenant_id = p_tenant_id and id = p_plan_id and made_at is null
+     and ((p_pass = 'prepare' and status = 'ready') or (p_pass = 'make' and status = 'approved'));
+  v_found := found;
+  if v_found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', p_plan_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'made', 'pass', p_pass)));
+  end if;
+  if not v_found then
+    -- A pass the week has moved past (approved while it was being prepared): its place is free for the next.
+    update public.content_plans set making_since = null
+     where tenant_id = p_tenant_id and id = p_plan_id and made_at is null;
+  end if;
+  return jsonb_build_object('fate', case when v_found then 'made' else 'moved_on' end,
+                            'started', public.content_weeks_start(p_cap, p_lease_seconds));
+end $$;
+
+-- content_weeks_start
+CREATE OR REPLACE FUNCTION public.content_weeks_start(p_cap integer, p_lease_seconds integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_free     integer;
+  v_started  integer := 0;
+  v_plan     record;
+begin
+  if coalesce((select auth.role()), '') <> 'service_role' then
+    raise exception 'Only the service starts the making queue.' using errcode = '42501';
+  end if;
+  if p_cap is null or p_cap not between 1 and 200 or p_lease_seconds is null or p_lease_seconds not between 60 and 3600 then
+    raise exception 'A cap of 1 to 200 at once, and a lease of a minute to an hour.' using errcode = '22023';
+  end if;
+  -- One start at a time, platform-wide: the count below is of what is there.
+  perform pg_advisory_xact_lock(hashtextextended('content_weeks_start', 42));
+  -- Being made now: begun, not said done, within its lease. A week stopped or approved meanwhile still holds its place.
+  select p_cap - count(*) into v_free from public.content_plans p
+   where p.made_at is null and p.making_since > now() - make_interval(secs => p_lease_seconds);
+  if v_free <= 0 then
+    return 0;
+  end if;
+  -- Held and not stopped (prepared ahead), or approved by nobody's press under the rung (what is left made). A week its
+  -- owner approved by hand is made by that press, never here.
+  for v_plan in
+    select p.id, p.tenant_id from public.content_plans p
+     where p.make_queued_at is not null and p.made_at is null and p.make_tries < 3
+       and (p.making_since is null or p.making_since <= now() - make_interval(secs => p_lease_seconds))
+       and ((p.status = 'ready' and p.goes_at is not null and p.stopped_at is null)
+            or (p.status = 'approved' and p.approved_by is null))
+     order by p.first_post_at nulls last, p.make_queued_at, p.id
+     limit v_free
+     for update skip locked
+  loop
+    update public.content_plans set making_since = now(), make_tries = make_tries + 1 where id = v_plan.id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_plan.tenant_id, 'content_plan.moved', 'content', 'content_plan', v_plan.id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'making')));
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (v_plan.tenant_id, 'content_week_make', now(), jsonb_build_object('plan_id', v_plan.id::text))
+    on conflict do nothing;
+    v_started := v_started + 1;
+  end loop;
+  return v_started;
+end $$;
+
+-- content_goals_keep
+CREATE OR REPLACE FUNCTION public.content_goals_keep(p_tenant_id uuid, p_goals jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_goal  jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_goals) <> 'array' or jsonb_array_length(p_goals) > 8 then
+    raise exception 'Goals are a list of at most eight.' using errcode = '22023';
+  end if;
+  -- The whole set at once: what the owner said now stands, what they said before stops standing.
+  update public.content_goals set active = false where tenant_id = p_tenant_id and active;
+  for v_goal in select e from jsonb_array_elements(p_goals) e loop
+    insert into public.content_goals (tenant_id, goal, detail, weight, created_by)
+    values (p_tenant_id, v_goal ->> 'goal', coalesce(v_goal -> 'detail', '{}'::jsonb),
+            coalesce((v_goal ->> 'weight')::real, 1), v_actor);
+  end loop;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_goals.kept', 'content', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('goals', jsonb_array_length(p_goals), 'by', v_actor)));
+  return coalesce((select jsonb_agg(to_jsonb(g) order by g.created_at) from public.content_goals g
+                    where g.tenant_id = p_tenant_id and g.active), '[]'::jsonb);
+end $$;
+
+-- content_plan_write
+CREATE OR REPLACE FUNCTION public.content_plan_write(p_tenant_id uuid, p_plan_id uuid, p_slots jsonb, p_fewer text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_plan  public.content_plans;
+  v_slot  jsonb;
+begin
+  select * into v_plan from public.content_plans p where p.tenant_id = p_tenant_id and p.id = p_plan_id for update;
+  if not found then
+    return jsonb_build_object('fate', 'gone');
+  end if;
+  if v_plan.status <> 'drafting' then
+    return jsonb_build_object('fate', v_plan.status);
+  end if;
+  if jsonb_typeof(p_slots) <> 'array' or jsonb_array_length(p_slots) > 40 then
+    raise exception 'A plan''s slots are a list of at most forty.' using errcode = '22023';
+  end if;
+  delete from public.plan_slots s where s.tenant_id = p_tenant_id and s.plan_id = p_plan_id;
+  for v_slot in select e from jsonb_array_elements(p_slots) e loop
+    insert into public.plan_slots (tenant_id, plan_id, creative, place, kind, at, title, reason, file_id, intent, words,
+                                   state, blocked_why, blocked_reason, ask, score)
+    values (p_tenant_id, p_plan_id, (v_slot ->> 'creative')::uuid, v_slot ->> 'place', v_slot ->> 'kind',
+            (v_slot ->> 'at')::timestamptz, v_slot ->> 'title', nullif(v_slot ->> 'reason', ''),
+            nullif(v_slot ->> 'file_id', '')::uuid, nullif(v_slot -> 'intent', 'null'::jsonb),
+            nullif(v_slot -> 'words', 'null'::jsonb), coalesce(v_slot ->> 'state', 'proposed'), nullif(v_slot ->> 'blocked_why', ''),
+            nullif(v_slot ->> 'blocked_reason', ''), nullif(v_slot -> 'ask', 'null'::jsonb),
+            nullif(v_slot -> 'score', 'null'::jsonb));
+  end loop;
+  update public.content_plans set status = 'ready', fewer = nullif(btrim(coalesce(p_fewer, '')), ''), ready_at = now()
+   where id = p_plan_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'content_plan.moved', 'content', 'content_plan', p_plan_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'ready', 'slots', jsonb_array_length(p_slots))));
+  return jsonb_build_object('fate', 'ready', 'slots', jsonb_array_length(p_slots));
+end $$;
+
+-- content_plans_hand_out
+CREATE OR REPLACE FUNCTION public.content_plans_hand_out(p_spread_seconds integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant  record;
+  v_handed  integer := 0;
+  v_answer  jsonb;
+begin
+  for v_tenant in
+    select t.id, (((now() at time zone t.timezone)::date) + 1) as week_of
+      from public.tenants t
+      join public.tenant_config c on c.tenant_id = t.id
+     where coalesce((c.config -> 'features' ->> 'content_plan')::boolean, false)
+       and extract(isodow from (now() at time zone t.timezone)) = 7
+       and extract(hour from (now() at time zone t.timezone)) >= 18
+       and not exists (select 1 from public.content_plans p
+                        where p.tenant_id = t.id and p.week_of = ((now() at time zone t.timezone)::date) + 1)
+  loop
+    v_answer := public.content_plan_begin(v_tenant.id, v_tenant.week_of, 'clock');
+    if v_answer ->> 'fate' = 'drafting' then
+      update public.jobs set due_at = now() + make_interval(secs => abs(hashtext(v_tenant.id::text)::bigint)
+                                                             % greatest(p_spread_seconds, 1))
+       where tenant_id = v_tenant.id and kind = 'content_plan' and payload ->> 'plan_id' = v_answer ->> 'plan_id'
+         and state = 'scheduled';
+      v_handed := v_handed + 1;
+    end if;
+  end loop;
+  -- A week that has passed is done.
+  with done as (
+    update public.content_plans p set status = 'done', done_at = now()
+      from public.tenants t
+     where t.id = p.tenant_id and p.status in ('ready', 'approved')
+       and p.week_of + 7 <= (now() at time zone t.timezone)::date
+    returning p.id, p.tenant_id
+  )
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select d.tenant_id, 'content_plan.moved', 'content', 'content_plan', d.id, jsonb_build_object('to', 'done')
+    from done d;
+  return v_handed;
+end $$;
+/* -- a video's copy at the platform, and its copy on the shelf: each move with its event -- */
+
+-- A video's copy at the platform moves (going to make room, gone, kept, returning, lost, back) and its copy on the shelf
+-- (begun, saved again, checked, failed): each now writes file_copy.moved or file_shelf.moved in its own transaction,
+-- with where it moved to and why. Both are kept from Activity's rows: Files says where each copy stands.
+
+-- file_copies_let_go
+CREATE OR REPLACE FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_short numeric;
+  v_gone  jsonb;
+begin
+  -- One at a time, as every door that names or files takes it (00551): the room is read under it.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- By room: how many seconds must be freed for a video of p_seconds to fit. None: nothing is let go.
+  if p_seconds is not null then
+    v_short := p_seconds - public.video_seconds_free(p_tenant_id);
+    if v_short <= 0 then
+      return '[]'::jsonb;
+    end if;
+  end if;
+  with eligible as (
+    -- Only what can come back is let go by itself: a watched folder's clip its owner did not also upload, that can
+    -- be fetched again (00674: a folder being read, or one stopped whose account reads), or a video with a checked
+    -- copy on the shelf (00695); playable, looked at (or past the week a look is tried again in); named by no video
+    -- being made; and not used, or arrived, since the rest began.
+    select f.id, f.seconds, coalesce(f.copy_used_at, f.ready_at, f.created_at) as used_at
+      from public.files f
+     where f.tenant_id = p_tenant_id and f.kind = 'video'
+       and f.removed_at is null and f.copy_state = 'here' and f.media_status = 'ready' and f.media_ref is not null
+       and (f.look_status = any (array['done', 'refused']) or f.created_at < now() - interval '7 days')
+       and coalesce(f.copy_used_at, f.ready_at, f.created_at) < p_rested_before
+       and ((public.file_road_is_watched(f.source) and not f.owner_uploaded
+             and public.file_copy_comes_back(f.tenant_id, f.id))
+            or public.file_copy_shelved(f.tenant_id, f.id))
+       and not exists (select 1 from public.pieces p
+                        where p.tenant_id = f.tenant_id and p.status = 'making'
+                          and position(f.id::text in p.plan::text) > 0)
+  ),
+  ranked as (
+    select e.id, e.used_at,
+           coalesce(sum(coalesce(e.seconds, 0)) over (order by e.used_at, e.id
+                                                      rows between unbounded preceding and 1 preceding), 0) as freed_before,
+           sum(coalesce(e.seconds, 0)) over () as freed_all,
+           row_number() over (order by e.used_at, e.id) as place
+      from eligible e
+  ),
+  chosen as (
+    select r.id from ranked r
+     where r.place <= greatest(p_limit, 1)
+       and case
+             -- By room: the least recently used, as many as free what is short, and none where all of them would not.
+             when p_seconds is not null then r.freed_all >= v_short and r.freed_before < v_short
+             -- By age: each one unused since the time given.
+             else p_unused_before is not null and r.used_at < p_unused_before
+           end
+  ),
+  going as (
+    update public.files f
+       set copy_state = 'going', copy_why = null, updated_at = now()
+      from chosen c
+     where f.id = c.id and f.copy_state = 'here'
+    returning f.id, f.tenant_id, f.media_ref, f.seconds
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select g.tenant_id, 'file_copy.moved', 'content', 'file', g.id, jsonb_build_object('to', 'going')
+      from going g
+    returning 1
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'media_ref', g.media_ref, 'seconds', g.seconds)), '[]'::jsonb)
+    into v_gone
+    from going g;
+  return v_gone;
+end $$;
+
+-- file_copy_gone
+CREATE OR REPLACE FUNCTION public.file_copy_gone(p_tenant_id uuid, p_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_why text;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Away where an origin can still give it back; lost, with why, where none can any more.
+  v_why := public.file_copy_standing(p_tenant_id, p_id);
+  update public.files f
+     set copy_state = case when v_why is null then 'away' else 'lost' end, copy_why = v_why, media_ref = null,
+         updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.copy_state = 'going';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_why is null then 'away' else 'lost' end, 'why', v_why)));
+  -- There is room again: what waited for room in the videos is due now, as when a video is removed (00643).
+  update public.source_items i
+     set take_after = null
+   where i.tenant_id = p_tenant_id and i.state = 'waiting' and i.why = 'room';
+  return true;
+end $$;
+
+-- file_copy_kept
+CREATE OR REPLACE FUNCTION public.file_copy_kept(p_tenant_id uuid, p_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Marked going, and nothing was deleted: it still holds its id at the video platform, and plays.
+  update public.files f
+     set copy_state = 'here', copy_why = null, updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id and f.copy_state = 'going' and f.media_ref is not null;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'here')));
+  return true;
+end $$;
+
+-- file_copy_return_failed
+CREATE OR REPLACE FUNCTION public.file_copy_return_failed(p_tenant_id uuid, p_id uuid, p_why text, p_media_ref text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- By the attempt's own copy (or none, where the platform was never asked): a later return is never undone by an
+  -- earlier one's failure.
+  update public.files f
+     set copy_state = 'away', copy_why = p_why, media_ref = null, updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_id
+     and f.copy_state = 'returning' and f.media_ref is not distinct from p_media_ref;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', p_why)));
+  return true;
+end $$;
+
+-- file_copy_settle
+CREATE OR REPLACE FUNCTION public.file_copy_settle(p_tenant_id uuid, p_file_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_why text := public.file_copy_standing(p_tenant_id, p_file_id);
+  v_row public.files;
+begin
+  -- Only a copy that is away or lost is moved: one that is here, going or returning says where it stands itself.
+  update public.files f
+     set copy_state = case when v_why is null then 'away' else 'lost' end, copy_why = v_why, updated_at = now()
+   where f.tenant_id = p_tenant_id and f.id = p_file_id
+     and ((f.copy_state = 'away' and v_why is not null)
+          or (f.copy_state = 'lost' and v_why is distinct from f.copy_why));
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_file_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when v_why is null then 'away' else 'lost' end, 'why', v_why)));
+  end if;
+  select * into v_row from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found then
+    return jsonb_build_object('copy_state', null);
+  end if;
+  return jsonb_build_object('copy_state', v_row.copy_state, 'copy_why', v_row.copy_why,
+                            'item_id', public.file_copy_origin(p_tenant_id, p_file_id),
+                            'shelf', public.file_copy_shelved(p_tenant_id, p_file_id));
+end $$;
+
+-- file_copy_return_begin
+CREATE OR REPLACE FUNCTION public.file_copy_return_begin(p_tenant_id uuid, p_id uuid, p_units bigint, p_platform_bytes_max bigint, p_workspace_returns_max integer, p_units_max bigint, p_stale_seconds integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- Google counts a day in Pacific time, as a take's budget does (00643 source_take_spend).
+  v_day     date := (now() at time zone 'America/Los_Angeles')::date;
+  v_from    timestamptz := v_day::timestamp at time zone 'America/Los_Angeles';
+  v_until   timestamptz := (v_day + 1)::timestamp at time zone 'America/Los_Angeles';
+  v_row     public.files;
+  v_why     text;
+  v_binds   text;
+  v_spent   public.source_days;
+  v_returns integer;
+  v_shelf   boolean;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  select * into v_row from public.files f where f.tenant_id = p_tenant_id and f.id = p_id for update;
+  if not found or v_row.removed_at is not null or v_row.kind <> 'video' then
+    return jsonb_build_object('fate', 'none');
+  end if;
+  if v_row.copy_state = any (array['here', 'going']) then
+    return jsonb_build_object('fate', v_row.copy_state);
+  end if;
+  -- Being brought back already: a second asker joins it. One whose job died before the platform was asked (it holds
+  -- no id, and nothing touched it for a while) is begun again; its room is still held, and its budget was spent.
+  if v_row.copy_state = 'returning'
+     and (v_row.media_ref is not null
+          or v_row.updated_at >= now() - make_interval(secs => greatest(p_stale_seconds, 0))) then
+    return jsonb_build_object('fate', 'returning');
+  end if;
+  v_why := public.file_copy_standing(p_tenant_id, p_id);
+  if v_why is not null then
+    update public.files f set copy_state = 'lost', copy_why = v_why, media_ref = null, updated_at = now()
+     where f.id = p_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'lost', 'why', v_why)));
+    return jsonb_build_object('fate', 'lost', 'why', v_why);
+  end if;
+  if v_row.copy_state <> 'returning' then
+    -- Its own length must fit, as a take's: no room is the caller's to make (file_copies_let_go), and to ask again.
+    if public.file_video_room(p_tenant_id, v_row.seconds) = 'minutes' then
+      update public.files f set copy_state = 'away', copy_why = 'room', updated_at = now() where f.id = p_id;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+              jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'room')));
+      return jsonb_build_object('fate', 'room', 'seconds', v_row.seconds);
+    end if;
+    select count(*) into v_returns from public.files f
+     where f.tenant_id = p_tenant_id and f.copy_returned_at >= v_from;
+    v_shelf := public.file_copy_shelved(p_tenant_id, p_id);
+    if v_shelf then
+      -- From the shelf (00695): Chanlytics' own, so nothing of a provider's day is asked or written. The workspace's
+      -- own number of returns a day still binds.
+      if v_returns + 1 > p_workspace_returns_max then
+        update public.files f set copy_state = 'away', copy_why = 'budget', updated_at = now() where f.id = p_id;
+        insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+        values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+                jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'budget', 'binds', 'workspace_returns')));
+        return jsonb_build_object('fate', 'wait', 'binds', 'workspace_returns', 'until', v_until);
+      end if;
+    else
+      -- The day's budgets: each return is a whole download again.
+      insert into public.source_days (day) values (v_day) on conflict (day) do nothing;
+      select * into v_spent from public.source_days d where d.day = v_day for update;
+      v_binds := case
+        when v_spent.units + greatest(p_units, 0) > p_units_max then 'units'
+        when v_spent.bytes + greatest(v_row.bytes, 0) > p_platform_bytes_max then 'platform_bytes'
+        when v_returns + 1 > p_workspace_returns_max then 'workspace_returns'
+      end;
+      if v_binds is not null then
+        update public.files f set copy_state = 'away', copy_why = 'budget', updated_at = now() where f.id = p_id;
+        insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+        values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+                jsonb_strip_nulls(jsonb_build_object('to', 'away', 'why', 'budget', 'binds', v_binds)));
+        return jsonb_build_object('fate', 'wait', 'binds', v_binds, 'until', v_until);
+      end if;
+      update public.source_days d
+         set bytes = d.bytes + greatest(v_row.bytes, 0), returns = d.returns + 1, updated_at = now()
+       where d.day = v_day;
+    end if;
+  end if;
+  -- Returning from here on, so its length counts toward the minutes before the video platform is asked for anything.
+  update public.files f
+     set copy_state = 'returning', copy_why = null, media_ref = null,
+         copy_returned_at = case when v_row.copy_state = 'returning' then f.copy_returned_at else now() end,
+         updated_at = now()
+   where f.id = p_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_copy.moved', 'content', 'file', p_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'returning')));
+  return jsonb_build_object('fate', 'go');
+end $$;
+
+-- file_shelf_begin
+CREATE OR REPLACE FUNCTION public.file_shelf_begin(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text, p_seconds_max numeric) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_file  public.files;
+  v_state text;
+  v_used  numeric;
+  v_id    uuid;
+begin
+  if p_bytes is null or p_bytes < 1 or p_sha256 is null or p_sha256 !~ '^[0-9a-f]{64}$' then
+    raise exception 'A shelf copy names its bytes and their SHA-256.' using errcode = '22023';
+  end if;
+  -- One at a time, as every door that names or files takes it (00551): the shelf's room is read under it.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  -- Only a video made here: its own file is kept, which is what the shelf's copy is put from.
+  if not found or v_file.removed_at is not null or v_file.kind <> 'video' or v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'none');
+  end if;
+  select a.state into v_state from public.file_archives a
+   where a.tenant_id = p_tenant_id and a.file_id = p_file_id and a.origin = 'shelf';
+  if found then
+    return jsonb_build_object('fate', 'kept', 'state', v_state);
+  end if;
+  -- The shelf's room: what is there and what is on its way there, together (contracts FILE_SHELF_MINUTES_MAX).
+  select coalesce(sum(f.seconds), 0) into v_used
+    from public.file_archives a
+    join public.files f on f.tenant_id = a.tenant_id and f.id = a.file_id
+   where a.tenant_id = p_tenant_id and a.origin = 'shelf' and a.state = any (array['saving', 'saved', 'checked'])
+     and f.removed_at is null;
+  if v_used + coalesce(v_file.seconds, 0) > p_seconds_max then
+    return jsonb_build_object('fate', 'full');
+  end if;
+  insert into public.file_archives (tenant_id, file_id, origin, state)
+  values (p_tenant_id, p_file_id, 'shelf', 'saving')
+  returning id into v_id;
+  -- Its key is its workspace and its file, as the relay builds one from a ticket's own claims (apps/relay).
+  insert into public.file_archive_parts (tenant_id, archive_id, part, shelf_key, bytes, sha256, state)
+  values (p_tenant_id, v_id, 'video', p_tenant_id::text || '/' || p_file_id::text || '/video', p_bytes, p_sha256,
+          'saving');
+  -- Its job in the same step: a copy that is saving always has the job that puts it. As text: a job's once-only key
+  -- is made of strings (job_dedupe_key_of).
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_shelve', now(), jsonb_build_object('file_id', p_file_id::text))
+  on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'saving', 'bytes', p_bytes)));
+  return jsonb_build_object('fate', 'begun');
+end $_$;
+
+-- file_shelf_again
+CREATE OR REPLACE FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- The same bytes and the same SHA-256 are kept: only those can ever be put under its key.
+  update public.file_archives a set state = 'saving', why = null, checked_at = null
+   where a.tenant_id = p_tenant_id and a.file_id = p_file_id and a.origin = 'shelf'
+     and a.state = any (array['checked', 'failed'])
+     and exists (select 1 from public.files f
+                  where f.tenant_id = a.tenant_id and f.id = a.file_id and f.removed_at is null)
+  returning a.id into v_id;
+  if not found then
+    return false;
+  end if;
+  update public.file_archive_parts p set state = 'saving', checked_at = null
+   where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'file_shelve', now(), jsonb_build_object('file_id', p_file_id::text))
+  on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'saving', 'again', true)));
+  return true;
+end $$;
+
+-- file_shelf_failed
+CREATE OR REPLACE FUNCTION public.file_shelf_failed(p_tenant_id uuid, p_file_id uuid, p_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  if p_why is null or p_why <> all (array['mismatch', 'not_found', 'refused']) then
+    raise exception 'A shelf copy fails as a mismatch, as not found, or as refused.' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  update public.file_archives a set state = 'failed', why = p_why, checked_at = null
+   where a.tenant_id = p_tenant_id and a.file_id = p_file_id and a.origin = 'shelf'
+     and a.state = any (array['saving', 'saved'])
+  returning a.id into v_id;
+  if not found then
+    return false;
+  end if;
+  update public.file_archive_parts p set state = 'failed', checked_at = null
+   where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
+  -- Not found, or other bytes: the file it is put from is gone or is not the video, so a copy that is away has
+  -- nothing left to give it back, and says so. Refused (the shelf would not take it) loses nothing.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'why', p_why)));
+  perform public.file_copy_settle(p_tenant_id, p_file_id);
+  return true;
+end $$;
+
+-- file_shelf_checked
+CREATE OR REPLACE FUNCTION public.file_shelf_checked(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id     uuid;
+  v_state  text;
+  v_bytes  bigint;
+  v_sha256 text;
+  v_same   boolean;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  select a.id, a.state, p.bytes, p.sha256 into v_id, v_state, v_bytes, v_sha256
+    from public.file_archives a
+    join public.file_archive_parts p on p.tenant_id = a.tenant_id and p.archive_id = a.id and p.part = 'video'
+   where a.tenant_id = p_tenant_id and a.file_id = p_file_id and a.origin = 'shelf';
+  if not found then
+    return 'none';
+  end if;
+  -- Compared whole: the size, and the SHA-256 the shelf itself says. One it does not say is not a match.
+  v_same := p_bytes is not null and p_bytes = v_bytes and p_sha256 is not null and p_sha256 = v_sha256;
+  -- Asked again of one already checked (a second run of its job): the same answer, and nothing is written.
+  if v_state = 'checked' then
+    return case when v_same then 'checked' else 'none' end;
+  end if;
+  if v_state <> all (array['saving', 'saved']) then
+    return 'none';
+  end if;
+  if v_same then
+    update public.file_archive_parts p set state = 'checked', checked_at = now()
+     where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
+    update public.file_archives a set state = 'checked', why = null, checked_at = now() where a.id = v_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'checked')));
+    return 'checked';
+  end if;
+  update public.file_archive_parts p set state = 'failed', checked_at = null
+   where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
+  update public.file_archives a set state = 'failed', why = 'mismatch', checked_at = null where a.id = v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'why', 'mismatch')));
+  -- A copy that is away with nothing left to give it back says so.
+  perform public.file_copy_settle(p_tenant_id, p_file_id);
+  return 'mismatch';
+end $$;
+/* -- a post: its sends, its attempts, its link, a take-down: each move with its event -- */
+
+-- A post's moves that post_moved did not make (sent again, unanswered and checked, let go, moved to another time, kept
+-- by hand, taken down by hand, a take-down settled or left up) now write post.moved in their own transaction; each
+-- attempt at a place opened and closed writes post.attempted, a post's link made writes link.made, and a comment the
+-- owner answered at the place writes comment_answer.moved. All are kept from Activity's rows: Files says where each
+-- post stands.
+
+-- post_again
+CREATE OR REPLACE FUNCTION public.post_again(p_post_id uuid, p_from text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+begin
+  -- Its first send never landed: the second and last attempt, from a fresh container, with its job, in one transaction.
+  update public.posts p set status = 'queued', container_id = null, updated_at = now()
+   where p.id = p_post_id and p.status = p_from and p.attempts < 2
+  returning p.tenant_id into v_tenant;
+  if not found then
+    return false;
+  end if;
+  begin
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (v_tenant, 'post_prepare', now(), jsonb_build_object('post_id', p_post_id, 'attempt', '2'));
+  exception when unique_violation then
+    null;
+  end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'queued', 'again', true)));
+  return true;
+end $$;
+
+-- post_unanswered
+CREATE OR REPLACE FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+begin
+  -- Sent with no answer: Checking, and the reconcile that asks Instagram what it has, in one transaction, so a post is
+  -- never left Checking with nothing to settle it.
+  update public.posts p set status = 'checking', updated_at = now()
+   where p.id = p_post_id and p.status = 'publishing'
+  returning p.tenant_id into v_tenant;
+  if not found then
+    return false;
+  end if;
+  begin
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (v_tenant, 'post_reconcile', now() + interval '2 minutes',
+            jsonb_build_object('post_id', p_post_id, 'attempt', p_attempt));
+  exception when unique_violation then
+    -- One is on the ledger already: it asks.
+    null;
+  end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'publishing', 'to', 'checking', 'attempt', p_attempt)));
+  return true;
+end $$;
+
+-- post_attempt_open
+CREATE OR REPLACE FUNCTION public.post_attempt_open(p_post_id uuid, p_attempt_no integer, p_step text, p_request jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+  v_row    public.publish_attempts;
+begin
+  select p.tenant_id into v_tenant from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  insert into public.publish_attempts (tenant_id, post_id, attempt_no, step, request)
+  values (v_tenant, p_post_id, p_attempt_no, p_step, coalesce(p_request, '{}'::jsonb))
+  on conflict (post_id, attempt_no, step) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.attempted', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'open', 'attempt', p_attempt_no, 'step', p_step)));
+  end if;
+  select * into v_row from public.publish_attempts a
+   where a.post_id = p_post_id and a.attempt_no = p_attempt_no and a.step = p_step;
+  update public.posts p set attempts = greatest(p.attempts, p_attempt_no), updated_at = now()
+   where p.id = p_post_id and p.attempts < p_attempt_no;
+  -- Opened again by a run that took up where one died: the row as it stands, which may already be finished.
+  return jsonb_build_object('fate', 'open', 'id', v_row.id, 'finished', v_row.finished_at is not null,
+                            'outcome', v_row.outcome, 'container_id', v_row.container_id,
+                            'external_id', v_row.external_id);
+end $$;
+
+-- post_attempt_close
+CREATE OR REPLACE FUNCTION public.post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer DEFAULT NULL::integer, p_answer jsonb DEFAULT NULL::jsonb, p_container_id text DEFAULT NULL::text, p_external_id text DEFAULT NULL::text, p_error jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post uuid;
+begin
+  -- Never changed once finished: a second close of the same send is the first.
+  update public.publish_attempts a
+     set finished_at = now(), outcome = p_outcome, http_status = p_http_status,
+         answer = case when p_answer is null then null
+                       when octet_length(p_answer::text) > 4096
+                         then jsonb_build_object('cut', left(p_answer::text, 4000))
+                       else p_answer end,
+         container_id = p_container_id, external_id = p_external_id, error = p_error
+   where a.id = p_attempt_id and a.finished_at is null
+  returning a.post_id into v_post;
+  if not found then
+    return false;
+  end if;
+  update public.posts p
+     set container_id = coalesce(p_container_id, p.container_id),
+         external_id = coalesce(p_external_id, p.external_id),
+         error = case when p_outcome = 'ok' then p.error else coalesce(p_error, p.error) end,
+         updated_at = now()
+   where p.id = v_post;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select p.tenant_id, 'post.attempted', 'content', 'post', p.id,
+         jsonb_strip_nulls(jsonb_build_object('to', 'closed', 'outcome', p_outcome, 'http_status', p_http_status))
+    from public.posts p where p.id = v_post;
+  return true;
+end $$;
+
+-- post_pull
+CREATE OR REPLACE FUNCTION public.post_pull(p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_tenant uuid;
+  v_status text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select p.tenant_id, p.status into v_tenant, v_status from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if not coalesce(public.caller_has_permission(v_tenant, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- Up to the moment it is sent (the jobs read the row before they act, so a pulled post is never sent), and once it
+  -- stopped: let go, it waits for no one. One the owner said they posted by hand is theirs to take back (00620).
+  update public.posts p set status = 'pulled', updated_at = now()
+   where p.id = p_post_id
+     and (p.status = any (array['queued', 'preparing', 'held', 'failed']) or (p.place = 'hand' and p.status = 'published'));
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_tenant, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('from', v_status, 'to', 'pulled', 'by', auth.uid())));
+    return jsonb_build_object('fate', 'pulled');
+  end if;
+  return jsonb_build_object('fate', 'late', 'status', v_status);
+end $$;
+
+-- post_move
+CREATE OR REPLACE FUNCTION public.post_move(p_post_id uuid, p_when timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post public.posts;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_post from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if not coalesce(public.caller_has_permission(v_post.tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_when is null or p_when <= now() then
+    raise exception 'A new time is later than now.' using errcode = '22023';
+  end if;
+  -- contracts POST_AHEAD_DAYS_MAX, as post_begin holds it.
+  if p_when > now() + interval '30 days' then
+    raise exception 'A post goes within thirty days.' using errcode = '22023';
+  end if;
+  -- Held while it moves: Don't post and the job's own run wait on this row, and then find it moved.
+  select * into v_post from public.posts p where p.id = p_post_id and p.status = 'queued' for update;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', (select p.status from public.posts p where p.id = p_post_id));
+  end if;
+  -- Its job moves only while no run has taken it: a run that has is already making it ready, or sending it.
+  update public.jobs j
+     set due_at = case when j.kind = 'post_prepare' then greatest(now(), p_when - interval '10 minutes') else p_when end,
+         updated_at = now()
+   where j.tenant_id = v_post.tenant_id and j.kind = any (array['post_prepare', 'post_google']) and j.state = 'scheduled'
+     and j.payload ->> 'post_id' = p_post_id::text;
+  if not found then
+    return jsonb_build_object('fate', 'late', 'status', v_post.status);
+  end if;
+  update public.posts p set scheduled_for = p_when, updated_at = now() where p.id = p_post_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_post.tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('from', 'queued', 'to', 'queued', 'at', p_when, 'was', v_post.scheduled_for, 'by', auth.uid())));
+  return jsonb_build_object('fate', 'moved');
+end $$;
+
+-- post_report
+CREATE OR REPLACE FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_actor uuid := auth.uid();
+  v_file  public.files;
+  v_link  text := nullif(btrim(p_link), '');
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_link is not null and (char_length(v_link) > 500 or v_link !~* '^https://[^[:space:]]+$') then
+    raise exception 'A link starts with https:// and is at most 500 characters.' using errcode = '22023';
+  end if;
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'post_id', null);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
+  end if;
+  -- Said once a piece, which the database holds (posts_one_by_hand): said again, at once or twice together, it is the same
+  -- record, with the link it now has.
+  insert into public.posts as p (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via,
+                                 status, permalink, published_at)
+  values (p_tenant_id, p_file_id, 'hand', case when v_file.kind = 'video' then 'reel' else 'picture' end, null, now(),
+          v_actor, now(), 'press', 'published', v_link, now())
+  on conflict (file_id) where place = 'hand' and status = 'published'
+  do update set permalink = coalesce(excluded.permalink, p.permalink), updated_at = now()
+  returning p.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'published', 'by_hand', true, 'by', v_actor)));
+  return jsonb_build_object('fate', 'kept', 'post_id', v_id);
+end $_$;
+
+-- post_link_make
+CREATE OR REPLACE FUNCTION public.post_link_make(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post  public.posts%rowtype;
+  v_lands text;
+  v_link  public.links%rowtype;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'post_link_make: not a member who may act here' using errcode = '42501';
+  end if;
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    raise exception 'post_link_make: no such post in this workspace' using errcode = 'P0002';
+  end if;
+  select * into v_link from public.links l
+   where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+  if not found then
+    -- Its call to action decides where it lands: the booking page where the piece was made to send people there, a
+    -- chat with the business everywhere else ("Message us", call 23).
+    select case when pc.intent->>'call_to_action' = 'book' then 'booking' else 'chat' end into v_lands
+      from public.pieces pc where pc.tenant_id = p_tenant_id and pc.id = v_post.piece_id;
+    insert into public.links (tenant_id, subject_type, subject_id, place, lands, created_by)
+    values (p_tenant_id, 'post', p_post_id, 'The post''s link', coalesce(v_lands, 'chat'), auth.uid())
+    on conflict (tenant_id, subject_id) where subject_type = 'post' do nothing
+    returning * into v_link;
+    if v_link.id is not null then
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'link.made', 'content', 'post', p_post_id,
+              jsonb_strip_nulls(jsonb_build_object('link_id', v_link.id, 'lands', v_link.lands, 'by', auth.uid())));
+    end if;
+    if v_link.id is null then
+      select * into v_link from public.links l
+       where l.tenant_id = p_tenant_id and l.subject_type = 'post' and l.subject_id = p_post_id;
+    end if;
+  end if;
+  return jsonb_build_object('link_id', v_link.id, 'code', v_link.code, 'lands', v_link.lands,
+                            'stopped', v_link.stopped_at is not null,
+                            'opens', coalesce((select sum(d.opens) from public.link_days d
+                                                where d.tenant_id = p_tenant_id and d.link_id = v_link.id), 0));
+end $$;
+
+-- post_own_comment_keep
+CREATE OR REPLACE FUNCTION public.post_own_comment_keep(p_tenant_id uuid, p_comment_id text, p_parent_id text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_touch uuid;
+begin
+  if nullif(btrim(coalesce(p_parent_id, '')), '') is null then
+    return false;
+  end if;
+  -- Our own answer, delivered back by Meta, is ours already.
+  if exists (select 1 from public.comment_answers a
+              where a.tenant_id = p_tenant_id and a.external_id = btrim(p_comment_id)) then
+    return false;
+  end if;
+  select t.id into v_touch from public.touches t
+   where t.tenant_id = p_tenant_id and t.place = 'instagram' and t.provider_event_id = btrim(p_parent_id)
+     and t.kind = 'comment';
+  if v_touch is null then
+    return false;
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, by_hand, external_id, sent_at)
+  values (p_tenant_id, v_touch, 'sent', true, btrim(p_comment_id), now())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sent', by_hand = true, external_id = excluded.external_id, sent_at = excluded.sent_at,
+        updated_at = now()
+    where comment_answers.state <> 'sent';
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+            jsonb_strip_nulls(jsonb_build_object('to', 'sent', 'by_hand', true, 'touch_id', v_touch)));
+  end if;
+  return true;
+end $$;
+
+-- post_take_down_by_hand
+CREATE OR REPLACE FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- The newest take-down of this post that Chanlytics could not finish itself.
+  select * into v_action from public.remediation_actions r
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+   order by r.started_at desc, r.id desc
+   limit 1
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if v_action.outcome = 'done' then
+    return jsonb_build_object('fate', 'done');
+  end if;
+  if v_action.outcome = 'pending' then
+    return jsonb_build_object('fate', 'asking');
+  end if;
+  -- Left up by the owner's own word (00689): nothing is asked of the place until Take down is pressed again.
+  if v_action.outcome = 'left_up' then
+    return jsonb_build_object('fate', 'left_up');
+  end if;
+  -- It waits again: the place is asked whether the post is gone, and the answer settles it.
+  update public.remediation_actions r set outcome = 'pending', finished_at = null where r.id = v_action.id;
+  update public.remediations m set finished_at = null where m.id = v_action.remediation_id;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'post_take_down', now(),
+          jsonb_build_object('action_id', v_action.id, 'attempt', 'hand-' || floor(extract(epoch from now()))::bigint::text,
+                             'by_hand', 'yes'));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'taking_down', 'by_hand', true, 'by', auth.uid())));
+  return jsonb_build_object('fate', 'asking');
+end $$;
+
+-- post_take_down_keep
+CREATE OR REPLACE FUNCTION public.post_take_down_keep(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+  v_post public.posts;
+  v_answer jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_post from public.posts p where p.tenant_id = p_tenant_id and p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  -- The newest take-down of this post: the one a press on its line speaks of.
+  select * into v_action from public.remediation_actions r
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+   order by r.started_at desc, r.id desc
+   limit 1
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if v_action.outcome = 'done' then
+    return jsonb_build_object('fate', 'done');
+  end if;
+  -- Still being asked: there is nothing the place left to the owner yet.
+  if v_action.outcome = 'pending' then
+    return jsonb_build_object('fate', 'asking');
+  end if;
+  v_answer := jsonb_build_object('fate', 'left_up', 'post_id', v_post.id, 'file_id', v_post.file_id,
+                                 'place', v_post.place);
+  -- Said once: a second press, or a second owner's, keeps the first one's name and time.
+  if v_action.outcome = 'left_up' then
+    return v_answer;
+  end if;
+  if v_post.status is distinct from 'published' then
+    return jsonb_build_object('fate', 'not_up');
+  end if;
+  -- Every ask of this post that a place left to the owner is answered by the owner's word: the newest, and any older
+  -- take-down of it that was never finished (Take down pressed again before the first was deleted by hand). Nothing
+  -- of this post is then left for Today to name. Their remediations are finished already: each was, the moment its
+  -- place answered (post_take_down_settle), and an action that is not pending never holds one open.
+  update public.remediation_actions r
+     set outcome = 'left_up', finished_at = now(), left_up_by = auth.uid()
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+     and r.outcome = any (array['blocked', 'not_possible', 'needs_person']);
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', p_post_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'left_up', 'by', auth.uid())));
+  end if;
+  -- The bell's line for this piece at this place ends, for every device, once nothing of the piece there is left to
+  -- its owner (00698): a story of it still to delete keeps the line.
+  perform public.post_by_hand_bell_settle(p_tenant_id, v_post.file_id, v_post.place);
+  return v_answer;
+end $$;
+
+-- post_take_down_settle
+CREATE OR REPLACE FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+  v_file uuid;
+  v_place text;
+  v_places jsonb;
+begin
+  if p_outcome not in ('done', 'blocked', 'not_possible', 'needs_person') then
+    raise exception 'post_take_down_settle: an outcome a place can give' using errcode = '22023';
+  end if;
+  select * into v_action from public.remediation_actions r
+   where r.id = p_action_id and r.target_type = 'post' and r.act = 'take_down'
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  -- Settled once: a second answer for an action already settled changes nothing (a job run twice).
+  if v_action.outcome <> 'pending' then
+    return jsonb_build_object('fate', 'settled', 'outcome', v_action.outcome);
+  end if;
+  update public.remediation_actions r
+     set outcome = p_outcome, said = nullif(left(btrim(coalesce(p_said, '')), 300), ''), finished_at = now()
+   where r.id = v_action.id;
+  if v_action.target_type = 'post' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_action.tenant_id, 'post.moved', 'content', 'post', v_action.target_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when p_outcome = 'done' then 'taken_down' else 'take_down_' || p_outcome end)));
+  end if;
+  if p_outcome = 'done' then
+    update public.posts p set status = 'taken_down', held_reason = null, held_why = null, updated_at = now()
+     where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id
+       and p.status = any (array['published', 'publishing', 'checking']);
+  end if;
+  update public.remediations m set finished_at = now()
+   where m.id = v_action.remediation_id and m.finished_at is null
+     and not exists (select 1 from public.remediation_actions x
+                      where x.remediation_id = m.id and x.outcome = 'pending');
+  select p.file_id, p.place into v_file, v_place from public.posts p
+   where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
+  -- Gone from its place: where nothing else of the piece there is left to its owner, the bell's line for it ends
+  -- (00698). A post of the piece kept up beside it never says the piece is down, so no other news would end it.
+  if p_outcome = 'done' then
+    perform public.post_by_hand_bell_settle(v_action.tenant_id, v_file, v_place);
+  end if;
+  -- The piece is down once every place this take-down asked for it says done: those places, for the bell's one line.
+  select jsonb_agg(distinct q.place) into v_places
+    from public.remediation_actions x
+    join public.posts q on q.tenant_id = x.tenant_id and q.id = x.target_id
+   where x.remediation_id = v_action.remediation_id and x.target_type = 'post' and x.act = 'take_down'
+     and q.file_id = v_file
+  having bool_and(x.outcome = 'done');
+  return jsonb_build_object('fate', 'kept', 'outcome', p_outcome, 'post_id', v_action.target_id,
+                            'tenant_id', v_action.tenant_id, 'file_id', v_file, 'place', v_place, 'down', v_places);
+end $$;
+/* -- a comment's answer, and a website form: each move with its event -- */
+
+-- An answer to a comment at its place (sent, settled, left, put back) writes comment_answer.moved; a form turned on or
+-- off, or published live (with its version), writes form.moved, an outside form listed or renamed form.changed, and an
+-- entry a member held form_entry.held, each in its own transaction. All are kept from Activity's rows: the comment's row and the Forms page say each.
+
+-- comment_answer_settle
+CREATE OR REPLACE FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.comment_answers a
+     set state = case when p_sent then 'sent' else 'failed' end,
+         external_id = case when p_sent then nullif(btrim(coalesce(p_external_id, '')), '') else a.external_id end,
+         said = case when p_sent then null else left(nullif(btrim(coalesce(p_said, '')), ''), 300) end,
+         sent_at = case when p_sent then now() else a.sent_at end,
+         updated_at = now()
+   where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'sending';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_sent then 'sent' else 'failed' end, 'touch_id', p_touch_id)));
+  return true;
+end $$;
+
+-- comment_answer_leave
+CREATE OR REPLACE FUNCTION public.comment_answer_leave(p_tenant_id uuid, p_touch_id uuid, p_left boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_leave: not a member who may act here' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment') then
+    raise exception 'comment_answer_leave: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  if p_left then
+    -- Left as it stands: AI's draft and its reason are kept, for an answer after all.
+    insert into public.comment_answers (tenant_id, touch_id, state)
+    values (p_tenant_id, p_touch_id, 'left')
+    on conflict (tenant_id, touch_id) do update
+      set state = 'left', updated_at = now()
+      where comment_answers.state in ('drafted', 'cannot', 'failed');
+  else
+    update public.comment_answers a
+       set state = case when a.draft is not null then 'drafted' when a.cannot_why is not null then 'cannot' end,
+           updated_at = now()
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left'
+       and (a.draft is not null or a.cannot_why is not null);
+    -- Left before AI wrote anything: back to no answer at all.
+    delete from public.comment_answers a
+     where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id and a.state = 'left';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_left then 'left' else coalesce(v_state, 'open') end, 'touch_id', p_touch_id, 'by', auth.uid())));
+  return jsonb_build_object('state', v_state);
+end $$;
+
+-- comment_answer_send
+CREATE OR REPLACE FUNCTION public.comment_answer_send(p_tenant_id uuid, p_touch_id uuid, p_words text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_words text := nullif(btrim(coalesce(p_words, '')), '');
+  v_state text;
+begin
+  if not public.is_acting_member(p_tenant_id) then
+    raise exception 'comment_answer_send: not a member who may act here' using errcode = '42501';
+  end if;
+  if v_words is null or char_length(v_words) > 2200 then
+    raise exception 'comment_answer_send: an answer of 1 to 2,200 characters' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.touches t
+                  where t.tenant_id = p_tenant_id and t.id = p_touch_id and t.kind = 'comment'
+                    and t.contact_id is not null) then
+    raise exception 'comment_answer_send: no such comment in this workspace' using errcode = 'P0002';
+  end if;
+  select a.state into v_state from public.comment_answers a where a.tenant_id = p_tenant_id and a.touch_id = p_touch_id;
+  if v_state in ('sending', 'sent') then
+    return jsonb_build_object('sent', false, 'state', v_state);
+  end if;
+  insert into public.comment_answers (tenant_id, touch_id, state, words, sent_by)
+  values (p_tenant_id, p_touch_id, 'sending', v_words, auth.uid())
+  on conflict (tenant_id, touch_id) do update
+    set state = 'sending', words = excluded.words, sent_by = excluded.sent_by, said = null, updated_at = now();
+  insert into public.jobs (tenant_id, kind, payload, due_at)
+  values (p_tenant_id, 'comment_reply',
+          jsonb_build_object('touch_id', p_touch_id, 'step', 'send',
+                             'attempt', floor(extract(epoch from clock_timestamp()) * 1000)::bigint::text),
+          now());
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'comment_answer.moved', 'content', 'comment_answer', null,
+          jsonb_strip_nulls(jsonb_build_object('to', 'sending', 'touch_id', p_touch_id, 'by', auth.uid())));
+  return jsonb_build_object('sent', true, 'state', 'sending');
+end $$;
+
+-- form_turn
+CREATE OR REPLACE FUNCTION public.form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_turned integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- Only a form that was published has a state to turn: a draft goes live by form_publish.
+  update public.forms
+     set state = case when coalesce(p_on, false) then 'live' else 'off' end, updated_at = now()
+   where tenant_id = p_tenant_id and id = p_form_id and live_version_id is not null
+     and state = case when coalesce(p_on, false) then 'off' else 'live' end;
+  get diagnostics v_turned = row_count;
+  if v_turned > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', case when coalesce(p_on, false) then 'live' else 'off' end, 'by', auth.uid())));
+  end if;
+  return v_turned > 0;
+end $$;
+
+-- form_publish
+CREATE OR REPLACE FUNCTION public.form_publish(p_tenant_id uuid, p_form_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_form    public.forms%rowtype;
+  v_live    jsonb;
+  v_version uuid;
+  v_n       integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_form from public.forms f
+   where f.tenant_id = p_tenant_id and f.id = p_form_id
+   for update;
+  if not found then
+    raise exception 'That form is not there.' using errcode = 'P0002';
+  end if;
+  if v_form.live_version_id is not null then
+    select v.description into v_live from public.form_versions v
+     where v.tenant_id = p_tenant_id and v.id = v_form.live_version_id;
+  end if;
+  -- Nothing changed since the live version: the form is live again as it was, and no version is made.
+  if v_live is not null and v_live = v_form.draft then
+    update public.forms set state = 'live', updated_at = now() where tenant_id = p_tenant_id and id = p_form_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', false, 'version_id', v_form.live_version_id, 'by', auth.uid())));
+    return jsonb_build_object('version_id', v_form.live_version_id, 'made', false);
+  end if;
+  select coalesce(max(v.n), 0) + 1 into v_n from public.form_versions v
+   where v.tenant_id = p_tenant_id and v.form_id = p_form_id;
+  insert into public.form_versions (tenant_id, form_id, n, description, published_by)
+  values (p_tenant_id, p_form_id, v_n, v_form.draft, auth.uid())
+  returning id into v_version;
+  -- The version before is taken for a day more, so a page left open is not refused.
+  update public.form_versions set replaced_at = now()
+   where tenant_id = p_tenant_id and id = v_form.live_version_id and replaced_at is null;
+  update public.forms set state = 'live', live_version_id = v_version, updated_at = now()
+   where tenant_id = p_tenant_id and id = p_form_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', true, 'version_id', v_version, 'n', v_n, 'by', auth.uid())));
+  return jsonb_build_object('version_id', v_version, 'made', true, 'n', v_n);
+end $$;
+
+-- form_entry_hold
+CREATE OR REPLACE FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+  v_held integer;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  update public.form_entries
+     set state = 'held', held_why = 'member'
+   where tenant_id = p_tenant_id and id = p_entry_id and form_id is not null and state <> 'held' and not test;
+  get diagnostics v_held = row_count;
+  if v_held > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.held', 'contact', 'form_entry', p_entry_id,
+            jsonb_strip_nulls(jsonb_build_object('why', 'member', 'by', auth.uid())));
+  end if;
+  return v_held > 0;
+end $$;
+
+-- outside_form_listed
+CREATE OR REPLACE FUNCTION public.outside_form_listed(p_tenant_id uuid, p_form_id uuid, p_listed boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_set integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.outside_forms o set listed = coalesce(p_listed, true)
+   where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_set = row_count;
+  if v_set > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('listed', coalesce(p_listed, true), 'outside', true, 'by', auth.uid())));
+  end if;
+  return v_set > 0;
+end $$;
+
+-- outside_form_rename
+CREATE OR REPLACE FUNCTION public.outside_form_rename(p_tenant_id uuid, p_form_id uuid, p_name text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_name    text := nullif(btrim(coalesce(p_name, '')), '');
+  v_renamed integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_name is not null and char_length(v_name) > 120 then
+    raise exception 'A form''s name is at most 120 characters.' using errcode = '22023';
+  end if;
+  -- Blank goes back to the name the site sends.
+  update public.outside_forms o set name = v_name where o.tenant_id = p_tenant_id and o.id = p_form_id;
+  get diagnostics v_renamed = row_count;
+  if v_renamed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.changed', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', jsonb_build_array('name'), 'outside', true, 'by', auth.uid())));
+  end if;
+  return v_renamed > 0;
+end $$;
+/* -- a sequence and its people, and a batch of it: each move with its event -- */
+
+-- A sequence kept as a draft or removed, a cold email removed, the people who leave it (their enrolments, their
+-- occasions) and those an occasion enrols, and a batch cancelled, each now write sequence.changed, sequence.left,
+-- sequence.enrolled or broadcast.moved in their own transaction, with who where a member did. All are kept from
+-- Activity's rows: Campaigns says each sequence and batch as it stands.
+
+-- sequence_batch_cancel
+CREATE OR REPLACE FUNCTION public.sequence_batch_cancel(p_tenant_id uuid, p_batch_id uuid, p_from text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n int;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_from not in ('pending_approval', 'scheduled', 'sending') then
+    return false;
+  end if;
+  update public.sequence_batches set state = 'canceled'
+   where tenant_id = p_tenant_id and id = p_batch_id and state = p_from;
+  get diagnostics v_n = row_count;
+  if v_n = 1 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_batch_id,
+            jsonb_strip_nulls(jsonb_build_object('from', p_from, 'to', 'canceled', 'by', auth.uid())));
+  end if;
+  return v_n = 1;
+end $$;
+
+-- sequence_occasions_leave
+CREATE OR REPLACE FUNCTION public.sequence_occasions_leave(p_tenant_id uuid, p_starts_with text, p_why text, p_except text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_left integer;
+begin
+  if p_starts_with is null or char_length(p_starts_with) < 3 or p_why is null then
+    return 0;
+  end if;
+  with gone as (
+    update public.sequence_occasions o
+       set state = 'left', why = left(p_why, 60), settled_at = now()
+     where o.tenant_id = p_tenant_id and o.state = 'waiting'
+       and left(o.occasion, char_length(p_starts_with)) = p_starts_with
+       and (p_except is null or o.occasion <> p_except)
+    returning o.sequence_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_build_object('people', count(*), 'why', left(p_why, 60), 'occasion', p_starts_with)
+      from gone g group by g.sequence_id
+    returning 1
+  )
+  select count(*) into v_left from gone;
+  return v_left;
+end $$;
+
+-- sequence_enrollments_leave
+CREATE OR REPLACE FUNCTION public.sequence_enrollments_leave(p_tenant_id uuid, p_ids uuid[], p_why text, p_by uuid DEFAULT NULL::uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_why text := left(nullif(btrim(coalesce(p_why, '')), ''), 60);
+  v_n int;
+begin
+  if p_tenant_id is null or v_why is null or coalesce(cardinality(p_ids), 0) = 0 then
+    return 0;
+  end if;
+  with gone as (
+    update public.sequence_enrollments e
+       set state = 'left', why = v_why, ended_at = now(), next_at = null, left_by = p_by
+     where e.tenant_id = p_tenant_id and e.id = any (p_ids) and e.state = 'in'
+    returning e.sequence_id, e.contact_id, e.lead_id),
+  skipped as (
+    update public.sequence_sends s
+       set state = 'skipped', reason = v_why
+      from gone g
+     where s.tenant_id = p_tenant_id and s.sequence_id = g.sequence_id
+       and case when g.lead_id is null then s.lead_id is null and s.contact_id = g.contact_id
+                else s.lead_id = g.lead_id end
+       and s.state in ('planned', 'held', 'queued', 'drafted')
+    returning s.id),
+  told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'sequence.left', 'message', 'sequence', g.sequence_id,
+           jsonb_strip_nulls(jsonb_build_object('people', count(*), 'why', v_why, 'by', p_by))
+      from gone g group by g.sequence_id
+    returning 1)
+  select count(*) into v_n from gone;
+  return v_n;
+end $$;
+
+-- sequence_occasion_enrol
+CREATE OR REPLACE FUNCTION public.sequence_occasion_enrol(p_tenant_id uuid, p_sequence_id uuid, p_contact_id uuid, p_occasion text, p_due_at timestamp with time zone, p_single boolean DEFAULT false, p_replaces text DEFAULT NULL::text, p_rest_days integer DEFAULT 0) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_made integer;
+begin
+  if p_occasion is null or p_due_at is null then
+    raise exception 'sequence_occasion_enrol: an occasion has a key and a time' using errcode = '22004';
+  end if;
+  -- Someone erased, or not this workspace's, is enrolled in nothing.
+  if not exists (select 1 from public.contacts c
+                  where c.id = p_contact_id and c.tenant_id = p_tenant_id and c.erased_at is null) then
+    return 'gone';
+  end if;
+  -- A visit that moved: the occasions made for its other starts leave, so one reminder stands for it.
+  if p_replaces is not null and char_length(p_replaces) > 0 then
+    update public.sequence_occasions o
+       set state = 'left', why = 'moved', settled_at = now()
+     where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id and o.state = 'waiting'
+       and left(o.occasion, char_length(p_replaces)) = p_replaces and o.occasion <> p_occasion;
+  end if;
+  -- One at a time, where the moment keeps it so: another of theirs waits here, or they are still in the sequence.
+  if p_single and (
+       exists (select 1 from public.sequence_occasions o
+                where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id
+                  and o.state = 'waiting' and o.occasion <> p_occasion)
+       or exists (select 1 from public.sequence_enrollments e
+                   where e.sequence_id = p_sequence_id and e.lead_id is null
+                     and e.contact_id = p_contact_id and e.state = 'in')) then
+    return 'busy';
+  end if;
+  -- A moment that rests between occasions: nothing new while another of theirs here began inside the rest, whatever
+  -- became of it. A sequence's own message can be what starts its next occasion (a follow-up that carries the booking
+  -- link); the rest is what keeps that from going round.
+  if coalesce(p_rest_days, 0) > 0 and exists (
+       select 1 from public.sequence_occasions o
+        where o.sequence_id = p_sequence_id and o.contact_id = p_contact_id and o.occasion <> p_occasion
+          and o.created_at > now() - make_interval(days => p_rest_days)) then
+    return 'busy';
+  end if;
+  insert into public.sequence_occasions (tenant_id, sequence_id, contact_id, occasion, due_at, try_at)
+  values (p_tenant_id, p_sequence_id, p_contact_id, p_occasion, p_due_at, p_due_at)
+  on conflict (sequence_id, contact_id, occasion) do nothing;
+  get diagnostics v_made = row_count;
+  if v_made > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'sequence.enrolled', 'message', 'sequence', p_sequence_id,
+            jsonb_strip_nulls(jsonb_build_object('occasion', p_occasion, 'due_at', p_due_at, 'contact_id', p_contact_id)));
+  end if;
+  return case when v_made > 0 then 'enrolled' else 'already' end;
+end $$;
+
+-- sequence_once_keep
+CREATE OR REPLACE FUNCTION public.sequence_once_keep(p_tenant_id uuid, p_name text, p_once jsonb, p_id uuid DEFAULT NULL::uuid, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_name  text := left(btrim(coalesce(p_name, '')), 80);
+  v_id    uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_actor, p_tenant_id, 'approve') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if char_length(v_name) = 0 then
+    raise exception 'A message sent once is named.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_once) is distinct from 'object' then
+    raise exception 'A kept one-off says who, when and what.' using errcode = '22023';
+  end if;
+  if p_id is null then
+    insert into public.sequences (tenant_id, name, starts, state, created_by, mode, once)
+    values (p_tenant_id, v_name, 'date', 'draft', v_actor, null, p_once)
+    returning id into v_id;
+  else
+    update public.sequences set name = v_name, once = p_once, updated_at = now()
+     where tenant_id = p_tenant_id and id = p_id and starts = 'date' and state = 'draft'
+    returning id into v_id;
+    if v_id is null then
+      raise exception 'Draft not found.' using errcode = 'P0002';
+    end if;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', v_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'draft', 'once', true, 'kept', p_id is not null, 'by', v_actor)));
+  return jsonb_build_object('id', v_id, 'state', 'draft')
+    || public.team_decision(p_tenant_id, v_actor, 'sequence', v_id, 'make_sequence',
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('once', true, 'kept', p_id is not null), p_via,
+         p_undo_of);
+end $$;
+
+-- sequence_discard
+CREATE OR REPLACE FUNCTION public.sequence_discard(p_tenant_id uuid, p_sequence_id uuid, p_decision jsonb DEFAULT '{}'::jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_q public.sequences%rowtype;
+  v_steps int;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  select * into v_q from public.sequences where tenant_id = p_tenant_id and id = p_sequence_id for update;
+  if v_q.id is null or not (v_q.starts in ('moment', 'list') or (v_q.starts = 'date' and v_q.state = 'draft'
+                                                                  and v_q.once is not null)) then
+    raise exception 'Sequence not found.' using errcode = 'P0002';
+  end if;
+  -- What has sent keeps its history: a sequence that made a batch, or took anyone in, is paused, never taken away.
+  if exists (select 1 from public.sequence_batches b where b.sequence_id = p_sequence_id)
+     or exists (select 1 from public.sequence_enrollments e where e.sequence_id = p_sequence_id) then
+    raise exception 'It has sent: pause it instead.' using errcode = 'P0001';
+  end if;
+  select count(*) into v_steps from public.sequence_steps where sequence_id = p_sequence_id;
+  if v_q.starts = 'date' then
+    -- A kept one-off (00465) has no step: the draft itself goes.
+    delete from public.sequences where id = p_sequence_id;
+  else
+    -- Its first step goes, the steps after it with it (after_step_id cascades), and the sequence with them (00440).
+    delete from public.sequence_steps where id = p_sequence_id;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'sequence', p_sequence_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'was', v_q.state, 'steps', v_steps, 'by', v_actor)));
+  return jsonb_build_object('id', p_sequence_id, 'steps', v_steps)
+    || public.team_decision(p_tenant_id, v_actor, 'sequence', p_sequence_id, 'discard_sequence',
+         coalesce(p_decision, '{}'::jsonb) || jsonb_build_object('name', v_q.name, 'was', v_q.state), p_via,
+         p_undo_of);
+end $$;
+
+-- reach_out_remove
+CREATE OR REPLACE FUNCTION public.reach_out_remove(p_tenant_id uuid, p_root_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_steps uuid[];
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode = '28000'; end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  perform 1 from public.sequence_steps
+   where id = p_root_id and tenant_id = p_tenant_id and kind = 'reach_out' and trigger = 'lead_first' for update;
+  if not found then raise exception 'Cold email not found.' using errcode = 'P0002'; end if;
+  with recursive c as (
+    select id from public.sequence_steps where id = p_root_id
+    union all
+    select p.id from public.sequence_steps p join c on p.after_step_id = c.id
+  )
+  select array_agg(id) into v_steps from c;
+  -- Held against a claim while it is judged: a claim waits, or finds the chain gone.
+  perform 1 from public.sequence_sends s where s.lead_id is not null and ( s.sequence_id = p_root_id) for update;
+  if exists (select 1 from public.sequence_sends s
+              where s.lead_id is not null and ( s.sequence_id = p_root_id
+                and (s.state in ('claimed', 'queued', 'sent', 'failed', 'drafted')
+                     or (s.state = 'skipped' and s.drafted_at is not null)))) then
+    raise exception 'This cold email has written already. Pause it instead.' using errcode = '23503';
+  end if;
+  update public.sequence_batches set state = 'canceled'
+   where tenant_id = p_tenant_id and audience->>'kind' = 'reach_out' and audience->>'root_id' = p_root_id::text
+     and state in ('pending_approval', 'scheduled', 'sending');
+  update public.templates set hidden_at = coalesce(hidden_at, now())
+   where id in (select p.template_id from public.sequence_steps p where p.id = any (v_steps));
+  delete from public.sequence_steps where id = p_root_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'sequence.changed', 'message', 'playbook', p_root_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'reach_out', true, 'steps', cardinality(v_steps), 'by', auth.uid())));
+  return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
+end $$;
+/* -- a thread: who holds it, opened, set aside: each with its event -- */
+
+-- A thread's control claimed and released (a person, a call; take over and hand back ride them), a thread opened for a
+-- person, and one set aside now write conversation.control_moved, conversation.opened or conversation.set_aside in their
+-- own transaction. A handover the owner closed with their echo is the team's decision (team_decision), and the
+-- escalation's own trigger writes escalation.changed. All are kept from Activity's rows: the Inbox says each thread as
+-- it stands.
+
+-- claim_conversation_control
+CREATE OR REPLACE FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+  v_kind  text;
+  v_by    uuid;
+  v_ref   text;
+  v_until timestamptz;
+  v_same  boolean;
+  v_live  boolean;
+begin
+  if v_member then
+    if p_kind is distinct from 'person' or p_by is distinct from auth.uid()
+       or p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_kind not in ('person', 'call') then
+    raise exception 'control kind must be person or call' using errcode = '22023';
+  end if;
+  if p_seconds is null or p_seconds < 1 or p_seconds > 86400 then
+    raise exception 'a hold lasts between a second and a day' using errcode = '22023';
+  end if;
+  -- FOR UPDATE, so two claimants in the same instant are decided by the
+  -- database and not by whichever of them read first. That is the whole point
+  -- of the function: the same question asked as a select and then an update
+  -- lets both callers believe the thread was free.
+  select c.control_kind, c.control_by, c.control_ref, c.control_until
+    into v_kind, v_by, v_ref, v_until
+    from conversations c
+   where c.id = p_conversation_id and c.tenant_id = p_tenant_id
+     for update;
+  if not found then
+    return 'gone';
+  end if;
+  -- A live hold, and whose it is decides what happens next.
+  --
+  --   the same holder    renewing, not competing. A call sends an event every
+  --                      few turns, and that is what keeps a long call from
+  --                      lapsing mid-sentence.
+  --   a person claiming  takes it, always. A person stepping in outranks the
+  --                      machine -- that is what stepping in MEANS -- and a
+  --                      colleague is not locked out of a thread by another
+  --                      colleague. Coordinating between people is theirs to
+  --                      do; this fact exists to keep the machine off.
+  --   a call claiming    never takes a hold somebody else has. The call still
+  --                      happens; it simply does not get to say the thread is
+  --                      its own while a person is on it.
+  v_live := v_until is not null and v_until >= now();
+  v_same := v_kind = p_kind and v_by is not distinct from p_by and v_ref is not distinct from p_ref;
+  if v_live and not v_same and p_kind <> 'person' then
+    return 'held';
+  end if;
+  update conversations
+     set control_kind  = p_kind,
+         control_by    = p_by,
+         control_ref   = p_ref,
+         control_until = now() + make_interval(secs => p_seconds)
+   where id = p_conversation_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when v_live and v_same then 'renewed' else 'claimed' end, 'holder', p_kind, 'by', p_by, 'seconds', p_seconds)));
+  -- Renewed is the same holder going on; taking one from somebody else is a
+  -- claim, and the caller is owed the difference -- it is the line in the log
+  -- that says a person stepped into a call.
+  return case when v_live and v_same then 'renewed' else 'claimed' end;
+end $$;
+
+-- release_conversation_control
+CREATE OR REPLACE FUNCTION public.release_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_released integer;
+begin
+  update conversations
+     set control_kind = null, control_by = null, control_ref = null, control_until = null
+   where id = p_conversation_id
+     and tenant_id = p_tenant_id
+     and control_kind = p_kind
+     and control_by is not distinct from p_by
+     and control_ref is not distinct from p_ref;
+  get diagnostics v_released = row_count;
+  if v_released > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'conversation.control_moved', 'message', 'conversation', p_conversation_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'released', 'holder', p_kind, 'by', p_by)));
+  end if;
+  return v_released > 0;
+end $$;
+
+-- conversation_open
+CREATE OR REPLACE FUNCTION public.conversation_open(p_tenant_id uuid, p_contact_id uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_conversation uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  -- This workspace's person, still here: not forgotten, not being forgotten, not folded into another.
+  if not exists (
+    select 1 from public.contacts c
+     where c.id = p_contact_id and c.tenant_id = p_tenant_id
+       and c.erased_at is null and c.erasing_since is null and c.merged_into_contact_id is null
+  ) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  -- Opened, never touched: last_message_at is the message's to stamp, when one lands.
+  insert into public.conversations (tenant_id, contact_id) values (p_tenant_id, p_contact_id)
+  on conflict (tenant_id, contact_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select c.tenant_id, 'conversation.opened', 'message', 'conversation', c.id,
+           jsonb_build_object('contact_id', p_contact_id, 'by', auth.uid())
+      from public.conversations c where c.tenant_id = p_tenant_id and c.contact_id = p_contact_id;
+  end if;
+  select id into v_conversation from public.conversations
+   where tenant_id = p_tenant_id and contact_id = p_contact_id;
+  return v_conversation;
+end $$;
+
+-- conversation_set_aside
+CREATE OR REPLACE FUNCTION public.conversation_set_aside(p_tenant_id uuid, p_conversation_id uuid, p_why text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- 00717: a signed-in member is asked who they are. The service role (the edge, a deploy from before this door asked)
+  -- and a session of the database itself (a clock, a migration) name their workspace themselves, as before.
+  v_member boolean := auth.uid() is not null;
+  v_id uuid;
+begin
+  if v_member then
+    if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_why is null or p_why not in ('pitch', 'notice') then
+    raise exception 'conversation_set_aside: a thread is set aside as a pitch or a notice' using errcode = '22023';
+  end if;
+  -- contracts' archive move, whole, and what it was set aside as. A thread someone already has is theirs, and is left alone.
+  update public.conversations
+     set state = 'archived', paused_until = null, snooze_until = null, assignee_user_id = null,
+         set_aside_at = now(), set_aside_why = p_why
+   where id = p_conversation_id and tenant_id = p_tenant_id and assignee_user_id is null
+  returning id into v_id;
+  if v_id is null then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.set_aside', 'message', 'conversation', v_id,
+          jsonb_strip_nulls(jsonb_build_object('why', p_why, 'by', auth.uid())));
+  -- The platform's own close, as a reading's is: no member is named as resolving it, and no decision is recorded.
+  update public.escalations
+     set state = 'resolved'
+   where conversation_id = p_conversation_id and tenant_id = p_tenant_id and state = 'open';
+  return true;
+end $$;
+/* -- a WhatsApp number turned on, and a footage account kept and removed: each with its event -- */
+
+-- A WhatsApp number's row turns active, now that its token stands in Vault, with channel.connected in the same
+-- transaction: the event the edge wrote after it, best effort, from TypeScript. Instagram's connect already writes it
+-- in instagram_account_connect.
+create or replace function public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.tenant_channels set status = 'active'
+   where id = p_channel_id and tenant_id = p_tenant_id and kind = 'whatsapp';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'channel.connected', 'system', 'channel', p_channel_id,
+          jsonb_build_object(
+            'kind', 'whatsapp',
+            'phone_number_id', p_told ->> 'phone_number_id',
+            'waba_id', p_told ->> 'waba_id',
+            'number_e164', p_told ->> 'number_e164',
+            'verified_name', p_told ->> 'verified_name',
+            'by', p_told ->> 'by'));
+  return true;
+end $$;
+
+revoke all on function public.whatsapp_channel_activate(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.whatsapp_channel_activate(uuid, uuid, jsonb) to service_role;
+
+comment on function public.whatsapp_channel_activate(uuid, uuid, jsonb) is
+  'A WhatsApp number''s row turned active once its token stands in Vault, with channel.connected (its ids, its name and who connected it) in the same transaction (00723). False where the row is not the workspace''s WhatsApp row. The service role''s.';
+
+-- A footage account's token kept as its connect stands, with source.connected (which door, whether it was connected
+-- before, who), and the account removed (its token out of Vault, then its row, with its folders and their items) with
+-- source.disconnected. A token's refresh is the vault's door alone, source_credentials_put, and writes nothing.
+create or replace function public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb,
+                                                              p_told jsonb)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_door text;
+  v_name text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    raise exception 'source_connection_connected: no such connection' using errcode = 'P0002';
+  end if;
+  v_name := public.source_credentials_put(p_connection_id, p_secret);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.connected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'again', coalesce((p_told ->> 'again')::boolean, false),
+            'by', p_told ->> 'by')));
+  return v_name;
+end $$;
+
+revoke all on function public.source_connection_connected(uuid, uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.source_connection_connected(uuid, uuid, jsonb, jsonb) to service_role;
+
+comment on function public.source_connection_connected(uuid, uuid, jsonb, jsonb) is
+  'A footage account''s token kept in Vault as its connect stands (source_credentials_put), with source.connected (its door, whether it was connected before, who) in the same transaction (00723). P0002 where the connection is not the workspace''s. The service role''s.';
+
+create or replace function public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_door text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return false;
+  end if;
+  perform public.source_credentials_drop(p_connection_id);
+  delete from public.source_connections where id = p_connection_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.disconnected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'revoked', coalesce((p_told ->> 'revoked')::boolean, false),
+            'by', p_told ->> 'by')));
+  return true;
+end $$;
+
+revoke all on function public.source_connection_remove(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.source_connection_remove(uuid, uuid, jsonb) to service_role;
+
+comment on function public.source_connection_remove(uuid, uuid, jsonb) is
+  'A footage account removed: its token out of Vault (source_credentials_drop), then its row, with its folders and their items, and source.disconnected (its door, whether Google took the grant back, who) in the same transaction (00723). False where the connection is not the workspace''s. The service role''s.';
+/* -- a message withdrawn, unsent by its writer, or complained of: each with its event -- */
+
+-- A queued message withdrawn before it left (a member's call back, a draft let go, a turn another reply took) writes
+-- message.withdrawn, an Instagram message its writer unsent writes message.unsent, and an email the person marked as
+-- spam writes message.complained, each in its own transaction. All are kept from Activity's rows: the thread says each.
+
+-- withdraw_queued
+CREATE OR REPLACE FUNCTION public.withdraw_queued(p_tenant_id uuid, p_message_ids uuid[], p_reason jsonb DEFAULT NULL::jsonb) RETURNS uuid[]
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ids uuid[];
+begin
+  if p_tenant_id is null then
+    raise exception 'withdraw_queued: a message is withdrawn in a workspace' using errcode = '22004';
+  end if;
+  if p_reason is not null and (jsonb_typeof(p_reason) <> 'object' or nullif(p_reason->>'reason', '') is null) then
+    raise exception 'withdraw_queued: a reason is an object that names its reason' using errcode = '22023';
+  end if;
+  -- The rows, then the jobs that would send them, in this one statement: a row a run has claimed is on its way and is
+  -- left to say what became of it, and its job with it.
+  with withdrawn as (
+    update public.messages m
+       set status = 'canceled', error = coalesce(p_reason, m.error)
+     where m.tenant_id = p_tenant_id and m.id = any (coalesce(p_message_ids, '{}'::uuid[]))
+       and m.status = 'queued' and m.sending_at is null
+    returning m.id
+  ), jobs_withdrawn as (
+    update public.jobs j
+       set state = 'canceled'
+      from withdrawn w
+     where j.tenant_id = p_tenant_id and j.kind = 'outbound_send' and j.state = 'scheduled'
+       and j.payload ->> 'message_id' = w.id::text
+    returning j.id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select p_tenant_id, 'message.withdrawn', 'message', 'message', w.id,
+           jsonb_strip_nulls(jsonb_build_object('reason', p_reason ->> 'reason', 'by', auth.uid()))
+      from withdrawn w
+    returning 1
+  )
+  select coalesce(array_agg(w.id order by w.id), '{}'::uuid[]) into v_ids from withdrawn w;
+  return v_ids;
+end $$;
+
+-- message_unsent
+CREATE OR REPLACE FUNCTION public.message_unsent(p_tenant_id uuid, p_external_id text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id    uuid;
+  v_media jsonb;
+begin
+  select m.id, m.media into v_id, v_media
+    from messages m
+   where m.tenant_id = p_tenant_id and m.external_id = p_external_id
+     and m.channel = 'instagram' and m.direction = 'inbound' and m.sender = 'customer'
+   for update;
+  if v_id is null then
+    return jsonb_build_object('outcome', 'none');
+  end if;
+  update messages
+     set body = null,
+         media = null,
+         meta = coalesce(meta, '{}'::jsonb)
+                || jsonb_build_object('unsent_at', now())
+                || case when coalesce(meta, '{}'::jsonb) ? 'processed_at' then '{}'::jsonb
+                        else jsonb_build_object('processed_at', now()) end
+   where id = v_id;
+  update jobs
+     set payload = payload #- '{ig,item,message,text}' #- '{ig,item,message,attachments}'
+   where tenant_id = p_tenant_id and kind = 'inbound_answer' and payload ->> 'message_id' = v_id::text;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'message.unsent', 'message', 'message', v_id,
+          jsonb_strip_nulls(jsonb_build_object('channel', 'instagram')));
+  return jsonb_build_object('outcome', 'forgot', 'message_id', v_id, 'storage_path', v_media ->> 'storage_path');
+end $$;
+
+-- stamp_email_complaint
+CREATE OR REPLACE FUNCTION public.stamp_email_complaint(p_tenant_id uuid, p_message_id uuid, p_at timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_n integer;
+begin
+  update public.messages m
+     set meta = jsonb_set(m.meta, '{email,complained_at}', to_jsonb(p_at), true)
+   where m.id = p_message_id and m.tenant_id = p_tenant_id and m.channel = 'email' and m.direction = 'outbound'
+     and m.meta ? 'email' and not (m.meta->'email' ? 'complained_at');
+  get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'message.complained', 'message', 'message', p_message_id,
+            jsonb_strip_nulls(jsonb_build_object('at', p_at)));
+  end if;
+  return v_n > 0;
+end $$;
+/* -- a Library message's email and text versions, its title, hidden or shown: each with its event -- */
+
+-- A Library message's email or text version saved, made or removed, its title set and it hidden or shown, each now
+-- write template.changed in its own transaction, with what changed and who. It is kept from Activity's rows: the
+-- Library says each message as it stands. (WhatsApp's versions say template.submitted and .removed, as before.)
+
+-- set_template_hidden
+CREATE OR REPLACE FUNCTION public.set_template_hidden(p_template_id uuid, p_hidden boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_hidden is null then
+    raise exception 'Say whether the template is hidden.' using errcode = '22023';
+  end if;
+  select t.tenant_id into v_tenant from templates t where t.id = p_template_id;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Template not found.' using errcode = 'P0002';
+  end if;
+  update templates
+     set hidden_at = case when p_hidden then coalesce(hidden_at, now()) else null end
+   where id = p_template_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'template.changed', 'message', 'template', p_template_id,
+          jsonb_strip_nulls(jsonb_build_object('to', case when p_hidden then 'hidden' else 'shown' end, 'by', v_user)));
+  return jsonb_build_object('template_id', p_template_id, 'hidden', p_hidden);
+end $$;
+
+-- set_template_title
+CREATE OR REPLACE FUNCTION public.set_template_title(p_template_id uuid, p_title text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+  v_title  text := nullif(btrim(regexp_replace(coalesce(p_title, ''), '\s+', ' ', 'g')), '');
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_title is not null and char_length(v_title) > 60 then
+    raise exception 'A title is at most 60 characters.' using errcode = '22023';
+  end if;
+  select t.tenant_id into v_tenant from templates t where t.id = p_template_id;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Template not found.' using errcode = 'P0002';
+  end if;
+  update templates set title = v_title where id = p_template_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'template.changed', 'message', 'template', p_template_id,
+          jsonb_strip_nulls(jsonb_build_object('fields', jsonb_build_array('title'), 'by', v_user)));
+  return jsonb_build_object('template_id', p_template_id, 'title', v_title);
+end $$;
+
+-- remove_template_version
+CREATE OR REPLACE FUNCTION public.remove_template_version(p_template_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_row  public.templates%rowtype;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_row from public.templates t where t.id = p_template_id;
+  -- Only an email or a text a member wrote, in a workspace the caller acts for: anything else is not a version to them.
+  if v_row.id is null
+     or not public.is_acting_member(v_row.tenant_id)
+     or v_row.channel not in ('email', 'sms')
+     or v_row.source <> 'chanlytics'
+     or left(v_row.name, 10) = 'reach_out_' then
+    raise exception 'Version not found.' using errcode = 'P0002';
+  end if;
+  begin
+    delete from public.templates where id = v_row.id;
+  exception when foreign_key_violation then
+    -- A playbook or a broadcast still names it (their template_id keys are not cascading): the owner moves them first.
+    raise exception 'A playbook or broadcast still uses this version.' using errcode = 'P0001';
+  end;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', v_user)));
+  return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
+end $$;
+
+-- create_message_version
+CREATE OR REPLACE FUNCTION public.create_message_version(p_tenant_id uuid, p_user uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text, p_category text, p_variables jsonb, p_title text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_subject text := nullif(btrim(regexp_replace(coalesce(p_subject, ''), '\s+', ' ', 'g')), '');
+  -- Trimmed of every kind of white space, as contracts' clean() does (btrim alone takes only spaces).
+  v_body    text := regexp_replace(replace(coalesce(p_body, ''), E'\r\n', E'\n'), '^\s+|\s+$', '', 'g');
+  v_title   text := nullif(btrim(regexp_replace(coalesce(p_title, ''), '\s+', ' ', 'g')), '');
+  v_vars    jsonb := '[]'::jsonb;
+  v_el      jsonb;
+  v_n       int;
+  v_label   text;
+  v_example text;
+  v_parts   jsonb;
+  v_row     public.templates%rowtype;
+begin
+  -- The member the route acts for, asked here because the service role has no session to read (is_acting_member reads
+  -- auth.uid()): a person with no seat, a viewer, another workspace's member and no one at all are one answer, as a
+  -- stranger gets from save_template_version.
+  if p_tenant_id is null or p_user is null or p_name is null or p_name = ''
+     or not exists (
+       select 1 from public.memberships m
+        where m.tenant_id = p_tenant_id and m.user_id = p_user and m.role in ('owner', 'operator', 'partner')) then
+    raise exception 'Message not found.' using errcode = 'P0002';
+  end if;
+  if p_channel is null or p_channel not in ('email', 'sms') then
+    raise exception 'A version is written for email or text.' using errcode = '22023';
+  end if;
+  if left(p_name, 10) = 'reach_out_' then
+    raise exception 'This email is edited in its cold email.' using errcode = '22023';
+  end if;
+  -- The edge's own ceiling for a template's name (contracts TEMPLATE_NAME_MAX). Its shape is the route's check.
+  if char_length(p_name) > 60 then
+    raise exception 'A message''s name is at most 60 characters.' using errcode = '22023';
+  end if;
+  -- Meta's own codes: two or three letters, and a region in capitals where there is one (en_US, es, pt_BR, fil).
+  if p_language is null or p_language !~ '^[a-z]{2,3}(_[A-Z]{2})?$' then
+    raise exception 'Pick a language from the list.' using errcode = '22023';
+  end if;
+  if p_channel = 'email' then
+    if v_subject is null then
+      raise exception 'Give the email a subject.' using errcode = '22023';
+    end if;
+    if char_length(v_subject) > 60 then
+      raise exception 'A subject is at most 60 characters.' using errcode = '22023';
+    end if;
+    if v_body = '' then
+      raise exception 'Write the email.' using errcode = '22023';
+    end if;
+    if char_length(v_body) > 2000 then
+      raise exception 'An email is at most 2000 characters.' using errcode = '22023';
+    end if;
+  else
+    v_subject := null;
+    if v_body = '' then
+      raise exception 'Write the text.' using errcode = '22023';
+    end if;
+    if char_length(v_body) > 1600 then
+      raise exception 'A text is at most 1600 characters.' using errcode = '22023';
+    end if;
+  end if;
+
+  if p_category is null or p_category not in ('marketing', 'utility') then
+    raise exception 'A message is an offer or news, or about their own visit or proposal.' using errcode = '22023';
+  end if;
+  -- Texts carry no offers: the line is registered with the carriers for replies and appointment messages
+  -- (contracts channelNeverCarries).
+  if p_channel = 'sms' and p_category = 'marketing' then
+    raise exception 'Texts carry no offers.' using errcode = '22023';
+  end if;
+  if v_title is not null and char_length(v_title) > 60 then
+    raise exception 'A title is at most 60 characters.' using errcode = '22023';
+  end if;
+
+  -- The values, as the edge writes them on a WhatsApp row: [{ position, label, example }], numbered 1, 2, 3 in order,
+  -- the label a person's name for the value (at most 40 characters) and the example a sample or null (at most 100).
+  -- What is stored is those three keys and nothing else, whatever else the caller sent.
+  if p_variables is null or jsonb_typeof(p_variables) <> 'array' then
+    raise exception 'Give each value a number, in order from 1, and a name.' using errcode = '22023';
+  end if;
+  for v_el, v_n in
+    select e.value, e.ordinality::int from jsonb_array_elements(p_variables) with ordinality as e
+  loop
+    if jsonb_typeof(v_el) <> 'object'
+       or jsonb_typeof(v_el -> 'position') is distinct from 'number'
+       or (v_el ->> 'position') <> v_n::text
+       or jsonb_typeof(v_el -> 'label') is distinct from 'string'
+       or jsonb_typeof(coalesce(v_el -> 'example', 'null'::jsonb)) not in ('string', 'null') then
+      raise exception 'Give each value a number, in order from 1, and a name.' using errcode = '22023';
+    end if;
+    v_label := nullif(btrim(regexp_replace(v_el ->> 'label', '\s+', ' ', 'g')), '');
+    v_example := nullif(btrim(coalesce(v_el ->> 'example', '')), '');
+    if v_label is null then
+      raise exception 'Give each value a number, in order from 1, and a name.' using errcode = '22023';
+    end if;
+    if char_length(v_label) > 40 then
+      raise exception 'A value''s name is at most 40 characters.' using errcode = '22023';
+    end if;
+    if char_length(v_example) > 100 then
+      raise exception 'A value''s example is at most 100 characters.' using errcode = '22023';
+    end if;
+    v_vars := v_vars || jsonb_build_array(
+      jsonb_build_object('position', v_n, 'label', v_label, 'example', v_example));
+  end loop;
+
+  -- The message must be new, in every language and on every channel: its category and slots are the first version's,
+  -- and a later writer takes them from the rows, never gives them again. The lock makes two first writers of one name
+  -- take turns, so the second sees the first's row.
+  perform pg_advisory_xact_lock(hashtext(p_tenant_id::text || ':' || p_name));
+  if exists (select 1 from public.templates t where t.tenant_id = p_tenant_id and t.name = p_name) then
+    raise exception 'This message already exists. Write its other versions in the Library.' using errcode = '23505';
+  end if;
+
+  v_parts := case
+    when p_channel = 'email' then
+      jsonb_build_array(
+        jsonb_build_object('type', 'HEADER', 'format', 'TEXT', 'text', v_subject),
+        jsonb_build_object('type', 'BODY', 'text', v_body))
+    else
+      jsonb_build_array(jsonb_build_object('type', 'BODY', 'text', v_body))
+  end;
+
+  insert into public.templates
+    (tenant_id, channel, name, language, meta_status, source, category, variables, title, components, body_preview, created_by)
+  values
+    (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', p_category, v_vars, v_title, v_parts, v_body, p_user)
+  returning * into v_row;
+
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'made', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', p_user)));
+  return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
+end $_$;
+
+-- save_template_version
+CREATE OR REPLACE FUNCTION public.save_template_version(p_tenant_id uuid, p_name text, p_language text, p_channel text, p_subject text, p_body text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_user    uuid := auth.uid();
+  v_subject text := nullif(btrim(regexp_replace(coalesce(p_subject, ''), '\s+', ' ', 'g')), '');
+  -- Trimmed of every kind of white space, as contracts' clean() does (btrim alone takes only spaces).
+  v_body    text := regexp_replace(replace(coalesce(p_body, ''), E'\r\n', E'\n'), '^\s+|\s+$', '', 'g');
+  v_source  public.templates%rowtype;
+  v_parts   jsonb;
+  v_row     public.templates%rowtype;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or p_name is null or p_name = ''
+     or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Message not found.' using errcode = 'P0002';
+  end if;
+  if p_channel is null or p_channel not in ('email', 'sms') then
+    raise exception 'A version is written for email or text.' using errcode = '22023';
+  end if;
+  if left(p_name, 10) = 'reach_out_' then
+    raise exception 'This email is edited in its cold email.' using errcode = '22023';
+  end if;
+  -- Meta's own codes: two or three letters, and a region in capitals where there is one (en_US, es, pt_BR, fil).
+  if p_language is null or p_language !~ '^[a-z]{2,3}(_[A-Z]{2})?$' then
+    raise exception 'Pick a language from the list.' using errcode = '22023';
+  end if;
+  if p_channel = 'email' then
+    if v_subject is null then
+      raise exception 'Give the email a subject.' using errcode = '22023';
+    end if;
+    if char_length(v_subject) > 60 then
+      raise exception 'A subject is at most 60 characters.' using errcode = '22023';
+    end if;
+    if v_body = '' then
+      raise exception 'Write the email.' using errcode = '22023';
+    end if;
+    if char_length(v_body) > 2000 then
+      raise exception 'An email is at most 2000 characters.' using errcode = '22023';
+    end if;
+  else
+    v_subject := null;
+    if v_body = '' then
+      raise exception 'Write the text.' using errcode = '22023';
+    end if;
+    if char_length(v_body) > 1600 then
+      raise exception 'A text is at most 1600 characters.' using errcode = '22023';
+    end if;
+  end if;
+
+  -- The message: a row of this name, WhatsApp's first, then the one in this language. Its purpose and its slots are
+  -- the version's, and its title the version starts with.
+  select * into v_source
+    from public.templates t
+   where t.tenant_id = p_tenant_id and t.name = p_name
+   order by (t.channel = 'whatsapp') desc, (t.language = p_language) desc, t.created_at
+   limit 1;
+  if v_source.id is null then
+    raise exception 'Message not found.' using errcode = 'P0002';
+  end if;
+
+  v_parts := case
+    when p_channel = 'email' then
+      jsonb_build_array(
+        jsonb_build_object('type', 'HEADER', 'format', 'TEXT', 'text', v_subject),
+        jsonb_build_object('type', 'BODY', 'text', v_body))
+    else
+      jsonb_build_array(jsonb_build_object('type', 'BODY', 'text', v_body))
+  end;
+
+  -- A rewrite keeps what the workspace did to the row since (its title, hiding it) and takes the message's purpose and
+  -- slots again, which are the message's to change.
+  insert into public.templates
+    (tenant_id, channel, name, language, meta_status, source, category, variables, title, components, body_preview, created_by)
+  values
+    (p_tenant_id, p_channel, p_name, p_language, 'approved', 'chanlytics', v_source.category, v_source.variables,
+     v_source.title, v_parts, v_body, v_user)
+  on conflict (tenant_id, channel, name, language) do update
+     set meta_status  = 'approved',
+         source       = 'chanlytics',
+         category     = excluded.category,
+         variables    = excluded.variables,
+         components   = excluded.components,
+         body_preview = excluded.body_preview
+  returning * into v_row;
+
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'template.changed', 'message', 'template', v_row.id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'saved', 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language, 'by', v_user)));
+  return jsonb_build_object('id', v_row.id, 'channel', v_row.channel, 'name', v_row.name, 'language', v_row.language);
+end $_$;
+/* -- the finder's leads: aimed, exported, checked again, erased, set aside by age: each with its event -- */
+
+-- A search aimed at a sequence writes lead_search.changed; leads marked exported, sent to be checked again or erased
+-- write lead.exported, lead.checked_again or lead.erased; the leads set aside by age write retention.cleared, one row
+-- per workspace, as the other clearances do. All are kept from Activity's rows: Leads says each as it stands.
+
+-- lead_search_aim
+CREATE OR REPLACE FUNCTION public.lead_search_aim(p_tenant_id uuid, p_search_id uuid, p_sequence_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.lead_searches s
+                  where s.id = p_search_id and s.tenant_id = p_tenant_id and s.removed_at is null) then
+    raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  -- A sequence to leads of this workspace that has not ended (a draft collects, a paused one waits), or none.
+  if p_sequence_id is not null and not exists (
+       select 1 from public.sequences q
+        where q.id = p_sequence_id and q.tenant_id = p_tenant_id and q.starts = 'leads' and q.state <> 'ended') then
+    raise exception 'Sequence not found.' using errcode = 'P0002';
+  end if;
+  update public.lead_searches set adds_to = p_sequence_id where id = p_search_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'lead_search.changed', 'lead', 'lead_search', p_search_id,
+          jsonb_strip_nulls(jsonb_build_object('adds_to', p_sequence_id, 'by', auth.uid())));
+  return jsonb_build_object('search_id', p_search_id, 'adds_to', p_sequence_id);
+end $$;
+
+-- lead_export_mark
+CREATE OR REPLACE FUNCTION public.lead_export_mark(p_tenant_id uuid, p_ids uuid[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_n    integer;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'export') then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  update public.leads
+     set exported_at = now()
+   where tenant_id = p_tenant_id and id = any (coalesce(p_ids, '{}'::uuid[]))
+     and exported_at is null and erased_at is null and blanked_at is null;
+  get diagnostics v_n = row_count;
+  if v_n > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.exported', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', v_n, 'by', v_user)));
+  end if;
+  return v_n;
+end $$;
+
+-- lead_check_again
+CREATE OR REPLACE FUNCTION public.lead_check_again(p_tenant_id uuid, p_lead_ids uuid[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_ids  uuid[] := '{}';
+  v_r    record;
+  v_err  jsonb;
+  v_held integer := 0;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.has_permission(v_user, p_tenant_id, 'find') then
+    raise exception 'Only an owner can check a lead again.' using errcode = '42501';
+  end if;
+  -- The switch, read before anything is scheduled (§0.5): the mailbox check is money too.
+  if not public.lead_searches_on(p_tenant_id) then
+    return jsonb_build_object('error', 'paused');
+  end if;
+  -- And whether the workspace may spend at all (00364): this door is the session's, so the route's question is asked here too.
+  v_err := public.lead_spend_refusal(p_tenant_id);
+  if v_err is not null then
+    return v_err;
+  end if;
+  -- One job per round the leads were found in: the re-check runs under the round, as the round's own checks
+  -- did, and commits through lead_check_commit. Only an address whose last check did not answer is asked
+  -- again, of a lead kept or in Needs review (00618: a kept one was refused, so it could never be checked
+  -- again); a lead left out is not; a lead whose search is still running is left to that search's own checks;
+  -- a lead with no address has nothing to check; and a lead of another workspace is not this owner's to ask about.
+  for v_r in
+    select m.round_id, array_agg(m.lead_id) as lead_ids
+      from (
+        select distinct on (m.lead_id) m.lead_id, m.round_id
+          from unnest(p_lead_ids) as x(id)
+          join public.leads l on l.id = x.id and l.tenant_id = p_tenant_id and l.erased_at is null and l.blanked_at is null
+          join public.lead_search_members m on m.lead_id = l.id and m.tenant_id = p_tenant_id and m.class in ('review', 'qualified') and m.blanked_at is null
+          join public.lead_rounds r on r.id = m.round_id and r.state = 'ended'
+         where l.email is not null and l.email_state = 'unknown'
+         order by m.lead_id, r.created_at desc
+      ) m
+     group by m.round_id
+  loop
+    -- Asked only with room in this month's and today's searching (00506): a check is money, as a search is.
+    if public.lead_check_ask(p_tenant_id, v_r.round_id, v_r.lead_ids) then
+      v_ids := v_ids || v_r.lead_ids;
+    else
+      v_held := v_held + cardinality(v_r.lead_ids);
+    end if;
+  end loop;
+  -- Nothing asked because there was no room: the owner reads why, in the words a search is refused in.
+  if cardinality(v_ids) = 0 and v_held > 0 then
+    return coalesce(public.lead_spend_room(p_tenant_id, public.lead_check_estimate(v_held)),
+      jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.'));
+  end if;
+  if cardinality(v_ids) > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'lead.checked_again', 'lead', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('leads', cardinality(v_ids), 'by', v_user)));
+  end if;
+  return jsonb_build_object('scheduled', cardinality(v_ids), 'skipped', cardinality(p_lead_ids) - cardinality(v_ids));
+end $$;
+
+-- lead_erase
+CREATE OR REPLACE FUNCTION public.lead_erase(p_lead_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user uuid := auth.uid();
+  v_lead public.leads%rowtype;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into v_lead from public.leads where id = p_lead_id for update;
+  if not found or not exists (select 1 from public.memberships m where m.tenant_id = v_lead.tenant_id and m.user_id = v_user) then
+    raise exception 'Lead not found.' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.memberships m where m.tenant_id = v_lead.tenant_id and m.user_id = v_user and m.role = 'owner') then
+    raise exception 'Only an owner can erase a lead.' using errcode = '42501';
+  end if;
+  if v_lead.erased_at is not null then
+    -- Idempotent: a second request is answered, not re-executed.
+    return jsonb_build_object('erased', true, 'already', true);
+  end if;
+  -- The tombstones first, exactly as an erased person's leads are hashed
+  -- (00140 leads_erase_on_contact), so no search ever finds this place, this
+  -- number or this address again (§0.4).
+  if v_lead.place_id is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'place', public.lead_suppression_hash(v_lead.tenant_id, v_lead.place_id), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  if v_lead.phone_e164 is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'phone', public.lead_suppression_hash(v_lead.tenant_id, v_lead.phone_e164), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  if v_lead.email is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'email', public.lead_suppression_hash(v_lead.tenant_id, v_lead.email), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  -- A company's domain (00430), so the people card never makes it again and no address at it is written to.
+  if v_lead.kind = 'company' and v_lead.source_key is not null then
+    insert into public.lead_suppressions (tenant_id, kind, hash, what)
+    values (v_lead.tenant_id, 'domain', public.lead_suppression_hash(v_lead.tenant_id, v_lead.source_key), 'erased')
+    on conflict (tenant_id, kind, hash) do nothing;
+  end if;
+  perform public.lead_blank(p_lead_id);
+  update public.leads set erased_at = now(), version = version + 1 where id = p_lead_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_lead.tenant_id, 'lead.erased', 'lead', 'lead', p_lead_id,
+          jsonb_strip_nulls(jsonb_build_object('by', v_user)));
+  -- No operation row: this one is final.
+  return jsonb_build_object('erased', true, 'already', false);
+end $$;
+
+-- purge_leads
+CREATE OR REPLACE FUNCTION public.purge_leads() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_total integer := 0;
+  v_n     integer;
+  r       record;
+begin
+  -- Untouched for 90 days: no person, no contact, no export. Set aside.
+  with stale as (
+    update public.leads
+       set stage = 'archived', closed_reason = 'stale'
+     where stage = 'ready' and contact_id is null and contacted_at is null and exported_at is null
+       and found_at < now() - interval '90 days' and erased_at is null and blanked_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select s.tenant_id, 'retention.cleared', 'system', 'workspace', s.tenant_id,
+           jsonb_build_object('what', 'leads_set_aside', 'rows', count(*))
+      from stale s group by s.tenant_id
+    returning 1
+  )
+  select count(*) into v_n from stale;
+  v_total := v_total + v_n;
+  -- Set aside for 180 days since it was found: its details go.
+  for r in select l.id from public.leads l
+            where l.closed_reason = 'stale' and l.blanked_at is null and l.erased_at is null and l.found_at < now() - interval '180 days'
+  loop
+    v_total := v_total + public.lead_blank(r.id);
+  end loop;
+  -- A place a search left out, 30 days on: the membership's details go and
+  -- the lead's with them when nothing else holds it; the membership stays,
+  -- excluded, so the count of what was left out does not move.
+  for r in select distinct m.lead_id from public.lead_search_members m
+            where m.class = 'excluded' and m.blanked_at is null and m.created_at < now() - interval '30 days'
+  loop
+    if not exists (select 1 from public.lead_search_members m2 where m2.lead_id = r.lead_id and m2.class <> 'excluded' and m2.blanked_at is null)
+       and not exists (select 1 from public.leads l where l.id = r.lead_id and (l.contact_id is not null or l.contacted_at is not null or l.exported_at is not null)) then
+      v_total := v_total + public.lead_blank(r.lead_id);
+    else
+      update public.lead_search_members set judgment = '{}'::jsonb, reason = '', blanked_at = now()
+       where lead_id = r.lead_id and class = 'excluded' and blanked_at is null;
+    end if;
+  end loop;
+  -- The judge's answers outlive nothing they judged.
+  delete from public.lead_judgments where created_at < now() - interval '180 days';
+  return v_total;
+end $$;
+/* -- what the owner says of the business and of a person: each with its event -- */
+
+-- A claim the owner makes of the business kept or withdrawn writes owner_claim.kept or .withdrawn; what a client file
+-- said of a person before (their visits, their notes) writes contact.before_kept; a name the reply offered and a member
+-- declined writes contact.name_declined, each in its own transaction. All are kept from Activity's rows: the person's
+-- page and the business's facts say each.
+
+-- owner_claims_keep
+CREATE OR REPLACE FUNCTION public.owner_claims_keep(p_tenant_id uuid, p_claim jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor  uuid := auth.uid();
+  v_row    public.owner_claims;
+  v_until  date;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_claim) <> 'object' then
+    raise exception 'A claim is an object.' using errcode = '22023';
+  end if;
+  v_until := nullif(p_claim ->> 'valid_until', '')::date;
+  insert into public.owner_claims (tenant_id, kind, text, source, valid_until, created_by)
+  values (p_tenant_id, p_claim ->> 'kind', btrim(p_claim ->> 'text'), p_claim ->> 'source', v_until, v_actor)
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'owner_claim.kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('claim_id', v_row.id, 'claim', v_row.kind, 'source', v_row.source, 'by', v_actor)));
+  return to_jsonb(v_row);
+end $$;
+
+-- owner_claim_withdraw
+CREATE OR REPLACE FUNCTION public.owner_claim_withdraw(p_tenant_id uuid, p_claim_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_done integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.owner_claims set withdrawn_at = now()
+   where tenant_id = p_tenant_id and id = p_claim_id and withdrawn_at is null;
+  get diagnostics v_done = row_count;
+  if v_done > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'owner_claim.withdrawn', 'setup', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('claim_id', p_claim_id, 'by', auth.uid())));
+  end if;
+  return v_done > 0;
+end $$;
+
+-- person_before_note
+CREATE OR REPLACE FUNCTION public.person_before_note(p_tenant_id uuid, p_contact_id uuid, p_before jsonb DEFAULT NULL::jsonb, p_notes text DEFAULT NULL::text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_notes  text := left(nullif(btrim(regexp_replace(coalesce(p_notes, ''), '\s+', ' ', 'g')), ''), 600);
+  v_before jsonb;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_before is not null and jsonb_typeof(p_before) <> 'object' then
+    raise exception 'What came before is an object.' using errcode = '22023';
+  end if;
+  -- Only the keys the column holds.
+  select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) into v_before
+    from jsonb_each(coalesce(p_before, '{}'::jsonb))
+   where key in ('via', 'last_visit', 'visits', 'birthday');
+  update public.contacts c
+     set notes  = coalesce(c.notes, v_notes),
+         before = case when v_before = '{}'::jsonb then c.before else v_before || coalesce(c.before, '{}'::jsonb) end
+   where c.id = p_contact_id
+     and c.tenant_id = p_tenant_id
+     and c.erased_at is null;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'contact.before_kept', 'contact', 'contact', p_contact_id,
+            jsonb_strip_nulls(jsonb_build_object('fields', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(v_before) k), 'notes', v_notes is not null, 'by', (select auth.uid()))));
+  end if;
+end $$;
+
+-- person_name_decline
+CREATE OR REPLACE FUNCTION public.person_name_decline(p_contact_id uuid, p_message_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user   uuid := auth.uid();
+  v_tenant uuid;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select c.tenant_id into v_tenant from public.contacts c where c.id = p_contact_id and c.erased_at is null;
+  if v_tenant is null or not public.is_acting_member(v_tenant) then
+    raise exception 'Person not found.' using errcode = 'P0002';
+  end if;
+  perform 1 from public.contacts where id = p_contact_id for update;
+  update public.sequence_replies r
+     set signer_state = 'declined', signer_settled_at = now(), signer_settled_by = v_user
+   where r.message_id = p_message_id and r.tenant_id = v_tenant
+     and r.contact_id = p_contact_id
+     and r.signer_state = 'offered';
+  if not found then
+    return jsonb_build_object('declined', false, 'why', 'settled');
+  end if;
+  update public.contacts set name_settled_at = now(), updated_at = now() where id = p_contact_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'contact.name_declined', 'contact', 'contact', p_contact_id,
+          jsonb_strip_nulls(jsonb_build_object('message_id', p_message_id, 'by', v_user)));
+  return jsonb_build_object('declined', true, 'contact_id', p_contact_id);
+end $$;
+/* -- a booking nudged, a forwarding test begun, a handover's alarm, an ad's limit and its cancel: each with its event -- */
+
+-- A booking AI offered and nudged once writes appointment.nudged; a forwarded number's test begun writes
+-- line.forwarding_tested; the handovers the deadman sweep alerted the team about write escalation.alerted, one row per
+-- workspace; the most an ad may cost writes ad_account.most_set; and an ad's launch a member asked to cancel writes
+-- ad.cancel_asked, each in its own transaction. All are kept from Activity's rows: the page each is on says it.
+
+-- booking_request_nudged
+CREATE OR REPLACE FUNCTION public.booking_request_nudged(p_appointment_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  update public.appointments
+     set nudged_at = now()
+   where id = p_appointment_id and nudged_at is null and source = 'receptionist' and status = 'proposed'
+  returning id into v_id;
+  if v_id is not null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'appointment.nudged', 'appointment', 'appointment', a.id, '{}'::jsonb
+      from public.appointments a where a.id = v_id;
+  end if;
+  return v_id is not null;
+end $$;
+
+-- line_forwarding_test
+CREATE OR REPLACE FUNCTION public.line_forwarding_test(p_tenant_id uuid, p_line_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_until timestamptz := now() + interval '30 minutes';
+  v_found uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  update public.lines
+     set forwarding_state = 'instructed',
+         state_since = now(),
+         facts = facts || jsonb_build_object('test_started_at', now(), 'test_until', v_until) - 'verified_at' - 'verified_call_id' - 'verified_from'
+   where id = p_line_id and tenant_id = p_tenant_id and kind = 'forwarded'
+   returning id into v_found;
+  if v_found is null then
+    raise exception 'No such forwarded line.' using errcode = 'P0002';
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'line.forwarding_tested', 'setup', 'line', p_line_id,
+          jsonb_strip_nulls(jsonb_build_object('test_until', v_until, 'by', auth.uid())));
+  return jsonb_build_object('ok', true, 'test_until', v_until);
+end $$;
+
+-- deadman_mark_alerted
+CREATE OR REPLACE FUNCTION public.deadman_mark_alerted(p_ids uuid[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare v_count integer;
+begin
+  with alerted as (
+    update escalations set deadman_alerted_at = now()
+     where id = any(p_ids) and deadman_alerted_at is null
+    returning tenant_id
+  ), told as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select a.tenant_id, 'escalation.alerted', 'message', 'workspace', a.tenant_id,
+           jsonb_build_object('handovers', count(*), 'by', 'deadman')
+      from alerted a group by a.tenant_id
+    returning 1
+  )
+  select count(*) into v_count from alerted;
+  return v_count;
+end $$;
+
+-- ad_account_most
+CREATE OR REPLACE FUNCTION public.ad_account_most(p_tenant_id uuid, p_most_minor bigint) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_kept integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- What an ad may spend is the owner's alone (0050, call 2).
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'ads'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_most_minor is not null and p_most_minor <= 0 then
+    raise exception 'The most an ad may cost is more than nothing.' using errcode = '22023';
+  end if;
+  update public.ad_accounts a
+     set most_minor = p_most_minor
+   where a.tenant_id = p_tenant_id and a.platform = 'meta' and a.status = 'connected';
+  get diagnostics v_kept = row_count;
+  if v_kept > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.most_set', 'ads', 'workspace', p_tenant_id,
+            jsonb_strip_nulls(jsonb_build_object('most_minor', p_most_minor, 'by', auth.uid())));
+  end if;
+  return v_kept > 0;
+end $$;
+
+-- ad_launch_cancel
+CREATE OR REPLACE FUNCTION public.ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text DEFAULT 'owner'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad public.ads;
+  v_by text := coalesce(p_by, 'owner');
+begin
+  if v_by not in ('owner', 'remediation') then
+    raise exception 'ad_launch_cancel: by the owner or a remediation' using errcode = '22023';
+  end if;
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, case v_by when 'owner' then 'ads' else 'settings' end),
+                  false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id and a.origin = 'chanlytics'
+   for update;
+  if not found then
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+  -- Made already: it is the ad now, and its Pause stops it. Stopped already: there is nothing left to cancel.
+  if v_ad.status = 'made' then
+    return jsonb_build_object('outcome', 'made', 'version', v_ad.version);
+  end if;
+  if v_ad.status <> 'sending' then
+    return jsonb_build_object('outcome', 'stopped', 'version', v_ad.version);
+  end if;
+  if v_ad.launch ? 'cancel' then
+    return jsonb_build_object('outcome', 'same', 'version', v_ad.version);
+  end if;
+  update public.ads a
+     set launch = coalesce(a.launch, '{}'::jsonb)
+                  || jsonb_build_object('cancel', jsonb_build_object('at', now(), 'by', v_by)),
+         version = a.version + 1
+   where a.id = p_ad_id
+  returning * into v_ad;
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (p_tenant_id, 'ad', p_ad_id, 'cancel_ad', 'user', p_actor,
+          jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', v_by));
+  -- Its account's job takes it up within a minute: the launch stops at its next step and removes what it made.
+  update public.ad_accounts c
+     set next_read_at = least(coalesce(c.next_read_at, 'infinity'::timestamptz), now() + interval '1 minute')
+   where c.id = v_ad.account_id and c.tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.cancel_asked', 'ads', 'ad', p_ad_id,
+          jsonb_strip_nulls(jsonb_build_object('by', p_actor, 'via', v_by)));
+  return jsonb_build_object('outcome', 'asked', 'version', v_ad.version);
+end $$;
+/* -- a batch approved by its owner, a cold email's run planned: each with its event -- */
+
+-- A batch its owner approved to go writes broadcast.moved (from waiting to scheduled, with when and who), and a cold
+-- email's run planned writes broadcast.moved (planned, with how many sends it holds), each in its own transaction. Both
+-- are kept from Activity's rows: Campaigns says each batch as it stands, and the run's own playbook.run says it ran.
+
+-- approve_broadcast
+CREATE OR REPLACE FUNCTION public.approve_broadcast(p_tenant_id uuid, p_broadcast_id uuid, p_send_at timestamp with time zone, p_job jsonb, p_decision jsonb, p_via text DEFAULT NULL::text, p_undo_of uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_released uuid;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- An owner or an operator, or a partner on a session that showed its second factor: who may commit a change here.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_send_at is null then
+    raise exception 'approve_broadcast: a run is released for a moment' using errcode = '22004';
+  end if;
+  -- Only a run still waiting, and this workspace's: the row carries the time its job carries (00119). No row is a run
+  -- that moved while the person looked (approved by someone else, skipped, canceled), and nothing else is written.
+  update public.sequence_batches
+     set state = 'scheduled', scheduled_for = p_send_at
+   where id = p_broadcast_id and tenant_id = p_tenant_id and state = 'pending_approval'
+  returning id into v_released;
+  if v_released is null then
+    return null;
+  end if;
+  -- The member has seen this step's words go in a real batch (0064): its next batches go by the sequence's mode.
+  update public.sequence_steps st
+     set words_ok_at = now()
+    from public.sequence_batches b
+   where b.id = v_released and st.id = b.step_id and st.tenant_id = p_tenant_id;
+  -- The send, on the ledger no session may write: what the caller carries with it (the request it was approved in)
+  -- rides in the payload, and the run it sends is named here, never by the caller.
+  if p_job is not null then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'broadcast_send', p_send_at,
+            (case when jsonb_typeof(p_job) = 'object' then p_job else '{}'::jsonb end)
+              || jsonb_build_object('broadcast_id', p_broadcast_id));
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'broadcast.moved', 'message', 'broadcast', p_broadcast_id,
+          jsonb_build_object('from', 'pending_approval', 'to', 'scheduled', 'at', p_send_at, 'by', v_actor));
+  return public.team_decision(p_tenant_id, v_actor, 'broadcast', p_broadcast_id, 'send_broadcast',
+                              coalesce(p_decision, '{}'::jsonb), p_via, p_undo_of);
+end $$;
+
+-- reach_out_plan_run
+CREATE OR REPLACE FUNCTION public.reach_out_plan_run(p_run jsonb, p_sends jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_run uuid := (p_run->>'id')::uuid;
+  v_tenant uuid := (p_run->>'tenant_id')::uuid;
+  v_step uuid := (p_run->>'playbook_id')::uuid;
+  v_root uuid := (p_run->'audience'->>'root_id')::uuid;
+  v_back uuid[] := '{}';
+begin
+  if p_run->'audience'->>'kind' is distinct from 'reach_out' then
+    raise exception 'reach_out_plan_run: a run of a reach-out says so in its audience';
+  end if;
+  if not exists (select 1 from public.sequence_steps where id = v_step and tenant_id = v_tenant and kind = 'reach_out')
+     or not exists (select 1 from public.sequence_steps where id = v_root and tenant_id = v_tenant and kind = 'reach_out') then
+    raise exception 'reach_out_plan_run: step % or root % is no reach-out of workspace %', v_step, v_root, v_tenant;
+  end if;
+  begin
+    insert into public.sequence_batches (id, tenant_id, step_id, run_for, name, template_id, template_name,
+                                   template_language, state, scheduled_for, recipient_count, audience)
+    values (v_run, v_tenant, v_step, (p_run->>'run_for')::date, p_run->>'name', (p_run->>'template_id')::uuid,
+            p_run->>'template_name', p_run->>'template_language', p_run->>'state',
+            (p_run->>'scheduled_for')::timestamptz, (p_run->>'recipient_count')::int, p_run->'audience');
+  exception when unique_violation then
+    return jsonb_build_object('exists', true);
+  end;
+  -- Who of these is written to a second time (00608, decision 0120): only where the sequence tries again, only by its
+  -- first email, and only whom reach_out_comes_back lets back now. Everyone else is of the first round, so a lead another
+  -- reach-out planned or wrote first is refused by the round's unique index below and left out, as before.
+  if v_step = v_root then
+    select coalesce(array_agg(b.lead_id), '{}') into v_back
+      from public.sequence_steps r,
+           lateral public.reach_out_comes_back(
+             v_tenant,
+             array(select (e->>'lead_id')::uuid from jsonb_array_elements(coalesce(p_sends, '[]'::jsonb)) e),
+             r.again_after_days) b
+     where r.id = v_root and r.tenant_id = v_tenant and r.again_after_days is not null;
+  end if;
+  insert into public.sequence_sends (id, tenant_id, batch_id, step_id, sequence_id, lead_id, contact_id, mailbox_id,
+                                      send_at, state, reason, round)
+  select x.id, v_tenant, v_run, v_step, v_root, x.lead_id, x.contact_id, x.mailbox_id, x.send_at,
+         coalesce(x.state, 'planned'), x.reason,
+         -- The second round is the last: reach_out_comes_back never lets back a lead with one.
+         case when x.lead_id = any (v_back) then 2 else 1 end
+    from jsonb_to_recordset(coalesce(p_sends, '[]'::jsonb))
+         as x(id uuid, lead_id uuid, contact_id uuid, mailbox_id uuid, send_at timestamptz, state text, reason text)
+   where exists (select 1 from public.leads l where l.id = x.lead_id and l.tenant_id = v_tenant)
+     and (x.mailbox_id is null
+          or exists (select 1 from public.mailbox_connections b where b.id = x.mailbox_id and b.tenant_id = v_tenant))
+  -- A send any unique rule refuses (a replay's, or a lead another reach-out planned first: one first send per lead,
+  -- 00427) is left out of this run, never the run's failure.
+  on conflict do nothing;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_tenant, 'broadcast.moved', 'message', 'broadcast', v_run,
+          jsonb_build_object('to', 'planned', 'state', p_run ->> 'state', 'sends',
+                             (select count(*) from public.sequence_sends s where s.batch_id = v_run)));
+  return jsonb_build_object('id', v_run);
+end $$;
+/* -- an ad's ways in, the owner's own email, a workspace's first rows: each with its event -- */
+
+-- The ways in an account's ads take (a message, a form) kept writes ad_account.ways_in_kept; the owner's own email in
+-- a mailbox they connected, kept on its thread, writes conversation.owner_emailed, a kind of its own: the owner's echo
+-- from WhatsApp's app (conversation.owner_replied) hands the thread back and Activity says so, and an email of theirs
+-- hands nothing back, it only answers the holds it meets; and a workspace's first rows (its policies, its settings, its
+-- billing) write workspace.provisioned where any was made. All are kept from Activity's rows.
+
+-- ad_way_in_keep
+CREATE OR REPLACE FUNCTION public.ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_moved  integer;
+  v_rung   integer := 0;
+  v_closed integer := 0;
+  v_gone   record;
+begin
+  if jsonb_typeof(p_ways) is distinct from 'array' then
+    raise exception 'ad_way_in_keep: the ways are an array' using errcode = '22023';
+  end if;
+  -- Each ad as the read judged it: what stands in the way, or nothing (null) where AI answers it or it does not run.
+  -- Since when is kept only where it moved, so an unknown word keeps the moment it was first not known.
+  with given as (
+    select (w.value ->> 'ad_id')::uuid as ad_id, nullif(w.value ->> 'way_in', '') as way_in
+      from jsonb_array_elements(p_ways) w
+  ), moved as (
+    update public.ads a
+       set way_in = g.way_in,
+           way_in_at = case when g.way_in is null then null else now() end
+      from given g
+     where a.id = g.ad_id and a.tenant_id = p_tenant_id and a.account_id = p_account_id
+       and a.origin = 'chanlytics' and a.way_in is distinct from g.way_in
+    returning a.id
+  )
+  select count(*) into v_moved from moved;
+
+  -- A row whose way in opened again, or whose ad stopped running, closes for everyone.
+  for v_gone in
+    select distinct n.subject_id
+      from public.notifications n
+      join public.ads d on d.id::text = n.subject_id
+     where n.tenant_id = p_tenant_id and n.kind = 'ad_way_in' and n.closed_at is null and n.subject_type = 'ad'
+       and n.created_at >= now() - interval '30 days'
+       and d.tenant_id = p_tenant_id and d.account_id = p_account_id
+       and (d.way_in is null or d.intent <> 'on' or d.status <> 'made')
+  loop
+    v_closed := v_closed + public.notifications_close_about(p_tenant_id, array['ad_way_in'], 'ad', v_gone.subject_id);
+  end loop;
+
+  -- A way in that closed rings once, for each member who may run ads, in the words the read handed (they say how much
+  -- the ad can still spend, in its account's own money). Meta's word on the number not known rings only once it has
+  -- stood an hour, so one read that could not tell wakes nobody. Never a second open row for one ad.
+  with said as (
+    select (w.value ->> 'ad_id')::uuid as ad_id,
+           nullif(left(btrim(coalesce(w.value ->> 'title', '')), 200), '') as title,
+           nullif(left(btrim(coalesce(w.value ->> 'body', '')), 600), '') as body
+      from jsonb_array_elements(p_ways) w
+  ), owed as (
+    select d.id, s.title, s.body
+      from said s
+      join public.ads d on d.id = s.ad_id
+     where d.tenant_id = p_tenant_id and d.account_id = p_account_id and d.origin = 'chanlytics'
+       and d.status = 'made' and d.intent = 'on' and d.way_in is not null
+       and s.title is not null and s.body is not null
+       and d.way_in_at <= now() - case when d.way_in = 'unread' then interval '1 hour' else interval '0 seconds' end
+  ), rung as (
+    insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
+                                      recipient_user_id, mail_due_at)
+    select p_tenant_id, 'ad_way_in', o.title, o.body, 'campaigns/ads:ad:' || o.id::text, 'ad', o.id::text, h.user_id,
+           now()
+      from owed o
+     cross join public.ad_bell_hearers(p_tenant_id) as h(user_id)
+     where not exists (select 1 from public.notifications x
+                        where x.tenant_id = p_tenant_id and x.kind = 'ad_way_in' and x.recipient_user_id = h.user_id
+                          and x.subject_type = 'ad' and x.subject_id = o.id::text and x.closed_at is null
+                          and x.created_at >= now() - interval '30 days')
+    returning 1
+  )
+  select count(*) into v_rung from rung;
+  if v_moved > 0 or v_closed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.ways_in_kept', 'ads', 'ad_account', p_account_id,
+            jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed));
+  end if;
+  return jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed);
+end $$;
+
+-- mailbox_owner_wrote
+CREATE OR REPLACE FUNCTION public.mailbox_owner_wrote(p_tenant_id uuid, p_address text, p_external_id text, p_body text, p_channel_ts timestamp with time zone, p_meta jsonb, p_reasons text[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_address  text := nullif(lower(btrim(coalesce(p_address, ''))), '');
+  v_contact  uuid;
+  v_conv     uuid;
+  v_message  uuid;
+  v_ids      uuid[];
+  v_decision jsonb;
+begin
+  if p_tenant_id is null or v_address is null or nullif(btrim(coalesce(p_external_id, '')), '') is null
+     or p_channel_ts is null then
+    raise exception 'mailbox_owner_wrote: a workspace, the address it went to, the provider''s id and when it was sent'
+      using errcode = '22004';
+  end if;
+  -- Who it went to, as resolve_person matches an address (00413): the email identity, then the address on a living
+  -- record. Nobody is made: an address the workspace does not know is the owner's own business.
+  select coalesce(c.merged_into_contact_id, c.id)
+    into v_contact
+    from public.contact_identities i
+    join public.contacts c on c.id = i.contact_id
+   where i.tenant_id = p_tenant_id and i.channel = 'email' and i.external_id = v_address
+     and c.erased_at is null
+   limit 1;
+  if v_contact is null then
+    select c.id
+      into v_contact
+      from public.contacts c
+     where c.tenant_id = p_tenant_id and c.email = v_address
+       and c.erased_at is null and c.merged_into_contact_id is null
+     limit 1;
+  end if;
+  if v_contact is null then
+    return jsonb_build_object('kept', false, 'why', 'not_known');
+  end if;
+
+  -- Their thread, made where there is none yet, its recency moved only forward.
+  insert into public.conversations (tenant_id, contact_id, last_message_at)
+  values (p_tenant_id, v_contact, p_channel_ts)
+  on conflict (tenant_id, contact_id)
+    do update set last_message_at = greatest(conversations.last_message_at, excluded.last_message_at)
+  returning id into v_conv;
+
+  -- Once by the provider's id: a sync that reads the same email again keeps nothing twice.
+  insert into public.messages (tenant_id, conversation_id, contact_id, channel, direction, sender,
+                               type, body, external_id, channel_ts, status, meta)
+  values (p_tenant_id, v_conv, v_contact, 'email', 'outbound', 'human',
+          'text', nullif(p_body, ''), p_external_id, p_channel_ts, 'sent', coalesce(p_meta, '{}'::jsonb))
+  on conflict (tenant_id, external_id) where external_id is not null do nothing
+  returning id into v_message;
+  if v_message is null then
+    return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'conversation.owner_emailed', 'message', 'conversation', v_conv,
+          jsonb_build_object('message_id', v_message, 'channel', 'email'));
+
+  -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot
+  -- both resolve them and write two decisions.
+  select array_agg(h.id)
+    into v_ids
+    from (
+      select e.id
+        from public.escalations e
+       where e.tenant_id = p_tenant_id
+         and e.conversation_id = v_conv
+         and e.state = 'open'
+         and e.reason = any(coalesce(p_reasons, '{}'::text[]))
+         and e.created_at < p_channel_ts
+       for update
+    ) h;
+  if v_ids is null then
+    return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv, 'resolved', 0);
+  end if;
+  v_decision := public.team_decision(p_tenant_id, null, 'conversation', v_conv, 'resolve',
+                                     jsonb_build_object('message_id', v_message), 'mailbox', null);
+  update public.escalations
+     set state = 'resolved', decision_id = (v_decision ->> 'decision_id')::uuid
+   where id = any(v_ids) and state = 'open';
+  return jsonb_build_object('kept', true, 'message_id', v_message, 'conversation_id', v_conv,
+                            'resolved', cardinality(v_ids)) || v_decision;
+end $$;
+
+-- provision_tenant
+CREATE OR REPLACE FUNCTION public.provision_tenant(p_tenant_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  insert into public.policies (tenant_id, class, mode, limits)
+  select p_tenant_id, c.class, c.mode,
+         case when c.class = 'reply'
+              then '{"max_replies_day": 20, "pause_hours": 24, "max_llm_tokens_day": 1000000}'::jsonb
+              else '{}'::jsonb end
+  from (values
+    ('faq','auto'), ('booking','auto'), ('reply','auto'),
+    ('reengage','veto'), ('campaign','veto'), ('reviews','ask'), ('money','never'), ('follow_up','veto'),
+    ('outreach','veto'),
+    -- 00714: what AI does with content asks the owner first, every row.
+    ('plan_approve','ask'), ('post','ask'), ('ad_change','ask'), ('comment_reply','ask')
+  ) as c(class, mode)
+  on conflict (tenant_id, class, subject_type, subject_id) do nothing;
+
+  insert into public.tenant_config (tenant_id) values (p_tenant_id)
+  on conflict (tenant_id) do nothing;
+
+  insert into public.billing_accounts (tenant_id, mode, status) values (p_tenant_id, 'stripe', 'none')
+  on conflict (tenant_id) do nothing;
+  if found then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'workspace.provisioned', 'setup', 'workspace', p_tenant_id, '{}'::jsonb);
+  end if;
+end $$;
+/* -- an ad's draft kept, a mailbox's connect begun, a search undone: each with its event -- */
+
+-- An ad's draft kept for its account writes ad.draft_kept; a mailbox's connect begun (its row made, or found and asked
+-- again) writes mailbox_connection.begun, before mailbox_connection_move says it stood; and a search undone within its
+-- day writes lead_search.undone, with what it took back. All are kept from Activity's rows.
+
+-- ad_draft_keep
+CREATE OR REPLACE FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor   uuid := auth.uid();
+  v_id      uuid;
+  v_at      timestamptz;
+  v_words   integer;
+  v_name    text;
+  v_service text;
+  v_rung    integer := 0;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Operators and partners may draft (0050, call 2): an acting member, a partner only once their session showed its
+  -- second factor. A viewer reads.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_draft is null or jsonb_typeof(p_draft) <> 'object' or octet_length(p_draft::text) > 20000 then
+    raise exception 'A draft is an object of at most 20,000 bytes.' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.ad_accounts a where a.id = p_account_id and a.tenant_id = p_tenant_id) then
+    return jsonb_build_object('kept', false, 'draft_id', null, 'rung', 0);
+  end if;
+  -- A keep that names the draft it read writes nothing over another kept since, nor brings back one gone since
+  -- (turned on): it says newer, and the dashboard puts what its writer made into the draft as it now stands.
+  if p_read_at is not null then
+    select d.id, d.updated_at into v_id, v_at
+      from public.ad_drafts d
+     where d.tenant_id = p_tenant_id
+       for update;
+    if (v_id is null and p_read_at <> '-infinity'::timestamptz) or (v_id is not null and v_at is distinct from p_read_at)
+    then
+      return jsonb_build_object('kept', false, 'draft_id', v_id, 'rung', 0, 'newer', true);
+    end if;
+  end if;
+  insert into public.ad_drafts as d (tenant_id, account_id, draft, kept_by)
+  values (p_tenant_id, p_account_id, p_draft, v_actor)
+  on conflict (tenant_id) do update
+     set account_id = excluded.account_id, draft = excluded.draft, kept_by = excluded.kept_by
+  returning d.id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.draft_kept', 'ads', 'ad_account', p_account_id,
+          jsonb_build_object('draft_id', v_id, 'by', v_actor));
+  if public.has_permission(v_actor, p_tenant_id, 'ads') then
+    -- The owner has it now: what told them it waited is closed.
+    update public.notifications n
+       set closed_at = now()
+     where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.closed_at is null;
+    return jsonb_build_object('kept', true, 'draft_id', v_id, 'rung', 0);
+  end if;
+  v_words := case when jsonb_typeof(p_draft -> 'versions') = 'array' then jsonb_array_length(p_draft -> 'versions')
+                  else 0 end;
+  -- Left with its words, it waits for whoever may turn it on: one row each, never a second while one is open.
+  if v_words > 0 then
+    begin
+      select nullif(btrim(p.display_name), '') into v_name from public.profiles p where p.user_id = v_actor;
+      -- The service as the writer named it in a few words, where it did: a service's own name can run to a sentence.
+      v_service := coalesce(nullif(btrim(p_draft ->> 'label'), ''), nullif(btrim(p_draft ->> 'service'), ''));
+      if char_length(v_service) > 120 then
+        v_service := left(v_service, 119) || '…';
+      end if;
+      insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
+                                        recipient_user_id)
+      select p_tenant_id, 'ad_draft', coalesce(v_name, 'Someone on your team') || ' left you a draft ad',
+             coalesce('For ' || v_service || '. ', '') || 'It runs only once you turn it on.',
+             'campaigns/ads:new', 'ad_draft', v_id::text, m.user_id
+        from public.memberships m
+       where m.tenant_id = p_tenant_id
+         and m.user_id <> v_actor
+         and public.has_permission(m.user_id, p_tenant_id, 'ads')
+         and not exists (
+               select 1 from public.notifications n
+                where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.recipient_user_id = m.user_id
+                  and n.closed_at is null);
+      get diagnostics v_rung = row_count;
+    exception when others then
+      -- The bell's line never costs the draft its keeping.
+      raise warning 'ad_draft_keep: %', sqlerrm;
+    end;
+  end if;
+  return jsonb_build_object('kept', true, 'draft_id', v_id, 'rung', v_rung);
+end $$;
+
+-- mailbox_connection_connect
+CREATE OR REPLACE FUNCTION public.mailbox_connection_connect(p_tenant_id uuid, p_user_id uuid, p_provider text, p_account text, p_address text, p_from_name text, p_scopes text[], p_customer_domain boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_address text := lower(btrim(p_address));
+  v_row     public.mailbox_connections;
+  v_other   uuid;
+begin
+  -- The same account, connected again (a reconnect, or the owner pressed Connect twice): its row, back to connected.
+  select * into v_row from public.mailbox_connections c
+   where c.tenant_id = p_tenant_id and c.provider = p_provider and c.provider_account = p_account
+     and c.state <> 'removed'
+   for update;
+  if found then
+    update public.mailbox_connections
+       set address = v_address, host = split_part(v_address, '@', 2), scopes = coalesce(p_scopes, '{}'),
+           customer_domain = coalesce(p_customer_domain, false),
+           state = case when state in ('reconnect') then 'connected' else state end,
+           last_error = null, last_error_at = null, connected_by = coalesce(p_user_id, connected_by),
+           connected_at = now()
+     where id = v_row.id
+     returning * into v_row;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+            jsonb_build_object('made', false, 'provider', p_provider, 'by', p_user_id));
+    return jsonb_build_object('id', v_row.id, 'made', false, 'state', v_row.state);
+  end if;
+  -- An address another workspace writes from is that workspace's.
+  select c.tenant_id into v_other from public.mailbox_connections c
+   where c.address = v_address and c.state <> 'removed' and c.tenant_id <> p_tenant_id
+   limit 1;
+  if v_other is not null then
+    raise exception 'Another workspace writes from this mailbox.' using errcode = 'P0001', hint = 'taken';
+  end if;
+  insert into public.mailbox_connections
+    (tenant_id, provider, provider_account, address, host, from_name, scopes, customer_domain, connected_by)
+  values
+    (p_tenant_id, p_provider, p_account, v_address, split_part(v_address, '@', 2),
+     left(coalesce(nullif(btrim(p_from_name), ''), split_part(v_address, '@', 1)), 80),
+     coalesce(p_scopes, '{}'), coalesce(p_customer_domain, false), p_user_id)
+  returning * into v_row;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'mailbox_connection.begun', 'setup', 'mailbox_connection', v_row.id,
+          jsonb_build_object('made', true, 'provider', p_provider, 'by', p_user_id));
+  return jsonb_build_object('id', v_row.id, 'made', true, 'state', v_row.state);
+end $$;
+
+-- lead_search_undo
+CREATE OR REPLACE FUNCTION public.lead_search_undo(p_search_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_user     uuid := auth.uid();
+  s          public.lead_searches;
+  r          public.lead_rounds;
+  v_ids      uuid[] := '{}';
+  v_credit   jsonb := '{}'::jsonb;
+  v_counter  public.lead_counters;
+  v_removed  integer := 0;
+  v_credited integer := 0;
+  v_op       uuid;
+  rec        record;
+begin
+  if v_user is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  select * into s from public.lead_searches where id = p_search_id for update;
+  -- The owner's alone (permission find): it gives leads back to the month, and
+  -- only the person who spends them may.
+  if not found or not public.has_permission(v_user, s.tenant_id, 'find') then
+    raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  if s.removed_at is not null then
+    return jsonb_build_object('error', 'removed');
+  end if;
+  select * into r from public.lead_rounds where search_id = p_search_id order by seq desc limit 1;
+  if not found or r.state <> 'ended' then
+    return jsonb_build_object('error', 'running');
+  end if;
+  if r.ended_at is null or r.ended_at < now() - interval '24 hours' then
+    return jsonb_build_object('error', 'too_late');
+  end if;
+
+  for rec in
+    select m.id as member_id, m.lead_id, m.counted, m.counted_month, l.exported_at
+      from public.lead_search_members m
+      join public.leads l on l.id = m.lead_id
+     where m.search_id = p_search_id and m.round_id = r.id and m.blanked_at is null
+       and l.erased_at is null and l.blanked_at is null
+       -- untouched, read off the work
+       and l.stage = 'ready' and l.contact_id is null and l.contacted_at is null
+       and l.last_outcome is null and not l.phone_wrong
+       and m.kept_at is null and coalesce(m.excluded_by, '') <> 'owner'
+     for update of m
+  loop
+    if rec.counted and rec.exported_at is null then
+      v_counter := public.lead_counter_take(s.tenant_id, 'allowance', rec.counted_month);
+      update public.lead_counters set used = greatest(used - 1, 0), updated_at = now() where id = v_counter.id;
+      v_credit   := v_credit || jsonb_build_object(rec.lead_id::text, rec.counted_month);
+      v_credited := v_credited + 1;
+      update public.lead_search_members
+         set blanked_at = now(), counted = false, counted_month = null, version = version + 1
+       where id = rec.member_id;
+    else
+      -- Exported, or never counted: it leaves the search and keeps its charge.
+      update public.lead_search_members set blanked_at = now(), version = version + 1 where id = rec.member_id;
+    end if;
+    v_ids     := array_append(v_ids, rec.lead_id);
+    v_removed := v_removed + 1;
+  end loop;
+
+  if v_removed = 0 then
+    -- Everything here has been worked: there is nothing to give back, and an
+    -- operation row with no leads in it is nothing to undo.
+    return jsonb_build_object('removed', 0, 'credited', 0, 'op_id', null, 'version', 1);
+  end if;
+  insert into public.lead_operations (tenant_id, kind, search_id, lead_ids, before, after, version, by)
+  values (s.tenant_id, 'undo_search', p_search_id, v_ids,
+          jsonb_build_object('removed_at', null, 'credited', v_credit),
+          jsonb_build_object('round_id', r.id, 'removed', v_removed, 'credited', v_credited), 1, v_user)
+  returning id into v_op;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (s.tenant_id, 'lead_search.undone', 'lead', 'lead_search', p_search_id,
+          jsonb_build_object('removed', v_removed, 'credited', v_credited, 'by', v_user));
+  return jsonb_build_object('removed', v_removed, 'credited', v_credited, 'op_id', v_op, 'version', 1);
+end $$;
+/* -- a post approved to go, and the companies a round found: each with its event -- */
+
+-- Each post an approval puts on its way (queued for its place, or going now) writes post.moved, with its place and who
+-- approved it; the companies a finder's round found and kept write lead.found, with how many were made, held and left
+-- out, each in its own transaction. Both are kept from Activity's rows: Files and Leads say each as it stands.
+
+-- post_approve
+CREATE OR REPLACE FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor      uuid := auth.uid();
+  -- 00714: the service, making a week a rung let AI approve: no member, so no member's permission to ask.
+  v_service  boolean := auth.uid() is null and coalesce((select auth.role()), '') = 'service_role';
+  v_file       public.files;
+  v_piece      public.pieces;
+  v_rev        public.piece_revisions;
+  v_n          integer;
+  v_captions   jsonb := '{}'::jsonb;
+  v_place      jsonb;
+  v_rendition  jsonb;
+  v_kept       public.piece_renditions;
+  v_busy       uuid;
+  v_approval   uuid;
+  v_id         uuid;
+  v_when       timestamptz;
+  v_later      boolean;
+  v_posts      jsonb := '[]'::jsonb;
+  v_snapshot   jsonb;
+  v_places     jsonb := coalesce(p_approval -> 'placements', '[]'::jsonb);
+  -- An older version's own file approved again (00708: "Post this one instead"): the version its shape was kept at.
+  v_older      integer;
+begin
+  if v_actor is null and not v_service then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null
+     or (not v_service and not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if v_service <> (coalesce(p_approval ->> 'via', '') = 'rung') then
+    raise exception 'A placement goes via rung when AI approves it under the owner''s rung, and only then.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(v_places) <> 'array' or jsonb_array_length(v_places) not between 1 and 4 then
+    raise exception 'An approval names one to four placements.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_approval -> 'snapshot') is distinct from 'object' then
+    raise exception 'An approval carries its snapshot.' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'posts', '[]'::jsonb);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
+  end if;
+  -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google', 'facebook']) then
+      raise exception 'No such place: %.', v_place ->> 'place' using errcode = '22023';
+    end if;
+    if (case when v_file.kind = 'video'
+             then not (v_place ->> 'place' in ('instagram', 'facebook') and v_place ->> 'kind' = 'reel')
+             else (v_place ->> 'kind') is null or (v_place ->> 'kind') <> all (array['picture', 'story'])
+                  or (v_place ->> 'place' = 'google' and v_place ->> 'kind' <> 'picture') end) then
+      return jsonb_build_object('fate', 'wrong_kind', 'posts', '[]'::jsonb);
+    end if;
+    if char_length(coalesce(v_place ->> 'caption', '')) > (case when v_place ->> 'place' = 'google' then 1500 else 2200 end) then
+      raise exception 'Those words are longer than the place takes.' using errcode = '22023';
+    end if;
+    v_when := greatest(coalesce((v_place ->> 'at')::timestamptz, now()), now());
+    if v_when > now() + interval '30 days' then
+      raise exception 'A post goes within thirty days.' using errcode = '22023';
+    end if;
+    if (v_place ->> 'good_until') is not null and (v_place ->> 'good_until')::timestamptz < v_when then
+      return jsonb_build_object('fate', 'late', 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+  -- A Google press that died between its placement and its answer stops holding the next one after ten minutes (00616).
+  update public.posts p
+     set status = 'failed', updated_at = now(),
+         error = jsonb_build_object('code', null, 'subcode', null, 'words',
+                                    'Google did not say whether this went up. Look on your profile before posting it again.')
+   where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
+     and p.updated_at < now() - interval '10 minutes';
+  -- One of each kind on its way at a place (00620).
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    select p.id into v_busy from public.posts p
+     where p.file_id = p_file_id and p.place = v_place ->> 'place' and p.kind = v_place ->> 'kind'
+       and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
+    if found then
+      return jsonb_build_object('fate', 'busy', 'post_id', v_busy, 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+
+  -- Its own statement: a row it writes is seen only by the next one.
+  v_id := public.piece_of_made_file(p_tenant_id, p_file_id, v_actor);
+  select * into v_piece from public.pieces p where p.id = v_id;
+  if not found then
+    return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
+  end if;
+  -- A video's file that is no longer its piece's own is an older version's (00708): it is approved at that version.
+  if v_file.kind = 'video' and v_piece.file_id is distinct from p_file_id then
+    select r.revision into v_older from public.piece_renditions r
+     where r.piece_id = v_piece.id and r.file_id = p_file_id order by r.revision desc limit 1;
+  end if;
+  -- A shape already kept with other bytes is not what the owner saw: nothing is written past here.
+  for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
+    select * into v_kept from public.piece_renditions r
+     where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= coalesce(v_older, v_piece.revision)
+     order by r.revision desc limit 1;
+    if found and (v_kept.checksum <> v_rendition ->> 'checksum' or v_kept.path <> v_rendition ->> 'path') then
+      return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+  if p_approval ? 'intent' then
+    update public.pieces p set intent = nullif(p_approval -> 'intent', 'null'::jsonb), updated_at = now()
+     where p.id = v_piece.id and p.intent is distinct from nullif(p_approval -> 'intent', 'null'::jsonb);
+  end if;
+
+  -- The version it stands at, written the first time; words that differ from it are a new version (no new shapes).
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    if v_place ->> 'kind' <> 'story' then
+      v_captions := v_captions || jsonb_build_object(v_place ->> 'place', coalesce(v_place ->> 'caption', ''));
+    end if;
+  end loop;
+  v_n := coalesce(v_older, v_piece.revision);
+  select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_n;
+  if not found then
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (p_tenant_id, v_piece.id, v_n, v_piece.plan, v_captions, array['first'], case when v_service then 'ai' else 'owner' end, v_actor)
+    returning * into v_rev;
+  -- An older version keeps its own words: the placements carry what goes, and a later version is never written over.
+  elsif v_older is null and exists (select 1 from jsonb_each_text(v_captions) c
+                 where v_rev.captions ? c.key and (v_rev.captions ->> c.key) <> c.value) then
+    v_n := v_n + 1;
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (p_tenant_id, v_piece.id, v_n, v_rev.plan, v_rev.captions || v_captions, array['caption'], case when v_service then 'ai' else 'owner' end, v_actor)
+    returning * into v_rev;
+    update public.pieces p set revision = v_n, updated_at = now() where p.id = v_piece.id;
+  end if;
+
+  -- Its shapes as they are sent: kept the first time (checked above to be the same bytes every time after).
+  for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
+    if not exists (select 1 from public.piece_renditions r
+                    where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= v_n) then
+      insert into public.piece_renditions (tenant_id, piece_id, revision, shape, file_id, path, checksum, bytes)
+      values (p_tenant_id, v_piece.id, v_n, v_rendition ->> 'shape', p_file_id, v_rendition ->> 'path',
+              v_rendition ->> 'checksum', nullif(v_rendition ->> 'bytes', '')::bigint);
+    end if;
+  end loop;
+
+  -- The snapshot names the version it is of, and its hash is taken here, of its own text, as post_as_approved takes it.
+  v_snapshot := jsonb_set(p_approval -> 'snapshot', '{revision}', jsonb_build_object('piece_id', v_piece.id, 'n', v_n));
+  insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by, policy_edition)
+  values (p_tenant_id, 'piece_revision', v_rev.id, v_snapshot, public.approval_hash(v_snapshot), v_actor,
+          coalesce((p_approval ->> 'policy_edition')::integer, 1))
+  returning id into v_approval;
+
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    v_when := greatest(coalesce((v_place ->> 'at')::timestamptz, now()), now());
+    v_later := v_place ->> 'place' = 'google' and v_when > now() + interval '2 minutes';
+    insert into public.posts (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via, status,
+                              piece_id, revision, approval_id, capability_edition, good_until)
+    values (p_tenant_id, p_file_id, v_place ->> 'place', v_place ->> 'kind',
+            case when v_place ->> 'kind' = 'story' then null else nullif(btrim(v_place ->> 'caption'), '') end,
+            v_when, v_actor, now(), coalesce(p_approval ->> 'via', 'press'),
+            case when v_place ->> 'place' = 'google' and not v_later then 'publishing' else 'queued' end,
+            v_piece.id, v_n, v_approval, nullif(v_place ->> 'capability_edition', '')::integer,
+            nullif(v_place ->> 'good_until', '')::timestamptz)
+    returning id into v_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'post.moved', 'content', 'post', v_id,
+            jsonb_strip_nulls(jsonb_build_object(
+              'to', case when v_place ->> 'place' = 'google' and not v_later then 'publishing' else 'queued' end,
+              'place', v_place ->> 'place', 'approved', true, 'by', v_actor)));
+    if v_place ->> 'place' in ('instagram', 'facebook') then
+      -- Ten minutes ahead of its time, so the place has made it ready by then (a Page as Instagram, pass 5); as text, as a job's key is made of strings.
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
+              jsonb_build_object('post_id', v_id, 'attempt', '1'));
+    elsif v_later then
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (p_tenant_id, 'post_google', v_when, jsonb_build_object('post_id', v_id, 'attempt', '1'));
+    end if;
+    v_posts := v_posts || jsonb_build_object('place', v_place ->> 'place', 'kind', v_place ->> 'kind', 'post_id', v_id);
+  end loop;
+  return jsonb_build_object('fate', 'approved', 'approval_id', v_approval, 'piece_id', v_piece.id, 'revision', v_n,
+                            'posts', v_posts);
+end $$;
+
+-- lead_company_upsert
+CREATE OR REPLACE FUNCTION public.lead_company_upsert(p_round_id uuid, p_companies jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_round  public.lead_rounds%rowtype;
+  v_c      jsonb;
+  v_key    text;
+  v_want   text;
+  v_email  text;
+  v_addr   integer;
+  v_host   text;
+  v_lead   uuid;
+  v_people jsonb;
+  v_shares jsonb;
+  v_fit    text;
+  v_reasons jsonb;
+  v_judgment jsonb;
+  v_made   integer := 0;
+  v_held   integer := 0;
+  v_left   integer := 0;
+begin
+  select * into v_round from public.lead_rounds where id = p_round_id;
+  if not found or v_round.state = 'ended' then
+    return jsonb_build_object('ok', false, 'why', 'round');
+  end if;
+  if jsonb_typeof(p_companies) is distinct from 'array' or jsonb_array_length(p_companies) > 200 then
+    raise exception 'companies: an array of at most 200' using errcode = '22023';
+  end if;
+  for v_c in select value from jsonb_array_elements(p_companies) loop
+    v_key  := lower(btrim(coalesce(v_c->>'source_key', '')));
+    v_want := lower(btrim(coalesce(v_c->>'email', '')));
+    if char_length(v_key) not between 1 and 200 or char_length(btrim(coalesce(v_c->>'name', ''))) = 0
+       or jsonb_typeof(v_c->'facts') is distinct from 'object' or octet_length((v_c->'facts')::text) > 8000
+       or octet_length(coalesce(v_c->'judgment', 'null'::jsonb)::text) > 4000
+       or exists (select 1 from public.lead_suppressions x
+                   where x.tenant_id = v_round.tenant_id and x.kind = 'domain'
+                     and x.hash = public.lead_suppression_hash(v_round.tenant_id, v_key)) then
+      v_left := v_left + 1;
+      continue;
+    end if;
+    select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb) into v_people
+      from (select a.p, a.n
+              from jsonb_array_elements(case when jsonb_typeof(v_c->'facts'->'people') = 'array'
+                                             then v_c->'facts'->'people' else '[]'::jsonb end) with ordinality as a(p, n)
+             where jsonb_typeof(a.p) = 'object' and nullif(btrim(coalesce(a.p->>'name', '')), '') is not null
+               and (nullif(btrim(coalesce(a.p->>'email', '')), '') is null
+                    or not (public.lead_address_suppressed(v_round.tenant_id, lower(btrim(a.p->>'email')))
+                            or public.lead_address_in_people(v_round.tenant_id, a.p->>'email')))
+             order by a.n
+             limit 5) x;
+    v_addr := null;
+    v_email := null;
+    select (x.n - 1)::integer, lower(btrim(x.p->>'email')) into v_addr, v_email
+      from jsonb_array_elements(v_people) with ordinality as x(p, n)
+     where nullif(btrim(coalesce(x.p->>'email', '')), '') is not null
+     order by (lower(btrim(x.p->>'email')) = v_want) desc, x.n
+     limit 1;
+    if v_email is null or char_length(v_email) > 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
+      v_left := v_left + 1;
+      continue;
+    end if;
+
+    -- Held already: the same company (its key), or its address on another lead (a place, a file's row).
+    v_lead := null;
+    select l.id into v_lead from public.leads l
+     where l.tenant_id = v_round.tenant_id and l.source = 'people_at_companies' and l.source_key = v_key;
+    if v_lead is null then
+      select l.id into v_lead from public.leads l
+       where l.tenant_id = v_round.tenant_id and l.email = v_email
+       order by l.found_at
+       limit 1;
+    end if;
+    if v_lead is not null then
+      -- A company keeps the people it lacked, five at most, by their address (one with none never joins: who was erased is
+      -- known by their address alone); its addressee stays who it was.
+      update public.leads l
+         set facts = jsonb_set(l.facts, '{people}', (
+               select coalesce(jsonb_agg(x.p order by x.n), '[]'::jsonb)
+                 from (select p, n from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) with ordinality as a(p, n)
+                       union all
+                       select p, 100 + n from jsonb_array_elements(v_people) with ordinality as b(p, n)
+                        where nullif(btrim(coalesce(b.p->>'email', '')), '') is not null
+                          and not exists (select 1 from jsonb_array_elements(coalesce(l.facts->'people', '[]'::jsonb)) o
+                                           where lower(o->>'email') = lower(b.p->>'email')
+                                              or (o->>'email' is null and lower(o->>'name') = lower(b.p->>'name')))
+                       order by n
+                       limit 5) x)),
+             version = version + 1
+       where l.id = v_lead and l.kind = 'company' and l.erased_at is null and l.blanked_at is null;
+      v_held := v_held + 1;
+      continue;
+    end if;
+
+    v_host := case when v_key ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$' then v_key end;
+    insert into public.leads (tenant_id, kind, source, source_key, business_name, category, city, region, country,
+                              website_host, website_root, linkedin_url, about, email, email_state, facts)
+    values (v_round.tenant_id, 'company', 'people_at_companies', v_key, left(btrim(v_c->>'name'), 200),
+            nullif(left(btrim(coalesce(v_c->>'category', '')), 120), ''),
+            nullif(left(btrim(coalesce(v_c->>'city', '')), 120), ''),
+            case when v_c->>'region' ~ '^[A-Z]{2}$' then v_c->>'region' end,
+            case when v_c->>'country' ~ '^[A-Z]{2}$' then v_c->>'country' else 'US' end,
+            v_host, case when v_host is not null then true end,
+            nullif(left(btrim(coalesce(v_c->>'linkedin_url', '')), 300), ''),
+            nullif(left(btrim(coalesce(v_c->>'about', '')), 600), ''),
+            v_email, 'checking',
+            jsonb_build_object('people', v_people, 'addressee', v_addr, 'size', v_c->'facts'->'size'))
+    on conflict (tenant_id, source, source_key) where source_key is not null do nothing
+    returning id into v_lead;
+    if v_lead is null then
+      v_held := v_held + 1;
+      continue;
+    end if;
+    -- The leads it shares a website or an address's domain with (a place Maps found, a file's row), as a list's row is
+    -- marked (00364): one business is written to once.
+    select coalesce(jsonb_agg(jsonb_build_object('kind', 'host', 'lead_id', x.id)), '[]'::jsonb) into v_shares
+      from (select l.id from public.leads l
+             where v_host is not null and l.tenant_id = v_round.tenant_id and l.id <> v_lead
+               and l.erased_at is null and l.blanked_at is null
+               and (public.lead_site_key(l.website_host) = public.lead_site_key(v_host)
+                    or lower(split_part(coalesce(l.email, ''), '@', 2)) = v_host)
+             limit 5) x;
+    -- What its judge made of it (00474): its fit, the reasons that hold it in Needs review beyond its address (a kind its
+    -- facts did not settle, a batch the judge refused), and its answer, kept as a place's are. One with none is as it was:
+    -- it waits on its address alone, and the check promotes it (00272: only `email:` reasons are the check's to clear).
+    v_fit := case when v_c->>'fit' in ('strong', 'look', 'long') then v_c->>'fit' end;
+    select coalesce(jsonb_agg(x.r), '[]'::jsonb) into v_reasons
+      from jsonb_array_elements_text(case when jsonb_typeof(v_c->'reasons') = 'array' then v_c->'reasons'
+                                          else '[]'::jsonb end) as x(r)
+     where x.r ~ '^[a-z_]+:[a-z_]+$' and x.r not like 'email:%';
+    v_judgment := case when jsonb_typeof(v_c->'judgment') = 'object'
+                       then (v_c->'judgment') - 'reasons' - 'shares' else '{}'::jsonb end;
+    insert into public.lead_search_members (search_id, lead_id, round_id, tenant_id, judgment, class, fit, reason)
+    values (v_round.search_id, v_lead, v_round.id, v_round.tenant_id,
+            v_judgment || jsonb_build_object('reasons', v_reasons || jsonb_build_array('email:checking'), 'shares', v_shares),
+            'review', v_fit, left(coalesce(v_c->>'reason', ''), 120))
+    on conflict (search_id, lead_id) do nothing;
+    v_made := v_made + 1;
+  end loop;
+  if v_made > 0 or v_held > 0 or v_left > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_round.tenant_id, 'lead.found', 'lead', 'lead_round', p_round_id,
+            jsonb_build_object('made', v_made, 'held', v_held, 'left_out', v_left));
+  end if;
+  return jsonb_build_object('ok', true, 'made', v_made, 'held', v_held, 'left_out', v_left);
+end $_$;
+/* -- what Stop everything holds: kept with its event -- */
+
+-- What a stop paused, kept to start again (Ask's own section of the settings), and its clearing when everything starts
+-- again, write ask.stop_kept in the write's own transaction, beside the stop's own workspace.sending_stopped and
+-- .sending_resumed. It is kept from Activity's rows: Today's strip says the stop as it stands.
+
+-- ask_stopped_keep
+CREATE OR REPLACE FUNCTION public.ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_by uuid := auth.uid();
+begin
+  if v_by is null and coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if v_by is not null and (p_tenant_id is null or not public.is_acting_member(p_tenant_id)) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_stopped is not null and jsonb_typeof(p_stopped) <> 'object' then
+    raise exception 'ask_stopped_keep: what the stop holds is an object' using errcode = '22023';
+  end if;
+  -- Ask's own section of the settings, its one key, written under the row's lock and its version moved, as a save is.
+  update public.tenant_config c
+     set config = case when p_stopped is null
+                       then jsonb_set(c.config, '{ask}', coalesce(c.config -> 'ask', '{}'::jsonb) - 'stopped')
+                       else jsonb_set(c.config, '{ask}',
+                                      coalesce(c.config -> 'ask', '{}'::jsonb) || jsonb_build_object('stopped', p_stopped))
+                  end,
+         version = c.version + 1, updated_by = coalesce(v_by, c.updated_by)
+   where c.tenant_id = p_tenant_id;
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ask.stop_kept', 'setup', 'workspace', p_tenant_id,
+          jsonb_strip_nulls(jsonb_build_object('held', p_stopped is not null,
+                                               'paused', (select coalesce(jsonb_agg(k), '[]'::jsonb) from jsonb_object_keys(coalesce(p_stopped, '{}'::jsonb)) k),
+                                               'by', v_by)));
+  return true;
+end $$;

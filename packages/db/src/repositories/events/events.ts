@@ -37,24 +37,6 @@ interface TableData {
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
   /** A call that asked nobody (decision 0138, contracts voice/screened.ts): why, and the provider's id where it kept a call. */
   "call.screened": { reason: ScreenedReason; call_id: string | null };
-  /** A channel connected: a WhatsApp number (its ids and what Meta calls it), or an Instagram account (decision 0001, step 8). */
-  "channel.connected":
-    | {
-        kind: "whatsapp";
-        phone_number_id: string;
-        waba_id: string;
-        number_e164: string | null;
-        verified_name: string | null;
-        by: string | null;
-      }
-    | {
-        kind: "instagram";
-        account_id: string;
-        username: string | null;
-        by: string | null;
-        /** Present where it was connected through Meta (the Meta link); absent through Instagram's own login. */
-        login?: "meta";
-      };
   /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
   "contact.added": ContactAddedData;
   "contact.consent_changed": ContactConsentChangedData;
@@ -85,13 +67,6 @@ interface TableData {
     from?: string;
     to?: string;
   };
-  /** A message deleted from the Library, and one sent to WhatsApp for approval: its name, its language, and who. */
-  "template.removed": { name: string; language: string; by: string };
-  /**
-   * `before`: the words WhatsApp had approved that a change sent back replaced (Messages, 12 Nov 2026), so a refusal of the
-   * new ones can go back to them; absent where the change was to words not approved, or the message was new.
-   */
-  "template.submitted": { name: string; language: string; by: string; before?: string };
   "usage.ask_tokens": JsonObject;
   "usage.llm_tokens": Record<string, unknown>;
   "webhook.auth": { provider: "retell" } & JsonObject;
@@ -111,7 +86,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "billing.trial_ending": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
   "call.screened": { category: "call", version: 1 },
-  "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "escalation.opened": { category: "message", version: 1 },
@@ -128,8 +102,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "policy.changed": { category: "system", version: 1 },
   "policy.veto_window_skipped": { category: "policy", version: 1 },
   "settings.changed": { category: "system", version: 1 },
-  "template.removed": { category: "message", version: 1 },
-  "template.submitted": { category: "message", version: 1 },
   "usage.ask_tokens": { category: "usage", version: 1 },
   "usage.llm_tokens": { category: "usage", version: 1 },
   "webhook.auth": { category: "ingest", version: 1 },

@@ -30,8 +30,6 @@ export const KEPT_WITH_NO_CALLER = {
     "read by hand to judge the second model against the first (decision 0023, the shadow port), as the service role",
   ai_usage_month:
     "a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs",
-  conversation_draft_keep:
-    "Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own",
   erasure_digest_legacy:
     "the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs",
   page_freshness:
