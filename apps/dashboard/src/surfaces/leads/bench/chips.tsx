@@ -33,19 +33,21 @@ export const LeadExcludedChips = ({
   onPick: (key: string | null) => void;
 }) =>
   chips.length === 0 ? null : (
-    <div className="ld-chips" data-testid="lead-excluded-chips">
-      {chips.map((c) => (
-        <button
-          key={c.key}
-          type="button"
-          className={`ld-chip ${active === c.key ? "on" : ""}`}
-          aria-pressed={active === c.key}
-          onClick={(e) => holdStill(e && e.currentTarget, () => onPick(active === c.key ? null : c.key))}
-          data-testid={`lead-chip-${c.label}`}
-        >
-          {c.label} <span className="count">{c.count}</span>
-        </button>
-      ))}
+    <div className="ld-filters" data-testid="lead-excluded-chips">
+      <div className="rec-seg" role="group" aria-label="What left them out" data-look="chips-sm" data-wrap="true">
+        {chips.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            className="rec-seg-btn"
+            aria-pressed={active === c.key}
+            onClick={(e) => holdStill(e && e.currentTarget, () => onPick(active === c.key ? null : c.key))}
+            data-testid={`lead-chip-${c.label}`}
+          >
+            {c.label} <span className="ld-filter-count">{c.count}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -62,16 +64,16 @@ export const LeadReviewGroups = ({
   onPick: (ids: string[]) => void;
 }) =>
   groups.length === 0 ? null : (
-    <div className="ld-chips" data-testid="lead-review-groups">
+    <div className="ld-filters" data-testid="lead-review-groups">
       {groups.map((g) => (
         <button
           key={g.key}
           type="button"
-          className="ld-chip"
+          className="chip"
           onClick={() => onPick(g.ids)}
           data-testid={`review-group-${g.key}`}
         >
-          {g.label} <span className="count">{g.ids.length}</span>
+          {g.label} <span className="ld-filter-count">{g.ids.length}</span>
         </button>
       ))}
     </div>

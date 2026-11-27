@@ -726,7 +726,7 @@ export const selectWord = (tree) =>
 /** The dock's name says the count (Ruben, 10 Oct 2026: the count left the row). */
 export const dockSays = (tree) => byTestId(tree, "bulk-bar").props["aria-label"];
 
-/** A class token, whole: pp-sheet-row, not pp-sheet-row-words. */
+/** A class token, whole: pp-pane-act, not pp-pane-row-words. */
 export const hasClass = (n, c) =>
   String(n?.props?.className || "")
     .split(/\s+/)
@@ -734,7 +734,7 @@ export const hasClass = (n, c) =>
 
 /** The sheet's rows, in order, by their test ids. */
 export const sheetRows = (sheet) =>
-  all(sheet, (n) => n.type === "button" && hasClass(n, "pp-sheet-row")).map((n) => n.props["data-testid"]);
+  all(sheet, (n) => n.type === "button" && hasClass(n, "pp-pane-act")).map((n) => n.props["data-testid"]);
 
 /** A phone's selection of p1 and p2 by their faces, and its More opened. */
 export const bulkSheetOpen = () => {

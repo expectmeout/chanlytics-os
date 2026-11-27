@@ -54,7 +54,7 @@ export const LeadPick = ({
     </button>
     {open && inline ? (
       <span
-        className="lf-pop panel panel-pop"
+        className="lf-choice panel panel-pop"
         role="listbox"
         aria-label={title || label}
         data-testid={`plan-${id}-options`}
@@ -63,9 +63,10 @@ export const LeadPick = ({
           <button
             key={o.id}
             type="button"
-            className={`lf-pop-row ${o.on ? "on" : ""}`}
+            className="rec-combo-opt"
             role="option"
             aria-selected={!!o.on}
+            data-chosen={o.on ? "true" : undefined}
             data-testid={`plan-${id}-${o.id}`}
             onClick={() => {
               onOpen(null);
@@ -76,7 +77,7 @@ export const LeadPick = ({
             {o.note ? <span className="r">{o.note}</span> : null}
           </button>
         ))}
-        {options.length === 0 ? <span className="lf-pop-note">Change what I asked to change this.</span> : null}
+        {options.length === 0 ? <span className="lf-choice-note">Change what I asked to change this.</span> : null}
       </span>
     ) : null}
   </span>

@@ -560,6 +560,14 @@ export const { DataTable } = await import("../../../apps/dashboard/src/surfaces/
 
 export const { TableColumnsMenu } = await import("../../../apps/dashboard/src/surfaces/kit/table/columns-menu.tsx");
 
+export const { SegmentedOnDraw } = await import("../../../apps/dashboard/src/surfaces/kit/segmented/on-draw.tsx");
+
+/** The list or the board: the kit's Segmented on the row of views (pipeline/scope-screen.tsx pipelineTools), or null. */
+export const viewsOf = (tree) => find(tree, (n) => n.type === SegmentedOnDraw && n.props.className === "pipe-views");
+
+/** A press on the list or the board, as the kit's radio group says it to the page: the option picked. */
+export const pickView = (tree, layout) => viewsOf(tree).props.onValueChange(layout);
+
 export const { columnOptionsOf, orderedColumns } =
   await import("../../../apps/dashboard/src/surfaces/kit/table/columns.ts");
 

@@ -2383,6 +2383,15 @@ export const FAMILIES = [
         html: recField("Booking link", "https://example.com/book", "Sent instead of booking a visit itself."),
       },
       { id: "rec-field-grows", html: recFieldGrows() },
+      // A box in a phone's sheet (a list's name, which forms they signed, the business in a line): a thumb's 48px, its
+      // words at the 16px a phone never zooms into (kit.css .rec-input-touch).
+      {
+        id: "rec-field-touch",
+        html:
+          `<div class="rec-field"><label><span class="rec-field-label">Name the list</span>` +
+          `<input type="text" class="rec-input rec-input-touch" value="Saturday regulars"></label>` +
+          `<textarea class="rec-input rec-input-touch" rows="3" aria-label="Your business in a line">A salon in Austin</textarea></div>`,
+      },
       {
         // The browser's own select in the box (kit.css, select.rec-input): for a form that can import no part of the kit.
         id: "rec-field-native-select",
@@ -2499,6 +2508,14 @@ export const FAMILIES = [
           `<span class="rec-seg-label">Everyone</span><span class="rec-seg-hint">Every caller and every message.</span></button>` +
           `<button type="button" role="radio" class="rec-seg-btn" aria-checked="false" tabindex="-1">` +
           `<span class="rec-seg-label">People it knows</span><span class="rec-seg-hint">A new number is handed to you.</span></button></div>`,
+      },
+      {
+        id: "rec-seg-pressed",
+        html:
+          `<div class="rec-seg" role="group" aria-label="Said yes to messages">` +
+          `<button type="button" class="rec-seg-btn" aria-pressed="false" data-armed="">Yes</button>` +
+          `<button type="button" class="rec-seg-btn" aria-pressed="true">Not asked</button>` +
+          `<button type="button" class="rec-seg-btn" aria-pressed="false" disabled>No</button></div>`,
       },
     ],
   },

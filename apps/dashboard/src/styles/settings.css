@@ -40,12 +40,10 @@
    specificity than .fl-card-title and .set-sec-title on purpose. */
 .settings h2, .settings h3 { margin: 0; font-size: inherit; font-weight: inherit; }
 
-/* A control that is already carrying a shadow -- the open tab in the rail, the
-   pressed option in a segmented control -- kept it while focused, because
-   .fl-agent.active and .cl-tab.active are (0,2,0) and the global focus rule in
-   components.css is (0,1,0). These are the first things a keyboard lands on. */
+/* A control that is already carrying a shadow -- the open tab in the rail -- kept
+   it while focused, because .fl-agent.active is (0,2,0) and the global focus rule
+   in components.css is (0,1,0). These are the first things a keyboard lands on. */
 .settings .set-nav-row:focus-visible,
-.settings .cl-tab:focus-visible,
 .settings .fl-agent:focus-visible { box-shadow: var(--focus-ring); }
 /* Setup's rows live inside .tq, which clips at its radius, so an outset ring
    lost 3px on both sides. Theirs is drawn inside. */
@@ -220,7 +218,6 @@
 }
 @media (hover: hover) { .settings .cl-bucket-link:hover { background: var(--bg-hover); color: var(--ink); } }
 .settings .cl-bucket-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.settings .cl-tab { font-variant-numeric: tabular-nums; }
 /* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
 /* A control is identified by its edge, so the edge is not a hairline. The dots
    in the policy matrix have no fill to tell them apart at all. */

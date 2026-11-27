@@ -376,7 +376,7 @@ test.describe("Phone shell on a real workspace", () => {
       await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
       "nothing past the edge",
     ).toBe(0);
-    const row = page.locator(".pl-table tbody tr.pl-card-row").first();
+    const row = page.locator(".pl-table tbody tr.pl-item-row").first();
     test.skip((await row.count()) === 0, "nobody on this workspace");
     await expect(row).toBeInViewport({ ratio: 1 });
     expect(
@@ -386,7 +386,7 @@ test.describe("Phone shell on a real workspace", () => {
     const face = (await row.locator(".list-row-face").boundingBox())!;
     expect(Math.abs(face.width - face.height), "a face is round").toBeLessThanOrEqual(1);
     expect(
-      (await row.locator(".pl-card > .list-row-end").boundingBox())!.height,
+      (await row.locator(".pl-item > .list-row-end").boundingBox())!.height,
       "a state is a pill, not a 36px button",
     ).toBeLessThanOrEqual(22);
     // Search: at 16px (a phone zooms into anything smaller). Nothing focuses it by itself, and ONE tap begins the typing:
@@ -525,7 +525,7 @@ test.describe("Phone shell on a real workspace", () => {
   }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const row = page.locator(".pl-table tbody tr.pl-card-row").first();
+    const row = page.locator(".pl-table tbody tr.pl-item-row").first();
     test.skip((await row.count()) === 0, "nobody on this workspace");
     const pick = row.getByTestId("row-select");
     test.skip((await pick.count()) === 0, "this member can neither edit nor export people");
@@ -546,7 +546,7 @@ test.describe("Phone shell on a real workspace", () => {
     await bar.getByTestId("bulk-more").click();
     const sheet = page.getByTestId("bulk-sheet");
     await expect(sheet).toBeVisible();
-    const rows = sheet.locator(".pp-sheet-row");
+    const rows = sheet.locator(".pp-pane-act");
     expect(await rows.count(), "the rest of what a selection can become").toBeGreaterThan(0);
     await expect(rows.last()).toBeInViewport({ ratio: 1 });
     await page.getByTestId("bulk-sheet-close").click();
@@ -596,8 +596,8 @@ test.describe("Phone shell on a real workspace", () => {
     await read("inbox", ".ix-thread", ".ix-thread-pic", ".ix-thread-who", "a thread");
     await read("conversations", ".cv-row", ".cv-row-pic", ".cv-row-who", "a conversation");
     // People's and Leads' rows are the kit's list row (kit/list-row/list-row.tsx).
-    await read("clients", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a person");
-    await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-face", ".list-row-name", "a lead");
+    await read("clients", ".pl-table tbody tr.pl-item-row", ".list-row-face", ".list-row-name", "a person");
+    await read("clients/leads", ".pl-table tbody tr.pl-item-row", ".list-row-face", ".list-row-name", "a lead");
     const seen = Object.entries(shapes);
     test.skip(seen.length < 2, "this workspace has fewer than two lists with anything in them");
     const [firstSeen] = seen;
@@ -664,8 +664,8 @@ test.describe("Phone shell on a real workspace", () => {
     await read("inbox", ".ix-thread", ".ix-thread-who", "the Inbox");
     await read("conversations", ".cv-row", ".cv-row-who", "Conversations");
     await read("live", ".lm-row", ".lm-row-who", "Live");
-    await read("clients", ".pl-table tbody tr.pl-card-row", ".list-row-name", "People");
-    await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-name", "Leads");
+    await read("clients", ".pl-table tbody tr.pl-item-row", ".list-row-name", "People");
+    await read("clients/leads", ".pl-table tbody tr.pl-item-row", ".list-row-name", "Leads");
     await read("campaigns", ".sq-group > .list-row", ".list-row-name", "Sequences");
     const seen = Object.entries(rules);
     test.skip(seen.length === 0, "this workspace has no list of two rows");
@@ -1287,7 +1287,7 @@ test.describe("Phone shell on a real workspace", () => {
     // body was that end, the thread scrolled out of sight above it.
     for (const [hash, rowSel, opened, room] of [
       ["conversations", ".cv-row", ".conversations .ix-thread-pane", ".conversations > .cv-list"],
-      ["clients", ".pl-table tbody tr.pl-card-row", ".cl-prof-name", "body"],
+      ["clients", ".pl-table tbody tr.pl-item-row", ".cl-prof-name", "body"],
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");
@@ -1513,7 +1513,7 @@ test.describe("Phone shell on a real workspace", () => {
   test("a person stepped to with ‹ › is named in the top bar once their head scrolls up under it", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const rows = page.locator(".pl-table tbody tr.pl-card-row");
+    const rows = page.locator(".pl-table tbody tr.pl-item-row");
     test.skip((await rows.count()) < 2, "fewer than two people here to step between");
     await rows.first().click();
     const next = page.getByTestId("person-walk-next");

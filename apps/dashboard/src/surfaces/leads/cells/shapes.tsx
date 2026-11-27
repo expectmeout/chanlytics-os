@@ -4,6 +4,7 @@
  */
 import type { ReactNode } from "react";
 import { LEAD_REACH_NONE_WORDS, formatPhoneLocal, type LeadRowVM } from "@chanlytics/contracts";
+import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { LeadTip, ldPlacePop } from "./hover";
 import type { LeadCellCtx } from "./types";
@@ -82,9 +83,10 @@ export const LeadSlot = ({
       onFocus={ldPlacePop}
     >
       {onPress ? (
-        <button
-          type="button"
-          className="ld-slot-btn"
+        <Button
+          variant="quiet"
+          size="text"
+          className="ld-slot-press"
           aria-label={label}
           aria-describedby={tipId}
           onClick={(e) => {
@@ -93,10 +95,10 @@ export const LeadSlot = ({
           }}
         >
           {body}
-        </button>
+        </Button>
       ) : (
         // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- a focus stop, so a keyboard reaches the tip it describes
-        <span className="ld-slot-btn" tabIndex={0} aria-label={label} aria-describedby={tipId}>
+        <span className="ld-slot-press" tabIndex={0} aria-label={label} aria-describedby={tipId}>
           {body}
         </span>
       )}
@@ -151,9 +153,10 @@ const LeadReachLine = ({
       onFocus={ldPlacePop}
     >
       {onPress ? (
-        <button
-          type="button"
-          className="ld-slot-btn ld-reach-press"
+        <Button
+          variant="quiet"
+          size="text"
+          className="ld-slot-press ld-reach-press"
           aria-label={label}
           aria-describedby={tipId}
           onClick={(e) => {
@@ -162,9 +165,9 @@ const LeadReachLine = ({
           }}
         >
           {body}
-        </button>
+        </Button>
       ) : (
-        <span className="ld-slot-btn ld-reach-press" aria-label={label} aria-describedby={tipId}>
+        <span className="ld-slot-press ld-reach-press" aria-label={label} aria-describedby={tipId}>
           {body}
         </span>
       )}

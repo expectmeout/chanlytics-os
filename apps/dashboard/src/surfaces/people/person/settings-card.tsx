@@ -143,7 +143,7 @@ function receptionistFold(c: PageCtx, row: ReactNode) {
     <RecordFold wide id="person-receptionist" label="AI" open={folds.rm.open} onCancel={folds.rm.close} behind={row}>
       <div data-testid="receptionist-mode">
         <div
-          className="cl-prof-autonomy"
+          className="rec-seg cl-prof-autonomy"
           role="group"
           aria-label={`AI for ${first === "them" ? "this person" : first}`}
         >
@@ -151,7 +151,7 @@ function receptionistFold(c: PageCtx, row: ReactNode) {
             <button
               key={m}
               type="button"
-              className={`cl-prof-aut-seg ${rmEffective === m ? "active" : ""}`}
+              className="rec-seg-btn"
               aria-pressed={rmEffective === m}
               disabled={!isOwner || rm.busy}
               onClick={() => void set(m)}

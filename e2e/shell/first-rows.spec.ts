@@ -28,12 +28,12 @@ const PARTS: Record<string, string[]> = {
     ".tab-bar",
     ".tab-bar-tab",
   ],
-  people: [".frame-top", ".pg-head-slot", ".stabs", ".pl-card-row", ".list-row-name", ".tab-bar", ".tab-bar-tab"],
+  people: [".frame-top", ".pg-head-slot", ".stabs", ".pl-item-row", ".list-row-name", ".tab-bar", ".tab-bar-tab"],
   // Today, calm (19-21 Nov 2026): the card at the page's start where one holds it, then who waits, a line each.
   today: [".frame-top", ".pg-head-slot", ".calm-lead", ".calm-lines", ".calm-line", ".tab-bar", ".tab-bar-tab"],
 };
 /** What says a page's copy is up: a block of its rows. */
-const ROWS: Record<string, string> = { inbox: ".ix-thread", people: ".pl-card-row", today: ".calm-line" };
+const ROWS: Record<string, string> = { inbox: ".ix-thread", people: ".pl-item-row", today: ".calm-line" };
 
 type Rect = [number, number, number, number];
 
@@ -165,7 +165,7 @@ test.describe("the rows a phone last showed", () => {
     const times = page.locator(`${PICTURE} [data-when]`);
     expect(await times.count()).toBeGreaterThan(0);
     for (const t of await times.all()) await expect(t).toHaveCSS("visibility", "hidden");
-    await expect(page.locator(`${PICTURE} .pl-card-row .list-row-name`).first()).toBeVisible();
+    await expect(page.locator(`${PICTURE} .pl-item-row .list-row-name`).first()).toBeVisible();
   });
 
   test("nothing moves as the page takes the copy's place", async ({ page }) => {

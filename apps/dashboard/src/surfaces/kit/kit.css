@@ -3036,6 +3036,17 @@ textarea.rec-input.rec-input-grows {
   resize: none;
   field-sizing: content;
 }
+/* A box in a phone's sheet (a list's name, which forms they signed, the business in a line): a thumb's 48px, and its
+   words at the 16px a phone never zooms into. */
+.rec-input.rec-input-touch {
+  height: 48px;
+  padding: 0 14px;
+  font-size: var(--field-text-touch);
+}
+textarea.rec-input.rec-input-touch {
+  height: auto;
+  padding: 10px 12px;
+}
 /* Sentences said in place (a reply drafted in its row, Today's Need you; the refined canvas, 31 Oct 2026): the words
    are the page's own, in its own type, and the box is the field's panel they stand in (.panel-field), so beginning to
    type moves nothing. No hairline, padding, fill or handle of its own, and as tall as its words: no scroll inside it.
@@ -3253,10 +3264,23 @@ textarea.rec-input.rec-input-words:focus-visible {
     color: var(--ink);
   }
 }
-.rec-seg-btn:is([aria-checked="true"], [aria-selected="true"]) {
+.rec-seg-btn:is([aria-checked="true"], [aria-selected="true"], [aria-pressed="true"]) {
   background: var(--selected-fill);
   font-weight: var(--weight-medium);
   color: var(--ink);
+}
+/* A choice of answers, each a press (a person's consent, AI for them): one picked and waiting for how it was given is
+   ringed, the answer on record keeps the tile; one that is not the reader's to give is dimmed. */
+.rec-seg-btn[data-armed] {
+  color: var(--ink);
+  box-shadow: var(--armed-ring);
+}
+.rec-seg-btn[data-armed]:focus-visible {
+  box-shadow: var(--focus-ring), var(--armed-ring);
+}
+.rec-seg-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 /* With a sentence under each option (data-hints): the same track and the same raised choice, each option a card of its
    label and what choosing it means, side by side where two fit and one above the other where they do not. */
@@ -5281,7 +5305,7 @@ a.list-row {
   padding: 3px;
   box-shadow: var(--surface-inset-depth);
 }
-.rec-seg-btn:is([aria-checked="true"], [aria-selected="true"]) {
+.rec-seg-btn:is([aria-checked="true"], [aria-selected="true"], [aria-pressed="true"]) {
   box-shadow: var(--selected-depth);
 }
 .rec-seg[data-hints="true"] {
@@ -5338,7 +5362,7 @@ a.list-row {
 .rec-seg[data-line="true"][data-look="chips-sm"] .rec-seg-btn {
   padding: 0 4px;
 }
-.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn[aria-checked="true"] {
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn:is([aria-checked="true"], [aria-pressed="true"]) {
   border-color: var(--line-strong);
   background: var(--selected-fill);
   box-shadow: var(--selected-depth);
@@ -5349,7 +5373,8 @@ a.list-row {
 .rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn:focus-visible {
   box-shadow: var(--focus-ring), var(--surface-inset-depth);
 }
-.rec-seg:is([data-look="chips"], [data-look="chips-sm"]) .rec-seg-btn[aria-checked="true"]:focus-visible {
+.rec-seg:is([data-look="chips"], [data-look="chips-sm"])
+  .rec-seg-btn:is([aria-checked="true"], [aria-pressed="true"]):focus-visible {
   box-shadow: var(--focus-ring), var(--selected-depth);
 }
 @media (max-width: 900px) {
@@ -5361,10 +5386,14 @@ a.list-row {
    rule (components.css, NUANCE PASS), and the picked segment is where a radio group and a tab list put focus. The dim
    words on it (a tab's count, a choice's sentence) take the dim ink the lozenge needs, which is lighter than the page
    under a dark look (tokens.css, --selected-ink-dim). */
-:is(.stabs-tab.active, .rec-seg-btn:is([aria-checked="true"], [aria-selected="true"])):focus-visible {
+:is(
+  .stabs-tab.active,
+  .rec-seg-btn:is([aria-checked="true"], [aria-selected="true"], [aria-pressed="true"])
+):focus-visible {
   box-shadow: var(--focus-ring), var(--selected-depth);
 }
-:is(.stabs-tab.active, .rec-seg-btn:is([aria-checked="true"], [aria-selected="true"])) :is(.tally, .rec-seg-hint) {
+:is(.stabs-tab.active, .rec-seg-btn:is([aria-checked="true"], [aria-selected="true"], [aria-pressed="true"]))
+  :is(.tally, .rec-seg-hint) {
   color: var(--selected-ink-dim);
 }
 

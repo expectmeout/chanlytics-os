@@ -218,7 +218,7 @@ test("REGRESSION (B19, B15): a profile goes back to People, and names following 
   }
   const mode = byTestId(tree, "receptionist-mode");
   assert.deepEqual(
-    all(mode, (n) => n.props?.className?.includes("cl-prof-aut-seg")).map((b) => textOf(b)),
+    all(mode, (n) => n.props?.className?.includes("rec-seg-btn")).map((b) => textOf(b)),
     ["Answer", "Ask me first", "Never"],
   );
   assert.ok(textOf(mode).includes("Follow the workspace"), `REGRESSION: "Use the workspace setting": ${textOf(mode)}`);
@@ -699,7 +699,7 @@ test("a viewer reads the role once, at the top of the rail -- it was said under 
       `once: ${words.match(/[^.]*owner or operator[^.]*\./g)}`,
     );
     assert.equal(
-      all(tree, (n) => n.props?.className?.includes("cl-prof-aut-seg") && !n.props.disabled).length,
+      all(tree, (n) => n.props?.className?.includes("rec-seg-btn") && !n.props.disabled).length,
       0,
       "and every segment is locked",
     );
@@ -721,7 +721,7 @@ test("arming a consent answer does not draw it as the answer on record, and the 
   press(yes);
   tree = draw();
   const armed = find(byTestId(tree, "consent-marketing"), (n) => n.type === "button" && textOf(n).trim() === "Yes");
-  assert.ok(String(armed.props.className).includes("armed"), "armed");
+  assert.equal(armed.props["data-armed"], "", "armed");
   assert.ok(
     !String(armed.props.className).includes("active"),
     "REGRESSION: an armed pick was drawn as the answer on record before anything was written",
@@ -729,12 +729,12 @@ test("arming a consent answer does not draw it as the answer on record, and the 
   assert.equal(armed.props["aria-pressed"], false, "and the record, for a reader, is unchanged");
   const how = byTestId(tree, "consent-marketing-how");
   assert.deepEqual(
-    all(how, (n) => n.props?.className === "cl-prof-how-chip").map((n) => textOf(n).trim()),
+    all(how, (n) => n.type === "button" && n.props?.className === "chip").map((n) => textOf(n).trim()),
     ["Sign-up form", "Their own message"],
     "the written ways, as chips",
   );
   assert.equal(
-    find(tree, (n) => n.props?.className === "cl-prof-autonomy" && byTestId(n, "consent-marketing-how")),
+    find(tree, (n) => String(n.props?.className).includes("cl-prof-autonomy") && byTestId(n, "consent-marketing-how")),
     null,
     "REGRESSION: the how sat as a fourth cell in the three-button grid",
   );

@@ -119,12 +119,9 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * a literal's type in an object a map builds (`role: (…) as ThreadTurn["role"]`), which widens to string without it.
  * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
-export const HELD_TYPED = [
-  // Held again: the colour model's four went on 26 November 2026 (mascot/colour.ts ownLab), and the kit's bar chart
-  // gained two the same day, `{ "--i": i } as CSSProperties` in surfaces/kit/charts/bar.tsx (#2674, lane 8's tree).
-  // An error once those two go.
-  "@typescript-eslint/no-unnecessary-type-assertion",
-];
+// None held now: the kit's bar chart's last two went on 27 November 2026 (its custom properties are the kit's typed
+// `customProperties`), so no-unnecessary-type-assertion is an error with the rest.
+export const HELD_TYPED = [];
 
 /** A rule's entry at warning, its options kept. */
 const asWarning = (entry) => (Array.isArray(entry) ? ["warn", ...entry.slice(1)] : "warn");

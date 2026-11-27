@@ -74,7 +74,7 @@ function archivedLine(p: {
   const { archived, canEdit, onRestore } = p;
   return (
     archived.length > 0 && (
-      <p className="cl-rail-empty" data-testid="rail-archived">
+      <p className="cl-rail-none" data-testid="rail-archived">
         Archived:{" "}
         {archived.map((a, i) => (
           <Fragment key={a.id}>

@@ -12,6 +12,7 @@
  */
 import { useEffect, useRef } from "react";
 import { stateTone } from "@chanlytics/contracts";
+import { customProperties } from "../../kit/variants";
 import type { LeadBand as LeadBandVM, LeadClass } from "@chanlytics/contracts";
 
 /** A class's tone is the pill's (the registry's lead_class): "Qualified" was green here and plain in the pill beside it. */
@@ -45,7 +46,7 @@ export const LeadBand = ({
       const on = el.querySelector<HTMLElement>(".ld-class.on");
       el.style.setProperty("--mark-x", `${on ? on.offsetLeft : 0}px`);
       el.style.setProperty("--mark-w", `${on ? on.offsetWidth : 0}px`);
-      el.classList.toggle("has-mark", !!on);
+      el.classList.toggle("has-pin", !!on);
       // The strip's stylesheet reads it as an attribute: a class named for the mark is the kit's word, not a page's.
       el.toggleAttribute("data-marked", !!on);
     };
@@ -58,7 +59,7 @@ export const LeadBand = ({
   const total = band.classes.reduce((n, c) => n + c.count, 0);
   return (
     <div className="ld-band" data-testid="lead-band">
-      <div className="ld-band-tabs">
+      <div className="ld-band-views">
         <div
           className="ld-classes"
           ref={tabs}
@@ -66,7 +67,7 @@ export const LeadBand = ({
           aria-label="What the search made of each place"
           data-testid="lead-classes"
         >
-          <span className="ld-class-mark" aria-hidden="true" />
+          <span className="ld-class-pin" aria-hidden="true" />
           {band.classes.map((c) => (
             <button
               key={c.id}
@@ -89,8 +90,8 @@ export const LeadBand = ({
               .map((c) => (
                 <span
                   key={c.id}
-                  className={`seg tone-${classTone(c.id)}${cls && cls !== c.id ? " dim" : ""}`}
-                  style={{ flexGrow: c.count }}
+                  className={`ld-band-part tone-${classTone(c.id)}${cls && cls !== c.id ? " dim" : ""}`}
+                  style={customProperties({ "--grow": c.count })}
                 />
               ))}
           </span>

@@ -440,12 +440,12 @@ test("Phone and Email are Reach's own lines, how each was checked under it, and 
   const { ctx, went } = ctxOf({ onCall: (id) => went.push(["call", id]) });
   const phone = cellOf("phone", WHOLE, ctx);
   assert.match(textOf(phone), /Checked$/, "how the number was checked, under it");
-  find(phone, (n) => n.props?.className === "ld-slot-btn ld-reach-press").props.onClick({ stopPropagation() {} });
+  find(phone, (n) => n.props?.className === "ld-slot-press ld-reach-press").props.onClick({ stopPropagation() {} });
   assert.deepEqual(went.at(-1), ["call", "l1"]);
   const email = cellOf("email", WHOLE, ctx);
   assert.match(textOf(email), /^hello@quix\.example/);
   assert.match(textOf(email), /Unconfirmed$/);
-  find(email, (n) => n.props?.className === "ld-slot-btn ld-reach-press").props.onClick({ stopPropagation() {} });
+  find(email, (n) => n.props?.className === "ld-slot-press ld-reach-press").props.onClick({ stopPropagation() {} });
   assert.deepEqual(went.at(-1), ["copy", "l1"]);
   assert.equal(
     find(phone, (n) => n.props?.role === "tooltip").props.id,

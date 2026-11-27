@@ -112,7 +112,7 @@ function DeskPeek(p: PipelinePeekProps & { c: DealSheetCtx; foot: ReturnType<typ
   return (
     <aside
       ref={p.asideRef}
-      className="pk pl-peek pipe-peek"
+      className="pk pl-aside pipe-aside"
       role="dialog"
       aria-label={vm.name}
       data-testid="pipeline-peek"
@@ -241,7 +241,7 @@ export function PipelinePeek(props: PipelinePeekProps) {
     return (
       <aside
         ref={props.asideRef}
-        className="pk pl-peek pipe-peek"
+        className="pk pl-aside pipe-aside"
         role="dialog"
         aria-label={vm.name}
         data-testid="pipeline-peek"

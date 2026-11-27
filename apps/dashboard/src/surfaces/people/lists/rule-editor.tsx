@@ -57,7 +57,7 @@ export function RuleEditor({ list, flash, onDone }: { list: SavedList; flash: Fl
       </div>
       {draft ? (
         <div className="cl-rail-draft" data-testid="rule-edit-draft">
-          <div className="cl-tag-stack">
+          <div className="cl-lists-held">
             {lists.parts(draft.rule).map((part) => (
               <span key={part} className="chip chip-wrap" data-testid="rule-edit-rule">
                 {part}

@@ -215,7 +215,7 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
           testid="leads-bulk-why"
         />
       ) : (
-        <div className="pp-sheet-rows">
+        <div className="pp-pane-rows">
           {!allMatching && !narrowed && total > rows.length ? (
             <PhoneSheetRow
               icon="check"
@@ -262,16 +262,16 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
             />
           )}
           {f.noEmail > 0 ? (
-            <p className="pp-sheet-hint pp-sheet-rows-note" data-testid="leads-bulk-no-email">
+            <p className="pp-pane-hint pp-pane-rows-note" data-testid="leads-bulk-no-email">
               {B.noEmail(f.noEmail)}
             </p>
           ) : null}
           {f.hidden > 0 ? (
-            <p className="pp-sheet-hint pp-sheet-rows-note" data-testid="leads-bulk-hidden">
+            <p className="pp-pane-hint pp-pane-rows-note" data-testid="leads-bulk-hidden">
               {f.hidden.toLocaleString()} more selected are not shown, and these leave them out.
             </p>
           ) : null}
-          {whyNot ? <p className="pp-sheet-hint pp-sheet-rows-note">{whyNot}</p> : null}
+          {whyNot ? <p className="pp-pane-hint pp-pane-rows-note">{whyNot}</p> : null}
         </div>
       )}
     </Sheet>
@@ -283,7 +283,7 @@ function phoneSheets(p: BulkBarProps, f: ReturnType<typeof bulkFacts>) {
  * over a word: Clear, Not a fit, Add (the picker for them all, a step of the sheet) and More (Ruben, 10 Oct 2026: parity
  * with People's; Contacted went with the stage's own menu, 18 Oct 2026); how many are selected is the top bar's -- and a
  * sheet with the rest. Not a fit asks its five whys as a sheet: the peek's own
- * list (LeadNotFitWhy) wears .pl-peek, which a phone draws full screen (leads.css), so from this bar it covered the page.
+ * list (LeadNotFitWhy) wears .pl-aside, which a phone draws full screen (leads.css), so from this bar it covered the page.
  * The whys are the peek's words, from their one list (LEAD_WORDS.whys). The step is the page's (`sheet`), so its keyboard
  * listener shuts the sheet on Esc. Select on, with nobody picked yet, the acts stand and wait.
  */

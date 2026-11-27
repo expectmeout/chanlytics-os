@@ -60,6 +60,8 @@ import {
   tick,
   visit,
   visits,
+  pickView,
+  viewsOf,
   went,
   withHead,
 } from "./_pipeline.mjs";
@@ -79,7 +81,7 @@ test("a viewer's cards do not drag, and a phone keeps the list whatever was chos
       globalThis.localStorage.setItem("pipeline.view", "board");
       tree = draw();
       assert.equal(byTestId(tree, "pipeline-board"), null);
-      assert.equal(byTestId(withHead(tree), "pipeline-views"), null, "no switch on a phone");
+      assert.equal(viewsOf(withHead(tree)), null, "no switch on a phone");
       assert.ok(
         find(tree, (n) => n.type === "table"),
         "the list",
@@ -431,7 +433,7 @@ test("a view nobody touched is not written to the workspace: a first open saves 
   await new Promise((r) => setTimeout(r, 0));
   assert.deepEqual(seen.viewSaves, [], "the defaults were written for a member who had saved nothing");
   // A choice is theirs, and saved.
-  click(byTestId(withHead(draw()), "pipeline-view-board"));
+  pickView(withHead(draw()), "board");
   draw();
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(seen.viewSaves.at(-1).view.layout, "board");
@@ -1060,7 +1062,7 @@ test("on the board a card wears its steps and a Move to menu of the columns it m
   const asked = [];
   bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: (a) => asked.push(a) } } });
   let tree = draw();
-  click(byTestId(withHead(tree), "pipeline-view-board"));
+  pickView(withHead(tree), "board");
   tree = draw();
   const col = byTestId(tree, "pipeline-col-proposals");
   const cards = () =>
