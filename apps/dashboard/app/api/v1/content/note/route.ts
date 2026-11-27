@@ -5,7 +5,7 @@ import { contentNote } from "@/server/readers/content/content";
 /**
  * GET /api/v1/content/note: Today's Content card (the content canvas, PhDoors "today"; the page's read is GET content, too
  * much to ask each time Today opens). Members read, as every member reads Today; RLS scopes; counted with the other aggregate
- * reads, since Today asks it again as the day moves. The body is its reader's (readers/content.ts).
+ * reads, since Today asks it again as its own read lands. The body is its reader's (readers/content.ts).
  */
 export const GET = read({
   scope: workspace,

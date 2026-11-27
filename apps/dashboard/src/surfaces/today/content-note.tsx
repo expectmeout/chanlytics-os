@@ -5,8 +5,8 @@
  * and only where there is something to say: a business with nothing made this week and nothing being made is not told
  * about Content each morning. Its read is its own module (content-note-read.ts), which Today's first draw waits for where
  * the tab opens on Today holding none; kept in the tab by workspace, so a return draws it at once and reads again behind
- * it, at most once a minute as the day moves. A read that fails or is refused takes the line away: it claims nothing it
- * could not read.
+ * it, and again as Today's own read lands, at most once a minute (day-read.ts), never as the clock makes the day again. A
+ * read that fails or is refused takes the line away: it claims nothing it could not read.
  *
  * The newest post that did not go out is a line of its own over it, with why, and opens the piece's sheet, where it is
  * posted again (Need you is people and their to-dos, zones/need-you.tsx, and holds no piece). A take-down still open
@@ -16,7 +16,7 @@
  * A picture is the kit's face, as a tile: one that does not load stands aside (a video whose poster is not cut yet), and
  * the line's words say the rest.
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   CONTENT_ROUTE,
   CONTENT_TODAY_WORDS as W,
@@ -25,7 +25,6 @@ import {
   CONTENT_WORDS,
   REVIEW_ASK_WORDS,
   reviewAskLineOf,
-  MIN_MS,
   clockNear,
   clockTime,
   contentRouteOf,
@@ -40,10 +39,10 @@ import { pageClock } from "@/bridge/zone";
 import { routeDoor } from "../frame-verbs";
 import { TODAY_LINE_WORDS, contentWords } from "./model/lines";
 import { Icon } from "../kit/icon/icon";
-import { useSurface } from "../use-surface";
 import { todayAskOf, useTodayAsks } from "./calm/asks";
 import { CalmList, CalmRow } from "./calm/lines";
 import { keptContentToday, readContentToday } from "./content-note-read";
+import { useReadAsTheDayIsRead } from "./day-read";
 
 /** A piece where it did not post: in Needs you and straight to its sheet (Post it), as the page's amber line opens it. */
 const stoppedRouteOf = (fileId: string): string =>
@@ -187,16 +186,9 @@ function WeekLine({ today }: { today: ContentTodayDto }) {
 }
 
 export function TodayContentLine() {
-  // Asked as it is drawn, and again as the day moves: its read is its own, so it never waits for the day's.
-  const day = useSurface("today");
   const [today, setToday] = useState<ContentTodayDto | null>(keptContentToday);
-  const askedAt = useRef<number | null>(null);
-  useEffect(() => {
-    const now = Date.now();
-    if (askedAt.current !== null && now - askedAt.current < MIN_MS) return;
-    askedAt.current = now;
-    void readContentToday().then(setToday);
-  }, [day]);
+  // Its own read, never waiting for the day's: asked as the line is drawn, again as Today's own read lands.
+  useReadAsTheDayIsRead(readContentToday, setToday);
   // AI is handed the week's question where the week made something to post (D10).
   const week = today?.week ?? [];
   useTodayAsks("content", [

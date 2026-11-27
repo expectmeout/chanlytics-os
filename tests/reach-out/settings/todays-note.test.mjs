@@ -1,7 +1,8 @@
 /**
  * Cold email's one line on Today, from a read of its own: Today opens all day, so the note asks only what can make it speak,
  * through the page's one answer. It speaks up where cold email waits on the owner, says nothing otherwise, never nags each
- * morning over a sequence with no one new, and is asked again as the day moves, at most once a minute. And it is in Today's
+ * morning over a sequence with no one new, and is asked again as Today's own read lands, at most once a minute, never as the
+ * clock makes the day again. And it is in Today's
  * first draw: a load that opens on Today holds that draw for it, and a tab that holds its last answer draws it at once.
  */
 import { test, after } from "node:test";
@@ -82,6 +83,7 @@ const { codeOutFor, isSurfaceReady, markHydrated } =
   await import("../../../apps/dashboard/src/bridge/surface-status.ts");
 const { applyToday } = await import("../../../apps/dashboard/src/surfaces/today/surface.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
+const { dayWasRead } = await import("../../../apps/dashboard/src/surfaces/today/day-read.ts");
 
 after(() => setSurfaceValue("today", undefined));
 
@@ -233,7 +235,7 @@ test("a sequence with no one new is the page's news, not a line on Today every m
   assert.equal(facts.running[0].waitingLeads, null, "who is left is never counted for the note");
 });
 
-test("the note is asked once as Today lands, again as the day moves, and at most once a minute", async () => {
+test("the note is asked once as Today lands, again as Today's own read lands a minute on, and never as the clock makes the day again", async () => {
   // The note asks its own read as it is drawn, whatever Today has read.
   await applyToday().catch(() => undefined);
   fresh();
@@ -247,15 +249,19 @@ test("the note is asked once as Today lands, again as the day moves, and at most
     false,
     "never the whole page's read",
   );
-  // The day moves within the minute: nothing more is asked.
-  setSurfaceValue("today", { moved: 1 });
-  draw();
-  assert.equal(reads(), 1, "within the minute");
-  // A minute on, the day moves again: it is asked again.
   const realNow = Date.now;
   Date.now = () => realNow() + 61_000;
   try {
-    setSurfaceValue("today", { moved: 2 });
+    // A minute on, the clock makes the day again from what it holds (hearing/clock.ts): the day moves, and nothing is asked.
+    setSurfaceValue("today", { moved: 1 });
+    draw();
+    assert.equal(
+      reads(),
+      1,
+      "REGRESSION (27 Nov 2026): the note read again on every move of the day, the clock's among them, so a quiet tab asked it each minute",
+    );
+    // Today's own read lands (something the frame heard): it is asked again.
+    dayWasRead(Date.now());
     draw();
     await until(() => reads() === 2, "the second read");
   } finally {
@@ -295,14 +301,14 @@ test("a load that opens on Today holds its first draw for the note the document'
   await until(() => !codeOutFor("today"), "the note's read settled");
   assert.equal(reads(), before + 1, "the head's read alone: the frame took it and asked for nothing more");
   assert.match(keptColdEmailNote()?.note?.headline ?? "", /needs reconnecting/);
-  // The page draws, its card with it, and the card's own read as it is drawn is the load's. A minute on the day moves and
-  // the card asks again: the second read there has been, so the load's was never asked for twice.
+  // The page draws, its card with it, and the card's own read as it is drawn is the load's. A minute on Today's own read
+  // lands and the card asks again: the second read there has been, so the load's was never asked for twice.
   fresh();
   assert.ok(byTestId(drawNote(), "today-cold-email"), "in the first draw");
   const realNow = Date.now;
   Date.now = () => realNow() + 61_000;
   try {
-    setSurfaceValue("today", { moved: 3 });
+    dayWasRead(Date.now());
     drawNote();
     await until(() => reads() >= before + 2, "the read a minute on");
   } finally {

@@ -43,7 +43,7 @@ const { TodayContentLine } = await import(`${S}/surfaces/today/content-note.tsx`
 const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);
 const { clearReadCaches } = await import(`${S}/bridge/read-cache.ts`);
 const { api } = await import(`${S}/bridge/api.ts`);
-const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
+const { dayWasRead } = await import(`${S}/surfaces/today/day-read.ts`);
 const { FILE_WORDS, pieceWordsIn } = await import("@chanlytics/contracts");
 
 const video = (look_status) => ({
@@ -182,21 +182,20 @@ test("a ready video's picture is asked for over its mark, which stands where the
   assert.equal(markOf(line), "video", "the mark under it");
   const keyOf = (tree) => find(tree, (n) => n.type?.name === "WeekLine")?.props.key;
   const before = keyOf(drawLine());
-  // Ask's look cuts the poster at the frame it chose: the line's next read, a minute on as the day moves, draws it afresh,
-  // so the picture is asked for again.
+  // Ask's look cuts the poster at the frame it chose: the line's next read, as Today's own read lands a minute on, draws it
+  // afresh, so the picture is asked for again.
   note = weekOf(madeVideo("today-2", { look_status: "done" }));
   api().forget();
   const realNow = Date.now;
   Date.now = () => realNow() + 61_000;
   try {
     const reads = noteReads;
-    setSurfaceValue("today", { moved: noteReads });
+    dayWasRead(Date.now());
     drawLine();
     await until(() => noteReads > reads, "the line asked again");
     await until(() => keyOf(drawLine()) !== before, "drawn afresh");
   } finally {
     Date.now = realNow;
-    setSurfaceValue("today", undefined);
   }
   assert.ok(pictureOf(lineOf(drawLine())), "the poster the look cut is asked for");
 });
