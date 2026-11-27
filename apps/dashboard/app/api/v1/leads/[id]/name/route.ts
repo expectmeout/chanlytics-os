@@ -11,7 +11,7 @@ const Body = z
     city: z.string().trim().min(1).max(LEAD_NAMED.city.max).optional(),
   })
   .refine((body) => body.business_name !== undefined || body.city !== undefined, {
-    message: "Give a name, a city, or both.",
+    error: "Give a name, a city, or both.",
   });
 
 /**

@@ -5,7 +5,7 @@ import { setMemberRole, removeMember } from "@/server/workspace/team";
 import { requireUuid } from "@/server/shared/request-guards";
 
 const Body = z.object({
-  role: z.enum(TEAM_ROLES, { message: "Unknown role." }),
+  role: z.enum(TEAM_ROLES, { error: "Unknown role." }),
 });
 
 /**

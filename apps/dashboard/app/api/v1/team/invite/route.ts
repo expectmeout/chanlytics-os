@@ -9,7 +9,7 @@ const Body = z.object({
     .trim()
     .toLowerCase()
     .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "That doesn't look like an email address."),
-  role: z.enum(["operator", "viewer"], { message: "Invites can grant operator or viewer." }),
+  role: z.enum(["operator", "viewer"], { error: "Invites can grant operator or viewer." }),
 });
 
 /**

@@ -7,7 +7,7 @@ import { requestWorkspaceSetup } from "@/server/setup/setup";
 
 const ASK = "Say what you are asking for.";
 const Body = z.object({
-  what: z.string({ message: ASK }).refine((w) => isOneOf(SETUP_REQUEST_KINDS, w), ASK),
+  what: z.string({ error: ASK }).refine((w) => isOneOf(SETUP_REQUEST_KINDS, w), ASK),
 });
 
 /**

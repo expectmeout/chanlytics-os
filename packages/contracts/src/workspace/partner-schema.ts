@@ -9,7 +9,7 @@ import { z } from "zod";
 export const PartnerBecomeSchema = z
   .object({
     code: z.string().trim().min(1).max(64),
-    terms: z.literal(true, { message: "The terms have to be accepted." }),
+    terms: z.literal(true, { error: "The terms have to be accepted." }),
   })
   .strict();
 

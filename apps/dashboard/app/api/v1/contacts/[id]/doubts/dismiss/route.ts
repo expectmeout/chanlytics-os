@@ -5,7 +5,7 @@ import { settleDoubtApart } from "@/server/people/person-doubts";
 
 const Body = z
   .object({
-    doubt_id: z.uuid({ message: "Choose the doubt to settle." }),
+    doubt_id: z.uuid({ error: "Choose the doubt to settle." }),
   })
   .strict();
 

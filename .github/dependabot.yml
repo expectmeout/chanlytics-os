@@ -59,11 +59,21 @@ updates:
       - dependency-name: "react-dom"
         versions: ["< 19.3.0"]
     groups:
+      # The video template's renderer (tooling/video). Its lock is part of the
+      # template's hash, so any bump of it is a new edition with a new machine
+      # image, built and recorded before the merge (tooling/video/README.md, and
+      # tests/content/the-template-has-its-image.test.mjs holds it). So remotion
+      # comes as a pull request of its own and is never folded into the week's
+      # others (held out of #2690, 27 Nov 2026). It stands before
+      # minor-and-patch, since a dependency goes to the first group it matches.
+      remotion:
+        patterns: ["remotion", "@remotion/*"]
       minor-and-patch:
         update-types: ["minor", "patch"]
         # maplibre-gl's worker is vendored byte for byte into
         # apps/dashboard/public/maplibre (maplibre-worker-vendored.test.mjs), so
-        # its bump comes alone, to carry the refreshed copy beside it.
+        # its bump comes alone, to carry the refreshed copy beside it. Remotion
+        # has its group, above: a dependency goes to the first group it matches.
         exclude-patterns: ["maplibre-gl"]
     commit-message:
       prefix: "deps"

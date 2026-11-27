@@ -3,7 +3,7 @@ import { write } from "@/server/shared/route";
 import { contactScope } from "@/server/shared/verbs";
 import { seeNote } from "@/server/people/person-notes";
 
-const Body = z.object({ note_id: z.uuid({ message: "Name the note you read." }) }).strict();
+const Body = z.object({ note_id: z.uuid({ error: "Name the note you read." }) }).strict();
 
 /**
  * POST /api/v1/contacts/:id/notes/seen — { note_id }

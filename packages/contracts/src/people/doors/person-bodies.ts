@@ -16,8 +16,8 @@ export type PersonReceptionistMode = (typeof PERSON_RECEPTIONIST_MODES)[number];
 
 /** A batch door's people: fifty at a time, as each batch door has always taken them. */
 const SOME_PEOPLE = z.array(z.uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time.");
-const CONSENT = z.enum(CONSENT_STATES, { message: "Consent must be one of: opted_in, opted_out, unknown." });
-const MODE = z.enum(PERSON_RECEPTIONIST_MODES, { message: "Mode must be one of: auto, ask, never, inherit." });
+const CONSENT = z.enum(CONSENT_STATES, { error: "Consent must be one of: opted_in, opted_out, unknown." });
+const MODE = z.enum(PERSON_RECEPTIONIST_MODES, { error: "Mode must be one of: auto, ask, never, inherit." });
 
 /**
  * One person's answer to one of the two questions (PUT contacts/[id]/consent, PUT contacts/[id]/marketing-consent):
@@ -27,7 +27,7 @@ export const ConsentAnswerBody = z.object({
   consent: CONSENT,
   source: z.string().optional(),
   note: z.string().optional(),
-  message_id: z.uuid({ message: "Choose one of their messages." }).optional(),
+  message_id: z.uuid({ error: "Choose one of their messages." }).optional(),
 });
 export type ConsentAnswer = z.infer<typeof ConsentAnswerBody>;
 
@@ -61,7 +61,7 @@ export const EraseManyBody = z.object({
     .array(z.uuid())
     .min(1, "Pick at least one person.")
     .max(ONE_REQUEST_CARRIES, "Too many people for one request."),
-  not_a_person: z.boolean({ message: "Not a person is a yes or a no." }).optional(),
+  not_a_person: z.boolean({ error: "Not a person is a yes or a no." }).optional(),
 });
 
 /** One line under many people's notes (PUT contacts/notes), appended and never replacing. */
@@ -76,7 +76,7 @@ export const NotesAppendManyBody = z.object({
 
 /** The other record of the same person, merged into this one (POST contacts/[id]/merge). */
 export const PersonMergeBody = z.object({
-  merge: z.uuid({ message: "Choose the record to merge into this one." }),
+  merge: z.uuid({ error: "Choose the record to merge into this one." }),
 });
 
 /**
