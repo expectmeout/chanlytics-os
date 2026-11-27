@@ -10,6 +10,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { ACTIVITY_NOISE_KINDS } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -118,7 +119,23 @@ test(
       ["resolve", rosa.conversation, null, "mailbox"],
     );
 
-    // The sync reads the same email again: nothing kept twice, nothing resolved twice.
+    // The email's event is the mailbox's own (00723), kept from Activity's rows and its picker: the owner's echo from
+    // WhatsApp's app (conversation.owner_replied) hands the thread back and Activity says so; this hands nothing back.
+    const told = async () =>
+      (
+        await db
+          .from("events")
+          .select("kind, subject_id, data")
+          .eq("tenant_id", t)
+          .in("kind", ["conversation.owner_emailed", "conversation.owner_replied"])
+      ).data.map((e) => [e.kind, e.subject_id, e.data.channel, e.data.message_id]);
+    assert.deepEqual(await told(), [["conversation.owner_emailed", rosa.conversation, "email", first.data.message_id]]);
+    assert.ok(
+      ACTIVITY_NOISE_KINDS.includes("conversation.owner_emailed"),
+      "no row of Activity's, nor a kind its picker offers",
+    );
+
+    // The sync reads the same email again: nothing kept twice, nothing resolved twice, nothing told twice.
     const again = await wrote(t, `rosa-${stamp}@example.com`, `g-${stamp}-1`);
     assert.equal(again.error, null, again.error?.message);
     assert.deepEqual([again.data.kept, again.data.why], [false, "already"]);
@@ -128,6 +145,7 @@ test(
       .eq("tenant_id", t)
       .eq("external_id", `g-${stamp}-1`);
     assert.equal(count.count, 1);
+    assert.equal((await told()).length, 1);
   },
 );
 

@@ -49,7 +49,8 @@ conversations/[id]/reply` (an email waiting on a yes to its address sends again 
 
 - **Database (00475):** `conversation_drafts` (one a thread and kind, `reply` or `brief`; members read, the door
   writes) and `conversation_draft_keep` (a member who acts, the thread and the message their workspace's). Gone with the
-  thread; its words are erased with the person.
+  thread; its words are erased with the person. Since 00538 the drafts are written through `conversation_draft_claim` and
+  `conversation_draft_write`, the service role's, and 00723 dropped `conversation_draft_keep`.
 - **Dashboard:** two routes, `POST conversations/[id]/draft` (operator, the person draft's bucket, maxDuration 60)
   and `GET conversations/drafts` (`server/conversations/drafts.ts`); the section (`surfaces/today/need-you/`: rows,
   drafts, sends, the work of each kind) under `pages/queue.tsx`; the kit's row takes `work`, and a row with work is not

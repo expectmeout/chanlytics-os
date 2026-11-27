@@ -1,7 +1,6 @@
 import "server-only";
 import { deployment } from "../shared/env";
 import { MIN_MS } from "@chanlytics/contracts";
-import { emitWorkspaceEvent } from "../shared/ledgers/events";
 import { callEdge, edgeAnswered, edgeReasonOf, type EdgeReason } from "../shared/edge";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -12,35 +11,11 @@ const CREATE_TIMEOUT_MS = 30_000;
 
 /* ---- Templates as Meta holds them: the edge reads the number's account ---- */
 
-/**
- * What a member did to a Library message, on the ledger: sent to WhatsApp for approval, or deleted. It is about the template
- * (its row's id, subject "template"), with its name and language in the data, which is what the line says and what stays when
- * the row is gone. While the row is there the line opens the message in the Library (activity.ts, doors). Best effort, as an
- * event is.
+/*
+ * What a member does to a Library message is on the ledger, about the template (its row's id, subject "template"), with
+ * its name and language in the data: the edge's doors write template.submitted and template.removed with the row and
+ * who it was (00722 template_submitted_keep and template_remove), and nothing here writes one (00723).
  */
-export function recordTemplateEvent(
-  tenantId: TenantId,
-  kind: "submitted" | "removed",
-  template: { id: string; name: string; language: string },
-  by: string,
-  /** The approved words a change sent back replaced, kept so a refusal of the new ones can go back to them. */
-  before: string | null = null,
-): Promise<void> {
-  const facts = { name: template.name, language: template.language, by };
-  if (kind === "removed") return emitWorkspaceEvent(tenantId, "template.removed", "template", template.id, facts);
-  return emitWorkspaceEvent(tenantId, "template.submitted", "template", template.id, {
-    ...facts,
-    ...(before ? { before } : {}),
-  });
-}
-
-/** A message sent to WhatsApp under a member's hand, on the ledger. */
-const recordSubmitted = (
-  tenantId: TenantId,
-  template: { id: string; name: string; language: string },
-  by: string,
-  before: string | null = null,
-): Promise<void> => recordTemplateEvent(tenantId, "submitted", template, by, before);
 
 type SyncOutcome =
   | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
@@ -93,10 +68,8 @@ export async function createTemplate(
   );
   const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && body.id) {
-    // What a business will say to its customers went to Meta under this member's hand: the ledger says who and
-    // which. The edge writes it with the row (00722, `told`); one from before that is told here, best effort.
-    if (body.told !== true)
-      await recordSubmitted(tenantId, { id: body.id, name: target.name, language: target.language }, userId);
+    // What a business will say to its customers went to Meta under this member's hand: the edge's door wrote the row
+    // and template.submitted, with who and which, in one transaction (00722).
     return { ok: true, id: body.id, metaStatus: body.meta_status ?? "pending" };
   }
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
@@ -110,19 +83,18 @@ export async function editTemplateWords(
   tenantId: TenantId,
   userId: string,
   target: {
+    /** The row's id: the edge's door reads its name and language from it. */
     id: string;
-    name: string;
-    language: string;
     components: unknown[];
     body: string;
     examples: string[];
     labels: string[];
-    /** The approved words these replace, where they were approved: the ledger keeps them (recordTemplateEvent). */
+    /** The approved words these replace, where they were approved: the ledger keeps them (template_words_keep). */
     before: string | null;
   },
 ): Promise<TemplateCreateOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
-  const { id, name, language, before, ...words } = target;
+  const { id, before, ...words } = target;
   const answer = await callEdge(
     "/api/admin/whatsapp/templates-edit",
     { tenant_id: tenantId, template_id: id, user_id: userId, before, ...words },
@@ -130,15 +102,13 @@ export async function editTemplateWords(
   );
   const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && body.id) {
-    // The edge writes template.submitted with the words (00722, `told`); one from before that is told here.
-    if (body.told !== true) await recordSubmitted(tenantId, { id, name, language }, userId, before);
+    // The edge's door writes template.submitted with the words and the ones they replace (00722).
     return { ok: true, id: body.id, metaStatus: body.meta_status ?? "pending" };
   }
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }
 
-type TemplateDeleteOutcome =
-  { ok: true; atMeta: boolean; told: boolean } | { ok: false; reason: EdgeReason; detail?: string };
+type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: EdgeReason; detail?: string };
 
 export async function deleteTemplate(
   tenantId: TenantId,
@@ -152,6 +122,6 @@ export async function deleteTemplate(
     { workspace: tenantId, user: userId },
   );
   const body = answer.body ?? {};
-  if (edgeAnswered(answer) && body.ok) return { ok: true, atMeta: !!body.at_meta, told: body.told === true };
+  if (edgeAnswered(answer) && body.ok) return { ok: true, atMeta: !!body.at_meta };
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }

@@ -215,9 +215,39 @@ export async function getSourceCredentials(db: Db, id: string): Promise<Json | n
   return data ?? null;
 }
 
-export async function dropSourceCredentials(db: Db, id: string): Promise<boolean> {
-  const { data, error } = await db.rpc("source_credentials_drop", { p_connection_id: id });
-  if (error) throw new DbFailure(error, "cannot drop the footage account's token");
+/**
+ * A connect's token kept in Vault as the connect stands, with source.connected (its door, whether the account was
+ * connected before, who) in the same transaction (source_connection_connected, 00723): whatever token is there is
+ * written over. A refresh keeps its own through putSourceCredentials, which writes no event.
+ */
+export async function connectSourceCredentials(
+  db: Db,
+  params: { tenantId: TenantId; id: string; secret: Json; again: boolean; by: string | null },
+): Promise<void> {
+  const { error } = await db.rpc("source_connection_connected", {
+    p_tenant_id: params.tenantId,
+    p_connection_id: params.id,
+    p_secret: params.secret,
+    p_told: { again: params.again, by: params.by },
+  });
+  if (error) throw new DbFailure(error, "cannot store the footage account's token");
+}
+
+/**
+ * An account removed: its token out of Vault, then its row with its folders and their items (00639's keys), and
+ * source.disconnected (its door, whether Google took the grant back), in one transaction (source_connection_remove,
+ * 00723). False where it is not the workspace's.
+ */
+export async function removeSourceConnection(
+  db: Db,
+  params: { tenantId: TenantId; id: string; revoked: boolean },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("source_connection_remove", {
+    p_tenant_id: params.tenantId,
+    p_connection_id: params.id,
+    p_told: { revoked: params.revoked },
+  });
+  if (error) throw new DbFailure(error, "cannot remove the footage account");
   return data === true;
 }
 

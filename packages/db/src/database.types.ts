@@ -11520,16 +11520,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      conversation_draft_keep: {
-        Args: {
-          p_conversation_id: string
-          p_for_message_id?: string
-          p_kind: string
-          p_tenant_id: string
-          p_words: Json
-        }
-        Returns: Json
-      }
       conversation_draft_write: {
         Args: {
           p_conversation_id: string
@@ -15779,6 +15769,19 @@ export type Database = {
       sms_sweep_text_canary: { Args: never; Returns: number }
       sms_sweep_texts: { Args: never; Returns: number }
       sole_proprietor_of: { Args: { p_tenant_id: string }; Returns: boolean }
+      source_connection_connected: {
+        Args: {
+          p_connection_id: string
+          p_secret: Json
+          p_tenant_id: string
+          p_told: Json
+        }
+        Returns: string
+      }
+      source_connection_remove: {
+        Args: { p_connection_id: string; p_tenant_id: string; p_told: Json }
+        Returns: boolean
+      }
       source_credentials_drop: {
         Args: { p_connection_id: string }
         Returns: boolean
@@ -16141,6 +16144,10 @@ export type Database = {
       wear_found_look: {
         Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }
         Returns: Json
+      }
+      whatsapp_channel_activate: {
+        Args: { p_channel_id: string; p_tenant_id: string; p_told: Json }
+        Returns: boolean
       }
       withdraw_ai_drafts: {
         Args: {

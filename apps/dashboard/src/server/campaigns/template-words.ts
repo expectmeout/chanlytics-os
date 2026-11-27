@@ -161,8 +161,6 @@ export async function sendWordsBack(
   await review?.(ctx, tpl.tenant_id, check);
   const sent = await editTemplateWords(tpl.tenant_id, ctx.userId, {
     id: held.id,
-    name: held.name,
-    language: held.language,
     components: templateComponents(check),
     body: check.body,
     examples: check.examples,

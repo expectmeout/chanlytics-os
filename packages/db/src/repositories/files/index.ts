@@ -221,8 +221,8 @@ export {
 export type { SourcedVideoFate, SourceTakeItem } from "./source-takes";
 export {
   beginSourceWalk,
+  connectSourceCredentials,
   deleteSourceConnection,
-  dropSourceCredentials,
   findGoogleSourceConnectionOfAccount,
   findMediaSource,
   findMediaSourceAnywhere,
@@ -240,6 +240,7 @@ export {
   pullSourceReadSooner,
   putSourceCredentials,
   readingAccountOf,
+  removeSourceConnection,
   saveBlockedSourceConnection,
   saveMediaSource,
   saveSourceConnection,

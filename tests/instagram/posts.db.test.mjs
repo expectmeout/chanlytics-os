@@ -318,7 +318,8 @@ test(
     assert.equal(ok(await db.rpc("post_moved", held), "hold"), true);
     assert.equal((await postOf(begun.post_id)).held_reason, "Pulled.");
     // Each move is on the ledger with it, the door's own (00720): from and to, its place; a move that did not happen
-    // leaves none, and the service role names nobody.
+    // leaves none, and the service role names nobody. The post's begin writes its own first, queued by the owner who
+    // pressed it (00723).
     const moves = ok(
       await db
         .from("events")
@@ -331,6 +332,7 @@ test(
     assert.deepEqual(
       moves.map((e) => [e.subject_type, e.data.from, e.data.to, e.data.place, e.data.by ?? null]),
       [
+        ["post", undefined, "queued", "instagram", as.owner.id],
         ["post", "queued", "preparing", "instagram", null],
         ["post", "preparing", "held", "instagram", null],
       ],

@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 239 | 239 |
+| door | 238 | 238 |
 | reader | 98 | 0 |
-| the server's | 477 | 407 |
+| the server's | 480 | 410 |
 | computed column | 3 | 0 |
 | trigger | 128 | 94 |
-| all | 945 | 740 |
+| all | 947 | 742 |
 
 ## Called by nothing
 
@@ -34,7 +34,6 @@ being read is dropped by a migration.
 | --- | --- |
 | `ai_shadow_agreement` | read by hand to judge the second model against the first (decision 0023, the shadow port), as the service role |
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
-| `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
 | `erasure_digest_legacy` | the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
@@ -190,7 +189,6 @@ being read is dropped by a migration.
 | `content_week_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | Stop it (00714; the content loop PRD's 12.4), by a member with the settings permission: |
 | `content_weeks_start` | the server's | the server | code `packages/db/src/repositories/files/plans.ts`; SQL `content_week_made` | The making queue (00714; |
 | `conversation_draft_claim` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft says it is being written, once a message, kind and edition (00538, decision 0093): |
-| `conversation_draft_keep` | door | a signed-in person, the server | nothing at run time | Keep Ask's draft for a thread waiting on a person (decision 0071): |
 | `conversation_draft_write` | the server's | the server | code `packages/db/src/repositories/ask/reply-drafts.ts` | A thread's draft kept (00538, decision 0093), only over a row for the same message: |
 | `conversation_echo_settles` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts` | The owner answered a customer from the WhatsApp Business app (00438): |
 | `conversation_hand_back` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `booking_request_answer`, `person_call_logged` | A member hands a thread back, as themselves (an owner, an operator, or a partner whose session showed its second factor), in one transaction (00386): |
@@ -360,7 +358,7 @@ being read is dropped by a migration.
 | `instagram_account_connect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts` | Service-role only: an Instagram account connected to a workspace in one write (00677, decision 0143). |
 | `instagram_account_disconnect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`; SQL `instagram_account_connect` | Service-role only: a workspace's Instagram account disconnected and let go (00677, decision 0143). |
 | `invitation_accept` | the server's | the server | code `apps/dashboard/app/api/v1/me/invitations/accept/route.ts`, `packages/db/src/repositories/workspace/team.ts` | A person's open invitation taken up, in one transaction (00722): |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 92 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 24 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 91 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 24 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |
@@ -895,10 +893,12 @@ being read is dropped by a migration.
 | `sms_sweep_text_canary` | the server's | the server | the clock, `text-canary` | The daily text canary's clock (00595): |
 | `sms_sweep_texts` | the server's | the server | the clock, `texts-sweep` | The texts sweep's clock (00594): |
 | `sole_proprietor_of` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | Whether a workspace's business on record has no tax id: |
+| `source_connection_connected` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | A footage account's token kept in Vault as its connect stands (source_credentials_put), with source.connected (its door, whether it was connected before, who) in the same transaction (00723). |
+| `source_connection_remove` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | A footage account removed: |
 | `source_connections_ring` | trigger | the server | trigger `source_connections_ring on source_connections` | A trigger on source_connections (00657): |
-| `source_credentials_drop` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: deletes a footage account's token from Vault (00641). |
+| `source_credentials_drop` | the server's | the server | SQL `source_connection_remove` | Service-role only: deletes a footage account's token from Vault (00641). |
 | `source_credentials_get` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: a footage account's token from Vault, or null (00641). |
-| `source_credentials_put` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: stores a footage account's token in Vault under source-creds-<id> and points credentials_ref at it (00641). |
+| `source_credentials_put` | the server's | the server | code `packages/db/src/repositories/files/sources.ts`; SQL `source_connection_connected` | Service-role only: stores a footage account's token in Vault under source-creds-<id> and points credentials_ref at it (00641). |
 | `source_files_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | A member who may change the settings removes what came from the workspace's watched folders (00657, the footage screens' Settings 19): |
 | `source_files_tally` | door | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | What came from a workspace's watched folders and is still in its Library (00655): |
 | `source_items_grace_end` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The seven-day cleanup (00654, the footage sources plan's D3 as narrowed on 18 November): |
@@ -980,6 +980,7 @@ being read is dropped by a migration.
 | `voice_channel_add` | the server's | the server | code `packages/db/src/repositories/lines/lines.ts` | The voice line's routing row (tenant_channels, kind voice, keyed on its agent), made with voice.provisioned in the same transaction (00721): |
 | `wake_stale_snoozes` | the server's | the server | the clock, `wake-stale-snoozes` | Reopens conversations whose snooze ran out, whoever set it and whatever became of the snooze_wake job. |
 | `wear_found_look` | the server's | the server | code `packages/db/src/repositories/look/look.ts` | The website read's door (00490): |
+| `whatsapp_channel_activate` | the server's | the server | code `packages/db/src/repositories/channels/whatsapp.ts` | A WhatsApp number's row turned active once its token stands in Vault, with channel.connected (its ids, its name and who connected it) in the same transaction (00723). |
 | `withdraw_ai_drafts` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `conversation_take_over`, `member_withdraw_drafts` | The receptionist's queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00387). |
 | `withdraw_queued` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `claim_reply_turn`, `member_withdraw_message` and 2 more | The one door a queued message is withdrawn by (00387): |
 | `words_seen` | door | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/playbook-row.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts` | A member pressed a card of Ask's that showed this step's words: |
