@@ -238,7 +238,7 @@ test("nowhere yet comes with what sign-up kept: the first workspace's create scr
     params: {},
     metadata: { [PENDING_WORKSPACE_KEY]: kept },
   });
-  assert.deepEqual([answer.workspaces, answer.activeWorkspaceId], [[], null]);
+  assert.deepEqual([answer.workspaces, answer.active_workspace_id], [[], null]);
   assert.deepEqual(answer.pending, pendingWorkspaceOf({ [PENDING_WORKSPACE_KEY]: kept }));
   assert.equal(answer.pending.name, "Luna Studio", "what sign-up kept");
 });
