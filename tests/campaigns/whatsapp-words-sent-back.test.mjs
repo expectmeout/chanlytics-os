@@ -148,23 +148,23 @@ test("a send going out with the words now refuses the change, as a delete is ref
   assert.equal(r.meta_status, "pending");
 });
 
-test("approved words a change replaces are kept on the ledger with it, so a refusal of the new ones can go back to them", async () => {
+test("approved words a change replaces go to the edge's door with it, which keeps them on the ledger, so a refusal of the new ones can go back to them", async () => {
   const w = open();
   const r = await w.put({ words: { body: NEW_WORDS } });
   assert.equal(r.meta_status, "pending");
   assert.equal(edge.calls.length, 1);
   assert.equal(edge.calls[0].body, NEW_WORDS);
-  const said = w.tables.events.filter((e) => e.kind === "template.submitted");
-  assert.equal(said.length, 1);
-  assert.equal(said[0].subject_id, ROW);
-  assert.equal(said[0].data.before, APPROVED, "the words WhatsApp had approved");
+  assert.equal(edge.calls[0].template_id, ROW);
+  assert.equal(edge.calls[0].before, APPROVED, "the words WhatsApp had approved");
+  // The edge's door writes template.submitted with them, in the words' own write (00722's template_words_keep): the
+  // dashboard writes none of its own.
+  assert.equal(w.tables.events.filter((e) => e.kind === "template.submitted").length, 0);
 
-  // Words that were not approved (a refused message's) are no way back: nothing is kept as `before`.
+  // Words that were not approved (a refused message's) are no way back: nothing is sent as `before`.
   const again = open({ over: { meta_status: "rejected", rejected_reason: "Promotional words" } });
   await again.put({ words: { body: NEW_WORDS } });
-  const second = again.tables.events.filter((e) => e.kind === "template.submitted");
-  assert.equal(second.length, 1);
-  assert.equal("before" in second[0].data, false);
+  assert.equal(edge.calls.length, 1);
+  assert.equal(edge.calls[0].before ?? null, null);
 });
 
 test("a reason the edge gives with no sentence of its own reaches the person in plain words, never as its code", async () => {
