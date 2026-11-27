@@ -17,7 +17,7 @@ import type { BrainMeta, TenantId, ContactId } from "@chanlytics/contracts";
 import type { InboundChannel } from "@chanlytics/core";
 import type { LogEvent } from "../shared/log.js";
 
-export type DraftSource = "veto_window" | "low_confidence" | "steered";
+type DraftSource = "veto_window" | "low_confidence" | "steered";
 
 interface DraftArgs {
   tenantId: TenantId;

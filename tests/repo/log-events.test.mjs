@@ -80,7 +80,7 @@ function measure() {
   const spelled = new Set();
   const pgSteps = new Set();
   for (const file of repoFiles(TREES, { keep: /\.(ts|tsx)$/ })) {
-    if (file === SET) continue;
+    if (file === SET || file.startsWith(`${SET.slice(0, -3)}/`)) continue;
     const sf = parse(file);
     const visit = (n) => {
       if (ts.isStringLiteralLike(n)) spelled.add(n.text);

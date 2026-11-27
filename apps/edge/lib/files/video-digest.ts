@@ -82,7 +82,7 @@ const heardFor = (row: FileRow): HeardFor => ({ tenantId: row.tenant_id, fileId:
 async function madeOf(d: Digest): Promise<Set<string>> {
   const listed = await filesBucket(d.db).list(fileFolderOf(d.row.tenant_id, d.row.id));
   if (listed.error) throw new DbFailure(listed.error, "video_digest");
-  return new Set((listed.data ?? []).map((f) => f.name));
+  return new Set(listed.data.map((f) => f.name));
 }
 
 async function keepMade(d: Digest, which: FileMadeOfVideo, bytes: Uint8Array): Promise<void> {
@@ -212,8 +212,7 @@ async function audioStep(digest: Digest, sound: FileSound): Promise<VideoDigestS
 /** The sound kept in the folder, read for an ear. */
 async function audioBytesOf(d: Digest): Promise<Uint8Array> {
   const read = await filesBucket(d.db).download(fileMadePathOf(d.row.tenant_id, d.row.id, "audio"));
-  if (read.error || !read.data)
-    throw new DbFailure(read.error ?? { message: "no answer" }, "video_digest: the kept sound could not be read");
+  if (read.error) throw new DbFailure(read.error, "video_digest: the kept sound could not be read");
   return new Uint8Array(await read.data.arrayBuffer());
 }
 

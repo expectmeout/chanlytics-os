@@ -73,7 +73,7 @@ function previewInputOf(body: Body, tenantId: TenantId): (PreviewInput & { userI
     !okIndex(body.index) ||
     typeof body.include_unconfirmed !== "boolean" ||
     !okBody(words?.body) ||
-    !okSubject(words?.subject) ||
+    !okSubject(words.subject) ||
     !okSignedBy(body.signed_by) ||
     !(body.signs_with === undefined || body.signs_with === "name" || body.signs_with === "mailbox") ||
     !(body.mailbox_id === undefined || body.mailbox_id === null || isUuid(body.mailbox_id)) ||

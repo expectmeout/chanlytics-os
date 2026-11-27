@@ -78,7 +78,7 @@ export async function watchAnswerSilence(
       logger({ sweep: "health" }).error("answer_silence_unreadable", { error: silence.error.message });
     return 0;
   }
-  const silent: SilentWorkspace[] = silence.data ?? [];
+  const silent: SilentWorkspace[] = silence.data;
   if (silent.length === 0) return 0;
   const page = describeAnswerSilence(silent, day);
   await pageOperator({ db, ...pager }, ANSWER_SILENCE_PAGE_KEY, page.subject, page.body);

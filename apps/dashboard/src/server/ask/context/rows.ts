@@ -1,5 +1,5 @@
 import "server-only";
-import { PROFILE_NAME_MAX, UUID } from "@chanlytics/contracts";
+import { PROFILE_NAME_MAX, UUID, entryOf } from "@chanlytics/contracts";
 import type { AskContextRowKind, AskSurface, PageContextDto, PageContextRow } from "@chanlytics/contracts";
 import { load, type ReaderContext, type RowKind, type RowRef } from "../../shared/reader";
 import * as facts from "../../readers/facts";
@@ -116,5 +116,7 @@ export const PAGE_TITLES: Record<AskSurface, string> = {
 };
 
 /** The page's name with its view, as the aggregate opens: "Inbox, needs_you". */
-export const pageWithView = (ctx: PageContextDto, title: string = PAGE_TITLES[ctx.surface] ?? "This page"): string =>
-  ctx.view ? `${title}, ${ctx.view}` : title;
+export const pageWithView = (
+  ctx: PageContextDto,
+  title: string = entryOf(PAGE_TITLES, ctx.surface) ?? "This page",
+): string => (ctx.view ? `${title}, ${ctx.view}` : title);
