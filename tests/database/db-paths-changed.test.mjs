@@ -9,11 +9,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { couldTheDatabaseHaveChanged } from "../../tooling/scripts/checks/db-paths-changed.mjs";
+import { couldTheDatabaseHaveChanged } from "../../tooling/scripts/checks/changed/database.mjs";
 import { ROOT } from "../_source.mjs";
 import { parse } from "../_ast.mjs";
 
-const CLI = fileURLToPath(new URL("../../tooling/scripts/checks/db-paths-changed.mjs", import.meta.url));
+const CLI = fileURLToPath(new URL("../../tooling/scripts/checks/changed/database.mjs", import.meta.url));
 const ask = (files) => spawnSync(process.execPath, [CLI], { input: files.join("\n") + "\n", encoding: "utf8" });
 
 test("a migration, a SQL suite, the checks' inputs or the lockfile could change what the replay proves", () => {
@@ -47,7 +47,7 @@ test("a migration, a SQL suite, the checks' inputs or the lockfile could change 
     "tooling/scripts/checks/test.mjs",
     "tooling/scripts/checks/coverage.mjs",
     ".github/workflows/database.yml",
-    "tooling/scripts/checks/db-paths-changed.mjs",
+    "tooling/scripts/checks/changed/database.mjs",
     "package.json",
     "pnpm-lock.yaml",
   ]) {
@@ -129,7 +129,7 @@ test("every module a stack suite loads, followed through its imports, is on the 
     ),
     [],
     "a stack suite loads these, and a change to one would skip the replay: add their tree to DB_PATHS " +
-      "(tooling/scripts/checks/db-paths-changed.mjs), or to NOT_THE_DATABASE here with why",
+      "(tooling/scripts/checks/changed/database.mjs), or to NOT_THE_DATABASE here with why",
   );
 });
 

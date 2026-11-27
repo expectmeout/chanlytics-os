@@ -144,8 +144,7 @@ function useSignupState(preview: SignupPreview | null) {
           setBusy(false);
         })
         .catch(() => setSignedInAs(null));
-    // Once, on arrival: the preview is the page's, and does not change while it is open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival: the preview is the page's, and does not change while it is open
   }, []);
 
   return {

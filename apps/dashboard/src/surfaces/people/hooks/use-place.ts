@@ -67,10 +67,10 @@ function useSelectionResets(controls: Controls, selectionOf: string) {
     setAllMatching(false);
     setSelectMode(false);
     setBulkSheet(null);
-  }, [selectionOf]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectionOf]); // eslint-disable-line react-hooks/exhaustive-deps -- reset as what is selected from changes, never each draw: `setSel` is the table's, a new arrow each draw
   useEffect(() => {
     setAllMatching(false);
-  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [q, setAllMatching]);
 }
 
 /**
@@ -89,7 +89,7 @@ function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
   const [cursor, setCursor] = useState<string | null>(null);
   useEffect(() => {
     setCursor((c) => (c && ids.includes(c) ? c : null));
-  }, [ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ids.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps -- the ids joined stand for the list: a new array of the same ids keeps the cursor
   const moveCursor = (step: number) => {
     setCursor((c) => {
       const i = c ? ids.indexOf(c) : -1;
@@ -108,7 +108,7 @@ function useCursor({ ids, noun }: Pick<PlaceArgs, "ids" | "noun">) {
     if (!row || row === active || (active && row.contains && row.contains(active))) return;
     if (row.focus) row.focus({ preventScroll: true });
     if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
-  }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps -- once for each cursor; the noun is the table's word for its life
   return { cursor, setCursor, moveCursor, cursorAnswered };
 }
 
@@ -144,7 +144,7 @@ function usePlaceKeeper(
     if (onPlace) onPlace(place, placeOf.current !== undefined);
     placeTop.current = top;
     placeDue.current = { view, top, q: words, fresh: true };
-  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps -- once as a view opens: its place is read back then, and only then
   // Saved as it changes. The draw that opens a view still holds the last view's state, so it saves nothing.
   const extraKey = extra ? JSON.stringify(extra) : "";
   useEffect(() => {
@@ -153,7 +153,7 @@ function usePlaceKeeper(
       return;
     }
     placeSave(page, view, { q, cursor: cursor.cursor, ...extra, top: placeTop.current });
-  }, [view, q, cursor.cursor, extraKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view, q, cursor.cursor, extraKey]); // eslint-disable-line react-hooks/exhaustive-deps -- saved as the place changes: `extraKey` stands for `extra`, and the page is a word for the hook's life
   if (placeOf.current === view) placeNow.current = { view, place: { q, cursor: cursor.cursor, ...extra } };
   // The list goes back to where it was once the rows on screen are this view's (the surface says which view it holds) AND
   // are the ones its own words leave. Scrolled before the view landed, it would be the last view's rows that moved.
@@ -177,7 +177,7 @@ function usePlaceKeeper(
     if (heldPutBack(pane)) return;
     const sc = ldScroller(pane);
     if (pane && sc) placeReader(sc, keptTop(pane, sc, due.top));
-  }, [view, landed, q]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view, landed, q]); // eslint-disable-line react-hooks/exhaustive-deps -- put back as the view lands; `scrollRef` is a ref, the same for the hook's life
   // How far the list is scrolled, heard where its box scrolls (heardListScroll: the table's own on a desktop, the
   // window on a phone), as it is scrolled. Saved once it settles, with the place as last drawn; and at once where the list
   // goes before then (a row opened mid-scroll, a scope pressed): the save waiting was let go of, and Back found the place
@@ -210,7 +210,7 @@ function usePlaceKeeper(
         save();
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- heard once for the page's life: the page's word and the scroller's ref do not change
 }
 
 export function usePlPlace(args: PlaceArgs) {

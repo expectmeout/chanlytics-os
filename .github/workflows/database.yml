@@ -7,7 +7,7 @@ name: Database
 #
 # It reports on every pull request, so branch protection can require it, and it
 # replays only when the database could have changed. The first step pipes the
-# changed files through tooling/scripts/checks/db-paths-changed.mjs, which holds the
+# changed files through tooling/scripts/checks/changed/database.mjs, which holds the
 # one list of what the replay depends on: the migrations, seed and config under
 # supabase/, the SQL suites, the db package's src (the *.integration suites call
 # its repositories through the bundle the launcher builds), what the two --check steps

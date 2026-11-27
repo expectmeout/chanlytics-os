@@ -106,8 +106,7 @@ export function PostFrame({ src, shape, alt, waiting, drawing = false, onUnseen 
     sizeWas.current = null;
     if (!box || !from || !was) return undefined;
     return glideIn(box, from, () => setWas(null));
-    // Once for each picture that comes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once for each picture that comes: `was`, the size it glides in from, is read as it stands
   }, [now]);
   if (!now)
     return (
