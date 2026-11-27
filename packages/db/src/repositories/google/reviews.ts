@@ -4,11 +4,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
-import { tenantDb } from "../../shared/tenant-db";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
-type ReviewInsert = Database["public"]["Tables"]["google_reviews"]["Insert"];
 type ReviewUpdate = Database["public"]["Tables"]["google_reviews"]["Update"];
 
 /**
@@ -40,10 +38,6 @@ export const pageGoogleReviewReplies = async (db: Db, tenantId: TenantId, from: 
     .order("review_id")
     .range(from, to);
 
-/** The workspace's reviews kept, each written over its own row (one a review id). */
-export const saveGoogleReviews = async (db: Db, tenantId: TenantId, rows: ReviewInsert[]) =>
-  tenantDb(db, tenantId).from("google_reviews").upsert(rows, { onConflict: "tenant_id,review_id" });
-
 /** One of the workspace's reviews, as a reply is written for it, or none. */
 export const findReviewToAnswer = async (db: Db, tenantId: TenantId, rowId: string) =>
   db
@@ -56,10 +50,6 @@ export const findReviewToAnswer = async (db: Db, tenantId: TenantId, rowId: stri
 /** One of the workspace's reviews, as Google knows it (its review id and where it was read), or none. */
 export const findReviewOnGoogle = async (db: Db, tenantId: TenantId, rowId: string) =>
   db.from("google_reviews").select("id, review_id, origin").eq("tenant_id", tenantId).eq("id", rowId).maybeSingle();
-
-/** One of the workspace's reviews changed. */
-export const patchGoogleReview = async (db: Db, tenantId: TenantId, rowId: string, set: ReviewUpdate) =>
-  db.from("google_reviews").update(set).eq("id", rowId).eq("tenant_id", tenantId);
 
 /**
  * A reply held on one of the workspace's reviews, only while it has none on Google, and with `timed` only while one is

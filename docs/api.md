@@ -4876,6 +4876,7 @@ Read with GET; takes no body.
 | --- | --- | --- | --- |
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `template_id` | string | no |  |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 
 ### `POST /api/admin/whatsapp/templates-edit`
 
@@ -4887,6 +4888,8 @@ Read with GET; takes no body.
 | `body` | string | no |  |
 | `examples` | array of string | no |  |
 | `labels` | array of string | no |  |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `before` | string or null | no |  |
 
 ### `POST /api/admin/whatsapp/templates-sync`
 

@@ -4,8 +4,7 @@
  * params and until, since 00462 its sequence's mode), the channels alone, or the whole playbook, and no other key. A change is judged against
  * the playbook as it stands and its message (core
  * checkPlaybookPatch) and written with its line in the ledger in one call (the change_playbook door, _change-door.mjs),
- * which answers what each field held; nothing to change writes nothing. On a database before the door (PGRST202) the
- * same change is written as it was before, for one release, and answers the same: either deploy order works.
+ * which answers what each field held; nothing to change writes nothing.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -100,12 +99,6 @@ const world = (over = {}) => ({
 
 /** The change_playbook door in memory, as 00416 writes it (_change-door.mjs), on the member's session. */
 const changeDoor = (tables) => changePlaybookDoor(tables, USER);
-/** A database before the door's migration: PostgREST's answer for a function it does not hold. */
-const noDoor = () => ({
-  change_playbook: () => {
-    throw Object.assign(new Error("Could not find the function public.change_playbook"), { code: "PGRST202" });
-  },
-});
 const ctxFor = (tables, id, door = changeDoor) => ({
   supabase: fakeDb(tables, {}, door(tables)),
   userId: USER,
@@ -299,37 +292,6 @@ test("a change is refused in the product's words before anything is written: a s
   await refused(put(tables, K1, { state: "paused" }), "forbidden", 403);
   assert.deepEqual(tables.decisions, []);
   assert.equal(tables.playbooks.find((x) => x.id === K2).run_hour, 10);
-});
-
-test("either deploy order works: on a database before the change_playbook door, a change is written as it was before, for one release, its record the one that database takes, and the same answer", async () => {
-  const tables = world();
-  setServiceClient(fakeDb(tables));
-  const out = await put(tables, K2, { name: "Past clients", run_hour: 9 }, noDoor);
-  assert.deepEqual(
-    [out.id, out.name, out.state, out.was, out.decision_id],
-    [K2, "Past clients", "running", { name: "Win-back", run_hour: 10 }, null],
-  );
-  const p = tables.playbooks.find((x) => x.id === K2);
-  assert.deepEqual([p.name, p.run_hour], ["Past clients", 9]);
-  // That database's ledger has no change_playbook: a rename or a new hour is the event the whole rewrite always wrote.
-  assert.deepEqual(
-    tables.events.map((e) => [e.kind, e.data.fields]),
-    [["playbook.changed", ["name", "run_hour"]]],
-  );
-  const paused = await put(tables, K2, { state: "paused" }, noDoor);
-  assert.deepEqual([paused.state, paused.was, typeof paused.decision_id], ["paused", { state: "running" }, "string"]);
-  assert.deepEqual(
-    tables.decisions.map((d) => d.verb),
-    ["pause_playbook"],
-    "a pause is pause_playbook, as the drawer's switch always wrote",
-  );
-  // The door's own refusals are core's, before either write: the old way refuses in the same words.
-  await refused(
-    put(tables, K2, { run_hour: 7 }, noDoor),
-    "validation",
-    400,
-    "The hour must be a whole number from 9 to 20.",
-  );
 });
 
 test("a sequence to leads is started or turned back on only while a mailbox can send it (decision 0116)", async () => {

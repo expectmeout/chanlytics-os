@@ -62,7 +62,8 @@ const world = (faults = {}) => {
     ],
   };
   setServiceClient(fakeDb(tables, faults));
-  return { tables, ctx: { supabase: fakeDb(tables), userId: USER, params: {} } };
+  // The member's own session, which the stop's doors ask who is calling on (00722), and where a write of it fails.
+  return { tables, ctx: { supabase: fakeDb(tables, faults, {}, { userId: USER }), userId: USER, params: {} } };
 };
 
 /** What the stop keeps for Resume. */

@@ -127,7 +127,8 @@ const world = ({ door = true } = {}) => {
   };
   const rpcs = { ad_pause_all: door ? pauseAll(tables) : missing };
   setServiceClient(fakeDb(tables, {}, rpcs));
-  return { tables, ctx: { supabase: fakeDb(tables, {}, rpcs), userId: OPERATOR, params: {} } };
+  // The member's own session: the stop's doors ask who is calling (00722).
+  return { tables, ctx: { supabase: fakeDb(tables, {}, rpcs, { userId: OPERATOR }), userId: OPERATOR, params: {} } };
 };
 
 const realFetch = globalThis.fetch;

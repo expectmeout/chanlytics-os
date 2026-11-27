@@ -1394,6 +1394,19 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     seen.push({ table: "events", op: "insert", values: [row] });
     return kept;
   };
+  /** A fault a suite set on a table's write, raised as the write would raise it. */
+  const writeFault = (key) => {
+    const fault = faults[key];
+    if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+  };
+  /** The rows of a table a door deletes, seen as a delete through `from`: whether any went. */
+  const rowsGone = (table, which, filters = []) => {
+    const all = tables[table] ?? [];
+    const going = all.filter(which);
+    for (const row of going) all.splice(all.indexOf(row), 1);
+    seen.push({ table, op: "delete", filters });
+    return going.length > 0;
+  };
   /**
    * The AFTER triggers this double runs, each of which writes a record's event in the write's own transaction (00721):
    * a line's moves, and a booking email's appointment. `was` is null for a row the write made.
@@ -1627,12 +1640,30 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const { tenant_id, config, version, updated_at, updated_by } = row;
       return { tenant_id, config, version, updated_at, updated_by: updated_by ?? null, feed_hidden: false };
     },
-    tenant_config_write: ({ p_tenant_id, p_config, p_version }) => {
+    // The versioned save, and with p_told its settings.changed in the same write (00722), as the member.
+    tenant_config_write: ({ p_tenant_id, p_config, p_version, p_told = null }) => {
+      writeFault("tenant_config.update");
       const row = (tables.tenant_config ?? []).find((r) => r.tenant_id === p_tenant_id);
       if (!row) return { outcome: "missing", version: null, updated_at: null, updated_by: null };
       if (row.version !== p_version) return { outcome: "stale", version: null, updated_at: null, updated_by: null };
-      Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: null });
-      return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: null };
+      const by = opts.userId ?? null;
+      Object.assign(row, { config: p_config, version: p_version + 1, updated_at: stampOf(tables), updated_by: by });
+      seen.push({
+        table: "tenant_config",
+        op: "update",
+        values: { config: p_config, version: p_version + 1 },
+        filters: [["eq", "tenant_id", p_tenant_id]],
+      });
+      if (p_told && (p_told.fields ?? []).length > 0)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "settings.changed",
+          category: "system",
+          subject_type: "workspace",
+          subject_id: p_tenant_id,
+          data: { fields: p_told.fields, by, version: row.version, ...(p_told.via ? { via: p_told.via } : {}) },
+        });
+      return { outcome: "saved", version: row.version, updated_at: row.updated_at, updated_by: by };
     },
     // A policy's change, as one write (00624): the workspace's own row for the class takes the mode when one is given
     // and the dials merged into its limits, and the change is on the ledger in the same write, the dials' names in
@@ -1902,6 +1933,497 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         data: move.data(row, was),
       });
       return true;
+    },
+    /**
+     * A person's open invitation taken up (00722 invitation_accept): the seat (one held is kept), member.joined where the
+     * ledger does not hold it for the invitation, the stamp; false where the invitation is not open.
+     */
+    invitation_accept: ({ p_invitation_id, p_user_id }) => {
+      // One transaction: a seat, a news or a stamp the database refuses refuses the whole door, and nothing is kept.
+      const fault = faults["memberships.insert"] ?? faults["events.insert"] ?? faults["invitations.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const inv = (tables.invitations ?? []).find(
+        (i) =>
+          i.id === p_invitation_id &&
+          !i.accepted_at &&
+          !i.revoked_at &&
+          (!i.expires_at || Date.parse(i.expires_at) > Date.now()),
+      );
+      if (!inv) return false;
+      const held = (tables.memberships ?? []).some((m) => m.user_id === p_user_id && m.tenant_id === inv.tenant_id);
+      if (!held) {
+        const seat = { tenant_id: inv.tenant_id, user_id: p_user_id, role: inv.role };
+        insertRow("memberships", seat);
+        seen.push({ table: "memberships", op: "insert", values: [seat] });
+      }
+      const said = (tables.events ?? []).some(
+        (e) =>
+          e.tenant_id === inv.tenant_id &&
+          e.kind === "member.joined" &&
+          e.subject_type === "invitation" &&
+          e.subject_id === inv.id,
+      );
+      if (!said)
+        tellEvent({
+          tenant_id: inv.tenant_id,
+          kind: "member.joined",
+          category: "system",
+          subject_type: "invitation",
+          subject_id: inv.id,
+          data: { by: p_user_id, role: inv.role },
+        });
+      inv.accepted_at = stampOf(tables);
+      seen.push({
+        table: "invitations",
+        op: "update",
+        values: { accepted_at: inv.accepted_at },
+        filters: [["eq", "id", inv.id]],
+      });
+      return true;
+    },
+    /** A message sent to WhatsApp, kept over its key with template.submitted (00722 template_submitted_keep); its id. */
+    template_submitted_keep: ({ p_tenant_id, p_row, p_by = null }) => {
+      const fault = faults["templates.upsert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = { ...p_row, tenant_id: p_tenant_id, channel: p_row.channel ?? "whatsapp" };
+      const all = (tables.templates ??= []);
+      const was = all.find(
+        (t) =>
+          t.tenant_id === p_tenant_id &&
+          t.channel === row.channel &&
+          t.name === row.name &&
+          t.language === row.language,
+      );
+      if (was) Object.assign(was, row);
+      const kept = was ?? insertRow("templates", row);
+      seen.push({
+        table: "templates",
+        op: "upsert",
+        values: [row],
+        conflict: ["tenant_id", "channel", "name", "language"],
+      });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.submitted",
+        category: "message",
+        subject_type: "template",
+        subject_id: kept.id,
+        data: { name: row.name, language: row.language, by: p_by },
+      });
+      return kept.id;
+    },
+    /** A WhatsApp message's new words with template.submitted (00722 template_words_keep); false where not the workspace's. */
+    template_words_keep: ({ p_tenant_id, p_template_id, p_words, p_by = null, p_before = null }) => {
+      const fault = faults["templates.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.templates ?? []).find(
+        (t) => t.id === p_template_id && t.tenant_id === p_tenant_id && t.channel === "whatsapp",
+      );
+      if (!row) return false;
+      const values = { ...p_words, meta_status: "pending", rejected_reason: null, synced_at: stampOf(tables) };
+      Object.assign(row, values);
+      seen.push({ table: "templates", op: "update", values, filters: [["eq", "id", p_template_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.submitted",
+        category: "message",
+        subject_type: "template",
+        subject_id: p_template_id,
+        data: { name: row.name, language: row.language, by: p_by, ...(p_before ? { before: p_before } : {}) },
+      });
+      return true;
+    },
+    /** A Library message deleted with template.removed naming it (00722 template_remove); false where it was gone. */
+    template_remove: ({ p_tenant_id, p_template_id, p_by = null }) => {
+      const fault = faults["templates.delete"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const all = tables.templates ?? [];
+      const row = all.find((t) => t.id === p_template_id && t.tenant_id === p_tenant_id);
+      if (!row) return false;
+      all.splice(all.indexOf(row), 1);
+      seen.push({ table: "templates", op: "delete", filters: [["eq", "id", p_template_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.removed",
+        category: "message",
+        subject_type: "template",
+        subject_id: p_template_id,
+        data: { name: row.name, language: row.language, by: p_by },
+      });
+      return true;
+    },
+    /** Ask's new words for a refused message, kept on the ledger (00722 template_fix_keep); false where not the workspace's. */
+    template_fix_keep: ({ p_tenant_id, p_template_id, p_words, p_reason }) => {
+      const fault = faults["events.insert"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      if (!(tables.templates ?? []).some((t) => t.id === p_template_id && t.tenant_id === p_tenant_id)) return false;
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "template.fix_written",
+        category: "message",
+        subject_type: "template",
+        subject_id: p_template_id,
+        data: { words: p_words, reason: p_reason ?? "", by: opts.userId ?? null },
+      });
+      return true;
+    },
+    /** Stop everything on the workspace's own row, as the member who pressed it, with its event (00722 workspace_sending_stop). */
+    workspace_sending_stop: ({ p_tenant_id, p_at = null }) => {
+      // A database the stop's column has not reached predates the door too: the door is not there.
+      if (!SCHEMA.relations.tenants?.columns.sending_stopped_at)
+        throw Object.assign(new Error("Could not find the function public.workspace_sending_stop"), {
+          code: "PGRST202",
+        });
+      const fault = faults["tenants.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const tenant = tenantOf(p_tenant_id);
+      if (!tenant) return false;
+      const was = tenant.sending_stopped_at ?? null;
+      tenant.sending_stopped_at = p_at;
+      seen.push({
+        table: "tenants",
+        op: "update",
+        values: { sending_stopped_at: p_at },
+        filters: [["eq", "id", p_tenant_id]],
+      });
+      const told = (kind, data) =>
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind,
+          category: "setup",
+          subject_type: "workspace",
+          subject_id: p_tenant_id,
+          data,
+        });
+      if (was === null && p_at !== null) told("workspace.sending_stopped", { at: p_at, by: opts.userId ?? null });
+      if (was !== null && p_at === null)
+        told("workspace.sending_resumed", { stopped_at: was, by: opts.userId ?? null });
+      return true;
+    },
+    /** What a stop holds, kept in Ask's own section of the settings as the member (00722 ask_stopped_keep). */
+    ask_stopped_keep: ({ p_tenant_id, p_stopped = null }) => {
+      const fault = faults["tenant_config.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.tenant_config ?? []).find((c) => c.tenant_id === p_tenant_id);
+      if (!row) return false;
+      const ask = { ...(row.config?.ask ?? {}) };
+      if (p_stopped === null) delete ask.stopped;
+      else ask.stopped = p_stopped;
+      row.config = { ...(row.config ?? {}), ask };
+      row.version = (row.version ?? 0) + 1;
+      seen.push({
+        table: "tenant_config",
+        op: "update",
+        values: { config: row.config },
+        filters: [["eq", "tenant_id", p_tenant_id]],
+      });
+      return true;
+    },
+    /** The stop's ads pause as the member who pressed it (00722 ad_pause_for_stop): ad_pause_all by `stop`, as a world models it. */
+    ad_pause_for_stop: ({ p_tenant_id }) => {
+      const door = rpcs.ad_pause_all ?? derived.ad_pause_all;
+      if (!door) throw new Error("fakeDb: rpc(ad_pause_all) is not modelled; add it to fakeDb's third argument");
+      return door({ p_tenant_id, p_actor: opts.userId ?? null, p_presses: null, p_by: "stop" });
+    },
+    /** Whether AI works alone, with its event where it changed (00722 ask_alone_set). */
+    ask_alone_set: ({ p_tenant_id, p_on }) => {
+      const fault = faults["tenant_config.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.tenant_config ?? []).find((c) => c.tenant_id === p_tenant_id);
+      if (!row) return false;
+      const was = row.config?.ask?.alone === true;
+      if (was !== Boolean(p_on)) {
+        const ask = { ...(row.config?.ask ?? {}) };
+        if (p_on) ask.alone = true;
+        else delete ask.alone;
+        row.config = { ...(row.config ?? {}), ask };
+        row.version = (row.version ?? 0) + 1;
+        seen.push({
+          table: "tenant_config",
+          op: "update",
+          values: { config: row.config },
+          filters: [["eq", "tenant_id", p_tenant_id]],
+        });
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "ask.alone_set",
+          category: "setup",
+          subject_type: "workspace",
+          subject_id: p_tenant_id,
+          data: { on: Boolean(p_on), by: opts.userId ?? null },
+        });
+      }
+      return true;
+    },
+    /** A held booking email set aside, with its event (00722 appointment_notice_dismiss); false where it is not held. */
+    appointment_notice_dismiss: ({ p_tenant_id, p_id }) => {
+      const fault = faults["appointment_notices.update"];
+      if (fault) throw Object.assign(new Error(fault.message), fault.code ? { code: fault.code } : {});
+      const row = (tables.appointment_notices ?? []).find(
+        (n) => n.tenant_id === p_tenant_id && n.id === p_id && n.outcome === "held",
+      );
+      if (!row) return false;
+      row.outcome = "dismissed";
+      seen.push({
+        table: "appointment_notices",
+        op: "update",
+        values: { outcome: "dismissed" },
+        filters: [["eq", "id", p_id]],
+      });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "appointment.notice_dismissed",
+        category: "appointment",
+        subject_type: "booking_email",
+        subject_id: p_id,
+        data: { tool: row.tool, hold_reason: row.hold_reason ?? null, by: opts.userId ?? null },
+      });
+      return true;
+    },
+    /**
+     * Google's changes with their events (00722), over the rows a world holds. A door that writes a table refuses as the
+     * table's write would (`faults["<table>.<op>"]`), and each write is seen as `from` would see it.
+     */
+    google_connect_finish: ({ p_tenant_id, p_secret, p_told }) => {
+      // The token is kept through the Vault door, as the real one calls it: a suite's own model of it answers.
+      const put = rpcs.put_google_credentials ?? derived.put_google_credentials;
+      if (!put)
+        throw new Error("fakeDb: google_connect_finish keeps its token through put_google_credentials; model it");
+      const ref = put({ p_tenant_id, p_secret }, derived.put_google_credentials);
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.connected",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: p_told,
+      });
+      return ref ?? `google-creds-${p_tenant_id}`;
+    },
+    google_connection_remove: ({ p_tenant_id, p_told }) => {
+      writeFault("google_reviews.delete");
+      rowsGone("google_reviews", (r) => r.tenant_id === p_tenant_id && r.origin === "profile", [
+        ["eq", "tenant_id", p_tenant_id],
+        ["eq", "origin", "profile"],
+      ]);
+      writeFault("google_connections.delete");
+      if (!rowsGone("google_connections", (c) => c.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]))
+        return false;
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.disconnected",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: p_told,
+      });
+      return true;
+    },
+    google_listing_link: ({ p_tenant_id, p_row, p_by = null }) => {
+      writeFault("google_listings.upsert");
+      const row = {
+        ...p_row,
+        tenant_id: p_tenant_id,
+        linked_by: p_by,
+        rating: null,
+        review_count: null,
+        checked_at: null,
+        check_error: null,
+      };
+      const all = (tables.google_listings ??= []);
+      const was = all.find((l) => l.tenant_id === p_tenant_id);
+      if (was) Object.assign(was, row);
+      else insertRow("google_listings", row);
+      seen.push({ table: "google_listings", op: "upsert", values: row });
+      writeFault("google_reviews.delete");
+      rowsGone("google_reviews", (r) => r.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]);
+      writeFault("google_listing_days.delete");
+      rowsGone("google_listing_days", (d) => d.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]);
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.linked",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: { place_id: p_row.place_id, name: p_row.name, by: p_by },
+      });
+      return true;
+    },
+    google_listing_unlink: ({ p_tenant_id, p_had_profile, p_by = null }) => {
+      writeFault("google_listings.delete");
+      const row = (tables.google_listings ?? []).find((l) => l.tenant_id === p_tenant_id);
+      if (!rowsGone("google_listings", (l) => l.tenant_id === p_tenant_id, [["eq", "tenant_id", p_tenant_id]]))
+        return false;
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.unlinked",
+        category: "google",
+        subject_type: "listing",
+        subject_id: null,
+        data: { place_id: row.place_id, name: row.name, had_profile: Boolean(p_had_profile), by: p_by },
+      });
+      return true;
+    },
+    google_reviews_keep: ({ p_tenant_id, p_reviews, p_told = null }) => {
+      writeFault("google_reviews.upsert");
+      const all = (tables.google_reviews ??= []);
+      for (const given of p_reviews) {
+        // A row keeps its first sighting, and only the keys the read carried are written over it.
+        const { tenant_id: _tenant, first_seen_at: _first, ...keys } = given;
+        const was = all.find((r) => r.tenant_id === p_tenant_id && r.review_id === given.review_id);
+        if (was) Object.assign(was, keys);
+        else insertRow("google_reviews", { ...keys, tenant_id: p_tenant_id });
+      }
+      if (p_reviews.length) seen.push({ table: "google_reviews", op: "upsert", values: p_reviews });
+      if (p_told)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "google.reviews",
+          category: "google",
+          subject_type: "listing",
+          subject_id: null,
+          data: p_told,
+        });
+      return p_reviews.length;
+    },
+    google_profile_synced: ({ p_tenant_id, p_synced_at, p_complete, p_told = null }) => {
+      writeFault("google_connections.update");
+      const conn = (tables.google_connections ?? []).find((c) => c.tenant_id === p_tenant_id);
+      if (!conn) return false;
+      const values = { last_synced_at: p_synced_at, sync_error: null, reviews_complete: Boolean(p_complete) };
+      Object.assign(conn, values);
+      seen.push({ table: "google_connections", op: "update", values, filters: [["eq", "tenant_id", p_tenant_id]] });
+      if (p_told)
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "google.reviews",
+          category: "google",
+          subject_type: "listing",
+          subject_id: null,
+          data: p_told,
+        });
+      return true;
+    },
+    google_review_replied: ({ p_tenant_id, p_id, p_told, p_reply_text = null, p_replied_at = null }) => {
+      writeFault("google_reviews.update");
+      const review = (tables.google_reviews ?? []).find((r) => r.tenant_id === p_tenant_id && r.id === p_id);
+      if (!review) return false;
+      const values = {
+        reply_text: p_reply_text,
+        replied_at: p_replied_at,
+        draft_text: null,
+        drafted_at: null,
+        posts_at: null,
+      };
+      Object.assign(review, values);
+      seen.push({ table: "google_reviews", op: "update", values, filters: [["eq", "id", p_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "google.replied",
+        category: "google",
+        subject_type: "review",
+        subject_id: p_id,
+        data: p_told,
+      });
+      return true;
+    },
+    /**
+     * A step's run recorded (00722 playbook_run_record): playbook.run, with `p_stamp` the step's day stamped, and with
+     * `p_decision` the system's send_broadcast for the batch, in one write: a refused write keeps none of them.
+     */
+    playbook_run_record: ({ p_tenant_id, p_playbook_id, p_data, p_stamp = null, p_decision = null }) => {
+      if (p_stamp && (!p_stamp.run_for || !p_stamp.at))
+        throw Object.assign(new Error("playbook_run_record: a stamp has its day and its time"), { code: "22023" });
+      writeFault("events.insert");
+      if (p_stamp) {
+        writeFault("playbooks.update");
+        writeFault("sequence_steps.update");
+      }
+      if (p_decision) writeFault("decisions.insert");
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "playbook.run",
+        category: "message",
+        subject_type: "playbook",
+        subject_id: p_playbook_id,
+        data: p_data,
+      });
+      if (p_stamp) {
+        const values = { last_run_for: p_stamp.run_for, last_run_at: p_stamp.at };
+        const row = (tables.sequence_steps ?? []).find((r) => r.tenant_id === p_tenant_id && r.id === p_playbook_id);
+        if (row) Object.assign(row, values);
+        seen.push({ table: "sequence_steps", op: "update", values, filters: [["eq", "id", p_playbook_id]] });
+      }
+      if (p_decision) {
+        const decision = {
+          tenant_id: p_tenant_id,
+          subject_type: "broadcast",
+          subject_id: p_decision.broadcast_id,
+          verb: "send_broadcast",
+          actor_type: "system",
+          actor_user_id: null,
+          payload: p_decision.payload ?? {},
+        };
+        insertRow("decisions", decision);
+        seen.push({ table: "decisions", op: "insert", values: [decision] });
+      }
+      return true;
+    },
+    /**
+     * A playbook edited as the member, with playbook.changed (00722 playbook_edit): only the columns an edit writes,
+     * over the step's row; false where it is not there.
+     */
+    playbook_edit: ({ p_tenant_id, p_id, p_set, p_fields = [] }) => {
+      const EDITS = [
+        "name",
+        "trigger",
+        "list_id",
+        "list_key",
+        "template_id",
+        "template_name",
+        "template_language",
+        "params",
+        "policy_class",
+        "run_hour",
+        "cap_per_run",
+        "gap_days",
+        "cadence_days",
+        "channels",
+      ];
+      const stray = Object.keys(p_set ?? {}).find((k) => !EDITS.includes(k));
+      if (stray)
+        throw Object.assign(new Error(`playbook_edit: ${stray} is not a column an edit writes`), { code: "22023" });
+      writeFault("playbooks.update");
+      writeFault("sequence_steps.update");
+      const row = (tables.sequence_steps ?? []).find((r) => r.tenant_id === p_tenant_id && r.id === p_id);
+      if (!row) return false;
+      Object.assign(row, p_set);
+      seen.push({ table: "sequence_steps", op: "update", values: p_set, filters: [["eq", "id", p_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "playbook.changed",
+        category: "message",
+        subject_type: "playbook",
+        subject_id: p_id,
+        data: { name: row.name, by: opts.userId ?? null, fields: [...(p_fields ?? [])] },
+      });
+      return true;
+    },
+    /** A chain edited through its save, with playbook.changed (00722 reach_out_edit): the save is a suite's own model. */
+    reach_out_edit: ({ p_tenant_id, p_user_id, p_chain }) => {
+      const save = rpcs.reach_out_save ?? derived.reach_out_save;
+      if (!save) throw new Error("fakeDb: reach_out_edit saves through reach_out_save; model it");
+      const saved = save({ p_tenant_id, p_user_id, p_chain, p_decision: null }, derived.reach_out_save);
+      if (saved && typeof saved.root_id === "string")
+        tellEvent({
+          tenant_id: p_tenant_id,
+          kind: "playbook.changed",
+          category: "message",
+          subject_type: "playbook",
+          subject_id: saved.root_id,
+          data: { name: p_chain?.name ?? null, by: p_user_id, fields: ["steps"] },
+        });
+      return saved;
     },
     /** The owner's echo's pause and its event (00721 conversation_owner_echo_keep); false where the thread is not theirs. */
     conversation_owner_echo_keep: ({ p_tenant_id, p_conversation_id, p_patch, p_until }) => {

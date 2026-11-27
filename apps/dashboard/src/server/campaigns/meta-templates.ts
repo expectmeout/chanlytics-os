@@ -42,18 +42,6 @@ const recordSubmitted = (
   before: string | null = null,
 ): Promise<void> => recordTemplateEvent(tenantId, "submitted", template, by, before);
 
-/**
- * Ask's new words for WhatsApp's refusal of a message, kept on the ledger (`template.fix_written`) so its editor opens on
- * them again: the words, the refusal they answer, and who asked. Best effort, as an event is.
- */
-export function recordFixWords(
-  tenantId: TenantId,
-  templateId: string,
-  fix: { words: string; reason: string; by: string },
-): Promise<void> {
-  return emitWorkspaceEvent(tenantId, "template.fix_written", "template", templateId, fix);
-}
-
 type SyncOutcome =
   | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
   | { ok: false; reason: EdgeReason; detail?: string };
@@ -106,8 +94,9 @@ export async function createTemplate(
   const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && body.id) {
     // What a business will say to its customers went to Meta under this member's hand: the ledger says who and
-    // which, as it says every other consequential act. Best effort: the message is with Meta either way.
-    await recordSubmitted(tenantId, { id: body.id, name: target.name, language: target.language }, userId);
+    // which. The edge writes it with the row (00722, `told`); one from before that is told here, best effort.
+    if (body.told !== true)
+      await recordSubmitted(tenantId, { id: body.id, name: target.name, language: target.language }, userId);
     return { ok: true, id: body.id, metaStatus: body.meta_status ?? "pending" };
   }
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
@@ -136,18 +125,20 @@ export async function editTemplateWords(
   const { id, name, language, before, ...words } = target;
   const answer = await callEdge(
     "/api/admin/whatsapp/templates-edit",
-    { tenant_id: tenantId, template_id: id, ...words },
+    { tenant_id: tenantId, template_id: id, user_id: userId, before, ...words },
     { workspace: tenantId, user: userId, timeoutMs: CREATE_TIMEOUT_MS },
   );
   const body = answer.body ?? {};
   if (edgeAnswered(answer) && body.ok && body.id) {
-    await recordSubmitted(tenantId, { id, name, language }, userId, before);
+    // The edge writes template.submitted with the words (00722, `told`); one from before that is told here.
+    if (body.told !== true) await recordSubmitted(tenantId, { id, name, language }, userId, before);
     return { ok: true, id: body.id, metaStatus: body.meta_status ?? "pending" };
   }
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }
 
-type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: EdgeReason; detail?: string };
+type TemplateDeleteOutcome =
+  { ok: true; atMeta: boolean; told: boolean } | { ok: false; reason: EdgeReason; detail?: string };
 
 export async function deleteTemplate(
   tenantId: TenantId,
@@ -157,10 +148,10 @@ export async function deleteTemplate(
   if (!deployment.providersLive) return { ok: false, reason: "preview" };
   const answer = await callEdge(
     "/api/admin/whatsapp/templates-delete",
-    { tenant_id: tenantId, template_id: templateId },
+    { tenant_id: tenantId, template_id: templateId, user_id: userId },
     { workspace: tenantId, user: userId },
   );
   const body = answer.body ?? {};
-  if (edgeAnswered(answer) && body.ok) return { ok: true, atMeta: !!body.at_meta };
+  if (edgeAnswered(answer) && body.ok) return { ok: true, atMeta: !!body.at_meta, told: body.told === true };
   return { ok: false, reason: edgeReasonOf(answer), detail: body.detail };
 }

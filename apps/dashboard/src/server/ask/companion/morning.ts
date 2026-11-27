@@ -29,7 +29,7 @@ import {
   recordOrEmpty,
   isOneOf,
 } from "@chanlytics/contracts";
-import { askCardsTold, getMemberViews } from "@chanlytics/db/notices";
+import { getMemberViews } from "@chanlytics/db/notices";
 import { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "@chanlytics/db/ask";
 import { batchStatesOf, getHeldSends } from "@chanlytics/db/campaigns";
 import type { Json } from "@chanlytics/db/types";
@@ -295,7 +295,8 @@ function morningTitle(day: string, locale: unknown): string {
 
 /**
  * The morning's turn, run once the day is claimed: the thread made and named on the day, the turn asked as the member
- * and saved as any turn is, then the waiting cards counted on the day and, when any wait, the member's own bell told.
+ * and saved as any turn is, then the waiting cards counted on the day and, when any wait, the member's own bell told
+ * in the count's transaction.
  * Nothing it fails at is the page's: the morning reads as failed once it has stalled (getMorning), and the log says why.
  */
 async function runMorning(
@@ -322,14 +323,12 @@ async function runMorning(
     const cards = done.result.failed
       ? 0
       : Math.min(done.message.proposals.filter((p) => !p.outcome).length, ASK_MORNING_CARDS_MAX);
-    const answered = await askMorningWrite(ctx.supabase, tenantId, message.day, { act: "answered", cards });
-    if (answered.recorded && cards > 0)
-      await askCardsTold(serviceDb(), {
-        tenantId,
-        userId: ctx.userId,
-        threadId: thread.id,
-        ...ASK_MORNING_WORDS.bell(cards),
-      }).catch((e: unknown) => log.error("ask_morning_told_failed", { tenant_id: tenantId, error: e }));
+    // The count and, where any card waits, the member's own bell line, in one transaction (00722).
+    await askMorningWrite(ctx.supabase, tenantId, message.day, {
+      act: "answered",
+      cards,
+      bell: ASK_MORNING_WORDS.bell(cards),
+    });
   } catch (e) {
     log.error("ask_morning_failed", { tenant_id: tenantId, error: e });
   }

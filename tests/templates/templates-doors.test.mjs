@@ -371,7 +371,7 @@ test("create, the whole way: the template reaches Meta as written on the number'
     ["tenant_id", "channel", "name", "language"],
     "one row per template and language",
   );
-  assert.deepEqual(body, { ok: true, id: saved.id, meta_id: "tpl_new", meta_status: "pending" });
+  assert.deepEqual(body, { ok: true, id: saved.id, meta_id: "tpl_new", meta_status: "pending", told: true });
   assert.ok(!printed(body).includes(TOKEN));
 
   // Submitted again: Meta approves at once this time. Still one row, brought up to date.
@@ -710,7 +710,7 @@ test("delete, the whole way: by name AND the template's own id so one language g
   } finally {
     m.restore();
   }
-  assert.deepEqual([status, body], [200, { ok: true, id: T1, name: "spring_offer", at_meta: true }]);
+  assert.deepEqual([status, body], [200, { ok: true, id: T1, name: "spring_offer", at_meta: true, told: true }]);
   assert.equal(m.seen.length, 1);
   const u = new URL(m.seen[0].url);
   assert.equal(`${u.origin}${u.pathname}`, `${GRAPH}/${WABA}/message_templates`);
@@ -737,7 +737,7 @@ test("delete, the whole way: by name AND the template's own id so one language g
   }
   assert.deepEqual(
     [status, body],
-    [200, { ok: true, id: T1, name: "spring_offer", at_meta: false }],
+    [200, { ok: true, id: T1, name: "spring_offer", at_meta: false, told: true }],
     "not found at Meta is a delete that already happened",
   );
   assert.equal(stale.tables.templates.length, 0);
@@ -773,7 +773,7 @@ test("delete, a row that was never synced: no template id on file, so Meta is no
     log.restore();
     net.restore();
   }
-  assert.deepEqual([status, body], [200, { ok: true, id: T2, name: "booking_link", at_meta: false }]);
+  assert.deepEqual([status, body], [200, { ok: true, id: T2, name: "booking_link", at_meta: false, told: true }]);
   assert.equal(
     tables.templates.length,
     0,

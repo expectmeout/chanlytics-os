@@ -17,7 +17,8 @@ export const WHATSAPP_TEMPLATES_CREATE_DOOR = edgeDoor(
     examples: z.array(z.string()).optional(),
     labels: z.array(z.string()).optional(),
   }),
-  answerFields({ id: z.string(), meta_status: z.string() }),
+  // `told`: the edge wrote template.submitted with the row (00722); an older edge answers without it.
+  answerFields({ id: z.string(), meta_status: z.string(), told: z.boolean() }),
 );
 
 /** POST /api/admin/whatsapp/templates-edit: a template's words changed and sent back to Meta for review. */
@@ -31,15 +32,18 @@ export const WHATSAPP_TEMPLATES_EDIT_DOOR = edgeDoor(
     body: z.string().optional(),
     examples: z.array(z.string()).optional(),
     labels: z.array(z.string()).optional(),
+    user_id: DOOR_ID.optional(),
+    /** The approved words these replace, where they were approved: the ledger keeps them (template.submitted). */
+    before: z.string().nullable().optional(),
   }),
-  answerFields({ id: z.string(), meta_status: z.string() }),
+  answerFields({ id: z.string(), meta_status: z.string(), told: z.boolean() }),
 );
 
 /** POST /api/admin/whatsapp/templates-delete: a template withdrawn at Meta. */
 export const WHATSAPP_TEMPLATES_DELETE_DOOR = edgeDoor(
   "/api/admin/whatsapp/templates-delete",
-  z.object({ tenant_id: DOOR_ID.optional(), template_id: z.string().optional() }),
-  answerFields({ at_meta: z.boolean() }),
+  z.object({ tenant_id: DOOR_ID.optional(), template_id: z.string().optional(), user_id: DOOR_ID.optional() }),
+  answerFields({ at_meta: z.boolean(), told: z.boolean() }),
 );
 
 /** POST /api/admin/whatsapp/templates-sync: the templates' standing, read again from Meta. */
