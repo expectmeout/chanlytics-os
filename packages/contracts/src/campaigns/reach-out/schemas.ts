@@ -57,7 +57,7 @@ export const ReachOutChainSchema = z.object({
     .number()
     .int()
     .refine((g): boolean => isOneOf(REACH_OUT_GAP_MINUTES, g), {
-      message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
+      error: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
     }),
   /** Empty: every connected mailbox of the workspace (00424). */
   mailbox_ids: z.array(z.uuid()).max(REACH_OUT_MAILBOXES_MAX),
@@ -119,7 +119,7 @@ export const ReachOutDecideSchema = z
       .max(LEAD_REWRITE_CHANGE_MAX, `Say it in ${LEAD_REWRITE_CHANGE_MAX} characters or fewer.`)
       .optional(),
   })
-  .refine((b) => b.decision === "rewrite" || !b.change, { message: "Only a rewrite takes words." });
+  .refine((b) => b.decision === "rewrite" || !b.change, { error: "Only a rewrite takes words." });
 
 /**
  * POST reach-out-sends/check (00505): the emails a person pressed Rewrite on, written now, at most REWRITE_NOW_MAX; as a

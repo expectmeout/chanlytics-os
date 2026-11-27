@@ -39,13 +39,13 @@ export const ConsoleWhySchema = z
   })
   .strict()
   .refine((w) => w.kind !== "ticket" || !!w.ticket, {
-    message: "Name the ticket, or choose another reason.",
+    error: "Name the ticket, or choose another reason.",
     path: ["ticket"],
   });
 
 /** A reason whose note a partner will read: the note is asked for. */
 const PartnerWhySchema = ConsoleWhySchema.refine((w) => !!w.note, {
-  message: "Say why in a sentence: the partner reads it.",
+  error: "Say why in a sentence: the partner reads it.",
   path: ["note"],
 });
 
@@ -191,7 +191,7 @@ export const SupportMarkSchema = z
   })
   .strict()
   .refine((m) => m.target === "ask" || m.mark !== "done", {
-    message: "A question is done once it is answered.",
+    error: "A question is done once it is answered.",
     path: ["mark"],
   });
 

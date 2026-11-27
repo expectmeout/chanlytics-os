@@ -33,10 +33,10 @@ const Slot = z.object({
 });
 
 const Body: z.ZodType<WriteMessageBody> = z.object({
-  name: z.string({ message: "Say which message." }),
+  name: z.string({ error: "Say which message." }),
   title: z.string().max(200).optional(),
-  language: z.string({ message: "Pick a language from the list." }),
-  category: z.enum(TEMPLATE_CATEGORIES, { message: "Pick marketing or utility." }),
+  language: z.string({ error: "Pick a language from the list." }),
+  category: z.enum(TEMPLATE_CATEGORIES, { error: "Pick marketing or utility." }),
   versions: z.object({
     whatsapp: z.object({ body: z.string(), footer: z.string().optional() }).optional(),
     email: z.object({ subject: z.string(), body: z.string() }).optional(),

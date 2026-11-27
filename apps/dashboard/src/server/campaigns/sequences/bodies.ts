@@ -134,7 +134,7 @@ export const LEAVE_BODY = z
     enrollment_ids: z.array(anId("Who leaves?")).max(500, "At most 500 at once.").default([]),
     lead_ids: z.array(anId("Which lead?")).max(500, "At most 500 at once.").default([]),
   })
-  .refine((b) => b.enrollment_ids.length + b.lead_ids.length > 0, { message: "Who leaves?" });
+  .refine((b) => b.enrollment_ids.length + b.lead_ids.length > 0, { error: "Who leaves?" });
 export type LeaveBody = z.infer<typeof LEAVE_BODY>;
 
 /**
@@ -352,7 +352,7 @@ export const DRAFT_BODY = z
   })
   .refine((b) => !!b.stands || b.words.length >= DRAFT_LINE_MIN, {
     path: ["words"],
-    message: "Say what it should do — one line is enough.",
+    error: "Say what it should do — one line is enough.",
   });
 
 /**

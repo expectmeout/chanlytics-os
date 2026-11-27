@@ -34,27 +34,27 @@ import { MESSAGE_VALUES_WORDS, saveVersion } from "@/server/campaigns/template-v
 const Message = z.object({
   category: z.enum(TEMPLATE_CATEGORIES, {
     // trade-word: the database raises the same sentence (00343), and the two read alike
-    message: "A message is an offer or news, or about their own visit or proposal.",
+    error: "A message is an offer or news, or about their own visit or proposal.",
   }),
   variables: z.array(
     z.object({
-      position: z.number({ message: MESSAGE_VALUES_WORDS }).int(MESSAGE_VALUES_WORDS),
-      label: z.string({ message: MESSAGE_VALUES_WORDS }),
+      position: z.number({ error: MESSAGE_VALUES_WORDS }).int(MESSAGE_VALUES_WORDS),
+      label: z.string({ error: MESSAGE_VALUES_WORDS }),
       example: z.string().nullish(),
     }),
-    { message: MESSAGE_VALUES_WORDS },
+    { error: MESSAGE_VALUES_WORDS },
   ),
   title: z.string().nullish(),
 });
 
 const Body = z.object({
-  name: z.string({ message: "Say which message." }).min(1, "Say which message."),
-  language: z.string({ message: "Pick a language from the list." }),
+  name: z.string({ error: "Say which message." }).min(1, "Say which message."),
+  language: z.string({ error: "Pick a language from the list." }),
   channel: z.enum(OWN_VERSION_CHANNELS, {
-    message: "A version is written for email or text.",
+    error: "A version is written for email or text.",
   }),
   subject: z.string().nullish(),
-  body: z.string({ message: "Write the message." }),
+  body: z.string({ error: "Write the message." }),
   message: Message.optional(),
 });
 

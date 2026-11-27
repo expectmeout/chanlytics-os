@@ -27,7 +27,7 @@ packages:
 # tests/repo/settings/dependencies-declared-once.test.mjs holds all of it; tests/types/ the one TypeScript, its pin
 # (typescript-is-declared-once.test.mjs) and its install (typescript-is-installed-once.test.mjs).
 catalog:
-  "@elevenlabs/client": 1.37.1
+  "@elevenlabs/client": 1.38.0
   "@supabase/ssr": 0.12.7
   "@supabase/supabase-js": 2.119.2
   "@tanstack/table-core": 9.3.1

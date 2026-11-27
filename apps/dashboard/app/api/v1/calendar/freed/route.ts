@@ -5,7 +5,7 @@ import { offerFreedNow } from "@/server/campaigns/playbook-run";
 
 /** The visit cancelled: the edge reads the time it freed from the visit itself, never a span the page sends. */
 const Freed = z.object({
-  visit_id: z.uuid({ message: "Name what was cancelled." }),
+  visit_id: z.uuid({ error: "Name what was cancelled." }),
 });
 
 /** Why an offer could not be made, in the owner's words, where it is not the time's or the run's own (offerRefusedWords). */

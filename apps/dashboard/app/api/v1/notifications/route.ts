@@ -20,7 +20,7 @@ export const GET = read({
 const Mark = z.object({
   seen: z.boolean().optional(),
   read_all: z.boolean().optional(),
-  read_through: z.iso.datetime({ offset: true, message: "read_through is a moment, in ISO 8601." }).optional(),
+  read_through: z.iso.datetime({ offset: true, error: "read_through is a moment, in ISO 8601." }).optional(),
   id: z.string().optional(),
   // A group's notes, read by one press: no more than the bell lists.
   ids: z.array(z.string()).min(1).max(BELL_LIST_ROWS).optional(),
