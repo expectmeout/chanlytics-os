@@ -114,7 +114,8 @@ export async function resumeFor(
   if (row.status !== "paused") return { ok: false, error: "not_paused" };
   try {
     const sub = await client.subscriptions.resume(row.stripe_subscription_id, {
-      billing_cycle_anchor: "now",
+      // Endive's form of the anchor (2026-09-30.endive): an object with its type, where dahlia took the word.
+      billing_cycle_anchor: { type: "now" },
       expand: ["default_payment_method"],
     });
     const r = await applySubscription(db, row, sub, "resume", now, by);
