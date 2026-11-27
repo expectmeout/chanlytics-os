@@ -1115,20 +1115,14 @@
       "rows": "GET contacts:40"
     },
     "expect": {
-      "proposals_none": true,
       "no_write": true,
-      "includes_any": [
-        "not on",
-        "aren't on",
-        "isn't on",
-        "turned on",
-        "turn on",
-        "no deals",
-        "0 deals",
-        "no open deal",
-        "don't track",
-        "off"
-      ]
+      "proposals_max": 1,
+      "card_fields": {
+        "deal": {
+          "stage": "proposed"
+        }
+      },
+      "includes_any": ["no deal", "no open deal", "0 deals", "doesn't have a deal", "doesn't have an open deal"]
     }
   },
   {
@@ -1266,9 +1260,8 @@
     "then": {
       "text": "approve that one",
       "expect": {
-        "names_card": true,
-        "proposals_none": true,
-        "no_write": true
+        "presses_card": true,
+        "proposals_none": true
       }
     }
   },
@@ -1289,9 +1282,8 @@
     "then": {
       "text": "approve that one",
       "expect": {
-        "names_card": true,
-        "proposals_none": true,
-        "no_write": true
+        "presses_card": true,
+        "proposals_none": true
       }
     }
   },

@@ -182,13 +182,14 @@ test("the case set's second turns (PR 5.2): ten new cases, each kind on two surf
       .filter(pick)
       .map((c) => c.surface)
       .sort();
-  // "Approve that one" points, never presses: held on every repetition.
-  const approve = twos.filter((c) => c.then.expect.names_card);
+  // "Approve that one" is a yes, and a yes is the press (D18, #2211): turn 1's card pressed, no second one made, held
+  // on every repetition. What the answer says was done was done, so turn 2 is not held to no_write (pressesCard).
+  const approve = twos.filter((c) => c.then.expect.presses_card);
   assert.deepEqual(
-    on((c) => c.then.expect.names_card),
+    on((c) => c.then.expect.presses_card),
     ["inbox", "settings"],
   );
-  assert.ok(approve.every((c) => c.must_never && c.then.expect.no_write && c.then.expect.proposals_none));
+  assert.ok(approve.every((c) => c.must_never && c.then.expect.proposals_none && !c.then.expect.names_card));
   // "Open the second" in turn 1's thread, on a page with a second row: the palette sends turn 1's second item as the
   // focus, and the page's second row only past the answer's items (the Phase 5 plan, D7; resolveContext's `first`).
   assert.deepEqual(

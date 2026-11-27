@@ -1,9 +1,9 @@
 /**
  * The arithmetic the Ask scripts share (eval-ask.mjs, ask-day.mjs): a spread
  * over a list of timings, and a Wilson interval on a pass rate, so a run of
- * twenty-eight cases says "27 of 28 (95%: 82–99%)" and not "96%"; and the two
- * rules a turn's stored shape fails it on (DEGRADED). Pure; executed in
- * tests/ask/ask-stats.test.mjs.
+ * twenty-eight cases says "27 of 28 (95%: 82–99%)" and not "96%"; the two
+ * rules a turn's stored shape fails it on (DEGRADED), and the one it is noted
+ * for (landedWhole). Pure; executed in tests/ask/ask-stats.test.mjs.
  */
 
 /** The median and the slowest tenth of the numbers that exist in `xs`. */
@@ -145,12 +145,18 @@ export function streamOf(says, finalMs, finalSay) {
 
 /**
  * The ways a turn can run degraded, read off its stored shape (AskTurnShape, ask_messages.content.shape) once the run
- * has read it, each with the sentence the judge fails the turn with (eval-ask.mjs). `format`: the API refused the
- * answer's format and the loop let it go and asked the round again without it (refusals.ts, D15; the log's
- * ask_format_rejected), so the answer came as prose with nothing red: on 2 November 2026 #2046's chart took the format
- * past the API's limit, every turn ran so for twenty hours, and every eval passed. `note`: the answer was written as
- * text while the answer tool stood, which is a note the model wrote to itself and not the answer (#2051). A turn
- * stored before either key has no `format` and no `answer_tool`, and says nothing; a tool's answer, cards alone
+ * has read it, beside the turn's own row (its answer's `form`), each with the sentence the judge fails the turn with
+ * (eval-ask.mjs). `format`: the API refused the answer's format and the loop let it go and asked the round again
+ * without it (refusals.ts, D15; the log's ask_format_rejected), so the answer came as prose with nothing red: on
+ * 2 November 2026 #2046's chart took the format past the API's limit, every turn ran so for twenty hours, and every
+ * eval passed. `note`: words outside the answer's format stood as the answer while the answer tool stood, which is a
+ * note the model wrote to itself and not the answer (#2051: "I need the lead search proposal tool." over a card).
+ *
+ * An answer written as text in the format is no note: it is the answer, read as it always was (tools/answer.ts), and
+ * it has no chart (answer-format.ts ASK_ANSWER_TEXT_FORMAT). The rule failed every one of those from the day it was
+ * written until 27 November 2026: 9, 11 and 9 of 22 turns on the three weekly runs of 8, 15 and 22 November, as many
+ * as the run of 2 November had counted before the rule existed, and each a whole answer in the format. A turn stored
+ * before either key has no `format` and no `answer_tool`, and says nothing; a tool's answer, cards alone
  * (`answer_in` null) and text where no tool was offered are the turn as designed.
  */
 const DEGRADED = {
@@ -159,24 +165,42 @@ const DEGRADED = {
     fail: "the turn ran without its answer format: the API refused it and the loop let it go (ask_format_rejected)",
   },
   note: {
-    when: (s) => s.answer_tool === true && s.answer_in === "text",
-    fail: "the answer was written as text while the answer tool stood: a note the model wrote to itself, not the answer",
+    when: (s, row) => s.answer_tool === true && s.answer_in === "text" && row?.form === "prose",
+    fail: "words outside the answer's format stood as the answer while the answer tool stood: a note the model wrote to itself, not the answer",
   },
 };
 
-/** What a turn's stored shape fails it for (DEGRADED), each rule's sentence; none for a shape the run could not read. */
-export const degradedFails = (shape) =>
+/**
+ * What a turn's stored shape fails it for (DEGRADED), each rule's sentence; none for a shape the run could not read.
+ * `row` is the turn's own row (eval-ask.mjs rowOf): the form its answer took.
+ */
+export const degradedFails = (shape, row) =>
   Object.values(DEGRADED)
-    .filter((d) => shape && d.when(shape))
+    .filter((d) => shape && d.when(shape, row))
     .map((d) => d.fail);
+
+/**
+ * An answer that landed whole: written as text, in a round after a read, while the answer tool stood. On Opus 5.5 the
+ * text a round writes after a tool result is held back and arrives in one burst (tools/answer.ts), so the person waits
+ * on "Reading…" and then has the whole answer at once, where the tool's input would have drawn it as it was written.
+ * The answer itself is whole and true, so it is a note on the turn and a count on the run, never a fail: 3 of the 20
+ * text answers of 15 and 22 November were so (people_foreign_row both weeks, after a read that found nobody), each
+ * with one preview; the other 17 were a turn's first round, where text streams as the tool's input does.
+ */
+export const landedWhole = (shape, row) =>
+  !!shape && shape.answer_tool === true && shape.answer_in === "text" && (row?.rounds ?? 0) >= 2;
+
+/** What the judge notes on a turn whose answer landed whole (landedWhole). */
+export const LANDED_WHOLE_NOTE =
+  "the answer was written as text after a read, so it landed whole and not as it was written: the answer tool streams it";
 
 /**
  * The stream checks over a run's turns that answered (rows with `rounds`, `first_ms`, `stream` and the stored shape's
  * `answer_in`), by how many rounds each took: how many previews, first words, the last preview's wait for the final,
  * and how many streamed (three previews or more); then the jumps, the previews that leaked JSON, the lost line breaks,
- * how each answer was written (the answer tool's input, text, or none: cards alone or a failure), and how many turns
+ * how each answer was written (the answer tool's input, text, or none: cards alone or a failure), how many turns
  * ran degraded by each of DEGRADED's rules, over every row with a shape, since a spoken turn streams nothing and is
- * failed all the same.
+ * failed all the same, and how many answers landed whole (landedWhole).
  */
 export function streamSummary(rows) {
   const answered = rows.filter((r) => r.stream);
@@ -197,7 +221,8 @@ export function streamSummary(rows) {
     show_streamed: answered.filter((r) => r.stream.show_previews > 0).length,
     via: { tool: via("tool"), text: via("text"), none: via(null), unread: answered.filter((r) => !r.shape).length },
     degraded: Object.fromEntries(
-      Object.entries(DEGRADED).map(([k, d]) => [k, rows.filter((r) => r.shape && d.when(r.shape)).length]),
+      Object.entries(DEGRADED).map(([k, d]) => [k, rows.filter((r) => r.shape && d.when(r.shape, r)).length]),
     ),
+    whole: rows.filter((r) => landedWhole(r.shape, r)).length,
   };
 }
