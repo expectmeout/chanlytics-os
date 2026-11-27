@@ -68,10 +68,7 @@ export function partnerEarningsWords(
   const held = sumWords(list, "held");
   const payable = sumWords(list, "payable");
   const paid = sumWords(list, "paid");
-  const next = list
-    .filter((r) => r.state === "held" && r.next_payable_at)
-    .map((r) => r.next_payable_at as string)
-    .sort()[0];
+  const next = list.flatMap((r) => (r.state === "held" && r.next_payable_at ? [r.next_payable_at] : [])).sort()[0];
   return {
     none: list.every((r) => r.earned_cents === 0),
     // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its

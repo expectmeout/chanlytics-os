@@ -53,7 +53,7 @@ import {
 } from "@chanlytics/channels/lines";
 import { registerLine } from "../../apps/edge/lib/lines/a2p-register.ts";
 import { installStubReact, fresh, again, all, walk, byTestId, textOf, settle } from "../_stub-react.mjs";
-import { bridgeHolds, whoIsLooking } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, holdRoles, whoIsLooking } from "../shell/_bridge-holds.mjs";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const LINE = "22222222-2222-2222-2222-222222222222";
@@ -335,10 +335,9 @@ test("what the narrow path gives up is said before the button, with the real num
  * -------------------------------------------------------------------------- */
 installStubReact();
 bridgeHolds({ who: { me: { email: "ada@example.com" }, workspaces: [{ slug: "harbor" }] } });
-Object.assign(globalThis.window, {});
 // Filing is confirmed through the kit's Confirm and a role is gated by the shell's `gate` (surfaces/frame, which also
 // answers `canDo`): the stub draws the Confirm, and the walker below finds the Yes inside.
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 // The form talks to the record through the module's one object (record.ts), as the pane does, so the network is
 // stubbed by giving that object the answers of `api()` below: no window door stands between them any more.
 const { businessRecord } = await importSrc("apps/dashboard/src/surfaces/settings/connections/record.ts");
@@ -572,7 +571,7 @@ test("a filing already with the carriers says so, because it cannot be withdrawn
 });
 
 test("only an owner answers it", async () => {
-  globalThis.window.canDo = () => false;
+  holdRoles({ can: () => false });
   try {
     theRecordSays(api({ ok: true, record: null, path: null, problems: {} }));
     const page = mount({ line: null, flash: () => {} });
@@ -583,7 +582,7 @@ test("only an owner answers it", async () => {
     // workspace is choosing between, even where they cannot choose it.
     assert.ok(byId(page.tree, "biz-limits"));
   } finally {
-    globalThis.window.canDo = () => true;
+    holdRoles({ can: () => true });
   }
 });
 

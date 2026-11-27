@@ -10,11 +10,20 @@
  * Reads are made when the page asks, never when this loads: a stand-in window a test builds later is the one read.
  */
 import type { HTMLAttributes } from "react";
-import { canDo, navigate } from "../frame-verbs";
-import { fn, windowValue, object, type Flash } from "../shell-doors";
+import {
+  canDo,
+  keyPress as framePress,
+  navigate,
+  openDealSheet as askDealSheet,
+  refusalToast as frameRefusal,
+  routeDoor as frameDoor,
+  touchSwipe as frameSwipe,
+} from "../frame-verbs";
+import type { Flash } from "../shell-doors";
+import { CHANLY } from "../frame/constants";
+import { presence } from "./store";
 import { provided } from "@/bridge/provided";
 import type { TabMemory } from "@/bridge/tab-memory";
-import { isObjectRecord } from "@chanlytics/contracts";
 
 /* The role gate and the toast are the doors every surface shares (shell-doors.ts). */
 export { canDo, navigate };
@@ -23,24 +32,19 @@ export type { Flash } from "../shell-doors";
 
 /* ------------------------------- the address ------------------------------- */
 
-/** Move to a route, replacing the entry where the page says where it stands (`appNavigate`); nothing without the frame. */
+/** Move to a route, replacing the entry where the page says where it stands (frame-doors.ts `navigate`). */
 export function appNavigate(route: string, opts?: { replace?: boolean }): void {
-  fn<[string, { replace?: boolean } | undefined], void>("appNavigate")?.(route, opts);
+  navigate(route, opts);
 }
 
-/** Whether the frame's move is there at all. */
+/** Whether the frame's move is there at all: the frame's doors are filled as it draws. */
 export function canNavigate(): boolean {
-  return !!fn("appNavigate");
+  return true;
 }
 
-interface AddressApi {
-  route: () => string;
-}
-
-/** The route on screen, as the frame's address says it (`CHANLY.address.route()`). */
+/** The route on screen, as the frame's address says it (frame/constants.ts `CHANLY.address`). */
 export function currentRoute(): string {
-  const chanly = object<{ address?: AddressApi }>("CHANLY");
-  return chanly?.address ? chanly.address.route() : "";
+  return CHANLY.address.route();
 }
 
 /**
@@ -48,19 +52,17 @@ export function currentRoute(): string {
  * where the shell has none, and the caller then draws no link.
  */
 export function routeDoor(to: string, go?: ((to: string) => void) | null): HTMLAttributes<HTMLAnchorElement> | null {
-  const door = fn<[string, ((to: string) => void) | null | undefined], HTMLAttributes<HTMLAnchorElement>>("routeDoor");
-  return door ? door(to, go) : null;
+  return frameDoor(to, go);
 }
 
-/** Whether the shell can make a door at all. */
+/** Whether the shell can make a door at all: it always can. */
 export function hasRouteDoor(): boolean {
-  return !!fn("routeDoor");
+  return true;
 }
 
 /** A key handler that runs `run` on Enter and Space (kit/focus/keys.ts `keyPress`). */
 export function keyPress(run: () => void): HTMLAttributes<HTMLElement>["onKeyDown"] {
-  const k = fn<[() => void], HTMLAttributes<HTMLElement>["onKeyDown"]>("keyPress");
-  return k ? k(run) : undefined;
+  return framePress(run);
 }
 
 /** A thumb carries a pane away (kit/motion/swipe.ts `touchSwipe`): the props to spread on it, none without the shell. */
@@ -72,14 +74,12 @@ export function touchSwipe(opts: {
   along?: () => readonly HTMLElement[];
   backNavigates?: boolean;
 }): HTMLAttributes<HTMLDivElement> | null {
-  const t = fn<[typeof opts], HTMLAttributes<HTMLDivElement>>("touchSwipe");
-  return t ? t(opts) : null;
+  return frameSwipe(opts);
 }
 
-/** A refusal as a toast (frame/flash.tsx `refusalToast`). */
-export function refusalToast(r: unknown, what?: string | null): Flash {
-  const f = fn<[unknown, string | null | undefined], Flash>("refusalToast");
-  return f ? f(r, what) : { tone: "danger", msg: "That didn't go through." };
+/** A refusal as a toast (frame/refusal.tsx `refusalToast`). */
+export function refusalToast(r: Parameters<typeof frameRefusal>[0], what?: string | null): Flash {
+  return frameRefusal(r, what);
 }
 
 /* ---------------------------- what the tab remembers ---------------------------- */
@@ -96,10 +96,9 @@ export function surfaceState(page: string): string | undefined {
   return provided("surfaceState")?.(page);
 }
 
-/** Whether the member is Away, which freezes every countdown and forces the holding line (inbox/store.ts `PR_STORE`). */
+/** Whether the member is Away, which freezes every countdown and forces the holding line (inbox/store.ts `presence`). */
 export function presenceAway(): boolean {
-  const p = object<{ away?: boolean }>("PR_STORE");
-  return !!(p && p.away);
+  return presence.away;
 }
 
 /** The business's zone, as the page clock holds it. */
@@ -109,14 +108,14 @@ export function clockZone(): string {
 
 /* --------------------------------- people --------------------------------- */
 
-/** A person's own sheet: the one deal sheet, asked for by the person and the move (people-globals.ts `openDealSheet`). */
-export function openDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
-  fn<[typeof ask], void>("openDealSheet")?.(ask);
+/** A person's own sheet: the one deal sheet, asked for by the person and the move (People's, frame-verbs `openDealSheet`). */
+export function ixOpenDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
+  askDealSheet(ask);
 }
 
-/** Whether the shell has the deal sheet at all. */
+/** Whether the shell has the deal sheet at all: People's courier hands it over at boot. */
 export function hasDealSheet(): boolean {
-  return !!fn("openDealSheet");
+  return !!provided("sheets");
 }
 
 /* ----------------------------------- Ask ----------------------------------- */
@@ -132,15 +131,9 @@ export interface SeededLead {
   stage: string;
 }
 
-/** The demo's leads, whose stage a verdict changes; none where the seed is not loaded. */
+/** The demo's leads, whose stage a verdict changes: none, since the mockup's seeds went with demo mode (16 Nov 2026). */
 export function seededLeads(): SeededLead[] {
-  const l = windowValue("LEADS");
-  return Array.isArray(l) ? l.filter(isSeededLead) : [];
-}
-
-/** Whether a seed's entry is a lead the flow can move: an id and a stage. */
-function isSeededLead(value: unknown): value is SeededLead {
-  return isObjectRecord(value) && typeof value.id === "string" && typeof value.stage === "string";
+  return [];
 }
 
 /** A deal on the demo's board. */
@@ -159,18 +152,7 @@ interface SeededDeal {
   source: string;
 }
 
-/** The demo's deals, which a verdict may add one to; nothing where the board is not loaded. */
+/** The demo's deals, which a verdict may add one to: none, since the mockup's board went with demo mode. */
 export function seededDeals(): SeededDeal[] | null {
-  const d = object<{ PIPELINE_DEALS?: SeededDeal[] }>("PIPELINE_DATA");
-  return d && Array.isArray(d.PIPELINE_DEALS) ? d.PIPELINE_DEALS : null;
-}
-
-/** The demo's agent registry: a name to its id (`CHANLY.agentIdFor`). */
-export function agentIdFor(name: string): string {
-  const c = object<{ agentIdFor?: (n: string) => string }>("CHANLY");
-  return c && c.agentIdFor
-    ? c.agentIdFor(name)
-    : String(name || "")
-        .toLowerCase()
-        .replace(/\s+/g, "-");
+  return null;
 }

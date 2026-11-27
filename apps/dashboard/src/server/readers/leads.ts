@@ -36,7 +36,7 @@ import { readerStamp, type Reader } from "../shared/reader";
 export const leads: Reader<LeadsQuery, Awaited<ReturnType<typeof getLeadsPage>>> = {
   name: "leads",
   async read(rc, filters) {
-    const data = await getLeadsPage(rc.ctx, rc.tenantId, filters, { month: ROLE_PERMS[rc.role]?.find === true });
+    const data = await getLeadsPage(rc.ctx, rc.tenantId, filters, { month: ROLE_PERMS[rc.role].find === true });
     // Each row is cited open over the view it was read in, its chips with it (decision 0083, Phase B).
     const chips = {
       excluded_by: filters.excluded_by,

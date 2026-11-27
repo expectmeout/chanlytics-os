@@ -74,6 +74,14 @@ const OURS = {
     { selector: "function", filter: "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$", format: null },
     { selector: "variable", format: ["camelCase", "UPPER_CASE", "PascalCase"], leadingUnderscore: "allow" },
     { selector: "variable", modifiers: ["destructured"], format: null },
+    // An Ask tool's definition is named by its tool, the name the model calls it by on the wire (propose_reply,
+    // press_card), so a definition and its call read the same.
+    {
+      selector: "variable",
+      modifiers: ["exported", "const"],
+      filter: { regex: "^(propose_[a-z_]+|press_card)$", match: true },
+      format: null,
+    },
     { selector: "parameter", format: ["camelCase"], leadingUnderscore: "allow" },
     { selector: "parameter", modifiers: ["destructured"], format: null },
   ],
@@ -112,7 +120,9 @@ const rulesOf = (configs) => Object.assign({}, ...configs.map((c) => c.rules ?? 
  * checks/lint.mjs fails a held rule the tree no longer finds, so the change that fixes the last one turns it an error.
  */
 export const HELD_TYPED = [
-  // The colour model's four (it misreads a `??`, decision 0112).
+  // Held again: the colour model's four went on 26 November 2026 (mascot/colour.ts ownLab), and the kit's bar chart
+  // gained two the same day, `{ "--i": i } as CSSProperties` in surfaces/kit/charts/bar.tsx (#2674, lane 8's tree).
+  // An error once those two go.
   "@typescript-eslint/no-unnecessary-type-assertion",
 ];
 
@@ -156,6 +166,37 @@ const STRICT_AT_ERROR = {
   "@typescript-eslint/use-unknown-in-catch-callback-variable": "error",
 };
 export const HELD_STRICT = ["@typescript-eslint/no-unnecessary-condition"];
+
+/**
+ * The house's own rules, a plugin of this file's. A disable says why beside it (`-- <why>`), so a warning kept on purpose
+ * is read where it stands, and the keeps in apps, packages, e2e and tooling cannot grow unseen; a disable that disables
+ * nothing is an error (linterOptions, below). An error since 26 Nov 2026, when the last 40 that said nothing said why
+ * (three were a setter their hook had left out of its list, and took it). A house rule that comes in over findings is
+ * held here, a warning, and lint.mjs fails the run once none is left, so the change that clears the last turns it an error.
+ */
+export const HELD_HOUSE = [];
+const DISABLE = /^\s*eslint-disable(?:-next-line|-line)?(?:\s|$)/;
+const HOUSE = {
+  rules: {
+    "disable-says-why": {
+      meta: {
+        type: "suggestion",
+        schema: [],
+        messages: { why: "Say why beside the disable: `eslint-disable-next-line <rule> -- <why>`." },
+      },
+      create(context) {
+        return {
+          Program() {
+            for (const comment of context.sourceCode.getAllComments())
+              if (DISABLE.test(comment.value) && !/\s--\s+\S/.test(comment.value))
+                context.report({ loc: comment.loc, messageId: "why" });
+          },
+        };
+      },
+    },
+  },
+};
+
 const BACKEND_TYPED = [
   "apps/edge/**/*.ts",
   "apps/relay/**/*.ts",
@@ -364,6 +405,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/bridge/invitations",
   "apps/dashboard/src/bridge/mascot",
   "apps/dashboard/src/bridge/reach-out",
+  "apps/dashboard/src/bridge/refresh",
   "apps/dashboard/src/bridge/rehearse",
   "apps/dashboard/src/bridge/surfaces",
   "apps/dashboard/src/bridge/verbs",
@@ -381,6 +423,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/leads",
   "apps/dashboard/src/server/lines",
   "apps/dashboard/src/server/notices",
+  "apps/dashboard/src/server/people",
   "apps/dashboard/src/server/metrics",
   "apps/dashboard/src/server/new-conversation",
   "apps/dashboard/src/server/console",
@@ -388,11 +431,12 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/posts",
   "apps/dashboard/src/server/previews",
   "apps/dashboard/src/server/public",
+  "apps/dashboard/src/server/readers",
   "apps/dashboard/src/server/receptionist",
   "apps/dashboard/src/server/settings",
   "apps/dashboard/src/server/setup",
   "apps/dashboard/src/server/shared",
-  "apps/dashboard/src/server/campaigns/sequences",
+  "apps/dashboard/src/server/campaigns",
   "apps/dashboard/src/server/workspace",
   "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
@@ -406,6 +450,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/ai",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
+  "apps/edge/lib/campaigns",
   "apps/edge/lib/connections",
   "apps/edge/lib/content",
   "apps/edge/lib/drafts",
@@ -440,11 +485,13 @@ export const LIMITED_TREES = [
   "packages/channels/src/inbound",
   "packages/channels/src/instagram",
   "packages/channels/src/leads",
+  "packages/channels/src/lines",
   "packages/channels/src/meta",
   "packages/channels/src/shared",
   "packages/channels/src/tokens",
   "packages/channels/src/voice",
   "packages/channels/src/website",
+  "packages/channels/src/whatsapp",
   "packages/contracts/src/activity",
   "packages/contracts/src/ads",
   "packages/contracts/src/ai",
@@ -496,6 +543,7 @@ export const LIMITED_TREES = [
   "packages/core/src/content",
   "packages/core/src/conversations",
   "packages/core/src/inbound",
+  "packages/core/src/leads",
   "packages/core/src/look",
   "packages/core/src/messages",
   "packages/core/src/opportunities",
@@ -526,6 +574,11 @@ export const LIMITED_TREES = [
  * five (the calendar's source, a list's action). With them all of contracts' people is held, one tree in place of its
  * three folders, and waits here while six take five or six (a list's action, a card's two, the profile, the
  * receptionist's line, a person's row).
+ * The dashboard's campaigns, people and readers joined on 26 November 2026, the day their last long function was split:
+ * 16 take five to seven (a run's audience and its pools, the templates' versions, a deal's write, the import's rows,
+ * the content reader's two).
+ * The edge's campaigns joined the same day, with the reach-out check's tick: 11 take five to seven (the check's input
+ * and its line, the clock's re-plan, a hand step's run, the sender's lane, and the late and freed-time notices).
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
@@ -560,6 +613,10 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/conversations",
   "apps/dashboard/src/server/drafts",
   "apps/dashboard/src/server/settings",
+  "apps/dashboard/src/server/campaigns",
+  "apps/dashboard/src/server/people",
+  "apps/dashboard/src/server/readers",
+  "apps/edge/lib/campaigns",
   "apps/edge/lib/ai",
   "packages/contracts/src/shared",
   "packages/contracts/src/shell",
@@ -571,6 +628,10 @@ export const WIDE_PARAMS = [
   "packages/channels/src/google",
   "packages/channels/src/shared",
   "apps/edge/lib/voice",
+  // Channels' lines and core's leads joined on 26 November 2026, the day the registration saga and a collect were split:
+  // one takes five there (Twilio's request), eighteen here (a place's member, a round's decision, the people runner's).
+  "packages/channels/src/lines",
+  "packages/core/src/leads",
   "packages/contracts/src/today",
   "packages/contracts/src/leads",
   "packages/contracts/src/conversations",
@@ -653,6 +714,20 @@ export default [
       // What Cloudflare's Wrangler leaves beside a Worker it ran on a laptop (apps/relay): its bundles, never ours.
       "**/.wrangler/**",
     ],
+  },
+
+  // A disable that disables nothing is an error, and every disable says why (HELD_HOUSE).
+  { linterOptions: { reportUnusedDisableDirectives: "error" } },
+  // No `files`: it holds whatever the blocks below lint, less the suite's (tests/**, lane 4's own count).
+  {
+    ignores: ["tests/**"],
+    plugins: { house: HOUSE },
+    rules: Object.fromEntries(
+      Object.keys(HOUSE.rules).map((name) => [
+        `house/${name}`,
+        HELD_HOUSE.includes(`house/${name}`) ? "warn" : "error",
+      ]),
+    ),
   },
 
   // The edge: vanilla Node functions, no React, no DOM globals worth assuming.
@@ -894,6 +969,22 @@ export default [
     files: DASHBOARD_MARKUP,
     plugins: { "jsx-a11y-x": jsxA11y },
     rules: A11Y_RULES,
+  },
+  // A field that opens with the bar or the sheet it is in takes the caret, on a desktop and never on a phone (frame-verbs
+  // focusAsDrawn, Ruben 8 Oct 2026): People's and Leads' own inputs that do, until each is the kit's Field; and the one
+  // field of a new workspace's first page, which is all that page asks.
+  {
+    files: [
+      "apps/dashboard/src/bridge/CreateWorkspace.tsx",
+      "apps/dashboard/src/surfaces/leads/scope/rail.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/desk-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/bulk/phone-bulk.tsx",
+      "apps/dashboard/src/surfaces/people/lists/rule-editor.tsx",
+      "apps/dashboard/src/surfaces/people/lists/save-shown.tsx",
+      "apps/dashboard/src/surfaces/people/rail/new-list.tsx",
+      "apps/dashboard/src/surfaces/people/sheets/list-sheets.tsx",
+    ],
+    rules: { "jsx-a11y-x/no-autofocus": "off" },
   },
 
   // Test and operational scripts.

@@ -27,8 +27,8 @@ import type { Member } from "../shared/route";
 import { log } from "@/server/shared/log";
 import { load, readerContext, type ReaderContext } from "../shared/reader";
 import * as readers from "../readers/facts";
-import { filesTallied } from "../readers/files";
-import { footage } from "../readers/footage";
+import { filesTallied } from "../readers/files/files";
+import { footage } from "../readers/content/footage";
 import { memberViews } from "../readers/notifications";
 import { getAttached, noWordsIn, type AttachedFile } from "../files/attached";
 import { runAskTurn } from "./loop/loop";
@@ -478,11 +478,11 @@ function waitingOnThread(cards: ReadonlyArray<Pick<AskMessageDto, "id" | "propos
   const latest = cards.filter((m) => m.proposals.length).slice(-1);
   return new Map(
     latest.flatMap((m) =>
-      (m.proposals ?? [])
+      m.proposals
         .filter((p) => !p.outcome)
         .map((p): [string, { card: AskProposal; messageId: string; cards: readonly AskProposal[] }] => [
           p.id,
-          { card: p, messageId: m.id, cards: m.proposals ?? [] },
+          { card: p, messageId: m.id, cards: m.proposals },
         ]),
     ),
   );

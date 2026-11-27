@@ -146,8 +146,7 @@ export async function linkCallMessage(db: Db, tenantId: TenantId, callId: string
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) dbLog().error("link_call_message_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
-  else if (!data || data.length === 0)
-    dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
+  else if (data.length === 0) dbLog().error("link_call_message_noop", { tenant_id: tenantId, call_id: callId });
 }
 
 /**
@@ -169,7 +168,7 @@ export async function stampCallConfigVersion(
     .is("config_version", null)
     .select("id");
   if (error) throw new DbFailure(error, "stampCallConfigVersion");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** A call as its review reads it: its words, what it was composed from, the agent, and whose it is. */
@@ -213,7 +212,7 @@ export async function listCallers(
       .eq("tenant_id", tenantId)
       .in("id", ids.slice(i, i + IDS_PER_READ));
     if (error) throw new DbFailure(error, "listCallers");
-    out.push(...(data ?? []));
+    out.push(...data);
   }
   return out;
 }
@@ -241,8 +240,7 @@ export async function setCallRecording(
     .eq("tenant_id", tenantId)
     .select("id");
   if (error) dbLog().error("set_call_recording_failed", { tenant_id: tenantId, call_id: callId, error: error.message });
-  else if (!data || data.length === 0)
-    dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
+  else if (data.length === 0) dbLog().error("set_call_recording_noop", { tenant_id: tenantId, call_id: callId });
 }
 
 /** The customer's thread gets the call as a message, so history stays in one place. */
@@ -308,7 +306,7 @@ export async function claimCallNotification(db: Db, tenantId: TenantId, callId: 
     .is("notified_at", null)
     .select("id");
   if (error) throw new DbFailure(error, "claim_call_notification");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**
@@ -324,7 +322,7 @@ export async function claimCallActivity(db: Db, tenantId: TenantId, callId: stri
     .is("activity_started_at", null)
     .select("id");
   if (error) throw new DbFailure(error, "claim_call_activity");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /** The caller's name as the Live page gives it (their display name, else their WhatsApp name), or null. */
@@ -378,7 +376,7 @@ export async function listCallsOwedAnAnalysis(
     .order("ended_at", { ascending: true })
     .limit(params.limit);
   if (error) throw new DbFailure(error, "cannot read the calls owed an analysis");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -396,7 +394,7 @@ export async function claimGuardCorrection(db: Db, tenantId: TenantId, callId: s
     .is("guard_corrected_at", null)
     .select("id");
   if (error) throw new DbFailure(error, "claim_guard_correction");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**
@@ -434,7 +432,7 @@ export async function listCallsOwedANotice(
     .order("notified_at", { ascending: true })
     .limit(params.limit);
   if (error) throw new DbFailure(error, "cannot read the calls owed a notice");
-  return data ?? [];
+  return data;
 }
 
 /** The canary's workspace as the canary needs it: whether it is ours, and the number its receptionist answers. */
@@ -489,7 +487,7 @@ export async function listVoiceDoorKnocks(db: Db, sinceIso: string): Promise<Rec
     .limit(1000);
   if (error) throw new DbFailure(error, "cannot read the voice doors' evidence");
   const doors: Record<string, VoiceDoorKnocks> = {};
-  for (const r of data ?? []) {
+  for (const r of data) {
     const d = recordOrEmpty(r.data);
     if (d.provider !== "retell") continue;
     const door = typeof d.door === "string" ? d.door : "webhook";
@@ -561,7 +559,7 @@ export async function listRetellCallIds(db: Db, tenantId: TenantId, contactId: C
     .select("retell_call_id")
     .eq("contact_id", contactId);
   if (error) throw new DbFailure(error, "cannot read the person's calls");
-  return (data ?? []).map((r) => r.retell_call_id);
+  return data.map((r) => r.retell_call_id);
 }
 
 /**
@@ -578,7 +576,7 @@ export async function callSecondsSince(db: Db, tenantId: TenantId, sinceIso: str
     .gte("created_at", sinceIso)
     .limit(10000);
   if (error) throw new DbFailure(error, "cannot read the month's call seconds");
-  return (data ?? []).reduce((n, r) => {
+  return data.reduce((n, r) => {
     const s = recordOrNull(r.data)?.seconds;
     return n + (typeof s === "number" && Number.isFinite(s) ? s : 0);
   }, 0);

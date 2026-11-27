@@ -6,6 +6,7 @@
 import { DAY_MS } from "../shared/time";
 import { dayNumber, localToUtcMs } from "../shared/zone/math";
 import { durationMs, localPartsOf, splitLine, toMs, unescapeText, unfold } from "./ics-text";
+import { isOneOf } from "../shared/unknown";
 
 /** A taken stretch of time, epoch milliseconds. */
 export interface BusyBlock {
@@ -92,14 +93,17 @@ interface Rule {
 }
 
 /** RRULE, in the forms a salon's calendar actually carries. Null = not understood. */
+/** The frequencies a repeat rule may have, as the feed's RRULE says them. */
+const RULE_FREQS = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"] as const satisfies readonly Rule["freq"][];
+
 function parseRule(value: string, fallbackTz: string): Rule | null {
   const parts: Record<string, string> = {};
   for (const kv of value.split(";")) {
     const eq = kv.indexOf("=");
     if (eq > 0) parts[kv.slice(0, eq).toUpperCase()] = kv.slice(eq + 1);
   }
-  const freq = parts.FREQ as Rule["freq"] | undefined;
-  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) return null;
+  const freq = parts.FREQ;
+  if (!isOneOf(RULE_FREQS, freq)) return null;
   for (const k of Object.keys(parts))
     if (!["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "WKST"].includes(k)) return null;
   const interval = Math.max(1, Number(parts.INTERVAL ?? 1) || 1);

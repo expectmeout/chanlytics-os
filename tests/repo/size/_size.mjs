@@ -15,11 +15,7 @@ export const DOOR_CODE_LIMIT = 100;
 export const COGNITIVE_LIMIT = 25;
 
 /** What may stay long or wide, and why. An entry that no longer needs to be here fails. */
-export const LEFT_WHOLE = {
-  "apps/edge/lib/shared/log-events.ts": "the closed list of log events, one table an alert greps",
-  "packages/contracts/src/shared/enums.ts": "every closed set, declared once on one page",
-  "packages/core/src/deliver/deliver.ts": "the one send door, read as one",
-};
+export const LEFT_WHOLE = {};
 
 const NOT = /\.d\.ts$|\.generated\.|database\.types\.ts$|\.type-test\.|(^|\/)test\/|\.test\./;
 const BACKEND_TREES = [

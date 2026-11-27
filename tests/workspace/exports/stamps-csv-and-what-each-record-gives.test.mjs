@@ -397,7 +397,7 @@ test("a download is an attachment, private, with a safe name and the real one", 
 });
 
 test("the wrapper passes a file through under the no-store rule, and keeps a private rule a route set itself", async () => {
-  // Through the real route wrapper, signed in by a bearer token a stand-in verifies (auth/bearer.test.mjs's way in).
+  // Through the real route wrapper, signed in by a bearer token a stand-in verifies (auth/session/bearer.test.mjs's way in).
   const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
   const { setBearerVerifier } = await import(at("apps/dashboard/src/server/shared/auth/bearer.ts"));

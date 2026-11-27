@@ -347,11 +347,11 @@ export function spokenBreach(
   let count = 0;
   let callerSpoke = false;
   for (const t of turns) {
-    if (t?.role === "user") callerSpoke = true;
-    if (t?.role !== "agent") continue;
+    if (t.role === "user") callerSpoke = true;
+    if (t.role !== "agent") continue;
     count += 1;
     if (count === 1 && !callerSpoke) continue;
-    const sentence = (t.content ?? "").trim();
+    const sentence = t.content.trim();
     if (sentence && priceBreach(sentence, allowed)) return { rule: "price", said: sentence.slice(0, 300), turn: count };
   }
   return null;

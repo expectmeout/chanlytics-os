@@ -39,10 +39,9 @@ import {
   listActiveRoutingKinds,
   listLineFilingsOf,
   listLinesOf,
-  saveBusinessOnRecord,
+  keepBusinessOnRecord,
   saveLineRow,
 } from "@chanlytics/db/lines";
-import { emitEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import {
   SPEND_NUMBER,
@@ -230,7 +229,7 @@ async function buy(lineCall: LineCall): Promise<Response> {
     provider: lineCall.choice.name,
     number: request.number,
     areaCode: request.areaCode,
-    others: others.data ?? [],
+    others: others.data,
     now,
   });
   if (plan.kind === "refuse") return respond(plan.answer);
@@ -303,7 +302,7 @@ async function record(lineCall: LineCall): Promise<Response> {
   // The workspace's numbers, which the record is checked against, and where each line's filing stands, which the save
   // speaks of. A read that fails checks against no number, as it did, and says nothing of a filing.
   const ours = await listLineFilingsOf(lineCall.db, lineCall.tenantId);
-  const lines = ours.error ? null : (ours.data ?? []);
+  const lines = ours.error ? null : ours.data;
   const ourNumbers = (lines ?? []).map((r) => r.e164).filter((n): n is string => !!n);
   const refused = recordRefusal(plan.row, plan.path, ourNumbers);
   if (refused) return respond(refused);
@@ -314,17 +313,24 @@ async function record(lineCall: LineCall): Promise<Response> {
   } catch (e) {
     return refuseFailure(503, "read_failed", e);
   }
-  const up = await saveBusinessOnRecord(lineCall.db, lineCall.tenantId, plan.row);
-  if (up.error) return refuseFailure(503, "write_failed", up.error);
-  const saved = recordSaved(before, up.data, lines);
-  await emitEvent(lineCall.db, lineCall.tenantId, "business.recorded", "tenant", lineCall.tenantId, {
-    legal_name: plan.row.legal_name,
-    path: plan.path,
-    // Who saved it: the ledger said the record changed and never whose hand it was.
-    by: lineCall.person,
-    changed: saved.first ? null : saved.changed,
-  }).catch(() => {});
-  return respond(recordAnswer(up.data, saved));
+  // The record is saved whole, so what it moved is what the draft moves; the save and its event are one transaction
+  // (00721), and the record is read back for the answer.
+  const changed = before ? recordSaved(before, { ...before, ...plan.row }, lines).changed : null;
+  let kept: RecordRow | null;
+  try {
+    await keepBusinessOnRecord(lineCall.db, lineCall.tenantId, plan.row, {
+      legal_name: plan.row.legal_name,
+      path: plan.path,
+      // Who saved it: the ledger said the record changed and never whose hand it was.
+      by: lineCall.person,
+      changed,
+    });
+    kept = await findBusinessOnRecord(lineCall.db, lineCall.tenantId);
+  } catch (e) {
+    return refuseFailure(503, "write_failed", e);
+  }
+  if (!kept) return refuseFailure(503, "write_failed", new Error("the record was not there after its save"));
+  return respond(recordAnswer(kept, recordSaved(before, kept, lines)));
 }
 
 /* ------------------------------------------------------------ register */
@@ -367,7 +373,7 @@ async function register(lineCall: LineCall): Promise<Response> {
     row,
     record: onRecord,
     workspaceName: lineCall.tenant.name,
-    saysYes: saysYes.data ?? [],
+    saysYes: saysYes.data,
     flags,
     pages,
   });

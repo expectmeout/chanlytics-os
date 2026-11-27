@@ -900,11 +900,24 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
     },
     location: { assign: () => {} },
   };
+  // On the window in the nightly e2e's own build alone (NEXT_PUBLIC_E2E=1), for its specs outside the bundle; a
+  // customer's build has no such name.
+  const was = process.env.NEXT_PUBLIC_E2E;
+  process.env.NEXT_PUBLIC_E2E = "1";
+  const e2eWin = { fetch: win.fetch, location: { assign: () => {} } };
+  let e2eApi;
+  try {
+    e2eApi = mod.installAsk(e2eWin, storage);
+  } finally {
+    if (was === undefined) delete process.env.NEXT_PUBLIC_E2E;
+    else process.env.NEXT_PUBLIC_E2E = was;
+  }
+  assert.equal(e2eWin.__ask, e2eApi, "published for the nightly's specs, in its build");
   const api = mod.installAsk(win, storage);
-  // The object it publishes carries every one of the palette's own: the parts composed, not re-implemented.
+  assert.equal(win.__ask, undefined, "and on no customer's window");
+  // The object it holds carries every one of the palette's own: the parts composed, not re-implemented.
   const { askPalette } = await importSrc("apps/dashboard/src/bridge/ask/palette.ts");
   for (const k of Object.keys(askPalette({}, null))) assert.ok(k in api, `the palette's ${k}, composed`);
-  assert.equal(win.__ask, api, "published for the palette");
   const idx = api.jumpIndex();
   assert.ok(idx.some((j) => j.to === "inbox/th-1" && j.kind === "thread"));
   assert.ok(!idx.some((j) => /Aisha/.test(j.label)), "a seeded thread never reaches the jump list");

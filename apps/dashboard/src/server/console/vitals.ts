@@ -13,6 +13,7 @@ import { notePageVitals, readPageSpeed, readPageSpots, readPageVitalsP75 } from 
 import { serviceDb } from "../shared/service-db";
 import type { BackOffice } from "../shared/back-office";
 import { log } from "@/server/shared/log";
+import { asFailedReply } from "@chanlytics/db/shared";
 
 /**
  * Field data's doors (00255, 00412): the route keeps what a page load reported, and the back office reads the 75th
@@ -33,7 +34,10 @@ import { log } from "@/server/shared/log";
 export async function keepPageVitals(input: PageVitalsInputDto): Promise<number> {
   const { data, error } = await notePageVitals(serviceDb(), input);
   if (error) {
-    log.warn("page_vitals_not_kept", { code: error.code ?? null, message: String(error.message).slice(0, 200) });
+    log.warn("page_vitals_not_kept", {
+      code: asFailedReply(error).code ?? null,
+      message: String(error.message).slice(0, 200),
+    });
     return 0;
   }
   return typeof data === "number" ? data : 0;
@@ -90,7 +94,7 @@ export async function findPlatformSpeed(
     rows: (speed.data ?? []).map((item) => ({
       metric: item.metric,
       page: item.page,
-      part: item.part ?? "",
+      part: item.part,
       how: knownOr(HOWS, item.how, "all"),
       device: knownOr(DEVICES, item.device, "unknown"),
       warm: knownOr(WARMS, item.warm, "unknown"),

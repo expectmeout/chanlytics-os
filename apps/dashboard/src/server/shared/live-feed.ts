@@ -13,7 +13,7 @@ import type { MemberContext, RouteContext } from "./with-route";
 export const ChangesQuerySchema = z.object({ since: z.iso.datetime({ offset: true }) });
 
 /** What a catch-up answers: the notices, and whether they are all of them (false: the tab reads everything again). */
-export interface Changes {
+interface Changes {
   notices: ToldNotice[];
   whole: boolean;
 }

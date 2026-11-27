@@ -26,12 +26,12 @@ import { createChunks } from "@supabase/ssr/dist/main/utils/chunker.js";
  * so this cannot reach a real inbox even when pointed at production.
  */
 
-const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 const EMAIL = process.env.E2E_USER_EMAIL;
 
-export const HAVE_SESSION = !!(URL_ && KEY && ANON && EMAIL);
+export const HAVE_SESSION = !!(SUPABASE_URL && KEY && ANON && EMAIL);
 
 export const WHY_SKIPPED =
   "needs NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, " +
@@ -41,7 +41,7 @@ export const WHY_SKIPPED =
 /** The storage key auth-js derives from the project URL, which is also the
  *  cookie name @supabase/ssr reads. */
 function storageKey(): string {
-  const ref = new URL(URL_!).hostname.split(".")[0];
+  const ref = new URL(SUPABASE_URL!).hostname.split(".")[0];
   return `sb-${ref}-auth-token`;
 }
 
@@ -88,7 +88,7 @@ export function keepSession(file: string, who: string, session: MintedSession, n
 
 /** Mint a real session for E2E_USER_EMAIL, over the API. */
 async function mint(): Promise<MintedSession> {
-  const who = `${URL_} ${EMAIL}`;
+  const who = `${SUPABASE_URL} ${EMAIL}`;
   const now = Date.now();
   const kept = keptSession(KEPT, who, now);
   if (kept) return kept;
@@ -98,7 +98,7 @@ async function mint(): Promise<MintedSession> {
 }
 
 async function mintFresh(): Promise<MintedSession> {
-  const gen = await fetch(`${URL_}/auth/v1/admin/generate_link`, {
+  const gen = await fetch(`${SUPABASE_URL}/auth/v1/admin/generate_link`, {
     method: "POST",
     headers: { "content-type": "application/json", apikey: KEY!, authorization: `Bearer ${KEY}` },
     body: JSON.stringify({ type: "magiclink", email: EMAIL }),
@@ -114,7 +114,7 @@ async function mintFresh(): Promise<MintedSession> {
   // The exchange the browser cannot do for us. Verified with the ANON key,
   // exactly as a real sign-in would be — the service role only minted the
   // token.
-  const ver = await fetch(`${URL_}/auth/v1/verify`, {
+  const ver = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
     method: "POST",
     headers: { "content-type": "application/json", apikey: ANON! },
     body: JSON.stringify({ type: "magiclink", token_hash: tokenHash }),

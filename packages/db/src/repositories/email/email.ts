@@ -209,7 +209,7 @@ export async function getSentEmailWithMessageId(db: Db, tenantId: TenantId, rfcM
     .eq("meta->email->>message_id", rfcMessageId)
     .limit(1);
   if (error) throw new DbFailure(error, "ingest_email: cannot read the ledger of sent emails");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 export async function stampMailboxReceived(db: Db, mailboxId: string, at: string): Promise<void> {
@@ -354,7 +354,7 @@ export async function findAnsweredReachOutEmail(
     .limit(ANSWERED_LOOKBACK);
   if (error) throw new DbFailure(error, "email: cannot read the reach-out being answered");
   const left = new Set(["sent", "delivered", "read"]);
-  const sent = (data ?? []).flatMap((match) => {
+  const sent = data.flatMap((match) => {
     if (valueAt(match.meta, "source") !== "reach_out" || !left.has(String(match.status))) return [];
     const req = recordOrEmpty(valueAt(match.meta, "email", "request"));
     const rfc = valueAt(match.meta, "email", "message_id");
@@ -390,7 +390,7 @@ export async function stampEmailSent(
     p_rfc_message_id: params.rfcMessageId,
   });
   if (error) throw new DbFailure(error, "stamp_email_sent");
-  const row = data?.[0];
+  const row = data[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
 
@@ -528,24 +528,16 @@ export async function suppressEmailOf(
   },
 ): Promise<string | null> {
   if (!params.addresses.length) return null;
-  const sent = await db
-    .from("messages")
-    .select("contact_id")
-    .eq("id", params.messageId)
-    .eq("tenant_id", params.tenantId)
-    .maybeSingle();
-  if (sent.error) throw new DbFailure(sent.error, `email receipt: cannot read who message ${params.messageId} went to`);
-  if (!sent.data?.contact_id) return null;
-  const { data, error } = await db
-    .from("contacts")
-    .update({ email_suppressed_at: params.at, email_suppressed_reason: params.reason })
-    .eq("id", sent.data.contact_id)
-    .eq("tenant_id", params.tenantId)
-    .in("email", params.addresses)
-    .is("email_suppressed_at", null)
-    .select("id");
+  // The address the email went to stops once, with contact.email_suppressed in the same transaction (00721).
+  const { data, error } = await db.rpc("contact_email_suppress", {
+    p_tenant_id: params.tenantId,
+    p_message_id: params.messageId,
+    p_addresses: params.addresses,
+    p_reason: params.reason,
+    p_at: params.at,
+  });
   if (error) throw new DbFailure(error, "email receipt: cannot stop sends to the address");
-  return data?.[0]?.id ?? null;
+  return data;
 }
 
 /**
@@ -568,7 +560,7 @@ async function settleUnknownEmail(
     .eq("error->>outcome", "unknown")
     .select("id");
   if (error) throw new DbFailure(error, `cannot settle the email ${params.id}`);
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** Found in what the mailbox sent: stamped with the id, Message-ID and thread it went under, then sent. */

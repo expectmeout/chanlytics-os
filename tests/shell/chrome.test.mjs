@@ -21,12 +21,21 @@ import {
   DEFAULT_LOOK_PREF,
   LOOK_OFFERED,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { installStubReact, fresh, again, all, byTestId, classes, press, textOf } from "../_stub-react.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, frameParts } from "./_bridge-holds.mjs";
 import { fromDashboard, stepRunning } from "./boot/_frame-boot.mjs";
+import { PHONE, cascadeOf, element, frameSheets } from "../_css.mjs";
 
 const { Icon } = await importSrc("apps/dashboard/src/surfaces/kit/icon/icon.tsx");
+
+// The frame's stylesheets, run for an element as a browser runs them (tests/_css.mjs), on a desk and on a phone.
+const DOC = 'html[data-theme="light"]';
+const desk = cascadeOf(frameSheets());
+const phone = cascadeOf(frameSheets(), PHONE);
+/** Whether any rule of the frame's draws this element beyond what draws every element. */
+const drawnBy = (where, ...parts) =>
+  where.rules(element(DOC, ...parts)).length > where.rules(element(DOC, "div")).length;
 
 test("the theme: a choice, or the device's; unknown values fall back; the sidebar has two states", () => {
   assert.equal(resolveTheme("light", true), "light");
@@ -184,67 +193,31 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
 });
 
 test("the wiring: the pill is retired, the shell bridge carries its two actions and its status, the page has the menus, the rail and the sheet", () => {
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(!app.includes("bridge-pill") && !app.includes("pill-signout"), "no floating pill");
-  // The shell bridge is installed as the frame loads (bridge/boot, run in tests/shell/boot/frame-boot.test.mjs); the line is the component's.
+  // The shell bridge is installed as the frame loads (bridge/boot, run in tests/shell/boot/frame-boot.test.mjs). The
+  // frame, drawn (shell/boot/the-frame-draws-what-it-holds.test.mjs): no floating pill; what only it knows goes to the status line through the publisher
+  // the surfaces' runner is handed; the shell is handed the device's preferences and their presses, made once so its
+  // element is kept, and the document wears the theme and the look (device-prefs.ts, run by theme-boot.test.mjs
+  // against the head's script). Pinned as FrameApp.tsx's text until 27 Nov 2026.
   assert.ok(stepRunning(fromDashboard("bridge/shell.ts").installShell));
-  assert.ok(
-    app.includes(
-      "publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));",
-    ),
-  );
-  // What the device's preferences are, what a press keeps and what the page wears are device-prefs.ts's, run by
-  // theme-boot.test.mjs against the head's script. The component only holds them: these are its calls.
-  for (const pin of [
-    "const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));",
-    "const { theme, look } = documentStamps(prefs, systemDark);",
-    "useDocumentStamps(theme, look);",
-    'document.documentElement.setAttribute("data-theme", theme);',
-    'document.documentElement.setAttribute("data-look", look);',
-    "setPrefs((p) => choosePref(browserStorage, p, key, v))",
-    // Made once, so the shell's element is kept until a preference changes (defect 17).
-    'const onTheme = useCallback((v: string) => choose("theme", v), [choose]);',
-    'const onLook = useCallback((v: string) => choose("look", v), [choose]);',
-    'const onSidebar = useCallback((v: string) => choose("sidebar", v), [choose]);',
-    "onTheme={onTheme}",
-    "onLook={onLook}",
-    "onSidebar={onSidebar}",
-    "theme={theme}",
-    "look={look}",
-  ])
-    assert.ok(app.includes(pin), `the page wears and keeps what device-prefs.ts says: ${pin}`);
-  assert.ok(!readRaw("apps/dashboard/src/bridge/frame.css").includes(".bridge-pill"), "the pill's styles are gone");
+  assert.ok(!drawnBy(desk, ".bridge-pill") && !drawnBy(phone, ".bridge-pill"), "the pill's styles are gone");
 
   // The shell bridge's doors, run: the sign-out seals the cache before the form posts (shell/surfaces/sign-out-seals),
   // another workspace is one door, said as the event the frame opens its screen on (sign-out-seals, "another workspace
   // is one door"), and the chrome's words and themes are what the account menu draws (below, "the account menu offers
   // the look"). Another workspace's own title and its Back: create-workspace-screen.test.mjs draws the screen and presses
-  // them. The frame's own listener for it is FrameApp's, read with the rest of its boot above.
-  assert.ok(
-    app.includes('window.addEventListener("shell:create-workspace", on);') &&
-      app.includes("onCancel={() => setCreating(false)}"),
-  );
+  // them. The frame's own listener for it, and the screen's way back, are drawn in shell/boot/the-frame-draws-what-it-holds.test.mjs.
 
-  const shell = ["shell-chrome.tsx", "shell-hooks.ts"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/${f}`))
-    .join("\n");
-  assert.ok(
-    shell.includes('${s.sidebar === "rail" ? "rail" : ""}') && shell.includes('collapsed={s.sidebar === "rail"}'),
-  );
-  assert.ok(
-    shell.includes("if (window.innerWidth > DESK_MIN_PX) {") &&
-      shell.includes('onSidebar(sidebar === "rail" ? "open" : "rail");'),
-    "⌘B folds the sidebar on a desk only",
-  );
-  assert.ok(
-    shell.includes('const Sheet = fromGlobal("ShortcutsSheet", ShortcutsSheet);') && shell.includes("<Sheet />"),
-  );
+  // The rail is the sidebar folded and the chrome draws the keys' sheet on every page: drawn in
+  // shell/surfaces/status/the-page-and-the-shell-s-doors.test.mjs ("the rail is the sidebar folded"), where ⌘B folding it on
+  // a desk alone is pressed too ("⌘B folds the sidebar"). Pinned as shell-chrome.tsx's and shell-hooks.ts's text until
+  // 26 Nov 2026.
 
   // The sidebar's menus are drawn and pressed: the account chip opens a menu, not Settings, and its rows (Settings, the
   // keys' sheet on a desk) are drawn in keys-in-the-sheet.test.mjs, where a workspace pressed is switched to, the new
   // one is the shell's door and Sign out signs out ("the menus' doors are the shell's"); the person in its words is
   // workspace/identity.test.mjs's; a rail item's tip says its count, drawn below ("the account chip says it opens a menu").
-  installStubReact({ usePPToast: () => [null, () => {}] });
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   for (const name of ["logout", "keyboard", "chevrons", "monitor", "user", "sidebar"]) {
     const drawn = Icon({ name });
     assert.notDeepEqual(
@@ -254,38 +227,48 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     );
   }
 
-  const css = readRaw("apps/dashboard/src/styles/components.css");
-  for (const pin of [
-    ".sidebar.collapsed .nav-item { justify-content: center;",
-    ".sb-menu { position: fixed;",
-    ".sb-theme-seg {",
-    ".sb-sheet {",
-  ])
-    assert.ok(css.includes(pin), pin);
-  assert.ok(
-    readRaw("apps/dashboard/src/styles/mobile.css").includes(
-      ".side-wrap .sidebar.collapsed { width: min(248px, 84vw); }",
-    ),
+  // What the sidebar's parts are drawn with: the rail's icons centred, the menus over the page, the theme's segments
+  // side by side, the keys' sheet over the page; and on a phone the drawer is the sidebar at its width, never a rail.
+  const at = (where, ...parts) => where.style(element(DOC, ...parts));
+  assert.equal(
+    at(desk, "aside.sidebar.collapsed", "a.nav-item")["justify-content"],
+    "center",
+    "the rail centres its icons",
+  );
+  assert.equal(at(desk, ".sb-menu").position, "fixed", "a menu stands over the page");
+  assert.equal(at(desk, ".sb-theme-seg")["grid-auto-flow"], "column", "the theme's choices side by side");
+  assert.equal(at(desk, ".sb-sheet").position, "fixed", "the keys' sheet over the page");
+  assert.equal(at(desk, ".side-wrap", "aside.sidebar.collapsed").width, "56px", "a desk's rail");
+  assert.equal(
+    at(phone, ".side-wrap", "aside.sidebar.collapsed").width,
+    "min(248px, 84vw)",
     "the drawer is never a rail",
+  );
+  assert.equal(
+    at(phone, ".side-wrap", "aside.sidebar.collapsed", "a.nav-item")["justify-content"],
+    "flex-start",
+    "and its places keep their words beside their icons",
   );
 });
 
 test("the account chip says it opens a menu with the chevrons the workspace row draws, in the same ink", async () => {
   // Both buttons open a popover from the sidebar. The row at the top always drew the chevrons; the chip at the foot drew
   // none, so nothing said it was a button (Ruben, 11 Oct 2026). Drawn as a person sees them, and the rail hides each.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
   fresh();
   const drawn = again(() =>
-    globalThis.React.createElement(globalThis.window.Sidebar, {
+    globalThis.React.createElement(Sidebar, {
       themePref: "dark",
       onTheme: () => {},
       look: "glass",
       onLook: () => {},
     }),
   );
-  const chevrons = (testid) => all(byTestId(drawn, testid), (n) => n.type === "Icon" && n.props.name === "chevrons");
+  const chevrons = (testid) =>
+    all(byTestId(drawn, testid), (n) => n.type === frameParts().Icon && n.props.name === "chevrons");
 
   assert.equal(chevrons("sb-workspace").length, 1, "the workspace row, which always had them");
   const chip = chevrons("sb-account");
@@ -300,8 +283,9 @@ test("the account chip says it opens a menu with the chevrons the workspace row 
 test("the workspace row says its name, and under it how many workspaces there are only where there is more than one; never the lines", async () => {
   // "1 of 1 line on" under the name said again what Today says, for any workspace (Ruben, 11 Oct 2026). What the row's
   // menu does is switch, so the line under the name says how many there are to switch between.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
   bridgeHolds({ values: { today: { standing: { lines: { short: "1 of 1 line on" } } } } });
   const workspace = (id, name) => ({ id, slug: id, name, status: "active", timezone: "UTC", role: "owner" });
@@ -311,7 +295,7 @@ test("the workspace row says its name, and under it how many workspaces there ar
     fresh();
     const drawn = byTestId(
       again(() =>
-        globalThis.React.createElement(globalThis.window.Sidebar, {
+        globalThis.React.createElement(Sidebar, {
           themePref: "dark",
           onTheme: () => {},
           look: "glass",
@@ -343,8 +327,9 @@ test("the workspace row says its name, and under it how many workspaces there ar
 
 test("the workspace's circle wears its own logo over its initials, and its initials alone without one; never AI's three", async () => {
   // 00407: the circle said Ask's three for every business. The initials are contracts' rule, through the bridge.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered: false } } });
 
   const LOGO = "https://proj.supabase.co/storage/v1/object/public/workspace-logos/a/b.png";
@@ -368,7 +353,7 @@ test("the workspace's circle wears its own logo over its initials, and its initi
     bridgeHolds({ who: { activeWorkspaceId: "w1" } });
     fresh();
     const sidebar = () =>
-      globalThis.React.createElement(globalThis.window.Sidebar, {
+      globalThis.React.createElement(Sidebar, {
         themePref: "dark",
         onTheme: () => {},
         look: "glass",
@@ -381,7 +366,7 @@ test("the workspace's circle wears its own logo over its initials, and its initi
     return {
       initials: textOf(circle),
       picture: all(circle, (n) => n.type === "img").map((n) => [n.props.src, classes(n)]),
-      three: all(row, (n) => n.type === "Icon" && n.props.name === "three").length,
+      three: all(row, (n) => n.type === frameParts().Icon && n.props.name === "three").length,
       menu: all(menu, (n) => n.type === "span" && classes(n).includes("sb-ws-mark")).map((m) => [
         textOf(m),
         all(m, (n) => n.type === "img").length,
@@ -413,45 +398,32 @@ test("the workspace's circle wears its own logo over its initials, and its initi
   }
 });
 
-test("navigating INSIDE a surface does not tear the surface down", () => {
-  // The mount key and the gate key used to be the same string, so a second
-  // Settings tab or a second Inbox thread unmounted the whole surface and built
-  // it again: two 240ms route-in fades compounding (the shell's, and the pane's
-  // own) which reads as a flash, plus the surface's state, scroll position and
-  // fetches thrown away on a navigation that never left it.
-  const shell = ["shell-routes.ts", "shell-hooks.ts", "shell-chrome.tsx"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/frame/${f}`))
-    .join("\n");
-  assert.ok(shell.includes('const routeKey = `${page}/${param || ""}`;'), "the GATE still asks per pane");
-  // What it mounts under is a separate question, and it is asked of the shell as drawn (shell/surfaces/status/: one
-  // mount for Broadcasts and its runs, one for every view of Leads), not of its source.
-  assert.ok(
-    shell.includes("const viewKey = routeLoading && !onStrip && !inPlace ? `${mountKey}/reading` : mountKey;") &&
-      shell.includes("key={s.viewKey}"),
-    "and the surface is keyed on that, not on the gate key -- and on readiness while its surface is on its way, so the route-in fade plays on the page as it lands; a strip's view still reading is that view, read in place",
-  );
-  assert.ok(shell.includes("routeReady(page, param)"), "the readiness check still sees the param");
-
-  // Opt-IN, and only for a surface that follows its param: which pages are one mount across their address is run
-  // on the shell as drawn (shell/surfaces/status/), the safe default with them. Broadcasts follows its run and its
-  // list as props: drawn in runs-honest.test.mjs.
-  // Settings derives its tab on every draw (workspace/settings-owner-panes/every-address-of-the-business-lands-on-its-pane,
-  // "Settings derives its tab on every draw"), and the Inbox follows a later deep-link and the thread it names arriving
-  // (conversations/inbox/inbox-place.test.mjs, "the thread open is the address's").
-});
+// Navigating INSIDE a surface does not tear the surface down. The mount key and the gate key used to be the same string, so
+// a second Settings tab or a second Inbox thread unmounted the whole surface and built it again: two 240ms route-in fades
+// compounding (the shell's, and the pane's own) which reads as a flash, plus the surface's state, scroll position and
+// fetches thrown away on a navigation that never left it. All of it is run on the shell as drawn: the gate is asked for
+// the pane, its param with it (shell/surfaces/status/the-live-call-bar.test.mjs, "the gate is asked for the pane on
+// screen"); a page that follows its own address is one mount across it, and every other page's param its own
+// (the-page-and-the-shell-s-doors.test.mjs, "a page that follows its own address is one mount across it"); and the view
+// is keyed on readiness while its surface is on its way, so the route-in fade plays on the page as it lands
+// (the-live-call-bar.test.mjs, "a route whose surface has not landed"). Settings derives its tab on every draw
+// (workspace/settings-owner-panes/every-address-of-the-business-lands-on-its-pane), and the Inbox follows a later
+// deep-link and the thread it names arriving (conversations/inbox/inbox-place.test.mjs, "the thread open is the
+// address's"). Pinned as shell-routes.ts's, shell-hooks.ts's and shell-chrome.tsx's text until 26 Nov 2026.
 
 test("the account menu offers the look only once contracts does: none while it is not offered, then the looks under the theme, a press handing it to the shell", async () => {
   // The real sidebar on the stub React, its account menu opened as a person opens it. The chrome's words are what
   // the bridge publishes (shell.ts installShell), with the flag as contracts has it and then turned on.
-  installStubReact({ usePPToast: () => [null, () => {}] });
-  globalThis.window.Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
+  installStubReact({});
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+  const Sidebar = (await importSrc("apps/dashboard/src/surfaces/frame/sidebar/sidebar.tsx")).Sidebar;
   const picked = [];
   const themed = [];
   const accountMenu = (lookOffered) => {
     bridgeHolds({ parts: { chrome: { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered } } });
     fresh();
     const sidebar = () =>
-      globalThis.React.createElement(globalThis.window.Sidebar, {
+      globalThis.React.createElement(Sidebar, {
         themePref: "dark",
         onTheme: (v) => themed.push(v),
         look: "glass",

@@ -8,20 +8,17 @@
  * that vanished if either file moved or went, and the typed side called them with `?.`, so a missing door did nothing and
  * said nothing.
  *
- * Here they are real exports a page imports. The frame fills the bridge's registry with its doors as it renders (FrameApp
- * hands it `fillDoors` as a prop), before the pages under it draw; a door the registry does not hold answers as a stand-in
- * window would (a test's, the standalone mockup's), else says so once (`door_missing`) and does nothing, as it always did.
- * The names the pages that have not moved read (`askAbout`, `appNavigate`, `appAsk`) are published from here by
- * seed-globals.ts, before any page loads, and go through the same registry. `backToPeople` has no JSX reader and is no
- * window name.
- *
- * Each name is a line to delete on the day its last reader moves (decision 0015, step 13: the frame itself).
+ * Here they are real exports a page imports. The frame fills the registry with its doors as it renders (app-shell.tsx
+ * `fillDoors`), before the pages under it draw, and a test fills the ones it catches; a door the registry does not hold
+ * says so once (`door_missing`) and does nothing. No door is a window name: nothing is published, and nothing is read off
+ * the window (decision 0151).
  */
 import type { AskScope } from "@chanlytics/contracts";
 // A type only, which a bundle drops: this module imports only the bridge's store and the report seam at run time (which
 // import nothing), so the kit and every surface can import it.
 import type { GoOptions } from "@/bridge/workspace";
 import { provided } from "@/bridge/provided";
+import { CHANLY } from "./frame/constants";
 import { pageReport } from "@/client/page-report";
 
 /** What Ask is opened with: a question to ask, or to finish with `mode` "compose"; a conversation to open; and the scope its chip opens on. */
@@ -59,17 +56,8 @@ interface FrameDoors {
 /** A door a page could not find. */
 type DoorName = keyof FrameDoors;
 
-declare global {
-  interface Window {
-    askAbout?: (about?: AskAbout) => void;
-    appAsk?: () => void;
-    appNavigate?: (route: string, opts?: GoOptions) => void;
-    appBackToPeople?: () => void;
-  }
-}
-
-/** The frame's doors, once it has rendered; null before it, and in a stand-in window with no frame. */
-let frame: FrameDoors | null = null;
+/** The frame's doors, once it has rendered; null before it. A test fills the ones it catches, and the rest say missing. */
+let frame: Partial<FrameDoors> | null = null;
 
 /** The doors already said missing: once each, not once a press. */
 const warnedDoors = new Set<DoorName>();
@@ -82,7 +70,7 @@ function missing(door: DoorName): void {
 }
 
 /** The frame fills the registry as it renders. Idempotent: its two callbacks keep their identity, and a render fills it again. */
-export function fillDoors(doors: FrameDoors): void {
+export function fillDoors(doors: Partial<FrameDoors>): void {
   frame = doors;
 }
 
@@ -97,41 +85,17 @@ export function emptyDoors(): void {
   warnedDoors.clear();
 }
 
-/** A function a stand-in window offers under one of the names these doors answer to, but never this module's own published one. */
-function standIn<K extends "askAbout" | "appAsk" | "appBackToPeople">(name: K): NonNullable<Window[K]> | undefined {
-  const v: unknown = Reflect.get(window, name);
-  const own: unknown = (DOOR_NAMES as Record<string, unknown>)[name];
-  return typeof v === "function" && v !== own ? (v as NonNullable<Window[K]>) : undefined;
-}
-
-/**
- * Go to a route, the way a page does: the frame's own move, which keeps its Back and its address. Without a frame, the
- * legacy page's door (`CHANLY.nav`, which a stand-in window may offer); without that, nothing, said once.
- */
+/** Go to a route, the way a page does: the frame's own move, which keeps its Back and its address; without one, nothing, said once. */
 export function navigate(route: string, opts?: GoOptions): void {
-  if (frame) {
-    if (opts === undefined) frame.navigate(route);
-    else frame.navigate(route, opts);
-    return;
-  }
-  const go = window.CHANLY?.nav;
+  const go = frame?.navigate;
   if (!go) return missing("navigate");
   if (opts === undefined) go(route);
   else go(route, opts);
 }
 
-/** The frame's move under the window name the pages that read it use (`window.appNavigate`): frame/constants.ts `CHANLY.nav`, the Line. */
-function moveByName(route: string, opts?: GoOptions): void {
-  if (!frame) return missing("navigate");
-  if (opts === undefined) frame.navigate(route);
-  else frame.navigate(route, opts);
-}
-
 /** Open Ask as ⌘K does, keeping what is in its field; nothing where there is no frame to open it, said once. */
 export function openAsk(): void {
-  if (frame) return frame.openAsk();
-  const open = standIn("appAsk");
-  if (open) return open();
+  if (frame?.openAsk) return frame.openAsk();
   missing("openAsk");
 }
 
@@ -145,8 +109,6 @@ let askedOfTheLine: AskAbout | null = null;
  * the first seconds of a page, or on a slow phone, comes before the Line's code does, so what was asked is kept for it to take.
  */
 export function askAbout(about: AskAbout = {}): void {
-  const own = standIn("askAbout");
-  if (own) return own(about);
   askedOfTheLine = about;
   openAsk();
   window.dispatchEvent(new CustomEvent("ask:seed", { detail: about }));
@@ -164,34 +126,26 @@ export function takeAskedOfTheLine(): AskAbout | null {
  * page comes back as it was left; reached any other way (a link, a reload), `home`, the address replaced where `opts` says.
  */
 export function backFrom(home: string, opts?: GoOptions): void {
-  if (frame) return frame.backFrom(home, undefined, opts);
+  if (frame?.backFrom) return frame.backFrom(home, undefined, opts);
   navigate(home, opts);
 }
 
 /** A person's Back: the People view they were opened from (the frame's rule), else People itself. */
 export function backToPeople(): void {
-  if (frame) return frame.backToPeople();
-  const back = standIn("appBackToPeople");
-  if (back) return back();
+  if (frame?.backToPeople) return frame.backToPeople();
   navigate("clients");
 }
-
-/**
- * The window names for the pages that have not moved, which seed-globals.ts publishes before any page loads
- * by name. Every one goes through the registry.
- */
-export const DOOR_NAMES = { askAbout, appAsk: openAsk, appNavigate: moveByName } as const;
 
 /* ------------------------------------------------- a door is a link ------------------------------------------------- */
 
 /*
  * Moved from legacy/components/data-bits.jsx (the one-system plan's step 2). A name, a face or a chip with a page of its
  * own is a link to that page: `<a {...routeDoor(to, go)}>`. Its address is in the href, so a long press, a middle click or
- * a new tab opens it too, and a plain press takes the app's own way there (`go`, else CHANLY.nav), which keeps Back the
+ * a new tab opens it too, and a plain press takes the app's own way there (`go`, else `navigate`), which keeps Back the
  * app's. As a pointer reaches a door or it takes focus, its page is warmed as the sidebar's rows are (workspace.ts
  * warmRoute: a name on a thread asked for People's page on the press), and a door to a person reads them, as People's rows
- * do: their page is drawn only once it is whole, on any tab. The address and the person's read are the window's, read when
- * a door is drawn, as the JSX read them: a test stands in for either there.
+ * do: their page is drawn only once it is whole, on any tab. The address and the person's read are the bridge's (provided.ts),
+ * read when a door is drawn: a test hands in a stand-in for either there.
  */
 const RD_PERSON = /^clients\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/[a-z]+)?$/i;
 
@@ -211,29 +165,22 @@ interface RouteDoorProps {
   onFocus: () => void;
 }
 
-type DoorWindow = Window & {
-  CHANLY?: {
-    nav?: (route: string) => void;
-    address?: { href?: (route: string) => string; warm?: (route: string) => void };
-  };
-};
-
 /** The props of a link to `to` (see above). */
 export const routeDoor = (to: string, go: ((to: string) => void) | null = null): RouteDoorProps => {
-  const win = window as DoorWindow;
   const person = RD_PERSON.exec(to);
-  const a = win.CHANLY && win.CHANLY.address;
+  // The address (frame/constants.ts): a workspace's own path, and the warm a reach starts.
+  const address = CHANLY.address;
   const warm = () => {
     if (person) provided("warmPerson")?.(person[1] ?? "");
-    if (a && a.warm) a.warm(to);
+    address.warm(to);
   };
   return {
-    href: a && a.href ? a.href(to) : `#/${to}`,
+    href: address.href(to),
     onClick: (e) => {
       if (e && (e.defaultPrevented || (e.button ?? 0) > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
       if (e && e.preventDefault) e.preventDefault();
       if (go) go(to);
-      else if (win.CHANLY && win.CHANLY.nav) win.CHANLY.nav(to);
+      else navigate(to);
     },
     // A finger is a scroll or a swipe first (frame-verbs warmsOnReach).
     onPointerEnter: (e) => {

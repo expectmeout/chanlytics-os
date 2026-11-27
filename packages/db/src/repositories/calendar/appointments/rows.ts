@@ -99,7 +99,7 @@ export async function findAppointmentByClientStart(
     .order("starts_at", { ascending: true })
     .limit(10);
   if (error) throw new DbFailure(error, "appointment_by_client_start");
-  const rows = data ?? [];
+  const rows = data;
   rows.sort((a, b) => Math.abs(Date.parse(a.starts_at) - startMs) - Math.abs(Date.parse(b.starts_at) - startMs));
   return rows[0] ?? null;
 }
@@ -110,7 +110,7 @@ export async function findAppointmentByClientStart(
  */
 export async function insertAppointment(db: Db, row: AppointmentInsert): Promise<{ id: string }> {
   const { data, error } = await db.from("appointments").insert(row).select("id").single();
-  if (error || !data) throw new DbFailure(error ?? { message: "no row" }, "appointment_insert");
+  if (error) throw new DbFailure(error, "appointment_insert");
   return { id: data.id };
 }
 
@@ -268,7 +268,7 @@ export async function openRequestsOfThreads(
     .eq("status", "proposed")
     .order("created_at", { ascending: false });
   if (error) throw new DbFailure(error, "open_requests_of_threads");
-  return data ?? [];
+  return data;
 }
 
 /* ------------------------------------------------------------------ the board */
@@ -296,7 +296,7 @@ export async function listAppointmentsBetween(
     .order("starts_at", { ascending: true })
     .limit(SPAN_MAX);
   if (error) throw new DbFailure(error, "appointments_between");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -400,15 +400,15 @@ export async function listVisitOrigins(
   if (leads.error) throw new DbFailure(leads.error, "visit_origins_leads");
   if (enrolled.error) throw new DbFailure(enrolled.error, "visit_origins_enrolled");
   const newest = new Map<string, string>();
-  for (const e of enrolled.data ?? []) if (e.lead_id && !newest.has(e.lead_id)) newest.set(e.lead_id, e.sequence_id);
+  for (const e of enrolled.data) if (e.lead_id && !newest.has(e.lead_id)) newest.set(e.lead_id, e.sequence_id);
   const sequenceIds = [...new Set(newest.values())];
   const named = new Map<string, string>();
   if (sequenceIds.length) {
     const seqs = await db.from("sequences").select("id, name").eq("tenant_id", tenantId).in("id", sequenceIds);
     if (seqs.error) throw new DbFailure(seqs.error, "visit_origins_sequences");
-    for (const q of seqs.data ?? []) named.set(q.id, q.name);
+    for (const q of seqs.data) named.set(q.id, q.name);
   }
-  return (leads.data ?? [])
+  return leads.data
     .filter((l) => l.business_name.trim())
     .map((l) => {
       const sequence = newest.get(l.id) ?? null;

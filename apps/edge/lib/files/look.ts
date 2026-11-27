@@ -99,7 +99,7 @@ export async function findClaudeCopy(db: Db, row: FileRow): Promise<ClaudeCopy |
       : await filesBucket(db).createSignedUrl(filePathOf(row.tenant_id, row.id, row.mime), COPY_URL_S, {
           transform: { width: FILE_COPY_SIDE, height: FILE_COPY_SIDE, resize: "contain", quality: COPY_QUALITY },
         });
-  if (signed.error || !signed.data?.signedUrl) {
+  if (signed.error || !signed.data.signedUrl) {
     logger({ tenant_id: row.tenant_id }).warn("file_copy_failed", { file: row.id, why: "sign" });
     return null;
   }

@@ -8,8 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LINE_FILED_NAMES, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
-import type { Database } from "../../types";
-import { tenantDb } from "../../shared/tenant-db";
+import type { Database, Json } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
 // No `type Db` alias here, as the repositories write one: the declaration bundler numbers every module's alias (`Db$x`), and a
@@ -104,7 +103,7 @@ export async function findFiledNames(
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "cannot read the names the workspace filed");
   const named = (key: string): string | null => {
-    for (const row of data ?? []) {
+    for (const row of data) {
       const value = recordOrEmpty(row.facts)[key];
       if (typeof value === "string" && value.trim()) return value.trim();
     }
@@ -113,9 +112,34 @@ export async function findFiledNames(
   return { campaign: named(LINE_FILED_NAMES.campaign), brand: named(LINE_FILED_NAMES.brand) };
 }
 
-/** The business on record saved, one a workspace, and back whole. The answer is the database's as it came. */
-export const saveBusinessOnRecord = async (
+/**
+ * The business on record saved whole, one a workspace, with business.recorded in the same transaction (00721
+ * business_record_keep): what the edge says of the save (`event`). Throws when it could not be written.
+ */
+export async function keepBusinessOnRecord(
   db: SupabaseClient<Database>,
   tenantId: TenantId,
   row: Database["public"]["Tables"]["business_records"]["Insert"],
-) => tenantDb(db, tenantId).from("business_records").upsert(row, { onConflict: "tenant_id" }).select("*").single();
+  event: Record<string, Json>,
+): Promise<void> {
+  const { error } = await db.rpc("business_record_keep", { p_tenant_id: tenantId, p_row: { ...row }, p_data: event });
+  if (error) throw new DbFailure(error, "cannot keep the business on record");
+}
+
+/**
+ * The voice line's routing row, made with voice.provisioned in the same transaction (00721 voice_channel_add): what was
+ * provisioned (`event`). The answer is the database's as it came: the row's id, or its error.
+ */
+export const addVoiceChannel = async (
+  db: SupabaseClient<Database>,
+  tenantId: TenantId,
+  channel: { agentId: string; e164: string; config: Record<string, Json> },
+  event: Record<string, Json>,
+) =>
+  db.rpc("voice_channel_add", {
+    p_tenant_id: tenantId,
+    p_agent_id: channel.agentId,
+    p_e164: channel.e164,
+    p_config: channel.config,
+    p_data: event,
+  });

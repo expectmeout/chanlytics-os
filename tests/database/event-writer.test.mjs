@@ -19,19 +19,19 @@ const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 test("a kind files under its own category, at its own version, about its subject", async () => {
   const t = { events: [] };
   const db = fakeDb(t);
-  await emitEvent(db, T, "line.failed", "line", "l1", { step: "buy", error: "x", provider: "twilio", by: null });
+  await emitEvent(db, T, "billing.trial_ending", "subscription", "s1", { trial_end: "2026-12-01T00:00:00.000Z" });
   await emitEvent(db, T, "ingest.unroutable", null, null, { channel: "email", addresses: ["a@example.com"] });
   await emitEvent(db, T, "channel.account_update", "channel", "c1", { waba_id: "w1", event: "x" });
   assert.deepEqual(
     t.events.map((e) => [e.kind, e.category, e.version, e.subject_type, e.subject_id]),
     [
-      ["line.failed", "setup", 1, "line", "l1"],
+      ["billing.trial_ending", "billing", 1, "subscription", "s1"],
       ["ingest.unroutable", "ingest", 1, null, null],
       ["channel.account_update", "system", 1, "channel", "c1"],
     ],
     "the category and the version are the kind's, from the one table",
   );
-  assert.deepEqual(t.events[0].data, { step: "buy", error: "x", provider: "twilio", by: null }, "the data as given");
+  assert.deepEqual(t.events[0].data, { trial_end: "2026-12-01T00:00:00.000Z" }, "the data as given");
 });
 
 test("a writer that needs the row hears when it did not land; a best-effort one logs it and carries on", async () => {

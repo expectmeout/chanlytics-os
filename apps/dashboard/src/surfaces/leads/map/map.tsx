@@ -113,7 +113,7 @@ const LeadStreets = ({
     const h = handle.current;
     if (!h) return;
     h.setPins(pinsOf(rows, plot), picked);
-  }, [rows, ids, picked]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rows, ids, picked]); // eslint-disable-line react-hooks/exhaustive-deps -- the pins are set again as the rows, their ids or the pick change; `plot` is read with them
   // The area the search asked for: contracts anchored the square on its centre, so the ring's radius in metres is its
   // share of the span, and its centre is the plot's.
   const ringM = plot.ring && center ? Math.round(plot.ring.r * plot.spanM) : 0;
@@ -121,11 +121,11 @@ const LeadStreets = ({
     const h = handle.current;
     if (!h) return;
     h.setRing(ringM && center ? { lat: center.lat, lng: center.lng, radiusM: ringM } : null);
-  }, [ringM, center && center.lat, center && center.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ringM, center && center.lat, center && center.lng]); // eslint-disable-line react-hooks/exhaustive-deps -- the ring moves as its radius or its centre's numbers do, not for a new centre of the same place
   useEffect(() => {
     const h = handle.current;
     if (h && center) h.fit(center, plot.spanM);
-  }, [ids, center && center.lat, center && center.lng, plot.spanM]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ids, center && center.lat, center && center.lng, plot.spanM]); // eslint-disable-line react-hooks/exhaustive-deps -- fitted again as the pins or the area's numbers change, not for a new centre of the same place
   return (
     <div className="ld-map-streets" data-testid="lead-map-streets" data-own-drag>
       {/* MapLibre's own stylesheet (its canvas, its controls), linked where the streets are drawn and nowhere else. */}
@@ -255,6 +255,7 @@ const mapSide = (
           const l = byId.get(p.id);
           if (!l) return null;
           return (
+            // eslint-disable-next-line jsx-a11y-x/click-events-have-key-events, jsx-a11y-x/no-static-element-interactions -- a pointer's press anywhere on the row; a keyboard opens it by the row's own button
             <div
               key={p.id}
               className={`ld-map-row${a.picked === p.id ? " on" : ""}`}

@@ -281,7 +281,7 @@ export const sequenceReach: Reader<{ id: string }, SequenceReachDto> = {
     return {
       data: {
         candidates: reading ? reading.candidates : null,
-        cap_per_run: step.cap_per_run ?? null,
+        cap_per_run: step.cap_per_run,
         paused: pb.ready?.paused === true,
       },
       rows: [cited(step)],

@@ -25,7 +25,7 @@ export const settingsNow = () => surfaceValue("settings")?.settings ?? undefined
 export const factsNow = () => surfaceValue("settings")?.facts;
 /**
  * The workspace's policy rows, from the settings surface: undefined before the read, null where it failed, else the rows.
- * Every policy chip asks them here too (the store FrameApp.tsx installs, and frame-verbs.ts policiesRead). A window global,
+ * Every policy chip asks them here too, through the charter the boot installs (bridge/boot/installs.ts `policyStore`). A window global,
  * `__POLICIES`, until 12 Nov 2026.
  */
 export const policiesNow = (): PoliciesSurface | null | undefined => surfaceValue("settings")?.policies;

@@ -221,7 +221,7 @@ export async function saveChain(
       by: ctx.userId,
       fields: ["steps"],
     });
-    return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked ?? 0, start: null };
+    return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked, start: null };
   }
   // The press of an Ask card that showed every email whole is the member's OK of those words (decision 0120, as D3 of
   // the answers canvas is for a customer's sequence): each step's words are taken as seen before the first run is asked

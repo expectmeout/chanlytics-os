@@ -88,7 +88,7 @@ async function* usagePages(
     const size = Math.min(MAX_ROWS, cap - from);
     const { data, error } = await pageLlmUsage(db, { tenantId, since, until, from, to: from + size - 1 });
     if (error) throw new DbFailure(error);
-    const rows = (data ?? []) as UsageRow[];
+    const rows = data as UsageRow[];
     if (rows.length) yield rows;
     if (rows.length < size) return;
   }

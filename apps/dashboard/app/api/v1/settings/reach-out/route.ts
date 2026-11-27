@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { reachOutSettings } from "@/server/readers/settings";
+import { reachOutSettings } from "@/server/readers/settings/settings";
 
 /**
  * GET /api/v1/settings/reach-out — what Cold email shows beyond the config (decision 0113): the mailbox as

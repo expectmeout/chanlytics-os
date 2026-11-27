@@ -165,7 +165,7 @@ async function liveJobsNaming(
   if (ids.length === 0) return new Set();
   const { data, error } = await listLiveJobsNaming(db, kind, ids, dueSince);
   if (error) throw new DbFailure(error, "unfinished: cannot read the jobs");
-  const named = (data ?? []).map((j) => {
+  const named = data.map((j) => {
     const p = j.payload;
     return p !== null && typeof p === "object" && !Array.isArray(p) && typeof p.message_id === "string"
       ? p.message_id
@@ -198,7 +198,7 @@ async function answersSince(db: Db, rows: InboundRow[], since: string): Promise<
   const { data: answered, error } = await listRepliesSince(db, convIds, [...ANSWER_STATES], since);
   if (error) throw new DbFailure(error, "unfinished: cannot read replies");
   const repliesBy = new Map<string, string[]>();
-  for (const a of answered ?? []) {
+  for (const a of answered) {
     if (isAutomatedSend(a.meta)) continue;
     repliesBy.set(a.conversation_id, [...(repliesBy.get(a.conversation_id) ?? []), a.created_at]);
   }
@@ -248,7 +248,7 @@ async function raiseUnanswered({ p, now, out, tell, late }: Tick): Promise<void>
     BATCH,
   );
   if (inErr) throw new Error(`unfinished: cannot read inbound messages: ${inErr.message}`);
-  const found = (inbound ?? []) as InboundRow[];
+  const found = inbound as InboundRow[];
   const answering = await textsInHand(p.db, found, now);
   const rows = found.filter((r) => !answering.has(r.id));
   const first = rows[0];
@@ -318,7 +318,7 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
     BATCH,
   );
   if (qErr) throw new Error(`unfinished: cannot read queued replies: ${qErr.message}`);
-  const stuck = (queued ?? []) as QueuedRow[];
+  const stuck = queued as QueuedRow[];
   if (!stuck.length) return;
   const live = await liveJobsNaming(
     p.db,
@@ -337,7 +337,7 @@ async function failOrphans({ p, now, out, tell, late }: Tick): Promise<void> {
         note: ORPHAN_NOTE,
       });
       if (error) throw new DbFailure(error);
-      if (!changed?.length) continue; // another tick, or the send itself, got there first
+      if (!changed.length) continue; // another tick, or the send itself, got there first
       out.orphaned += 1;
       // A campaign's email (a reach-out's) is its run's to count: the clock plans it again (orphaned never left), and
       // no thread nobody wrote on is flagged, nor its owner told (Reach out D4, contracts isCampaignEmail).

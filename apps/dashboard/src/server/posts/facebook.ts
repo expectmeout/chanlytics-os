@@ -24,7 +24,7 @@ import {
 import { findMetaInstagramRow } from "@chanlytics/db/channels";
 import type { FileMemberRow } from "@chanlytics/db/files";
 import { readMetaSwitch } from "@/server/connections/meta";
-import { postDtoOf, type MemberPostRead } from "@/server/readers/content";
+import { postDtoOf, type MemberPostRead } from "@/server/readers/content/content";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 import { approvePlacements } from "./approve";

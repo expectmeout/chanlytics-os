@@ -20,8 +20,6 @@ import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "live" } });
 installStubReact({
-  appNavigate: () => {},
-  canDo: () => true,
   setInterval: () => 1,
   clearInterval() {},
 });

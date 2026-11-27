@@ -129,7 +129,9 @@ export const firstRowsMissPart = (reason: FirstRowsMiss): string => `${FIRST_ROW
 export const firstRowsEndPart = (how: FirstRowsEnd): string => `${FIRST_ROWS_PART}-end-${how}`;
 
 /** Whether the picture stands over the page. A document a test draws a page in, with no root to ask, holds none. */
-export const firstRowsStand = (doc: Document): boolean => !!doc.documentElement?.hasAttribute?.(FIRST_ROWS_ATTR);
+export const firstRowsStand = (doc: {
+  documentElement?: { hasAttribute?: (name: string) => boolean } | null;
+}): boolean => !!doc.documentElement?.hasAttribute?.(FIRST_ROWS_ATTR);
 
 /** The picture gone, and the document let go: by the frame's code, or by a boundary that must import as little as it can. */
 export function dropFirstRows(doc: Document): void {

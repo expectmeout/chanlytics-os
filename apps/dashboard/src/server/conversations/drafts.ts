@@ -79,7 +79,7 @@ function dtoOf(conversationDraft: ConversationDraftRow, signed: string | null = 
     made_at: conversationDraft.made_at,
     ...(signed && conversationDraft.kind === "reply" ? { signed } : {}),
     ...(state ? { state } : {}),
-    used: conversationDraft.used ?? [],
+    used: conversationDraft.used,
     why_failed: conversationDraft.why_failed,
   };
 }

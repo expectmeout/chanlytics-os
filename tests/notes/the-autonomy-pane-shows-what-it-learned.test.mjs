@@ -9,9 +9,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, textOf, press } from "../_stub-react.mjs";
+import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 installStubReact();
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { PolicyTable, PolPhoneRows } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/matrix.tsx");
 const { LearnedFromYou } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/learned.tsx");
 const { autonomyVerbs } = await import("../../apps/dashboard/src/surfaces/settings/autonomy/verbs.ts");

@@ -22,7 +22,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations/conversations.ts"));
 const { groupMessages } = await import(at("apps/dashboard/src/server/conversations/dto.ts"));
 
 const ZONE = "America/New_York";

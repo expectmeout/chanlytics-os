@@ -63,7 +63,7 @@ export async function readBusinessRecord(ctx: RouteContext, member: Member) {
 async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<string[]> {
   const { data, error } = await listLineNumbersOf(ctx.supabase, tenantId);
   if (error) throw new DbFailure(error, "reading this workspace's numbers");
-  return (data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
+  return data.map((r) => r.e164).filter((n): n is string => !!n);
 }
 
 export async function saveBusinessRecord(ctx: RouteContext, req: Request, member: Member) {

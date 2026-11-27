@@ -25,7 +25,7 @@ import {
   setupSteps,
 } from "@chanlytics/contracts";
 import { installStubReact, again, unmount, all, find, byTestId, textOf, classes, press } from "./_stub-react.mjs";
-import { bridgeHolds } from "./shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "./shell/_bridge-holds.mjs";
 
 installStubReact({});
 bridgeHolds({
@@ -42,13 +42,9 @@ bridgeHolds({
   },
 });
 const went = [];
-Object.assign(globalThis, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  canDo: () => true,
-  gate: () => ({}),
-  usePPToast: () => [null, () => {}],
-});
-(await import("../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+holdFrameParts();
 // The tab is TSX (surfaces/settings/business, decision 0015 step 11): every part on the window by its JSX name.
 await import("./receptionist/business-tab/_business-parts.mjs");
 const W = globalThis.window;

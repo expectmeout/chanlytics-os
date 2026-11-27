@@ -21,7 +21,7 @@ export const jobBack = (onBack: () => void): SheetBack => ({
 
 /**
  * One row of a phone sheet's list: its glyph, its words, what it holds (a file's kind), and a chevron when it opens a
- * step of its own. `gate` is window.gate's answer for a row the member's role refuses: focusable, described, inert.
+ * step of its own. `gate` is the role gate's answer (frame/gate.ts) for a row the member's role refuses: focusable, described, inert.
  */
 export function PhoneSheetRow({
   icon = null,

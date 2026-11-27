@@ -23,17 +23,21 @@ type Closed<K extends string, V> = K extends SchemaSetKey
 /**
  * An id column's text as its id's type: a workspace's, a person's (contracts identity.ts), wherever a row names one
  * (`tenant_id`, `contact_id`) and as the row's own id in tenants and contacts, so one is never handed for the other.
+ * A function's rows are no table's (`T` is never), so their own `id` is the text it was: asked of `never`, a check on
+ * the table would answer `never`, and every function's `id` read as a column nothing could hold.
  */
 type IdOf<T, C, V> = C extends "tenant_id" | "preview_tenant_id"
   ? Brand<V, TenantId>
   : C extends "contact_id" | "merged_into_contact_id"
     ? Brand<V, ContactId>
     : C extends "id"
-      ? T extends "tenants"
-        ? Brand<V, TenantId>
-        : T extends "contacts"
-          ? Brand<V, ContactId>
-          : V
+      ? [T] extends [never]
+        ? V
+        : T extends "tenants"
+          ? Brand<V, TenantId>
+          : T extends "contacts"
+            ? Brand<V, ContactId>
+            : V
       : V;
 type Brand<V, B> = V extends string ? B : V;
 type Narrowed<T extends string, R> = { [C in keyof R]: IdOf<T, C, Closed<`${T}.${C & string}`, R[C]>> };

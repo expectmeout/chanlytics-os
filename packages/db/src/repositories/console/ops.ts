@@ -28,7 +28,7 @@ export interface MigrationHead {
 export async function getMigrationHead(db: Db): Promise<MigrationHead> {
   const { data, error } = await db.rpc("migration_head");
   if (error) throw new DbFailure(error);
-  const row = data?.[0];
+  const row = data[0];
   return { head: row?.head ?? null, applied: row?.applied ?? 0 };
 }
 
@@ -59,7 +59,7 @@ export async function listPlatformDay(db: Db, day: string): Promise<PlatformDayP
     .select("tenant_id, brain_p95_ms, job_lag_ms, duplicate_sends, dead_letters, relay_lag_ms, intake_lag_ms")
     .eq("day", day);
   if (error) throw new DbFailure(error);
-  const rows = data ?? [];
+  const rows = data;
   // The workspaces' names and standing, for the page: a second read, by the ids the day holds, a hundred at a time.
   const ids = [...new Set(rows.map((r) => r.tenant_id))];
   const live = new Map<string, string>();
@@ -69,7 +69,7 @@ export async function listPlatformDay(db: Db, day: string): Promise<PlatformDayP
       .select("id, name, status, ours")
       .in("id", ids.slice(i, i + NAMES_PER_READ));
     if (t.error) throw new DbFailure(t.error);
-    for (const w of t.data ?? []) if (w.status === "active" && !w.ours) live.set(w.id, w.name);
+    for (const w of t.data) if (w.status === "active" && !w.ours) live.set(w.id, w.name);
   }
   return rows.flatMap((row) => {
     const name = live.get(row.tenant_id);

@@ -280,7 +280,7 @@ test("on a phone the list and search are one top under the frame's strip; Find l
   const glyph = byTestId(t, "leads-phone-find");
   assert.equal(glyph.props["aria-label"], "Search leads", "the glyph opens the search, not Ask");
   assert.equal(find(glyph, (n) => n.type === Icon).props.name, "search", "the search's glyph");
-  // The gate reads the role, as every gate does (frame-globals gate): an operator meets it at the door.
+  // The gate reads the role, as every gate does (frame/gate.ts gate): an operator meets it at the door.
   await fresh({ role: "operator" });
   const gatedDoor = byTestId(bar({ canFind: false }), "leads-bar-find");
   assert.deepEqual(

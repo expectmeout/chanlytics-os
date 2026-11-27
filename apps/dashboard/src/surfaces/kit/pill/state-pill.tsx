@@ -1,6 +1,6 @@
 /**
  * StatePill: the one pill for a state (moved whole from data-bits.jsx, decision 0015: the kit's one implementation, which
- * seed-globals publishes as window.StatePill for the pages that still read it).
+ * imported where it is drawn).
  *
  * The tone comes from contracts (tone.ts), the words from the label maps contracts keeps unless the page has better
  * ones, and a live dot rides the accent, which means "right now" and nothing else. Ten components drew this before,

@@ -88,8 +88,8 @@ const asFour = (value: unknown): readonly [number, number, number, number] | nul
 /** The business's mark, ready to draw, or none. A mark that can't be read costs the mark, never the post. */
 async function logoRead(tenantId: TenantId, path: string): Promise<string | null> {
   const read = await logosStore().download(path);
-  if (read.error || !read.data) {
-    log.warn("file_post_logo_failed", { tenant_id: tenantId, error: read.error?.message ?? "no bytes" });
+  if (read.error) {
+    log.warn("file_post_logo_failed", { tenant_id: tenantId, error: read.error.message });
     return null;
   }
   const mark = await asPng(Buffer.from(await read.data.arrayBuffer()));
@@ -101,8 +101,8 @@ async function logoRead(tenantId: TenantId, path: string): Promise<string | null
 export async function readPhoto(file: FileMemberRow): Promise<Buffer> {
   const path = filePathOf(file.tenant_id, file.id, file.mime);
   const read = await bucket().download(path, { transform: { width: PHOTO_READ_WIDTH, resize: "contain" } });
-  if (read.error || !read.data) {
-    log.error("file_post_read_failed", { tenant_id: file.tenant_id, error: read.error?.message ?? "no bytes" });
+  if (read.error) {
+    log.error("file_post_read_failed", { tenant_id: file.tenant_id, error: read.error.message });
     throw new AppError("unavailable", W.failedRead);
   }
   return Buffer.from(await read.data.arrayBuffer());

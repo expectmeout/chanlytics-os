@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { MAILBOX_SENDERS_WORDS, NEED_YOU_WORDS, addressOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles } from "../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "live", surfaceFailed: () => false } });
 installStubReact({});
@@ -63,8 +63,9 @@ const rowOf = (wire, over = {}) => ({
 
 /** The row's work drawn for a member on `rung`: Not now's menu, and the item under its times, where there is one. */
 function drawn(row, rung) {
-  globalThis.mayAtLeast = (r) =>
-    ["viewer", "operator", "owner"].indexOf(rung) >= ["viewer", "operator", "owner"].indexOf(r);
+  holdRoles({
+    atLeast: (r) => ["viewer", "operator", "owner"].indexOf(rung) >= ["viewer", "operator", "owner"].indexOf(r),
+  });
   fresh();
   const tree = again(() =>
     ReplyWork({
@@ -86,7 +87,7 @@ function drawn(row, rung) {
 
 test("an owner's email row says Not a person under Not now's times, and it opens their page with it asked", () => {
   const went = [];
-  globalThis.appNavigate = (to) => went.push(to);
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const { menu, item } = drawn(rowOf("Email"), "owner");
   assert.equal(menu.props.label, NEED_YOU_WORDS.notNowFor("Weekly Digest"));
   assert.ok(item, "REGRESSION: a program's mail in Need you could be let go only from its thread, three presses away");
@@ -100,7 +101,7 @@ test("an owner's email row says Not a person under Not now's times, and it opens
   item.onSelect();
   assert.deepEqual(went, [addressOf({ kind: "person", id: "p-1" })], "their page, where Delete person is asked");
   assert.equal(takeCarriedNotAPerson("p-1"), true, "with Not a person asked as it opens, once");
-  delete globalThis.appNavigate;
+  bridgeHolds({ doors: { navigate: undefined } });
 });
 
 test("nobody else is offered it: an operator, another wire, or a row whose person is not known", () => {
@@ -155,7 +156,7 @@ test("Mark done gives a hold back to the receptionist from its row, says so in i
 test("Mark done is a hold's: a closing window and a reply counting down have nothing to give back, and a viewer presses nothing", () => {
   assert.equal(drawn(rowOf("WhatsApp", { id: "q-w", kind: "window" }), "owner").done, undefined, "a window");
   assert.equal(drawn(rowOf("WhatsApp", { id: "q-r", kind: "reply" }), "owner").done?.label, NEED_YOU_WORDS.oldDone.yes);
-  globalThis.mayAtLeast = () => false;
+  holdRoles({ atLeast: () => false });
   fresh();
   const viewer = again(() =>
     ReplyWork({
@@ -182,7 +183,7 @@ test("a press refused, or put back by its Undo, lets its row go: it waits again,
     keep: (r) => told.push(`keep ${r.id}`),
     unkeep: (r) => told.push(`unkeep ${r.id}`),
   });
-  globalThis.mayAtLeast = () => true;
+  holdRoles({ atLeast: () => true });
   const answering = globalThis.fetch;
   try {
     // The door refuses: the row was kept as it was pressed, and is let go as the refusal lands.

@@ -83,7 +83,7 @@ async function waitingBeyond(ctx: RouteContext, tenantId: TenantId, shown: reado
     if (!ids.length) return [];
     const { data, error } = await listRunRowsByIds(ctx.supabase, tenantId, ids);
     if (error) throw new DbFailure(error);
-    return (data ?? []) as BroadcastRow[];
+    return data as BroadcastRow[];
   } catch (e) {
     log.error("broadcasts_waiting_read_failed", {
       tenant_id: tenantId,
@@ -110,7 +110,7 @@ export async function listBroadcasts(
 ): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await listRecentRunRows(ctx.supabase, tenantId, RECENT + 1);
   if (error) throw new DbFailure(error);
-  const all = (rows ?? []) as BroadcastRow[];
+  const all = rows as BroadcastRow[];
   const recent = all.slice(0, RECENT);
   const beyond = all.length > RECENT ? await waitingBeyond(ctx, tenantId, recent) : [];
   const counted = await withCounts(ctx, tenantId, [...recent, ...(beyond ?? [])]);
@@ -156,7 +156,7 @@ async function withHeld(ctx: RouteContext, tenantId: TenantId, rows: BroadcastDt
 export async function listRuns(ctx: RouteContext, tenantId: TenantId): Promise<BroadcastDto[]> {
   const { data: rows, error } = await listPlaybookRunRows(ctx.supabase, tenantId);
   if (error) throw new DbFailure(error);
-  return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
+  return withCounts(ctx, tenantId, rows as BroadcastRow[]);
 }
 
 /** A person's answer to the run, as the sheet draws it: which, about what, and when. */
@@ -196,7 +196,7 @@ async function consentEventsOf(
       since,
     );
     if (error) throw new DbFailure(error);
-    for (const e of data ?? []) {
+    for (const e of data) {
       if (e.subject_id) out.push({ id: e.id, contactId: e.subject_id, at: e.created_at, data: e.data });
     }
   }
@@ -264,6 +264,32 @@ async function recipientsOf(ctx: RouteContext, tenantId: TenantId, id: string): 
   ) as Promise<RecipientRow[]>;
 }
 
+/** What a run's threads say of its people: who replied, when and in what words, who answered, who waits on you. */
+interface RunThreads {
+  replied: Map<string, string>;
+  words: Map<string, string | null>;
+  answers: Awaited<ReturnType<typeof answeredAfter>>;
+  waiting: Set<string>;
+}
+
+/** One person's part of a run's threads: their reply, its words, who answered it, and whether it waits on you. */
+function threadOfRecipient(
+  row: Awaited<ReturnType<typeof recipientsOf>>[number],
+  { replied, words, answers, waiting }: RunThreads,
+): Pick<
+  BroadcastRecipientDto,
+  "replied" | "replied_at" | "reply_words" | "answered_by" | "answered_at" | "waiting_on_you"
+> {
+  return {
+    replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),
+    replied_at: row.messages?.conversation_id ? (replied.get(row.messages.conversation_id) ?? null) : null,
+    reply_words: row.messages?.conversation_id ? (words.get(row.messages.conversation_id) ?? null) : null,
+    answered_by: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.by ?? null) : null,
+    answered_at: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.at ?? null) : null,
+    waiting_on_you: !!(row.messages?.conversation_id && waiting.has(row.messages.conversation_id)),
+  };
+}
+
 /** One broadcast and every person on it, in the words of what happened to them -- and what came back from each. */
 export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: string): Promise<BroadcastDetailDto> {
   const { data: row, error } = await findRunRow(ctx.supabase, tenantId, id);
@@ -288,6 +314,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
   const answers = await answeredAfter(ctx, tenantId, replied);
   const waiting = replied.size > 0 ? await waitingThreads(ctx, tenantId, [...replied.keys()]) : new Set<string>();
 
+  const seen: RunThreads = { replied, words, answers, waiting };
   const people: BroadcastRecipientDto[] = rows.map((row) => ({
     contact_id: row.contact_id,
     name: recipientNameOf(row),
@@ -299,17 +326,12 @@ export async function getBroadcast(ctx: RouteContext, tenantId: TenantId, id: st
     sent_at: row.sent_at,
     message_status: row.messages?.status ?? null,
     conversation_id: row.messages?.conversation_id ?? null,
-    replied: !!(row.messages?.conversation_id && replied.has(row.messages.conversation_id)),
     delivered_at: statusAt(row.messages?.meta, "delivered"),
     read_at: statusAt(row.messages?.meta, "read"),
-    replied_at: row.messages?.conversation_id ? (replied.get(row.messages.conversation_id) ?? null) : null,
     consent_after: answered.get(row.contact_id)?.consent ?? null,
     consent_at: answered.get(row.contact_id)?.at ?? null,
     consent_purpose: answered.get(row.contact_id)?.purpose ?? null,
-    reply_words: row.messages?.conversation_id ? (words.get(row.messages.conversation_id) ?? null) : null,
-    answered_by: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.by ?? null) : null,
-    answered_at: row.messages?.conversation_id ? (answers.get(row.messages.conversation_id)?.at ?? null) : null,
-    waiting_on_you: !!(row.messages?.conversation_id && waiting.has(row.messages.conversation_id)),
+    ...threadOfRecipient(row, seen),
   }));
   return {
     broadcast: toDto(row as BroadcastRow, await sheetCountsOf(counting, id, own)),
@@ -352,7 +374,7 @@ export async function listPersonRuns(
   for (let i = 0; i < ids.length; i += IN_CHUNK) {
     const { data, error } = await listRunNames(ctx.supabase, tenantId, ids.slice(i, i + IN_CHUNK));
     if (error) throw new DbFailure(error);
-    for (const b of data ?? []) runs.set(b.id, b);
+    for (const b of data) runs.set(b.id, b);
   }
   const out: (PersonCampaignDto & { at: string })[] = [];
   for (const row of rows) {

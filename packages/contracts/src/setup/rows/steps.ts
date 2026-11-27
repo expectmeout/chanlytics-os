@@ -107,7 +107,8 @@ export function setupSteps(given: SetupInputs, nowMs = Date.now()): SetupVM {
   // The workspace's own choices first (decision 0091), so every viewer stands at the same step.
   const workspaceChoices = withWorkspaceChoices(given);
   // A fixture written before rests carries none: no rows rest.
-  const off: SetupPutOff = { later: workspaceChoices.later ?? [], rests: workspaceChoices.rests ?? {} };
+  const kept: Partial<Pick<SetupInputs, "later" | "rests">> = workspaceChoices;
+  const off: SetupPutOff = { later: kept.later ?? [], rests: kept.rests ?? {} };
   const ctx = rowContextOf(workspaceChoices, nowMs);
   const rows: SetupRowVM[] = [];
   for (const build of SETUP_ROWS) {

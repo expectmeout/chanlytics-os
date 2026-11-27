@@ -13,7 +13,7 @@ import * as contracts from "@chanlytics/contracts";
 import { toCampaignLensVM } from "@chanlytics/contracts/report-lens";
 import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { CAMPAIGNS, dtoWith } from "../../reports/campaigns/_campaign-world.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts, holdRoles } from "../../shell/_bridge-holds.mjs";
 
 // The fixtures are dated around 28 Sep 2026 and the lines say "Tue" within a week and a date after it, so the clock
 // the bridge reads (Date.now) is the fixtures' own: a wall clock a week on turned "Written Tue" into "Written Sep 22".
@@ -22,8 +22,7 @@ Date.now = () => NOW;
 bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
-const SRC = "../../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 // Reports' Reach-outs section is TSX (decision 0015): the Campaigns lens's part of it, on the same stub.
 const { reachOutsSection } =
   await import("../../../apps/dashboard/src/surfaces/reports/lenses/campaigns-reach-outs.tsx");
@@ -36,13 +35,9 @@ const went = [];
 const flashed = [];
 const role = { may: true };
 bridgeHolds({ parts: { clock: { zone: () => "America/Chicago" } } });
-Object.assign(W, {
-  CHANLY: { nav: (to) => went.push(to), R: {} },
-  usePPToast: () => [null, (m) => flashed.push(m)],
-  canDo: () => role.may,
-  gate: () => ({}),
-  refusalToast: (r) => ({ tone: "danger", msg: r && r.message }),
-});
+holdRoles({ can: () => role.may });
+bridgeHolds({ parts: { toast: () => [null, (m) => flashed.push(m)] } });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 /* ------------------------------------------------------------------------ Reports -- */
 
@@ -126,7 +121,11 @@ test("Reports draws the reach-outs' section: the strip, the emails, the business
   assert.match(textOf(byTestId(tree, "ro-funnel")), /Written to.*8/);
   assert.match(textOf(byTestId(tree, "ro-emails")), /Written.*12/);
   went.length = 0;
-  assert.match(byTestId(tree, "ro-source-open").props.href, /^#\//, "the chain's name is a link with its address");
+  assert.match(
+    byTestId(tree, "ro-source-open").props.href,
+    /^\/w\/studio\//,
+    "the chain's name is a link with its address",
+  );
   press(byTestId(tree, "ro-source-open"));
   assert.deepEqual(went, ["campaigns/sequences/r1"]);
 });
@@ -167,7 +166,8 @@ test("Never write to them again presses the stop door once, says what it did in 
     // A refusal is said in its own words.
     answer({ ok: false, message: "Nothing has been written to them yet." });
     await stopWritingTo("l1", "Zilker Kettlebell Club", (m) => flashed.push(m));
-    assert.match(String(flashed.at(-1).msg), /Nothing has been written to them yet\./);
+    // A refusal as its toast says it (frame/refusal.tsx refusalToast): what did not happen, then why.
+    assert.match(textOf(flashed.at(-1).msg), /Nothing has been written to them yet\./);
   } finally {
     W.removeEventListener("reach_out:leads", hear);
   }

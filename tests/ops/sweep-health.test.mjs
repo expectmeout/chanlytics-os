@@ -10,7 +10,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseSweepAlerts, describeSweepTrouble, ALERT_SUPPRESSION_MS } = await import(
@@ -131,15 +130,14 @@ test("a calls alert says what else waits while that sweep is failing, the ninety
   assert.match(body, /call audio is kept past the ninety days the privacy page states/);
 });
 
-test("the health check is never scheduled onto the grid it is judging", () => {
-  // '*/30' fires at :00 and :30, both deadman ticks under '*/10'. Every health
-  // run would then judge a request seconds old, exempt it under the two-minute
-  // grace, and report healthy forever. A one-character regression that reads
-  // as tidier and disables the entire lane.
-  const sql = readRaw("supabase/migrations/00026_sweep_health.sql");
-  assert.match(sql, /cron\.schedule\('sweep-health', '13,43 \* \* \* \*'/);
-  assert.doesNotMatch(sql, /cron\.schedule\('sweep-health', '\*\/(5|10|15|30)/);
-});
+// The health check is never scheduled onto the grid it is judging:
+// '*/30' fires at :00 and :30, both deadman ticks under '*/10'. Every health
+// run would then judge a request seconds old, exempt it under the two-minute
+// grace, and report healthy forever. A one-character regression that reads
+// as tidier and disables the entire lane.
+// The schedule the database holds, read on the stack through sweep_schedules (sweep-registry.db.test.mjs, "the
+// health check keeps its own grid"): never onto the */30 grid, where it goes blind to deadman failures. Pinned as
+// 00026's text until 26 Nov 2026.
 
 // The idle call-reconcile path clears a stale note before returning: trigger_call_reconcile, redefined since 00026
 // through 00530, is run on the stack (ops/retention.db.test.mjs, ops/sweep-registry.db.test.mjs). Pinned as 00026's

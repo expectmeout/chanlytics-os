@@ -26,7 +26,7 @@ import { load, type ReaderContext } from "../../shared/reader";
 import * as facts from "../../readers/facts";
 import { everyone as everyoneReader } from "../../readers/everyone";
 import { dealBoard } from "../../readers/people";
-import { calendar as calendarReader } from "../../readers/calendar";
+import { calendar as calendarReader } from "../../readers/calendar/calendar";
 import { leads as leadsReader } from "../../readers/leads";
 import { searches as searchesReader } from "../../readers/searches";
 import {

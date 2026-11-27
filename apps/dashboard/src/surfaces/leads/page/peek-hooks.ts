@@ -58,18 +58,18 @@ export const useLeadPeek = ({
       if (r.tile) leadPhotoWarm(r.tile.band);
       reach(r.id);
     }
-  }, [peekId, shownIds.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [peekId, shownIds.length]); // eslint-disable-line react-hooks/exhaustive-deps -- asked as the open lead or the number shown changes; the rows and `reach` are read as they stand then
   // The peek follows the row cursor while it is open, so J and K walk the leads behind it -- unless it is asking a
   // question or holding a draft, which keeps it on its own lead (leadPeekFollows, Task 12).
   useEffect(() => {
     if (!peekId || !cursor || cursor === peekId || !leadPeekFollows(peekMode, armed)) return;
     setPeekId(cursor);
-  }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps -- the peek follows the cursor as it moves, and only then; the mode and the arming are read as they stand
   // The owner left for their own mail app or their own phone; the peek asks how it went only once they are back
   // (leadArmOnReturn). Nothing is asked while the tab is hidden, and the listeners go with the arming.
   useEffect(
     () => leadArmOnReturn(armed, setArmed),
-    [armed && armed.kind, armed && armed.leadId, armed && armed.asked], // eslint-disable-line react-hooks/exhaustive-deps
+    [armed && armed.kind, armed && armed.leadId, armed && armed.asked], // eslint-disable-line react-hooks/exhaustive-deps -- armed again as what it is armed for changes, not for a new object of the same
   );
   // The dialog's focus rule (leadPeekFocus): focus moves into the peek when it opens and back to the row when it closes,
   // and the row is the cursor, so Tab carries on from where the owner was; never as Leads is shown again after a swipe
@@ -155,5 +155,5 @@ export const useLeadPeekAddress = (a: {
       at.pushed = false;
       window.history.back();
     } else nav(want, { replace: true });
-  }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps -- the address is written as the view or the peek changes; the rest is read as it stands, and `nav` is this draw's
 };

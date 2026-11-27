@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ROLE_PERMS, roleTable, stateOf } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const calls = { flash: [], invite: [], setRole: [], remove: [], resend: [], leave: 0, put: [], assign: [], viewAs: [] };
 bridgeHolds({
@@ -22,8 +22,7 @@ bridgeHolds({
   parts: { chrome: { state: stateOf } },
 });
 installStubReact({
-  gate: () => ({}),
-  // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
+  // As the bridge holds them (bridge/boot/installs.ts): the role table and the gate's sentence are contracts'.
   ROLE_PERMS,
 });
 globalThis.window.location.assign = (to) => calls.assign.push(to);
@@ -36,7 +35,7 @@ globalThis.window.fetch = async (url, init = {}) => {
   });
 };
 const S = "../../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { MoreMenu } = globalThis;
 const { TeamSection } = await import(`${S}/surfaces/settings/team/team.tsx`);
 const { teamVerbs } = await import(`${S}/bridge/inbox-verbs.ts`);
@@ -148,7 +147,7 @@ const item = (menu, label) => {
 };
 const reset = () => {
   for (const k of Object.keys(calls)) calls[k] = Array.isArray(calls[k]) ? [] : 0;
-  delete globalThis.window.ST_STORE;
+  bridgeHolds({ parts: { roles: undefined } });
 };
 
 test("the people come first, you at the top: the joined day and the alerts mark under each name, and the role a picker only where an owner may change it", () => {
@@ -353,7 +352,9 @@ test("several addresses go at once and each is said apart; one already waiting o
 test("an operator reads the roster and the gate's sentence with whom to ask; their own ⋯ holds their name and Leave", () => {
   reset();
   fresh();
-  globalThis.window.ST_STORE = { viewAsRole: null, can: (a) => !!ROLE_PERMS.operator[a], myRole: () => "operator" };
+  bridgeHolds({
+    parts: { roles: { viewAsRole: null, can: (a) => !!ROLE_PERMS.operator[a], myRole: () => "operator" } },
+  });
   bridgeHolds({ who: { me: { email: "alex@example.com", role: "operator" } } });
   workspace({ role: "operator", team: [OWNER, ALEX] });
   const tree = draw();
@@ -375,7 +376,7 @@ test("an operator reads the roster and the gate's sentence with whom to ask; the
     "an operator may not change who gets alerts",
   );
   bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", role: "owner" } } });
-  delete globalThis.window.ST_STORE;
+  bridgeHolds({ parts: { roles: undefined } });
 });
 
 test("the card's foot opens the table ROLE_PERMS draws; the card has no Activity and no Preview as", () => {

@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided } from "../../shell/_bridge-holds.mjs";
 
 const storage = () => {
   const m = new Map();
@@ -41,16 +41,8 @@ globalThis.window = {
   addEventListener() {},
   removeEventListener() {},
   dispatchEvent: (e) => {
-    heard.push({ type: e.type, reply: globalThis.window.POLICY?.modeOf("reply") ?? null });
+    heard.push({ type: e.type, reply: provided("policy")?.modeOf("reply") ?? null });
     return true;
-  },
-  // A real workspace's session (seed-globals.ts sets it so wherever nothing set it first).
-  // The mockup's seeded store (surfaces/frame), which the manifest installs before the bridge replaces it.
-  POLICY: {
-    MODES: ["Auto", "Veto", "Ask", "Never"],
-    ROWS: [{ id: "reply", def: "Veto" }],
-    modeOf: () => "Veto",
-    set() {},
   },
 };
 const json = (body) =>
@@ -73,10 +65,10 @@ const { policiesNow } = await importSrc("apps/dashboard/src/surfaces/settings/bu
 const { settingsOverride } = await importSrc("apps/dashboard/src/bridge/surfaces/settings.ts");
 const { surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 console.error = quiet;
-installPolicyStore(globalThis.window, policiesNow);
+installPolicyStore(policiesNow);
 
 test("REGRESSION: before the workspace's policies are read, a chip states no mode -- it said the mockup's seeded Veto", () => {
-  const S = globalThis.window.POLICY;
+  const S = provided("policy");
   assert.equal(S.modeOf("reply"), null, "REGRESSION: the seed's mode beside a real workspace's approval");
   assert.equal(S.row("reply").mode, null);
   assert.equal(S.real(), false);
@@ -92,7 +84,7 @@ test("REGRESSION: the settings read landing tells every chip, with the workspace
   const told = heard.filter((e) => e.type === "policy:changed");
   assert.equal(told.length, 1, "REGRESSION: the chips were never told the modes had landed");
   assert.equal(told[0].reply, "Auto", "told once the store answers from the workspace's rows");
-  assert.equal(globalThis.window.POLICY.real(), true);
+  assert.equal(provided("policy").real(), true);
 });
 
 test("a policies read that failed tells the chips too: they go on saying no mode, never the seed's", async () => {

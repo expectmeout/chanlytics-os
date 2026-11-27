@@ -24,7 +24,7 @@ const AGENTS = {
   phone: { glyph: "P", name: "AI on the phone" },
 } as const;
 export function agentFor(channel: ThreadChannel): { glyph: string; name: string } {
-  return AGENTS[channel] ?? AGENTS.whatsapp;
+  return AGENTS[channel];
 }
 
 /** The wires a person writes on and a thread is answered on: WhatsApp, a text, an email, an Instagram DM. */

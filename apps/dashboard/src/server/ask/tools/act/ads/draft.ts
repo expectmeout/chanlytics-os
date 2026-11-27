@@ -4,7 +4,7 @@ import { ROLE_PERMS, fileSaidOf, parseTenantConfigResult, pieceResultsSaid } fro
 import { findLiveAdAccount } from "@chanlytics/db/ads";
 import { readAdsOffered } from "../../../../connections/ads-ready";
 import { readPieceAdStands, type PieceAdStands } from "../../../../content/ad-pictures";
-import { filesNamedForAsk } from "../../../../readers/files";
+import { filesNamedForAsk } from "../../../../readers/files/files";
 import { pieceResults } from "../../../../readers/results";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";

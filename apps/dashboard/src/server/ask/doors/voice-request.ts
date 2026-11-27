@@ -32,7 +32,7 @@ export const MINT_TIMEOUT_MS = 15_000;
 export const DOOR = "/api/admin/voice/session";
 
 /** What the conversation opens with, as the body says it. */
-export interface Asked {
+interface Asked {
   threadId: string | null;
   scope: AskScope | null;
   language: AskLanguage;

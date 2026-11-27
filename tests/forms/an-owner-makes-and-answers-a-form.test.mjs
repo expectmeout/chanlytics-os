@@ -35,7 +35,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
 const { readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { formRequestsOpen } = await import(at("apps/dashboard/src/server/readers/forms.ts"));
+const { formRequestsOpen } = await import(at("apps/dashboard/src/server/readers/forms/forms.ts"));
 const { CHANNEL_WORDS, formDescriptionProblems } = await import("@chanlytics/contracts");
 const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 

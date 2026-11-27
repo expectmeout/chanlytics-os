@@ -47,6 +47,12 @@ export type BillingPatch = Partial<
 /** The row as the caller read it, written only while it still is: a reading's status and updated_at, or the customer it names. */
 export type BillingExpectation = { status: string; updated_at: string } | { stripe_customer_id: string };
 
+/** What the ledger is told of a change, written with it (00721): billing's kind, and what Stripe said. */
+export interface BillingTold {
+  kind: "updated" | "paused" | "resumed" | "paid" | "payment_failed";
+  data: Record<string, Json>;
+}
+
 export async function applyBilling(
   db: Db,
   params: {
@@ -54,15 +60,20 @@ export async function applyBilling(
     row: BillingPatch;
     expect: BillingExpectation | null;
     tenantStatus: "active" | "paused" | null;
+    /** The change's event, in its transaction; none where nothing is news (a customer's id kept). */
+    told?: BillingTold;
   },
 ): Promise<boolean> {
   const row: Record<string, Json> = {};
-  for (const [k, v] of Object.entries(params.row)) if (v !== undefined) row[k] = v;
+  // A field left out may still be there as undefined: JSON leaves it out, so the row does too.
+  const fields: [string, Json | undefined][] = Object.entries(params.row);
+  for (const [k, v] of fields) if (v !== undefined) row[k] = v;
   const { data, error } = await db.rpc("billing_apply", {
     p_tenant_id: params.tenantId,
     p_row: row,
     ...(params.expect ? { p_expect: { ...params.expect } } : {}),
     ...(params.tenantStatus ? { p_tenant_status: params.tenantStatus } : {}),
+    ...(params.told ? { p_told: { kind: params.told.kind, data: params.told.data } } : {}),
   });
   if (error) throw new DbFailure(error, "billing_apply");
   return data === true;

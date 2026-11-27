@@ -24,6 +24,7 @@ import { transform } from "lightningcss";
 import ts from "typescript";
 import { parse, repoFiles } from "../_ast.mjs";
 import { ROOT } from "../_source.mjs";
+import { PHONE, cascadeOf, element } from "../_css.mjs";
 
 /** Every stylesheet of the dashboard's. */
 const sheets = (dir) =>
@@ -218,29 +219,6 @@ const INSIDE_ONLY = new Set(
   ),
 );
 
-/** The tags a selector's last compound names inside its `:where()`s. */
-function tagsNamed(css, opens) {
-  const tags = new Set();
-  transform({
-    filename: "kit.css",
-    code: Buffer.from(css),
-    errorRecovery: true,
-    visitor: {
-      Selector(selector) {
-        const parts = compounds(selector);
-        if (!parts[0].some((c) => c.type === "class" && c.name === opens) || parts.length < 2 || !hasHas(parts[0]))
-          return;
-        for (const c of parts.at(-1)) {
-          if (c.type !== "pseudo-class" || c.kind !== "where") continue;
-          for (const alternative of c.selectors)
-            for (const inner of alternative) if (inner.type === "type") tags.add(inner.name);
-        }
-      },
-    },
-  });
-  return tags;
-}
-
 /** Every tag the dashboard's own markup draws. */
 function tagsDrawn() {
   const drawn = new Set();
@@ -262,20 +240,18 @@ function tagsDrawn() {
 test("a sheet's foot names its lines by every tag the app draws: a tag left out would lose its inset on a phone", () => {
   // The rule styled "whatever in the foot is not the pair"; named by tag it styles only the tags it lists, so the list
   // is every tag a page could put there. A tag the app starts to draw is added to the rule (kit.css, .rec-sheet-foot).
-  const kit = fs.readFileSync(path.join(ROOT, "apps/dashboard/src/surfaces/kit/kit.css"), "utf8");
-  const listed = tagsNamed(kit, "rec-sheet-foot");
-  assert.ok(listed.has("div") && listed.has("p") && listed.size > 20, "the rule's tags were read");
+  // Asked of the kit's sheet on a phone as a browser draws it (tests/_css.mjs cascadeOf): a line of each tag, in a foot
+  // that holds the pair, is given the line's inset; the pair itself is not.
+  const phone = cascadeOf(["apps/dashboard/src/surfaces/kit/kit.css"], PHONE);
+  const foot = { sel: "div.rec-sheet-foot", holds: [".rec-foot"] };
+  const inset = (tag) => phone.given(element(foot, tag))["padding-top"];
+  assert.ok(inset("div"), "a line of the foot is given its inset");
+  assert.equal(phone.given(element(foot, "div.rec-foot"))["padding-top"], undefined, "and the pair is not");
   const drawn = [...tagsDrawn()].filter((tag) => !INSIDE_ONLY.has(tag));
   assert.ok(drawn.includes("span") && drawn.length > 30, "the app's tags were read");
   assert.deepEqual(
-    drawn.filter((tag) => !listed.has(tag)).sort(),
+    drawn.filter((tag) => inset(tag) !== inset("div")).sort(),
     [],
     "add the tag to the foot's rule in kit.css (.rec-sheet-foot:where(:has(.rec-foot)) > :where(…))",
   );
-  // The check, where it must find something: a rule that leaves a tag out.
-  const short = tagsNamed(
-    ".rec-sheet-foot:where(:has(.rec-foot)) > :where(div, p):where(:not(.x)) { color: red }",
-    "rec-sheet-foot",
-  );
-  assert.deepEqual([...short].sort(), ["div", "p"]);
 });

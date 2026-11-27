@@ -224,12 +224,12 @@ function offerPlan(
   const { steps, add } = planSteps();
   const does = OFFER_PLAN_WORDS[world.says].does;
   const hour = OFFER_PLAN_WORDS[world.says].hour(SEND_HOUR);
-  const template_id = offerRead.message.made
+  const templateId = offerRead.message.made
     ? stepToken(add("message", offerRead.message.input, SAY.why.message, does.keeps))
     : offerRead.message.id;
   if (offerRead.note.input) add("note", offerRead.note.input, SAY.why.note, does.tells(offerRead.dates.untilSaid));
   for (const p of offerRead.pauses) add("change", p.input, SAY.why.pause, does.pauses(offerRead.dates.untilSaid));
-  const sends = { template_id, params: offerRead.message.params };
+  const sends = { template_id: templateId, params: offerRead.message.params };
   const title = SAY.offerTitle(offerRead.offer.words);
   if (offerRead.cap !== null)
     add(

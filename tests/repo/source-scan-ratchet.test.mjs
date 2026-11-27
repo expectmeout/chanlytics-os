@@ -33,8 +33,9 @@ test("the rule tests outside tests/repo/ are a handful of repo-wide lints, each 
   // The list is the part that rots. A file belongs in it only if it asserts a policy ACROSS the repo -- "every write
   // names a workspace", "every switch the edge reads is listed with an owner and a day" -- and lives beside the domain
   // it holds; never because pinning one module's text was convenient. Four since 25 Nov 2026, when the rest of the
-  // rules were found where they live, under tests/repo/. Growth is a line of _measures.mjs in review.
-  assert.ok(RULE_TESTS_ELSEWHERE.length <= 4, `${RULE_TESTS_ELSEWHERE.length} rule tests outside tests/repo/`);
+  // rules were found where they live, under tests/repo/, and three since 26 Nov, when edge/runtime-freshness ran what it
+  // read. Growth is a line of _measures.mjs in review.
+  assert.ok(RULE_TESTS_ELSEWHERE.length <= 3, `${RULE_TESTS_ELSEWHERE.length} rule tests outside tests/repo/`);
   for (const f of RULE_TESTS_ELSEWHERE) {
     assert.ok(
       fs.existsSync(path.join(ROOT, TESTS_DIR, f)),
@@ -49,8 +50,10 @@ test("every test file that reads source is counted once: a behaviour test's read
   const { counts } = sourceScan();
   const behaviour = SOURCE_SCAN.measure();
   const rules = RULE_SCAN.measure();
-  assert.ok(Object.keys(counts).length > 50, "the suite's files that read source are found");
-  assert.ok(Object.keys(rules).length > 5, "and the rule tests among them");
+  // The behaviour tests' reads fall toward none (lane 4's rounds took them from 556 to a few dozen); the rule tests read
+  // source by design, so they are what shows the scan still sees the suite.
+  assert.ok(Object.keys(rules).length > 5, "the rule tests, which read source by design, are found");
+  assert.ok(Object.keys(counts).length >= Object.keys(rules).length, "and every one is among the files that read");
   for (const [f, n] of Object.entries(counts)) {
     const held = isRuleTest(f) ? rules : behaviour;
     const other = isRuleTest(f) ? behaviour : rules;

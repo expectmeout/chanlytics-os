@@ -2,18 +2,18 @@
  * The sidebar (moved from legacy/components/sidebar.jsx, the one-system plan's step 7b): the workspace's menu at the top,
  * the nav, then the rail's toggle and the account's menu at the foot. Every word about a person comes
  * from contracts' identity rules through the bridge (sidebar-who.tsx), and everything the menus can do goes through the
- * shell (sidebar-menus.tsx). The frame's JSX draws it by its old name (`Sidebar`, published by frame-globals.ts) until the
- * frame itself is TypeScript (step 7e). Drawn as the JSX drew it, raw buttons and all, until the frame's kit step (eslint
+ * shell (sidebar-menus.tsx). The frame imports it. Drawn as the JSX drew it, raw buttons and all, until the frame's kit step (eslint
  * KIT_PENDING); its inline styles and its nav's clickable rows moved with it, none new.
  */
 import { useEffect, useState } from "react";
 import { routeDoor } from "../../frame-doors";
-import type { FrameFlash } from "../../frame-verbs";
-import { frameGlyph } from "../frame-window";
+import { useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { NAV_INTEL, NAV_PRIMARY, NAV_WORK, placeLit, type NavItem } from "../places";
 import { NAV_ROUTE } from "../shell-routes";
 import { SbMenu, UserMenu, WorkspaceMenu, useSbMenu } from "./sidebar-menus";
 import { SbWorkspaceFace, sbTeamSub, sbWho, sbWorkspace, sbWorkspaceName, type SbWho } from "./sidebar-who";
+import { Icon } from "../../kit/icon/icon";
+import { touchSwipe } from "../../kit/motion/swipe";
 
 type Badges = Record<string, string | number | null | undefined>;
 
@@ -49,7 +49,6 @@ interface RowProps {
 
 /** A place of the nav: no place has rows under it (the folding rows and their chevron went, never drawn, 25 Nov 2026). */
 function SidebarRow({ item, active, onNavigate, badges = {}, collapsed = false }: RowProps) {
-  const Glyph = frameGlyph();
   const badge = badges[item.id] !== undefined ? badges[item.id] : item.badge;
   const tip = collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined;
   // A place is a door (frame-doors.ts routeDoor): Tab reaches it, Enter opens it, and a middle press or a new tab opens its
@@ -69,7 +68,7 @@ function SidebarRow({ item, active, onNavigate, badges = {}, collapsed = false }
       aria-current={active === item.id ? "page" : undefined}
       data-nav={item.id}
     >
-      {item.icon && <Glyph name={item.icon} />}
+      {item.icon && <Icon name={item.icon} />}
       {!collapsed && <span>{item.label}</span>}
       {!collapsed && item.hint && <span className="nav-hint">{item.hint}</span>}
       {badge ? <RowBadge item={item} badge={badge} collapsed={collapsed} /> : null}
@@ -132,7 +131,6 @@ interface FootProps {
 
 /** The foot: the rail's toggle and the account. The shell's status is the line under the top bar (frame/topbar.tsx). */
 function SidebarFoot({ who, collapsed, onToggleCollapse, onNavigate, flash, ...appearance }: FootProps) {
-  const Glyph = frameGlyph();
   const meMenu = useSbMenu();
   return (
     <div className="sidebar-foot">
@@ -145,7 +143,7 @@ function SidebarFoot({ who, collapsed, onToggleCollapse, onNavigate, flash, ...a
         aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
         data-testid="sb-collapse"
       >
-        <Glyph name="sidebar" size={14} />
+        <Icon name="sidebar" size={14} />
         <span className="sb-collapse-label">Collapse</span>
       </button>
       <button
@@ -164,7 +162,7 @@ function SidebarFoot({ who, collapsed, onToggleCollapse, onNavigate, flash, ...a
           <div className="name">{who.name}</div>
           <div className="email">{sbAccountSub(appearance.look, who)}</div>
         </div>
-        <Glyph name="chevrons" size={14} className="sb-chev" />
+        <Icon name="chevrons" size={14} className="sb-chev" />
       </button>
       <SbMenu menu={meMenu} side="up" label="Account" testid="sb-account-menu">
         <UserMenu who={who} onNavigate={onNavigate} close={meMenu.close} flash={flash} {...appearance} />
@@ -175,7 +173,6 @@ function SidebarFoot({ who, collapsed, onToggleCollapse, onNavigate, flash, ...a
 
 /** The workspace's row, which opens its menu. */
 function SidebarWorkspace({ collapsed, onNavigate }: { collapsed: boolean; onNavigate: (to: string) => void }) {
-  const Glyph = frameGlyph();
   const wsMenu = useSbMenu();
   return (
     <>
@@ -195,7 +192,7 @@ function SidebarWorkspace({ collapsed, onNavigate }: { collapsed: boolean; onNav
           <div className="sb-team-name">{sbWorkspaceName()}</div>
           {sbTeamSub()}
         </div>
-        <Glyph name="chevrons" size={14} className="sb-team-chev" />
+        <Icon name="chevrons" size={14} className="sb-team-chev" />
       </button>
       <SbMenu menu={wsMenu} side="down" label="Workspaces" testid="sb-workspace-menu">
         <WorkspaceMenu onNavigate={onNavigate} close={wsMenu.close} />
@@ -232,8 +229,8 @@ function useSidebarRedraws() {
 // left, the page behind lightens with it, and let go past a third or with a flick it goes, short of that it settles.
 // Nothing opens it by a swipe: from the screen's edge that is the phone's own back, so opening stays the tab bar's More.
 const drawerSwipeOf = (onClose: (() => void) | null) =>
-  onClose && window.touchSwipe
-    ? window.touchSwipe({
+  onClose
+    ? touchSwipe({
         onAway: onClose,
         when: () => !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches),
       })
@@ -252,7 +249,7 @@ export function Sidebar({
   onLook,
 }: SidebarProps) {
   useSidebarRedraws();
-  const [toastNode, flash] = (window.usePPToast as NonNullable<Window["usePPToast"]>)();
+  const [toastNode, flash] = useFrameToast();
   const who = sbWho();
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`} {...drawerSwipeOf(onClose)} data-testid="sidebar">

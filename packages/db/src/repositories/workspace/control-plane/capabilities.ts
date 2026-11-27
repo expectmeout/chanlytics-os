@@ -1,7 +1,7 @@
 /** Control plane: capabilities. */
 
 import type { PostgrestError } from "@supabase/supabase-js";
-import { hasPublicPages, openToCustomersOf, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
+import { hasPublicPages, heldTenantId, openToCustomersOf, recordOrEmpty, DbFailure } from "@chanlytics/contracts";
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 import type { Db } from "./config";
@@ -22,8 +22,8 @@ export async function listWorkspacesWithANumberChosen(db: Db): Promise<string[]>
       .order("tenant_id")
       .range(from, from + TRIAL_PAGE - 1);
     if (error) throw new DbFailure(error, "cannot read the setup choices");
-    out.push(...(data ?? []).map((r) => r.tenant_id));
-    if ((data ?? []).length < TRIAL_PAGE) return out;
+    out.push(...data.map((r) => r.tenant_id));
+    if (data.length < TRIAL_PAGE) return out;
   }
 }
 
@@ -64,8 +64,8 @@ export async function listTrialingWorkspaceIds(db: Db): Promise<string[]> {
       .order("tenant_id")
       .range(from, from + TRIAL_PAGE - 1);
     if (error) throw new DbFailure(error, "cannot read the trials");
-    out.push(...(data ?? []).map((r) => r.tenant_id));
-    if ((data ?? []).length < TRIAL_PAGE) return out;
+    out.push(...data.map((r) => r.tenant_id));
+    if (data.length < TRIAL_PAGE) return out;
   }
 }
 
@@ -127,9 +127,10 @@ export async function getMembershipCount(db: Db, userId: string): Promise<number
   return count ?? 0;
 }
 
-/** Call `create_workspace` once: its one row, or its error as the database raised it. */
+/** Call `create_workspace` once: its one row, whose id is the new workspace's own, or its error as the database raised it. */
 export async function createWorkspaceFn(db: Db, args: CreateWorkspaceArgs) {
-  return db.rpc("create_workspace", args).single();
+  const { data, error } = await db.rpc("create_workspace", args).single();
+  return { data: data && { ...data, id: heldTenantId(data.id) }, error };
 }
 
 /**

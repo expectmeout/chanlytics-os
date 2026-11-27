@@ -95,6 +95,7 @@ export const LeadSlot = ({
           {body}
         </button>
       ) : (
+        // eslint-disable-next-line jsx-a11y-x/no-noninteractive-tabindex -- a focus stop, so a keyboard reaches the tip it describes
         <span className="ld-slot-btn" tabIndex={0} aria-label={label} aria-describedby={tipId}>
           {body}
         </span>

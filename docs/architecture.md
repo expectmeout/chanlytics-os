@@ -441,13 +441,13 @@ frame after them, and Ask's Line last: TSX in `apps/dashboard/src/surfaces/ask/`
 (`apps/dashboard/src/surfaces/kit/face/ask-face.tsx`), which the frame imports. The stylesheets are in
 `apps/dashboard/src/styles` (`apps/dashboard/src/styles/tokens.css` among them), and the frame's and the pages'
 conventions in `.claude/skills/chanlytics-interface/shell.md`; the standalone mockup that drew the shell without Next
-went with demo mode (15 and 16 Nov 2026). A surface still asks the shell for a few names that the bridge, the frame
-(`apps/dashboard/src/surfaces/frame/frame-globals.ts`) and the overrides publish on `window`, through
-`apps/dashboard/src/surfaces/frame-verbs.ts` and its own `shell.ts`
-(`apps/dashboard/src/surfaces/ask/shell.ts`, Ask's). Every
-`window.__*` name still read or written is counted by the `window-globals` measure, and every
-site that publishes on `window` (`window.x =`, `Object.assign(window, …)`) by
-the `window-publishers` measure. Each of the three may only fall (`docs/debt.md`). Two things
+went with demo mode (15 and 16 Nov 2026). A surface reads nothing off `window` (decision 0151): what the bridge
+installs it takes from one typed store (`apps/dashboard/src/bridge/provided.ts`), its doors and verbs by import, through
+`apps/dashboard/src/surfaces/frame-verbs.ts` and its own `shell.ts` (`apps/dashboard/src/surfaces/ask/shell.ts`,
+Ask's). Every `window` name still read or written is counted by the `window-globals` measure, and every site that
+publishes on `window` (`window.x =`, `Object.assign(window, …)`) by the `window-publishers` measure; both stand at
+none, but for the three contracts with what is outside the page (the native shell's `__appBridge`, the e2e specs'
+`__ask`, Meta's SDK), named in `tests/_measures.mjs`. Each may only fall (`docs/debt.md`). Two things
 keep the surfaces honest:
 
 - `apps/dashboard/src/bridge/surface-registry.ts` classifies every route as `real` or `demo`. A demo surface
@@ -800,9 +800,9 @@ writers, the board, a member's word on a visit and the readers beside the
 calendar feed, and the receptionist's request (0061); a row linked to a person
 by `contact_id` alone is found by that person, as the board finds it. Assignment for a team (0003): decided, not built.
 The shell leaving surface by surface (0015): every surface has left it, the frame
-(#1748) and Ask's Line (step 12) the last; the rest of the tree (step 13: the
-manifest, `apps/dashboard/src/bridge/seed-globals.ts`, the mockup) is to
-come. A deal as a
+(#1748) and Ask's Line (step 12) the last; the rest of the tree (step 13) has gone
+too: the mockup with demo mode (15 and 16 Nov 2026), and the manifest and the globals
+it seeded with decision 0151. A deal as a
 record (0004) is built, steps 1 to 4; step 5's items are notes of their own.
 Smaller and known: the shell's own route names and the API's old nouns
 (`docs/glossary.md` lists them), and `contracts` carrying view models that

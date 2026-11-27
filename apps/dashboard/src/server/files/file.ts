@@ -225,8 +225,8 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
   // once: asked for between, it is getting ready, as its tile says, and nothing has failed (seen on production 11 Nov 2026).
   if (file.kind === "video" && !download && link.error?.statusCode === STORAGE_MISSING)
     throw new AppError("not_found", W.video.gettingReady, 404);
-  if (link.error || !link.data) {
-    log.error("file_view_sign_failed", { tenant_id: file.tenant_id, error: link.error?.message ?? "no address" });
+  if (link.error) {
+    log.error("file_view_sign_failed", { tenant_id: file.tenant_id, error: link.error.message });
     throw new AppError("unavailable", W.failedRead);
   }
   // A picture's bytes never change, but a download's name does: that redirect is asked for afresh each time. A video's poster

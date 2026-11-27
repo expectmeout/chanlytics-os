@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { coldEmailNote } from "@/server/readers/cold-email-note";
+import { coldEmailNote } from "@/server/readers/reach-out/cold-email-note";
 
 /**
  * GET /api/v1/settings/reach-out/note: Cold email's one line on Today, or none (the page's read is GET settings/reach-out,

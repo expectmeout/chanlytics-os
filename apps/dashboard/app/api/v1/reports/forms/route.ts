@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { formsReport } from "@/server/readers/forms";
+import { formsReport } from "@/server/readers/forms/forms";
 
 /**
  * GET /api/v1/reports/forms: what a business's forms brought over the last thirty days (00680), as Reports › Campaigns

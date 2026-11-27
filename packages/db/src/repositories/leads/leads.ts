@@ -269,7 +269,7 @@ export async function findIdeasBasis(db: Db, tenantId: TenantId): Promise<string
 export async function listLeadCardsLive(db: Db): Promise<string[]> {
   const { data, error } = await db.rpc("lead_cards_live");
   if (error) throw new DbFailure(error, "cannot read which cards find leads");
-  return data ?? ["local_businesses"];
+  return data;
 }
 
 /** Each actor's event prices, by event name, as the price watch last read them from the provider. */
@@ -382,7 +382,8 @@ export async function findLeadCountries(db: Db, ids: readonly string[]): Promise
       .select("id, country")
       .in("id", unique.slice(i, i + 100));
     if (error) throw new DbFailure(error, "cannot read the leads' countries");
-    for (const r of data ?? []) out.set(r.id, r.country?.trim().toUpperCase() || null);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the suite's leads come without their country
+    for (const r of data) out.set(r.id, r.country?.trim().toUpperCase() || null);
   }
   return out;
 }
@@ -517,7 +518,7 @@ export async function listLeadsUnmarked(db: Db, from: Date, until: Date, limit: 
     .order("found_at", { ascending: true })
     .limit(limit);
   if (error) throw new DbFailure(error, "leads");
-  const rows = (data ?? []).flatMap((r) => (r.website_host ? [{ ...r, website_host: r.website_host }] : []));
+  const rows = data.flatMap((r) => (r.website_host ? [{ ...r, website_host: r.website_host }] : []));
   const ids = rows.filter((r) => r.email_state !== "checking" && r.email_state !== "ok").map((r) => r.id);
   const counting = new Set<string>();
   if (ids.length) {
@@ -554,5 +555,5 @@ export async function keepLeadMark(
     .is("erased_at", null)
     .select("id");
   if (error) throw new DbFailure(error, "leads");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }

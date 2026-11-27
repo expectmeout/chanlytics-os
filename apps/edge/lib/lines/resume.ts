@@ -258,6 +258,8 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
         voice_state: "failed",
         last_error: reason,
         state_since: new Date(deps.now()).toISOString(),
+        // The sweep handed it to a person: its move to failed says so on the ledger (00721 lines_tell_their_moves).
+        facts: { ...factsOf(taken), started_by: "sweep" },
       });
       if (failErr) {
         out.failed += 1;

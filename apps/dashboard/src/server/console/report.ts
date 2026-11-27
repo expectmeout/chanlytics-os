@@ -72,7 +72,7 @@ export async function fileProblemReport(
     error_message: kind === "wrong" ? input.error?.message || null : null,
     words: input.words,
   });
-  if (error || !data) throw new AppError("unavailable", "Couldn't keep your report just now. Try again in a moment.");
+  if (error) throw new AppError("unavailable", "Couldn't keep your report just now. Try again in a moment.");
   const code = reportCode(data.number);
 
   if (!deployment.providersLive || !edgeConfigured()) {

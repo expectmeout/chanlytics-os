@@ -17,7 +17,7 @@ import { Field, fieldProblem } from "../kit/field/field";
 import { MoreMenu } from "../kit/more-menu/more-menu";
 import type { FileChange } from "./verbs";
 
-export /** What a press in the sheet is handed: whether it may, whether one is out, and how a word is said. */
+/** What a press in the sheet is handed: whether it may, whether one is out, and how a word is said. */
 interface SheetPress {
   file: FileDto;
   may: boolean;

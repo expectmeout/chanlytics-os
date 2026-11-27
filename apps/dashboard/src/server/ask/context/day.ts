@@ -15,9 +15,9 @@ import {
 import { load } from "../../shared/reader";
 import { today as todayReader } from "../../readers/today";
 import { inbox as inboxReader } from "../../readers/inbox";
-import { conversations as conversationsReader } from "../../readers/conversations";
+import { conversations as conversationsReader } from "../../readers/conversations/conversations";
 import { escalations as escalationsReader } from "../../readers/escalations";
-import { calls as callsReader } from "../../readers/calls";
+import { calls as callsReader } from "../../readers/voice/calls";
 import {
   ROW_ID,
   aggregateOf,
@@ -124,7 +124,7 @@ export const readToday: Provider = async (rc, ctx) => {
       vm.standing.detail,
       ...vm.standing.chips.map((c) => c.text),
       parts.length ? parts.join(", ") : vm.queue.empty.sub,
-      ...(vm.figures ?? []).map((f) => `${f.label}: ${f.value}`),
+      ...vm.figures.map((f) => `${f.label}: ${f.value}`),
       vm.calls?.line,
     ]),
   };

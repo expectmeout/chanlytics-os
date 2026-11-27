@@ -19,20 +19,13 @@ import assert from "node:assert/strict";
 import { until } from "../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, find, byTestId, textOf, press, settle, unmount } from "../_stub-react.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { surfaceState: () => "live", chrome: { state: contracts.stateOf } } });
 installStubReact({});
 const W = globalThis;
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  appNavigate: () => {},
-  // The role store's gate (the frame's window.gate, canDo), over an owner and contracts' table.
-  ST_STORE: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" },
-  useHotkey: () => {},
-});
-const SRC = "../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+bridgeHolds({ parts: { roles: { can: (a) => !!contracts.ROLE_PERMS.owner[a], myRole: () => "owner" } } });
+holdFrameParts();
 const S = "../../apps/dashboard/src/surfaces";
 const { setSurfaceValue } = await import(`${S}/surface-values.ts`);
 const { sequenceVerbs } = await import(`${S}/campaigns/sequences/verbs.ts`);

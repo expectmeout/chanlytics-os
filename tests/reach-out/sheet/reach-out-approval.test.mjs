@@ -24,7 +24,7 @@ import {
   settle,
 } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 bridgeHolds({ parts: { chrome: { state: contracts.stateOf } } });
 installStubReact({});
@@ -35,17 +35,14 @@ const TODAY = dayKey(Date.now());
 const YESTERDAY = dayKey(Date.now() - 86_400_000);
 const role = { now: "owner" };
 bridgeHolds({ parts: { clock: { zone: () => ZONE, dayKey } } });
-Object.assign(W, {
-  CHANLY: { nav: () => {}, R: {} },
-  ST_STORE: { can: (a) => !!(contracts.ROLE_PERMS[role.now] || {})[a], myRole: () => role.now },
-});
+bridgeHolds({ parts: { roles: { can: (a) => !!(contracts.ROLE_PERMS[role.now] || {})[a], myRole: () => role.now } } });
 // The shell's own parts (Confirm, StatePill, PolicyChip, the role gate) are still JSX the frame loads; the run's page is TSX.
-const SRC = "../../../apps/dashboard/src";
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces/campaigns";
 const { BroadcastDetail } = await import(`${S}/broadcasts/run.tsx`);
 const { broadcasts } = await import(`${S}/broadcasts/verbs.ts`);
 const bridge = await import(`${S}/reach-out/surface.ts`);
+const { gateTitle } = await import("../../../apps/dashboard/src/surfaces/frame/gate.ts");
 // The verbs as the surfaces have them: a test stubs some on their objects, and `world()` puts every one back first.
 const REAL_BROADCASTS = { ...broadcasts };
 const REAL_REACH_OUTS = { ...bridge.reachOuts };
@@ -508,11 +505,11 @@ test("Check the held again, for the holds the check could not answer: one press 
 });
 
 test("D1-lead-person-door: a held and a ready business on the sheet each open their lead over the page (?lead=), so the owner stays on the run; one with no lead named is its name alone", async () => {
-  // A page move goes through the bridge's door, which without a frame is the shell's own (CHANLY.nav): none is made. The
+  // A page move goes through the bridge's door, caught here (frame-doors.ts navigate): none is made. The
   // lead opens over the page as its own entry in the history (leads/sheet/lead-over.ts), here a record of it.
   const went = [];
-  const nav = W.CHANLY.nav;
-  W.CHANLY.nav = (to) => went.push(to);
+  const nav = heldDoors().navigate;
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const history = W.history;
   const pushed = [];
   W.history = { state: null, pushState: (_s, _t, url) => pushed.push(url), replaceState() {}, back() {} };
@@ -552,7 +549,7 @@ test("D1-lead-person-door: a held and a ready business on the sheet each open th
     assert.equal(leadOf(pushed[1]), LEAD_READY);
     assert.deepEqual(went, [], "the page stays where it is");
   } finally {
-    W.CHANLY.nav = nav;
+    bridgeHolds({ doors: { navigate: nav } });
     W.history = history;
   }
 });
@@ -564,7 +561,7 @@ test("a viewer sees the held and why, told once why they may not decide; no door
     const tree = (await open())();
     assert.equal(all(tree, (n) => /^ro-door-/.test(n.props?.["data-testid"] || "")).length, 0);
     assert.equal(byTestId(tree, "ro-run-recheck"), null);
-    assert.equal(textOf(byTestId(tree, "ro-run-role")), W.gateTitle("approve", "decide a held email or approve a run"));
+    assert.equal(textOf(byTestId(tree, "ro-run-role")), gateTitle("approve", "decide a held email or approve a run"));
   } finally {
     role.now = "owner";
   }

@@ -32,7 +32,7 @@ export async function listBusinessReads(db: Db, tenantId: TenantId): Promise<Bus
     .from("business_reads")
     .select("source, facts, read_from, read_at, error");
   if (error) throw new DbFailure(error);
-  return data ?? [];
+  return data;
 }
 
 /**

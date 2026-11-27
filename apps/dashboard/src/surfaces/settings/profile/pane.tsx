@@ -1,6 +1,6 @@
 /**
  * Settings › Profile -- you, before anything about the business (moved from legacy/pages/settings.jsx, decision 0015
- * step 11). Settings' page still draws it by its old name, which seed-globals publishes (settings/globals.ts).
+ * step 11). Settings' page imports it.
  *
  * Everything here already existed and was somewhere else: your name inside the Team card, your email only inside the
  * account menu's popover, your role as a chip beside other people's. A person who wants to check which account they are

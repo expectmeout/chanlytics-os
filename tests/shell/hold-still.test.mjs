@@ -1,5 +1,5 @@
 /**
- * A switch holds still, and a door is a link (frame-globals holdStill, routeDoor).
+ * A switch holds still, and a door is a link (kit/motion/hold-still.ts holdStill, routeDoor).
  *
  * On a phone the person's History tabs jumped out from under the thumb: Consent put them 328px further down the screen
  * and Visits 439px, because a shorter list made the page shorter and the browser pulled the scroll back to fit (measured
@@ -11,11 +11,11 @@
  * A thread's person was reachable only through its Actions menu; the name, the face and the line under them are a link
  * now, built by routeDoor: the address in the href, the app's own way there on a plain press.
  *
- * Run against frame-globals itself, on a scroller that clamps as a browser's does.
+ * Run against the real helpers, on a scroller that clamps as a browser's does.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "./_bridge-holds.mjs";
 
 const styleOf = (over = {}) => ({ overflowY: "visible", overflowX: "visible", paddingBottom: "0px", ...over });
 globalThis.window = {
@@ -26,9 +26,8 @@ globalThis.window = {
   dispatchEvent() {
     return true;
   },
-  // What React's flushSync does, for what these tests ask of it: the change is drawn before it returns.
-  ReactDOM: { flushSync: (fn) => fn() },
 };
+drawsInPlace();
 globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
@@ -43,8 +42,9 @@ globalThis.React = {
   useRef: (v) => ({ current: v }),
   Fragment: "Fragment",
 };
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-const { holdStill, routeDoor } = globalThis.window;
+holdFrameParts();
+const { holdStill } = await import("../../apps/dashboard/src/surfaces/kit/motion/hold-still.ts");
+const { routeDoor } = await import("../../apps/dashboard/src/surfaces/frame-doors.ts");
 
 /**
  * A page that scrolls in a 696px window (`box`, from 56 to 752 on the screen), `content` tall with `pad` of padding of
@@ -207,7 +207,7 @@ test("a door is a link: its address in the href, the app's own way there on a pl
   assert.equal(went, null, "a new tab or window is the browser's");
   assert.equal(prevented, false);
   const navs = [];
-  globalThis.window.CHANLY = { nav: (to) => navs.push(to) };
+  bridgeHolds({ doors: { navigate: (to) => navs.push(to) } });
   routeDoor("calendar/2026-09-28").onClick({ button: 0, preventDefault() {} });
   assert.deepEqual(navs, ["calendar/2026-09-28"], "without a way of the page's own, the app's navigation");
 });
@@ -219,9 +219,12 @@ test("a door warms the page it opens as a pointer reaches it or it takes focus, 
   const ID = "ed2244f3-9f88-49c5-863e-fbdea4b60e12";
   const warmed = [];
   const pages = [];
-  const was = globalThis.window.CHANLY;
+  const was = provided("shell");
   bridgeHolds({ parts: { warmPerson: (id) => warmed.push(id) } });
-  globalThis.window.CHANLY = { ...was, address: { href: (to) => `/w/acme/${to}`, warm: (to) => pages.push(to) } };
+  // The bridge's address (bridge/shell.ts, provided as `shell`), as the frame's reads it: a link's path, a page warmed.
+  bridgeHolds({
+    parts: { shell: { route: () => "today", href: (to) => `/w/acme/${to}`, warm: (to) => pages.push(to) } },
+  });
   try {
     const door = routeDoor(`clients/${ID}`);
     door.onPointerEnter();
@@ -234,10 +237,10 @@ test("a door warms the page it opens as a pointer reaches it or it takes focus, 
     assert.deepEqual(pages, others, "every door warms its page");
     assert.deepEqual(warmed, [ID, ID], "and reads no one where it opens no person");
     // The standalone mockup has no address to warm with: a door still opens, and warms nothing.
-    globalThis.window.CHANLY = was;
+    bridgeHolds({ parts: { shell: was } });
     routeDoor("calendar").onFocus();
   } finally {
     bridgeHolds({ parts: { warmPerson: undefined } });
-    globalThis.window.CHANLY = was;
+    bridgeHolds({ parts: { shell: was } });
   }
 });

@@ -49,7 +49,7 @@ export async function listLeadWords(db: Db, tenantId: TenantId, leadId: string):
     .eq("tenant_id", tenantId)
     .eq("lead_id", leadId);
   if (error) throw new DbFailure(error, "cannot read the lead's own words");
-  return (data ?? []).map((r) => ({ step_id: r.step_id, subject: r.subject, body: r.body, at: r.written_at }));
+  return data.map((r) => ({ step_id: r.step_id, subject: r.subject, body: r.body, at: r.written_at }));
 }
 
 /** One lead's own words at one step, or none: the step's stand. */

@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, byTestId } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const TID = "t-studio";
 bridgeHolds({
@@ -33,16 +33,9 @@ installStubReact({
 const SRC = "../../../apps/dashboard/src";
 const { installClock } = await import(`${SRC}/bridge/zone.ts`);
 installClock();
-(await import(`${SRC}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: contracts.stateOf } } });
-Object.assign(globalThis, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
-  appNavigate() {},
-  canDo: () => true,
-  gate: () => ({}),
-  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
-});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { MessageInPlaceWhenRead } = await import(`${SRC}/surfaces/campaigns/home/campaigns-code.tsx`);
 
 test("a message's pane says it is reading while its chunk is out, then is the pane", async () => {

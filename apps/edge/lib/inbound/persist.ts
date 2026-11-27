@@ -80,6 +80,7 @@ export async function readPgThread(
   tenantId: TenantId | null,
   ing: IngestResult | null,
 ): Promise<ThreadState> {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the suite reads with no database (thread-memory.test.mjs): an unknown thread, never an invented one
   if (!db || !tenantId || !ing) return unreadableThread();
   try {
     // The memory, and beside it the thread's live hold (00132: a call in progress, a person who took it over), read
@@ -136,7 +137,7 @@ export async function queueReply(
   /** The wire the draft will go out on. */
   channel: InboundChannel = "whatsapp",
 ): Promise<string | null> {
-  if (!db || !tenantId || !ing) {
+  if (!tenantId || !ing) {
     log.warn("wa_queue_unavailable", {
       has_db: !!db,
       has_tenant: !!tenantId,
@@ -186,15 +187,14 @@ export const replyTurn = { claim: claimReplyTurn, holds: holdsReplyTurn };
 /**
  * Whether a reply names this message already (packages/db wasRepliedTo): what a text's answer, taken up again after its
  * runner died mid-turn, asks before it speaks (core inbound/ingest.ts). Every word a message's path says names it in
- * `meta.reply_to`: the sink's sends and queueReply's draft. No database or no workspace is nothing known to have
- * answered it.
+ * `meta.reply_to`: the sink's sends and queueReply's draft. No workspace is nothing known to have answered it.
  */
 export async function readPgAnswered(
   db: SupabaseClient<Database>,
   tenantId: TenantId | null,
   ing: IngestResult,
 ): Promise<boolean> {
-  if (!db || !tenantId) return false;
+  if (!tenantId) return false;
   return wasRepliedTo(db, tenantId, ing.conversation_id, ing.message_id);
 }
 
@@ -209,6 +209,7 @@ export async function runPgIngest(
   inboundMessage: InboundMessage & { channel: InboundChannel },
   line: string | null = null,
 ): Promise<IngestResult> {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the suite ingests with no database (ingest-failed.test.mjs): refused, so the provider sends it again
   if (!db) throw new IngestFailed("no database to keep the message in");
   try {
     // A request carried in from a form's thank-you (00680): its code is read before the person is resolved, so the
@@ -459,6 +460,7 @@ export function pgSink(
   /** This message's wires, bound by the handler where the credentials are. */
   wire: Wire = {},
 ) {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- the suite opens the sink with no database (sink-says-what-a-message-became.test.mjs): every method no-ops
   const on = !!(db && tenantId && ing);
   return {
     on,

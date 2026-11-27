@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DAY_KEY } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { contentPlan } from "@/server/readers/plan";
+import { contentPlan } from "@/server/readers/content/plan";
 import { askPlanFor } from "@/server/content/plan";
 
 /**

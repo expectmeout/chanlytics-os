@@ -12,7 +12,7 @@
  *   corepack pnpm gen:api-reference -- --check      # exit 1 when it is stale
  *
  * The route modules load under tsx with the react-server condition, as the suite loads them.
- * routes/api-reference.test.mjs regenerates the page in memory on every run and refuses a stale copy, as
+ * routes/wire/api-reference.test.mjs regenerates the page in memory on every run and refuses a stale copy, as
  * route-types.test.mjs does for the typed client.
  */
 import fs from "node:fs";

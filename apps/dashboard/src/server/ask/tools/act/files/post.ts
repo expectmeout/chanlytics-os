@@ -21,7 +21,7 @@ import { listClaims } from "@chanlytics/db/files";
 import { postMomentProblem, postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
-import { filesNamedForAsk } from "../../../../readers/files";
+import { filesNamedForAsk } from "../../../../readers/files/files";
 import { findPictureCopy } from "../../../../files/copies";
 import { POST_SIZES } from "../../../../posts/layout";
 import { getPhoto, postDrawn } from "../../../../posts/make";

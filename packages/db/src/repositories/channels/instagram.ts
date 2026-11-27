@@ -11,6 +11,7 @@ import type { Database, Json } from "../../types";
 
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { DbFailure } from "@chanlytics/contracts";
+import { embedded } from "../../shared/answers";
 type Db = SupabaseClient<Database>;
 
 /** An account's row as the sweep and the wires take it. */
@@ -31,7 +32,7 @@ export async function listActiveInstagramAccounts(db: Db): Promise<InstagramAcco
     .eq("status", "active")
     .order("created_at", { ascending: true });
   if (error) throw new DbFailure(error, "listActiveInstagramAccounts");
-  return data ?? [];
+  return data;
 }
 
 /** What a channel keeps in the Vault (get_channel_credentials), as stored; null when it keeps nothing. */
@@ -233,7 +234,7 @@ export async function noteInstagramToken(
     .eq("kind", "instagram")
     .select("id");
   if (error) throw new DbFailure(error, "noteInstagramToken");
-  return !!data?.length;
+  return !!data.length;
 }
 
 /**
@@ -287,8 +288,9 @@ export async function findPersonOfInstagramId(db: Db, tenantId: TenantId, igsid:
     .limit(1)
     .maybeSingle();
   if (error) throw new DbFailure(error, "findPersonOfInstagramId");
-  if (!data || data.contacts?.erased_at) return null;
-  return data.contacts?.merged_into_contact_id ?? data.contact_id;
+  const person = data ? embedded(data.contacts) : null;
+  if (!data || person?.erased_at) return null;
+  return person?.merged_into_contact_id ?? data.contact_id;
 }
 
 /**
@@ -299,7 +301,7 @@ export async function findPersonOfInstagramId(db: Db, tenantId: TenantId, igsid:
 export async function listLastDmsSentTo(db: Db, tenantId: TenantId, contactId: ContactId): Promise<string[]> {
   const threads = await db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId);
   if (threads.error) throw new DbFailure(threads.error, "listLastDmsSentTo");
-  const ids = (threads.data ?? []).map((c) => c.id);
+  const ids = threads.data.map((c) => c.id);
   if (!ids.length) return [];
   const { data, error } = await db
     .from("messages")
@@ -311,7 +313,7 @@ export async function listLastDmsSentTo(db: Db, tenantId: TenantId, contactId: C
     .order("created_at", { ascending: false })
     .limit(DMS_TO_COMPARE);
   if (error) throw new DbFailure(error, "listLastDmsSentTo");
-  return (data ?? []).flatMap((m) => (m.body ? [m.body] : []));
+  return data.flatMap((m) => (m.body ? [m.body] : []));
 }
 /** How many of the DMs sent last an echo's words are compared with: a split reply's parts follow it within seconds. */
 const DMS_TO_COMPARE = 5;

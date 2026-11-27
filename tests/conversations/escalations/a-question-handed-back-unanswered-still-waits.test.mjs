@@ -15,7 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { stateOf, theyWroteLast, toInboxThreadVM } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 import { all, again, find, fresh, installStubReact, textOf } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -168,7 +168,7 @@ test("only the hold on her last words makes a thread Unanswered: not after an an
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations.ts"));
+const { conversations } = await import(at("apps/dashboard/src/server/readers/conversations/conversations.ts"));
 
 const convo = (id, contactId) => ({
   id,
@@ -262,13 +262,12 @@ test("the Inbox's read carries the newest closed hold of each thread whose custo
 
 bridgeHolds({ parts: { chrome: { state: stateOf }, surfaceState: () => "live" } });
 installStubReact({
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
   clearInterval() {},
 });
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { InboxThread } = await import("../../../apps/dashboard/src/surfaces/inbox/thread/thread.tsx");
 
 const byTestId = (id) => (n) => n.props?.["data-testid"] === id;

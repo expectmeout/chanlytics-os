@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { installStubReact, fresh, again, byTestId, find, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { holdRoles } from "../../shell/_bridge-holds.mjs";
 
 installStubReact();
 const W = globalThis;
@@ -21,7 +22,7 @@ const ROWS = [row("p1", "Alerts"), row("p2", "Billing"), row("p3", "Pitches")];
 
 /** The bar for a member of this rung, with what it hands its page kept. */
 function bar(rung, over = {}) {
-  W.mayAtLeast = (asked) => (rung === "owner" ? true : asked !== "owner");
+  holdRoles({ atLeast: (asked) => (rung === "owner" ? true : asked !== "owner") });
   const seen = { toasts: [], kept: null, cleared: 0 };
   const draw = () =>
     PeopleBulkBar({

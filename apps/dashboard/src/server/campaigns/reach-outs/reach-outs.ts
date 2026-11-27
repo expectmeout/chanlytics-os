@@ -26,6 +26,7 @@ import {
   type ReachOutRunDto,
   type ReachOutStepDto,
   recordOrEmpty,
+  type ReachOutHold,
 } from "@chanlytics/contracts";
 import {
   listDraftsWaiting,
@@ -319,9 +320,7 @@ export async function findReachOutRun(
     later: approvalCounts.later,
     first_at: approvalCounts.checked[0]?.send_at ?? null,
     checking: approvalCounts.planned.length - approvalCounts.checked.length,
-    held: rows
-      .filter((s) => s.state === "held" && isReachOutHold(s.reason))
-      .map((s) => ({ ...heldOf(s), ...(ownOf(s) ? { own: true } : {}) })),
+    held: heldSendsOf(rows, ownOf),
     // A planned send always has its time (00183 reach_out_sends_planned_is_timed); one read without it is not listed
     // with a time it does not have.
     planned: approvalCounts.planned.flatMap((send) =>
@@ -396,12 +395,12 @@ function draftOf(v: unknown): { to: string; subject: string; text: string; follo
 }
 
 /** A held send as the approval sheet lists it. */
-const heldOf = (send: SendRow): ReachOutRunDto["held"][number] => ({
+const heldOf = (send: SendRow, reason: ReachOutHold): ReachOutRunDto["held"][number] => ({
   send_id: send.id,
   lead_id: send.lead_id,
   business_name: send.lead?.business_name ?? "",
   email: send.lead?.email ?? null,
-  reason: send.reason as ReachOutRunDto["held"][number]["reason"],
+  reason,
   detail: send.hold_detail,
   opening: send.opening,
   angle: send.angle,
@@ -434,3 +433,11 @@ export async function previewReachOut(
     ? { ok: true, preview: result.preview }
     : { ok: false, reason: edgeReasonOf(answer) };
 }
+
+/** The held sends, each with its hold, and whether it is one the workspace sent itself. */
+const heldSendsOf = (rows: readonly SendRow[], ownOf: (send: SendRow) => boolean): ReachOutRunDto["held"] =>
+  rows.flatMap((s) =>
+    s.state === "held" && isReachOutHold(s.reason)
+      ? [{ ...heldOf(s, s.reason), ...(ownOf(s) ? { own: true } : {}) }]
+      : [],
+  );

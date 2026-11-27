@@ -125,7 +125,7 @@ const CHECK_GATE_WAIT_MS = HOUR_MS;
 /** The most of what a site said a send keeps (00505 sequence_sends_website_says_shape). */
 const WEBSITE_SAYS_KEPT_MAX = 800;
 /** A check_unavailable hold with no rule broken goes back to be checked this long after it was held (R4). */
-export const CHECK_RELEASE_AFTER_MS = HOUR_MS;
+const CHECK_RELEASE_AFTER_MS = HOUR_MS;
 
 /**
  * What a written opening stores, within the columns' bounds (00197), or null when it does not fit them. checkOpening
@@ -194,7 +194,7 @@ function noneCounted(): CheckCounts {
  * soon, and past the last backoff it is asked hourly, so one that never answers does not spend the day on itself.
  */
 function failedCheck(reachOutSend: ReachOutSendRow, now: Date, at: string, dueSoon: boolean) {
-  const tries = Math.min((reachOutSend.check_tries ?? 0) + 1, 100);
+  const tries = Math.min(reachOutSend.check_tries + 1, 100);
   if (!dueSoon) {
     const wait = tries > CHECK_BACKOFF_MINUTES.length ? CHECK_GATE_WAIT_MS : backoffMs(tries);
     const after = new Date(now.getTime() + wait).toISOString();
@@ -299,6 +299,201 @@ async function isRunAwaitingOwner(db: Db, send: ReachOutSendRow): Promise<boolea
   return run.data?.state === "pending_approval";
 }
 
+/** What a tick holds while it checks: its clock, its counts, and the writes that count. */
+interface CheckTick {
+  db: Db;
+  now: Date;
+  at: string;
+  log: Logger;
+  pressed: boolean;
+  ask: AskModel;
+  budget: CheckBudget;
+  onStep?: (sendId: string, step: RewriteStep) => void;
+  out: CheckCounts;
+  error: (event: LogEvent, fields: Record<string, unknown>, e: unknown) => void;
+  write: (u: UncheckedSend, patch: Partial<ReachOutSendRow>) => Promise<boolean>;
+  /** Handed back an hour on, its reason said once a workspace. */
+  gate: (u: UncheckedSend, reason: string) => Promise<void>;
+  /** A send's write, counted under `counts` once it lands on the version the tick read. */
+  tally: (
+    leased: UncheckedSend,
+    patch: Partial<ReachOutSendRow>,
+    counts: Exclude<keyof CheckCounts, "tokens">,
+  ) => Promise<void>;
+}
+
+/** A tick before it has done anything: nothing counted, its writes onto the version each send was read at. */
+function tickOf(params: Parameters<typeof checkSends>[0]): CheckTick {
+  const { db, now, log } = params;
+  const out = noneCounted();
+  const error = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {
+    out.errors += 1;
+    log.error(event, { ...fields, error: e instanceof Error ? e.message : String(e) });
+  };
+  const write = (u: UncheckedSend, patch: Partial<ReachOutSendRow>) =>
+    recordCheck(db, { tenantId: u.send.tenant_id, id: u.send.id, gen: u.check_gen, patch });
+  const later = { check_after: new Date(now.getTime() + CHECK_GATE_WAIT_MS).toISOString() };
+  const gatedSaid = new Set<string>();
+  const gate = async (u: UncheckedSend, reason: string) => {
+    if (await write(u, later)) out.gated += 1;
+    if (!gatedSaid.has(`${u.send.tenant_id}:${reason}`)) {
+      gatedSaid.add(`${u.send.tenant_id}:${reason}`);
+      log.info("reach_out_check_gated", { tenant_id: u.send.tenant_id, reason: reason });
+    }
+  };
+  const tally: CheckTick["tally"] = async (leased, patch, counts) => {
+    if (await write(leased, patch)) out[counts] += 1;
+  };
+  return {
+    db,
+    now,
+    at: now.toISOString(),
+    log,
+    pressed: params.sendIds !== undefined,
+    ask: params.ask ?? askReachOutModel,
+    budget: params.budget ?? checkBudget(params.started),
+    onStep: params.onStep,
+    out,
+    error,
+    write,
+    gate,
+    tally,
+  };
+}
+
+/** What a tick reads once for all its sends: each lead's country and own words, and each template, workspace and run. */
+interface TickReads {
+  countries: Map<string, string | null>;
+  ownWords: Map<string, { subject: string | null; body: string }>;
+  words: Map<string, Promise<{ subject: string | null; body: string } | null>>;
+  workspaces: Map<string, Promise<CheckWorkspace>>;
+  runs: Map<string, Promise<boolean>>;
+}
+
+/**
+ * A check that failed, written as failedCheck says: asked again after its backoff, or, an hour of tries on, held for its
+ * owner and said.
+ */
+async function failSend(tick: CheckTick, uncheckedSend: UncheckedSend, reason: string): Promise<void> {
+  const { send } = uncheckedSend;
+  const failure = failedCheck(send, tick.now, tick.at, uncheckedSend.due_soon);
+  if (!(await tick.write(uncheckedSend, failure.patch))) return;
+  if (!failure.gaveUp) return void (tick.out.failed += 1);
+  tick.out.gave_up += 1;
+  tick.log.warn("reach_out_check_held", {
+    tenant_id: send.tenant_id,
+    send_id: send.id,
+    broadcast_id: send.batch_id,
+    tries: failure.tries,
+    why: reason,
+  });
+}
+
+/**
+ * What a check said, kept on the send: its line, its hold, what the site said, and the words it was checked against. A
+ * sendable opening the send cannot store is no pass: tried again, as a model's answer out of shape is.
+ */
+async function keepCheck(
+  tick: CheckTick,
+  uncheckedSend: UncheckedSend,
+  result: Extract<Awaited<ReturnType<typeof checkOne>>, { kind: "checked" }>,
+  checkedWith: {
+    item: { subject: string | null; body: string };
+    own: boolean;
+    needsOpening: boolean;
+    ws: CheckWorkspace;
+    mark: string | null;
+  },
+): Promise<void> {
+  const { send } = uncheckedSend;
+  const keep = stored(result.opening);
+  if (!keep && !result.hold) {
+    await failSend(tick, uncheckedSend, "unstorable");
+    return;
+  }
+  // Words of the lead's own that hold no line write none: the one the send has stands, for the step's words coming back.
+  const line =
+    checkedWith.own && !checkedWith.needsOpening ? {} : (keep ?? { opening: null, angle: null, facts_used: [] });
+  const patch: Partial<ReachOutSendRow> = {
+    checked_at: tick.at,
+    ...line,
+    hold_detail: result.detail ? result.detail.slice(0, 120) : null,
+    // What the site said, kept for the next time this email's opening is written (00505).
+    ...(result.site && result.site !== send.website_says
+      ? { website_says: result.site.slice(0, WEBSITE_SAYS_KEPT_MAX) }
+      : {}),
+    checked_words: checkedWordsOf(
+      checkedWith.item,
+      uncheckedSend.signed_by,
+      checkedWith.ws.bookingLink !== null,
+      checkedWith.mark,
+    ),
+    check_after: null,
+    ...(result.hold ? { state: "held", reason: result.hold } : {}),
+  };
+  if (await tick.write(uncheckedSend, patch)) {
+    tick.out.checked += 1;
+    if (result.hold) tick.out.held += 1;
+    if (result.rewritten) tick.out.rewritten += 1;
+  }
+}
+
+/**
+ * One send's check: never written to where the law asks consent first, its line made, its day's attempt taken, the model
+ * asked, and what it said kept. One send's failure is its own: its lease lapses in two minutes, and a tick after that
+ * checks it.
+ */
+async function checkSend(tick: CheckTick, reads: TickReads, uncheckedSend: UncheckedSend): Promise<void> {
+  const { db, now, at, pressed, out } = tick;
+  const send = uncheckedSend.send;
+  try {
+    if (tick.budget.late()) return tick.tally(uncheckedSend, {}, "late");
+    const country = reads.countries.get(send.lead_id) ?? null;
+    const refused = { state: "skipped", reason: "outreach_country", checked_at: at, check_after: null } as const;
+    if (reachOutCountryOf(country) === "refused") return tick.tally(uncheckedSend, refused, "skipped");
+    const own = send.step_id ? (reads.ownWords.get(leadStepKey(send.step_id, send.lead_id)) ?? null) : null;
+    const item =
+      own ??
+      (await once(reads.words, uncheckedSend.template_id, () =>
+        findEmailWords(db, send.tenant_id, uncheckedSend.template_id),
+      ));
+    // No words to check: marked checked, so the sender holds it as it always has (no_template).
+    if (!item) return tick.tally(uncheckedSend, { checked_at: at, checked_words: null, check_after: null }, "checked");
+    const ws = await once(reads.workspaces, send.tenant_id, () => checkWorkspaceOf(db, send.tenant_id));
+    const ownerReads = () => once(reads.runs, send.batch_id, () => isRunAwaitingOwner(db, send));
+    const about = { ws, country, now, pressed, ownerReads };
+    const lineInput = await lineInputFor(db, uncheckedSend, item, about, tick.onStep);
+    // Its line not yet written, until their preview may be: no model is asked meanwhile.
+    if ("wait" in lineInput) return tick.tally(uncheckedSend, { check_after: lineInput.wait }, "waited");
+    const { input, mark } = lineInput;
+    // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
+    // failure spends it): words that name no opening cost nothing and take none.
+    const cap = dayShareOf(uncheckedSend, pressed);
+    if (input.needsOpening && !(await takeCheckAttempt(db, { tenantId: send.tenant_id, cap, at: now }))) {
+      await tick.gate(uncheckedSend, "day_spent");
+      return;
+    }
+    const result = await checkOne(input, tick.ask, tick.budget, { tenantId: send.tenant_id, subjectId: send.id });
+    out.calls += result.calls;
+    out.tokens = { input: out.tokens.input + result.tokens.input, output: out.tokens.output + result.tokens.output };
+    if (result.kind === "late") return tick.tally(uncheckedSend, {}, "late");
+    if (result.kind === "failed") {
+      out.calls_failed += 1;
+      await failSend(tick, uncheckedSend, result.why);
+      return;
+    }
+    await keepCheck(tick, uncheckedSend, result, {
+      item,
+      own: own !== null,
+      needsOpening: input.needsOpening,
+      ws,
+      mark,
+    });
+  } catch (e) {
+    tick.error("reach_out_check_error", { send_id: send.id, tenant_id: send.tenant_id }, e);
+  }
+}
+
 /**
  * One tick of the check: the holds to check again, then the sends leased to this tick, each workspace's gates asked
  * before any call, then each send's check, a few at once, until the budget. `ask` is the model (tests give their own).
@@ -318,19 +513,9 @@ export async function checkSends(params: {
   budget?: CheckBudget;
   notice?: HeldNoticeSend;
 }): Promise<CheckCounts> {
-  const { db, now, log } = params;
-  const ask = params.ask ?? askReachOutModel;
-  const budget = params.budget ?? checkBudget(params.started);
-  const at = now.toISOString();
-  const out = noneCounted();
-  const error = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {
-    out.errors += 1;
-    log.error(event, { ...fields, error: e instanceof Error ? e.message : String(e) });
-  };
-  const write = (u: UncheckedSend, patch: Partial<ReachOutSendRow>) =>
-    recordCheck(db, { tenantId: u.send.tenant_id, id: u.send.id, gen: u.check_gen, patch });
-
-  const pressed = params.sendIds !== undefined;
+  const { db, now } = params;
+  const tick = tickOf(params);
+  const { out, error, pressed } = tick;
 
   /* the holds the model could not answer, an hour on: checked again (R4) */
   if (!pressed) {
@@ -353,27 +538,10 @@ export async function checkSends(params: {
   });
   out.read = rows.length;
 
-  /* each workspace's gates, before any call (R2, R12); the day's ceiling is taken one attempt at a time, below */
+  /* each workspace's gates, before any call (R2, R12); the day's ceiling is taken one attempt at a time (checkSend) */
   const byTenant = new Map<TenantId, UncheckedSend[]>();
   for (const u of rows) byTenant.set(u.send.tenant_id, [...(byTenant.get(u.send.tenant_id) ?? []), u]);
   const go: UncheckedSend[] = [];
-  const later = { check_after: new Date(now.getTime() + CHECK_GATE_WAIT_MS).toISOString() };
-  const gatedSaid = new Set<string>();
-  const gate = async (u: UncheckedSend, reason: string) => {
-    if (await write(u, later)) out.gated += 1;
-    if (!gatedSaid.has(`${u.send.tenant_id}:${reason}`)) {
-      gatedSaid.add(`${u.send.tenant_id}:${reason}`);
-      log.info("reach_out_check_gated", { tenant_id: u.send.tenant_id, reason: reason });
-    }
-  };
-  // A send's write, counted under `counts` once it lands on the version the tick read.
-  const tally = async (
-    leased: UncheckedSend,
-    patch: Partial<ReachOutSendRow>,
-    counts: Exclude<keyof CheckCounts, "tokens">,
-  ) => {
-    if (await write(leased, patch)) out[counts] += 1;
-  };
   for (const [tenantId, sends] of byTenant) {
     let reason: string | null = null;
     try {
@@ -386,7 +554,7 @@ export async function checkSends(params: {
       error("reach_out_check_gate_failed", { tenant_id: tenantId }, e);
       continue;
     }
-    if (reason) for (const u of sends) await gate(u, reason);
+    if (reason) for (const u of sends) await tick.gate(u, reason);
     else go.push(...sends);
   }
 
@@ -411,85 +579,8 @@ export async function checkSends(params: {
   });
 
   /* each send's check, a few at once */
-  const words = new Map<string, Promise<{ subject: string | null; body: string } | null>>();
-  const workspaces = new Map<string, Promise<CheckWorkspace>>();
-  const runs = new Map<string, Promise<boolean>>();
-  const one = async (uncheckedSend: UncheckedSend) => {
-    const send = uncheckedSend.send;
-    try {
-      if (budget.late()) return tally(uncheckedSend, {}, "late");
-      const country = countries.get(send.lead_id) ?? null;
-      const refused = { state: "skipped", reason: "outreach_country", checked_at: at, check_after: null } as const;
-      if (reachOutCountryOf(country) === "refused") return tally(uncheckedSend, refused, "skipped");
-      const own = send.step_id ? (ownWords.get(leadStepKey(send.step_id, send.lead_id)) ?? null) : null;
-      const item =
-        own ??
-        (await once(words, uncheckedSend.template_id, () =>
-          findEmailWords(db, send.tenant_id, uncheckedSend.template_id),
-        ));
-      // No words to check: marked checked, so the sender holds it as it always has (no_template).
-      if (!item) return tally(uncheckedSend, { checked_at: at, checked_words: null, check_after: null }, "checked");
-      const ws = await once(workspaces, send.tenant_id, () => checkWorkspaceOf(db, send.tenant_id));
-      const ownerReads = () => once(runs, send.batch_id, () => isRunAwaitingOwner(db, send));
-      const about = { ws, country, now, pressed, ownerReads };
-      const lineInput = await lineInputFor(db, uncheckedSend, item, about, params.onStep);
-      // Its line not yet written, until their preview may be: no model is asked meanwhile.
-      if ("wait" in lineInput) return tally(uncheckedSend, { check_after: lineInput.wait }, "waited");
-      const { input, mark } = lineInput;
-      // One attempt of the workspace's UTC day, taken before the model is asked (a rewrite is the same attempt, a
-      // failure spends it): words that name no opening cost nothing and take none.
-      const cap = dayShareOf(uncheckedSend, pressed);
-      if (input.needsOpening && !(await takeCheckAttempt(db, { tenantId: send.tenant_id, cap, at: now }))) {
-        await gate(uncheckedSend, "day_spent");
-        return;
-      }
-      const result = await checkOne(input, ask, budget, { tenantId: send.tenant_id, subjectId: send.id });
-      out.calls += result.calls;
-      out.tokens = { input: out.tokens.input + result.tokens.input, output: out.tokens.output + result.tokens.output };
-      if (result.kind === "late") return tally(uncheckedSend, {}, "late");
-      const failed = async (reason: string) => {
-        const f = failedCheck(send, now, at, uncheckedSend.due_soon);
-        if (!(await write(uncheckedSend, f.patch))) return;
-        if (!f.gaveUp) return void (out.failed += 1);
-        out.gave_up += 1;
-        const { tenant_id, id: send_id, batch_id: broadcast_id } = send;
-        log.warn("reach_out_check_held", { tenant_id, send_id, broadcast_id, tries: f.tries, why: reason });
-      };
-      if (result.kind === "failed") {
-        out.calls_failed += 1;
-        await failed(result.why);
-        return;
-      }
-      const keep = stored(result.opening);
-      // A sendable opening the send cannot store is no pass: tried again, as a model's answer out of shape is.
-      if (!keep && !result.hold) {
-        await failed("unstorable");
-        return;
-      }
-      // Words of the lead's own that hold no line write none: the one the send has stands, for the step's words coming back.
-      const line = own && !input.needsOpening ? {} : (keep ?? { opening: null, angle: null, facts_used: [] });
-      const patch: Partial<ReachOutSendRow> = {
-        checked_at: at,
-        ...line,
-        hold_detail: result.detail ? result.detail.slice(0, 120) : null,
-        // What the site said, kept for the next time this email's opening is written (00505).
-        ...(result.site && result.site !== send.website_says
-          ? { website_says: result.site.slice(0, WEBSITE_SAYS_KEPT_MAX) }
-          : {}),
-        checked_words: checkedWordsOf(item, uncheckedSend.signed_by, ws.bookingLink !== null, mark),
-        check_after: null,
-        ...(result.hold ? { state: "held", reason: result.hold } : {}),
-      };
-      if (await write(uncheckedSend, patch)) {
-        out.checked += 1;
-        if (result.hold) out.held += 1;
-        if (result.rewritten) out.rewritten += 1;
-      }
-    } catch (e) {
-      // One send's failure is its own: its lease lapses in two minutes, and a tick after that checks it.
-      error("reach_out_check_error", { send_id: send.id, tenant_id: send.tenant_id }, e);
-    }
-  };
+  const reads: TickReads = { countries, ownWords, words: new Map(), workspaces: new Map(), runs: new Map() };
+  const one = (uncheckedSend: UncheckedSend) => checkSend(tick, reads, uncheckedSend);
   for (let i = 0; i < go.length; i += CHECK_AT_ONCE) await Promise.all(go.slice(i, i + CHECK_AT_ONCE).map(one));
   if (!pressed) out.noticed = await notifyHeldRuns({ db, now, error, tenantId: params.tenantId, send: params.notice });
   return out;

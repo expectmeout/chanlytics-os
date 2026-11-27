@@ -23,13 +23,13 @@
  */
 import { afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { legacyAddress } from "../../shell/address/_address.mjs";
+import "../../shell/address/_address.mjs";
 import { all, byTestId, find, installRoleStore, kitPages, press, textOf, useStubHooks } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { importSrc } from "../../_source.mjs";
 import * as contracts from "@chanlytics/contracts";
 import { hookFrames } from "../../_hook-frames.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 // A namespace, not named imports: a word or a filter this slice adds is missing from the module until it
 // lands, and a named import of it would fail the whole file rather than the test that needs it.
@@ -380,8 +380,6 @@ export const effect = (fn, deps) => {
   cells[k].cleanup = fn();
 };
 
-globalThis.Icon = "Icon";
-
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -431,11 +429,9 @@ globalThis.React = {
   useSyncExternalStore: (_subscribe, snapshot) => snapshot(),
 };
 
-globalThis.ReactDOM = { createPortal: (node) => node };
-
-globalThis.useSurface = () => 0;
+drawsInPlace();
 // the bridge's hook the shell's pages call: these tests draw once, and the redraw is proved in shell/surfaces
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
 Object.assign(globalThis.window, kitPages);
 
@@ -447,8 +443,6 @@ installRoleStore();
 // Menus and questions as their props, drawn by hookless stand-ins, for the People list's scripts (the person's page draws the kit's own).
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 
-globalThis.useHotkey = () => {};
-
 // Leads' peek seams (surfaces/leads/peek/seams.ts, which this file does not load), as no-ops that return their own cleanup.
 globalThis.leadArmOnReturn = () => () => undefined;
 
@@ -456,19 +450,14 @@ globalThis.leadPeekFocus = () => () => undefined;
 
 bridgeHolds({ who: { me: { role: "owner" } }, parts: { chrome: { state: stateOf } } });
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, () => {}],
-  // The frame's own Back to People, which the person's page asks for (person-verbs.ts backToPeople).
-  appBackToPeople: () => went.push("back"),
   AttnRow: () => null,
-  CHANLY: {
-    nav: (to) => went.push(to),
-    address: await legacyAddress(),
-    R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}`, clientSeg: (id) => `clients/seg:${id}` },
-  },
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
+bridgeHolds({ doors: { backToPeople: () => went.push("back") } });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 // The bridge's own globals for a profile.
 export const { installPeopleCourier } = await import("../../../apps/dashboard/src/surfaces/people/people-detail.ts");
@@ -869,10 +858,17 @@ export const withDeals = (deals, over = {}, rowOver = {}) => {
 /** The sheet's door, as the shell's host answers it: every ask the page makes of it. */
 export const sheetAsks = () => {
   const asked = [];
-  globalThis.window.openDealSheet = (ask) => {
-    asked.push(ask);
-    return true;
-  };
+  bridgeHolds({
+    parts: {
+      sheets: {
+        ...provided("sheets"),
+        openDeal: (ask) => {
+          asked.push(ask);
+          return true;
+        },
+      },
+    },
+  });
   return asked;
 };
 

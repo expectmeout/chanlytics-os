@@ -45,7 +45,7 @@ export function customerRecord(
         created_at: row.created_at,
         channel_ts: row.channel_ts,
         // The wire it travelled: a person's one thread holds every channel they wrote on (R14 X4).
-        ...(row.channel ? { channel: row.channel } : {}),
+        channel: row.channel,
       })),
     calls: async (offset, limit) => {
       return (await rows(pageCallRows(supabase, tenantId, person, offset, offset + limit - 1))).map(toCallDto);

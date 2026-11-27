@@ -16,7 +16,7 @@
  */
 import type { TenantId } from "@chanlytics/contracts";
 import { notify, recordNotification } from "../shared/alerts/notify.js";
-import { emitEvent, recordActivation } from "@chanlytics/db/events";
+import { recordActivation } from "@chanlytics/db/events";
 import {
   FIRST_RUN_ROUTE,
   formatPhoneDisplay,
@@ -32,15 +32,14 @@ import { logger } from "../shared/log.js";
 import { logAndGoOn } from "@chanlytics/log";
 
 /**
- * A line stopped: tell the workspace's bell, the platform's mailbox and the ledger.
+ * A line stopped: tell the workspace's bell and the platform's mailbox. The ledger's line.failed is the row's own move
+ * to failed (00721 lines_tell_their_moves), whichever write made it.
  *
  * One function, because a line fails two ways — a saga returns a failure, or the
- * sweep gives up on one that kept being cut off — and the owner, support and the
- * ledger must not be able to tell those apart by the wording.
+ * sweep gives up on one that kept being cut off — and the owner and support
+ * must not be able to tell those apart by the wording.
  */
 export async function reportLineFailed(
-  db: SupabaseClient<Database>,
-  providerName: string,
   tenant: { id: TenantId; name: string },
   line: { id: string; e164: string | null },
   step: string,
@@ -68,12 +67,6 @@ export async function reportLineFailed(
       body: `${tenant.name} (${tenant.id}) — line ${line.id} for ${line.e164 ?? "no number"} stopped at step "${at}" (started by ${by}).\n\n${error}\n\nRetry: in the Console, open this workspace's Setup and lines and press Retry setting up.`,
     },
   );
-  await emitEvent(db, tenant.id, "line.failed", "line", line.id, {
-    step,
-    error: error.slice(0, 300),
-    provider: providerName,
-    by,
-  }).catch(logAndGoOn("event line.failed"));
 }
 
 export async function provisionLine(
@@ -97,7 +90,12 @@ export async function provisionLine(
   deadline?: number,
 ) {
   const timeLeft = deadline === undefined ? undefined : () => deadline - Date.now();
-  const result = await runLineSaga(line, { ...linePorts(db, cfg, secrets, tenant, line, choice), timeLeft });
+  // Who started this run rides on the line's facts, so the row's move to answering or failed says so on the ledger
+  // (00721 lines_tell_their_moves). A fact that could not be kept leaves the event without it, never the run undone.
+  const started: LineRow = { ...line, facts: { ...line.facts, started_by: by } };
+  const ports = linePorts(db, cfg, secrets, tenant, started, choice);
+  await ports.store.save({ facts: started.facts }).catch(logAndGoOn("keeping who started the line's run"));
+  const result = await runLineSaga(started, { ...ports, timeLeft });
   const shown = formatPhoneDisplay(result.line.e164) ?? result.line.e164 ?? "your number";
   if (result.ok && result.later) {
     // Nobody is told anything: the line is still setting up, and the next run goes on from its step.
@@ -117,16 +115,11 @@ export async function provisionLine(
       route: FIRST_RUN_ROUTE,
       about: { type: "line", id: line.id },
     });
-    await emitEvent(db, tenant.id, "line.answering", "line", line.id, {
-      e164: result.line.e164,
-      provider: choice.name,
-      agent_id: result.line.retell_agent_id,
-      by,
-    }).catch(logAndGoOn("event line.answering"));
+    // line.answering is the row's own: its move to answering wrote it (00721 lines_tell_their_moves).
     // The workspace's first line that answers: the funnel's first milestone (a WhatsApp connection is the other door).
     await recordActivation(db, tenant.id, "line_live", "phone").catch(() => false);
   } else {
-    await reportLineFailed(db, choice.name, tenant, result.line, result.step, result.error, by);
+    await reportLineFailed(tenant, result.line, result.step, result.error, by);
   }
   logger({ tenant_id: tenant.id }).info("line_saga", {
     line: line.id,

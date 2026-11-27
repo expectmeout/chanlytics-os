@@ -2,7 +2,7 @@ import { z } from "zod";
 import { CONTENT_MAX, CONTENT_VIEWS } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/shared/route";
 import { load, readerContext } from "@/server/shared/reader";
-import { content } from "@/server/readers/content";
+import { content } from "@/server/readers/content/content";
 
 /** What a page of Content is asked for: the view of Made, where the last page ended, and how many. */
 const Asked = z.object({

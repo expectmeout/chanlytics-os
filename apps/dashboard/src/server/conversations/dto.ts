@@ -291,7 +291,7 @@ const SAID_LAST_MAX = 240;
 export function listedCall(dto: CallDto): CallDto {
   const turns = dto.transcript_object;
   if (dto.status === "ongoing" || dto.status === "registered" || !turns || !turns.length) return dto;
-  const spoken = turns.filter((t) => t?.role === "user" && (t.content ?? "").trim() !== "");
+  const spoken = turns.filter((t) => t.role === "user" && (t.content ?? "").trim() !== "");
   const last = spoken.at(-1)?.content?.trim() ?? null;
   return {
     ...dto,

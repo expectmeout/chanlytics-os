@@ -14,5 +14,4 @@ export {
 export { aboveRoleWords, toApiTools } from "./offer";
 export { cardsOf } from "./context/context";
 export { newToolContext } from "./context/tool-reads";
-export type { ProposalOutcome, ToolContext, ToolDef, ToolOutcome, ToolRun } from "./context/tool-defs";
-export { THREAD_VERBS } from "./act/thread-verb";
+export type { ProposalOutcome, ToolContext, ToolRun } from "./context/tool-defs";

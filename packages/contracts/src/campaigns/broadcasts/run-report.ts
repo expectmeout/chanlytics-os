@@ -266,7 +266,7 @@ function runFactsOf(runReportInput: RunReportInput, opts: RunReportOpts) {
   const { start, spanH, step } = barSpanOf(reached, opts);
   const never = sent - delivered.length;
   // A first-name slot takes the wire's own first name for each person (firstNameOf), and "there" for someone with none.
-  const greets = (runReportInput.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
+  const greets = (runReportInput.broadcast?.params ?? []).some((p) => p.kind === "first_name");
   const cutOff = cutOffWordsOf(runReportInput.broadcast?.state);
   // Said only where somebody was reached some other way than WhatsApp: a run of WhatsApp alone reads as it always did.
   const channelsSaid = runReportInput.recipients.some((r) => {

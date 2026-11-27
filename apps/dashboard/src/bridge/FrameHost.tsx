@@ -18,7 +18,7 @@ import FrameShell from "#frame-shell";
  * Client-only mount for the shell: module-scope code in the mockup
  * touches document/window at import time, so SSR/prerender must never
  * evaluate it (Blueprint §7 — the (os) surfaces are client-rendered).
- * `seed-globals.ts` and the shell's files in particular read `window` at module scope, so the server's build imports
+ * The shell's files in particular read `window` at module scope, so the server's build imports
  * an empty component in its place (`#frame-shell`), and `ssr: false` keeps the server from drawing even that.
  *
  * The shell is imported, not loaded by `import()` (until 17 Oct 2026). Loaded later, it was a chunk group of its own,

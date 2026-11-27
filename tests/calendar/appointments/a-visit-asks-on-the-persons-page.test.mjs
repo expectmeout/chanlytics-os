@@ -18,9 +18,6 @@ import { installStubReact, fresh, again, all, byTestId, textOf, classes, press, 
 import { importSrc } from "../../_source.mjs";
 
 installStubReact({
-  appNavigate: () => {},
-  canDo: () => true,
-  gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
 });
