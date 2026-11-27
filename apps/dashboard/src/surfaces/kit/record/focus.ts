@@ -156,8 +156,7 @@ export const useRecFocusOn = (open: boolean, box: Box, focusOn: FocusOn | null) 
     const row = pick(el, `[data-rec-row="${focusOn.row}"]`);
     const first = row ? tabStops(row)[0] : null;
     if (first && first.focus) first.focus();
-    // a new object each time is the ask: the same row named twice is focused twice
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new object each time is the ask: the same row named twice is focused twice; the box and `open` are read as they stand
   }, [focusOn]);
 
 /** Where a gesture's fields are, and what takes focus when it holds none; `frame` names what drew it. */
@@ -186,8 +185,7 @@ export function useRecFocus(id: FoldId, open: boolean, box: Box, area: FocusArea
     if (onTouchScreen() && el && typeof el.focus === "function") el.focus({ preventScroll: true });
     else recFocusIn(el, inner, fallback);
     return () => recFocusBack(id, box, el);
-    // a new opening, a new id or a new frame: not each draw
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new opening, a new id or a new frame: not each draw
   }, [open, id, frame]);
   useRecFocusOn(open, box, focusOn);
   return hold.onFocus;
