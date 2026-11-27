@@ -34,6 +34,7 @@ import {
   type MessageAbout,
   type SendPurpose,
   DbFailure,
+  shaped,
 } from "@chanlytics/contracts";
 import {
   pauseEmailOffersFor,
@@ -61,6 +62,7 @@ import { heldRefusal, sendingHoldOf, sendingRefusal, stopOf, type Refused } from
 import { textRefusal } from "./text";
 import { namedFailure, putOnWire, type BoundWire } from "./wire-senders";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
+import { readAnswer } from "@chanlytics/db/shared";
 
 export type { DeliveryRefusal };
 
@@ -286,13 +288,26 @@ interface WireFacts {
 }
 
 /**
+ * A thread's row as findWireRow's select names it. The client's typed parser reads no computed column inside an embed
+ * (the person's relationship, a function of their row), so the row is read through this shape (report-only, decision 0112).
+ */
+interface WireRow {
+  paused_until: string | null;
+  control_kind?: string | null;
+  control_ref?: string | null;
+  control_until?: string | null;
+  contact_id?: ContactId | null;
+  contacts: WireFacts["contact"] | null;
+  tenants: { status: string | null; sending_stopped_at?: string | null } | null;
+}
+
+/**
  * The facts the wire re-reads, in one query: the thread's pause, the person's
  * consent row, and the workspace's status. A read that fails throws, because
  * "we could not check" is not "yes" -- the outbox retries, the broadcast
  * leaves the person queued, and the voice agent says it could not send.
  */
 async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery): Promise<WireFacts> {
-  // Read again without the channel arrays on a database 00297 has not reached (findWireRow): a yes then covers WhatsApp alone.
   // The sends that may rest on a relationship with the business: an offer by email, which is also the business's news (D1, D2).
   const { data, error } = await findWireRow(db, {
     tenantId: delivery.tenantId,
@@ -301,16 +316,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery):
   });
   if (error) throw new DbFailure(error, `deliver: cannot read the wire for conversation ${delivery.conversationId}`);
   if (!data) throw new Error(`deliver: no conversation ${delivery.conversationId} in workspace ${delivery.tenantId}`);
-  // The wire's columns are chosen at run time, past the client's typed parser: the row is the columns findWireRow names.
-  const row = data as unknown as {
-    paused_until: string | null;
-    control_kind?: string | null;
-    control_ref?: string | null;
-    control_until?: string | null;
-    contact_id?: ContactId | null;
-    contacts: WireFacts["contact"] | null;
-    tenants: { status: string | null; sending_stopped_at?: string | null } | null;
-  };
+  const row = readAnswer("findWireRow", shaped<WireRow>(), data);
   return {
     pausedUntil: row.paused_until ?? null,
     // The one reading of the hold's columns (deliver/hold.ts liveHoldOf): the receptionist's memory reads them the same way.

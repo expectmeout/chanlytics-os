@@ -59,6 +59,7 @@ import {
   serverNotificationRows,
   settledNoticeIds,
   type RunDays,
+  recordOrEmpty,
 } from "@chanlytics/contracts";
 import { bellActionOf } from "@/surfaces/campaigns/reach-out/reply-today";
 import { bellFeed, holdMarksOf, bellOlderOf } from "@/bridge/surfaces/hold-rows";
@@ -320,7 +321,7 @@ export function readState(storage: StorageLike | null, workspaceId: string | nul
   try {
     const raw = storage.getItem(storageKey(workspaceId));
     if (!raw) return { ...EMPTY_READ_STATE };
-    const j = JSON.parse(raw) as Partial<NotificationReadState>;
+    const j = recordOrEmpty(JSON.parse(raw));
     return {
       seenAt: typeof j.seenAt === "number" ? j.seenAt : 0,
       read: Array.isArray(j.read) ? j.read.filter((k): k is string => typeof k === "string") : [],

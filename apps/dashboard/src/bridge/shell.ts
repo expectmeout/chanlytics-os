@@ -26,6 +26,7 @@ import {
   liveStillUp,
   fmtClock,
   type ShellStatus,
+  valueAt,
 } from "@chanlytics/contracts";
 import { sealSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
@@ -181,8 +182,8 @@ export function installShell(win: Window = window): void {
     replyWaits: replyWaitsOnYou,
     crumbsShown,
     typing(target) {
-      const el = target as { tagName?: string; isContentEditable?: boolean } | null;
-      return isTypingTarget(el?.tagName ?? null, !!el?.isContentEditable);
+      const tag = valueAt(target, "tagName");
+      return isTypingTarget(typeof tag === "string" ? tag : null, valueAt(target, "isContentEditable") === true);
     },
   };
   provide("chrome", chrome);

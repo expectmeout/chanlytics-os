@@ -37,6 +37,7 @@ import { TableRowMemo, emptyRow, type TableEmpty } from "./rows";
 import type { TableState } from "./state";
 import type { DataTableModel } from "./use-data-table";
 import { drawnWidths, markMore, writeWidths } from "./widths";
+import { answersClosest } from "../../dom-reads";
 
 /** What of the table rises on a swap (kit/motion use-swap-motion.ts `parts`): its row groups, never its heads. */
 export const TABLE_BODIES = ":scope > tbody";
@@ -295,8 +296,8 @@ const SAYS_MORE = "[aria-describedby], [data-tip], [title]";
  * it bubbles) finds the words already there. A line holding a control that says more of itself is left to that control.
  */
 const onLineReached = (e: MouseEvent<HTMLDivElement>) => {
-  const at = e.target as Element | null;
-  const line = at && at.closest ? at.closest<HTMLElement>(".dtable-line-top, .dtable-line-sub") : null;
+  const at = e.target;
+  const line = answersClosest(at) ? at.closest<HTMLElement>(".dtable-line-top, .dtable-line-sub") : null;
   if (!line || line.querySelector(SAYS_MORE)) return;
   const words = cutWords(line);
   if (words) line.setAttribute("data-tip", words);

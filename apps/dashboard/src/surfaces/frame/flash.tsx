@@ -31,6 +31,7 @@ import type { FrameFlash } from "../frame-verbs";
 import { provided } from "@/bridge/provided";
 import { createPortal } from "react-dom";
 import { navigate } from "../frame-doors";
+import { answersClosest } from "../dom-reads";
 
 /** A toast's shape, as contracts' toastShape says it from the flash it was asked for. */
 interface ToastShape {
@@ -174,8 +175,8 @@ export const usePPToast = (place?: string): [ReactNode, (flash: FrameFlash) => v
     return () => document.removeEventListener("pointerdown", away, true);
   }, []);
   const pressed = (toast: Toast) => (e: { target: EventTarget | null }) => {
-    const on = e && (e.target as Element | null);
-    if (!toast.stays && !(on && on.closest && on.closest(TOAST_OWN_PRESS))) close(toast.id);
+    const on = e.target;
+    if (!toast.stays && !(answersClosest(on) && on.closest(TOAST_OWN_PRESS))) close(toast.id);
   };
   const keyed = (toast: Toast) => (e: { key: string; stopPropagation: () => void }) => {
     if (e && e.key === "Escape") {

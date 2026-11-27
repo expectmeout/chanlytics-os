@@ -8,6 +8,7 @@
  * and left out by the one that may not select them.
  */
 import type { LineDto } from "../setup/lines";
+import type { SchemaSet } from "../shared/schema-sets";
 import { recordOrEmpty } from "../shared/unknown";
 
 /** The columns of a line the page may see (lines, the member's policy): no SID, no credential, no agent. */
@@ -17,7 +18,7 @@ export interface LineFacts {
   kind: string;
   provider: string;
   area_code: number | null;
-  voice_state: string;
+  voice_state: SchemaSet<"lines.voice_state">;
   sms_state: string;
   reg_step: string | null;
   reg_mock: boolean;
@@ -58,7 +59,7 @@ export function lineDtoOf(lineFacts: LineFacts, registered?: boolean): LineDto {
     kind: lineFacts.kind,
     provider: lineFacts.provider,
     area_code: lineFacts.area_code,
-    voice_state: lineFacts.voice_state as LineDto["voice_state"],
+    voice_state: lineFacts.voice_state,
     sms_state: lineFacts.sms_state,
     reg_step: lineFacts.reg_step,
     reg_mock: lineFacts.reg_mock,

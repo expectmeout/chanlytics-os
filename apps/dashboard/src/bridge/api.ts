@@ -18,6 +18,7 @@ import {
   PREFETCH_SLOT,
   SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_STAFF_PATH,
+  valueAt,
 } from "@chanlytics/contracts";
 import { pageReport } from "@/client/page-report";
 
@@ -110,12 +111,15 @@ function prefetched(win: Window): Record<string, unknown> | null {
  * What the document head started for a URL (contracts routePrefetchScript), taken once: the slot forgets it as it is
  * handed over, so a later read of the same URL asks the server.
  */
+/** Whether what the head parked is a response on its way: it has a `then`. */
+const isParkedResponse = (held: unknown): held is Promise<Response> => typeof valueAt(held, "then") === "function";
+
 function takePrefetched(win: Window, url: string): Promise<Response> | null {
   const slot = prefetched(win);
   const held = slot?.[url];
-  if (!slot || !held || typeof (held as Promise<Response>).then !== "function") return null;
+  if (!slot || !isParkedResponse(held)) return null;
   delete slot[url];
-  return held as Promise<Response>;
+  return held;
 }
 
 /**

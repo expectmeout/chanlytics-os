@@ -81,15 +81,15 @@ function recSaysFolded(p: RecordSaysProps & { writes: boolean; drops: boolean })
           testid={testid ? `${testid}-fold` : null}
         >
           {aside ? <p className="rec-says-note">{aside}</p> : null}
-          {writes ? (
+          {writes && text !== null ? (
             <div className="rec-says-part" data-part="says">
-              <pre>{recSaysLines(text as string, changed)}</pre>
+              <pre>{recSaysLines(text, changed)}</pre>
             </div>
           ) : null}
-          {drops ? (
+          {drops && gone !== null ? (
             <div className="rec-says-part" data-part="gone">
               {goneLabel ? <span className="rec-says-eyebrow">{goneLabel}</span> : null}
-              <pre>{recSaysLines(gone as string, goneChanged)}</pre>
+              <pre>{recSaysLines(gone, goneChanged)}</pre>
             </div>
           ) : null}
         </RecordDisclosure>

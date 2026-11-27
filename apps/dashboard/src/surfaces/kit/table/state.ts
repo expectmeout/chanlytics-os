@@ -366,7 +366,7 @@ export function useTableState(a: TableStateArgs) {
     // Each copy by itself: this device's may be new where the workspace's is still from before.
     const remembered = { ...now(a.store.load(a.scope)), ...((a.landed && a.saved && now(a.saved)) || {}) };
     const parts = fromView(remembered, columns, first, a.extraDefaults);
-    const row = a.railRow !== undefined ? (remembered.list as string) || "all" : undefined;
+    const row = a.railRow !== undefined ? (typeof remembered.list === "string" && remembered.list) || "all" : undefined;
     return {
       atoms: atomsFrom(parts, columns, then),
       own: { density: createAtom<Density>(parts.density), extra: createAtom<View | null>(parts.extra) },

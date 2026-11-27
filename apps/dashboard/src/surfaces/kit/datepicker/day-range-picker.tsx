@@ -53,6 +53,7 @@ import {
   type PressRefusal,
   type RangePress,
 } from "./range-press";
+import { answersClosest } from "../../dom-reads";
 
 /** A range of days: its first and its last, "YYYY-MM-DD". */
 export type DayRange = { from: string; to: string };
@@ -93,7 +94,7 @@ const pressKindOf = (pointerType: string): PressKind =>
 
 /** The day a pointer was let go on, in this month's grid; null off it. */
 const dayUnder = (grid: HTMLElement | null, target: EventTarget | null): string | null => {
-  const cell = (target as Partial<Element> | null)?.closest?.<HTMLElement>("[data-day]") ?? null;
+  const cell = answersClosest(target) ? target.closest<HTMLElement>("[data-day]") : null;
   return cell && grid?.contains(cell) ? (cell.dataset.day ?? null) : null;
 };
 

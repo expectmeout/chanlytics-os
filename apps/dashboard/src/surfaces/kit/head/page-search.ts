@@ -81,11 +81,13 @@ export function usePageSearch(search: PageSearch | null): boolean {
   token.current ??= Symbol("page-search");
   const shown = line ? search : null;
   useLayoutEffect(() => {
-    const mine = token.current as symbol;
+    const mine = token.current;
+    if (!mine) return undefined;
     return () => unsayLine(mine);
   }, []);
   useLayoutEffect(() => {
-    const mine = token.current as symbol;
+    const mine = token.current;
+    if (!mine) return;
     // The page on screen says its search or none: none is none, whoever said one before it.
     if (!shown) {
       if (lineSaid) {

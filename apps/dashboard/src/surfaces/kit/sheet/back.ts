@@ -14,6 +14,7 @@
  * first about what was typed, or holds a save that is out, stays open, and stands its entry again.
  */
 import { useEffect, useRef } from "react";
+import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
 
 /** The query word a sheet that names itself stands in. */
 const DO = "do";
@@ -33,8 +34,8 @@ const historyOf = (): History | null =>
 
 /** Which sheet's entry the tab stands on, by the token it was stood with. */
 function tokenNow(h: History): number | null {
-  const s = h.state as { sheet?: unknown } | null;
-  return s && typeof s.sheet === "number" ? s.sheet : null;
+  const sheet = valueAt(h.state, "sheet");
+  return typeof sheet === "number" ? sheet : null;
 }
 
 /** The address as it stands: an entry a sheet with no name stands is the page's own address again. */
@@ -124,7 +125,7 @@ export function useBackCloses(open: boolean, close: () => void, name: string | n
       void settling.then(() => {
         if (!live || token !== null) return;
         token = ++seq;
-        const state = { ...((h.state as object | null) ?? {}), sheet: token };
+        const state = { ...recordOrEmpty(h.state), sheet: token };
         // Opened by the address itself (a reload, a link): the entry it was opened on is the sheet's.
         const byAddress = !!name && new URLSearchParams(window.location.search).get(DO) === name && !tokenNow(h);
         adopted = byAddress;
@@ -151,7 +152,7 @@ export function useBackCloses(open: boolean, close: () => void, name: string | n
       window.removeEventListener("popstate", onPop);
       if (token === null || tokenNow(h) !== token) return;
       // Its entry is the one on top: taken back with it. One the address opened is the page's own, its name taken off.
-      if (adopted) h.replaceState({ ...((h.state as object | null) ?? {}), sheet: null }, "", addressWith(null));
+      if (adopted) h.replaceState({ ...recordOrEmpty(h.state), sheet: null }, "", addressWith(null));
       else takeBack(h);
     };
   }, [open, name]);

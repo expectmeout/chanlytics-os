@@ -12,6 +12,7 @@ import { Icon } from "../icon/icon";
 import { Menu, type MenuGroup } from "../menu/menu";
 import { ColumnEdge, holdingEdge } from "./edge";
 import { TABLE_MIN_PX, baseOf, isMovable, isSizable, type AnyDataColumn, type SortDir } from "./columns";
+import { answersClosest } from "../../dom-reads";
 
 /** What the table calls its rows: the foot's count, the select-all box's words, the rows' element ids, its name. */
 export interface TableNouns {
@@ -62,7 +63,7 @@ function headingDrag(key: string, acts: HeadActs | null, keys: readonly string[]
   return {
     draggable: true,
     onDragStart: (e: DragEvent<HTMLElement>) => {
-      if (holdingEdge() || caretIsHeld || (e.target as HTMLElement).closest(".dtable-edge")) {
+      if (holdingEdge() || caretIsHeld || (answersClosest(e.target) && e.target.closest(".dtable-edge"))) {
         e.preventDefault();
         return;
       }

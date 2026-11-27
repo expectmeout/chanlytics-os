@@ -8,6 +8,7 @@
 import { viewDeck } from "../motion/view-deck";
 import { glideDrag, glideHome } from "./glide";
 import { OWN_TOUCH } from "./own-touch";
+import { answersClosest } from "../../dom-reads";
 
 /** A page to walk, as `touchSwipe` asks for one: whether there is one each side, and the finger's three words. */
 export interface ViewPage {
@@ -28,8 +29,7 @@ export interface ViewPage {
  * not travel its own width (a desk, where a finger carries nothing).
  */
 export function viewPager(view: Element, from: EventTarget | null): ViewPage | null {
-  const began = from as { closest?: (selector: string) => unknown } | null;
-  if (began && began.closest && began.closest(OWN_TOUCH)) return null;
+  if (answersClosest(from) && from.closest(OWN_TOUCH)) return null;
   if (view.querySelector?.("[data-takeover]")) return null;
   const strip = view.parentElement ? view.parentElement.querySelector<HTMLElement>(".stabs") : null;
   if (!strip || strip.getClientRects().length === 0) return null;
