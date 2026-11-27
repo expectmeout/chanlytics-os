@@ -8038,84 +8038,6 @@ COMMENT ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conversa
 
 
 --
--- Name: conversation_draft_keep(uuid, uuid, text, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $_$
-declare
-  v_actor uuid := auth.uid();
-  v_row   public.conversation_drafts%rowtype;
-begin
-  -- The caller is auth.uid(), read here, never a parameter (00021's rule).
-  if v_actor is null then
-    raise exception 'Sign in required.' using errcode = '28000';
-  end if;
-  -- A member who acts: a viewer sends nothing, so nothing is drafted for one.
-  if not public.is_acting_member(p_tenant_id) then
-    return jsonb_build_object('error', 'not_acting');
-  end if;
-  if p_kind is null or p_kind not in ('reply', 'brief') then
-    raise exception 'conversation_draft_keep: kind is reply or brief' using errcode = '22023';
-  end if;
-  -- The words are an object of a draft's size: four thousand characters of message and a brief at most.
-  if p_words is null or jsonb_typeof(p_words) <> 'object' or octet_length(p_words::text) > 16000 then
-    raise exception 'conversation_draft_keep: the words are one draft''s' using errcode = '22023';
-  end if;
-  if not exists (select 1 from public.conversations c where c.id = p_conversation_id and c.tenant_id = p_tenant_id) then
-    return jsonb_build_object('error', 'not_found');
-  end if;
-  -- The message it answers is one of the thread's own.
-  if p_for_message_id is not null and not exists (
-    select 1 from public.messages m
-     where m.id = p_for_message_id and m.conversation_id = p_conversation_id and m.tenant_id = p_tenant_id
-  ) then
-    raise exception 'conversation_draft_keep: the message is the thread''s own' using errcode = '22023';
-  end if;
-  -- A dashboard a deploy behind (00538): its words say where the draft stands.
-  insert into public.conversation_drafts as d
-    (tenant_id, conversation_id, kind, for_message_id, words, made_by, made_at, state, source, rules, why_failed)
-  values (p_tenant_id, p_conversation_id, p_kind, p_for_message_id, p_words, v_actor, now(),
-          case
-            when p_kind = 'brief' and jsonb_typeof(p_words -> 'brief') = 'object' then 'ready'
-            when btrim(coalesce(p_words ->> 'text', '')) <> '' then 'ready'
-            when btrim(coalesce(p_words ->> 'pitch', '')) <> '' then 'pitch'
-            when jsonb_array_length(coalesce(nullif(p_words -> 'asks', 'null'::jsonb), '[]'::jsonb)) > 0 then 'asks'
-            else 'failed'
-          end,
-          'hold',
-          case when (p_words ->> 'rules') ~ '^[0-9]+$' then (p_words ->> 'rules')::integer end,
-          null)
-  on conflict on constraint conversation_drafts_one_a_thread_and_kind do update
-     set for_message_id = excluded.for_message_id,
-         words = excluded.words,
-         made_by = excluded.made_by,
-         made_at = excluded.made_at,
-         state = excluded.state,
-         source = excluded.source,
-         rules = excluded.rules,
-         why_failed = null
-  returning * into v_row;
-  return jsonb_build_object(
-    'conversation_id', v_row.conversation_id,
-    'kind', v_row.kind,
-    'for_message_id', v_row.for_message_id,
-    'words', v_row.words,
-    'made_at', v_row.made_at
-  );
-end $_$;
-
-
---
--- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) IS 'Keep Ask''s draft for a thread waiting on a person (decision 0071): a member who acts, the thread their workspace''s, the message it answers one of the thread''s own. One a thread and kind, the newest kept. Returns the draft, or {error: not_acting | not_found}.';
-
-
---
 -- Name: conversation_draft_write(uuid, uuid, text, uuid, text, jsonb, text, integer, text[], text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14154,6 +14076,9 @@ begin
   -- Nothing changed since the live version: the form is live again as it was, and no version is made.
   if v_live is not null and v_live = v_form.draft then
     update public.forms set state = 'live', updated_at = now() where tenant_id = p_tenant_id and id = p_form_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', false, 'version_id', v_form.live_version_id, 'by', auth.uid())));
     return jsonb_build_object('version_id', v_form.live_version_id, 'made', false);
   end if;
   select coalesce(max(v.n), 0) + 1 into v_n from public.form_versions v
@@ -14166,6 +14091,9 @@ begin
    where tenant_id = p_tenant_id and id = v_form.live_version_id and replaced_at is null;
   update public.forms set state = 'live', live_version_id = v_version, updated_at = now()
    where tenant_id = p_tenant_id and id = p_form_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', true, 'version_id', v_version, 'n', v_n, 'by', auth.uid())));
   return jsonb_build_object('version_id', v_version, 'made', true, 'n', v_n);
 end $$;
 
@@ -46400,6 +46328,78 @@ COMMENT ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) IS 'Whether a wo
 
 
 --
+-- Name: source_connection_connected(uuid, uuid, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_door text;
+  v_name text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    raise exception 'source_connection_connected: no such connection' using errcode = 'P0002';
+  end if;
+  v_name := public.source_credentials_put(p_connection_id, p_secret);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.connected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'again', coalesce((p_told ->> 'again')::boolean, false),
+            'by', p_told ->> 'by')));
+  return v_name;
+end $$;
+
+
+--
+-- Name: FUNCTION source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) IS 'A footage account''s token kept in Vault as its connect stands (source_credentials_put), with source.connected (its door, whether it was connected before, who) in the same transaction (00723). P0002 where the connection is not the workspace''s. The service role''s.';
+
+
+--
+-- Name: source_connection_remove(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_door text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return false;
+  end if;
+  perform public.source_credentials_drop(p_connection_id);
+  delete from public.source_connections where id = p_connection_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.disconnected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'revoked', coalesce((p_told ->> 'revoked')::boolean, false),
+            'by', p_told ->> 'by')));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) IS 'A footage account removed: its token out of Vault (source_credentials_drop), then its row, with its folders and their items, and source.disconnected (its door, whether Google took the grant back, who) in the same transaction (00723). False where the connection is not the workspace''s. The service role''s.';
+
+
+--
 -- Name: source_connections_ring(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -49647,6 +49647,40 @@ COMMENT ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p
 
 
 --
+-- Name: whatsapp_channel_activate(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.tenant_channels set status = 'active'
+   where id = p_channel_id and tenant_id = p_tenant_id and kind = 'whatsapp';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'channel.connected', 'system', 'channel', p_channel_id,
+          jsonb_build_object(
+            'kind', 'whatsapp',
+            'phone_number_id', p_told ->> 'phone_number_id',
+            'waba_id', p_told ->> 'waba_id',
+            'number_e164', p_told ->> 'number_e164',
+            'verified_name', p_told ->> 'verified_name',
+            'by', p_told ->> 'by'));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) IS 'A WhatsApp number''s row turned active once its token stands in Vault, with channel.connected (its ids, its name and who connected it) in the same transaction (00723). False where the row is not the workspace''s WhatsApp row. The service role''s.';
+
+
+--
 -- Name: withdraw_ai_drafts(uuid, uuid, jsonb, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -51879,7 +51913,7 @@ CREATE TABLE public.conversation_drafts (
 -- Name: TABLE conversation_drafts; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_keep.';
+COMMENT ON TABLE public.conversation_drafts IS 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_claim and conversation_draft_write (00538), the service role''s.';
 
 
 --
@@ -71733,15 +71767,6 @@ GRANT ALL ON FUNCTION public.conversation_draft_claim(p_tenant_id uuid, p_conver
 
 
 --
--- Name: FUNCTION conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.conversation_draft_keep(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_words jsonb, p_for_message_id uuid) TO service_role;
-
-
---
 -- Name: FUNCTION conversation_draft_write(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_for_message_id uuid, p_state text, p_words jsonb, p_source text, p_rules integer, p_used text[], p_why_failed text, p_made_by uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -77825,6 +77850,22 @@ GRANT ALL ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) TO service_rol
 
 
 --
+-- Name: FUNCTION source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb, p_told jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION source_connections_ring(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -78515,6 +78556,14 @@ GRANT ALL ON FUNCTION public.wake_stale_snoozes() TO service_role;
 
 REVOKE ALL ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.wear_found_look(p_tenant_id uuid, p_logo_path text, p_accent text) TO service_role;
+
+
+--
+-- Name: FUNCTION whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb) TO service_role;
 
 
 --

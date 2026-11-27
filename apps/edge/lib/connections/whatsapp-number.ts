@@ -29,7 +29,7 @@
 import { json, refuse } from "../shared/http.js";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
-import { emitEvent, recordActivation } from "@chanlytics/db/events";
+import { recordActivation } from "@chanlytics/db/events";
 import type { Json } from "@chanlytics/db/types";
 import {
   alreadyRegistered,
@@ -52,6 +52,7 @@ import { env } from "../shared/env.js";
 import { logger, refuseFailure } from "../shared/log.js";
 import { UUID, isTenantId } from "@chanlytics/contracts";
 import {
+  activateWhatsAppChannel,
   findWhatsAppNumberHolder,
   insertChannelRow,
   patchWhatsAppNumberRow,
@@ -72,8 +73,9 @@ interface ConnectBody {
 }
 
 /**
- * The connection told to the platform's own record: the event that a number was connected, and the workspace's first line
- * that answers, the funnel's first milestone (a phone line is the other door); then what Meta holds about the number now, kept
+ * The connection told to the platform's own record (channel.connected is written with the row's move to active,
+ * whatsapp_channel_activate): the workspace's first line that answers, the funnel's first milestone (a phone line is the
+ * other door); then what Meta holds about the number now, kept
  * and told if Meta says it cannot send. The payment method Meta asks for at the end of its sign-up window is what a business that
  * skipped it finds out here, in the Connections row and a notice, instead of from the messages it starts that never go. Best
  * effort: the connection stands either way (readAndKeepStanding never throws, and says what it could not do), so a read that
@@ -83,16 +85,8 @@ async function connected(
   db: NonNullable<ReturnType<typeof pg>>,
   tenantId: TenantId,
   channelId: string,
-  input: { phoneNumberId: string; wabaId: string; e164: string | null; name: string | null; by: string; token: string },
+  input: { phoneNumberId: string; wabaId: string; e164: string | null; token: string },
 ): Promise<void> {
-  await emitEvent(db, tenantId, "channel.connected", "channel", channelId, {
-    kind: "whatsapp",
-    phone_number_id: input.phoneNumberId,
-    waba_id: input.wabaId,
-    number_e164: input.e164,
-    verified_name: input.name,
-    by: input.by,
-  }).catch(logAndGoOn("event channel.connected"));
   await recordActivation(db, tenantId, "line_live", "whatsapp").catch(logAndGoOn("recordActivation", false));
   const log = logger({ tenant_id: tenantId, phone_number_id: input.phoneNumberId, waba_id: input.wabaId });
   await readAndKeepStanding({ db, log }, input.token, {
@@ -415,15 +409,21 @@ export async function connectWhatsAppNumber(auth: Admitted, body: Partial<Connec
     return refuse(500, "credentials_failed");
   }
 
-  // 7. Only now may the number route. Counted, as every permission-sensitive update is: a row that did not turn
-  // active is a failed connect, not a quiet one.
-  const live = await setStatus(row.id, "active");
-  if (live.error || !live.data.length) {
+  // 7. Only now may the number route, and channel.connected is written with it (00723). Counted, as every
+  // permission-sensitive update is: a row that did not turn active is a failed connect, not a quiet one.
+  const live = await activateWhatsAppChannel(db, tenantId, row.id, {
+    phone_number_id: phoneNumberId,
+    waba_id: wabaId,
+    number_e164: e164,
+    verified_name: config.verified_name,
+    by: userId,
+  });
+  if (live.error || live.data !== true) {
     log.info("wa_connect_channel_write_failed", { at: "activate", error: live.error?.message ?? "no row" });
     return refuse(500, "channel_write_failed");
   }
 
-  await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, name: config.verified_name, by: userId, token });
+  await connected(db, tenantId, row.id, { phoneNumberId, wabaId, e164, token });
   // The kept app's contacts and chats, asked for while Meta allows (never throws: the connect stands either way).
   if (keepApp) await startWhatsappHistory(db, { tenantId, channelId: row.id, nowMs: Date.now(), log: log });
   log.info("wa_connected", { channel_id: row.id, number: e164, registration: config.registration, ids_from: ids.from });

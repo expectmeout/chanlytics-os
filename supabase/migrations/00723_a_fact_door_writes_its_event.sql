@@ -3,6 +3,14 @@
 --
 -- HEAD
 set local lock_timeout = '3s';
+/* -- a door nothing calls, dropped -- */
+
+-- conversation_draft_keep kept Ask's reply draft as decision 0071 first wrote it, and stayed for a dashboard a deploy
+-- behind conversation_draft_write (00538). No dashboard since October calls it, and it wrote a record with no event: the
+-- drafts are written through conversation_draft_claim and conversation_draft_write, the service role's, as AI writes them.
+drop function if exists public.conversation_draft_keep(uuid, uuid, text, jsonb, uuid);
+
+comment on table public.conversation_drafts is 'Ask''s drafts written ahead for a thread waiting on a person (decision 0071): a reply to their newest message, or the brief for a call back, one a thread and kind, kept until they write again. Text only; nothing is sent by it. Members read their workspace''s; written through conversation_draft_claim and conversation_draft_write (00538), the service role''s.';
 /* -- the six clearances by age: each run says what it cleared and how many, per workspace -- */
 
 -- A record past its keeping time (contracts RETENTION_DAYS) was cleared with nothing on the ledger: an AI's metered use,
@@ -2052,8 +2060,8 @@ end $$;
 /* -- a comment's answer, and a website form: each move with its event -- */
 
 -- An answer to a comment at its place (sent, settled, left, put back) writes comment_answer.moved; a form turned on or
--- off writes form.moved, an outside form listed or renamed form.changed, and an entry a member held form_entry.held,
--- each in its own transaction. All are kept from Activity's rows: the comment's row and the Forms page say each.
+-- off, or published live (with its version), writes form.moved, an outside form listed or renamed form.changed, and an
+-- entry a member held form_entry.held, each in its own transaction. All are kept from Activity's rows: the comment's row and the Forms page say each.
 
 -- comment_answer_settle
 CREATE OR REPLACE FUNCTION public.comment_answer_settle(p_tenant_id uuid, p_touch_id uuid, p_sent boolean, p_external_id text, p_said text) RETURNS boolean
@@ -2181,6 +2189,57 @@ begin
             jsonb_strip_nulls(jsonb_build_object('to', case when coalesce(p_on, false) then 'live' else 'off' end, 'by', auth.uid())));
   end if;
   return v_turned > 0;
+end $$;
+
+-- form_publish
+CREATE OR REPLACE FUNCTION public.form_publish(p_tenant_id uuid, p_form_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_form    public.forms%rowtype;
+  v_live    jsonb;
+  v_version uuid;
+  v_n       integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_form from public.forms f
+   where f.tenant_id = p_tenant_id and f.id = p_form_id
+   for update;
+  if not found then
+    raise exception 'That form is not there.' using errcode = 'P0002';
+  end if;
+  if v_form.live_version_id is not null then
+    select v.description into v_live from public.form_versions v
+     where v.tenant_id = p_tenant_id and v.id = v_form.live_version_id;
+  end if;
+  -- Nothing changed since the live version: the form is live again as it was, and no version is made.
+  if v_live is not null and v_live = v_form.draft then
+    update public.forms set state = 'live', updated_at = now() where tenant_id = p_tenant_id and id = p_form_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+            jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', false, 'version_id', v_form.live_version_id, 'by', auth.uid())));
+    return jsonb_build_object('version_id', v_form.live_version_id, 'made', false);
+  end if;
+  select coalesce(max(v.n), 0) + 1 into v_n from public.form_versions v
+   where v.tenant_id = p_tenant_id and v.form_id = p_form_id;
+  insert into public.form_versions (tenant_id, form_id, n, description, published_by)
+  values (p_tenant_id, p_form_id, v_n, v_form.draft, auth.uid())
+  returning id into v_version;
+  -- The version before is taken for a day more, so a page left open is not refused.
+  update public.form_versions set replaced_at = now()
+   where tenant_id = p_tenant_id and id = v_form.live_version_id and replaced_at is null;
+  update public.forms set state = 'live', live_version_id = v_version, updated_at = now()
+   where tenant_id = p_tenant_id and id = p_form_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form.moved', 'contact', 'form', p_form_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'live', 'published', true, 'made', true, 'version_id', v_version, 'n', v_n, 'by', auth.uid())));
+  return jsonb_build_object('version_id', v_version, 'made', true, 'n', v_n);
 end $$;
 
 -- form_entry_hold
@@ -2728,6 +2787,108 @@ begin
    where conversation_id = p_conversation_id and tenant_id = p_tenant_id and state = 'open';
   return true;
 end $$;
+/* -- a WhatsApp number turned on, and a footage account kept and removed: each with its event -- */
+
+-- A WhatsApp number's row turns active, now that its token stands in Vault, with channel.connected in the same
+-- transaction: the event the edge wrote after it, best effort, from TypeScript. Instagram's connect already writes it
+-- in instagram_account_connect.
+create or replace function public.whatsapp_channel_activate(p_tenant_id uuid, p_channel_id uuid, p_told jsonb)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.tenant_channels set status = 'active'
+   where id = p_channel_id and tenant_id = p_tenant_id and kind = 'whatsapp';
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'channel.connected', 'system', 'channel', p_channel_id,
+          jsonb_build_object(
+            'kind', 'whatsapp',
+            'phone_number_id', p_told ->> 'phone_number_id',
+            'waba_id', p_told ->> 'waba_id',
+            'number_e164', p_told ->> 'number_e164',
+            'verified_name', p_told ->> 'verified_name',
+            'by', p_told ->> 'by'));
+  return true;
+end $$;
+
+revoke all on function public.whatsapp_channel_activate(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.whatsapp_channel_activate(uuid, uuid, jsonb) to service_role;
+
+comment on function public.whatsapp_channel_activate(uuid, uuid, jsonb) is
+  'A WhatsApp number''s row turned active once its token stands in Vault, with channel.connected (its ids, its name and who connected it) in the same transaction (00723). False where the row is not the workspace''s WhatsApp row. The service role''s.';
+
+-- A footage account's token kept as its connect stands, with source.connected (which door, whether it was connected
+-- before, who), and the account removed (its token out of Vault, then its row, with its folders and their items) with
+-- source.disconnected. A token's refresh is the vault's door alone, source_credentials_put, and writes nothing.
+create or replace function public.source_connection_connected(p_tenant_id uuid, p_connection_id uuid, p_secret jsonb,
+                                                              p_told jsonb)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_door text;
+  v_name text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    raise exception 'source_connection_connected: no such connection' using errcode = 'P0002';
+  end if;
+  v_name := public.source_credentials_put(p_connection_id, p_secret);
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.connected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'again', coalesce((p_told ->> 'again')::boolean, false),
+            'by', p_told ->> 'by')));
+  return v_name;
+end $$;
+
+revoke all on function public.source_connection_connected(uuid, uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.source_connection_connected(uuid, uuid, jsonb, jsonb) to service_role;
+
+comment on function public.source_connection_connected(uuid, uuid, jsonb, jsonb) is
+  'A footage account''s token kept in Vault as its connect stands (source_credentials_put), with source.connected (its door, whether it was connected before, who) in the same transaction (00723). P0002 where the connection is not the workspace''s. The service role''s.';
+
+create or replace function public.source_connection_remove(p_tenant_id uuid, p_connection_id uuid, p_told jsonb)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_door text;
+begin
+  select c.door into v_door from public.source_connections c
+   where c.id = p_connection_id and c.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return false;
+  end if;
+  perform public.source_credentials_drop(p_connection_id);
+  delete from public.source_connections where id = p_connection_id and tenant_id = p_tenant_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'source.disconnected', 'setup', 'source_connection', p_connection_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'door', v_door,
+            'revoked', coalesce((p_told ->> 'revoked')::boolean, false),
+            'by', p_told ->> 'by')));
+  return true;
+end $$;
+
+revoke all on function public.source_connection_remove(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.source_connection_remove(uuid, uuid, jsonb) to service_role;
+
+comment on function public.source_connection_remove(uuid, uuid, jsonb) is
+  'A footage account removed: its token out of Vault (source_credentials_drop), then its row, with its folders and their items, and source.disconnected (its door, whether Google took the grant back, who) in the same transaction (00723). False where the connection is not the workspace''s. The service role''s.';
 /* -- a message withdrawn, unsent by its writer, or complained of: each with its event -- */
 
 -- A queued message withdrawn before it left (a member's call back, a draft let go, a turn another reply took) writes

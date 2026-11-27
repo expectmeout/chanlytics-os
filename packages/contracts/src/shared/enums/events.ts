@@ -423,5 +423,7 @@ export const EVENT_KINDS = [
   "mailbox_connection.begun",
   "workspace.provisioned",
   "ask.stop_kept",
+  "source.connected",
+  "source.disconnected",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;

@@ -94,6 +94,9 @@ export const ACTIVITY_SUBJECT_HOMES = {
   comment_answer: { none: "an answer to a comment is the comment's: the row does not know the post it is under" },
   form: { none: "a website form is kept on the Forms page, and the row does not open one form there" },
   form_entry: { none: "a website entry is its person's: the row does not know the person yet" },
+  source_connection: {
+    none: "a footage account is kept on Settings › Files, and the row does not open one account there",
+  },
 } as const satisfies Record<string, SubjectHome>;
 
 /**

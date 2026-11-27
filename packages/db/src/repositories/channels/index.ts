@@ -64,6 +64,7 @@ export {
 } from "./send-door";
 export type { SendTold } from "./send-door";
 export {
+  activateWhatsAppChannel,
   findChannelConfig,
   findReceiptSince,
   findWhatsAppAccount,

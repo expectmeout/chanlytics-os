@@ -101,6 +101,8 @@ export const ACTIVITY_NOISE_KINDS = [
   "mailbox_connection.begun",
   "workspace.provisioned",
   "ask.stop_kept",
+  "source.connected",
+  "source.disconnected",
 ] as const;
 
 /**

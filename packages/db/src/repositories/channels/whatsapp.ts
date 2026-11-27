@@ -46,6 +46,23 @@ export const patchChannelRow = async (db: Db, tenantId: TenantId, channelId: str
 export const setChannelStatus = async (db: Db, tenantId: TenantId, channelId: string, status: "active" | "disabled") =>
   db.from("tenant_channels").update({ status }).eq("id", channelId).eq("tenant_id", tenantId).select("id");
 
+/**
+ * A WhatsApp number's row turned active once its token stands, with channel.connected (its ids, its name, who connected
+ * it) in the same transaction (whatsapp_channel_activate, 00723): true, or false where it is not the workspace's row.
+ */
+export const activateWhatsAppChannel = async (
+  db: Db,
+  tenantId: TenantId,
+  channelId: string,
+  event: {
+    phone_number_id: string;
+    waba_id: string;
+    number_e164: string | null;
+    verified_name: string | null;
+    by: string;
+  },
+) => db.rpc("whatsapp_channel_activate", { p_tenant_id: tenantId, p_channel_id: channelId, p_told: event });
+
 /** The workspace's own row for a WhatsApp number written over, its id back: none when it holds no row for it. */
 export const patchWhatsAppNumberRow = async (db: Db, tenantId: TenantId, phoneNumberId: string, set: ChannelUpdate) =>
   db

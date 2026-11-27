@@ -459,8 +459,8 @@ export const NO_FACT_DOORS = Object.fromEntries(
  * The vault's doors (a credential put or dropped), each kept from the count only where the connection's own door
  * writes the connect or the disconnect as its event: `{ "door()": { by: "the covering door()", kind } }`, held by
  * repo/measures.test.mjs to a door that exists and writes that kind. A vault door no event covers is counted. The
- * mailbox's and the line's are covered since 00721, the Google profile's since 00722; a channel's and a source's come
- * with 00723.
+ * mailbox's and the line's are covered since 00721, the Google profile's since 00722, a channel's and a footage
+ * account's since 00723.
  */
 export const VAULT_DOORS_COVERED = {
   // A mailbox's token kept as its connect stands, and dropped as it is removed: mailbox_connection_move says each.
@@ -471,6 +471,13 @@ export const VAULT_DOORS_COVERED = {
   // The Google profile's token kept as its connect finishes, and dropped before its row goes (00722).
   "put_google_credentials()": { by: "google_connect_finish()", kind: "google.connected" },
   "drop_google_credentials()": { by: "google_connection_remove()", kind: "google.disconnected" },
+  // A channel's token kept as it connects: a WhatsApp number's row turns active with channel.connected
+  // (whatsapp_channel_activate, 00723), and an Instagram account's connect writes its own (instagram_account_connect).
+  "put_channel_credentials()": { by: "whatsapp_channel_activate()", kind: "channel.connected" },
+  // A footage account's token kept as its connect stands, and dropped as the account is removed (00723); a refresh
+  // keeps the token alone, as the same connection's.
+  "source_credentials_put()": { by: "source_connection_connected()", kind: "source.connected" },
+  "source_credentials_drop()": { by: "source_connection_remove()", kind: "source.disconnected" },
 };
 
 /** sql-map.mjs's callers, read once a process: the code's and the scripts' are a walk of every module. */

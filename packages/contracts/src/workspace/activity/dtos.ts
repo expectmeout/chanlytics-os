@@ -261,6 +261,8 @@ export const WORDS: Record<string, string> = {
   "mailbox_connection.begun": "A mailbox began to connect",
   "workspace.provisioned": "The workspace's first settings were made",
   "ask.stop_kept": "What Stop everything held was kept",
+  "source.connected": "Google Drive was connected",
+  "source.disconnected": "Google Drive was disconnected",
   "capability.activated": "Answering was switched on",
   "capability.deactivated": "Answering was switched off",
   "channel.quality_rating": "WhatsApp changed how it rates a number",

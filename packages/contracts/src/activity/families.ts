@@ -176,6 +176,8 @@ const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   piece: "campaigns",
   retention: "records",
   sequence: "campaigns",
+  // A footage account is kept on Settings › Files, with the business's files (decision 0099).
+  source: "settings",
   usage: "records",
   webhook: "records",
   ingest: "records",

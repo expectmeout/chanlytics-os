@@ -37,24 +37,6 @@ interface TableData {
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
   /** A call that asked nobody (decision 0138, contracts voice/screened.ts): why, and the provider's id where it kept a call. */
   "call.screened": { reason: ScreenedReason; call_id: string | null };
-  /** A channel connected: a WhatsApp number (its ids and what Meta calls it), or an Instagram account (decision 0001, step 8). */
-  "channel.connected":
-    | {
-        kind: "whatsapp";
-        phone_number_id: string;
-        waba_id: string;
-        number_e164: string | null;
-        verified_name: string | null;
-        by: string | null;
-      }
-    | {
-        kind: "instagram";
-        account_id: string;
-        username: string | null;
-        by: string | null;
-        /** Present where it was connected through Meta (the Meta link); absent through Instagram's own login. */
-        login?: "meta";
-      };
   /** Three kinds have SQL writers too: their one shape and version are contracts' (workspace/event-data.ts). */
   "contact.added": ContactAddedData;
   "contact.consent_changed": ContactConsentChangedData;
@@ -111,7 +93,6 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "billing.trial_ending": { category: "billing", version: 1 },
   "broadcast.sent": { category: "message", version: 1 },
   "call.screened": { category: "call", version: 1 },
-  "channel.connected": { category: "system", version: 1 },
   "contact.added": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.added"] },
   "contact.consent_changed": { category: "contact", version: SHARED_EVENT_VERSIONS["contact.consent_changed"] },
   "escalation.opened": { category: "message", version: 1 },
