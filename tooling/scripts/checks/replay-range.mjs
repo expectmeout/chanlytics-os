@@ -14,13 +14,13 @@
  *   EVENT=merge_group MERGE_BASE=<sha> AFTER=<sha> node tooling/scripts/checks/replay-range.mjs
  *
  * Prints db=true or db=false on stdout, for $GITHUB_OUTPUT, and the reason on stderr, for the log, as
- * db-paths-changed.mjs does, whose list of paths it asks. A git command that fails fails the step (exit 1): a crash
+ * changed/database.mjs does, whose list of paths it asks. A git command that fails fails the step (exit 1): a crash
  * read as "not needed" would skip the replay this exists to run. The workflow reads LAST_GREEN from its own history
  * (`gh run list`), the one part that needs the network.
  */
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { firstDatabasePath } from "./db-paths-changed.mjs";
+import { firstDatabasePath } from "./changed/database.mjs";
 
 const short = (sha) => String(sha).slice(0, 9);
 

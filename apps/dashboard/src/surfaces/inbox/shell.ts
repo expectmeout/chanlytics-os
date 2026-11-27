@@ -109,7 +109,7 @@ export function clockZone(): string {
 /* --------------------------------- people --------------------------------- */
 
 /** A person's own sheet: the one deal sheet, asked for by the person and the move (People's, frame-verbs `openDealSheet`). */
-export function openDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
+export function ixOpenDealSheet(ask: { personId: string; mode: string; dealId?: string | null }): void {
   askDealSheet(ask);
 }
 

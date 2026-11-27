@@ -97,8 +97,7 @@ function ReviewReply({
     if (!named || opened.current) return;
     opened.current = true;
     void openIt();
-    // `openIt` is this draw's own; the review named is what asks for it, once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `openIt` is this draw's own; the review named is what asks for it, once
   }, [named]);
   const send = async () => {
     if (busy || drafting || !text.trim()) return;

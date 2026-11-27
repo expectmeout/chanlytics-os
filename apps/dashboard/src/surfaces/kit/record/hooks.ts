@@ -143,8 +143,7 @@ export function useRecordFold<D = unknown>(
       unhear();
       unbind();
     };
-    // bound to the fold's id: the tests are the hook's own for its life (`mine`), and `read` reads the registry
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bound to the fold's id: the tests are the hook's own for its life (`mine`), and `read` reads the registry
   }, [id]);
   const opening = useRef<Opening>({ looked: false, wrote: null });
   // After every draw: what is typed is read where the page holds it, and kept only when it moved (keepWhatIsTyped).
