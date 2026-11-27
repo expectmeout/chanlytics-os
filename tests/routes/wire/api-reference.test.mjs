@@ -12,9 +12,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { fieldRows, generate, OUT } from "../../tooling/scripts/gen/api-reference.mjs";
+import { fieldRows, generate, OUT } from "../../../tooling/scripts/gen/api-reference.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const current = await generate(ROOT);
 
 test("the generated reference is current", () => {

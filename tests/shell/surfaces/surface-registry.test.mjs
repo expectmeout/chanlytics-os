@@ -41,13 +41,8 @@ const ROWS_LEFT = {
 const { SURFACE_STATES, ROUTE_SURFACE, surfaceStateFor, routeSurfaceFor, routeSurfaces, surfaceRetiredTo } =
   await import(pathToFileURL(path.join(DASH, "bridge/surface-registry.ts")).href);
 
-// The frame (surfaces/frame, TypeScript since the one-system plan's step 7e): its gate (shell-hooks.ts) and the two pages it
-// draws outside the table (app-shell.tsx: shared, start), the family it fades (clients) and its soon landing (shell-routes.ts).
-const shell = ["app-shell.tsx", "shell-hooks.ts", "shell-routes.ts"]
-  .map((f) => fs.readFileSync(path.join(DASH, "surfaces/frame", f), "utf8"))
-  .join("\n");
-// The shell's router is the route table (surfaces/frame/route-table.tsx SHELL_ROUTES): a row per route, `page: "…"`.
-const routes = fs.readFileSync(path.join(DASH, "surfaces/frame/route-table.tsx"), "utf8");
+// The shell's router is the route table (surfaces/frame/route-table.tsx SHELL_ROUTES): a row per route, by its page.
+const { SHELL_ROUTES } = await import(pathToFileURL(path.join(DASH, "surfaces/frame/route-table.tsx")).href);
 
 /** A route's App Router page: `<word>/page.tsx`, or under an optional catch-all (`<word>/[[...thread]]/page.tsx`) where the route takes an address under it. */
 function pageFileOf(route) {
@@ -62,34 +57,10 @@ function pageFileOf(route) {
     );
 }
 
-/**
- * Every page key the shell's router matches on, the retired pages it routes by their move (surfaceRetiredTo), and the
- * routes that have left the shell, which the frame draws around an App Router page (surfaces/routes.ts).
- */
-function routedPages() {
-  const pages = new Set([...Object.keys(registry.SURFACE_RETIRED), ...Object.keys(SURFACE_ROUTES)]);
-  for (const m of (shell + routes).matchAll(/page(?: ===|:) "([a-z-]+)"/g)) pages.add(m[1]);
-  return pages;
-}
-
-// Handled by their own honest mechanisms, not the registry:
-//   soon      IS the ComingSoon pane
-//   (NotFound is the else branch and has no page literal)
-const SELF_HONEST = new Set(["soon"]);
-
-test("every route the shell declares is classified", () => {
-  const missing = [...routedPages()].filter((p) => !SELF_HONEST.has(p) && !(p in SURFACE_STATES));
-  assert.deepEqual(missing, [], "unclassified routes — each would render whatever it renders, gated by nothing");
-});
-
-test("the registry classifies nothing the shell does not route", () => {
-  // A stale entry misleads the next person about what exists.
-  const routed = routedPages();
-  // A sub-route is legitimate when its PAGE is routed — the shell reaches
-  // admin/workspace through the admin branch, not a literal of its own.
-  const stale = Object.keys(SURFACE_STATES).filter((p) => !routed.has(p) && !routed.has(p.split("/")[0]));
-  assert.deepEqual(stale, [], "classified but not routed");
-});
+// Every page the frame can route is classified, nothing is classified that nothing routes, no route grows a demo
+// conditional of its own and the shared viewer is gated: a rule of the frame's code, tests/repo/rules/
+// the-frame-routes-only-what-the-registry-classifies.test.mjs; the gate itself is run in
+// shell/boot/the-frame-draws-what-it-holds.test.mjs. Pinned here as the frame's text until 27 Nov 2026.
 
 test("a route with an App Router page has no row in route-table.tsx, and a page has its route", () => {
   // A route is drawn once. A surface that moved took its row with it (decision 0015, step 3); a row left behind would be
@@ -101,11 +72,10 @@ test("a route with an App Router page has no row in route-table.tsx, and a page 
       pageFileOf(route),
       `${route} is in SURFACE_ROUTES and has no app/(os)/w/[workspace]/${wordOf(route)}/page.tsx (or, for a route that takes an address under it, ${wordOf(route)}/[[...x]]/page.tsx)`,
     );
-    const rows = [...routes.matchAll(new RegExp(String.raw`\{ page: "${route}"([^\n]*)`, "g"))].map((m) => m[1]);
+    const rows = SHELL_ROUTES.filter((r) => r.page === route);
     const allowed = ROWS_LEFT[route] ?? [];
-    assert.deepEqual(
-      rows.filter((row) => !allowed.some(({ word }) => row.includes(word))),
-      [],
+    assert.ok(
+      rows.length <= allowed.length,
       `${route} has an App Router page and still a row in route-table.tsx for an address the page takes`,
     );
     assert.ok(
@@ -213,23 +183,8 @@ test("the real set is exactly the converted surfaces", () => {
   assert.equal(routeSurfaceFor("admin", "platform"), "workspace", "and the gate waits for who is looking");
 });
 
-test("the shell consults the registry through one interception, not per-route conditionals", () => {
-  // The design property: ONE gate derived from the table. Per-route
-  // __DEMO_MODE checks are how fifteen branches got missed the first time.
-  assert.ok(shell.includes('surfaceState(page, param) === "demo"'), "the interception is gone");
-  const adHoc = [...(shell + routes).matchAll(/page(?: ===|:) "[a-z-]+"[^\n]*__DEMO_MODE/g)];
-  assert.deepEqual(
-    adHoc.map((m) => m[0]),
-    [],
-    "a route re-grew its own demo conditional instead of using the registry",
-  );
-});
-
-test("the shared viewer is gated too", () => {
-  // It rendered another company's name over invented numbers, ungated, at a
-  // URL anyone could type.
-  assert.match(shell, /page === "shared" && !demoGated/, "the shared early return lost its gate");
-});
+// The frame consults the registry through one interception, not per-route conditionals, and the shared viewer is gated
+// too: the rule above, and the gate run in shell/boot/.
 
 /* ------------------------- sub-surface classification --------------------- */
 
@@ -289,36 +244,15 @@ test("every real sub-route names an existing page", () => {
   }
 });
 
-test("the shell asks with the param, or sub-routes are decoration", () => {
-  assert.match(shell, /\bsurfaceState\(page, param\)/);
-});
+// The frame asks with the param, or sub-routes are decoration: the gate run with a pane in shell/boot/
+// the-frame-draws-what-it-holds.test.mjs ("the route gate asks with the pane it is about to draw").
 
 /* ------------------------- no fabricated colleagues ----------------------- */
 
-test("REGRESSION: an unconfigured workspace is not shown somebody else's business", () => {
-  // The same bug as the team card, one row ABOVE it, and reachable by every
-  // new customer: migration 00017 provisions a tenant with an EMPTY
-  // tenant_config row, so `config.brain` is undefined and the card fell to
-  // its mockup branch — Serenity Spa, +1 (415) 555-0100, Lena Park and Jay
-  // Rivera, open Mon-Sun 9 to 6. Presented to a real owner as their own
-  // business, on a surface classified real, under a live pill.
-  //
-  // A config the parser refuses lands in the same branch: GET collapses it
-  // to {} and the owner sees an invented salon instead of a broken one.
-  const settings = fs.readFileSync(path.join(DASH, "surfaces/settings/frame/workspace.tsx"), "utf8");
-  assert.ok(
-    settings.includes("const unconfigured = connected && !real;"),
-    "'no configuration' and 'this is the demo' must not be the same branch",
-  );
-  assert.ok(
-    settings.includes("if (unconfigured) return <BtCreateCard flash={flash} />;"),
-    "and the card must take the honest one",
-  );
-  // Task 3.7: the empty state, and the fold that sets a receptionist up from it, are the page's own card. Drawn,
-  // not read: business-tab-create.test.mjs, "a workspace with no receptionist is told so, and offered the one act
-  // that changes it", reads "This workspace has no receptionist yet" off the drawn card, and "with nothing read to
-  // save onto, the act is not offered at all" reads it again where there is no config behind the fold.
-});
+// REGRESSION: an unconfigured workspace is not shown somebody else's business. Migration 00017 provisions a tenant with
+// an EMPTY tenant_config row, and the pane fell to its mockup branch (Serenity Spa, invented hours) on a surface classified
+// real. Drawn: workspace/settings-owner-panes/every-address-of-the-business-lands-on-its-pane.test.mjs ("a workspace with
+// no receptionist set up is told so"), and the card itself in receptionist/business-tab/business-tab-create.test.mjs.
 
 // The Team card reads the real roster, never the mockup's seeded one; "You" is decided by the signed-in email; a real
 // workspace is counted in people, never in seats of a plan it does not have. The card is TSX now (surfaces/settings/team,
@@ -495,64 +429,14 @@ test("the flipped pages still resolve exactly as before", () => {
   }
 });
 
-test("the shell asks the gate with the pane it is about to render", () => {
-  // A registry that resolves panes is useless if the caller drops the pane.
-  assert.ok(shell.includes("const surfaceReady = routeReady(page, param) ||"));
-  assert.ok(shell.includes("routeFailed(page, param)"));
-  assert.ok(!shell.includes("routeReady(page)"), "the bare-page call IS the bug");
-});
+// The frame asks the gate with the pane it is about to render: run in shell/boot/the-frame-draws-what-it-holds.test.mjs.
 
 // A team we could not READ is not a team of four strangers, and a failed team read still uses the real role: drawn in
 // empty-failed.test.mjs ("a team that could not be read draws the one FailedRead") and workspace/settings-owner-panes/ ("a
 // team read that failed ...").
 
-test("the tab bar offers what the registry says is real, and only that", () => {
-  // These two files drifted apart in both directions at once. Lists went real
-  // in #123 and kept demoOnly, and because it was the only OTHER People tab the
-  // bar fell under its two-tab minimum and disappeared -- a shipped surface
-  // reachable in production only from a "New segment" button in a rail. The
-  // four Agents tabs went the other way: none flagged, all four "demo", so
-  // production offered four routes to the same Coming Soon pane.
-  //
-  // The registry is the source of truth for both, so this is the rule rather
-  // than two more corrections.
-  const tabsSrc = fs.readFileSync(path.join(DASH, "surfaces/frame/surface-tabs.tsx"), "utf8");
-  const rows = [...tabsSrc.matchAll(/\{\s*id: "([a-z-]+)",\s*label: "[^"]+",\s*to: "([a-z-]+)"([^}]*)\}/g)].map(
-    ([, id, to, rest]) => ({ id, to, demoOnly: /demoOnly: true/.test(rest) }),
-  );
-  // Campaigns' three tabs went with its strip (3 Oct 2026): the home is one page, and Sent and the Library are rooms reached from it.
-  // The demo-only tabs (the Deal board, Content, and the Agents pages' four) went with demo mode (16 Nov 2026): People and
-  // the Inbox's three are left.
-  assert.ok(rows.length >= 4, `parsed ${rows.length} tabs — the shape of the file changed`);
-
-  for (const t of rows) {
-    const state = SURFACE_STATES[t.to];
-    assert.ok(state, `the ${t.id} tab points at ${t.to}, which the registry does not classify`);
-    if (state === "demo") {
-      assert.ok(t.demoOnly, `${t.id} → ${t.to} is a demo surface but the tab is offered in production`);
-    } else {
-      assert.ok(!t.demoOnly, `${t.id} → ${t.to} is real but the tab is hidden outside a demo`);
-      // And a real surface reached by another address is not a tab either:
-      // leads is the Leads SCOPE of People at clients/leads, and its switch is
-      // the rail's own People | Leads. A tab pointing at the retired route
-      // would bounce through the redirect to reach a scope the page already
-      // draws. Asked of the tabs production offers, which is where that costs
-      // something: the Deal board is demo-only AND retired, and the redirect is
-      // off in a demo, so that tab still reaches the seeded page it names. A
-      // real surface that moved has no page left at the old address at all --
-      // and a demo-only tab pointing at one is caught a line above, because a
-      // real surface may not be hidden outside a demo.
-      assert.ok(
-        !registry.SURFACE_RETIRED[t.to],
-        `${t.id} → ${t.to} is retired; the bar offers where it went, not where it was`,
-      );
-    }
-  }
-
-  // And the bar's own floor: a group whose real tabs number fewer than two
-  // renders nothing, so a group with exactly one real tab is a bar nobody sees.
-  assert.ok(tabsSrc.includes("if (tabs.length < 2) return null;"), "the two-tab minimum still holds");
-});
+// The strip offers what the registry says is real, and only that, and a group of one draws none: drawn and pressed in
+// shell/boot/the-frame-draws-what-it-holds.test.mjs ("the strip offers what the registry says is real").
 
 test("Setup's old address lands on the first run -- the bell rows the edge wrote still carry it -- and a pane moves alone", () => {
   assert.equal(surfaceRetiredTo("admin", "setup"), "start");

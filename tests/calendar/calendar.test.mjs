@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { drawsInPlace } from "../shell/_bridge-holds.mjs";
-import { DESK, PHONE, declared, givenOn, keyframesOf, propertiesIn } from "../_css.mjs";
+import { DESK, PHONE, cascadeOf, declared, element } from "../_css.mjs";
 
 // The calendar route is imported below for the policy it declares; a module that ever builds a service client reads
 // these, and nothing dials it.
@@ -461,40 +461,47 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   // calendar-page/refresh-words-and-access.test.mjs. The first read is the window around the business's today, asked
   // for by that word, at most nine weeks: run in calendar-cold-boot.test.mjs (the page's half) and calendar-feed.test.mjs
   // (the route's). All pinned as verbs.ts's, items.ts's and week.ts's text until 26 Nov 2026.
-  // The page's looks below are asked of its sheet as the build's parser reads it, on a phone and on a desk: what each
-  // selector is given there (tests/_css.mjs givenOn). Pinned as calendar.css's text, block by block, until 26 Nov 2026.
+  // The page's looks below are asked of its sheet as the build's parser reads it (tests/_css.mjs cascadeOf), on a phone
+  // and on a desk: what each element of the page is given there. Pinned as calendar.css's text, block by block, until
+  // 26 Nov 2026.
   const CAL = "apps/dashboard/src/styles/calendar.css";
+  const desk = cascadeOf([CAL]);
+  const phone = cascadeOf([CAL], PHONE);
+  const still = cascadeOf([CAL], { reducedMotion: true });
   // A fade where it stands: rising 3px as well, the Calendar read on a phone as shifting as it drew (Ruben, 23 Oct 2026).
-  assert.deepEqual(keyframesOf(CAL, "cal-in"), { from: declared("opacity: 0") }, "an arrival that moves nothing");
-  assert.match(givenOn(CAL, ".cal-body", DESK).animation ?? "", /\bcal-in\b/, "a quiet arrival");
-  assert.equal(
-    givenOn(CAL, ".cal-body", { ...DESK, reducedMotion: true }).animation,
-    "none",
-    "none for those who asked",
-  );
+  assert.deepEqual(desk.keyframes("cal-in"), { from: declared("opacity: 0") }, "an arrival that moves nothing");
+  assert.match(desk.given(element(".cal-body")).animation ?? "", /\bcal-in\b/, "a quiet arrival");
+  assert.equal(still.given(element(".cal-body")).animation, "none", "none for those who asked");
   // On a phone the days stand whole on the first frame: faded in, the Agenda's stood a pixel low under the bar and jumped
   // up as the fade ended, where the bar over them stood still (Ruben's recording, 3 Nov 2026). And nothing else moves
   // them (spec 2026-11-03, a still Calendar on a phone): a view of the strip holds still, cut in where the deck slid it
   // (kit/motion/view-deck.ts), and a read on its way leaves them as they are, where they faded to 45% and back; the days
   // not read yet say so themselves. Each end of a move was a step on an iPhone (Ruben, 3 Nov 2026).
-  const days = givenOn(CAL, ".main-scroll > .calendar .cal-body", PHONE);
+  const daysIn = (calendar) => element(".main-scroll", calendar, ".cal-body");
+  const days = phone.given(daysIn(".calendar"));
   assert.equal(days.animation, "none", "on a phone the days arrive with the page, as they will stand");
   assert.deepEqual(
     [days.transition, days["--view-travel"]],
     ["none", "none"],
     "a view of the strip holds still, and nothing on the days eases",
   );
-  assert.notEqual(givenOn(CAL, ".main-scroll > .calendar .cal-body", DESK).animation, "none", "a desk's still arrive");
-  assert.equal(givenOn(CAL, ".main-scroll > .calendar[data-loading] .cal-body", PHONE).opacity, "1", "and never dims");
+  assert.notEqual(desk.given(daysIn(".calendar")).animation, "none", "a desk's still arrive");
+  assert.equal(phone.given(daysIn(".calendar[data-loading]")).opacity, "1", "and never dims");
   assert.deepEqual(
-    [...propertiesIn(CAL)].filter((p) => p.startsWith("scroll-margin")),
+    desk
+      .every()
+      .flatMap((r) => r.declarations.map((d) => d.prop))
+      .filter((p) => p.startsWith("scroll-margin")),
     [],
     "the page says where it stands after a change (board-dom.ts standAfter)",
   );
   // A head that holds today is as tall as one that does not: today's date is the accent's 22px circle, its head stood 3px
   // taller, and Day's and Week's hours stepped 3px as the days changed to or from today (3 Nov 2026).
-  for (const screen of [PHONE, DESK]) {
-    const date = givenOn(CAL, ".cal-dayhead .cal-date", screen);
+  for (const [screen, cascade] of [
+    [PHONE, phone],
+    [DESK, desk],
+  ]) {
+    const date = cascade.given(element(".cal-dayhead", ".cal-date"));
     assert.deepEqual(
       [date.display, date["min-width"], date.height],
       ["inline-grid", "22px", "22px"],
@@ -505,24 +512,31 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   // week's heads 52.25px tall, and the Week and the Month stepped a pixel as a slide ended, where the Day and the Agenda,
   // on whole pixels, stood still (Ruben, 3 Nov 2026). The columns are whole and the last takes what is left; the heads'
   // lines are the house's leading, rounded.
-  const onPhone = (selector, property) => givenOn(CAL, selector, PHONE)[property];
+  const onPhone = (parts, property) => phone.given(element(".main-scroll", ".calendar", ...parts))[property];
   const asWritten = (property, value) => declared(`${property}: ${value}`)[property];
   const wholeColumns = (rest) => `repeat(6, round(calc(${rest} / 7), 1px)) minmax(0, 1fr)`;
   assert.equal(
-    onPhone(".main-scroll > .calendar .cal-grid:not(.cal-grid-day)", "grid-template-columns"),
+    onPhone([".cal-grid"], "grid-template-columns"),
     asWritten("grid-template-columns", `var(--space-10) ${wholeColumns("(100% - var(--space-10))")}`),
     "the week's seven days, on whole pixels",
   );
-  assert.equal(
-    onPhone(".main-scroll > .calendar :is(.cal-month-head, .cal-month-row)", "grid-template-columns"),
-    asWritten("grid-template-columns", wholeColumns("100%")),
-    "the month's seven days, on whole pixels",
+  assert.notEqual(
+    onPhone([".cal-grid.cal-grid-day"], "grid-template-columns"),
+    onPhone([".cal-grid"], "grid-template-columns"),
+    "and the Day's one column is its own",
   );
-  assert.equal(
-    onPhone(".main-scroll > .calendar .cal-grid:not(.cal-grid-day) :is(.cal-dow, .cal-date)", "line-height"),
-    asWritten("line-height", "round(calc(var(--leading-normal) * 1em), 1px)"),
-    "the week's heads, whole pixels tall",
-  );
+  for (const row of [".cal-month-head", ".cal-month-row"])
+    assert.equal(
+      onPhone([row], "grid-template-columns"),
+      asWritten("grid-template-columns", wholeColumns("100%")),
+      `the month's seven days, on whole pixels (${row})`,
+    );
+  for (const head of [".cal-dow", ".cal-date"])
+    assert.equal(
+      onPhone([".cal-grid", head], "line-height"),
+      asWritten("line-height", "round(calc(var(--leading-normal) * 1em), 1px)"),
+      `the week's heads, whole pixels tall (${head})`,
+    );
 });
 
 test("the board drawn right: overlapping blocks take lanes, a block outside the hours widens the grid, and a person's thread rides with the block", () => {

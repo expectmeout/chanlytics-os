@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { messageStatusLabel, reachedCustomer, toInboxThreadVM } from "@chanlytics/contracts";
 import { toConversationVM } from "../../apps/dashboard/src/surfaces/inbox/model/thread-vm.ts";
-import { givenOn } from "../_css.mjs";
+import { cascadeOf, declared, element } from "../_css.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -130,8 +130,10 @@ test("an ordinary sent message says nothing rather than something reassuring", (
 test("the thread visibly separates what was said from what was only drafted", () => {
   // The mark on the bubble is drawn and run in inbox-true.test.mjs ("the reply that didn't send says so").
   // On the words, not the bubble's frame, which stands as wide as the thread on a desk (#1841): asked of the parsed
-  // sheet under any query (read as its text until 26 Nov 2026), dimmed and dashed.
-  const words = givenOn("apps/dashboard/src/styles/conversations.css", ".tl-msg.undelivered .tl-msg-body", null);
-  assert.equal(words.opacity, ".7", "and the mark must have a style");
+  // sheet (tests/_css.mjs cascadeOf; read as its text until 26 Nov 2026), dimmed and dashed.
+  const words = cascadeOf(["apps/dashboard/src/styles/conversations.css"]).given(
+    element(".tl-msg.undelivered", ".tl-msg-body"),
+  );
+  assert.equal(words.opacity, declared("opacity: .7").opacity, "and the mark must have a style");
   assert.match(words.border ?? "", /dashed/);
 });

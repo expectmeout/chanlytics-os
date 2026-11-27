@@ -47,7 +47,6 @@ import {
   platformPartnerStanding,
   pageVitalsWords,
 } from "@chanlytics/contracts";
-import { readCode } from "../../../_source.mjs";
 import { kitPages, useStubHooks } from "../../../_stub-react.mjs";
 import { bridgeHolds, drawsInPlace, holdFrameParts } from "../../../shell/_bridge-holds.mjs";
 
@@ -640,14 +639,6 @@ export const homeOf = (tenants) => ({
   queue: { waiting: [], total: 0 },
   spend: null,
 });
-
-/** The Console's screens and rows, their source as one, whitespace folded. */
-export const CONSOLE_FILES = ["workspaces", "workspace", "home", "lines", "partner-rows", "waiting", "rows"];
-
-export const consoleSource = () =>
-  CONSOLE_FILES.map((f) => readCode(`apps/dashboard/src/surfaces/console/${f}.tsx`))
-    .join("\n")
-    .replace(/\s+/g, " ");
 
 /* -------------------------------------------------------------------------- *
  * The people who are not workspaces yet.

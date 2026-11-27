@@ -11,7 +11,7 @@ import { toTodayVM, QUOTE_MAX, leadQuestionRoute } from "@chanlytics/contracts";
 import { todayBriefWords } from "../../apps/dashboard/src/surfaces/today/brief-words.ts";
 import { attentionRow } from "../../apps/dashboard/src/surfaces/people/person/model/attention.ts";
 import { importSrc } from "../_source.mjs";
-import { DESK, PHONE, givenOn } from "../_css.mjs";
+import { DESK, PHONE, cascadeOf, element } from "../_css.mjs";
 import { personRow, daysAgo, ROW_NOW, ROW_TZ } from "../consent/_person-row.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes } from "../_stub-react.mjs";
@@ -575,16 +575,16 @@ test("the wiring: one row component for People and Today, the queue in the comma
     null,
     "no count over rows that say it",
   );
-  // The row's looks, asked of Today's sheet and the row's own as the build's parser reads them (tests/_css.mjs givenOn;
-  // pinned as dashboard-a-v2.css's and clients.css's text until 26 Nov 2026).
+  // The row's looks, asked of Today's sheet and the row's own as the build's parser reads them (tests/_css.mjs
+  // cascadeOf; pinned as dashboard-a-v2.css's and clients.css's text until 26 Nov 2026).
   const TODAY_SHEET = "apps/dashboard/src/styles/dashboard-a-v2.css";
   const ROW_SHEET = "apps/dashboard/src/styles/clients.css";
   assert.equal(
-    givenOn(TODAY_SHEET, ".tq-list .cl-attn-row:first-child", DESK)["border-top"],
+    cascadeOf([TODAY_SHEET]).given(element(".tq-list", ".cl-attn-row:first-child"))["border-top"],
     "none",
     "the card draws the queue's top edge, not its first row",
   );
-  const verbs = givenOn(ROW_SHEET, ".cl-attn-acts", DESK);
+  const verbs = cascadeOf([ROW_SHEET]).given(element(".cl-attn-row", ".cl-attn-acts"));
   assert.deepEqual(
     [verbs.display, verbs["align-items"], verbs.gap],
     ["inline-flex", "center", "6px"],
@@ -594,7 +594,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   // them; one line cut 23% off a call-back summary at 1440, including who the
   // caller had asked to speak to.
   for (const screen of [PHONE, DESK]) {
-    const line = givenOn(ROW_SHEET, ".cl-attn-sentence", screen);
+    const line = cascadeOf([ROW_SHEET], screen).given(element(".cl-attn-row", ".cl-attn-sentence"));
     assert.deepEqual(
       [line.display, line["-webkit-line-clamp"], line["white-space"]],
       ["-webkit-box", "2", undefined],

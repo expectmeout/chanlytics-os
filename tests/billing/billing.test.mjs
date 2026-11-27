@@ -25,8 +25,12 @@ import {
   ESCALATION_REASONS,
   EVENT_KINDS,
   SERVER_NOTIFICATION_KINDS,
+  SCHEMA_SETS,
+  kindListDoor,
+  noticeRoute,
+  verbForRoute,
 } from "@chanlytics/contracts";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { edgeFunctions } from "../../tooling/scripts/edge-functions.mjs";
 import { EVERY_EVENT, toldFor } from "../_live-feed.mjs";
 import { fromDashboard, listedTogether, stepRunning } from "../shell/boot/_frame-boot.mjs";
@@ -345,108 +349,57 @@ test("the Setup row: first, for a workspace that pays by card, in each state; ab
   assert.equal(rowOf(undefined), undefined);
 });
 
-test("the wiring: the migration, the webhook's order, the ops, the routes, the bridge, the pane, the watch list, the kinds", async () => {
-  const sql = readRaw("supabase/migrations/00073_billing.sql");
-  assert.ok(
-    sql.includes("create table public.billing_accounts") && sql.includes("check (mode in ('stripe', 'direct'))"),
-  );
-  assert.ok(
-    sql.includes("select t.id, 'direct', 'active' from public.tenants t"),
-    "every workspace on record keeps its direct arrangement",
-  );
-  assert.ok(
-    sql.includes("values (p_tenant_id, 'stripe', 'none')"),
-    "a new workspace pays by card, nothing subscribed yet",
-  );
-  assert.ok(
-    sql.includes("create table public.billing_events (") && sql.includes("id           text primary key"),
-    "a delivery is kept once, by Stripe's id",
-  );
-  assert.ok(
-    sql.includes("create policy billing_accounts_member_select") && !sql.includes("billing_events_member"),
-    "members read their row; the ledger is the edge's alone",
-  );
-  assert.ok(sql.includes("'callback','paused'") && sql.includes("'alert','review','billing'"));
-  assert.ok(sql.includes("alter publication supabase_realtime add table public.billing_accounts;"));
-  assert.ok(ESCALATION_REASONS.includes("paused") && SERVER_NOTIFICATION_KINDS.includes("billing"));
+test("the table: what it holds, as the database's closed sets say it, and who reads it", () => {
+  // The sets the database's CHECKs hold, as the generator reads them from the replayed stack (schema-sets.generated.ts,
+  // held to the database by its own check): a workspace pays by card or by a direct arrangement; a paused workspace's
+  // hold and its notice are kinds the tables take.
+  assert.deepEqual(SCHEMA_SETS["billing_accounts.mode"], ["stripe", "direct"]);
+  assert.ok(SCHEMA_SETS["escalations.reason"].includes("paused") && ESCALATION_REASONS.includes("paused"));
+  assert.ok(SCHEMA_SETS["notifications.kind"].includes("billing") && SERVER_NOTIFICATION_KINDS.includes("billing"));
   for (const k of ["billing.updated", "billing.paused", "billing.resumed"]) assert.ok(EVENT_KINDS.includes(k), k);
+  // Run on the stack: a new workspace pays by card, nothing subscribed yet (auth/workspace-created.db.test.mjs, its
+  // billing row made with it); a delivery is kept once, by Stripe's id (billing-event-claim.db.test.mjs); members read
+  // their row and the ledger is the edge's alone (database/tenancy/: billing_accounts "member", billing_events "none").
+  // No table is published to Postgres Changes since 00324 (database/realtime-publication.db.test.mjs): the tab hears
+  // billing on its workspace's topic. Pinned as 00073's text until 26 Nov 2026, which still said it was published.
+});
 
-  const hook = readCode("apps/edge/lib/intake/stripe-event.ts");
-  assert.ok(hook.includes("result.webhooks.constructEvent(raw, sig, secret)"), "the signature, on the raw body");
-  assert.ok(
-    hook.indexOf("constructEvent(") < hook.indexOf("keepEvent(") &&
-      hook.indexOf("keepEvent(") < hook.indexOf("applySubscription("),
-    "signature, then the id, then the write",
-  );
-  assert.ok(
-    hook.includes("return json(200, { ok: true, duplicate: true })") &&
-      hook.includes('return refuse(503, "write_failed")'),
-    "a duplicate is 200 without a write; a failed write is 500 so Stripe retries",
-  );
-  for (const t of [
-    '"customer.subscription.updated"',
-    '"customer.subscription.paused"',
-    '"checkout.session.completed"',
-    '"customer.subscription.trial_will_end"',
-    '"invoice.payment_failed"',
-  ])
-    assert.ok(hook.includes(t), t);
-  const lib = ["apps/edge/lib/billing/subscription.ts", "apps/edge/lib/billing/billing.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    lib.includes("env.STRIPE_SECRET_KEY") &&
-      lib.includes("env.STRIPE_PRICE_ID") &&
-      lib.includes("env.STRIPE_WEBHOOK_SECRET"),
-    "the key, the price and the secret on the edge alone",
-  );
-  assert.ok(
-    lib.includes('mode: "subscription"') &&
-      lib.includes("trial_period_days: trial") &&
-      lib.includes("metadata: { tenant_id: tenantId }"),
-    "Checkout in subscription mode, the trial applied, the workspace on the subscription",
-  );
-  assert.ok(
-    lib.includes(
-      "const trial = trialDaysFor({ hadSubscription: !!row.stripe_subscription_id, deploymentDays: trialDays() });",
-    ),
-    "the trial applies once, and is the same from every door, the first run's Go live included (decision 0090)",
-  );
-  // Number("") is 0, not NaN, so a variable created in Vercel and left blank —
-  // which is exactly what copying .env.example gives you — read as a deliberate
-  // zero: no trial_period_days, the card charged on the spot, and every surface
-  // still offering "the 0-day trial ... nothing is charged until it ends".
-  assert.ok(
-    lib.includes('const raw = (env.BILLING_TRIAL_DAYS ?? "").trim();') &&
-      lib.includes("if (!raw) return BILLING_TRIAL_DAYS;"),
-    "blank is unset, and it is tested BEFORE the number is parsed",
-  );
-  assert.ok(
-    lib.indexOf("const raw = (env.BILLING_TRIAL_DAYS") < lib.indexOf("const parsed = Number(raw)"),
-    "trimmed first, parsed second",
-  );
-  assert.match(lib, /client\.subscriptions\.resume\(row\.stripe_subscription_id, \{\s*billing_cycle_anchor: "now"/);
-  assert.ok(lib.includes('if (error.code === "23505") return false;'), "a second delivery hits the primary key");
-  assert.ok(
-    // Rung once through billing/notices.ts ringOnce (S6-12), whose bell, of kind billing, the webhook and door tests read.
-    lib.includes("planBilling(") && lib.includes("await ringOnce("),
-    "the plan decides, the edge writes and rings",
-  );
-  assert.ok(
-    lib.includes("expect: { status: row.status, updated_at: row.updated_at }") &&
-      lib.includes("tenantStatus: plan.tenantStatus,") &&
-      lib.includes('log.info("billing_apply_raced"'),
-    "two events for one change: the loser writes nothing and rings nothing; the row and the switch are one write (00382)",
-  );
-  assert.ok(
-    !lib.includes('.from("billing_accounts").update(') && !lib.includes('.from("tenants").update('),
-    "the row and the switch are written through their one door (db applyBilling), never here",
-  );
-  // The door -- the knock and all six ops over the fake Stripe client, the
-  // row after each -- runs in billing-door.test.mjs.
-  const env = readRaw("apps/edge/.env.example");
-  for (const v of ["STRIPE_SECRET_KEY=", "STRIPE_WEBHOOK_SECRET=", "STRIPE_PRICE_ID=", "BILLING_TRIAL_DAYS="])
-    assert.ok(env.includes(v), v);
+test("the wiring: the webhook, the ops, the keys on the edge alone, the bucket, the bridge, the pane, the watch list, the kinds", async () => {
+  // The webhook's order, run over Stripe's own signing in billing-webhook.test.mjs: a bad signature is refused before
+  // anything is read ("a bad signature is refused"), a delivery is kept once by its id and a replay is 200 without a
+  // write ("a replay changes nothing"), a failed write is 503 so Stripe retries ("an apply that fails gives the claim
+  // back"), and each event the product reads is applied (a subscription updated or paused, a Checkout completed, a trial
+  // about to end, a payment that failed). The loser of two events for one change writes and rings nothing ("two events
+  // for one change"); the row and the switch are one write through their door (billing_apply, 00382:
+  // a-reading-and-the-switch-are-one-write.db.test.mjs), and a table written outside packages/db is the table-names
+  // measure's (check:debt). The ops over a fake Stripe, in billing-door.test.mjs: Checkout in subscription mode with the
+  // trial and the workspace on the subscription, the trial once from every door (decision 0090), the trial as the
+  // environment sets it with blank meaning the default, a resume billing from now. Pinned as stripe-event.ts's,
+  // subscription.ts's and billing.ts's text until 26 Nov 2026.
+
+  // The key, the price and the secret are the edge's to read, and the dashboard holds none of them: each reads its own
+  // environment through its one module (edge lib/shared/env.ts, dashboard server/shared/env.ts), and the edge's
+  // manifest names each (tests/repo/env-manifest.test.mjs holds .env.example to the edge's getters).
+  const { env: edgeEnv } = await importSrc("apps/edge/lib/shared/env.ts");
+  const { env: dashboardEnv } = await importSrc("apps/dashboard/src/server/shared/env.ts");
+  const keys = {
+    STRIPE_SECRET_KEY: "sk_test_x",
+    STRIPE_PRICE_ID: "price_x",
+    STRIPE_WEBHOOK_SECRET: "whsec_x",
+    BILLING_TRIAL_DAYS: "21",
+  };
+  const kept = Object.fromEntries(Object.keys(keys).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, keys);
+  try {
+    for (const [k, v] of Object.entries(keys)) {
+      assert.equal(edgeEnv[k], v, `${k}: the edge reads it`);
+      assert.equal(k in dashboardEnv, false, `${k}: the dashboard never holds it`);
+    }
+  } finally {
+    for (const [k, v] of Object.entries(kept))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  }
   assert.equal(edgeFunctions()["api/stripe-webhook.ts"].maxDuration, 30);
   // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
   // listed kind is stored as itself is run in notify-transport.test.mjs.
@@ -454,70 +407,64 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
 
   // GET billing answers the row as a member may read it, with whether this deployment can charge, and never a
   // customer or subscription id; each door declares who may press it and spends its own bucket, the invoices a read's:
-  // run through the routes in billing/billing-routes.test.mjs. Pinned as the routes' and the reads' text until 25 Nov
-  // 2026.
-  const server = readCode("apps/dashboard/src/server/workspace/billing.ts");
-  assert.ok(!server.includes("STRIPE_SECRET_KEY"), "the dashboard never holds the key");
+  // run through the routes in billing/billing-routes.test.mjs.
   const { RATE } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
   assert.ok(RATE.billing, "the billing bucket");
-  // The assembly lives in src/server/setup/setup.ts: the back office reads another
-  // workspace's through the same function, so support sees what the customer sees.
-  const setup = ["apps/dashboard/src/server/setup/channel-rows.ts", "apps/dashboard/src/server/setup/setup.ts"]
-    .map((p) => readCode(p))
-    .join("\n");
-  // The plan comes with Setup's rows (setup_rows, 00700), as the billing page reads it (findPlanForPage's columns).
-  assert.ok(
-    setup.includes("billingRow: rows.billing ? billingAccountDto(rows.billing) : null,") &&
-      setup.includes("getBillingReadiness(),") &&
-      /trial_days: billingReady\.trial_days,\s*cancel_at: billingRow\.cancel_at/.test(setup),
-  );
-  // Billing is TSX since decision 0015's step 11 (surfaces/settings/billing): the surface, then the pane.
-  const [bridge, pane] = ["surface.ts", "pane.tsx"].map((f) =>
-    readCode(`apps/dashboard/src/surfaces/settings/billing/${f}`),
-  );
-  assert.ok(
-    bridge.includes('key: "billing",') &&
-      bridge.includes('value: "billing",') &&
-      bridge.includes('declareReads("billing", { reads: ["billing"], fresh: "live" })') &&
-      bridge.includes("window.location.assign(r.data.url)"),
+  // The plan comes with Setup's rows (setup_rows, 00700), read by the one assembly the back office reads another
+  // workspace's through too: setup/setup.test.mjs and setup/setup-reads.test.mjs run it.
+
+  // Billing is TSX since decision 0015's step 11 (surfaces/settings/billing): the surface, read once and repainted on
+  // every event the webhook writes, and its verbs, each through its door; the pane is drawn in
+  // workspace/settings-doors.test.mjs ("Billing is the real pane", and its doors to Stripe for each role), and Settings
+  // draws it, not a mockup's twin, in workspace/settings-owner-panes/ ("Billing draws the real pane").
+  const { billingOverride, billingVerbs, installBilling } = fromDashboard("surfaces/settings/billing/surface.ts");
+  assert.deepEqual([billingOverride.key, billingOverride.value], ["billing", "billing"]);
+  assert.deepEqual(
+    [billingOverride.reads, billingOverride.fresh],
+    [["billing"], "live"],
+    "the webhook's every write repaints Billing",
   );
   // Read beside Google's, and its verbs installed as the frame loads (bridge/boot).
   assert.ok(listedTogether("google", "billing"));
-  assert.ok(stepRunning(fromDashboard("surfaces/settings/billing/surface.ts").installBilling), "installed at boot");
-  for (const t of [
-    "billing-real",
-    "billing-headline",
-    "billing-checkout",
-    "billing-portal",
-    "billing-resume",
-    "billing-sync",
-    "billing-invoices",
-    "billing-note",
-  ])
-    assert.ok(pane.includes(`data-testid="${t}"`), t);
-  const settings = readCode("apps/dashboard/src/surfaces/settings/frame/page.tsx");
-  assert.ok(
-    settings.includes("<PaneBillingReal flash={flash} />") &&
-      !settings.includes('which="billing"') &&
-      !settings.includes("const PaneBilling ="),
-    "the pane is real; nothing says not built, and the mockup's twin is gone",
-  );
-  // Setup's rows press them (surfaces/setup/rows/acts.tsx, TSX since decision 0015's step 10).
-  const page = readCode("apps/dashboard/src/surfaces/setup/rows/acts.tsx");
-  assert.ok(page.includes('to === "verb:billing-checkout"') && page.includes('to === "verb:billing-portal"'));
+  assert.ok(stepRunning(installBilling), "installed at boot");
+  // Checkout and the portal are Stripe's own pages: the browser is sent to the address the door answers.
+  const went = [];
+  const asked = [];
+  const was = { window: globalThis.window };
+  globalThis.window = {
+    location: {
+      origin: "https://app.chanlytics.com",
+      pathname: "/w/harbor/settings/billing",
+      hash: "",
+      assign: (u) => went.push(u),
+    },
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() {},
+    fetch: async (url, init = {}) => {
+      asked.push([init.method ?? "GET", new URL(String(url), "https://app.chanlytics.com").pathname]);
+      return Response.json({ ok: true, data: { url: "https://checkout.stripe.com/c/pay/cs_1" } });
+    },
+  };
+  try {
+    assert.deepEqual(await billingVerbs.checkout(), { ok: true, message: "" });
+    assert.deepEqual(await billingVerbs.portal(), { ok: true, message: "" });
+  } finally {
+    globalThis.window = was.window;
+  }
+  assert.deepEqual(asked, [
+    ["POST", "/api/v1/billing/checkout"],
+    ["POST", "/api/v1/billing/portal"],
+  ]);
+  assert.deepEqual(went, ["https://checkout.stripe.com/c/pay/cs_1", "https://checkout.stripe.com/c/pay/cs_1"]);
+  // Setup's rows press them: setup/setup-page-activate.test.mjs ("the billing row's Start the trial and Update the card").
   assert.deepEqual(
     toldFor("billing_accounts"),
     EVERY_EVENT,
     "Stripe's answer, applied by the webhook, repaints Billing",
   );
-  const kinds = [
-    "packages/contracts/src/today/notifications/feed-input.ts",
-    "packages/contracts/src/today/notifications/feed.ts",
-  ]
-    .map((p) => readCode(p))
-    .join("\n");
-  assert.ok(
-    kinds.includes('billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" }') &&
-      kinds.includes('[/^admin\\/billing/, "Open Billing"]'),
-  );
+  // The bell's billing row opens Billing, in its words, by its kind and by its route.
+  assert.deepEqual(kindListDoor("billing"), { to: "admin/billing", action: "Open Billing" });
+  assert.equal(noticeRoute("billing", null), "admin/billing");
+  assert.equal(verbForRoute("admin/billing/invoices"), "Open Billing");
 });
