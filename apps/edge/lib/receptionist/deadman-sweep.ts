@@ -68,6 +68,7 @@ import type { SweepTick } from "../ops/sweep-door.js";
 import { listDeadmanCandidates, markDeadmanAlerted } from "@chanlytics/db/conversations";
 import type { TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
+import { nullableIn } from "@chanlytics/db/shared";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
@@ -164,7 +165,7 @@ async function sweepDeadman({ db, L, started }: SweepTick): Promise<Response> {
     L.error("deadman_query_failed", { error: error.message });
     return json(500, { ok: false });
   }
-  const candidates = data ?? [];
+  const candidates = nullableIn(data, "phone_e164");
   if (candidates.length === 0) return json(200, { ok: true, flagged: 0, ...fields });
 
   // One addressing lookup per TENANT, not per escalation: a backlog is usually

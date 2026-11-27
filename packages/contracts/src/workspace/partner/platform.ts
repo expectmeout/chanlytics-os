@@ -220,7 +220,7 @@ function balanceRows(balance: PartnerLetterNews["balance"]): PartnerBalanceRow[]
  * The subject names the change that matters most. Every figure is a sum partner_letters_due read; nothing is promised.
  */
 export function partnerLetter(
-  news: PartnerLetterNews,
+  news: NewsAsKept,
   opts: { origin: string; since: string; nowMs?: number },
 ): { subject: string; body: string } {
   const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
@@ -239,14 +239,18 @@ export function partnerLetter(
   return { subject: letterSubject(news), body };
 }
 
-const sharesOf = (news: PartnerLetterNews) => news.written.filter((w) => w.kind === "share");
+const sharesOf = (news: NewsAsKept) => news.written.filter((w) => w.kind === "share");
 
 const countsTotal = (rows: readonly { count: number }[]): number => rows.reduce((k, w) => k + w.count, 0);
 
 const nonZero = <T extends { cents: number }>(rows: readonly T[]): T[] => rows.filter((r) => r.cents !== 0);
 
 /** One line per change, in the order the letter says them: the account, the money that moved, then the workspaces. */
-function letterLines(news: PartnerLetterNews): string[] {
+/** The news as a letter reads it: one written before 0016 has no accepted or declined workspaces. */
+type NewsAsKept = Omit<PartnerLetterNews, "accepted" | "declined"> &
+  Partial<Pick<PartnerLetterNews, "accepted" | "declined">>;
+
+function letterLines(news: NewsAsKept): string[] {
   const lines: string[] = [];
   if (news.status) lines.push(statusLine(news.status));
   for (const p of news.paid)
@@ -278,7 +282,7 @@ function letterLines(news: PartnerLetterNews): string[] {
 }
 
 /** The subject names the change that matters most: the first of these that holds. */
-const LETTER_SUBJECTS: readonly [(news: PartnerLetterNews) => boolean, (news: PartnerLetterNews) => string][] = [
+const LETTER_SUBJECTS: readonly [(news: NewsAsKept) => boolean, (news: NewsAsKept) => string][] = [
   [(n) => n.status?.status === "closed", () => "Your Chanlytics partner account is closed"],
   [(n) => n.status?.status === "paused", () => "Your Chanlytics partner account is paused"],
   [(n) => n.paid.length > 0, (n) => `Chanlytics paid you ${money(n.paid)}`],
@@ -292,7 +296,7 @@ const LETTER_SUBJECTS: readonly [(news: PartnerLetterNews) => boolean, (news: Pa
   [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`],
 ];
 
-function letterSubject(news: PartnerLetterNews): string {
+function letterSubject(news: NewsAsKept): string {
   const rule = LETTER_SUBJECTS.find(([holds]) => holds(news));
   return rule ? rule[1](news) : "What changed in your partner account";
 }

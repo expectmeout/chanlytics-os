@@ -129,13 +129,13 @@ export function mailboxSignsOf(
   row: { signature: string | null; signature_off?: boolean; from_name: string; gmail_signature_at?: string | null },
   gmailWords: string | null,
 ): MailboxSigns {
-  const gmail_read_at = row.gmail_signature_at ?? null;
+  const gmailReadAt = row.gmail_signature_at ?? null;
   const gmail = gmailWords?.trim() || null;
-  if (row.signature_off === true) return { from: "none", words: null, gmail_read_at, gmail };
+  if (row.signature_off === true) return { from: "none", words: null, gmail_read_at: gmailReadAt, gmail };
   const own = row.signature?.trim();
-  if (own) return { from: "own", words: own, gmail_read_at, gmail };
-  if (gmail) return { from: "gmail", words: gmail, gmail_read_at, gmail };
-  return { from: "name", words: row.from_name.trim() || null, gmail_read_at, gmail };
+  if (own) return { from: "own", words: own, gmail_read_at: gmailReadAt, gmail };
+  if (gmail) return { from: "gmail", words: gmail, gmail_read_at: gmailReadAt, gmail };
+  return { from: "name", words: row.from_name.trim() || null, gmail_read_at: gmailReadAt, gmail };
 }
 
 /** The longest SPF text a row keeps, every record of the domain's together: a TXT answer is never longer. */

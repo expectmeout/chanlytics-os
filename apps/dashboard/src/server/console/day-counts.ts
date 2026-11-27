@@ -21,7 +21,7 @@ export async function listPlatformDays(
     () => ({ data: null, error: { code: "unreachable", message: "unreadable" } }),
   );
   if (result.error) return result.error.code === "PGRST202" ? [] : null;
-  return (result.data ?? []).map((row) => ({
+  return result.data.map((row) => ({
     tenant_id: row.tenant_id,
     name: row.name,
     day: row.day,

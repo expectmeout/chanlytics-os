@@ -23,7 +23,7 @@ const METRES_PER_MILE = 1609.344;
 
 /** "1.2 mi" close in, whole miles past ten: nobody says "12.4 mi" about a drive across town. */
 export const milesLabel = (metres: number | null): string => {
-  if (metres === null || metres === undefined) return "";
+  if (metres === null) return "";
   const mi = metres / METRES_PER_MILE;
   return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
 };

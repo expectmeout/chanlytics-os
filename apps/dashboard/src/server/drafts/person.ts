@@ -113,7 +113,7 @@ function personLines(person: Who, forTheMember: boolean): string {
     `Name: ${person.name}${person.givenName && person.givenName !== person.name ? ` (called ${person.givenName})` : ""}`,
   ];
   for (const f of person.facts.slice(0, FACTS_SHOWN)) lines.push(`${f.label}: ${f.value}`);
-  const last = person.lastExchange?.customer;
+  const last = person.lastExchange.customer;
   if (last) lines.push(`The last thing they wrote (${last.at}): ${clippedWords(last.text, LAST_CHARS)}`);
   const turns = person.timeline
     // A message that never reached them (queued, failed or canceled) was not said to them: the draft does not build on it.

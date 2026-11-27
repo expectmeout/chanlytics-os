@@ -28,7 +28,6 @@ import {
   DbFailure,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "../../types";
-import { emitEvent } from "../events/events";
 import { runWaitingCounts } from "./reach-out/sheet";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -66,7 +65,7 @@ export async function listStrandedRuns(
     .limit(params.limit);
   if (error) throw new DbFailure(error, "stranded runs: cannot read the scheduled runs");
   // The test in the query is the test here too (contracts isReachOutRun): a row the filter could not see is not let through.
-  const runs = (data ?? []).filter((r) => !isReachOutRun(r.audience));
+  const runs = data.filter((r) => !isReachOutRun(r.audience));
   if (!runs.length) return [];
   const jobs = await db
     .from("jobs")
@@ -79,7 +78,7 @@ export async function listStrandedRuns(
     );
   if (jobs.error) throw new DbFailure(jobs.error, "stranded runs: cannot read their jobs");
   const live = new Set(
-    (jobs.data ?? []).map((j) => {
+    jobs.data.map((j) => {
       const id = recordOrNull(j.payload)?.broadcast_id;
       return typeof id === "string" ? id : "";
     }),
@@ -101,13 +100,8 @@ export async function failStrandedRun(db: Db, params: { tenantId: TenantId; id: 
     .eq("state", "scheduled")
     .select("id");
   if (error) throw new DbFailure(error, `stranded runs: cannot mark run ${params.id} not sent`);
-  if (!(data ?? []).length) return false;
-  // On the ledger as every stopped run is (broadcast.stopped), best effort. Nobody got it: it never left `scheduled`.
-  await emitEvent(db, params.tenantId, "broadcast.stopped", "broadcast", params.id, {
-    failure: "run_interrupted",
-    sent: 0,
-  });
-  return true;
+  // On the ledger as every stopped run is: its row's move to failed writes broadcast.stopped (00721).
+  return data.length > 0;
 }
 
 /**
@@ -127,7 +121,7 @@ async function waitingBy(db: Db, by: "run_for" | "offered_start" | "audience->la
     .order("created_at", { ascending: true })
     .limit(limit);
   if (error) throw new DbFailure(error, "waiting runs: cannot read the runs waiting for approval");
-  return data ?? [];
+  return data;
 }
 
 /** A playbook's run waiting for approval, with the zone its day is told in: what the sweep asks of its day. */
@@ -174,7 +168,7 @@ export async function listWaitingPlaybookRuns(db: Db, params: { limit: number })
     .select("id, timezone")
     .in("id", [...new Set(runs.map((r) => r.tenant_id))]);
   if (zones.error) throw new DbFailure(zones.error, "waiting runs: cannot read their workspaces' zones");
-  const zoneOf = new Map((zones.data ?? []).map((t) => [t.id, t.timezone]));
+  const zoneOf = new Map(zones.data.map((t) => [t.id, t.timezone]));
   return runs.flatMap((run) =>
     run.playbook_id && (run.run_for || run.offered_start || audienceLate(run.audience))
       ? [
@@ -187,7 +181,7 @@ export async function listWaitingPlaybookRuns(db: Db, params: { limit: number })
             run_for: run.run_for,
             offered_start: run.offered_start,
             audience: run.audience,
-            recipient_count: run.recipient_count ?? 0,
+            recipient_count: run.recipient_count,
             timezone: zoneOf.get(run.tenant_id) || DEFAULT_TIMEZONE,
           },
         ]
@@ -255,7 +249,7 @@ export async function cancelBroadcastFrom(
     .eq("state", params.from)
     .select("id");
   if (error) throw new DbFailure(error, `waiting runs: cannot end run ${params.id}`);
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** A decision the system made, with nobody's hand on it (actor_type `system`): its id. Throws when it cannot be written. */
@@ -330,14 +324,14 @@ export async function listWaitingRuns(db: Db, tenantId: TenantId): Promise<Waiti
   ]);
   if (pending.error) throw new DbFailure(pending.error, "cannot read the runs waiting for approval");
   if (going.error) throw new DbFailure(going.error, "cannot read the going runs");
-  const reaching = (going.data ?? []).filter((r) => isReachOutRun(r.audience));
+  const reaching = going.data.filter((r) => isReachOutRun(r.audience));
   const runIds = reaching.map((r) => r.id);
   const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds }) : null;
   const holding = reaching.flatMap((r) => {
     const w = waiting?.get(r.id);
     return w ? [{ ...r, held: w.held, drafted: w.drafted }] : [];
   });
-  return [...(pending.data ?? []), ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return [...pending.data, ...holding].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 /** The state of each of these batches, by id, on the session's client: what a card about one is checked against. */
@@ -349,7 +343,7 @@ export async function batchStatesOf(db: Db, tenantId: TenantId, ids: readonly st
     .eq("tenant_id", tenantId)
     .in("id", [...ids]);
   if (error) throw new DbFailure(error, "cannot read the batches' states");
-  return new Map((data ?? []).map((b) => [b.id, b.state]));
+  return new Map(data.map((b) => [b.id, b.state]));
 }
 
 /** Which of these sends the check still holds, on the session's client: what a card about one is checked against. */
@@ -362,7 +356,7 @@ export async function getHeldSends(db: Db, tenantId: TenantId, ids: readonly str
     .eq("state", "held")
     .in("id", [...ids]);
   if (error) throw new DbFailure(error, "cannot read the held sends");
-  return new Set((data ?? []).map((s) => s.id));
+  return new Set(data.map((s) => s.id));
 }
 
 /** A run set to go, as Going today reads it (decision 0064): when it goes, and what names it. */
@@ -397,7 +391,7 @@ export async function listRunsGoingBetween(
     .order("scheduled_for", { ascending: true })
     .limit(100);
   if (error) throw new DbFailure(error, "cannot read the runs set to go");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -414,7 +408,7 @@ export async function listRunsNamed(db: Db, tenantId: TenantId, ids: readonly st
     .eq("tenant_id", tenantId)
     .in("id", [...ids]);
   if (error) throw new DbFailure(error, "cannot read the runs the notices name");
-  const rows = data ?? [];
+  const rows = data;
   const reaching = rows.filter((r) => isReachOutRun(r.audience) && isOneOf(RUN_GOING_STATES, r.state));
   const waiting = reaching.length ? await runWaitingCounts(db, { tenantId, runIds: reaching.map((r) => r.id) }) : null;
   return rows.map((r) => {

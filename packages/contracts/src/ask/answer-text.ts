@@ -5,7 +5,7 @@
  * sentence ends (firstSentence), and the formatting its words may carry, read as blocks the Line draws (answerBlocks)
  * and as the plain words Copy and a voice take (answerPlain). The answer's shape and its normaliser are ask/answer/normalize.ts's.
  */
-import type { AskAnswer, AskList, AskSource } from "./answer/shape";
+import type { AskAnswer, AskAnswerMaybeListless, AskList, AskSource } from "./answer/shape";
 import type { AskLanguage } from "./language";
 import { recordOrEmpty } from "../shared/unknown";
 
@@ -228,7 +228,7 @@ export function answerRuns(line: string): AnswerRun[] {
     else if (i1 ?? i2) out.push(...answerRuns(i1 ?? i2 ?? "").map((r): AnswerRun => ({ ...r, italic: true })));
     else if (link && to) out.push({ text: link, to });
     else plain(link ?? code ?? "");
-    at = (m.index ?? 0) + m[0].length;
+    at = m.index + m[0].length;
   }
   plain(line.slice(at));
   return out;
@@ -463,7 +463,7 @@ export interface AskChart {
 }
 
 /** A chart as an answer stored it before it had series: one value to a point. */
-type AskChartBefore = Omit<AskChart, "series" | "points"> & {
+export type AskChartBefore = Omit<AskChart, "series" | "points"> & {
   series?: undefined;
   points: Array<{ label: string; value: number }>;
 };
@@ -547,7 +547,7 @@ function listLines(l: AskList): string[] {
  * each, their formatting read as plain words (answerPlain). A detail that opens with a heading, a list or a table starts
  * on its own line.
  */
-export function answerText(askAnswer: AskAnswer): string {
+export function answerText(askAnswer: AskAnswerMaybeListless): string {
   const own = askAnswer.form === "prose" || opensWithBlock(askAnswer.say.detail);
   const say = [askAnswer.say.headline, askAnswer.say.detail].filter(Boolean).join(own ? "\n" : " ");
   return answerPlain([say, ...listLines(askAnswer.show.list ?? NO_LIST)].filter(Boolean).join("\n"));
@@ -589,7 +589,7 @@ export function listSpoken(askList: AskList): string {
  * The answer's words as a voice reads them (Read aloud, a spoken question, the voice door): the headline, the detail's
  * lines, then the list (listSpoken). The figures and rows are drawn, never read.
  */
-export function answerSpoken(askAnswer: AskAnswer): string {
+export function answerSpoken(askAnswer: AskAnswerMaybeListless): string {
   const l = askAnswer.show.list ?? NO_LIST;
   const sentence = sentences([askAnswer.say.headline, ...answerPlain(askAnswer.say.detail, true).split("\n")]);
   return [sentence, listSpoken({ ...l, entries: l.entries.map((e) => answerPlain(e, true)) })]

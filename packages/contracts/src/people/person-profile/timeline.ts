@@ -15,7 +15,7 @@ import { DM_CLOSED, mayReach, type PersonProposalVM } from "../person-reach";
 import type { PersonRowVM } from "../person-row/row-facts";
 import { ts } from "../person-helpers";
 import type { PersonNoteTeamDto, PersonNoteVM } from "../../notes/person-notes";
-import { PERSON_CHANNEL_WORDS, REPLY_WIRE, type PersonChannel } from "../person-words";
+import { PERSON_CHANNEL_WORDS, REPLY_WIRE } from "../person-words";
 import type { signupAskOf } from "../doors/signup-confirm";
 import { wayOff, type WriteWay } from "../../new-conversation/write-ways";
 import { messageAt } from "../../conversations/thread-dto";
@@ -29,6 +29,7 @@ import type { NoticeVM } from "../person-page/notices";
 import type { PersonTabVM } from "../person-page/route";
 import type { PersonVisitsVM } from "../person-page/visits";
 import { WORKS_AT_WORDS } from "../person-page/words";
+import { entryOf } from "../../shared/unknown";
 
 /* -------------------------------- profile -------------------------------- */
 
@@ -471,7 +472,7 @@ export function ownMessagesOf(
         vm: {
           id: message.id,
           words: chars.length > EVIDENCE_WORDS ? `${chars.slice(0, EVIDENCE_WORDS).join("")}…` : sentence,
-          via: PERSON_CHANNEL_WORDS[message.channel as PersonChannel] ?? "",
+          via: entryOf(PERSON_CHANNEL_WORDS, message.channel) ?? "",
           when: `${at.day}, ${at.time}`,
         },
       });

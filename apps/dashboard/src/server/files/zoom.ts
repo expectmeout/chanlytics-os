@@ -39,13 +39,13 @@ interface Zoomed {
 async function readSourceOf(file: FileMemberRow): Promise<{ bytes: Buffer; original: boolean } | null> {
   const mime = file.mime;
   const path = filePathOf(file.tenant_id, file.id, mime);
-  const whole = FILE_TYPES[mime] !== "heic" && (file.bytes ?? 0) <= ORIGINAL_MOST_BYTES;
+  const whole = FILE_TYPES[mime] !== "heic" && file.bytes <= ORIGINAL_MOST_BYTES;
   const read = whole
     ? await bucket().download(path)
     : await bucket().download(path, {
         transform: { width: STORAGE_LARGEST, height: STORAGE_LARGEST, resize: "contain" },
       });
-  if (read.error || !read.data) return null;
+  if (read.error) return null;
   return { bytes: Buffer.from(await read.data.arrayBuffer()), original: whole };
 }
 

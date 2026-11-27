@@ -33,9 +33,9 @@ export async function passCallToOwnerLine(ctx: RouteContext, call: VerbCall) {
       502,
     );
   }
-  const decision_id = await recordDecision(ctx, call.tenant_id, "call", call.id, "take_over", {
+  const decisionId = await recordDecision(ctx, call.tenant_id, "call", call.id, "take_over", {
     how: "transfer",
     line,
   });
-  return { ok: true, decision_id, line };
+  return { ok: true, decision_id: decisionId, line };
 }

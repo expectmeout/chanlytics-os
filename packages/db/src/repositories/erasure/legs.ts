@@ -110,14 +110,14 @@ export function visitNeedles(needles: readonly string[]): string[] {
 export async function listIdentityExternalIds(db: Db, contactId: ContactId): Promise<(string | null)[]> {
   const { data, error } = await db.from("contact_identities").select("external_id").eq("contact_id", contactId);
   if (error) throw new DbFailure(error, "erasure_identities");
-  return (data ?? []).map((i) => i.external_id);
+  return data.map((i) => i.external_id);
 }
 
 /** The Storage paths the person's call recordings name, read while the rows exist. Throws on a failed read. */
 export async function listRecordingPaths(db: Db, contactId: ContactId): Promise<string[]> {
   const { data, error } = await db.from("calls").select("recording").eq("contact_id", contactId);
   if (error) throw new DbFailure(error, "erasure_recordings");
-  return storagePathsOf((data ?? []).map((c) => c.recording));
+  return storagePathsOf(data.map((c) => c.recording));
 }
 
 /** The Storage paths the person's messages' media name, read while the rows exist. Throws on a failed read. */
@@ -128,7 +128,7 @@ export async function listMediaPaths(db: Db, contactId: ContactId): Promise<stri
     .eq("contact_id", contactId)
     .not("media", "is", null);
   if (error) throw new DbFailure(error, "erasure_media");
-  return storagePathsOf((data ?? []).map((m) => m.media));
+  return storagePathsOf(data.map((m) => m.media));
 }
 
 /** The `storage_path` each stored value names, where it names one. */
@@ -225,7 +225,7 @@ export async function removeMediaObjects(
   if (!paths.length) return { requested: 0, removed: [], refused, error: null };
   const { data, error } = await db.storage.from("media").remove(paths);
   if (error) return { requested: paths.length, removed: [], refused, error: error.message };
-  return { requested: paths.length, removed: (data ?? []).map((o) => o.name), refused, error: null };
+  return { requested: paths.length, removed: data.map((o) => o.name), refused, error: null };
 }
 
 /* ---- the jobs that carried them ---- */

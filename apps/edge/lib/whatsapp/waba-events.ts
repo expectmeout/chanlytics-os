@@ -496,7 +496,7 @@ async function keepTemplateStatus(
       { meta_status: mapStatus(params.event), rejected_reason: params.reason },
     );
   let kept = await write();
-  if (kept.error || !kept.data?.length) {
+  if (kept.error || !kept.data.length) {
     await new Promise((r) => setTimeout(r, TEMPLATE_ROW_WAIT_MS));
     kept = await write();
   }

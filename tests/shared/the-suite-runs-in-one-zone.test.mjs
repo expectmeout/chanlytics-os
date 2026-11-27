@@ -311,7 +311,10 @@ test("a run's tests, and every process they start, read TEST_CLOCK's clock; a da
   const run = launch("tests/fixtures/clock-probe.mjs", { TEST_CLOCK: "+12h", EXPECT_AHEAD_MS: String(12 * HOUR) });
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
   assert.match(run.stdout, /^(?:ok 1 - |✔ )the clock the launcher set/m, "the probe ran, and passed");
-  assert.match(run.stderr, /the suite runs in UTC, the clock 12 hours on \(TEST_CLOCK\)/);
+  // The probe runs in the run's own zone, TEST_TZ handed down (Pacific/Auckland on CI's second leg), and its line says so.
+  const zone = zoneOf(process.env);
+  const said = `the suite runs in ${zone}${zone === "UTC" ? "" : " (TEST_TZ)"}, the clock 12 hours on (TEST_CLOCK)`;
+  assert.ok(run.stderr.includes(said), run.stderr);
 });
 
 test("REGRESSION: a test that holds only in the evening fails at one of CI's two clocks (#2285's playbooks test, 13 Nov 2026)", () => {

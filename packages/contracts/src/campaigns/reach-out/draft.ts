@@ -182,7 +182,7 @@ export function reachOutDropStep(reachOutDraft: ReachOutDraft): ReachOutDraft {
 /** The days a later step may wait, as the sheet offers them. */
 export function reachOutAfterDayChoices(): number[] {
   const out: number[] = [];
-  for (let n = REACH_OUT_AFTER_DAYS.min; n <= REACH_OUT_AFTER_DAYS.max; n += 1) out.push(n);
+  for (let n: number = REACH_OUT_AFTER_DAYS.min; n <= REACH_OUT_AFTER_DAYS.max; n += 1) out.push(n);
   return out;
 }
 

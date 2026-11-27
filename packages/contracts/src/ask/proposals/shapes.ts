@@ -230,7 +230,7 @@ const THREAD_PRESS: Readonly<Record<string, AskPressWord>> = {
  * batch "Let it go" or "Skip it", a thread's verb its own. "Approve" is gone: the press says what it does.
  */
 export function askPressOf(p: Pick<AskProposal, "kind" | "payload">): AskPressWord {
-  const pl = p.payload ?? {};
+  const pl = p.payload;
   if (p.kind === "thread_verb") return THREAD_PRESS[String(pl.verb)] ?? "change";
   if (p.kind === "playbook_change") {
     if (pl.state === "paused") return "pause";
@@ -248,7 +248,7 @@ export function askPressOf(p: Pick<AskProposal, "kind" | "payload">): AskPressWo
 
 /** How many people a press says it sends to, where the card knows the number: "Send to 41". Null, it says "Send it". */
 export const askPressCount = (p: Pick<AskProposal, "kind" | "payload">): number | null =>
-  p.kind === "broadcast" && typeof p.payload?.count === "number" && p.payload.count > 0 ? p.payload.count : null;
+  p.kind === "broadcast" && typeof p.payload.count === "number" && p.payload.count > 0 ? p.payload.count : null;
 
 /** The cards whose words a person may ask to change in place: quick changes under them (shorter, warmer, another language). */
 export const askCardHasWords = (kind: string): boolean => {

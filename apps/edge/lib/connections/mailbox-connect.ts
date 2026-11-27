@@ -52,11 +52,11 @@ import {
   connectMailbox,
   dropMailboxCredentials,
   findMailboxConnection,
+  moveMailboxConnection,
   noteCalendarGrant,
   patchMailboxConnection,
   type MailboxConnectionRow,
 } from "@chanlytics/db/email";
-import { emitEvent } from "@chanlytics/db/events";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import type { Database } from "@chanlytics/db/types";
 import { giveGoogleGrantBack } from "../shared/google/give-back.js";
@@ -287,13 +287,14 @@ export async function runMailboxConnect(
   // keeps what its owner chose of its history.
   const dns = await readMailboxDns(host, input.provider).catch(() => null);
   const history: MailboxHistory = input.history === "from_now" ? "from_now" : "six_months";
-  const row = await patchMailboxConnection(mailboxPorts.db, {
+  // The connect stood: its records go on its row and its event on the ledger, in one transaction (00721).
+  const row = await moveMailboxConnection(mailboxPorts.db, {
     tenantId: input.tenantId,
     id: created.id,
-    patch: {
-      ...(dns ? { dns, dns_checked_at: new Date(now).toISOString() } : {}),
-      ...(created.made ? { history } : {}),
-    },
+    move: "stood",
+    by: input.userId,
+    detail: { ...(dns ? { dns } : {}), ...(created.made ? { history } : {}), again: !created.made },
+    at: new Date(now).toISOString(),
   });
   if (row)
     await keepWatch(mailboxPorts.db, row, grant.access_token, mailboxPorts.log, now).catch((e: unknown) =>
@@ -304,12 +305,6 @@ export async function runMailboxConnect(
     await keepGmailSignature(mailboxPorts.db, row, grant.access_token, mailboxPorts.log, now).catch((e: unknown) =>
       mailboxPorts.log.warn("mailbox_signature_unread", { mailbox: created.id, error: errField(e) }),
     );
-  await emitEvent(mailboxPorts.db, input.tenantId, "mailbox_connection.connected", "mailbox_connection", created.id, {
-    address,
-    provider: input.provider,
-    again: !created.made,
-    by: input.userId,
-  });
   // Connected again, its sign-out's warning is mended (contracts NOTICE_MENDS).
   if (!created.made) await mendMailbox(mailboxPorts.db, input.tenantId, created.id, "mailbox_connection.connected");
   // What it brings beside its mail (decision 0073, R19, R20): its six months unless its owner chose from now on (0086),
@@ -344,15 +339,7 @@ export async function removeMailbox(
   }
   await dropMailboxCredentials(mailboxPorts.db, row.id);
   const now = new Date((mailboxPorts.now ?? Date.now)()).toISOString();
-  await patchMailboxConnection(mailboxPorts.db, {
-    tenantId: row.tenant_id,
-    id: row.id,
-    patch: { state: "removed", removed_at: now, held_why: null, held_at: null, watch_id: null, sync_lease_until: null },
-  });
-  await emitEvent(mailboxPorts.db, row.tenant_id, "mailbox_connection.removed", "mailbox_connection", row.id, {
-    address: row.address,
-    by,
-  });
+  await moveMailboxConnection(mailboxPorts.db, { tenantId: row.tenant_id, id: row.id, move: "removed", by, at: now });
   await mendMailbox(mailboxPorts.db, row.tenant_id, row.id, "mailbox_connection.removed");
   // Its calendar, where the workspace read it, goes with it: the link, if one is set, is read again.
   await noteCalendarGrant(mailboxPorts.db, {
@@ -372,39 +359,26 @@ const mendMailbox = (db: MailboxPorts["db"], tenantId: TenantId, id: string, cha
 
 /** Its owner's pause, and its end: only from the states it can be paused or unpaused from. */
 export async function pauseMailbox(mailboxPorts: MailboxPorts, row: MailboxConnectionRow, by: string, pause: boolean) {
-  const moved = await patchMailboxConnection(mailboxPorts.db, {
+  return moveMailboxConnection(mailboxPorts.db, {
     tenantId: row.tenant_id,
     id: row.id,
-    from: [pause ? "connected" : "paused"],
-    patch: { state: pause ? "paused" : "connected" },
+    move: pause ? "paused" : "unpaused",
+    by,
+    at: new Date((mailboxPorts.now ?? Date.now)()).toISOString(),
   });
-  if (moved)
-    await emitEvent(
-      mailboxPorts.db,
-      row.tenant_id,
-      pause ? "mailbox_connection.paused" : "mailbox_connection.unpaused",
-      "mailbox_connection",
-      row.id,
-      { address: row.address, by },
-    );
-  return moved;
 }
 
 /** Its owner's Resume of a hold: sending again, the count started again, the ramp where it was. */
 export async function resumeMailbox(mailboxPorts: MailboxPorts, row: MailboxConnectionRow, by: string) {
   const now = new Date((mailboxPorts.now ?? Date.now)()).toISOString();
-  const moved = await patchMailboxConnection(mailboxPorts.db, {
+  const moved = await moveMailboxConnection(mailboxPorts.db, {
     tenantId: row.tenant_id,
     id: row.id,
-    from: ["held"],
-    patch: { state: "connected", held_why: null, held_at: null, counted_since: now },
+    move: "resumed",
+    by,
+    at: now,
   });
   if (moved) {
-    await emitEvent(mailboxPorts.db, row.tenant_id, "mailbox_connection.resumed", "mailbox_connection", row.id, {
-      address: row.address,
-      why: row.held_why,
-      by,
-    });
     await mendMailbox(mailboxPorts.db, row.tenant_id, row.id, "mailbox_connection.resumed");
   }
   return moved;

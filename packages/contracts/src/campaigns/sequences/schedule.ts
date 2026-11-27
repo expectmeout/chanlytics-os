@@ -399,7 +399,7 @@ function leadStepNow(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleCt
   const held = ofStep("held");
   const toSend = ofStep("to_send");
   const parts = [held > 0 ? `${held} held by the check` : null, toSend > 0 ? `${toSend} for you to send` : null];
-  if (going && next) {
+  if (going) {
     const when = clockAhead(Date.parse(next.at), ctx.tz, ctx.nowMs);
     parts.push(next.people > 0 ? `${next.people} go ${when}` : `goes ${when}`);
   }

@@ -145,7 +145,7 @@ const sequenceNoticeOf = (n: Omit<SequenceNotice, "batchId" | "stepId"> & Partia
  * when it was made, never when it goes: an OK sends it at once.
  */
 export const batchWaitsUntilTonight = (batch: Pick<SequenceNeedsDto["batches"][number], "audience">): boolean =>
-  batch.audience?.kind === "playbook";
+  batch.audience.kind === "playbook";
 
 /** A batch waiting for an OK, as the notice says it: its people and how long it waits, the step where there are several. */
 function waitingNotice(steps: readonly SequenceStepDto[], batch: SequenceNeedsDto["batches"][number]): SequenceNotice {

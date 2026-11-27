@@ -53,7 +53,7 @@ async function writeOne(tick: Tick, reachOutSend: ReachOutSendRow): Promise<Outc
   const { skip, recheck, hold } = turns;
 
   // 0. Written before, by a tick that died after it: that email is this send's.
-  const messageId = await sendMessageId(reachOutSend.id, reachOutSend.attempts ?? 0);
+  const messageId = await sendMessageId(reachOutSend.id, reachOutSend.attempts);
   const was = await findWrittenEmail(db, { tenantId: reachOutSend.tenant_id, id: messageId });
   if (was) return adopt(tick, reachOutSend, messageId, was);
 

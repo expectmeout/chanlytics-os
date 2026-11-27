@@ -24,7 +24,7 @@ export async function listFirstReplies(
 ): Promise<{ asked_at: string; s: number; hold: number }[]> {
   const { data, error } = await db.rpc("first_replies", { p_tenant_id: tenantId, p_start: since.toISOString() });
   if (error) throw new DbFailure(error, "first_replies");
-  return (data ?? []).flatMap((r) =>
+  return data.flatMap((r) =>
     Number.isFinite(r.ai_seconds)
       ? [
           {

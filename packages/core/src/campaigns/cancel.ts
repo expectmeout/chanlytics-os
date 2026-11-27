@@ -42,10 +42,10 @@ export async function cancelBroadcast(
   if (!(await ports.cancel(row.id, row.state)))
     throw new AppError("conflict", "This send just changed state; look again.", 409);
   if (row.state === "scheduled") await ports.withdraw(row.id);
-  const decision_id = await ports.record("broadcast", row.id, "cancel_broadcast", {
+  const decisionId = await ports.record("broadcast", row.id, "cancel_broadcast", {
     name: row.name,
     was: row.state,
     ...(cmd.reason ? { reason: cmd.reason } : {}),
   });
-  return { id: row.id, state: "canceled", was: row.state, decision_id };
+  return { id: row.id, state: "canceled", was: row.state, decision_id: decisionId };
 }

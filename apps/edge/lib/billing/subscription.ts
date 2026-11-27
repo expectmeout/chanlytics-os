@@ -7,10 +7,10 @@ import type { Database } from "@chanlytics/db/types";
 import {
   applyBilling,
   type BillingPatch,
+  type BillingTold,
   findBillingAccount,
   findBillingAccountOfCustomer,
 } from "@chanlytics/db/billing";
-import { emitEvent } from "@chanlytics/db/events";
 import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
@@ -34,15 +34,17 @@ import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 import { checkoutKeyOf, checkoutMadeOf, sessionReturn, type CheckoutMade } from "./checkout-session.js";
 import { findWorkspaceStanding } from "@chanlytics/db/workspace";
 import type { TenantId } from "@chanlytics/contracts";
-import { logAndGoOn } from "@chanlytics/log";
 
 export type Db = SupabaseClient<Database>;
 
 export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
 
-/** A write nothing races (a customer's id, a stamp, a customer Stripe forgot): the row's one door, with no expectation. */
-export const keepOnRow = (db: Db, tenantId: TenantId, row: BillingPatch) =>
-  applyBilling(db, { tenantId, row, expect: null, tenantStatus: null });
+/**
+ * A write nothing races (a customer's id, a stamp, a customer Stripe forgot): the row's one door, with no expectation,
+ * and the change's event where it is news (a payment's), in its transaction.
+ */
+export const keepOnRow = (db: Db, tenantId: TenantId, row: BillingPatch, event?: BillingTold) =>
+  applyBilling(db, { tenantId, row, expect: null, tenantStatus: null, ...(event ? { told: event } : {}) });
 
 /**
  * Back on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the page reads once: Settings ›
@@ -180,7 +182,7 @@ export function subscriptionFacts(sub: Stripe.Subscription): SubscriptionFacts {
   return {
     id: sub.id,
     status: isOneOf(BILLING_STATUSES, sub.status) ? sub.status : "none",
-    price_id: item?.price?.id ?? null,
+    price_id: item?.price.id ?? null,
     current_period_end: unixIso(item?.current_period_end),
     trial_end: unixIso(sub.trial_end),
     cancel_at: unixIso(sub.cancel_at),
@@ -233,7 +235,7 @@ export async function applySubscription(
   const planned = planBilling(
     {
       mode: row.mode === "direct" ? "direct" : "stripe",
-      status: row.status ?? "none",
+      status: row.status,
       tenant_status: tenant?.status ?? "active",
     },
     facts,
@@ -247,7 +249,7 @@ export async function applySubscription(
   // reading the subscription afresh, so each plans the same move from the same row and finds the one bell kept; the
   // compare-and-set below lets one of them write the row.
   if (plan.bell) {
-    const key = `billing:${row.tenant_id}:${row.updated_at ?? "new"}:${facts.status}`;
+    const key = `billing:${row.tenant_id}:${row.updated_at}:${facts.status}`;
     // A pause is mailed too (tellOnce, S6-11): the receptionist stops answering. Its mail never holds the row back: a
     // mail provider that is down must not leave a workspace answering on a plan that has stopped, so a mail still owed
     // is said and the row is written; the bell and the phones are the notice that must be kept first.
@@ -265,25 +267,28 @@ export async function applySubscription(
   // invoice.paid), and two of them applied side by side each saw the old row
   // and rang the same bell twice. The loser writes nothing and rings nothing;
   // the row already holds the same reading.
+  // The change's event is written with it (00721): a reading another one beat writes neither.
   const won = await applyBilling(db, {
     tenantId: row.tenant_id,
     row: { ...plan.row, ...(customerId ? { stripe_customer_id: customerId } : {}) },
     expect: { status: row.status, updated_at: row.updated_at },
     tenantStatus: plan.tenantStatus,
+    told: {
+      kind: plan.switched === "paused" ? "paused" : plan.switched === "resumed" ? "resumed" : "updated",
+      data: {
+        source,
+        status: facts.status,
+        subscription: sub.id,
+        price_id: facts.price_id ?? null,
+        ...(by ? { by } : {}),
+      },
+    },
   });
   if (!won) {
     log.info("billing_apply_raced", { source, status: facts.status });
     return { switched: null, status: facts.status };
   }
   if (ended && !PLAN_ENDED.has(facts.status)) await endLeftEmpty(sub.id, log);
-  await emitEvent(
-    db,
-    row.tenant_id,
-    plan.switched === "paused" ? "billing.paused" : plan.switched === "resumed" ? "billing.resumed" : "billing.updated",
-    "subscription",
-    null,
-    { source, status: facts.status, subscription: sub.id, price_id: facts.price_id, ...(by ? { by } : {}) },
-  ).catch(logAndGoOn("event"));
   log.info("billing_applied", {
     source,
     status: facts.status,

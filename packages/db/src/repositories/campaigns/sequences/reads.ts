@@ -26,6 +26,7 @@ import { readAllRows } from "../../../shared/paged";
 import { listWaitingOccasions, withComing } from "../occasions";
 import { withReadyCounts } from "../sequence-waiting";
 import { dbLogAndGoOn } from "../../../shared/observe";
+import { nullableIn } from "../../../shared/answers";
 
 export type Db = SupabaseClient<Database>;
 
@@ -44,7 +45,7 @@ interface FollowUpDueRow {
 export async function followUpsDue(db: Db, stepId: string, runFor: string): Promise<FollowUpDueRow[]> {
   const { data, error } = await db.rpc("sequence_follow_ups_due", { p_step_id: stepId, p_run_for: runFor });
   if (error) throw new DbFailure(error, "cannot read who the step is due to");
-  return (data ?? []).flatMap((r) =>
+  return nullableIn(data, "sent_at").flatMap((r) =>
     r.enrollment_id && r.contact_id
       ? [{ enrollment_id: r.enrollment_id, contact_id: r.contact_id, sent_at: r.sent_at ?? null }]
       : [],
@@ -148,7 +149,7 @@ export async function listSequencesOfPerson(
     .select("id, name")
     .in("id", [...new Set(rows.map((r) => r.sequence_id))]);
   if (names.error) throw new DbFailure(names.error, "cannot read the sequences they are in");
-  const nameOf = new Map((names.data ?? []).map((q) => [q.id, q.name]));
+  const nameOf = new Map(names.data.map((q) => [q.id, q.name]));
   // Soonest next first, those with no time last, as the places alone were ordered.
   const soonest = (at: string | null) => (at ? Date.parse(at) : Number.POSITIVE_INFINITY);
   return rows
@@ -233,7 +234,7 @@ export async function listSequenceEvidence(
 ): Promise<SequenceEvidenceDto[]> {
   const { data, error } = await db.rpc("sequence_evidence", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new DbFailure(error, "cannot read what the sequences' batches did");
-  return (data ?? []).map((r) => ({
+  return data.map((r) => ({
     sequence_id: r.sequence_id,
     policy_class: r.policy_class,
     went: r.went,
@@ -288,8 +289,8 @@ export async function listSequencesAtAGlance(db: Db, tenantId: TenantId): Promis
   if (sequences.error) throw new DbFailure(sequences.error, "cannot read the sequences");
   if (steps.error) throw new DbFailure(steps.error, "cannot read their steps");
   const first = new Map<string, string>();
-  for (const step of steps.data ?? []) if (!first.has(step.sequence_id)) first.set(step.sequence_id, step.id);
-  return (sequences.data ?? []).map((s) => {
+  for (const step of steps.data) if (!first.has(step.sequence_id)) first.set(step.sequence_id, step.id);
+  return sequences.data.map((s) => {
     const id = first.get(s.id);
     return { ...s, first: id ? { id } : null };
   });
@@ -490,7 +491,7 @@ export async function listRunningStepsOn(
     .eq("state", "running")
     .in("trigger", [...triggers]);
   if (error) throw new DbFailure(error, "cannot read what runs at this moment");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -500,7 +501,7 @@ export async function listRunningStepsOn(
 export async function listSequenceNames(db: Db, tenantId: TenantId): Promise<{ id: string; name: string }[]> {
   const { data, error } = await db.from("sequences").select("id, name").eq("tenant_id", tenantId);
   if (error) throw new DbFailure(error, "cannot read the sequences' names");
-  return data ?? [];
+  return data;
 }
 
 /** A sequence's steps in their places, with what each sent in the last 30 days (00442 sequence_steps_of). */

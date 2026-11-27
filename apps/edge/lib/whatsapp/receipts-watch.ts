@@ -79,7 +79,7 @@ export async function listWhatsappWithoutReceipts(db: SupabaseClient<Database>, 
     for (const value of byTenant.values()) {
       const { data: heard, error: heardErr } = await findReceiptSince(db, value.tenantId, value.lastSentAt);
       if (heardErr) error = heardErr.message;
-      if (heardErr || !heard?.length) silent.push(value);
+      if (heardErr || !heard.length) silent.push(value);
     }
     silent.sort((a, b) => Date.parse(a.firstSentAt) - Date.parse(b.firstSentAt));
     return { silent, error };

@@ -11,8 +11,9 @@ import { leadReviewGroups } from "./review";
 import { isLeadList } from "./import";
 import { LEAD_DIRECTORY_WORDS, leadAddresseeOf } from "./kind";
 import { leadColumnsOf, type LeadColumnsVM } from "./sheet/lead-row-columns";
-import type { LEAD_CLOSED_REASONS, LeadEmailState } from "./search/sets";
+import type { LeadEmailState } from "./search/sets";
 import { siteHost } from "./search/clean";
+import { entryOf } from "../shared/unknown";
 import { LEAD_CLASS_WORDS, LEAD_LEFT_OUT_WORD, LEAD_REVIEW_WORD, LEAD_SOURCE_WORD } from "./words/refusals";
 import {
   LEAD_CLOSED_WORDS,
@@ -193,12 +194,12 @@ export const leadCriterionWords = (key: string): string => {
 
 /** "5.0 · 16": the stars and how many said so, together, because one without the other says nothing. */
 const ratingLabel = (rating: number | null, reviews: number | null): string =>
-  rating === null || rating === undefined ? "" : `${rating.toFixed(1)} · ${reviews ?? 0}`;
+  rating === null ? "" : `${rating.toFixed(1)} · ${reviews ?? 0}`;
 
 /** A closed lead says WHY it closed; "archived" is a stored value and never reaches a screen. */
 const stageLabelOf = (stage: LeadStage, closedReason: string | null): string =>
   stage === "archived"
-    ? (LEAD_CLOSED_WORDS[closedReason as (typeof LEAD_CLOSED_REASONS)[number]] ?? LEAD_STAGE_WORDS.archived)
+    ? (entryOf(LEAD_CLOSED_WORDS, closedReason) ?? LEAD_STAGE_WORDS.archived)
     : LEAD_STAGE_WORDS[stage];
 
 /** 00161's public bucket: the copies of leads' marks we keep, each named by its own hash. */
@@ -222,7 +223,7 @@ export function leadMarkSrc(supabaseUrl: string | null | undefined, path: string
  * "1,284 reviews"); null where the source does not rate.
  */
 export function leadRatingOf(lead: Pick<LeadRowDto, "rating" | "reviews">): LeadRowVM["rated"] {
-  if (lead.rating === null || lead.rating === undefined) return null;
+  if (lead.rating === null) return null;
   const n = lead.reviews ?? 0;
   return { score: lead.rating.toFixed(1), count: n.toLocaleString("en-US"), reviews: reviewsPhrase(n) };
 }

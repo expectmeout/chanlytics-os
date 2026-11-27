@@ -51,7 +51,7 @@ export async function listConversationsSetAside(db: Db, tenantId: TenantId): Pro
     .order("set_aside_at", { ascending: false })
     .limit(SET_ASIDE_READ);
   if (error) throw new DbFailure(error, "conversations");
-  return (data ?? []).map((r) => r.id);
+  return data.map((r) => r.id);
 }
 
 /**
@@ -70,7 +70,7 @@ export async function listConversationDrafts(
     ? all.order("made_at", { ascending: false }).limit(which.newest + 1)
     : all.in("conversation_id", [...which]));
   if (error) throw new DbFailure(error, "conversation_drafts");
-  return data ?? [];
+  return data;
 }
 
 /**
@@ -207,7 +207,7 @@ export async function replyDraftThreadOf(
   if (messages.error) throw new DbFailure(messages.error, "messages");
   if (hold.error) throw new DbFailure(hold.error, "escalations");
   if (person.error) throw new DbFailure(person.error, "contacts");
-  const rows = messages.data ?? [];
+  const rows = messages.data;
   const theirs = theirNewestOf(rows);
   const details = hold.data?.details;
   const wire = rows.length ? answerWireOf([...rows].reverse() as WireRow[]) : null;
@@ -362,7 +362,7 @@ export async function recordConversationDraftFailed(
     details.forMessageId ? held.eq("for_message_id", details.forMessageId) : held.is("for_message_id", null)
   ).select("id");
   if (error) throw new DbFailure(error, "conversation_drafts");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**
@@ -390,7 +390,7 @@ export async function replyDraftsDue(
 ): Promise<Array<{ tenantId: TenantId; conversationId: string }>> {
   const { data, error } = await db.rpc("reply_drafts_due", { p_rules: rules, p_limit: limit });
   if (error) throw new DbFailure(error, "reply_drafts_due");
-  return (data ?? []).map((r) => ({ tenantId: r.tenant_id, conversationId: r.conversation_id }));
+  return data.map((r) => ({ tenantId: r.tenant_id, conversationId: r.conversation_id }));
 }
 
 /** The thread an escalation is on, or null where it is gone: what escalation.changed names is the hold's own id. */

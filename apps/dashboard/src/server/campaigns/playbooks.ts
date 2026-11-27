@@ -77,7 +77,7 @@ const COLUMNS =
 type TotalsRow = PlaybookTotalsDto[string];
 
 /** One run on a card's history: the day it ran for, and what it earned (contracts' shape, the database's answer). */
-export type RunSummary = TotalsRow["history"][number];
+type RunSummary = TotalsRow["history"][number];
 
 /** How many runs a card lists; the totals are over every run. */
 export const HISTORY_ON_CARD = 10;

@@ -9,7 +9,7 @@ import "server-only";
  */
 import { AppError, FORM_SITES_MAX, websiteHostOf, type FormLinkPress } from "@chanlytics/contracts";
 import { keepLink, listFormLinks, makeFormLink } from "@chanlytics/db/forms";
-import { findFormOrRefuse } from "../readers/forms";
+import { findFormOrRefuse } from "../readers/forms/forms";
 import type { Member } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 

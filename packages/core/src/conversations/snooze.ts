@@ -20,19 +20,19 @@ export async function snooze(
   const until = cmd.until ? new Date(cmd.until) : null;
   if (!until || Number.isNaN(until.getTime()) || until.getTime() <= now) throw new AppError("validation", NEEDS_UNTIL);
   if (until.getTime() - now > MAX_SNOOZE_MS) throw new AppError("validation", "snooze is capped at 30 days.");
-  const snooze_until = until.toISOString();
+  const snoozeUntil = until.toISOString();
   // Snooze hides the thread from the queue; it does NOT keep the receptionist
   // muted (that is take-over's job), and the UPDATE clears the pause in the
   // same statement that sets the wake time. It used to release a second store
   // first and put it back when the row did not change; there is no second
   // store now, so a snooze that changes nothing leaves nothing behind.
-  if (!(await ports.snooze(conv.id, snooze_until))) {
+  if (!(await ports.snooze(conv.id, snoozeUntil))) {
     throw new AppError("conflict", "Couldn't snooze this conversation. Reload and try again.", 409);
   }
   // No timer to set: wake_stale_snoozes() reopens the thread from snooze_until (00098).
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "snooze", { until: snooze_until });
+  const decisionId = await ports.record(conv.tenant_id, "conversation", conv.id, "snooze", { until: snoozeUntil });
   // The escalation deliberately stays OPEN. Resolving it here once returned the
   // thread at wake as "Handled — no one asked for you" while the customer who
   // had asked for a person was still waiting and in nobody's queue.
-  return { state: "snoozed", snooze_until, decision_id };
+  return { state: "snoozed", snooze_until: snoozeUntil, decision_id: decisionId };
 }

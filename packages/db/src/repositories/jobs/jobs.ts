@@ -54,7 +54,7 @@ export async function hasRequeuedCopy(db: Db, tenantId: TenantId, jobId: string)
     .neq("state", "failed")
     .limit(1);
   if (error) throw new DbFailure(error, "read_job_copies");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /** The jobs of one kind that failed for good since a moment, oldest first: what the Console runs again together. */
@@ -71,7 +71,7 @@ export async function listFailedJobsOfKind(
     .order("updated_at", { ascending: true })
     .limit(input.limit);
   if (error) throw new DbFailure(error, "read_failed_jobs");
-  return data ?? [];
+  return data;
 }
 
 /** Whose decision a run's send is, and what the ledger keeps of it: a member's (`actor`) or the system's (null, the sweep's). */
@@ -132,7 +132,7 @@ export async function claimQueuedSend(db: Db, tenantId: TenantId, messageId: str
     .is("sending_at", null)
     .select("id");
   if (error) throw new DbFailure(error, "claim_queued_send");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**
@@ -213,7 +213,7 @@ export async function failQueuedSend(
     .eq("status", "queued")
     .select("conversation_id, sender, channel, meta");
   if (error) return { row: null, error: error.message };
-  const row = data?.[0];
+  const row = data[0];
   if (!row) return { row: null, error: null };
   const meta = row.meta !== null && typeof row.meta === "object" && !Array.isArray(row.meta) ? row.meta : null;
   const email = meta?.email;
@@ -264,7 +264,7 @@ export async function queueSend(
     p_due_at: input.dueAt.toISOString(),
     p_payload: input.payload,
   });
-  if (error || typeof data !== "string") throw new DbFailure(error ?? { message: "no message" }, "queue_send");
+  if (error) throw new DbFailure(error, "queue_send");
   return data;
 }
 
@@ -274,7 +274,5 @@ export async function listPausedJobKinds(
 ): Promise<{ kind: string; paused_at: string; paused_why: string | null }[]> {
   const { data, error } = await db.from("job_kinds").select("kind, paused_at, paused_why").not("paused_at", "is", null);
   if (error) throw new DbFailure(error, "read_paused_kinds");
-  return (data ?? []).flatMap((k) =>
-    k.paused_at ? [{ kind: k.kind, paused_at: k.paused_at, paused_why: k.paused_why }] : [],
-  );
+  return data.flatMap((k) => (k.paused_at ? [{ kind: k.kind, paused_at: k.paused_at, paused_why: k.paused_why }] : []));
 }

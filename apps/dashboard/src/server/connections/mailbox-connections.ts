@@ -396,7 +396,7 @@ export async function handleMailboxCallback(ctx: RouteContext, req: Request) {
     const member = await getMemberContext(ctx, proof.state.t);
     slug = member.slug ?? null;
     // Whoever GET mailbox-connections/connect admitted (its policy: the partner rung and up), by the one table.
-    if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
+    if (!ROLE_PERMS[member.role].settings) return back("error", "not_owner");
     tenantId = member.tenantId;
   } catch {
     return back("error", "failed");

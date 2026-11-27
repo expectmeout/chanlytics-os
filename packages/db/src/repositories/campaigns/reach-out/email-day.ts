@@ -85,5 +85,5 @@ export async function listDueMailboxes(
     p_skip_mailboxes: [...(opts.skipMailboxes ?? [])],
   });
   if (error) throw new DbFailure(error, "cannot read the mailboxes with sends due");
-  return data ?? [];
+  return data;
 }

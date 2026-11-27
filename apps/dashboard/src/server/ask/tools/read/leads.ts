@@ -57,7 +57,7 @@ function searchLine(leadSearch: LeadSearchDto) {
     asked: cut(leadSearch.asked),
     asked_on: leadSearch.asked_on.slice(0, 10),
     state: round ? (ROUND_WORDS[round.state] ?? round.state) : "not started",
-    ending: round?.ending ? (LEAD_ENDING_WORDS[round.ending] ?? null) : null,
+    ending: round?.ending ? LEAD_ENDING_WORDS[round.ending] : null,
     // No round yet: the view's own zeros.
     qualified: round?.qualified ?? 0,
     review: round?.review ?? 0,

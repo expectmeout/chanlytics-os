@@ -15,7 +15,7 @@ export async function resolveEscalation(
   // on the ledger for an escalation still open.
   if (!(await ports.resolve(esc.id)))
     throw new AppError("conflict", "This escalation was already resolved — reload.", 409);
-  const decision_id = await ports.record(esc.tenant_id, "escalation", esc.id, "resolve");
-  await ports.link(esc.id, decision_id);
-  return { state: "resolved", decision_id };
+  const decisionId = await ports.record(esc.tenant_id, "escalation", esc.id, "resolve");
+  await ports.link(esc.id, decisionId);
+  return { state: "resolved", decision_id: decisionId };
 }

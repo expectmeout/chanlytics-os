@@ -43,6 +43,7 @@ import {
   fallbackMessages,
   priceAllowance,
   isTenantId,
+  recordOrNull,
 } from "@chanlytics/contracts";
 import { holdPlan, layerTwo } from "@chanlytics/core";
 import { findOldestActiveChannel, type RoutedChannel } from "@chanlytics/db/channels";
@@ -198,8 +199,17 @@ async function routedFor(
 /** The most a case's text holds. */
 const CASE_MAX_CHARS = 500;
 
+/** A case as the request sent it: any field may be missing or of another kind until caseRefusal has read it. */
+type CaseAsSent = Partial<Record<keyof EvalCase, unknown>> | null;
+
+/** A turn of a case's history in its shape: who said it, and its words. */
+function isHistoryTurn(value: unknown): boolean {
+  const turn = recordOrNull(value);
+  return !!turn && (turn.role === "user" || turn.role === "assistant") && typeof turn.content === "string";
+}
+
 /** The first case the door refuses, in its own words; null where every one is whole. */
-function caseRefusal(cases: readonly EvalCase[]): Response | null {
+function caseRefusal(cases: readonly CaseAsSent[]): Response | null {
   for (const evalCase of cases) {
     if (
       !evalCase ||
@@ -212,11 +222,7 @@ function caseRefusal(cases: readonly EvalCase[]): Response | null {
     }
     if (
       evalCase.history &&
-      (!Array.isArray(evalCase.history) ||
-        evalCase.history.length > 12 ||
-        evalCase.history.some(
-          (h) => !h || (h.role !== "user" && h.role !== "assistant") || typeof h.content !== "string",
-        ))
+      (!Array.isArray(evalCase.history) || evalCase.history.length > 12 || !evalCase.history.every(isHistoryTurn))
     ) {
       return refuse(400, "bad_request", "history is up to 12 turns of { role, content }");
     }

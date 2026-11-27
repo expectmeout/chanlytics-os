@@ -11,9 +11,13 @@
  * Each is its own small write, so one that fails is logged and the others still land; the next tick tries again.
  */
 import { DAY_MS, HOUR_MS, mailboxHoldOf } from "@chanlytics/contracts";
-import { emitEvent } from "@chanlytics/db/events";
 import { getMailboxCapacity } from "@chanlytics/db/campaigns";
-import { getMailboxCounts, patchMailboxConnection, type MailboxConnectionRow } from "@chanlytics/db/email";
+import {
+  getMailboxCounts,
+  moveMailboxConnection,
+  patchMailboxConnection,
+  type MailboxConnectionRow,
+} from "@chanlytics/db/email";
 import type { Database } from "@chanlytics/db/types";
 import { readMailboxDns } from "./dns.js";
 import { tellHeld } from "./notices.js";
@@ -35,18 +39,16 @@ async function judge(db: Db, row: MailboxConnectionRow, log: Logger, now: number
   const counts = await getMailboxCounts(db, row.id, row.counted_since);
   const reason = row.state === "held" ? null : mailboxHoldOf(counts);
   if (reason) {
-    const held = await patchMailboxConnection(db, {
+    // The hold and its event, with the counts that earned it, in one transaction (00721).
+    const held = await moveMailboxConnection(db, {
       tenantId: row.tenant_id,
       id: row.id,
-      from: ["connected", "paused"],
-      patch: { state: "held", held_why: reason, held_at: at, judged_at: at },
+      move: "held",
+      why: reason,
+      detail: { ...counts },
+      at,
     });
     if (held) {
-      await emitEvent(db, row.tenant_id, "mailbox_connection.held", "mailbox_connection", row.id, {
-        address: row.address,
-        why: reason,
-        ...counts,
-      });
       await tellHeld(db, held, reason, at, log);
       log.warn("mailbox_held", { mailbox: row.id, why: reason, ...counts });
       return held;

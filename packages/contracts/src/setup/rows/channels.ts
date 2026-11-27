@@ -26,7 +26,7 @@ function emailRow(setupInputs: SetupInputs, ctx: SetupRowContext): SetupRowDraft
   const { nowMs } = ctx;
   const mb = setupInputs.email?.mailbox ?? null;
   const sending = setupInputs.email?.sending ?? null;
-  const own = sending?.mailboxes?.[0] ?? null;
+  const own = sending?.mailboxes[0] ?? null;
   if (!mb && own)
     return {
       id: "email",

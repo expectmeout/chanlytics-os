@@ -57,7 +57,7 @@ export async function holdNoticeIfUnkept(db: Db, row: AppointmentNoticeInsert): 
     )
     .select("notice_id");
   if (error) throw new DbFailure(error, "appointment_notice_hold");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }
 
 /**
@@ -119,7 +119,7 @@ export async function listHeldNotices(db: Db, tenantId: TenantId): Promise<Appoi
     .order("received_at", { ascending: false })
     .limit(HELD_MAX);
   if (error) throw new DbFailure(error, "appointment_notices_held_list");
-  return data ?? [];
+  return data;
 }
 
 /** More held notices than any workspace keeps: past it, the read is not the whole of them. */
@@ -141,7 +141,7 @@ export async function findHeldNoticeKeys(db: Db, tenantId: TenantId): Promise<Re
     .order("id", { ascending: true })
     .limit(HELD_KEYS_CAP);
   if (error) throw new DbFailure(error, "appointment_notices_held_keys");
-  const rows = data ?? [];
+  const rows = data;
   if (rows.length >= HELD_KEYS_CAP) return null;
   return new Set(rows.flatMap((r) => [r.id, r.notice_id]));
 }
@@ -175,5 +175,5 @@ export async function dismissAppointmentNotice(db: Db, tenantId: TenantId, id: s
     .eq("outcome", "held")
     .select("id");
   if (error) throw new DbFailure(error, "appointment_notice_dismiss");
-  return (data?.length ?? 0) > 0;
+  return data.length > 0;
 }

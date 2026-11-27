@@ -64,7 +64,7 @@ export async function approveRun(
   const at = open.at;
   const scheduledFor = at.toISOString();
   const movedFrom = open.moved ? cmd.now.toISOString() : null;
-  const decision_id = await approvedWhole(ports, row, at, {
+  const decisionId = await approvedWhole(ports, row, at, {
     job: true,
     decision: {
       name: row.name,
@@ -81,7 +81,7 @@ export async function approveRun(
     recipient_count: row.recipient_count,
     scheduled_for: scheduledFor,
     moved_from: movedFrom,
-    decision_id,
+    decision_id: decisionId,
   };
 }
 
@@ -117,7 +117,7 @@ async function approveReachOut(ports: ApproveRunPorts, broadcastRef: BroadcastRe
   const at = Number.isFinite(first) && first > now.getTime() ? new Date(first) : now;
   const scheduledFor = at.toISOString();
   // No job: its sends keep their own times, and the reach-out clock claims each.
-  const decision_id = await approvedWhole(ports, broadcastRef, at, {
+  const decisionId = await approvedWhole(ports, broadcastRef, at, {
     job: false,
     decision: {
       name: broadcastRef.name,
@@ -134,6 +134,6 @@ async function approveReachOut(ports: ApproveRunPorts, broadcastRef: BroadcastRe
     recipient_count: broadcastRef.recipient_count,
     scheduled_for: scheduledFor,
     moved_from: null,
-    decision_id,
+    decision_id: decisionId,
   };
 }

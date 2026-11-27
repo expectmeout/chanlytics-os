@@ -89,8 +89,8 @@ export async function getGoogle(
   return {
     listing,
     connection,
-    reviews: (reviews.data ?? []).map((r) => ({ ...r, origin: r.origin === "profile" ? "profile" : "places" })),
-    days: days.data ?? [],
+    reviews: reviews.data.map((r) => ({ ...r, origin: r.origin === "profile" ? "profile" : "places" })),
+    days: days.data,
   };
 }
 
@@ -138,13 +138,13 @@ export async function getGoogleReadiness(now = Date.now()): Promise<GoogleReadin
       ? {
           places: ready.places === true,
           profile:
-            ready.profile === true && typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string",
+            ready.profile === true && typeof oauth?.client_id === "string" && typeof oauth.redirect_uri === "string",
           audience:
             ready.audience === "testing" || ready.audience === "unverified" || ready.audience === "verified"
               ? ready.audience
               : null,
           oauth:
-            typeof oauth?.client_id === "string" && typeof oauth?.redirect_uri === "string"
+            typeof oauth?.client_id === "string" && typeof oauth.redirect_uri === "string"
               ? { client_id: oauth.client_id, redirect_uri: oauth.redirect_uri }
               : null,
         }

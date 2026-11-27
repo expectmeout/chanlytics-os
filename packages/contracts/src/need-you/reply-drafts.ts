@@ -9,7 +9,7 @@
  */
 import { MIN_MS } from "../shared/time";
 import type { CallBrief } from "../new-conversation/person-draft";
-import type { DraftWhy } from "../campaigns/reach-out/reply-draft";
+import type { DraftWhy } from "../campaigns/reach-out/replies/draft";
 import { entryOf } from "../shared/unknown";
 
 /** What a thread is drafted: a reply to its last message, or the brief for a call back. */

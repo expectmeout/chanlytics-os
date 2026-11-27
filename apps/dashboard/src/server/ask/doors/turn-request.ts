@@ -28,7 +28,7 @@ import type { TenantId } from "@chanlytics/contracts";
 // dropped in silence, and the prompt never learnt the page.
 export const SURFACES = new Set<string>(ASK_SURFACES);
 
-export function line(ev: AskTurnLine): string {
+function line(ev: AskTurnLine): string {
   return `${JSON.stringify(ev)}\n`;
 }
 
@@ -36,7 +36,7 @@ export function line(ev: AskTurnLine): string {
  * The platform waits for the turn after the response has gone (next/server's `after`): a Stop lets go of the stream
  * while the turn it stopped is still to be saved. Outside a request (a test calling the route) there is no one to tell.
  */
-export function waitFor(turn: Promise<unknown>): void {
+function waitFor(turn: Promise<unknown>): void {
   try {
     after(turn);
   } catch {

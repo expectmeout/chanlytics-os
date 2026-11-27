@@ -475,10 +475,17 @@ export const NO_FACT_DOORS = Object.fromEntries(
 /**
  * The vault's doors (a credential put or dropped), each kept from the count only where the connection's own door
  * writes the connect or the disconnect as its event: `{ "door()": { by: "the covering door()", kind } }`, held by
- * repo/measures.test.mjs to a door that exists and writes that kind. A vault door no event covers is counted. On 26 Nov
- * 2026 none is covered on main: B covers the mailbox's and the line's, C the Google profile's and a channel's.
+ * repo/measures.test.mjs to a door that exists and writes that kind. A vault door no event covers is counted. The
+ * mailbox's and the line's are covered since 00721; the Google profile's comes with 00722, a channel's and a source's
+ * with 00723.
  */
-export const VAULT_DOORS_COVERED = {};
+export const VAULT_DOORS_COVERED = {
+  // A mailbox's token kept as its connect stands, and dropped as it is removed: mailbox_connection_move says each.
+  "put_mailbox_credentials()": { by: "mailbox_connection_move()", kind: "mailbox_connection.connected" },
+  "drop_mailbox_credentials()": { by: "mailbox_connection_move()", kind: "mailbox_connection.removed" },
+  // A line's provider key kept as the line is provisioned: the line's own row says it answers (lines_tell_their_moves).
+  "put_line_credentials()": { by: "lines_tell_their_moves()", kind: "line.answering" },
+};
 
 /** sql-map.mjs's callers, read once a process: the code's and the scripts' are a walk of every module. */
 let outsideCallers = null;
@@ -564,12 +571,17 @@ export function doorsWithoutEventsIn(sql, { reached = reachedFromOutside(sql) } 
         grew = true;
       }
   }
-  // A door and every function its run reaches: what it calls, and what fires on the tables any of them writes.
+  // A door and every function its run reaches: what it calls, and what fires on the tables any of them writes. Not
+  // what fires on the ledger: an event's own reactions (its outbox, its subscribers) are what a fact causes, the spine's,
+  // and a door that reaches the ledger only through a trigger that fires on a condition gains none of them as records.
   const reachOf = (n) => {
     const seen = new Set([n]);
     for (const go = [n]; go.length;) {
       const f = go.pop();
-      const next = [...(calls.get(f) ?? []), ...[...(writes.get(f) ?? [])].flatMap((t) => fired.get(t) ?? [])];
+      const next = [
+        ...(calls.get(f) ?? []),
+        ...[...(writes.get(f) ?? [])].filter((t) => t !== "events").flatMap((t) => fired.get(t) ?? []),
+      ];
       for (const g of next)
         if (!seen.has(g) && bodies.has(g)) {
           seen.add(g);

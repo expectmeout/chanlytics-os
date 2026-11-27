@@ -53,7 +53,7 @@ export async function listThreadsBy(
       .eq("tenant_id", tenantId)
       .in(key, ids.slice(i, i + IN_CHUNK));
     if (error) throw new DbFailure(error, "cannot read the threads");
-    out.push(...(data ?? []));
+    out.push(...data);
   }
   return out;
 }
@@ -90,7 +90,7 @@ async function openHoldsOf(
       .eq("state", "open")
       .in("conversation_id", threadIds.slice(start, start + IN_CHUNK));
     if (error) throw new DbFailure(error, "cannot read the open holds");
-    for (const row of data ?? []) {
+    for (const row of data) {
       if (!row.conversation_id) continue;
       const hold = { reason: row.reason, created_at: row.created_at };
       const held = out.get(row.conversation_id);
@@ -299,7 +299,7 @@ export async function listLastClosedHolds(
       .order("created_at", { ascending: false })
       .limit(CLOSED_HOLDS_MAX);
     if (error) throw new DbFailure(error, "listLastClosedHolds");
-    for (const r of data ?? []) if (!newest.has(r.conversation_id)) newest.set(r.conversation_id, r);
+    for (const r of data) if (!newest.has(r.conversation_id)) newest.set(r.conversation_id, r);
   }
   return [...newest.values()];
 }
@@ -338,7 +338,7 @@ export async function getTodayDoneCount(
   ]);
   if (counted.error) throw new DbFailure(counted.error, "cannot read the day's decisions");
   if (undos.error) throw new DbFailure(undos.error, "cannot read the day's undos");
-  const undone = new Set((undos.data ?? []).flatMap((u) => (u.undo_of ? [u.undo_of] : [])));
-  const done = (counted.data ?? []).filter((d) => !undone.has(d.id));
-  return new Set(done.map((d) => `${d.subject_type}:${d.subject_id ?? ""}`)).size;
+  const undone = new Set(undos.data.flatMap((u) => (u.undo_of ? [u.undo_of] : [])));
+  const done = counted.data.filter((d) => !undone.has(d.id));
+  return new Set(done.map((d) => `${d.subject_type}:${d.subject_id}`)).size;
 }
