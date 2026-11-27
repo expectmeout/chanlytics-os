@@ -14,25 +14,109 @@
 import type { SchemaSet, TemplateStatus, TenantId } from "@chanlytics/contracts";
 import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
 import { answerObject, fetchFromProvider } from "@chanlytics/channels/shared";
-import { NUMBERED_SLOT, recordOrNull, textOrEmpty, valueAt } from "@chanlytics/contracts";
+import {
+  isList,
+  listOrEmpty,
+  NUMBERED_SLOT,
+  nonEmptyOrNull,
+  recordOrNull,
+  textOrEmpty,
+  valueAt,
+} from "@chanlytics/contracts";
 
-export interface MetaTemplateComponent {
+/**
+ * A template's component as a page writes one for Meta: its type, and where it has them its format, its words and its
+ * buttons. Its examples go to Meta as the page wrote them; nothing here reads them.
+ */
+interface MetaTemplateComponent {
   type: string;
   format?: string;
   text?: string;
-  example?: { body_text?: string[][]; header_text?: string[] };
+  example?: unknown;
   buttons?: unknown[];
 }
 
+/** Whether a value is a component as Meta takes one: a type, and its format, words and buttons each of its kind. */
+function isMetaComponent(value: unknown): value is MetaTemplateComponent {
+  const optional = (v: unknown, kind: "string" | "list") =>
+    v === undefined || (kind === "list" ? isList(v) : typeof v === "string");
+  return (
+    typeof valueAt(value, "type") === "string" &&
+    optional(valueAt(value, "format"), "string") &&
+    optional(valueAt(value, "text"), "string") &&
+    optional(valueAt(value, "buttons"), "list")
+  );
+}
+
+/** A page's components for Meta, where every one is a component; none where any is not, or where there is no list. */
+export function componentsOf(value: unknown): readonly MetaTemplateComponent[] | null {
+  return isList(value) && value.every(isMetaComponent) ? value : null;
+}
+
+/** A template as Meta's list holds it, by the fields its row keeps (listedTemplateOf); its components as Meta wrote them. */
 interface MetaTemplate {
   id: string;
   name: string;
   language: string;
   status: string;
   category: string;
-  components?: MetaTemplateComponent[];
+  components?: readonly unknown[];
   quality_score?: { score?: string };
   rejected_reason?: string;
+}
+
+/** Words where a value is words, else none. */
+const wordsOrNone = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+
+/**
+ * A template in Meta's list, read by the fields its row keeps: none without its id, its name or its language, which
+ * the row is kept by and could not be written without.
+ */
+function listedTemplateOf(item: unknown): MetaTemplate[] {
+  const id = nonEmptyOrNull(valueAt(item, "id"));
+  const name = nonEmptyOrNull(valueAt(item, "name"));
+  const language = nonEmptyOrNull(valueAt(item, "language"));
+  if (!id || !name || !language) return [];
+  const components = valueAt(item, "components");
+  return [
+    {
+      id,
+      name,
+      language,
+      status: textOrEmpty(valueAt(item, "status")),
+      category: textOrEmpty(valueAt(item, "category")),
+      ...(isList(components) ? { components } : {}),
+      quality_score: { score: wordsOrNone(valueAt(item, "quality_score", "score")) },
+      rejected_reason: wordsOrNone(valueAt(item, "rejected_reason")),
+    },
+  ];
+}
+
+/** Meta's refusal in an answer, by its words: its own, and the words it gives for a person, each where it has them. */
+interface MetaRefusal {
+  message: string | undefined;
+  error_user_msg: string | undefined;
+}
+
+/**
+ * A Graph answer, read by the fields this module uses: an id, a status and a category, whether it was done, a list's
+ * page and the next page's address, and Meta's refusal; none for an answer that is no object.
+ */
+function graphAnswerOf(answer: Record<string, unknown> | null) {
+  if (!answer) return null;
+  const error = recordOrNull(answer.error);
+  const refusal: MetaRefusal | undefined = error
+    ? { message: wordsOrNone(error.message), error_user_msg: wordsOrNone(error.error_user_msg) }
+    : undefined;
+  return {
+    id: wordsOrNone(answer.id),
+    status: wordsOrNone(answer.status),
+    category: wordsOrNone(answer.category),
+    success: answer.success === true,
+    data: listOrEmpty(answer.data).flatMap(listedTemplateOf),
+    next: wordsOrNone(valueAt(answer, "paging", "next")),
+    error: refusal,
+  };
 }
 
 /** The columns' own sets (templates.meta_status, templates.category), not copies of them. */
@@ -65,15 +149,11 @@ export async function listTemplates(
       tries: 2,
     });
     if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
-    const body = answerObject(res) as {
-      data?: MetaTemplate[];
-      paging?: { next?: string };
-      error?: { message?: string };
-    } | null;
+    const body = graphAnswerOf(answerObject(res));
     if (res.outcome !== "ok" || !body)
       return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
-    out.push(...(body.data ?? []));
-    url = body.paging?.next ?? null;
+    out.push(...body.data);
+    url = body.next ?? null;
   }
   return { ok: true, templates: out };
 }
@@ -167,12 +247,13 @@ export function mapNumberQuality(query: unknown): NumberQuality | null {
   return qualityIn(NUMBER_QUALITIES, query);
 }
 
-function bodyComponent(t: MetaTemplate): MetaTemplateComponent | undefined {
-  return (t.components ?? []).find((c) => String(c.type).toUpperCase() === "BODY");
+/** A listed template's body, the component Meta types BODY, read where it is used. */
+function bodyComponent(t: MetaTemplate): unknown {
+  return listOrEmpty(t.components).find((c) => textOrEmpty(valueAt(c, "type")).toUpperCase() === "BODY");
 }
 
 export function bodyOf(metaTemplate: MetaTemplate): string | null {
-  const text = bodyComponent(metaTemplate)?.text;
+  const text = valueAt(bodyComponent(metaTemplate), "text");
   return typeof text === "string" && text.trim() ? text : null;
 }
 
@@ -181,7 +262,7 @@ export function variablesOf(metaTemplate: MetaTemplate, keepLabels: TemplateVari
   const body = bodyOf(metaTemplate) ?? "";
   const positions = new Set<number>();
   for (const m of body.matchAll(NUMBERED_SLOT)) positions.add(Number(m[1]));
-  const examples = bodyComponent(metaTemplate)?.example?.body_text?.[0] ?? [];
+  const examples = listOrEmpty(valueAt(bodyComponent(metaTemplate), "example", "body_text", 0));
   return [...positions]
     .sort((a, b) => a - b)
     .map((n) => {
@@ -213,7 +294,7 @@ interface TemplateRow {
   meta_status: TemplateStatus;
   category: TemplateCategory | null;
   meta_id: string;
-  components: MetaTemplateComponent[] | null;
+  components: readonly unknown[] | null;
   quality: TemplateQuality | null;
   rejected_reason: string | null;
   body_preview: string | null;
@@ -255,7 +336,7 @@ export function templateRow(
 export async function createTemplate(
   token: string,
   wabaId: string,
-  target: { name: string; language: string; category: string; components: MetaTemplateComponent[] },
+  target: { name: string; language: string; category: string; components: readonly MetaTemplateComponent[] },
 ): Promise<
   { ok: true; data: { id: string; status: string; category?: string } } | { ok: false; error: string; status: number }
 > {
@@ -276,12 +357,7 @@ export async function createTemplate(
     },
   );
   if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
-  const body = answerObject(res) as {
-    id?: string;
-    status?: string;
-    category?: string;
-    error?: { message?: string; error_user_msg?: string };
-  } | null;
+  const body = graphAnswerOf(answerObject(res));
   if (res.outcome !== "ok" || !body?.id)
     return {
       ok: false,
@@ -300,7 +376,7 @@ export async function createTemplate(
 export async function editTemplate(
   token: string,
   metaId: string,
-  components: MetaTemplateComponent[],
+  components: readonly MetaTemplateComponent[],
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const res = await fetchFromProvider(
     "meta",
@@ -313,7 +389,7 @@ export async function editTemplate(
     },
   );
   if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
-  const body = answerObject(res) as { success?: boolean; error?: { message?: string; error_user_msg?: string } } | null;
+  const body = graphAnswerOf(answerObject(res));
   if (res.outcome !== "ok" || !body?.success)
     return {
       ok: false,
@@ -346,7 +422,7 @@ export async function deleteTemplate(
     { method: "DELETE", headers: { authorization: `Bearer ${token}` }, timeoutMs: GRAPH_TIMEOUT_MS },
   );
   if (res.status === 0) return { ok: false, error: String(res.error), status: 0 };
-  const body = answerObject(res) as { success?: boolean; error?: { message?: string } } | null;
+  const body = graphAnswerOf(answerObject(res));
   if (res.outcome !== "ok" || !body?.success)
     return { ok: false, error: body?.error?.message ?? `HTTP ${res.status}`, status: res.status };
   return { ok: true };
