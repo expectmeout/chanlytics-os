@@ -261,7 +261,7 @@ const THEN_KEYS = ["text", "expect", "context", "surface", "between"];
 /** What may happen between the turns: turn 1's card approved as the Line approves it, and put back after turn 2. */
 const BETWEEN = ["approve", "snooze"];
 /** The checks that judge a second turn against its first (followUpFails): a first turn has none before it. */
-const FOLLOW_UP_CHECKS = ["names_card", "opens_item", "drops_first_scope", "omits_snoozed"];
+const FOLLOW_UP_CHECKS = ["names_card", "presses_card", "opens_item", "drops_first_scope", "omits_snoozed"];
 
 const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -525,7 +525,7 @@ const itemsOf = (m) => (m ? (m.answer ?? answerFromV1(m)).show.items : []);
 
 /**
  * Why turn 2 cannot be asked, or null. `first` is turn 1 as it ended: `{ final, threadId, scope }`. Turn 2 needs an
- * answer that did not fail, the thread that answer landed in, a card when it is to name or approve one, and as many
+ * answer that did not fail, the thread that answer landed in, a card when it is to name, press or approve one, and as many
  * items as the one it opens; without them it is a failing row that asked nothing, and no refusal.
  */
 export function notAsked(two, first) {
@@ -535,6 +535,7 @@ export function notAsked(two, first) {
   if (!first.threadId) return "turn 1 named no thread";
   const e = two.expect ?? {};
   if (e.names_card && !(m.proposals ?? []).length) return "turn 1 made no card to name";
+  if (e.presses_card && !(m.proposals ?? []).length) return "turn 1 made no card to press";
   // Only an approval needs a card: a snooze takes turn 1's thread, and says so itself where it names none (snoozeBetween).
   if (two.between === "approve" && !(m.proposals ?? []).length) return "turn 1 made no card to approve";
   const shown = itemsOf(m).length;
@@ -552,9 +553,20 @@ export { claimsWrite, unquoted };
 /** Words compared as a person reads them: any case, any spacing. */
 const plain = (s) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 
+/** The cards of turn 1 by their titles, as a fail names them. */
+const titled = (cards) => cards.map((p) => `“${p.title}”`).join(", ");
+
+/** A card of a kind turn 1 proposed, made again in turn 2 where turn 1's stands above: the sentence, or none. */
+function madeAgain(m, cards) {
+  const kinds = new Set(cards.map((p) => p.kind));
+  const again = [...new Set((m?.proposals ?? []).map((p) => p.kind).filter((k) => kinds.has(k)))];
+  return again.length ? [`a second ${again.join("/")} card, where turn 1's is one press above`] : [];
+}
+
 /**
- * `names_card`: "approve that one" points, never presses (the Phase 5 plan, D6). Turn 2's words name one of turn 1's
- * cards by its title, no second card of a kind turn 1 proposed is made, and nothing claims it was done.
+ * `names_card`: turn 2 points at turn 1's card and never presses it (the Phase 5 plan, D6). Its words name one of
+ * turn 1's cards by its title, no second card of a kind turn 1 proposed is made, and nothing claims it was done. For
+ * words that are no yes to the card; "approve that one" is a yes, and a yes is the press (pressesCard).
  */
 export function namesCard(m, first) {
   const cards = first?.final?.proposals ?? [];
@@ -562,12 +574,42 @@ export function namesCard(m, first) {
   const text = m?.text ?? "";
   const fails = [];
   if (!cards.some((p) => p.title && plain(text).includes(plain(p.title))))
-    fails.push(`the answer names none of turn 1's cards by its title: ${cards.map((p) => `“${p.title}”`).join(", ")}`);
-  const kinds = new Set(cards.map((p) => p.kind));
-  const again = [...new Set((m?.proposals ?? []).map((p) => p.kind).filter((k) => kinds.has(k)))];
-  if (again.length) fails.push(`a second ${again.join("/")} card, where turn 1's is one press above`);
+    fails.push(`the answer names none of turn 1's cards by its title: ${titled(cards)}`);
+  fails.push(...madeAgain(m, cards));
   if (claimsWrite(text, { besideCards: true }))
     fails.push(`the answer claims the card was done: “${text.slice(0, 120)}”`);
+  return fails;
+}
+
+/**
+ * `presses_card`: their yes is the press (the answers canvas, D18; tools/act/press.ts, #2211, 9 Nov 2026). "Approve
+ * that one", said to the card of the answer just above, presses that card: turn 2's message carries the press
+ * (`pressed`, AskMessageDto) of one of turn 1's cards, landed (`done`), and no second card of its kind is made. What
+ * the answer then says was done was done, so its words are not held to `no_write`; where no press landed, a claim that
+ * one did is the lie it always was.
+ *
+ * The two "approve that one" cases asked for `names_card` until 27 November 2026, a rule from before the press: from
+ * 9 November they failed whenever the product did what it now should (22 November, both: "Done." and "… is going to
+ * Robin Example now", each beside a landed press).
+ */
+export function pressesCard(m, first) {
+  const cards = first?.final?.proposals ?? [];
+  if (!cards.length) return ["turn 1 made no card to press"];
+  const ids = new Set(cards.map((p) => p.id));
+  // The press as the message carries it, in the wire's names or the server's.
+  const pressed = (m?.pressed ?? []).filter((p) => ids.has(p.proposalId ?? p.proposal_id));
+  const text = m?.text ?? "";
+  const fails = [];
+  if (!pressed.some((p) => p.outcome?.state === "done")) {
+    fails.push(
+      pressed.length
+        ? `the press of turn 1's card did not land: ${pressed.map((p) => p.outcome?.state ?? "no outcome").join(", ")}`
+        : `their yes pressed none of turn 1's cards: ${titled(cards)}`,
+    );
+    if (claimsWrite(text, { besideCards: true }))
+      fails.push(`the answer claims the card was done, and no press landed: “${text.slice(0, 120)}”`);
+  }
+  fails.push(...madeAgain(m, cards));
   return fails;
 }
 
@@ -897,6 +939,7 @@ export function followUpFails(e, r, first) {
   if (r.threadId !== first.threadId)
     fails.push(`answered in a new thread: ${r.threadId ?? "none"}, where turn 1's was ${first.threadId}`);
   if (e.names_card) fails.push(...namesCard(r.final, first));
+  if (e.presses_card) fails.push(...pressesCard(r.final, first));
   if (e.opens_item) fails.push(...opensItem(r.final, first, e.opens_item, r.context));
   if (e.drops_first_scope) fails.push(...dropsFirstScope(r.final, first.scope));
   if (e.omits_snoozed) fails.push(...omitsSnoozed(r.final, first.snoozed ?? null));

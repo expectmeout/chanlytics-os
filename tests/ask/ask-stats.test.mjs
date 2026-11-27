@@ -248,8 +248,10 @@ test("MUST_NEVER=1 asks the must-never cases alone, the weekly run's, and says s
   assert.match(none.stderr, /no cases match ONLY\/SURFACE\/MUST_NEVER/);
 });
 
-test("a turn that ran degraded fails by its stored shape (eval-ask.mjs, once the run has read it): the answer format refused and let go, or an answer written as text while the answer tool stood; a tool's answer, cards alone, no tool offered, a turn from before the keys and no shape at all fail nothing", async () => {
+test("a turn that ran degraded fails by its stored shape (eval-ask.mjs, once the run has read it): the answer format refused and let go, or words outside the format standing as the answer while the answer tool stood; an answer written as text in the format, a tool's answer, cards alone, no tool offered, a turn from before the keys and no shape at all fail nothing", async () => {
   const { degradedFails } = await import("../../tooling/scripts/ask-stats.mjs");
+  const prose = { form: "prose", rounds: 1 };
+  const inFormat = { form: "structured", rounds: 1 };
   const refused = degradedFails({ format: false, answer_tool: true, answer_in: "tool" });
   assert.equal(refused.length, 1);
   assert.match(
@@ -257,10 +259,31 @@ test("a turn that ran degraded fails by its stored shape (eval-ask.mjs, once the
     /format.*refused/,
     "the API refused the format and the loop let it go (ask_format_rejected)",
   );
-  const note = degradedFails({ format: true, answer_tool: true, answer_in: "text" });
+  const note = degradedFails({ format: true, answer_tool: true, answer_in: "text" }, prose);
   assert.equal(note.length, 1);
-  assert.match(note[0], /as text while the answer tool stood/, "a note the model wrote to itself");
-  assert.equal(degradedFails({ format: false, answer_tool: true, answer_in: "text" }).length, 2, "both, each said");
+  assert.match(note[0], /words outside the answer's format stood as the answer/, "a note the model wrote to itself");
+  assert.equal(
+    degradedFails({ format: false, answer_tool: true, answer_in: "text" }, prose).length,
+    2,
+    "both, each said",
+  );
+  // REGRESSION (the weekly runs of 8, 15 and 22 Nov 2026): 9, 11 and 9 of 22 turns failed here, each a whole answer
+  // written as text in the format, which is the answer and no note (tools/answer.ts: read as it always was).
+  assert.deepEqual(
+    degradedFails({ format: true, answer_tool: true, answer_in: "text" }, inFormat),
+    [],
+    "an answer written as text in the format is the answer",
+  );
+  assert.deepEqual(
+    degradedFails({ format: true, answer_tool: true, answer_in: "text" }, { ...inFormat, rounds: 2 }),
+    [],
+    "after a read too: it landed whole, which is a note on the turn and no fail (landedWhole)",
+  );
+  assert.deepEqual(
+    degradedFails({ format: true, answer_tool: true, answer_in: "text" }),
+    [],
+    "a row whose answer's form is not known says nothing of a note",
+  );
   assert.deepEqual(degradedFails({ format: true, answer_tool: true, answer_in: "tool" }), []);
   assert.deepEqual(
     degradedFails({ format: true, answer_tool: true, answer_in: null }),
@@ -281,22 +304,45 @@ test("a turn that ran degraded fails by its stored shape (eval-ask.mjs, once the
 });
 
 test("the stream checks count the turns that ran degraded, by the same two rules the judge fails them on: the format refused, a note to itself; a turn with no shape counts toward neither, and a spoken turn, which streams nothing, still counts", () => {
-  const row = (shape, stream = { previews: 1, last_to_final_ms: 100, meets: "same", leaks: 0, lines_lost: false }) => ({
-    rounds: 1,
+  const streamed = { previews: 1, last_to_final_ms: 100, meets: "same", leaks: 0, lines_lost: false };
+  const row = (shape, { stream = streamed, form = "structured", rounds = 1 } = {}) => ({
+    rounds,
+    form,
     first_ms: 1000,
     stream,
     shape,
   });
   const s = streamSummary([
     row({ format: false, answer_tool: true, answer_in: "tool" }),
-    row({ format: false, answer_tool: true, answer_in: "text" }),
+    row({ format: false, answer_tool: true, answer_in: "text" }, { form: "prose" }),
+    row({ format: true, answer_tool: true, answer_in: "text" }, { form: "prose" }),
     row({ format: true, answer_tool: true, answer_in: "text" }),
     row({ format: true, answer_tool: true, answer_in: "tool" }),
-    row({ format: false, answer_tool: true, answer_in: "tool" }, null),
+    row({ format: false, answer_tool: true, answer_in: "tool" }, { stream: null }),
     row(null),
   ]);
-  assert.deepEqual(s.degraded, { format: 3, note: 2 });
-  assert.deepEqual(s.via, { tool: 2, text: 2, none: 0, unread: 1 }, "the stream's own checks are the streamed turns'");
+  assert.deepEqual(s.degraded, { format: 3, note: 2 }, "text in the format is no note");
+  assert.deepEqual(s.via, { tool: 2, text: 3, none: 0, unread: 1 }, "the stream's own checks are the streamed turns'");
+  assert.equal(s.whole, 0, "every one of them a first round");
+});
+
+test("an answer that landed whole is noted, never failed: written as text in a round after a read while the answer tool stood, so it came in one burst; a first round's text streams, the tool's answer streams on any round, and a turn with no answer tool or no shape says nothing", async () => {
+  const { LANDED_WHOLE_NOTE, degradedFails, landedWhole } = await import("../../tooling/scripts/ask-stats.mjs");
+  const text = { format: true, answer_tool: true, answer_in: "text" };
+  // people_foreign_row, 22 Nov 2026: people.get found nobody, the answer came as text in round 2, with one preview.
+  const afterRead = { form: "structured", rounds: 2 };
+  assert.equal(landedWhole(text, afterRead), true);
+  assert.deepEqual(degradedFails(text, afterRead), []);
+  assert.match(LANDED_WHOLE_NOTE, /landed whole/);
+  assert.equal(landedWhole(text, { form: "structured", rounds: 1 }), false, "a first round's text streams");
+  assert.equal(landedWhole({ ...text, answer_in: "tool" }, afterRead), false, "the tool's input streams");
+  assert.equal(landedWhole({ ...text, answer_in: null }, afterRead), false, "cards alone");
+  assert.equal(landedWhole({ ...text, answer_tool: false }, afterRead), false, "no tool: text is how it answers");
+  assert.equal(landedWhole(null, afterRead), false, "a shape the run could not read");
+  assert.equal(landedWhole(text, { form: "structured", rounds: null }), false, "a row with no rounds");
+  const row = (shape, rounds) => ({ rounds, form: "structured", first_ms: 1000, stream: null, shape });
+  const run = [row(text, 2), row(text, 3), row(text, 1), row({ ...text, answer_in: "tool" }, 2)];
+  assert.equal(streamSummary(run).whole, 2);
 });
 
 test("a turn's stored shape keeps whether its answer format held and how many rounds hit the cap (SHAPE_FIELDS: format, cap_hits), so a turn that ran degraded can be failed once the run has read it", async () => {
