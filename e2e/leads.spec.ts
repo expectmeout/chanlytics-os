@@ -565,7 +565,12 @@ test.describe("Leads on a real workspace", () => {
     page,
   }) => {
     test.skip(!PAID, WHY_UNPAID);
-    test.setTimeout(10 * 60_000);
+    // A search widens by itself until its count is delivered (decision 0133): one area's round ends, the next area's
+    // begins, and the strip stays "Finding" across them. On 27 Nov 2026 these six took three areas and 12 min 20 s on
+    // production (run 46053764582, read from the edge's logs), and the nine minutes this waited, sized on 3 Nov for a
+    // search of one round, ended three minutes before the search did.
+    const SEARCH_ENDS_WITHIN = 20 * 60_000;
+    test.setTimeout(SEARCH_ENDS_WITHIN + 5 * 60_000);
     const card = await askForBusinesses(page, "6 independent bike shops in Round Rock, TX, a phone is enough");
     // The card's one press, for what the month has room for: a press it holds back would start nothing.
     const find = card.getByTestId("ask-card-approve");
@@ -581,12 +586,12 @@ test.describe("Leads on a real workspace", () => {
     await expect(strip).toContainText(/Finding|Stopped|Found/, { timeout: 60_000 });
     // The round is over when the strip says so itself (strip-view.tsx, data-state), whichever ending it came to. A
     // question is where a round waits on a person for good, so it ends the wait too and fails on its own sentence
-    // below, as an ending that found nothing to start does, rather than nine minutes later on a timeout.
-    await expect(strip).toHaveAttribute("data-state", /^(found|ended|question)$/, { timeout: 9 * 60_000 });
+    // below, as an ending that found nothing to start does, rather than twenty minutes later on a timeout.
+    await expect(strip).toHaveAttribute("data-state", /^(found|ended|question)$/, { timeout: SEARCH_ENDS_WITHIN });
     await expect(strip.getByTestId("strip-title")).toHaveText(/^(Found|Stopped at) /);
     // What it spent is read from the ledger, never from a screen.
     const searches = await (await apiGet(page, "/api/v1/lead-searches")).json();
-    // What a round spent is the ROUND's (LeadSearchRoundDto), never the search's.
+    // What a round spent is the ROUND's (LeadSearchRoundDto), never the search's: the last area's, of a search that widened.
     const mine = (
       searches.data.searches as Array<{
         id: string;

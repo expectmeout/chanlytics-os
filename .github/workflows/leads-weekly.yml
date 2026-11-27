@@ -8,7 +8,9 @@ name: The lead finder's weekly search
 # The run's own workspace is listed on the platform's switch (decision 30, the seed writes it), so a search runs there
 # while searching is off for everyone else. One spec: "a small search runs end to end", six bike shops by phone, from
 # Ask's card, to its ending, then removed. About $0.30 of the source and the judge, and one Ask turn (about $0.30 at what
-# a watched turn cost on 2 November 2026); the spec fails a round that spent $0.50 or more.
+# a watched turn cost on 2 November 2026); the spec fails a round that spent $0.50 or more. Since decision 0133 a search
+# widens area by area until its count is delivered: these six took three areas and 12 min 20 s on 27 November 2026, so
+# the spec waits up to twenty minutes for the end and the job has forty.
 #
 # On unless the repository variable LEADS_WEEKLY is "off" (Settings, Secrets and variables, Actions, Variables): one
 # word stops it, with no deploy. A run started by hand runs whatever the variable says. A red run keeps one issue open
@@ -34,7 +36,7 @@ jobs:
     name: A real search against production
     if: ${{ vars.LEADS_WEEKLY != 'off' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     permissions:
       contents: read
       issues: write
