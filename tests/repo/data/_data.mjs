@@ -137,12 +137,8 @@ export const SERVICE_ROLE_KEPT = {
   "apps/dashboard/src/server/people/erase-contact.ts":
     "An erasure (decision 0036): its legs reach storage, the provider and rows no member may write",
   // A write a member's role allows but no door takes yet: each goes when its door is written with its event.
-  "apps/dashboard/src/server/calendar/notices.ts":
-    "A held booking notice dismissed: members hold no write on the appointment ledger (00345), and a dismissal has no event of its own yet",
-  "apps/dashboard/src/server/ask/act/stop.ts":
-    "Stop everything: any member who acts may stop, below the settings role that writes the workspace's config; the stop is the workspace's own row, written first",
   "apps/dashboard/src/server/ask/companion/morning.ts":
-    "What every member's mornings offered lately (ask_mornings, each member's own) and the bell's line a morning leaves (notifications, which no session inserts)",
+    "What every member's mornings offered lately (ask_mornings, each member's own: RLS keeps a member to their own, and the look back reads the team's)",
   // A read a member's own session is refused, though the answer is theirs.
   "apps/dashboard/src/server/workspace/billing.ts":
     "What Anthropic has said of the workspace's profile (model standing): the service role's table",

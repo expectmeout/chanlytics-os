@@ -79,7 +79,8 @@ export type PutTenantConfigResult =
  * Zero rows has a third cause from 00366: an update reads the row it changes, and only the owner reads the table, so a
  * partner's update finds nothing. So zero rows asks tenant_config_write (00365), a session's versioned write under the
  * permission the table's update policy names, recorded as the caller's: it writes the row where it can, and says
- * stale or missing where it cannot. A database before 00365 has no door, and the row is looked for as it always was.
+ * stale or missing where it cannot. A member's save that changed parts of it (`told`) goes through the door alone, which
+ * writes its settings.changed beside it (00722).
  */
 export async function putTenantConfig(
   db: Db,
@@ -89,7 +90,11 @@ export async function putTenantConfig(
   /** Who wrote it. This config IS what customers hear, so the row records its author (00085). The door records the
    *  caller, who is this person on every session that writes it. */
   updatedBy?: string | null,
+  /** A member's save that changed parts of it: which (never their values), and the card it came from. The door writes
+   *  the row and its settings.changed in one transaction (00722), as the member. */
+  event?: SettingsTold,
 ): Promise<PutTenantConfigResult> {
+  if (event && event.fields.length > 0) return putThroughTheDoor(db, tenantId, config, expectedVersion, event);
   const { data, error } = await db
     .from("tenant_config")
     .update({
@@ -105,23 +110,43 @@ export async function putTenantConfig(
   if (data) return { ok: true, row: data };
 
   // Zero rows: the door writes what the table would not show this member, and tells an absent row from a losing race.
+  return putThroughTheDoor(db, tenantId, config, expectedVersion);
+}
+
+/** Which parts of the settings a member's save changed, never their values, and the card it came from. */
+export interface SettingsTold {
+  fields: string[];
+  via?: string;
+}
+
+/**
+ * The versioned door (tenant_config_write, 00365): the row written where it is still at the version read, by a caller
+ * with the settings permission, recorded as theirs; with `told`, settings.changed in the same transaction (00722).
+ */
+async function putThroughTheDoor(
+  db: Db,
+  tenantId: TenantId,
+  config: unknown,
+  expectedVersion: number,
+  event?: SettingsTold,
+): Promise<PutTenantConfigResult> {
   const door = await db
-    .rpc("tenant_config_write", { p_tenant_id: tenantId, p_config: jsonCopyOf(config), p_version: expectedVersion })
+    .rpc("tenant_config_write", {
+      p_tenant_id: tenantId,
+      p_config: jsonCopyOf(config),
+      p_version: expectedVersion,
+      ...(event ? { p_told: { fields: [...event.fields], ...(event.via ? { via: event.via } : {}) } } : {}),
+    })
     .maybeSingle();
-  if (!door.error) {
-    const w = door.data;
-    if (w?.outcome === "saved")
-      return {
-        ok: true,
-        row: { tenant_id: tenantId, config, version: w.version, updated_at: w.updated_at, updated_by: w.updated_by },
-      };
-    if (w?.outcome === "stale" || w?.outcome === "missing") return { ok: false, reason: w.outcome };
-    throw new Error("putTenantConfig: the door answered without an outcome");
-  }
-  if (!isMissingDoor(door.error)) throw new DbFailure(door.error, "putTenantConfig");
-  // Before 00365. Distinguish an absent row from a losing race — one query, only on the failure path.
-  const existing = await getTenantConfig(db, tenantId);
-  return { ok: false, reason: existing ? "stale" : "missing" };
+  if (door.error) throw new DbFailure(door.error, "putTenantConfig");
+  const w = door.data;
+  if (w?.outcome === "saved")
+    return {
+      ok: true,
+      row: { tenant_id: tenantId, config, version: w.version, updated_at: w.updated_at, updated_by: w.updated_by },
+    };
+  if (w?.outcome === "stale" || w?.outcome === "missing") return { ok: false, reason: w.outcome };
+  throw new Error("putTenantConfig: the door answered without an outcome");
 }
 
 /**

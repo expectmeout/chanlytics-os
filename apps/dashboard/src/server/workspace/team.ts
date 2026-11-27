@@ -1,10 +1,9 @@
 import "server-only";
-import { recordEvent, getSubjectsWith } from "@chanlytics/db/events";
 import { getOwnPartner } from "@chanlytics/db/partners";
 import { inviteUserByEmail } from "@chanlytics/db/auth";
 import {
+  acceptInvitation,
   changeTeamRole,
-  insertMembership,
   inviteToTeam,
   joinTeam,
   leaveWorkspaceTeam,
@@ -14,7 +13,6 @@ import {
   readTeamRoster,
   removeFromTeam,
   renewTeamInvite,
-  stampInvitationAccepted,
   withdrawInviteRenewal,
   withdrawTeamInvite,
 } from "@chanlytics/db/workspace";
@@ -399,36 +397,15 @@ async function acceptOpenInvites(userId: string, email: string | null): Promise<
   const db = teamDb();
   const seated: InviteToAccept[] = [];
   for (const inv of invites) {
-    const { error: mErr } = await insertMembership(db, { tenant_id: inv.tenant_id, user_id: userId, role: inv.role });
-    // A refusal other than "they hold the seat" leaves the invitation open for the next read.
-    if (mErr && mErr.code !== "23505") continue;
-    // The seat, the news and the stamp are three writes that cannot share a transaction, so they are ordered to be finished
-    // by whoever comes next: the news (member.joined, which the owner's bell line follows: core SUBSCRIBERS.team_notice)
-    // before the invitation is stamped. An invitation still open is one nobody has been told of, so a read that died
-    // between the seat and its news is finished by the next one, which finds the seat held (23505) and the ledger without
-    // the news. The ledger is asked first, so a read that finds the news there writes none, and a seat that was held from
-    // another door while the invitation stayed open is accepted and said once, when it is first signed in to.
-    const recorded = await getSubjectsWith(db, inv.tenant_id, "member.joined", [inv.id]).catch(() => null);
-    if (!recorded) continue;
-    if (!recorded.has(inv.id)) {
-      const { error } = await recordEvent(db, inv.tenant_id, "member.joined", "invitation", inv.id, {
-        by: userId,
-        role: inv.role,
-      });
-      if (error) {
-        log.error("member_joined_not_recorded", { tenant_id: inv.tenant_id, invitation: inv.id, error });
-        continue;
-      }
+    // The seat, its news (member.joined, which the owner's bell line follows: core SUBSCRIBERS.team_notice) and the
+    // stamp in one transaction (00722 invitation_accept): a refusal leaves the invitation open for the next read, and an
+    // invitation another tab took meanwhile is that tab's to say.
+    const { data: taken, error } = await acceptInvitation(db, inv.id, userId);
+    if (error) {
+      log.error("member_joined_not_recorded", { tenant_id: inv.tenant_id, invitation: inv.id, error: error.message });
+      continue;
     }
-    // Stamped only if nobody stamped it first (a second tab's read at once), which is the one that counts it. A stamp
-    // that fails is logged and leaves the invitation open: the seat is written already, and the next accept stamps it.
-    const stamped = await stampInvitationAccepted(db, inv.tenant_id, inv.id, new Date().toISOString());
-    if (stamped.error)
-      log.error("db_failed", {
-        tenant_id: inv.tenant_id,
-        code: asFailedReply(stamped.error).code ?? null,
-        error: stamped.error.message,
-      });
+    if (taken !== true) continue;
     seated.push(inv);
   }
   return seated;

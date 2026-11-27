@@ -432,7 +432,7 @@ test("link: the place is read BEFORE any row is written -- a wrong id is a 502 a
   assert.deepEqual(tables.notifications, [], "history: no bell");
   assert.deepEqual(
     tables.events.map((e) => [e.tenant_id, e.kind, e.category, e.subject_type, e.data]),
-    [[A, "google.linked", "google", "listing", { place_id: PLACE, name: "Harbor Moving", by: U, read: true }]],
+    [[A, "google.linked", "google", "listing", { place_id: PLACE, name: "Harbor Moving", by: U }]],
   );
 });
 

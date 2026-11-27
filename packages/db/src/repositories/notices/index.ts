@@ -40,7 +40,6 @@ export {
   wasTwinTold,
 } from "./notifications/feed";
 export {
-  askCardsTold,
   findNotice,
   findPersonFacts,
   forgetNotification,

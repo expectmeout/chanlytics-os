@@ -25,17 +25,9 @@ export const findGoogleListingPlace = async (db: Db, tenantId: TenantId) =>
 export const saveGoogleListing = async (db: Db, tenantId: TenantId, row: ListingInsert) =>
   tenantDb(db, tenantId).from("google_listings").upsert(row, { onConflict: "tenant_id" });
 
-/** The workspace's listing saved, one a workspace, and back whole. */
-export const saveGoogleListingBack = async (db: Db, tenantId: TenantId, row: ListingInsert) =>
-  tenantDb(db, tenantId).from("google_listings").upsert(row, { onConflict: "tenant_id" }).select("*").single();
-
 /** The workspace's listing changed. */
 export const patchGoogleListing = async (db: Db, tenantId: TenantId, set: ListingUpdate) =>
   db.from("google_listings").update(set).eq("tenant_id", tenantId);
-
-/** The workspace's listing deleted. */
-export const deleteGoogleListing = async (db: Db, tenantId: TenantId) =>
-  db.from("google_listings").delete().eq("tenant_id", tenantId);
 
 /** Listings not checked since `before` (never checked first), whichever workspace's: the sweep's page. */
 export const listGoogleListingsDue = async (db: Db, before: string, limit: number, tenantId?: TenantId) => {

@@ -26,7 +26,7 @@ import { findWorkspaceName, putTenantConfig } from "@chanlytics/db/workspace";
 import type { RouteContext } from "@/server/shared/with-route";
 import { findListingFacts } from "../connections/google";
 import { findConfigRow } from "../workspace/config-row";
-import { SETTINGS_REFUSED, recordSettingsChanged } from "../workspace/settings-write";
+import { SETTINGS_REFUSED, settingsSaved, settingsTold } from "../workspace/settings-write";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** The config row as stored now, parsed, and whether it holds a receptionist (the one test, personReceptionistOf). */
@@ -62,7 +62,14 @@ export async function getReceptionistFromWhatIsKnown(
   if (!next.success) throw new AppError("internal", "Couldn't set up AI from what is known.", 500);
   // The whole column is written: what the read left out of the stored row is kept (withStoredKeysKept).
   const kept = withStoredKeysKept(next.data, row.config);
-  const put = await putTenantConfig(ctx.supabase, tenantId, kept, row.version, ctx.userId);
+  const put = await putTenantConfig(
+    ctx.supabase,
+    tenantId,
+    kept,
+    row.version,
+    ctx.userId,
+    settingsTold(ctx, row.config, kept),
+  );
   if (!put.ok) {
     // A colleague's save landed between the read and the write. Where none was set up and it set one up, theirs
     // stands; anything else is the settings' own conflict, and a second press reads what is there now.
@@ -70,6 +77,6 @@ export async function getReceptionistFromWhatIsKnown(
       return { wrote: false };
     throw new AppError("conflict", SETTINGS_REFUSED[put.reason], 409);
   }
-  await recordSettingsChanged(ctx, tenantId, row.config, kept, put.row.version);
+  await settingsSaved(ctx, tenantId, row.config, kept);
   return { wrote: true };
 }

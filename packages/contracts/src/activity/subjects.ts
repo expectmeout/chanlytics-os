@@ -1,5 +1,6 @@
 import { adRoute } from "../ads/address";
 import { addressOf } from "./record-address";
+import { CALENDAR_SETTING_ROUTE } from "../setup/calendar-source";
 
 /**
  * Where each kind of thing a ledger row can be about opens, or why it opens nowhere: the one table beside the subjects' names
@@ -42,6 +43,8 @@ export const ACTIVITY_SUBJECT_HOMES = {
   sequence: { door: byId((id) => addressOf({ kind: "campaign", id })) },
   // A visit opens its panel on the Calendar. The id alone cannot name its day: the server adds it (activity.ts).
   appointment: { door: byId((id) => addressOf({ kind: "visit", id })) },
+  // A booking tool's email held for a look (00722): its row is on Settings › Business, where the calendar is set up.
+  booking_email: { door: page(CALENDAR_SETTING_ROUTE) },
   // A review's ledger line (a reply, one held) names the review's row: its door opens that review with its reply box, and the lens
   // itself where the line names none.
   review: { door: (id) => addressOf({ kind: "review", id }) },

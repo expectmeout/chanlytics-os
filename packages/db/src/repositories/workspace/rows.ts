@@ -3,7 +3,7 @@
  * its settings row as stored. Each answer is the database's as it came; the caller says a failed read in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../../types";
+import type { Database, Json } from "../../types";
 import { saysMissing } from "../../shared/missing-door";
 import { DbFailure, type TenantId } from "@chanlytics/contracts";
 
@@ -108,18 +108,39 @@ export async function isSendingStopped(db: Db, tenantId: TenantId): Promise<bool
 }
 
 /**
- * Stop everything, on the workspace's own row (`tenants.sending_stopped_at`): `at` writes it, null lifts it. From the
- * write on, the send door holds whatever goes out on its own (core deliver/stop.ts). On the service client: a stop may be
- * pressed below settings' own role, and no session writes the column. True once the row says it; false on a database the
- * column has not reached, where there is no stop to write. A write that fails, or finds no workspace, throws: "it could
- * not be written" is never "it is written".
+ * Stop everything, on the workspace's own row (`tenants.sending_stopped_at`): `at` writes it, null lifts it, as the
+ * member who pressed it, with workspace.sending_stopped or .sending_resumed (00722 workspace_sending_stop). From the
+ * write on, the send door holds whatever goes out on its own (core deliver/stop.ts). True once the row says it; false on
+ * a database the door has not reached, where there is no stop to write. A write that fails, or finds no workspace,
+ * throws: "it could not be written" is never "it is written".
  */
 export async function setSendingStopped(db: Db, tenantId: TenantId, at: string | null): Promise<boolean> {
-  const { data, error } = await db.from("tenants").update({ sending_stopped_at: at }).eq("id", tenantId).select("id");
-  if (noStopColumn(error)) return false;
+  const { data, error } = await db.rpc("workspace_sending_stop", {
+    p_tenant_id: tenantId,
+    ...(at ? { p_at: at } : {}),
+  });
+  if (error && saysMissing(error.message)) return false;
   if (error) throw new DbFailure(error, "cannot write whether sending is stopped");
-  if (!data.length) throw new Error(`setSendingStopped: no workspace ${tenantId}`);
+  if (data !== true) throw new Error(`setSendingStopped: no workspace ${tenantId}`);
   return true;
+}
+
+/**
+ * What a stop holds (what it paused, to start again), kept in Ask's own section of the settings as the member who
+ * pressed it (00722 ask_stopped_keep); null removes it. Throws when it could not be written.
+ */
+export async function keepWhatTheStopHolds(db: Db, tenantId: TenantId, stopped: Json | null): Promise<void> {
+  const { error } = await db.rpc("ask_stopped_keep", {
+    p_tenant_id: tenantId,
+    ...(stopped === null ? {} : { p_stopped: stopped }),
+  });
+  if (error) throw new DbFailure(error, "cannot keep what the stop holds");
+}
+
+/** Whether AI works alone, as the member who set it (00722 ask_alone_set), with its event where it changed. */
+export async function setAskAlone(db: Db, tenantId: TenantId, on: boolean): Promise<void> {
+  const { error } = await db.rpc("ask_alone_set", { p_tenant_id: tenantId, p_on: on });
+  if (error) throw new DbFailure(error, "cannot set whether AI works alone");
 }
 
 /** A new workspace as its sign-up is told: its id, name, address, clock and when it was made. */

@@ -23,49 +23,42 @@ import "server-only";
  * changes how the business runs.
  */
 import {
-  AppError,
   adLeftOn,
   adStateOfRow,
   parseTenantConfigResult,
-  recordOrEmpty,
   type AskStopped,
   type ProposalCall,
   type TenantId,
 } from "@chanlytics/contracts";
 import { findAdAccountForPage, listMadeAds, pauseAdsForStop } from "@chanlytics/db/ads";
-import { findConfigRow, findConfigRowVersioned, putTenantConfig, setSendingStopped } from "@chanlytics/db/workspace";
+import {
+  findConfigRow,
+  keepWhatTheStopHolds,
+  setAskAlone as keepAskAlone,
+  setSendingStopped,
+} from "@chanlytics/db/workspace";
 import { listRunningPlaybookIds } from "@chanlytics/db/campaigns";
 import { logAndGoOn } from "@chanlytics/log";
 import { log } from "@/server/shared/log";
 import { callRoute } from "./run";
-import { serviceDb } from "@/server/shared/service-db";
 import { load, readerContext } from "@/server/shared/reader";
 import { policies as policiesReader } from "@/server/readers/facts";
 import type { Member } from "@/server/shared/route";
 import type { RouteContext } from "@/server/shared/with-route";
 
-/** The service client, the one place this file takes it: a stop may be pressed below settings' own role. */
-const service = () => serviceDb();
-
-/** Writes one key of Ask's own section, on the service client. */
+/**
+ * One key of Ask's own section of the settings, kept as the member who pressed (00722): what a stop holds
+ * (ask_stopped_keep) or whether AI works alone (ask_alone_set, with its event). A stop may be pressed below settings'
+ * own role: each door asks only that the member acts in the workspace.
+ */
 async function writeAskKey(
+  ctx: RouteContext,
   tenantId: TenantId,
-  userId: string,
   key: "alone" | "stopped",
-  value: unknown,
+  value: AskStopped | true | null,
 ): Promise<void> {
-  const db = service();
-  // A teammate's save between the read and the write loses the race once: read it again, once.
-  for (let tries = 0; tries < 2; tries++) {
-    const { data: row } = await findConfigRowVersioned(db, tenantId);
-    const stored = recordOrEmpty(row?.config);
-    const ask = { ...recordOrEmpty(stored.ask) };
-    if (value === null) delete ask[key];
-    else ask[key] = value;
-    const result = await putTenantConfig(db, tenantId, { ...stored, ask }, row?.version ?? 0, userId);
-    if (result.ok) return;
-  }
-  throw new AppError("conflict", "Settings moved just then. Try again.", 409);
+  if (key === "alone") return keepAskAlone(ctx.supabase, tenantId, value === true);
+  return keepWhatTheStopHolds(ctx.supabase, tenantId, value === null || value === true ? null : { ...value });
 }
 
 /** One of the verbs a stop presses, under the member's own session, as a press in a browser would (run.ts callRoute). */
@@ -144,7 +137,9 @@ async function adsNow(ctx: RouteContext, tenantId: TenantId): Promise<StopAds> {
  * paused here: the Ads page offers the owner's press for every ad still on, as before.
  */
 async function pauseAdsMadeHere(ctx: RouteContext, tenantId: TenantId): Promise<StopAds> {
-  const kept = await pauseAdsForStop(service(), { tenantId, userId: ctx.userId }).catch(logAndGoOn("stop ads", null));
+  const kept = await pauseAdsForStop(ctx.supabase, { tenantId, userId: ctx.userId }).catch(
+    logAndGoOn("stop ads", null),
+  );
   const paused = kept?.outcome === "kept" ? kept.ads.filter((one) => one.outcome === "asked").length : 0;
   const now = await adsNow(ctx, tenantId).catch(logAndGoOn("stop ads read", NO_ADS));
   log.info("ads_paused_by_stop", {
@@ -157,9 +152,9 @@ async function pauseAdsMadeHere(ctx: RouteContext, tenantId: TenantId): Promise<
   return { ...now, paused };
 }
 
-/** The stop on the workspace's own row, written or lifted on the service client (db setSendingStopped). */
-const writeTheStop = (tenantId: TenantId, at: string | null): Promise<boolean> =>
-  setSendingStopped(service(), tenantId, at);
+/** The stop on the workspace's own row, written or lifted as the member who pressed it, with its event (00722). */
+const writeTheStop = (ctx: RouteContext, tenantId: TenantId, at: string | null): Promise<boolean> =>
+  setSendingStopped(ctx.supabase, tenantId, at);
 
 /**
  * Replies held for a person: whether they wait now, and the mode Resume puts back (the one found before the first hold).
@@ -192,10 +187,10 @@ export async function stopEverything(ctx: RouteContext, req: Request, member: Me
   const already = await readStopped(ctx, tenantId);
   const at = already?.at ?? new Date().toISOString();
   // The stop itself first. A write that fails is logged, and the stop is what the pauses below make it.
-  const written = await writeTheStop(tenantId, at).catch(logAndGoOn("stop write", false));
+  const written = await writeTheStop(ctx, tenantId, at).catch(logAndGoOn("stop write", false));
   // The page and Ask read the stop from its record, so the record is kept the moment the stop is written: a press that
   // dies in the clean-up below never leaves a stop standing that no page shows and no Resume is offered for.
-  if (written && !already) await writeAskKey(tenantId, ctx.userId, "stopped", { at, playbooks: [], reply: null });
+  if (written && !already) await writeAskKey(ctx, tenantId, "stopped", { at, playbooks: [], reply: null });
   const paused = new Set(already?.playbooks ?? []);
   const left: string[] = [];
   for (const id of await listRunningPlaybookIds(ctx.supabase, tenantId)) {
@@ -214,7 +209,7 @@ export async function stopEverything(ctx: RouteContext, req: Request, member: Me
     ...(stillGoing && left.length > 0 ? { left } : {}),
     ...(stillGoing && !replies.held ? { replies_left: true } : {}),
   };
-  await writeAskKey(tenantId, ctx.userId, "stopped", stopped);
+  await writeAskKey(ctx, tenantId, "stopped", stopped);
   if (left.length > 0 || !replies.held)
     log.warn("ask_stop_left", { tenant_id: tenantId, left: left.length, replies: replies.held, written });
   return { stopped: !stillGoing, paused: paused.size, replies: replies.held, left: left.length, ads };
@@ -232,7 +227,7 @@ export async function resumeEverything(ctx: RouteContext, req: Request, member: 
   const was = await readStopped(ctx, tenantId);
   if (!was) {
     // A stop whose record was never kept (its press failed after the stop was written) is lifted all the same.
-    await writeTheStop(tenantId, null);
+    await writeTheStop(ctx, tenantId, null);
     return { stopped: false, paused: 0, replies: false, left: 0, ads: await adsAfterResume(ctx, tenantId) };
   }
   const still: string[] = [];
@@ -243,15 +238,15 @@ export async function resumeEverything(ctx: RouteContext, req: Request, member: 
     was.reply && !(await callOwn(req, { route: "PUT policies", body: { class: "reply", mode: was.reply } }))
       ? was.reply
       : null;
-  await writeTheStop(tenantId, null);
+  await writeTheStop(ctx, tenantId, null);
   // The ads the stop paused stay paused: turning them back on spends, so it is the owner's own press, which this names.
   const ads = await adsAfterResume(ctx, tenantId);
   if (still.length === 0 && reply === null) {
-    await writeAskKey(tenantId, ctx.userId, "stopped", null);
+    await writeAskKey(ctx, tenantId, "stopped", null);
     return { stopped: false, paused: 0, replies: false, left: 0, ads };
   }
   const kept: AskStopped = { at: was.at, playbooks: still, reply, resumed_at: new Date().toISOString() };
-  await writeAskKey(tenantId, ctx.userId, "stopped", kept);
+  await writeAskKey(ctx, tenantId, "stopped", kept);
   log.warn("ask_resume_left", { tenant_id: tenantId, left: still.length, replies: reply !== null });
   return { stopped: true, paused: still.length, replies: reply !== null, left: 0, ads };
 }
@@ -262,6 +257,6 @@ const adsAfterResume = (ctx: RouteContext, tenantId: TenantId): Promise<StopAds>
 
 /** The switch (D10): Ask may act on its own, following the rows. Off by default, and an owner's or a partner's to turn on. */
 export async function setAskAlone(ctx: RouteContext, member: Member, on: boolean): Promise<{ alone: boolean }> {
-  await writeAskKey(member.tenantId, ctx.userId, "alone", on ? true : null);
+  await writeAskKey(ctx, member.tenantId, "alone", on ? true : null);
   return { alone: on };
 }
