@@ -118,6 +118,18 @@ test("maplibre-gl gets its own pull request, beside its vendored worker", () => 
   assert.ok("maplibre-gl" in dashboard.dependencies, "the package the rule is about is still a dependency");
 });
 
+test("remotion gets its own pull request, before the week's group: a bump of it is a new template edition and image", () => {
+  const config = read(".github/dependabot.yml");
+  const remotion = config.indexOf('remotion:\n        patterns: ["remotion", "@remotion/*"]');
+  assert.ok(remotion > 0, "remotion's group names the renderer and its packages");
+  assert.ok(
+    remotion < config.indexOf("minor-and-patch:"),
+    "first, since a dependency goes to the first group it matches",
+  );
+  const video = JSON.parse(read("tooling/video/package.json"));
+  assert.ok("remotion" in { ...video.dependencies, ...video.devDependencies }, "the template still draws with it");
+});
+
 test("the secret scan allows the migration ledger by path, that one file and no other", () => {
   // The ledger holds "<migration filename>": "<sha256>". A checksum is high in entropy and a filename can say "keyed",
   // so gitleaks' generic-api-key rule fired on it (#1344); nothing in it is a secret, and the next migration named with
