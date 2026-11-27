@@ -1,7 +1,32 @@
--- 00723 · A fact door writes its event (lanes 9 and 2 of the code refinement plan, finished together, 26 Nov 2026:
+-- 00723 · A fact door writes its event (lanes 9 and 2 of the code refinement plan, finished together, 26-27 Nov 2026:
 -- layer 10's invariant 2, a change and its event in one transaction, written by the door that makes the change).
 --
--- HEAD
+-- Every door a caller outside the database reaches that writes a record and wrote no event now writes one, in its own
+-- transaction, or is argued in tests/_measures.mjs (NO_FACT_DOORS, VAULT_DOORS_COVERED). Each door below is re-made
+-- from the snapshot's own text (supabase/schema.sql at 00722) with its event added beside the write, its arguments, its
+-- grants and its comment as they were: an old caller's call lands as it did, and only the ledger gains a row.
+--
+--   The new kinds (47) are noise kinds by record: piece.moved, plan_slot.moved, content_plan.moved, file_copy.moved,
+--   form.moved, sequence.enrolled, conversation.control_moved, lead.found, retention.cleared, source.connected and the
+--   rest (packages/contracts enums/events.ts, each with its words). Every one is kept from Activity's rows and its
+--   picker: the page that owns each record says it as it stands. None is a row an owner sees yet.
+--
+--   ai_usage_purge, form_entries_purge, touches_age_out, sweep_voice_sessions, file_purged, file_upload_lapsed
+--                             The six clearances by age each write retention.cleared per workspace, with what they
+--                             cleared and how many; a run that cleared nothing writes none.
+--   conversation_draft_keep   Dropped: Ask's draft door as decision 0071 first wrote it, kept for a dashboard a deploy
+--                             behind 00538's conversation_draft_write, and called by nothing since October.
+--   whatsapp_channel_activate New: a WhatsApp number's row turned active once its token stands, with channel.connected,
+--                             where the edge set the row and then wrote the event from TypeScript, best effort.
+--   source_connection_connected, source_connection_remove
+--                             New: a footage account's token kept as its connect stands (source.connected), and the
+--                             account removed, token then row (source.disconnected); a token's refresh is the vault's
+--                             own door, source_credentials_put, and writes nothing.
+--   form_publish              Re-made: a form put live writes form.moved with its version.
+--
+-- Deploy order: apply first, then either. The re-made doors keep their signatures, and the new ones are called only by
+-- the new code. Old code against the new database writes as it did; the edge's old WhatsApp connect turns the row on
+-- itself and writes its own channel.connected, and the new code calls the door.
 set local lock_timeout = '3s';
 /* -- a door nothing calls, dropped -- */
 
@@ -2605,12 +2630,13 @@ begin
           jsonb_strip_nulls(jsonb_build_object('to', 'removed', 'reach_out', true, 'steps', cardinality(v_steps), 'by', auth.uid())));
   return jsonb_build_object('root_id', p_root_id, 'removed', cardinality(v_steps));
 end $$;
-/* -- a thread: who holds it, opened, set aside, its handovers closed by an echo: each with its event -- */
+/* -- a thread: who holds it, opened, set aside: each with its event -- */
 
--- A thread's control claimed and released (a person, a call; take over and hand back ride them), a thread opened for
--- a person, one set aside now write
--- conversation.control_moved, conversation.opened or conversation.set_aside in their own transaction (a handover
--- closed by the owner's echo is told by the escalation's own trigger, escalation.changed). All are kept from Activity's rows: the Inbox says each thread as it stands.
+-- A thread's control claimed and released (a person, a call; take over and hand back ride them), a thread opened for a
+-- person, and one set aside now write conversation.control_moved, conversation.opened or conversation.set_aside in their
+-- own transaction. A handover the owner closed with their echo is the team's decision (team_decision), and the
+-- escalation's own trigger writes escalation.changed. All are kept from Activity's rows: the Inbox says each thread as
+-- it stands.
 
 -- claim_conversation_control
 CREATE OR REPLACE FUNCTION public.claim_conversation_control(p_tenant_id uuid, p_conversation_id uuid, p_kind text, p_by uuid, p_ref text, p_seconds integer) RETURNS text
