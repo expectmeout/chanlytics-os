@@ -45,7 +45,7 @@ import { GLYPHS, SHEET_SERVICES } from "./kit-shared.mjs";
  * The names the kit's markup carries that classes.json lists as neither a class nor a modifier. A kit entry names one
  * of those, a name here, or the gallery's own layout (`gx-*`): each name here is drawn by a component of the kit and
  * styled by no kit rule, by a page's rule, or by one that has not moved into kit.css. When a kit rule names one, it
- * joins the registry (kit-css.test.mjs asks it to) and leaves this list, which kit-gallery.test.mjs holds: a name both
+ * joins the registry (repo/rules/the-kit-s-sheet-and-its-names.test.mjs asks it to) and leaves this list, which kit-gallery.test.mjs holds: a name both
  * here and there, or here and drawn by no entry, is a stale line.
  */
 export const UNLISTED = {

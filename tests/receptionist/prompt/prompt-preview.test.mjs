@@ -40,7 +40,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { givenOn, styleRulesIn } from "../../_css.mjs";
+import { cascadeOf, element } from "../../_css.mjs";
 import { describeNow, describeOpenings, freeWindows, parseIcs, resolveSystemPrompt } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -259,9 +259,10 @@ test("the record's own rules in settings.css paint no gradient and set no second
   // the better way, by computed style in a browser over the whole record (e2e/settings/settings-business.spec.ts, the 390px
   // test), and this stands beside it for the family settings.css owns, asked of the parsed sheet: each rule's classes
   // and what it gives, under any query (read as its text, split at its braces, until 26 Nov 2026).
-  const classesOf = (rule) =>
-    [...JSON.stringify(rule.selectors).matchAll(/"type":"class","name":"([^"]+)"/g)].map((m) => m[1]);
-  const ours = styleRulesIn(SETTINGS_CSS).filter((r) => classesOf(r).some((c) => /^(bt|rec|act)-/.test(c)));
+  const classesOf = (rule) => [...rule.selectors.join(" ").matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
+  const ours = cascadeOf([SETTINGS_CSS])
+    .every()
+    .filter((r) => classesOf(r).some((c) => /^(bt|rec|act)-/.test(c)));
   assert.ok(ours.length > 40, `the record's rules are in this stylesheet (found ${ours.length})`);
   const giving = (re) => ours.filter((r) => re.test(JSON.stringify(r.declarations))).map((r) => classesOf(r).join(" "));
   assert.deepEqual(
@@ -274,7 +275,7 @@ test("the record's own rules in settings.css paint no gradient and set no second
 
 test("six thousand characters cannot break the sheet's layout", () => {
   // What the rule the prompt's text is set by gives, asked of the parsed sheet under any query.
-  const prompt = givenOn(SETTINGS_CSS, ".bt-prompt-block-text", null);
+  const prompt = cascadeOf([SETTINGS_CSS]).given(element("pre.bt-prompt-block-text"));
   assert.ok(Object.keys(prompt).length > 0, "the rule this test is about is still called .bt-prompt-block-text");
   assert.equal(prompt["white-space"], "pre-wrap", "the prompt has real newlines and must keep them");
   assert.equal(prompt["overflow-wrap"], "anywhere", "an unbroken booking URL must not widen the sheet");

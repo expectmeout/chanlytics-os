@@ -202,6 +202,9 @@ useStubHooks(globalThis.React);
 const { setupVerbs } = await importSrc("apps/dashboard/src/surfaces/setup/surface.ts");
 const { setSurfaceValue, surfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
 const { SetupRows } = await importSrc("apps/dashboard/src/surfaces/setup/rows/rows.tsx");
+// The line verbs as the module wrote them, kept before the rows' stand-ins take their place: run against the window's
+// fetch in "Setup's line verbs ask their routes".
+const lineVerbs = setupVerbs.lines;
 Object.assign(setupVerbs, {
   later: async (ids, change) => {
     calls.later.push([ids, change]);
@@ -314,6 +317,37 @@ test("the page: the row's Turn on reaches the bridge with the capability's name,
   assert.deepEqual(calls.activate, ["voice"]);
   assert.equal(calls.flash.length, 1, "the owner is told once");
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
+});
+
+test("the page: the billing row's Start the trial and Update the card are Billing's own verbs, each pressed once", async () => {
+  // A row's verb (surfaces/setup/rows/acts.tsx pressVerb) for a workspace that pays by card: Checkout and Stripe's portal,
+  // through Billing's verbs (settings/billing/surface.ts), which billing/billing.test.mjs runs to Stripe's pages.
+  const { pressVerb } = await importSrc("apps/dashboard/src/surfaces/setup/rows/acts.tsx");
+  const { billingVerbs } = await importSrc("apps/dashboard/src/surfaces/settings/billing/surface.ts");
+  const pressed = [];
+  const kept = { checkout: billingVerbs.checkout, portal: billingVerbs.portal };
+  Object.assign(billingVerbs, {
+    checkout: async () => (pressed.push("checkout"), { ok: true, message: "" }),
+    portal: async () => (pressed.push("portal"), { ok: false, message: "The portal is closed." }),
+  });
+  const flashed = [];
+  const k = {
+    flash: (f) => flashed.push(f),
+    once: async (_to, run) => run(),
+    toggleChooser() {},
+    toggleForwarding() {},
+    openForwarding() {},
+  };
+  try {
+    await pressVerb({ label: "Start the trial", to: "verb:billing-checkout" }, k);
+    await pressVerb({ label: "Update the card", to: "verb:billing-portal" }, k);
+  } finally {
+    Object.assign(billingVerbs, kept);
+  }
+  assert.deepEqual(pressed, ["checkout", "portal"]);
+  assert.equal(flashed.length, 1, "a door that refuses says so");
+  assert.equal(flashed[0].tone, "danger");
+  assert.deepEqual(calls.nav, [], "and nothing navigated away: Stripe's pages are Billing's to open");
 });
 
 test("REGRESSION (S15): an operator sees Turn on gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
@@ -526,11 +560,51 @@ test("the page: the chooser finds numbers in an area code, a pick opens the conf
   tree = mount();
   const confirm = byTestId(tree, "setup-confirm");
   assert.ok(confirm, "a pick opens the confirm");
+  assert.equal(textOf(byTestId(tree, "setup-buy")), "Get this number");
   const before = calls.flash.length;
   await byTestId(tree, "setup-buy").props.onClick();
   await tick();
   assert.deepEqual(calls.buy, [["+13055550143", "305"]]);
   assert.match(String(calls.flash[before].msg.props.children.join("")), /is yours · setting it up now/);
+});
+
+test("Setup's line verbs ask their routes: search, buy once, and retry, each with what the row knows", async () => {
+  // surfaces/setup/surface.ts setupVerbs.lines, over the tab's API client and this window's fetch: what leaves is the
+  // route's request, and what comes back is read as the row reads it.
+  const sent = [];
+  const answers = {
+    "/api/v1/lines/search": { numbers: [{ e164: "+13055550142", friendly: "(305) 555-0142" }] },
+    "/api/v1/lines/buy": { ok: true, queued: true },
+    "/api/v1/lines/retry": { ok: false, queued: false },
+  };
+  const was = { fetch: globalThis.window.fetch, location: globalThis.window.location };
+  globalThis.window.location = { ...was.location, pathname: "/w/harbor/start", search: "", hash: "" };
+  globalThis.window.fetch = async (url, init) => {
+    const u = new URL(String(url), "https://app.chanlytics.com");
+    sent.push([init?.method ?? "GET", u.pathname, init?.body ? JSON.parse(init.body) : null]);
+    return Response.json({ ok: true, data: answers[u.pathname] ?? {} });
+  };
+  try {
+    const found = await lineVerbs.search("305");
+    assert.deepEqual([found.ok, found.numbers.map((n) => n.e164)], [true, ["+13055550142"]]);
+    assert.deepEqual(await lineVerbs.buy("+13055550142", "305"), { ok: true, queued: true, message: "" });
+    assert.deepEqual(await lineVerbs.retry("l1"), {
+      ok: false,
+      queued: false,
+      message: "It stopped again — a person at Chanlytics has it.",
+    });
+    assert.deepEqual(
+      sent.filter(([, p]) => p.startsWith("/api/v1/lines/")),
+      [
+        ["POST", "/api/v1/lines/search", { area_code: "305" }],
+        ["POST", "/api/v1/lines/buy", { number: "+13055550142", area_code: "305" }],
+        ["POST", "/api/v1/lines/retry", { line_id: "l1" }],
+      ],
+    );
+  } finally {
+    globalThis.window.fetch = was.fetch;
+    globalThis.window.location = was.location;
+  }
 });
 
 /* ---- forwarding: save the carrier and the mode, read the code, open the test window ---- */

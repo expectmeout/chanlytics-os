@@ -7,7 +7,7 @@
  * its session asked for inside two seconds, on the same instance. A write never does, and forgets what the reads held.
  *
  * Run over the store with a clock of its own, and through the real wrapper and a real route with a database in memory;
- * the session is a stand-in bearer verifier, as auth/bearer.test.mjs does it.
+ * the session is a stand-in bearer verifier, as auth/session/bearer.test.mjs does it.
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";

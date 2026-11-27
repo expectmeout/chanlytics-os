@@ -7,105 +7,42 @@
  * entrance's mirror. On a phone the notes are the kit's one sheet (notif-popover.tsx), which leaves as every kit sheet does
  * (kit.css `.sheet[data-leaving]`; 25 Nov 2026).
  *
- * Read from the sheet's syntax tree (lightningcss, the build's own parser), as touch-hover.test.mjs reads.
+ * Asked of the frame's sheets as a browser draws them (tests/_css.mjs cascadeOf), at each width the popover is drawn at.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import { transform } from "lightningcss";
-import { ROOT } from "../_source.mjs";
+import { cascadeOf, element, frameSheets } from "../_css.mjs";
 
-const SHEET = "apps/dashboard/src/styles/components.css";
+/** The animation's name: the first word of the shorthand as the build prints it. */
+const nameOf = (animation) => (animation ?? "").split(" ")[0];
 
-/** Every style rule, with whether it stands under a media query. */
-function rules(sheet) {
-  let parsed = null;
-  transform({
-    filename: SHEET,
-    code: fs.readFileSync(path.join(ROOT, sheet)),
-    errorRecovery: true,
-    visitor: {
-      StyleSheet(s) {
-        parsed = s;
-      },
-    },
-  });
-  assert.ok(parsed, "a stylesheet");
-  const out = [];
-  const walk = (list, inMedia) => {
-    for (const r of list) {
-      if (r.type === "media") walk(r.value.rules, true);
-      else if (r.type === "style") out.push({ rule: r.value, inMedia });
-    }
-  };
-  walk(parsed.rules, false);
-  return out;
-}
-
-/** Whether a selector is `.cls[data-leaving]`: the class and the attribute on one compound. */
-const leavingOf = (selector, cls) =>
-  selector.some((c) => c.type === "class" && c.name === cls) &&
-  selector.some((c) => c.type === "attribute" && c.name === "data-leaving");
-
-/** The value a rule gives a custom property, as the words in it, or null where it gives none. */
-function customOf(rule, name) {
-  for (const d of rule.declarations?.declarations ?? []) {
-    if (d.property === "custom" && d.value.name === name)
-      return d.value.value
-        .filter((t) => t.type === "token" && t.value.type === "ident")
-        .map((t) => t.value.value)
-        .join(" ");
-  }
-  return null;
-}
-
-/** What a rule's `animation` shorthand reads: its tokens, `var(--name)` shown as the name. */
-function animationReads(rule) {
-  for (const d of rule.declarations?.declarations ?? []) {
-    if (d.property === "unparsed" && d.value.propertyId.property === "animation")
-      return d.value.value.map((t) => (t.type === "var" ? t.value.name.ident : (t.value?.value ?? ""))).filter(Boolean);
-  }
-  return [];
-}
-
-const namesTbnPop = (rule) => rule.selectors.some((s) => s.some((c) => c.type === "class" && c.name === "tbn-pop"));
+/** The bell's popover, as the topbar draws it. */
+const popover = (state = "") => element(".app-root", ".topbar", ".tbn-wrap", `.tbn-pop${state}`);
 
 test("the bell's popover leaves by one rule at every width it is drawn at: the entrance's mirror", () => {
-  const all = rules(SHEET);
-  const base = all.find(({ rule, inMedia }) => !inMedia && namesTbnPop(rule) && animationReads(rule)[0] === "route-in");
-  assert.ok(base, "the popover comes in by route-in");
-  assert.equal(
-    customOf(base.rule, "--tbn-out"),
-    "route-out",
-    "and by default it goes by route-out, the same fade the other way",
-  );
-  const leaving = all.filter(({ rule }) => rule.selectors.some((s) => leavingOf(s, "tbn-pop")));
-  assert.equal(leaving.length, 1, "one leaving rule, so a width cannot be left with the entrance as its leaving");
-  assert.equal(leaving[0].inMedia, false, "and it stands outside every media query");
-  assert.ok(animationReads(leaving[0].rule).includes("--tbn-out"), "playing what the popover says it leaves by");
-  const keyframes = new Set();
-  transform({
-    filename: SHEET,
-    code: fs.readFileSync(path.join(ROOT, SHEET)),
-    errorRecovery: true,
-    visitor: {
-      Rule: {
-        keyframes(k) {
-          keyframes.add(k.value.name.value);
-        },
-      },
-    },
-  });
-  for (const k of ["route-in", "route-out"]) assert.ok(keyframes.has(k), `${k} is defined`);
+  for (const width of [1440, 1100, 901, 900, 721]) {
+    const at = cascadeOf(frameSheets(), { width });
+    assert.equal(nameOf(at.style(popover()).animation), "route-in", `${width}px: the popover comes in by route-in`);
+    assert.equal(
+      nameOf(at.style(popover('[data-leaving="true"]')).animation),
+      "route-out",
+      `${width}px: and its still copy goes by route-out, the same fade the other way, never the entrance again`,
+    );
+  }
+  const frames = cascadeOf(frameSheets());
+  for (const k of ["route-in", "route-out"]) assert.ok(frames.keyframes(k), `${k} is defined`);
 });
 
 test("the bell held open wears the pressed look, which the wash over the page would otherwise keep from it", () => {
-  const held = rules(SHEET).find(({ rule }) =>
-    rule.selectors.some((s) => {
-      const text = JSON.stringify(s);
-      return text.includes('"tb-bell"') && text.includes('"aria-expanded"');
-    }),
+  // What a pointer on it draws: the wash over the page keeps the pointer off it, so held open it read idle.
+  const desk = cascadeOf(frameSheets());
+  const bell = (state) => desk.style(element(".app-root", ".topbar", `button.tb-bell${state}`));
+  const held = bell('[aria-expanded="true"]');
+  const pointed = bell(":hover");
+  assert.deepEqual(
+    [held.color, held["background-color"]],
+    [pointed.color, pointed["background-color"]],
+    "held open, it is drawn as a pointer on it draws it",
   );
-  assert.ok(held, "a rule names .tb-bell[aria-expanded]");
+  assert.notEqual(held.color, bell("").color, "and not as it rests");
 });

@@ -23,10 +23,9 @@
  *   6. the sign-out CSRF check going back to being skippable by omitting a header
  *   7. the hosted auth settings drifting back to their unsafe defaults
  *
- * Most are text assertions against source, not behavioural tests, because the
- * failure they guard is "someone edits this file and no one notices" — the edit
- * IS the bug, and the text is where it lands. The proxy itself is RUN, at the
- * end ("the gate, run"), since it is the page gate.
+ * Each is held by running what decides it: the proxy over every address the app serves, signed out, forged, or with
+ * the auth server down ("the gate, run"); the legal pages drawn; the same-origin guard and the routes that ask it; the
+ * hosted settings as the platform reads them. Until 26 Nov 2026 most of these were assertions on the source's text.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -34,372 +33,54 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { importSrc, readCode, readRaw } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
+import { JWKS, SUPABASE, projectKey, sessionCookie, signed, strangerKey } from "./session/_session.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../..");
 const DASH = path.join(ROOT, "apps/dashboard");
 
-// Comment-stripping and LF-normalised reads are shared: see _source.mjs for
-// why every code-scanning assertion needs both.
-const read = (p) => readCode(p);
-
-const middleware = read("apps/dashboard/proxy.ts");
-const signout = read("apps/dashboard/app/auth/signout/route.ts");
-const login = read("apps/dashboard/app/login/page.tsx");
-const withRoute = read("apps/dashboard/src/server/shared/with-route.ts");
 /**
- * TOML comments are `#`, and the JS stripper would misread an apostrophe in
- * prose ("the attacker's page") as opening a string literal and swallow real
- * settings after it. Strip per line, honouring quotes within that line.
+ * The hosted project's auth settings as the platform reads them: supabase/config.toml, data, parsed as TOML by its
+ * tables (`[auth.email]`) and their keys. Only what the file holds is read: strings, numbers, booleans and arrays of
+ * them, each `key = value` on its line. A `#` outside a quoted string ends the line: the JS stripper would misread an
+ * apostrophe in prose ("the attacker's page") as opening a string literal and swallow real settings after it.
  */
-function stripTomlComments(src) {
-  return src
-    .split("\n")
-    .map((line) => {
-      let quote = null;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (quote) {
-          if (c === quote) quote = null;
-        } else if (c === '"' || c === "'") {
-          quote = c;
-        } else if (c === "#") {
-          return line.slice(0, i);
-        }
+function parseToml(text) {
+  const tables = {};
+  let table = (tables[""] = {});
+  for (const raw of text.split(/\r?\n/)) {
+    let line = raw;
+    let quote = null;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (quote) {
+        if (c === quote) quote = null;
+      } else if (c === '"' || c === "'") quote = c;
+      else if (c === "#") {
+        line = line.slice(0, i);
+        break;
       }
-      return line;
-    })
-    .join("\n");
-}
-const supabaseConfig = stripTomlComments(readRaw("supabase/config.toml"));
-
-/* ------------------------------------------------------------------ 1 + 4 -- */
-
-test("the public path list is exact, never a prefix", () => {
-  // startsWith("/auth") made every future /auth/* route public on creation.
-  assert.ok(
-    !/startsWith\(\s*["']\/auth/.test(middleware),
-    "middleware matches /auth by PREFIX — a new route under /auth would ship unauthenticated",
-  );
-  assert.match(middleware, /PUBLIC_PATHS\.has\(path\)/, "the gate must test exact membership");
-});
-
-test("one address: the deploy alias redirects, and a preview never does", () => {
-  // Cookies are per-origin, and Google's callback is registered against one
-  // host — so a person who started on the alias came back to a host they had
-  // no session on, and Connect Google simply failed.
-  assert.match(middleware, /const canonical = env\.CANONICAL_HOST;/);
-  assert.match(
-    middleware,
-    /if \(!canonical \|\| !isProduction\(\)\) return null;/,
-    "a preview is also a vercel.app host and must answer as itself",
-  );
-  assert.match(middleware, /!host\.endsWith\("\.vercel\.app"\)/, "only the alias is moved, never a custom domain");
-  assert.match(
-    middleware,
-    /NextResponse\.redirect\(url, 308\)/,
-    "permanent, so it is cached and so search engines follow it",
-  );
-  // Except the unsubscribe link, which RFC 8058 says a mail client presses with no redirect in its answer.
-  const spared = middleware.indexOf('if (request.nextUrl.pathname.startsWith("/u/")) return null;');
-  assert.ok(
-    spared > 0 && spared < middleware.indexOf("NextResponse.redirect(url, 308)"),
-    "the unsubscribe link is answered where it is pressed, before the alias would move it",
-  );
-  const before = middleware.indexOf("const moved = canonicalRedirect(request);");
-  assert.ok(
-    before > 0 && before < middleware.indexOf("PUBLIC_PATHS.has(path)"),
-    "before the auth gate: the redirect is not a place to leak whether a path exists",
-  );
-});
-
-test("two public doors under /api/ask: the voice agent's brain door, at its three exact paths, and the platform's morning clock; nothing else of Ask is public", () => {
-  // The ElevenLabs agent calls the dashboard for a voice conversation's words (docs/decisions/0026): a provider with
-  // no cookie, so the gate cannot stand in front of it. It was let in on these terms: the door proves the caller
-  // twice before it reads a byte of the body (the agent's static secret, compared in constant time, then a session
-  // row the member wrote), it runs the turn as that member under RLS with the token the row keeps sealed, and the
-  // paths are exact, since the vendor appends /chat/completions to the address it is given.
-  // Ask's morning (#2211) is called by the platform's clock, which carries no cookie either: the route answers 401 to
-  // anything but the CRON_SECRET's bearer, and with no secret set it answers nothing at all. One exact path.
-  const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]\)/.exec(middleware);
-  assert.ok(block, "PUBLIC_PATHS must be a literal set so this test can read it");
-  const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
-  assert.deepEqual(
-    paths.filter((p) => p.startsWith("/api/ask")),
-    [
-      "/api/ask/voice/llm",
-      "/api/ask/voice/llm/chat/completions",
-      "/api/ask/voice/llm/v1/chat/completions",
-      "/api/ask/morning-sweep",
-    ],
-  );
-  assert.ok(!paths.some((p) => p.startsWith("/api/v1/ask")), "every member route of Ask stays behind the gate");
-});
-
-test("nine public PREFIXES, and only a workspace's own pages and forms, a form's short link, the unsubscribe link, a partner's link, a sign-up's confirmation and a lead's own receptionist live under them", () => {
-  const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
-  assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
-  const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
-  // Pinned BY VALUE like the paths above: a prefix opens EVERY path beneath it,
-  // so widening this is a deliberate edit HERE, reviewed, and never a side
-  // effect of adding a route.
-  //
-  // `/b/` was added when a workspace's own page shipped, and it had to be: the
-  // page is filed with the carriers as a campaign's website and privacy policy,
-  // so its reader is often a REVIEWER — and a reviewer who gets a login screen
-  // has been shown a business that cannot be looked up, which is error 30919
-  // with extra steps. Caught on production, where the page 307'd to /login.
-  //
-  // `/.well-known/` joined with the phone app: a phone's OS fetches the app-links
-  // files with no session before it lets a link open the app, and the one route
-  // under the prefix answers a store's file or 404, nothing else (app-links.ts).
-  //
-  // `/u/` joined with Reach out (Part 2): the unsubscribe link every campaign
-  // email carries, which RFC 8058 says a mail client presses with a POST and no
-  // session, and which the law says must work without one (CAN-SPAM). It is the
-  // one public route that takes input, and it was let in on these terms: its
-  // only write is the person's own stop, through a service-role door that can
-  // only narrow what may be sent (00174 set_email_marketing); the token is the
-  // authority, sealed under a key only we hold, so nothing is asked of the
-  // database for a link we did not make; and a GET changes nothing, because
-  // link scanners open every URL in an email (unsubscribe-door.test.mjs).
-  //
-  // `/p/` joined with partners (decision 0012): a partner's link, which the
-  // reader opens before they have an account. It reads nothing and writes one
-  // cookie naming a code; who is credited is decided later, by create_workspace,
-  // so the link is not a door that can be probed (partner.test.mjs).
-  //
-  // `/c/` joined with the website sign-up's confirmation (00489): the link a sign-up's person is emailed, which they
-  // open with no account. Let in on /u/'s terms: the token is the authority, sealed under a key only we hold, so a
-  // link we did not make reads nothing; a GET changes nothing (scanners); and its only write is the person's own yes
-  // to offers by email, through the service-role door that judges the press itself (set_email_offers_yes,
-  // confirmed_signup: the email is the sign-up's, it left, it is at most seven days old, it went to the person's
-  // address now, and they did not say STOP), so a press can say yes for nobody but the inbox the email reached
-  // (signup-confirm-page.test.mjs).
-  //
-  // `/preview/` and `/api/v1/previews/` joined with a lead's own receptionist (decision 0079): the link a cold email
-  // carries to a business that has no account, and the three doors its page presses. Let in on /u/'s terms: the token is
-  // the authority (22 characters over 16 random bytes, kept on its row), so a link we did not make reads nothing; the
-  // page is noindex and sends no referrer; a GET changes nothing, and its opening is counted by its own script; each
-  // door makes the same-origin check, takes a bucket per network and acts through a service-role door that holds the
-  // preview's limits (00497; previews/preview-routes.test.mjs). Making one theirs is behind sign-in, outside both.
-  //
-  // `/l/` joined with a business's own forms (00680; the Forms plan, F1): the short link to one place a form is shared,
-  // which a visitor opens from a post, a listing or a printed code with no account. It reads one link by a six-character
-  // code that says nothing by itself, counts the open for its day (never a visitor: no cookie, no address; a chat app's
-  // preview fetch is not counted) and sends the visitor on to the form under the business's page. Beside it, the same
-  // link drawn as a code and its one sheet to print, which show nothing the form's page does not. None takes input.
-  //
-  // `/f/` joined with the form on a business's own website (00703; the Forms plan, F4): the same form framed in their
-  // page, read by its website link's code as /l/ is, its send the hosted form's own door with the hosted form's checks
-  // (one sent from anywhere but its own page is held for a look). It knows no session: the proxy returns before one is
-  // read, and the address's own policy names the sites that may frame it (the next tests).
-  assert.deepEqual(prefixes, [
-    "/yes/",
-    "/b/",
-    "/.well-known/",
-    "/u/",
-    "/p/",
-    "/c/",
-    "/l/",
-    "/f/",
-    "/preview/",
-    "/api/v1/previews/",
-  ]);
-  assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
-  //
-  // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be
-  // WRITTEN (00100): the filing names the printable form as one way to give it,
-  // and a reviewer who gets a login screen instead of the form has been shown a
-  // consent method nobody can check. It is a page like its neighbour -- printed
-  // and signed by hand, it takes no input.
-  //
-  // `/yes/<slug>/sign` joined when the offers code needed somewhere to be
-  // printed with the words a customer reads before scanning it: a page like its
-  // neighbours, read by slug, showing nothing the opt-in page does not, and
-  // taking no input. Its markup lives in src/yes, not beside it, so this folder
-  // still holds pages and nothing else.
-  for (const [dir, what, beneath] of [
-    ["yes", "the opt-in page, its paper form and its desk sign", ["form", "page.tsx", "sign"]],
-    ["b", "the workspace's own page, its texting terms and its forms", ["[form]", "page.tsx", "terms"]],
-  ]) {
-    const at = path.join(ROOT, "apps/dashboard/app", dir);
-    assert.deepEqual(fs.readdirSync(at), ["[slug]"], `nothing but ${what} may live under its public prefix`);
-    assert.deepEqual(
-      fs.readdirSync(path.join(at, "[slug]")).sort(),
-      beneath,
-      `and ${what} are what its public prefix holds, each argued here`,
-    );
-  }
-  assert.deepEqual(
-    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")),
-    ["page.tsx"],
-    "the paper form is a page, not a route that takes input",
-  );
-  assert.deepEqual(
-    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/sign")),
-    ["page.tsx"],
-    "the desk sign is a page, not a route that takes input",
-  );
-  // `/b/<slug>/terms` joined when the campaign's terms URL became the business's
-  // own: the reviewers' guide lists eight things a program's terms must carry,
-  // and Chanlytics' /terms -- a software agreement for workspace owners --
-  // carries none of them. A page like its neighbour: read by slug, no input.
-  assert.deepEqual(
-    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/terms")),
-    ["page.tsx"],
-    "the terms are a page, not a route that takes input",
-  );
-  // `/b/<slug>/<form>` joined with a business's own forms (00680): the first page under this prefix that takes input,
-  // let in on these terms. It is drawn only for a form its owner published, in a workspace that has public pages. Its
-  // one write is the visitor's own request, through a service-role door that makes the person by the one rule every
-  // door uses (resolve_person: it fills what is empty, never overwrites, and writes nothing for a person who asked to be
-  // forgotten), holds a doubtful send for a look instead of telling anyone, and takes the same press once. It never
-  // takes a yes to offers, sends nothing to anyone, and is limited per sender and per form (form-page.ts;
-  // tests/forms/a-visitor-fills-in-a-form.test.mjs). One route file, and beside it the way to the business's own
-  // booking page (00691, F3): it counts an open of that page for the form's day and sends the visitor there. It reads
-  // nothing but the workspace's own booking link, writes nothing but the count, and lands nowhere else
-  // (tests/forms/time/a-visitor-asks-for-a-time.test.mjs).
-  assert.deepEqual(
-    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]")).sort(),
-    ["book", "route.ts"],
-    "a form's page is its one route, and the way to its business's booking page",
-  );
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]/book")), ["route.ts"]);
-  // Under /l/, the link's own door, its code and its sheet to print, and nothing else.
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l")), ["[code]"]);
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l/[code]")).sort(), ["code", "route.ts", "sign"]);
-  for (const part of ["code", "sign"])
-    assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l/[code]", part)), ["route.ts"]);
-  // Under /u/, one route and nothing else: the link's own door. A second file
-  // here would be a second public way in, and it takes a new argument above.
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u")), ["[token]"]);
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u/[token]")), ["route.ts"]);
-  // Under /c/, the same: the confirmation link's own door, and nothing else.
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/c")), ["[token]"]);
-  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/c/[token]")), ["route.ts"]);
-});
-
-test("only these nineteen paths are reachable without a session", () => {
-  const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
-  assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
-  const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
-  // Pinned BY VALUE: widening the product's unauthenticated surface is a
-  // deliberate edit here, reviewed, not a side effect of adding a file.
-  // The manifest joined in the phone-shell slice: a phone's installer fetches
-  // it without credentials, and it names the product and its icons, nothing else.
-  // Sign-up joined in the accounts slice: the page and its route, the one door a stranger may use.
-  // Privacy and terms joined in the connections slice: the two pages every platform review links to; static, and they read nothing.
-  // Deleting your data joined with them: Meta's app settings, Google's consent
-  // screen and the app stores each ask for a URL whose whole subject is
-  // deletion, and pointing that field at a policy's midpoint is how it ends up
-  // pointing at facebook.com instead.
-  // The sign-in callback joined with Sign in with Google: a provider sends the
-  // browser back with a code and no session, which is the point. Exact path.
-  // Resetting a password joined with the password itself: nobody who has
-  // forgotten one has a session to show. Its second half VERIFIES a recovery
-  // code, which is what creates the session the new password is written on —
-  // so it is also deliberately absent from the signed-in redirect below, where
-  // bouncing a signed-in person would break the page's own second step.
-  // The filler calendar joined with the filler: a workspace that carries the
-  // filler's people points its calendar address at this feed, and the calendar
-  // reader fetches it from the server with no session, the way it fetches any
-  // feed. It is generated from the clock, names nobody real, and reads nothing.
-  // The native app's door joined with the phone app: the app posts an identity
-  // token from Apple or Google and has no session yet, exactly as the callback
-  // has none. Exact path; it answers only a redirect.
-  // The voice agent's brain door joined with Ask, spoken (0026): ElevenLabs
-  // calls it for a conversation's words, with no cookie; the door proves the
-  // caller twice before it reads the body (the test above). Three exact paths,
-  // since the vendor appends /chat/completions to the address it is given.
-  // Ask's morning joined with Ask's answers (#2211): the platform's clock calls it with its CRON_SECRET and no cookie;
-  // anything else is a 401 (the test above). One exact path.
-  // The edge's week, made as AI (00714): the edge's content_week_go job calls it with a token it signs for that path, that
-  // workspace and that body, and no cookie; anything else is a 401, and it makes only a week the owner's rung approved.
-  // One exact path.
-  // The warm-ups joined with the load review of 12 Nov 2026: the platform's clock asks for them with no cookie, so the
-  // routes every page opens on are loaded before a visitor asks. Two exact paths, each answers anyone the names of the
-  // routes it holds and nothing else: no workspace is named, nothing is read, nothing is written.
-  assert.deepEqual(paths, [
-    "/api/ask/morning-sweep",
-    "/api/ask/voice/llm",
-    "/api/ask/voice/llm/chat/completions",
-    "/api/ask/voice/llm/v1/chat/completions",
-    "/api/content/week-made",
-    "/api/v1/calendar/filler.ics",
-    "/api/v1/signup",
-    "/api/version",
-    "/api/warm",
-    "/api/warm/long",
-    "/auth/callback",
-    "/auth/native",
-    "/auth/signout",
-    "/data-deletion",
-    "/login",
-    "/manifest.webmanifest",
-    "/privacy",
-    "/reset-password",
-    "/signup",
-    "/terms",
-  ]);
-  assert.match(
-    middleware,
-    /path === "\/login" \|\| path === "\/signup"/,
-    "and the two doors a signed-in person is sent away from stay those two",
-  );
-});
-
-test("the three legal pages are static, read nothing, and point at each other", () => {
-  const pages = { privacy: "privacy", terms: "terms", deletion: "data-deletion" };
-  for (const [name, dir] of Object.entries(pages)) {
-    const src = readRaw(`apps/dashboard/app/${dir}/page.tsx`);
-    // A page a stranger may open must not reach for a session, a database or
-    // the network: it is served to whoever asks, including a reviewer.
-    for (const forbidden of ["createClient", "supabase", "fetch(", "cookies()", "headers()", "use client"]) {
-      assert.ok(!src.includes(forbidden), `${name} must not use ${forbidden}`);
     }
-    assert.ok(src.includes("robots: { index: true }"), `${name} must be indexable — a review checks it is reachable`);
+    line = line.trim();
+    if (!line) continue;
+    const head = /^\[([^\]]+)\]$/.exec(line);
+    if (head) {
+      table = tables[head[1].trim()] ??= {};
+      continue;
+    }
+    const pair = /^([\w.-]+)\s*=\s*(.+)$/.exec(line);
+    assert.ok(pair, `config.toml: a line this reader cannot take: ${line}`);
+    table[pair[1]] = JSON.parse(pair[2].replace(/'([^']*)'/g, '"$1"'));
   }
-  // A dead end is how the deletion URL gets pasted as facebook.com: the pages
-  // carry each other, so whichever one a reviewer lands on leads to the rest.
-  const privacy = readRaw("apps/dashboard/app/privacy/page.tsx");
-  assert.ok(privacy.includes('href="/data-deletion"'), "the policy names the deletion page");
-  const deletion = readRaw("apps/dashboard/app/data-deletion/page.tsx");
-  assert.ok(
-    deletion.includes('href="/privacy"') && deletion.includes('href="/terms"'),
-    "the deletion page names the other two",
-  );
-  // The one promise a reviewer reads it for, and the one an end customer needs.
-  assert.ok(/within 30 days/.test(deletion), "it says how long deletion takes");
-  assert.ok(deletion.includes("<b>STOP</b>"), "and how to stop messages without deleting anything");
-});
-
-test("the session is VERIFIED, never read from the cookie", () => {
-  // getSession() decodes the cookie without checking its signature — a forged session passes. getClaims() verifies
-  // the signature (locally over the public key, or over the Auth server), and getUser() asks the Auth server; either
-  // is a verification, and the gate takes the one that costs no round trip.
-  for (const [name, src] of [
-    ["middleware", middleware],
-    ["withRoute", withRoute],
-  ]) {
-    assert.ok(!/getSession\(/.test(src), `${name} must not use getSession()`);
-    assert.match(src, /getClaims\(/, `${name} must verify with getClaims()`);
-  }
-});
-
-test("the proxy passes a bearer request to the route wrapper only under /api/v1 and only with the header", () => {
-  // Decision 0011: a native screen's call carries the session's access token as a bearer and no cookie. The proxy
-  // reads the cookie only, so it lets such a request through to withRoute, which verifies the token. The bypass
-  // must name the API prefix and the header's scheme, and nothing else may widen it.
-  assert.match(
-    middleware,
-    /path\.startsWith\("\/api\/v1\/"\)\s*&&\s*\/\^Bearer\\s\+\\S\+\/i\.test\(request\.headers\.get\("authorization"\)/,
-    "the bypass is the /api/v1/ prefix AND a Bearer authorization header",
-  );
-  assert.match(withRoute, /verifyBearer\(bearer\)/, "and the wrapper verifies the bearer itself");
-  assert.match(withRoute, /!bearer && req\.method !== "GET"/, "the same-origin rule stays the cookie's");
-});
+  return tables;
+}
+const supabaseConfig = parseToml(fs.readFileSync(path.join(ROOT, "supabase/config.toml"), "utf8"));
+/** A key of one of config.toml's tables, as the platform reads it. */
+const setting = (table, key) => {
+  assert.ok(supabaseConfig[table], `[${table}] missing from config.toml`);
+  return supabaseConfig[table][key];
+};
 
 /* ---------------------------------------------------------------------- 2 -- */
 
@@ -444,72 +125,26 @@ test("every /api/v1 route verifies the user itself", () => {
 
 /* ---------------------------------------------------------------------- 5 -- */
 
-test("the login form does not reveal which emails have accounts", () => {
-  assert.ok(
-    !/isn't on a Chanlytics workspace/i.test(login),
-    "this copy told an anonymous caller whether an address has an account",
-  );
-  // The tell is structural: the code-request step must reach the code stage on
-  // the error path too, so "no such account" and "code sent" look identical.
-  assert.match(
-    login,
-    /requestCodeWords\(error\)/,
-    "the request step must route errors through the non-revealing translator",
-  );
-  assert.match(
-    login,
-    /if\s*\(shown\)\s*\{\s*setError\(shown\);\s*return;/,
-    "only an actionable error may stop the form advancing to the code stage",
-  );
-});
+// The login form does not reveal which emails have accounts: the code door reaches the code step whether or not the
+// address has one, and only an actionable error stops it (requestCodeWords), drawn and pressed in sign-in-screen.test.mjs
+// ("the code door never makes an account, and reaches the code step whether or not the address has one") over the
+// words signin-words.test.mjs holds ("the oracle stays closed").
 
-/* ---------------------------------------------------------------------- 6 -- */
+/* ---------------------------------------------------------------------- 4 -- */
 
-test("same-origin evidence must be POSITIVE, and every mutation demands it", () => {
-  // The rule moved out of the sign-out route into a shared guard once every
-  // mutating /api/v1 route needed it too. The invariants are unchanged and now
-  // cover twenty-two more endpoints; they are asserted where the code lives.
-  const guards = read("apps/dashboard/src/server/shared/request-guards.ts");
-  // The old check read `if (origin && host && ...)`: omitting Origin skipped it.
-  assert.ok(
-    !/if\s*\(\s*origin\s*&&\s*host\s*&&/.test(guards),
-    "a request that omits Origin must be REJECTED, not exempted",
-  );
-  assert.match(guards, /sec-fetch-site/, "Fetch Metadata is the primary signal");
-  assert.ok(
-    !/["']same-site["']/.test(guards),
-    "same-site is not same-origin: on vercel.app a sibling subdomain is someone else's app",
-  );
-
-  // Both callers still make the check, and there is only one implementation.
-  assert.match(signout, /isSameOrigin\(request\)/);
-  assert.match(signout, /status:\s*403/);
-  assert.ok(!/function isSameOrigin/.test(signout), "one implementation, imported — not a second copy that can drift");
-
-  const wrapper = read("apps/dashboard/src/server/shared/with-route.ts");
-  assert.match(wrapper, /isSameOrigin\(req\)/, "every mutating route inherits it");
-  // Reads stay exempt: a GET changes nothing, and cross-site GETs are how link
-  // previews and prefetches legitimately arrive.
-  assert.match(wrapper, /req\.method !== "GET"/);
-});
+// The session is VERIFIED, never read from the cookie: a token signed by a key the project does not hold is no session
+// at the proxy (below, "a token signed by a key the project does not hold") nor at the route wrapper, over the cookie
+// and over a bearer alike (session/bearer.test.mjs, "a cookie's session is VERIFIED").
 
 /* ---------------------------------------------------------------------- 7 -- */
-
-/** Value of `key` inside the [section] table of config.toml. */
-function toml(section, key) {
-  const body = supabaseConfig.split(`\n[${section}]\n`)[1];
-  assert.ok(body !== undefined, `[${section}] missing from config.toml`);
-  const m = new RegExp(`^${key}\\s*=\\s*(.+)$`, "m").exec(body.split("\n[")[0]);
-  return m ? m[1].trim() : undefined;
-}
 
 test("the hosted project lets a provider make the user; the door is the first workspace", () => {
   // Sign in with Google makes the auth user before anything of ours runs, so
   // signups are allowed at the server -- and the posture is asked where every
   // first workspace is made instead (account-routes.test: the door). An account
   // with no workspace can reach nothing else.
-  assert.equal(toml("auth", "enable_signup"), "true");
-  assert.equal(toml("auth", "enable_anonymous_sign_ins"), "false");
+  assert.equal(setting("auth", "enable_signup"), true);
+  assert.equal(setting("auth", "enable_anonymous_sign_ins"), false);
 });
 
 test("the email provider stays ENABLED — this key does not mean what it says", () => {
@@ -517,7 +152,7 @@ test("the email provider stays ENABLED — this key does not mean what it says",
   // email provider outright: every existing operator gets 422
   // email_provider_disabled and nobody can sign in. That was a live outage.
   // Invite-only is [auth] enable_signup above; this must stay true.
-  assert.equal(toml("auth.email", "enable_signup"), "true");
+  assert.equal(setting("auth.email", "enable_signup"), true);
 });
 
 test("an address is CONFIRMED, in both of the two places that decide it", () => {
@@ -525,14 +160,14 @@ test("an address is CONFIRMED, in both of the two places that decide it", () => 
   // signUp() hands back a live session immediately: a stranger who types
   // someone else's address is signed in as them, and the real owner can never
   // sign up because the address is taken.
-  assert.equal(toml("auth.email", "enable_confirmations"), "true");
+  assert.equal(setting("auth.email", "enable_confirmations"), true);
   // Phone confirmation is the OTHER half of hiding whether an address is known,
   // and it is deliberately not used: the dashboard only offers it behind a
   // phone provider that demands SMS credentials and switches on phone sign-in.
   // The invariant is kept in code instead (addressAlreadyKnown), which is
   // pinned by signup.test. Nothing here asserts that flag in either direction —
   // turning it on later is pure hardening and must not fail this suite.
-  assert.equal(toml("auth.sms", "enable_signup"), "false", "nobody signs up by phone");
+  assert.equal(setting("auth.sms", "enable_signup"), false, "nobody signs up by phone");
 });
 
 test("Sign in with Google is on HERE too, because config push is a loaded gun", () => {
@@ -540,35 +175,35 @@ test("Sign in with Google is on HERE too, because config push is a loaded gun", 
   // `supabase config push` would have switched Sign in with Google off in
   // production while pushing something unrelated, and the only symptom would
   // be the button quietly not drawing.
-  assert.equal(toml("auth.external.google", "enabled"), "true");
+  assert.equal(setting("auth.external.google", "enabled"), true);
   // Neither half of the credential is in git. The secret being wrong or stale
   // in the dashboard is the one thing that can fail this flow silently, which
   // is why it lives in the environment and not here.
-  assert.match(toml("auth.external.google", "client_id"), /^"env\(/, "the client id comes from the environment");
-  assert.match(toml("auth.external.google", "secret"), /^"env\(/, "and so does the secret");
+  assert.match(setting("auth.external.google", "client_id"), /^env\(/, "the client id comes from the environment");
+  assert.match(setting("auth.external.google", "secret"), /^env\(/, "and so does the secret");
 });
 
 test("a password has a floor, and the floor is length rather than punctuation", () => {
-  assert.equal(toml("auth", "minimum_password_length"), "12");
+  assert.equal(setting("auth", "minimum_password_length"), 12);
   // Empty on purpose: composition classes push people toward Passw0rd!. The
   // strength check that earns its keep is the hosted breach list.
-  assert.equal(toml("auth", "password_requirements"), '""');
+  assert.equal(setting("auth", "password_requirements"), "");
 });
 
 test("a 6-digit code is not left guessable for an hour", () => {
   // Supabase rate-limits verification by IP and does not lock a code after N
   // failures, so the code's LIFETIME is the brute-force budget.
-  assert.ok(Number(toml("auth.email", "otp_expiry")) <= 600, "otp_expiry must be <= 10 minutes");
-  assert.equal(toml("auth.email", "otp_length"), "6");
+  assert.ok(setting("auth.email", "otp_expiry") <= 600, "otp_expiry must be <= 10 minutes");
+  assert.equal(setting("auth.email", "otp_length"), 6);
 });
 
 test("the inbox cannot be flooded by calling the API directly", () => {
   // The form's 60s resend cooldown is client state; this is the server's.
-  assert.equal(toml("auth.email", "max_frequency"), '"60s"');
+  assert.equal(setting("auth.email", "max_frequency"), "60s");
 });
 
 test("no development origin is trusted by the production project", () => {
-  const urls = toml("auth", "additional_redirect_urls") ?? "";
+  const urls = (setting("auth", "additional_redirect_urls") ?? []).join(" ");
   assert.ok(!/localhost|127\.0\.0\.1/.test(urls), `dev origin still allowlisted: ${urls}`);
 });
 
@@ -595,7 +230,7 @@ test("no development origin is trusted by the production project", () => {
  *   - Next's own matcher says the proxy runs for every one of those addresses, and not for the build's own files;
  *   - next.config's headers keep a workspace's documents out of every cache, and leave the router's requests to Next.
  */
-const SUPABASE = "https://gate-test.supabase.example";
+
 const APP = "https://app.example.com";
 process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE;
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-test-only";
@@ -616,43 +251,7 @@ const loadedConfig = configOf("phase-test");
 
 /* ------------------------------------------------------------ a project's keys -- */
 
-const { subtle } = globalThis.crypto;
-const ES256 = { name: "ECDSA", namedCurve: "P-256" };
-const b64url = (bytes) => Buffer.from(bytes).toString("base64url");
-const KID = "project-key-1";
-const projectKey = await subtle.generateKey(ES256, true, ["sign", "verify"]);
-const strangerKey = await subtle.generateKey(ES256, true, ["sign", "verify"]);
-const JWKS = {
-  keys: [{ ...(await subtle.exportKey("jwk", projectKey.publicKey)), kid: KID, alg: "ES256", use: "sig" }],
-};
-
-/** An access token signed with `key` under the project's key id, as Supabase signs one with an asymmetric key. */
-async function signed(key, alg = "ES256") {
-  const now = Math.floor(Date.now() / 1000);
-  const header = b64url(JSON.stringify({ alg, kid: KID, typ: "JWT" }));
-  const payload = b64url(
-    JSON.stringify({ sub: "u1", aud: "authenticated", role: "authenticated", iat: now, exp: now + 3600, aal: "aal1" }),
-  );
-  const sig =
-    alg === "ES256"
-      ? await subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key.privateKey, Buffer.from(`${header}.${payload}`))
-      : Buffer.from("not-a-signature");
-  return `${header}.${payload}.${b64url(sig)}`;
-}
-
-/** The session cookie @supabase/ssr reads, holding `accessToken`. */
-function sessionCookie(accessToken) {
-  const now = Math.floor(Date.now() / 1000);
-  const session = {
-    access_token: accessToken,
-    token_type: "bearer",
-    expires_in: 3600,
-    expires_at: now + 3600,
-    refresh_token: "refresh-test-only",
-    user: { id: "u1", aud: "authenticated", role: "authenticated", email: "ada@example.com", app_metadata: {} },
-  };
-  return `sb-gate-test-auth-token=base64-${b64url(JSON.stringify(session))}`;
-}
+// The project's signing keys, its tokens and the cookie @supabase/ssr reads: the session folder's (session/_session.mjs).
 
 /** The project's auth server: its public keys, a 401 for anything asked of it, or nothing at all while it is down. */
 let authDown = false;
@@ -851,4 +450,397 @@ test("a workspace's documents and the home are never stored; the router's reques
       path,
     );
   }
+});
+
+/* ------------------------------------------------- the public surface, run -- */
+
+/**
+ * Every address the app serves, from its file tree (apps/dashboard/app: a page, a route, a metadata route such as the
+ * manifest), each dynamic part given a value, route groups and private folders left out: what the proxy is asked for.
+ */
+function appAddresses() {
+  const out = [];
+  const walk = (dir, parts) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) {
+        if (e.name.startsWith("_") || e.name.startsWith("@")) continue;
+        const part = /^\(.*\)$/.test(e.name)
+          ? null
+          : e.name.replace(/^\[\[?\.\.\.[^\]]+\]\]?$/, "x").replace(/^\[[^\]]+\]$/, "x");
+        walk(path.join(dir, e.name), part === null ? parts : [...parts, part]);
+      } else if (/^(page|route)\.tsx?$/.test(e.name)) out.push(`/${parts.join("/")}`);
+      else if (e.name === "manifest.ts") out.push(`/${[...parts, "manifest.webmanifest"].join("/")}`);
+    }
+  };
+  walk(path.join(DASH, "app"), []);
+  return [...new Set(out)].sort();
+}
+
+// Pinned BY VALUE: widening the product's unauthenticated surface is a
+// deliberate edit here, reviewed, not a side effect of adding a file.
+// The manifest joined in the phone-shell slice: a phone's installer fetches
+// it without credentials, and it names the product and its icons, nothing else.
+// Sign-up joined in the accounts slice: the page and its route, the one door a stranger may use.
+// Privacy and terms joined in the connections slice: the two pages every platform review links to; static, and they read nothing.
+// Deleting your data joined with them: Meta's app settings, Google's consent
+// screen and the app stores each ask for a URL whose whole subject is
+// deletion, and pointing that field at a policy's midpoint is how it ends up
+// pointing at facebook.com instead.
+// The sign-in callback joined with Sign in with Google: a provider sends the
+// browser back with a code and no session, which is the point. Exact path.
+// Resetting a password joined with the password itself: nobody who has
+// forgotten one has a session to show. Its second half VERIFIES a recovery
+// code, which is what creates the session the new password is written on —
+// so it is also deliberately absent from the signed-in redirect below, where
+// bouncing a signed-in person would break the page's own second step.
+// The filler calendar joined with the filler: a workspace that carries the
+// filler's people points its calendar address at this feed, and the calendar
+// reader fetches it from the server with no session, the way it fetches any
+// feed. It is generated from the clock, names nobody real, and reads nothing.
+// The native app's door joined with the phone app: the app posts an identity
+// token from Apple or Google and has no session yet, exactly as the callback
+// has none. Exact path; it answers only a redirect.
+// The voice agent's brain door joined with Ask, spoken (0026): ElevenLabs
+// calls it for a conversation's words, with no cookie; the door proves the
+// caller twice before it reads the body (the test above). Three exact paths,
+// since the vendor appends /chat/completions to the address it is given.
+// Ask's morning joined with Ask's answers (#2211): the platform's clock calls it with its CRON_SECRET and no cookie;
+// anything else is a 401 (the test above). One exact path.
+// The edge's week, made as AI (00714): the edge's content_week_go job calls it with a token it signs for that path, that
+// workspace and that body, and no cookie; anything else is a 401, and it makes only a week the owner's rung approved.
+// One exact path.
+// The warm-ups joined with the load review of 12 Nov 2026: the platform's clock asks for them with no cookie, so the
+// routes every page opens on are loaded before a visitor asks. Two exact paths, each answers anyone the names of the
+// routes it holds and nothing else: no workspace is named, nothing is read, nothing is written.
+const PUBLIC_EXACT = [
+  "/api/ask/morning-sweep",
+  "/api/ask/voice/llm",
+  "/api/ask/voice/llm/chat/completions",
+  "/api/ask/voice/llm/v1/chat/completions",
+  "/api/content/week-made",
+  "/api/v1/calendar/filler.ics",
+  "/api/v1/signup",
+  "/api/version",
+  "/api/warm",
+  "/api/warm/long",
+  "/auth/callback",
+  "/auth/native",
+  "/auth/signout",
+  "/data-deletion",
+  "/login",
+  "/manifest.webmanifest",
+  "/privacy",
+  "/reset-password",
+  "/signup",
+  "/terms",
+];
+// Pinned BY VALUE like the paths above: a prefix opens EVERY path beneath it,
+// so widening this is a deliberate edit HERE, reviewed, and never a side
+// effect of adding a route.
+//
+// `/b/` was added when a workspace's own page shipped, and it had to be: the
+// page is filed with the carriers as a campaign's website and privacy policy,
+// so its reader is often a REVIEWER — and a reviewer who gets a login screen
+// has been shown a business that cannot be looked up, which is error 30919
+// with extra steps. Caught on production, where the page 307'd to /login.
+//
+// `/.well-known/` joined with the phone app: a phone's OS fetches the app-links
+// files with no session before it lets a link open the app, and the one route
+// under the prefix answers a store's file or 404, nothing else (app-links.ts).
+//
+// `/u/` joined with Reach out (Part 2): the unsubscribe link every campaign
+// email carries, which RFC 8058 says a mail client presses with a POST and no
+// session, and which the law says must work without one (CAN-SPAM). It is the
+// one public route that takes input, and it was let in on these terms: its
+// only write is the person's own stop, through a service-role door that can
+// only narrow what may be sent (00174 set_email_marketing); the token is the
+// authority, sealed under a key only we hold, so nothing is asked of the
+// database for a link we did not make; and a GET changes nothing, because
+// link scanners open every URL in an email (unsubscribe-door.test.mjs).
+//
+// `/p/` joined with partners (decision 0012): a partner's link, which the
+// reader opens before they have an account. It reads nothing and writes one
+// cookie naming a code; who is credited is decided later, by create_workspace,
+// so the link is not a door that can be probed (partner.test.mjs).
+//
+// `/c/` joined with the website sign-up's confirmation (00489): the link a sign-up's person is emailed, which they
+// open with no account. Let in on /u/'s terms: the token is the authority, sealed under a key only we hold, so a
+// link we did not make reads nothing; a GET changes nothing (scanners); and its only write is the person's own yes
+// to offers by email, through the service-role door that judges the press itself (set_email_offers_yes,
+// confirmed_signup: the email is the sign-up's, it left, it is at most seven days old, it went to the person's
+// address now, and they did not say STOP), so a press can say yes for nobody but the inbox the email reached
+// (signup-confirm-page.test.mjs).
+//
+// `/preview/` and `/api/v1/previews/` joined with a lead's own receptionist (decision 0079): the link a cold email
+// carries to a business that has no account, and the three doors its page presses. Let in on /u/'s terms: the token is
+// the authority (22 characters over 16 random bytes, kept on its row), so a link we did not make reads nothing; the
+// page is noindex and sends no referrer; a GET changes nothing, and its opening is counted by its own script; each
+// door makes the same-origin check, takes a bucket per network and acts through a service-role door that holds the
+// preview's limits (00497; previews/preview-routes.test.mjs). Making one theirs is behind sign-in, outside both.
+//
+// `/l/` joined with a business's own forms (00680; the Forms plan, F1): the short link to one place a form is shared,
+// which a visitor opens from a post, a listing or a printed code with no account. It reads one link by a six-character
+// code that says nothing by itself, counts the open for its day (never a visitor: no cookie, no address; a chat app's
+// preview fetch is not counted) and sends the visitor on to the form under the business's page. Beside it, the same
+// link drawn as a code and its one sheet to print, which show nothing the form's page does not. None takes input.
+//
+// `/f/` joined with the form on a business's own website (00703; the Forms plan, F4): the same form framed in their
+// page, read by its website link's code as /l/ is, its send the hosted form's own door with the hosted form's checks
+// (one sent from anywhere but its own page is held for a look). It knows no session: the proxy returns before one is
+// read, and the address's own policy names the sites that may frame it (the next tests).
+const PUBLIC_UNDER = [
+  "/yes/",
+  "/b/",
+  "/.well-known/",
+  "/u/",
+  "/p/",
+  "/c/",
+  "/l/",
+  "/f/",
+  "/preview/",
+  "/api/v1/previews/",
+];
+/** Whether a signed-out request for the address reaches the app: passed on, or answered by a public page's own gate (a
+ * lead's preview that names nothing is rewritten to the Not found page, src/server/public/page-gate.ts), never sent to
+ * sign in and never a 401. */
+const gateLets = async (address) => {
+  const res = await ask(address);
+  return passed(res) || res.headers.has("x-middleware-rewrite");
+};
+
+test("only these paths are reachable without a session, and every other address the app serves asks for one", async () => {
+  // Pinned BY VALUE, and held by running the gate over every address the app has: one that passes signed out is one of
+  // the listed paths or lies under a listed prefix, and nothing else may.
+  const open = [];
+  for (const address of appAddresses()) if (await gateLets(address)) open.push(address);
+  assert.deepEqual(
+    open.filter((a) => !PUBLIC_EXACT.includes(a) && !PUBLIC_UNDER.some((p) => a.startsWith(p))),
+    [],
+    "an address the gate lets through that no argument here let in",
+  );
+  for (const address of PUBLIC_EXACT) assert.ok(await gateLets(address), `${address}: reachable without a session`);
+  // The two doors a signed-in person is sent away from stay those two: the rest of the public pages serve them as they
+  // are, the reset among them, whose second half verifies a recovery code and so needs its page.
+  const real = { cookie: sessionCookie(await signed(projectKey)) };
+  for (const door of ["/login", "/signup"]) {
+    const res = await ask(door, real);
+    assert.equal(res.status, 307, `${door}: a signed-in person is sent on`);
+    assert.equal(new URL(res.headers.get("location")).pathname, "/");
+  }
+  for (const page of ["/privacy", "/reset-password", "/terms"]) assert.ok(passed(await ask(page, real)), page);
+});
+
+test("the public path list is exact, never a prefix: a new route beside a public one ships behind the gate", async () => {
+  // startsWith("/auth") made every future /auth/* route public on creation.
+  for (const address of ["/auth/new-door", "/auth/callback/more", "/authx", "/login/again", "/api/version/x"]) {
+    const res = await ask(address);
+    assert.ok(!passed(res), `${address}: a new route here would ship unauthenticated`);
+    assert.ok([307, 401].includes(res.status), `${address}: sent to sign in, or a 401 for a read`);
+  }
+});
+
+test("the public prefixes open what lies beneath them, and nothing beside them", async () => {
+  for (const prefix of PUBLIC_UNDER) {
+    assert.ok(await gateLets(`${prefix}anything-new`), `${prefix}: a path beneath it passes`);
+    assert.ok(!(await gateLets(prefix.replace(/\/$/, "x/anything"))), `${prefix}: a path beside it does not`);
+  }
+});
+
+test("two public doors under /api/ask: the voice agent's brain door, at its three exact paths, and the platform's morning clock; nothing else of Ask is public", async () => {
+  // The ElevenLabs agent calls the dashboard for a voice conversation's words (docs/decisions/0026): a provider with
+  // no cookie, so the gate cannot stand in front of it. It was let in on these terms: the door proves the caller
+  // twice before it reads a byte of the body (the agent's static secret, compared in constant time, then a session
+  // row the member wrote), it runs the turn as that member under RLS with the token the row keeps sealed, and the
+  // paths are exact, since the vendor appends /chat/completions to the address it is given.
+  // Ask's morning (#2211) is called by the platform's clock, which carries no cookie either: the route answers 401 to
+  // anything but the CRON_SECRET's bearer, and with no secret set it answers nothing at all. One exact path.
+  const askDoors = appAddresses().filter((a) => a.startsWith("/api/ask"));
+  const open = [];
+  for (const address of askDoors) if (await gateLets(address)) open.push(address);
+  assert.deepEqual(
+    open,
+    [
+      "/api/ask/morning-sweep",
+      "/api/ask/voice/llm",
+      "/api/ask/voice/llm/chat/completions",
+      "/api/ask/voice/llm/v1/chat/completions",
+    ].filter((a) => askDoors.includes(a)),
+  );
+  for (const address of ["/api/ask/voice/llm/other", "/api/ask/elsewhere"])
+    assert.equal((await ask(address)).status, 401, `${address}: behind the gate`);
+  for (const address of appAddresses().filter((a) => a.startsWith("/api/v1/ask")))
+    assert.ok(!(await gateLets(address)), `${address}: every member route of Ask stays behind the gate`);
+});
+
+test("one address: the deploy alias redirects, and a preview never does", async () => {
+  // Cookies are per-origin, and Google's callback is registered against one host -- so a person who started on the
+  // alias came back to a host they had no session on, and Connect Google simply failed.
+  const kept = { CANONICAL_HOST: process.env.CANONICAL_HOST, VERCEL_ENV: process.env.VERCEL_ENV };
+  const on = (host, address) => proxy(new NextRequest(new URL(address, `https://${host}`), { headers: { host } }));
+  try {
+    process.env.CANONICAL_HOST = "app.example.com";
+    process.env.VERCEL_ENV = "production";
+    const moved = await on("chanlytics-os.vercel.app", "/w/acme/inbox?x=1");
+    assert.equal(moved.status, 308, "permanent, so it is cached and so search engines follow it");
+    assert.equal(moved.headers.get("location"), "https://app.example.com/w/acme/inbox?x=1");
+    // Before the auth gate: the redirect is not a place to leak whether a path exists, and a session on the alias is
+    // not asked about.
+    assert.equal((await on("chanlytics-os.vercel.app", "/no-such-page")).status, 308);
+    // Only the alias is moved, never a custom domain.
+    assert.notEqual((await on("app.other.example", "/w/acme")).status, 308);
+    // Except the unsubscribe link, which RFC 8058 says a mail client presses with no redirect in its answer.
+    assert.ok(passed(await on("chanlytics-os.vercel.app", "/u/token-from-an-email")), "answered where it is pressed");
+    // A preview is also a vercel.app host and must answer as itself.
+    process.env.VERCEL_ENV = "preview";
+    assert.notEqual((await on("chanlytics-os-git-x.vercel.app", "/w/acme")).status, 308, "a preview");
+    process.env.VERCEL_ENV = "production";
+    delete process.env.CANONICAL_HOST;
+    assert.notEqual((await on("chanlytics-os.vercel.app", "/w/acme")).status, 308, "no canonical host, no move");
+  } finally {
+    for (const [k, v] of Object.entries(kept))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  }
+});
+
+test("the proxy passes a bearer request to the route wrapper only under /api/v1 and only with the header", async () => {
+  // Decision 0011: a native screen's call carries the session's access token as a bearer and no cookie. The proxy
+  // reads the cookie only, so it lets such a request through to withRoute, which verifies the token (auth/session/bearer.test.mjs:
+  // a token the verifier refuses is 401, and the same-origin rule stays the cookie's). The bypass is the API prefix
+  // AND the header's scheme, and nothing else widens it.
+  const token = { authorization: "Bearer a.b.c" };
+  assert.ok(passed(await ask("/api/v1/workspaces", token)), "on to the wrapper, which verifies it");
+  assert.equal((await ask("/api/v1/workspaces", { authorization: "Basic abc" })).status, 401, "another scheme");
+  assert.equal((await ask("/api/v1/workspaces", { authorization: "Bearer" })).status, 401, "a scheme with no token");
+  assert.equal((await ask("/w/acme/inbox", token)).status, 307, "a page is the cookie's, whatever the header says");
+  assert.equal((await ask("/api/ask/elsewhere", token)).status, 401, "and so is anything outside /api/v1");
+});
+
+test("the three legal pages are static, read nothing, and point at each other", async () => {
+  // A page a stranger may open must not reach for a session, a database or the network: it is served to whoever asks,
+  // including a reviewer. Drawn with every way out refused: a fetch, a request's cookies or headers, the database.
+  const wasFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => assert.fail(`a legal page fetched ${input}`);
+  globalThis.React ??= (await import("react")).default;
+  const drawn = {};
+  try {
+    for (const [name, dir] of Object.entries({ privacy: "privacy", terms: "terms", deletion: "data-deletion" })) {
+      const page = await importSrc(`apps/dashboard/app/${dir}/page.tsx`);
+      const tree = page.default();
+      assert.ok(!(tree instanceof Promise), `${name} is drawn at once: it waits on nothing`);
+      assert.equal(page.metadata?.robots?.index, true, `${name} must be indexable — a review checks it is reachable`);
+      drawn[name] = tree;
+    }
+  } finally {
+    globalThis.fetch = wasFetch;
+  }
+  const hrefs = (n, out = []) => {
+    if (Array.isArray(n)) n.forEach((k) => hrefs(k, out));
+    else if (n && typeof n === "object") {
+      if (typeof n.type === "function") return hrefs(n.type(n.props), out);
+      if (typeof n.props?.href === "string") out.push(n.props.href);
+      hrefs(n.props?.children, out);
+    }
+    return out;
+  };
+  const said = (n) =>
+    n == null || typeof n === "boolean"
+      ? ""
+      : typeof n !== "object"
+        ? String(n)
+        : Array.isArray(n)
+          ? n.map(said).join("")
+          : typeof n.type === "function"
+            ? said(n.type(n.props))
+            : said(n.props?.children);
+  // A dead end is how the deletion URL gets pasted as facebook.com: the pages carry each other, so whichever one a
+  // reviewer lands on leads to the rest.
+  assert.ok(hrefs(drawn.privacy).includes("/data-deletion"), "the policy names the deletion page");
+  assert.ok(
+    ["/privacy", "/terms"].every((h) => hrefs(drawn.deletion).includes(h)),
+    "the deletion page names the other two",
+  );
+  // The one promise a reviewer reads it for, and the one an end customer needs.
+  assert.match(said(drawn.deletion), /within 30 days/, "it says how long deletion takes");
+  const stop = [];
+  (function bold(n) {
+    if (Array.isArray(n)) n.forEach(bold);
+    else if (n && typeof n === "object") {
+      if (typeof n.type === "function") return bold(n.type(n.props));
+      if (n.type === "b") stop.push(said(n));
+      bold(n.props?.children);
+    }
+  })(drawn.deletion);
+  assert.ok(stop.includes("STOP"), "and how to stop messages without deleting anything");
+});
+
+// Same-origin evidence must be POSITIVE, and every mutation demands it: the guard and both kinds of caller that ask it,
+// run in auth/session/bearer.test.mjs (a module loaded beside next's testing helpers above cannot keep a request's storage).
+
+test("nothing but the pages each public prefix argues for lives beneath it", () => {
+  // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be WRITTEN (00100): the filing names the
+  // printable form as one way to give it, and a reviewer who gets a login screen instead of the form has been shown a
+  // consent method nobody can check. It is a page like its neighbour -- printed and signed by hand, it takes no input.
+  //
+  // `/yes/<slug>/sign` joined when the offers code needed somewhere to be printed with the words a customer reads
+  // before scanning it: a page like its neighbours, read by slug, showing nothing the opt-in page does not, and taking
+  // no input. Its markup lives in src/yes, not beside it, so this folder still holds pages and nothing else.
+  for (const [dir, what, beneath] of [
+    ["yes", "the opt-in page, its paper form and its desk sign", ["form", "page.tsx", "sign"]],
+    ["b", "the workspace's own page, its texting terms and its forms", ["[form]", "page.tsx", "terms"]],
+  ]) {
+    const at = path.join(ROOT, "apps/dashboard/app", dir);
+    assert.deepEqual(fs.readdirSync(at), ["[slug]"], `nothing but ${what} may live under its public prefix`);
+    assert.deepEqual(
+      fs.readdirSync(path.join(at, "[slug]")).sort(),
+      beneath,
+      `and ${what} are what its public prefix holds, each argued here`,
+    );
+  }
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")),
+    ["page.tsx"],
+    "the paper form is a page, not a route that takes input",
+  );
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/sign")),
+    ["page.tsx"],
+    "the desk sign is a page, not a route that takes input",
+  );
+  // `/b/<slug>/terms` joined when the campaign's terms URL became the business's own: the reviewers' guide lists eight
+  // things a program's terms must carry, and Chanlytics' /terms -- a software agreement for workspace owners -- carries
+  // none of them. A page like its neighbour: read by slug, no input.
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/terms")),
+    ["page.tsx"],
+    "the terms are a page, not a route that takes input",
+  );
+  // `/b/<slug>/<form>` joined with a business's own forms (00680): the first page under this prefix that takes input,
+  // let in on these terms. It is drawn only for a form its owner published, in a workspace that has public pages. Its
+  // one write is the visitor's own request, through a service-role door that makes the person by the one rule every
+  // door uses (resolve_person: it fills what is empty, never overwrites, and writes nothing for a person who asked to be
+  // forgotten), holds a doubtful send for a look instead of telling anyone, and takes the same press once. It never
+  // takes a yes to offers, sends nothing to anyone, and is limited per sender and per form (form-page.ts;
+  // tests/forms/a-visitor-fills-in-a-form.test.mjs). One route file, and beside it the way to the business's own
+  // booking page (00691, F3): it counts an open of that page for the form's day and sends the visitor there. It reads
+  // nothing but the workspace's own booking link, writes nothing but the count, and lands nowhere else
+  // (tests/forms/time/a-visitor-asks-for-a-time.test.mjs).
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]")).sort(),
+    ["book", "route.ts"],
+    "a form's page is its one route, and the way to its business's booking page",
+  );
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]/book")), ["route.ts"]);
+  // Under /l/, the link's own door, its code and its sheet to print, and nothing else.
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l")), ["[code]"]);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l/[code]")).sort(), ["code", "route.ts", "sign"]);
+  for (const part of ["code", "sign"])
+    assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l/[code]", part)), ["route.ts"]);
+  // Under /u/, one route and nothing else: the link's own door. A second file
+  // here would be a second public way in, and it takes a new argument above.
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u")), ["[token]"]);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u/[token]")), ["route.ts"]);
+  // Under /c/, the same: the confirmation link's own door, and nothing else.
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/c")), ["[token]"]);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/c/[token]")), ["route.ts"]);
 });

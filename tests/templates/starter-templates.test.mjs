@@ -41,7 +41,7 @@ import {
 } from "@chanlytics/contracts";
 import { starterPreview } from "../../apps/dashboard/src/surfaces/campaigns/templates/preview.ts";
 import { readCode, importSrc } from "../_source.mjs";
-import { cssOf, givenOn } from "../_css.mjs";
+import { cascadeOf, cssOf, element } from "../_css.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { installStubReact } from "../_stub-react.mjs";
 
@@ -549,7 +549,10 @@ test("the pages: titles not names, the starter set in Settings, the message as t
   // Asked of the parsed sheet under any query (read as its text until 26 Nov 2026): the bubble's own rule gives it its
   // look there, and no selector names the starter list's rows.
   const CAMPAIGNS_CSS = "apps/dashboard/src/surfaces/campaigns/campaigns.css";
-  assert.ok(Object.keys(givenOn(CAMPAIGNS_CSS, ".mp-bubble", null)).length > 0, "the bubble's rule is Campaigns'");
+  assert.ok(
+    Object.keys(cascadeOf([CAMPAIGNS_CSS]).given(element(".mp-bubble"))).length > 0,
+    "the bubble's rule is Campaigns'",
+  );
   assert.ok(!("tpl-starter-row" in cssOf(CAMPAIGNS_CSS).classes));
 });
 
@@ -668,13 +671,17 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   // Presence, the bell and the theme are one group: the theme's button is drawn in the frame's top bar in
   // shell/surfaces/status/the-page-and-the-shell-s-doors.test.mjs. The group's rule is the stylesheet's, asked of it
   // parsed, under any query.
-  assert.deepEqual(givenOn("apps/dashboard/src/styles/components.css", ".tbn-wrap", null), {
-    position: "relative",
-    display: "inline-flex",
-    "align-items": "center",
-    gap: "2px",
-    "flex-shrink": "0",
-  });
+  const group = cascadeOf(["apps/dashboard/src/styles/components.css"]).given(element(".topbar", ".tbn-wrap"));
+  assert.deepEqual(
+    Object.fromEntries(["position", "display", "align-items", "gap", "flex-shrink"].map((p) => [p, group[p]])),
+    {
+      position: "relative",
+      display: "inline-flex",
+      "align-items": "center",
+      gap: "2px",
+      "flex-shrink": "0",
+    },
+  );
 });
 
 test("a template's title: the workspace's own words, set through its door, shown everywhere a template is named", async () => {

@@ -119,7 +119,7 @@ test("a class draws a primitive when one of its words names one or it is a kit n
 });
 
 test("a class the kit's registry lists is a primitive whatever its words", () => {
-  // The registry's names are all primitives by their words today (styles/kit-css.test.mjs holds the list), so the
+  // The registry's names are all primitives by their words today (repo/rules/the-kit-s-sheet-and-its-names.test.mjs holds the list), so the
   // branch is shown on a name of its own.
   const withKit = isPrimitiveClassFor(new Set(["frame-rim"]));
   assert.ok(withKit("frame-rim"), "a name the registry lists, though no word of it names a primitive");

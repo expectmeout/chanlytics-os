@@ -6,11 +6,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { all, draw, settings, textOf } from "./_settings-owner-panes.mjs";
+import { CONSOLE_PATH } from "@chanlytics/contracts";
+import { all, draw, settings, textOf, workspace } from "./_settings-owner-panes.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { PaneWorkspace } = await import("../../../apps/dashboard/src/surfaces/settings/frame/workspace.tsx");
 const { PaneMemory } = await import("../../../apps/dashboard/src/surfaces/settings/memory/pane.tsx");
 const { PaneBillingReal } = await import("../../../apps/dashboard/src/surfaces/settings/billing/pane.tsx");
+const { PaneIntegrationsReal } = await import("../../../apps/dashboard/src/surfaces/settings/connections/pane.tsx");
+const { BtCreateCard } = await import("../../../apps/dashboard/src/surfaces/settings/business/create.tsx");
 
 /** The panes the page drew for `tab`, by the component each is. */
 const panesOf = (tab) => all(settings(tab), (n) => n.type === PaneWorkspace || n.type === PaneMemory);
@@ -38,6 +42,12 @@ test("Billing and Memory are real panes, and neither says it is not built", () =
   assert.equal(all(billing, (n) => n.type === PaneBillingReal).length, 1, "Billing draws the real pane");
   assert.doesNotMatch(textOf(billing), /There is no billing in the product yet/);
   assert.doesNotMatch(textOf(settings("memory")), /does not learn rules on its own yet/);
+  // Connections is its own pane, imported, drawn for its tab: the page renders it, it does not contain it.
+  assert.equal(
+    all(settings("integrations"), (n) => n.type === PaneIntegrationsReal).length,
+    1,
+    "Connections draws its pane",
+  );
 });
 
 test("Settings derives its tab on every draw: the same page, drawn again with another tab, draws that tab's pane", () => {
@@ -48,4 +58,58 @@ test("Settings derives its tab on every draw: the same page, drawn again with an
   const again = draw("billing");
   assert.equal(all(again, (n) => n.type === PaneBillingReal).length, 1, "Billing, drawn over the page that held Hours");
   assert.equal(all(again, (n) => n.type === PaneWorkspace).length, 0, "and not the business's pane it had");
+});
+
+test("Settings' Back office is a link to the Console, for the people it is for and for nobody else", () => {
+  // Not in Settings' own sections: a customer who types the route lands on a pane of theirs rather than on a locked door
+  // they now know about. For the Console's staff (the payload's one bit, platform_admin) the rail ends with The Console,
+  // which opens it, and the old address says where it went (decision 0066: one copy, not two). Read as tabs.ts's and
+  // page.tsx's text in console/back-office/office/ until 26 Nov 2026.
+  const went = [];
+  const assign = globalThis.window.location.assign;
+  globalThis.window.location.assign = (to) => went.push(to);
+  const staff = (yes) =>
+    bridgeHolds({ who: { me: { email: "alex@chanlytics.com", role: "owner", platform_admin: yes } } });
+  try {
+    staff(false);
+    const customer = settings("platform");
+    assert.equal(
+      all(customer, (n) => n.props?.["data-testid"] === "set-nav-platform").length,
+      0,
+      "no row for a customer",
+    );
+    assert.equal(all(customer, (n) => n.props?.["data-testid"] === "set-console").length, 0, "nor the Console's pane");
+    staff(true);
+    const theirs = settings("platform");
+    const [row] = all(theirs, (n) => n.props?.["data-testid"] === "set-nav-platform");
+    assert.ok(row, "the rail's row for staff");
+    assert.match(textOf(row), /The Console/);
+    assert.equal(
+      all(theirs, (n) => n.props?.["data-testid"] === "set-console").length,
+      1,
+      "and the old address says where it went",
+    );
+    row.props.onClick();
+    assert.deepEqual(went, [CONSOLE_PATH], "the row opens the Console");
+  } finally {
+    globalThis.window.location.assign = assign;
+    bridgeHolds({ who: { me: undefined } });
+  }
+});
+
+test("REGRESSION: a workspace with no receptionist set up is told so, never shown somebody else's business", () => {
+  // Migration 00017 provisions every tenant with an EMPTY tenant_config row, so `config.brain` is undefined: the pane fell
+  // to its mockup branch and showed Serenity Spa's invented name, phone and hours to a real owner as their own business.
+  // A config the parser refuses lands in the same branch. "No configuration" is not "this is the demo".
+  workspace("owner", { record: { role: "owner", version: 1, config: {} } });
+  const empty = settings("workspace");
+  assert.equal(
+    all(empty, (n) => n.type === BtCreateCard).length,
+    1,
+    "the empty state, and the one act that sets it up",
+  );
+  assert.equal(all(empty, (n) => n.type?.name === "DemoBusiness").length, 0, "never the mockup's salon");
+  workspace("owner");
+  const real = settings("workspace");
+  assert.equal(all(real, (n) => n.type === BtCreateCard).length, 0, "a workspace with a receptionist is its record");
 });

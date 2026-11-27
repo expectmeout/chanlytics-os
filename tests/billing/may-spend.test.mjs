@@ -22,6 +22,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  AppError,
+  ERROR_CODES,
   maySpend,
   whyCannotSpend,
   receptionistOn,
@@ -41,7 +43,7 @@ import {
   TRIAL_COVERS,
   TRIAL_INCLUDES,
 } from "@chanlytics/contracts";
-import { importSrc, readCode } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 
 test("the whole matrix: two modes by nine statuses by four kinds, stated rather than inferred", () => {
   // Written out so a change to either function shows up as a diff a reviewer
@@ -175,21 +177,18 @@ test("both money routes carry the second door", async () => {
     assert.equal(POST.policy.spend, true, `${route}: spend`);
   }
 
-  const guard = readCode("apps/dashboard/src/server/shared/with-route.ts");
-  assert.ok(guard.includes("export async function requireSpend("));
-  assert.ok(
-    guard.includes('throw new AppError("payment_required"'),
-    "402, not 403: the fix is a card, not a different account",
-  );
-  assert.ok(/if \(!data\)\s*throw new AppError\("payment_required"/.test(guard), "no billing row is not permission");
+  // What the door answers is run through a money route in billing/billing-routes.test.mjs ("the 402 door on a route that
+  // spends"): a failed card and a missing billing row are each a 402 in its own words, never a 403 -- the fix is a card,
+  // not a different account, and no billing row is not permission -- and a direct arrangement passes to the edge.
 });
 
 test("payment_required is its own code, mapped to 402", () => {
   // A client that renders it as "forbidden" sends the owner to the wrong page:
   // nothing is wrong with their account or their role.
-  const errors = readCode("packages/contracts/src/shared/errors.ts");
-  assert.ok(errors.includes('"payment_required",'));
-  assert.ok(errors.includes("payment_required: 402,"));
+  assert.ok(ERROR_CODES.includes("payment_required"));
+  const refusal = new AppError("payment_required", "Update the card in Billing.");
+  assert.deepEqual([refusal.code, refusal.status], ["payment_required", 402]);
+  assert.notEqual(new AppError("forbidden", "x").status, refusal.status, "and not a forbidden's");
 });
 
 test("Setup does not offer a button the server will refuse", async () => {

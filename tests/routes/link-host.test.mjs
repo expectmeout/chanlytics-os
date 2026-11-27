@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -39,9 +39,39 @@ test("on the link host only /u/ answers; any other host, or no link host, answer
   assert.equal(linkHostAnswers({ host: null, path: "/login", linkHost }), true);
 });
 
-test("the proxy asks it first, before any other rule, with the dashboard's UNSUBSCRIBE_ORIGIN", () => {
-  const proxy = fs.readFileSync(path.join(ROOT, "apps/dashboard/proxy.ts"), "utf8");
-  const asked = proxy.indexOf("linkHostAnswers(");
-  assert.ok(asked > 0 && asked < proxy.indexOf("const moved = canonicalRedirect(request);"));
-  assert.match(proxy, /linkHostOf\(env\.UNSUBSCRIBE_ORIGIN\)/);
+test("the proxy asks it first, before any other rule, with the dashboard's UNSUBSCRIBE_ORIGIN", async () => {
+  // The proxy, run (apps/dashboard/proxy.ts). A link host on a vercel.app name is the case that tells the order: the
+  // alias redirect would send its /login to the app (308) if it came first; asked first, the link host says Not found.
+  // Its /u/ page is never redirected, and with no UNSUBSCRIBE_ORIGIN the same host answers as any other.
+  const require = createRequire(import.meta.url);
+  const { NextRequest } = require("next/server");
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://link-host.supabase.example";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "anon-test-only";
+  const { proxy } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/proxy.ts")).href);
+  const host = "links-cold.vercel.app";
+  const ask = (address) => proxy(new NextRequest(new URL(address, `https://${host}`), { headers: { host } }));
+  const kept = Object.fromEntries(
+    ["UNSUBSCRIBE_ORIGIN", "CANONICAL_HOST", "VERCEL_ENV"].map((k) => [k, process.env[k]]),
+  );
+  Object.assign(process.env, {
+    UNSUBSCRIBE_ORIGIN: `https://${host}`,
+    CANONICAL_HOST: "app.example.com",
+    VERCEL_ENV: "production",
+  });
+  try {
+    const login = await ask("/login");
+    assert.equal(login.status, 404, "on the link host, the sign-in page is not found: never redirected first");
+    assert.equal(await login.text(), "Not found");
+    const page = await ask("/u/token-1");
+    assert.notEqual(page.status, 404, "its unsubscribe page answers");
+    assert.notEqual(page.status, 308, "where it is pressed: a mail client's one click is never redirected");
+    delete process.env.UNSUBSCRIBE_ORIGIN;
+    const anyHost = await ask("/login");
+    assert.equal(anyHost.status, 308, "with no link host, the same host is the alias, redirected to the app");
+    assert.equal(new URL(anyHost.headers.get("location")).host, "app.example.com");
+  } finally {
+    for (const [k, v] of Object.entries(kept))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  }
 });
