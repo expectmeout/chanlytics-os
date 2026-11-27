@@ -294,7 +294,7 @@ const BtoClosures = ({ draft: days, rows, press, problems, readOnly }: ClosureFi
           />
         );
         return (
-          <div key={i} className="bt-closure" data-testid={`rec-closure-${i}`} {...closed.row(i)}>
+          <div key={i} className="bt-closure rec-quiet" data-testid={`rec-closure-${i}`} {...closed.row(i)}>
             {/* type=date, so 31 November cannot be typed at all — the class of
                 bug where a stored non-date names the wrong day downstream. */}
             {box("date", { type: "date", label: named("Closed from") })}

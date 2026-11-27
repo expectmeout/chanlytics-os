@@ -72,8 +72,8 @@ function newNumber(o: {
         </div>
       )}
       {chosen && (
-        <div className="setup-confirm" data-testid="setup-confirm">
-          <span className="setup-confirm-text">
+        <div className="setup-chosen" data-testid="setup-confirm">
+          <span className="setup-chosen-text">
             <b className="tabular">{chosen.friendly}</b> · included in your plan · AI answers it · texting arrives when
             the phone networks register it
           </span>

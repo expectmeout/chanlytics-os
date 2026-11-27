@@ -26,9 +26,9 @@ export default function AuthShell({ children, bare = false }: { children: ReactN
         <div className="auth-colinner">
           {/* A preview's Make it mine opens on its way back and its own heading, as its canvas draws it: no mark. */}
           {bare ? null : (
-            <div className="auth-mark">
-              <span className="auth-mark-dot" aria-hidden="true" />
-              <span className="auth-mark-name">Chanlytics</span>
+            <div className="auth-brand">
+              <span className="auth-brand-dot" aria-hidden="true" />
+              <span className="auth-brand-name">Chanlytics</span>
             </div>
           )}
           {children}

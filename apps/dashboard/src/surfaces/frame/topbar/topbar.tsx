@@ -49,7 +49,7 @@ const tbAskLabel = (label: string | null | undefined) => (
 );
 
 /** Ask's face, the three (kit/face/ask-face.tsx): what leads the line, as it led the capsule. */
-const tbFace = () => <AskFace className="tb-ask-face" testId="tb-ask-face" />;
+const tbFace = () => <AskFace className="tb-ask-lead" testId="tb-ask-face" />;
 
 /**
  * The page's search as the line (page-search.ts): its words are the page's, so the list narrows as they are typed; Enter,
@@ -336,7 +336,7 @@ const tbBell = (b: BellState) => {
         onClick={() => (b.openNotifs ? b.closeBell() : b.setOpenNotifs(true))}
       >
         <Icon name="bell" />
-        {b.unread > 0 && <span className="tb-bell-badge tally tally-icon">{b.unread}</span>}
+        {b.unread > 0 && <span className="tb-bell-count tally tally-icon">{b.unread}</span>}
         {b.unread === 0 && b.dots > 0 && <span className="tb-bell-unread" aria-hidden="true" />}
       </button>
       {b.openNotifs && (
@@ -370,7 +370,7 @@ export function Topbar({
   const { next: themeNext, said: themeSaid } = themeOf(theme, themePref);
   return (
     <header className="topbar">
-      <button className="btn btn-ghost btn-icon btn-sm tb-menu" data-tip="Menu" aria-label="Menu" onClick={onMenu}>
+      <button className="btn btn-ghost btn-icon btn-sm tb-nav-open" data-tip="Menu" aria-label="Menu" onClick={onMenu}>
         <Icon name="menu" />
       </button>
       {tbCrumbs(crumbs)}

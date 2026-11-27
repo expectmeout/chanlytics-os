@@ -90,15 +90,15 @@ const AskFigure = ({ f, t, onNav }: { f: Figure; t: LineWords; onNav: (to: strin
   const words = (
     <>
       <strong>{f.value}</strong>
-      {f.label ? <span className="ask-tile-label">{f.label}</span> : null}
-      {f.note ? <span className="ask-tile-note">{f.note}</span> : null}
+      {f.label ? <span className="ask-fig-label">{f.label}</span> : null}
+      {f.note ? <span className="ask-fig-note">{f.note}</span> : null}
     </>
   );
   const door = f.source?.door ? f.source : null;
   return door ? (
     <LinePress
       kind="chip"
-      className="ask-tile"
+      className="ask-fig"
       onClick={() => onNav(door.to)}
       data-tip={`${t.from} ${door.label}`}
       data-testid="ask-figure"
@@ -107,7 +107,7 @@ const AskFigure = ({ f, t, onNav }: { f: Figure; t: LineWords; onNav: (to: strin
     </LinePress>
   ) : (
     <span
-      className="ask-tile plain"
+      className="chip ask-fig"
       data-tip={f.source ? `${t.from} ${f.source.label}` : undefined}
       data-testid="ask-tile"
     >
@@ -136,7 +136,7 @@ const AskShow = ({
   // A row's kind as the mark before it (askKindGlyph), or its place in a numbered list; a row that is a door ends in a chevron.
   const itemBody = (it: AskItem, k: number) => (
     <>
-      <span className="ask-item-mark" data-testid="ask-item-mark">
+      <span className="mark" data-testid="ask-item-mark">
         {numbered ? k + 1 : <Icon name={askKindGlyph(it.source.kind)} size={12} />}
       </span>
       <span className="ask-item-body">

@@ -83,13 +83,13 @@ const ADS_KIT: AdsRowKit = {
   press: connRowPress,
   face: (on) => (
     <Face
-      className="set-int-tile"
+      className="set-int-lead"
       data-kind="ads"
       data-on={on ? "true" : undefined}
       glyph={<Icon name="trending-up" size={15} />}
     />
   ),
-  pill: (tone, label) => <StatePill kind="tone" value={tone} label={label} />,
+  pill: (tone, label) => <StatePill kind="tone" value={tone} label={label} className="set-int-state" />,
 };
 
 /** The place for the ad account's row in a group: an element the row is drawn into, never a box of its own. */
@@ -326,7 +326,7 @@ function groupCard(o: {
   return (
     <section
       key={g}
-      className="rec-card set-card set-conn"
+      className="rec-card set-block set-conn"
       data-testid={`connections-${g}`}
       aria-labelledby={`connections-${g}-title`}
     >

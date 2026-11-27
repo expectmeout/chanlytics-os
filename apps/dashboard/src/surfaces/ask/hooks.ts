@@ -304,7 +304,7 @@ export const useAskLatest = (bodyRef: RefObject<HTMLElement | null>, on: boolean
 // (`--ask-foot`), so Latest stands over it. A data attribute and a custom property, which React leaves alone.
 /** A card's foot, as its parts mark it (card-parts.tsx, card.tsx). */
 const AH_FEET = "[data-foot]";
-/** The card's own gap between its parts, which is also the room the foot's ground takes over it (ask.css `.ask-card`). */
+/** The card's own gap between its parts, which is also the room the foot's ground takes over it (ask.css `.ask-job`). */
 const AH_CARD_GAP = 10;
 /**
  * Whether a foot stands over its card's body: higher than its place under the part before it. A sticky part says where

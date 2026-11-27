@@ -4,4 +4,4 @@
  * same one. It stands alone because the Calendar reads it and nothing else here: beside the pager it brought the deck
  * and the highlight's glide onto a page that moves by neither (3,584 bytes gzipped, measured 8 Oct 2026).
  */
-export const OWN_TOUCH = '[role="dialog"], [aria-modal="true"], [role="menu"], .sb-sheet, .pp-toast, [data-own-drag]';
+export const OWN_TOUCH = '[role="dialog"], [aria-modal="true"], [role="menu"], .pp-toast, [data-own-drag]';

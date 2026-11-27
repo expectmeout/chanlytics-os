@@ -49,7 +49,7 @@ function OutlineSidebar({ rail }: { rail: boolean }) {
     <div className={rail ? "side-wrap rail" : "side-wrap"}>
       <aside className={rail ? "sidebar collapsed" : "sidebar"}>
         <button type="button" className="sb-team">
-          <span className="sb-team-mark" />
+          <span className="face face-sm face-tile" />
           <div className="sb-team-body">
             <div className="sb-team-name">{ROOM}</div>
           </div>
@@ -70,8 +70,8 @@ function OutlineSidebar({ rail }: { rail: boolean }) {
             <Icon name="sidebar" size={14} />
             <span className="sb-collapse-label">Collapse</span>
           </button>
-          <button type="button" className="user-chip sb-account">
-            <div className="avatar">{ROOM}</div>
+          <button type="button" className="sb-account">
+            <span className="face face-sm">{ROOM}</span>
             <div className="who">
               <div className="name">{ROOM}</div>
               <div className="email">{ROOM}</div>
@@ -90,12 +90,12 @@ function OutlineTop() {
     <div className="frame-top" data-chrome="">
       <span className="pg-dateline-slot" />
       <header className="topbar">
-        <button type="button" className="btn btn-ghost btn-icon btn-sm tb-menu" aria-label="Menu">
+        <button type="button" className="btn btn-ghost btn-icon btn-sm tb-nav-open" aria-label="Menu">
           <Icon name="menu" />
         </button>
         <div className="topbar-spacer" />
         <button type="button" className="tb-ask">
-          <canvas className="tb-ask-face" aria-hidden="true" />
+          <canvas className="tb-ask-lead" aria-hidden="true" />
           <span className="tb-ask-label">Ask Chanlytics</span>
         </button>
         <div className="tbn-wrap">
@@ -133,7 +133,7 @@ function OutlineFoot() {
       />
       <button type="button" className="phone-ask" data-chrome="foot" aria-label="Ask Chanlytics">
         <span className="ask-disc" aria-hidden="true" />
-        <canvas className="phone-ask-face" aria-hidden="true" />
+        <canvas className="phone-ask-lead" aria-hidden="true" />
       </button>
     </>
   );

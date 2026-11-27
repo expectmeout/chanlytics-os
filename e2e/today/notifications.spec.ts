@@ -37,7 +37,7 @@ test.describe("The bell on a real workspace", () => {
       const w = window as unknown as { __ops: number[] | null };
       w.__ops = null;
       const seen = new MutationObserver(() => {
-        const copy = document.querySelector('.tbn-pop[data-leaving="true"]');
+        const copy = document.querySelector('.tbn-place[data-leaving="true"]');
         if (!copy || w.__ops) return;
         seen.disconnect();
         const plays = copy.getAnimations();
@@ -72,7 +72,7 @@ test.describe("The bell on a real workspace", () => {
       expect(ops[i], `frame ${i} of ${ops.length}: ${ops.map((o) => o.toFixed(2)).join(" ")}`).toBeLessThanOrEqual(
         (ops[i - 1] ?? 0) + 0.001,
       );
-    await expect(page.locator(".tbn-pop")).toHaveCount(0);
+    await expect(page.locator(".tbn-place")).toHaveCount(0);
   });
 
   test("opens on the real feed with the door to its settings, and nothing invented", async ({ page }) => {

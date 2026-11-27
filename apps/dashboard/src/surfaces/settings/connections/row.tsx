@@ -581,7 +581,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
       onClick={offers === "one" ? connRowPress : undefined}
     >
       <Face
-        className="set-int-tile"
+        className="set-int-lead"
         data-kind={r.kind}
         data-on={r.group === "connected" ? "true" : undefined}
         glyph={<Icon name={r.icon} size={15} />}
@@ -592,7 +592,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
         toggle,
         id: panelId,
       })}
-      <StatePill kind="tone" value={r.tone} label={rowPillWords(r)} />
+      <StatePill kind="tone" value={r.tone} label={rowPillWords(r)} className="set-int-state" />
       {rowButton({ ...props, press, open: settingsOpen, toggle, panelId })}
       {offers === "one" && (
         <span className="set-int-chev" aria-hidden="true">

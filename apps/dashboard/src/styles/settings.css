@@ -47,7 +47,7 @@
 .settings .fl-agent:focus-visible { box-shadow: var(--focus-ring); }
 /* Setup's rows live inside .tq, which clips at its radius, so an outset ring
    lost 3px on both sides. Theirs is drawn inside. */
-.setup-rows .cl-attn-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.setup-rows .cl-attn-row:focus-visible { box-shadow: var(--focus-inset); }
 
 .set-nav {
   display: flex;
@@ -165,7 +165,7 @@
    put every section against the rail and left the other half of the screen
    empty. Whatever a pane draws is a child of the pane, so the rule is the
    pane's and no section can forget it. */
-.set-card, .setup-rows { max-width: var(--measure-prose); }
+.set-block, .setup-rows { max-width: var(--measure-prose); }
 /* Left, where the rail leaves off, the way every other page begins. Centred,
    a wide monitor put 350px of nothing between the rail and the first word. */
 .set-pane > * { width: 100%; max-width: var(--measure-prose); margin-inline: 0; flex: 0 0 auto; }
@@ -204,8 +204,6 @@
 /* The controls a row carries, at the row's scale: the product's small button,
    quiet link and pill are sized for a dense list, and looked lost at the end of
    a row this tall. Scoped here so nothing outside Settings moves. */
-.settings .btn-sm { height: var(--control-h-md); padding: 0 12px; font-size: var(--set-hint); border-radius: var(--control-radius-sm); }
-.settings .btn-icon.btn-sm { width: var(--control-h-md); padding: 0; }
 .settings .cl-bucket-link {
   height: 30px;
   padding: 0 8px;
@@ -221,7 +219,7 @@
 /* The pill's words used to take their -ink here alone (#610). components.css does that for every page now. */
 /* A control is identified by its edge, so the edge is not a hairline. The dots
    in the policy matrix have no fill to tell them apart at all. */
-.settings .set-input, .setup-rows .setup-area { border-color: var(--line-strong); }
+.setup-rows .setup-area { border-color: var(--line-strong); }
 .settings .pol-dot { border-color: color-mix(in oklab, var(--ink) 45%, var(--bg-raised)); }
 /* Something happens under a finger. There is no hover on a phone, and tapping a
    dot, a chip, a path or a switch gave nothing back. */
@@ -247,7 +245,7 @@
 .setup-rows .cl-attn-row.tone-ok .cl-attn-status .lead::before { background: var(--ok-ink); }
 /* A row with nothing on it yet takes an open ring, not a filled dot: a finished
    row and an untouched one should not be the same shape. */
-.setup-rows .cl-attn-row.tone-plain .cl-attn-status .lead::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-dim); }
+.setup-rows .cl-attn-row.tone-plain .cl-attn-status .lead::before { background: transparent; box-shadow: var(--dot-hollow); }
 .setup-rows .cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn-ink); }
 .setup-rows .cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info-ink); }
 .setup-rows .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
@@ -485,10 +483,8 @@
 /* What a row says beside its sentence (contracts ConnectionLine.notes): each note a line of its own, wrapped whole -- never cut with an
    ellipsis as the sentence is, since an owner has to read it. */
 .set-int-notes { display: flex; flex-direction: column; gap: 3px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
-/* One face for every connection, the kit's (a glyph in the circle People's rows wear): what is connected has the ink, and
-   what is not is quieter than it. Nine hues, one a service, were drawn here once; the kit's face has one. */
-.set-int-tile { color: var(--ink-dim); }
-.set-int-tile[data-on="true"] { color: var(--ink); }
+/* One face for every connection, the kit's (a glyph in the circle People's rows wear), in the kit's own ink: the row's
+   state is its pill. Nine hues, one a service, were drawn here once; the kit's face has one. */
 
 /* Connections: every row of a group shares the group's columns (the tile, the
    words, the state, the acts), so the states line up under one another and so
@@ -501,12 +497,12 @@
 }
 .set-conn > * { grid-column: 1 / -1; }
 .set-conn .set-int-row { display: grid; grid-template-columns: subgrid; align-items: center; }
-.set-conn .set-int-row > .pill { justify-self: start; }
+.set-conn .set-int-row > .set-int-state { justify-self: start; }
 .set-int-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 /* The mailboxes block's foot holds a Connect for each provider and the admin's link: on a narrow pane they wrap. */
 .set-dom-foot .set-int-actions { flex-wrap: wrap; }
 /* The group is called Later; its rows do not each say so again. */
-.set-conn .set-int-row[data-state="later"] > .pill { display: none; }
+.set-conn .set-int-row[data-state="later"] > .set-int-state { display: none; }
 .set-conn .set-int-row[data-state="later"] .set-team-name { color: var(--ink-muted); }
 /* What a row opens under itself (the locations to choose among, the business
    record) starts where the row's words do. */
@@ -539,7 +535,7 @@
 /* An open row is one piece: the pointer's ground would wash its Settings with it. */
 .set-conn .set-int-row[data-open="true"]::before { background: none; }
 /* A note about the group, after its rows. */
-.set-card-foot { margin: 0; padding: 14px max(0px, calc(100% - 68ch)) 10px 0; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+.set-block-foot { margin: 0; padding: 14px max(0px, calc(100% - 68ch)) 10px 0; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
 /* A row's phone pieces (row.tsx ConnectionRow): a desktop keeps its button in the group's column. A row whose button
    is Settings is that button's press at every width, as a record row is. The ⋯ and the detail beside a name are the
    Ad accounts card's (ad-accounts.tsx, a demo's), whose rows still carry two acts. */
@@ -551,13 +547,13 @@
    name. */
 @media (max-width: 720px) {
   .set-conn .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
-  .set-conn .set-int-row > .set-int-tile { align-self: start; }
+  .set-conn .set-int-row > .set-int-lead { align-self: start; }
   /* A connected row is its name, what it is attached to and its state: the sentence under it (last message 3d ago)
      is a desktop's. A row that wants something keeps its sentence, which says what. */
   .set-conn .set-int-row[data-state="connected"] .set-team-mail,
   .set-conn .set-int-row[data-state="later"] .set-team-mail { display: none; }
   .set-conn .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
-  .set-conn .set-int-row[data-offers="primary"] > .pill { display: none; }
+  .set-conn .set-int-row[data-offers="primary"] > .set-int-state { display: none; }
   /* A row that wants something has its button beside its name, in the state's place, and its sentence and notes run
      under both, as every row's do below (7 Oct: beside the button they were a column two words wide, and the WhatsApp
      row stood 700px tall with its button halfway down it). */
@@ -592,7 +588,7 @@
   .set-team-mail.set-int-why { display: block; }
   .set-conn > .set-row-stack { padding-left: 0; }
   /* The listing's note is a desktop's paragraph: on a phone it was 100px under a group whose rows say what they are. */
-  .set-conn > .set-card-foot { display: none; }
+  .set-conn > .set-block-foot { display: none; }
 }
 
 /* A row's own act is the kit's button as the kit draws it (row.tsx rowActs says which kind): the tinted pill this
@@ -659,13 +655,6 @@
 /* A member's row is the settings row with the kit's face in front (above): the face, the name and the words under it,
    the role (a picker where it may change, the word elsewhere), and ⋯. Every face is the kit's: the same fill and ink
    for each person, as People's rows draw them. */
-/* Somebody invited is not somebody here: the disc is drawn, not filled. */
-.set-team-row.pending .set-team-face {
-  background: transparent;
-  box-shadow: none;
-  color: var(--ink-dim);
-  border: 1px dashed var(--line-strong);
-}
 .set-team-row.pending .set-team-name { color: var(--ink-muted); }
 /* You, beside your own name: a chip, a name's shape (a label, not a live state, so never the accent). The role is a
    word or a picker now, so the two no longer look alike. */
@@ -836,22 +825,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 }
 .set-sec-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
 
-.set-input {
-  width: 100%;
-  min-height: 36px;
-  padding: 8px 11px;
-  font: inherit;
-  font-size: var(--set-label);
-  color: var(--ink);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  transition: border-color var(--duration-fast) var(--ease-out);
-}
-.set-input::placeholder { color: var(--ink-dim); }
-@media (hover: hover) { .set-input:hover { border-color: var(--line-strong); } }
-.set-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
-
 /* ── Create your workspace ────────────────────────────────────────────────
    Rendered INSTEAD of the app, for an account that belongs to nowhere. It
    cannot borrow the shell's chrome — there is no workspace to put chrome
@@ -864,13 +837,10 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   padding: 32px 20px;
   background: var(--bg);
 }
-.cw-card {
+/* Its card is the kit's panel, its fields and boxes the kit's, its go the kit's large primary button. */
+.cw-form {
   width: 100%;
   max-width: 460px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 32px;
   display: grid;
   gap: 18px;
 }
@@ -881,21 +851,8 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .cw-kicker { margin: 0; font-size: var(--text-label); font-weight: 500; color: var(--ink-dim); }
 .cw-title { margin: 0; font-size: var(--text-2xl); font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
 .cw-lede { margin: -8px 0 4px; font-size: var(--text-aside); color: var(--ink-dim); line-height: var(--leading-relaxed); }
-.cw-field { display: grid; gap: 6px; }
 /* A yes beside its sentence: the partner a link brought (0012). */
 .cw-check { grid-template-columns: auto 1fr; align-items: start; gap: 8px; }
-.cw-label { font-size: var(--text-label); color: var(--ink-dim); }
-.cw-input {
-  width: 100%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-title);
-  padding: 9px 12px;
-}
-.cw-input:focus-visible { outline: none; box-shadow: var(--focus-field); border-color: var(--accent); }
 .cw-hint { font-size: var(--text-xs); color: var(--ink-faint); }
 .cw-error {
   font-size: var(--text-aside);
@@ -905,20 +862,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
   border-radius: var(--radius-md);
   padding: 9px 12px;
 }
-.cw-submit {
-  margin-top: 4px;
-  background: var(--accent);
-  color: var(--accent-fg);
-  border: none;
-  border-radius: var(--radius-md);
-  padding: 11px 16px;
-  font: inherit;
-  font-size: var(--text-title);
-  font-weight: 600;
-  cursor: pointer;
-}
-.cw-submit:disabled { opacity: 0.6; cursor: default; }
-.cw-submit:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cw-go { margin-top: 4px; }
 .cw-foot {
   margin: 4px 0 0;
   font-size: var(--text-label);
@@ -1008,10 +952,6 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .setup-later { opacity: .82; }
 /* A control that refuses is greyed, not unreadable: .55 put the word on a Later row at 4.15. */
 .settings [data-gated] { opacity: 0.66; }
-/* The row is dimmed because the invite is not accepted; the avatar is a solid
-   disc with letters on it and had no contrast to spare. */
-.set-team-row.pending .avatar { opacity: 1; }
-.settings .set-team-row.pending .set-team-face { opacity: 1; }
 @media (max-width: 720px) {
   /* The words keep the width; the acts take the next line, at the end of it. */
   .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 6px; padding-left: 15px; padding-right: 15px; }
@@ -1033,7 +973,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .setup-path { display: grid; align-content: start; gap: 4px; text-align: left; padding: 12px 14px; border: 1px solid var(--surface-inset-edge); border-radius: var(--surface-inset-radius); background: var(--secondary-fill); box-shadow: var(--surface-inset-depth); cursor: pointer; color: var(--ink); }
 .setup-path b { font-size: var(--set-label); font-weight: 600; }
 .setup-path span { font-size: var(--set-hint); line-height: 1.45; color: var(--ink-muted); }
-.setup-path.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.setup-path.active { border-color: var(--accent); box-shadow: var(--chosen-edge); }
 .setup-new, .setup-ask { display: grid; gap: 10px; }
 .setup-find { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .setup-find-label { font-size: var(--set-hint); color: var(--ink-dim); }
@@ -1041,11 +981,11 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .setup-area:focus-visible { outline: none; box-shadow: var(--focus-field), var(--surface-inset-depth); border-color: var(--accent); }
 .setup-numbers { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
 .setup-number { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--surface-inset-edge); border-radius: var(--surface-inset-radius); background: var(--secondary-fill); box-shadow: var(--surface-inset-depth); cursor: pointer; color: var(--ink); }
-.setup-number.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.setup-number.active { border-color: var(--accent); box-shadow: var(--chosen-edge); }
 .setup-number-num { font-size: var(--set-label); font-weight: 600; }
 .setup-number-where { font-size: var(--set-hint); color: var(--ink-muted); }
-.setup-confirm, .setup-ask { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--set-label); line-height: 1.5; color: var(--ink); }
-.setup-confirm-text, .setup-ask-text { flex: 1; min-width: 200px; }
+.setup-chosen, .setup-ask { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--set-label); line-height: 1.5; color: var(--ink); }
+.setup-chosen-text, .setup-ask-text { flex: 1; min-width: 200px; }
 @media (max-width: 720px) {
   .setup-chooser { margin-left: 14px; margin-right: 14px; padding: 14px; }
   .setup-paths { grid-template-columns: 1fr; }
@@ -1201,7 +1141,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
    buttons: this is the sentence somebody opened the workspace to read. */
 [data-testid^="platform-line-"] { flex-wrap: wrap; align-items: flex-start; gap: 0; }
 [data-testid^="platform-line-"] .set-row-info { flex: 1 1 100%; }
-[data-testid^="platform-line-"] .bc-chips { flex: 1 1 100%; margin-top: 12px; }
+[data-testid^="platform-line-"] .bc-picks { flex: 1 1 100%; margin-top: 12px; }
 .pf-line-error {
   display: flex; align-items: baseline; gap: 6px;
   margin-top: 8px;
@@ -1298,7 +1238,7 @@ p.set-team-compare-note { margin: 10px 0 0; font-size: var(--set-hint); text-wra
 .bt-gap-door:hover { text-decoration-color: currentColor; }
 
 /* A card's closing sentence, and a link inside a sentence: a word that is a button, not a button beside the words. */
-.bt-card-foot { margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
+.bt-foot-note { margin: 0; padding: 10px 0 12px; border-top: 1px solid var(--line); font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); }
 .bt-link { display: inline; line-height: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: var(--radius-xs); }
 .bt-link:hover { text-decoration-color: currentColor; }
 /* frame.css gives every button on a touch screen 44px of height, which would break these out of their sentence: they
@@ -1342,7 +1282,7 @@ html.frame-on .bt-link { position: relative; }
 .bt-week { display: flex; flex-direction: column; gap: 0; }
 .bt-week-row { display: grid; grid-template-columns: var(--bt-week-key) minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 4px; padding: 5px 0; border-top: 1px solid var(--line); }
 .bt-week-row:first-of-type { border-top: none; }
-.bt-week-row .field-error { grid-column: 2 / -1; }
+.bt-week-error { grid-column: 2 / -1; }
 .bt-week-day { display: flex; align-items: center; gap: 9px; }
 .bt-week-name { font-size: var(--text-base); color: var(--ink); }
 .bt-week-row[data-open="false"] .bt-week-name { color: var(--ink-dim); }
@@ -1361,7 +1301,7 @@ html.frame-on .bt-link { position: relative; }
 .bt-week-closed { font-size: var(--text-sm); color: var(--ink-dim); }
 /* Under the tracks, past the label column and the gap after it. */
 .bt-week-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 0 0 calc(var(--bt-week-key) + 12px); }
-.bt-week-copy-menu[hidden] { display: none; }
+.bt-week-copy-list[hidden] { display: none; }
 /* A sentence of the page's inside a fold: what a control does, what an address is, the one case a list cannot say. */
 .bt-fold-note { margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
 /* A rule's sentence under "How these rules work" (answers-fields.tsx BtaRuleHow): read as the fold's notes are. */
@@ -1464,26 +1404,20 @@ html.frame-on .bt-link { position: relative; }
    line, in the dim ink (24 Sep: under it they were a second line). With none of the five set they stand under what
    the calendar applies, as the row's own line. */
 .bt-rules-notes { color: var(--ink-dim); }
-.rec-row-val > .bt-rules-notes { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); text-wrap: pretty; }
+.bt-rules-notes { flex: 1 1 100%; font-size: var(--text-sm); line-height: var(--leading-normal); text-wrap: pretty; }
 
 /* The services sheet (the canvas's Edit-Sheet): the search and Add above the rows, the rows in three columns, and the
    foot's line over its Save. A row the search leaves out is hidden, never taken off the page, so its display must
    yield to the attribute. The head holds still over the rows as they scroll. */
 /* A search keeps room to type in: beside the cap's sentence at 320px it was squeezed to about nothing, and the tools
    wrap (record.css) before it goes under 12rem. */
-.bt-services-search { flex: 1 1 12rem; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-faint); }
+.bt-services-find { flex: 1 1 12rem; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--ink-faint); }
 /* The sheets are drawn in .app-root, out of the Settings pane (record-sheet.jsx says why), and so is a fold open on a
    phone (record-fold.jsx), so the pane's sizing does not reach them: their buttons are a fold's 30px .btn-sm
    (.settings .btn-sm, above), a remove is 44px wide under a finger (mobile.css gives .settings' icon buttons that),
    where it was 26px, and the numbers line up as the column's do (.settings, tabular-nums). Scoped to the sheets, not
    the settings root, which they are not inside. */
-:is(.bt-services-sheet, .bt-prompt-sheet, .rec-fold-sheet) .btn-sm { height: var(--control-h-md); padding: 0 12px; font-size: var(--text-sm); border-radius: var(--control-radius-sm); }
-:is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: var(--control-h-md); padding: 0; }
-@media (pointer: coarse) {
-  html.frame-on :is(.bt-services-sheet, .rec-fold-sheet) .btn-icon.btn-sm { width: 44px; }
-}
-.rec-fold-sheet { font-variant-numeric: tabular-nums; }
-.bt-services-search > .rec-box { flex: 1; }
+.bt-services-find > :last-child { flex: 1; }
 .bt-services { display: flex; flex-direction: column; gap: 0; padding: 0 0 14px; }
 /* One line per service under a hairline, read as text: its boxes draw no edge until the row is approached (below),
    its remove waits for the same approach, and "min" is said once, in the column's head. It was three bordered boxes
@@ -1494,7 +1428,7 @@ html.frame-on .bt-link { position: relative; }
 .bt-service-line { display: none; }
 .bt-service-head { position: sticky; top: 0; z-index: 1; padding: 10px 0 6px; border-top: none; background: var(--bg-raised); font-size: var(--text-xs); color: var(--ink-dim); }
 .bt-service-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.bt-service-name > .rec-box { flex: 1; }
+.bt-service-name > :first-child { flex: 1; }
 /* A service's amount box (services.tsx): the row's fourth box fills its column, and a phone gives it a row of its own. */
 .bt-service-amount { display: grid; min-width: 0; }
 /* Read-only here: the consult-first list is its own fold's. The info tone, which says a fact, never the accent. */
@@ -1510,14 +1444,7 @@ html.frame-on .bt-link { position: relative; }
    comes with the pointer and holds while it is focused, so thirty-three rows read as a list and not ninety-nine boxes;
    and the row's remove waits for the same approach. On a touch screen nothing hovers, so every edge and every remove is
    drawn, at a finger's size (mobile.css). A row a keyboard is in shows both too (focus-within). */
-@media (hover: hover) {
-  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim) :is(.rec-input, .rec-input-group) { border-color: transparent; background: transparent; }
-  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim):hover :is(.rec-input, .rec-input-group), :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim):focus-within :is(.rec-input, .rec-input-group) { border-color: var(--line-strong); background: var(--bg-raised); }
-  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim) :is(.rec-input:focus-visible, .rec-input-group:focus-within) { border-color: var(--accent); }
-  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim) > .btn-icon, .bt-week-shift > .btn-icon { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
-  :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim):hover > .btn-icon, :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim):focus-within > .btn-icon { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) { :is(.bt-service-row, .bt-week-shift, .bt-note, .bt-closure, .ro-claim) > .btn-icon { transition: none; } }
+/* Each of those rows is the kit's quiet row (kit.css .rec-quiet). */
 
 /* ---- What your receptionist is told (pages/business-tab-prompt.jsx) ---- */
 /* At rest the section is its title, who reads it and one door, on the card's own head line. */
@@ -1555,7 +1482,7 @@ html.frame-on .bt-link { position: relative; }
 .bt-note, .bt-note-head { align-self: stretch; display: grid; grid-template-columns: 180px minmax(0, 1fr) 150px auto; align-items: start; gap: 6px 8px; }
 .bt-note { padding: 6px 0; border-top: 1px solid var(--line); }
 .bt-note-head + .bt-note { border-top: none; }
-.bt-note > .field-error { grid-column: 1 / -1; }
+.bt-note-error { grid-column: 1 / -1; }
 /* Cold email's page: where it stands, then the email and the rows. One column, the email after the status; where the pane
    itself is 760px wide (a rail and a nav stand beside it, so the screen's width says nothing), the rows on one side and
    the email on the other, always in view as they are edited. */
@@ -1636,17 +1563,16 @@ html.frame-on .bt-link { position: relative; }
    missing -- one muted line saying what happens instead, with the door to the row that fixes it. The title is the
    row's fact, not its label, so it takes the row rather than the key column's 168px, and the glyphs go to the end. */
 .bt-can-row { flex-wrap: wrap; align-items: center; row-gap: 4px; }
-.bt-can-row > .rec-row-key { flex: 1 1 auto; color: var(--ink); }
-.bt-can-chips { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+.bt-can-key { flex: 1 1 auto; }
+.bt-can-states { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
 /* The whole signal: two inks, no pill, no badge, no colour. What each glyph means is its accessible name
    (contracts ABILITY_CHANNEL_WORDS), because dim on its own says nothing to a screen reader. */
-.rec-can-chip { display: inline-flex; color: var(--ink-dim); }
-.rec-can-chip[data-on="true"] { color: var(--ink); }
+.bt-can-state { display: inline-flex; color: var(--ink-dim); }
+.bt-can-state[data-on="true"] { color: var(--ink); }
 .bt-can-why { flex: 1 1 100%; margin: 0; font-size: var(--text-sm); line-height: var(--leading-normal); color: var(--ink-dim); text-wrap: pretty; }
-/* A row nothing does reads as the three limits under it do, in the dim ink: one signal, no new colour, and the two
-   glyphs beside it say which channel it was. The gap before a door is a SPACE in the sentence, not a margin: a margin
-   indented the link off the paragraph's left edge every time it wrapped to a line of its own on a phone. */
-.bt-can-row[data-ready="false"] > .rec-row-key { color: var(--ink-dim); }
+/* A row nothing does keeps the kit's key: the two glyphs beside it say which channel it was. The gap before a door is a
+   SPACE in the sentence, not a margin: a margin indented the link off the paragraph's left edge every time it wrapped
+   to a line of its own on a phone. */
 /* A row that is whole keeps its sentence: a screen reader reads it, and a mouse gets it as the row's own tip. It is
    not on screen, because six two-clause sentences under six rows nothing on which needs deciding is the clutter the
    owner named -- and on a phone it is most of the card's height. */
@@ -1658,7 +1584,6 @@ html.frame-on .bt-link { position: relative; }
 .bt-can-group { padding-top: 16px; }
 .bt-can-group-head { margin: 0 0 2px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); }
 /* A limit is a line and nothing else: no channel, no act, and what it is instead as the row's tip. */
-.bt-cannot-row > .rec-row-key { flex: 1 1 auto; }
 
 /* frame.css gives every button on a touch screen 44px of height; a token's remove keeps its shape and takes its reach
    from an ::after, as the kit's switch does. */
@@ -1669,9 +1594,8 @@ html.frame-on .bt-link { position: relative; }
 
 /* While a fold saves, the page's own controls inside it wait as the kit's do (record.css: the gesture says aria-busy),
    and so do a sheet's. */
-:is(.rec-fold, .rec-fold-sheet)[aria-busy="true"] :is(.bt-closure .btn, .bt-week-shift .btn, .bt-presets .btn, .bt-token-x, .bt-note .btn, .bt-insert .bt-link, .bt-line .bt-link) { cursor: progress; }
-/* A sheet whose save is out says so (aria-busy, the kit's Sheet's `busy`): its rows' acts say wait. */
-[aria-busy="true"] :is(.bt-service-row .btn, .rec-sheet-tools .btn, .bt-service-gone .bt-link) { cursor: progress; }
+/* A kit button there waits by the kit's own rule (kit.css, a busy fold's or sheet's buttons). */
+[aria-busy="true"] :is(.bt-token-x, .bt-insert .bt-link, .bt-line .bt-link, .bt-service-gone .bt-link) { cursor: progress; }
 
 @media (max-width: 900px) {
   /* A phone's day is one line (Ruben, 10 Oct 2026: a day took two): the switch and the day, its times at the line's
@@ -1687,13 +1611,13 @@ html.frame-on .bt-link { position: relative; }
   /* A finger's size (44px) in the line's 32px act column: the press reaches past it into the sheet's margin, never over
      the closing time beside it. */
   .bt-week-break { width: 44px; height: 44px; margin-right: -12px; justify-content: center; }
-  .bt-week-row > .field-error { flex-basis: 100%; }
+  .bt-week-error { flex-basis: 100%; }
   /* No label column to line up with: the copy menu starts at the fold's edge. calc(var(--bt-week-key) + 12px) still
      added the column's gap with the column at 0px, and set the menu 12px in from everything above it. */
   .bt-week-copy { padding-left: 0; }
   .bt-closure { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
   /* The dates share the first line with the remove; the reason (the third box) takes the next. */
-  .bt-closure > .rec-box:nth-child(3) { grid-column: 1 / 3; grid-row: 2; }
+  .bt-closure > :nth-child(3) { grid-column: 1 / 3; grid-row: 2; }
   .bt-closure-head { display: none; }
   /* A phone's service is one line, its name and "3 h · At consult" under it, pressed to open (Ruben, 10 Oct 2026: each
      took two lines of boxes). Open, its three columns stack: its name with the remove at the right, then how long and
@@ -1701,9 +1625,9 @@ html.frame-on .bt-link { position: relative; }
   .bt-service-head { display: none; }
   .bt-service-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; padding: 8px 0; border-top: 1px solid var(--line); }
   .bt-service-row > .bt-service-name { grid-column: 1 / 3; grid-row: 1; }
-  .bt-service-row > .btn { grid-column: 3; grid-row: 1; }
-  .bt-service-row > .rec-box:nth-child(3) { grid-column: 1; grid-row: 2; }
-  .bt-service-row > .rec-box:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .bt-service-row > button { grid-column: 3; grid-row: 1; }
+  .bt-service-row > :nth-child(3) { grid-column: 1; grid-row: 2; }
+  .bt-service-row > :nth-child(4) { grid-column: 2; grid-row: 2; }
   .bt-service-row > .bt-service-amount { grid-column: 1; grid-row: 3; }
   .bt-service-row[data-open="false"] { padding: 0; }
   .bt-service-row[data-open="false"] > :not(.bt-service-line) { display: none; }
@@ -1715,21 +1639,20 @@ html.frame-on .bt-link { position: relative; }
   .bt-service-line > svg { flex: none; color: var(--ink-faint); }
   /* An ability keeps its title and its glyphs on one line -- the kit's phone row puts the value under the label, and
      two glyphs are not a value to read down to -- and the line that carries a decision takes the row under them. */
-  .bt-can-row > .bt-can-chips { grid-column: 2; grid-row: 1; }
+  .bt-can-row > .bt-can-states { grid-column: 2; grid-row: 1; }
   .bt-can-row > .bt-can-why { grid-column: 1 / -1; }
   /* A note's title shares its line with the remove; what it says takes the next, the row's width, and its last day
      the line under that. */
   .bt-note { grid-template-columns: minmax(0, 1fr) auto; }
   .bt-note-head { display: none; }
-  .bt-note > .rec-box:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .bt-note > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .bt-note > :nth-child(3) { grid-column: 1 / -1; grid-row: 3; }
   /* The prompt sheet on a phone: a foot with Done, within a thumb's reach, since there is nothing to save. */
   /* At rest, the title and its door share the line, and who reads it takes the next rather than a sliver between them. */
-  .bt-told .rec-card-head { flex-wrap: wrap; row-gap: 4px; }
-  .bt-told .rec-card-title { flex: 1 1 auto; min-width: 0; }
-  .bt-told .rec-card-sub { order: 1; flex-basis: 100%; }
+  .bt-told-head { flex-wrap: wrap; row-gap: 4px; }
+  .bt-told-name { flex: 1 1 auto; min-width: 0; }
+  .bt-told-for { order: 1; flex-basis: 100%; }
   .bt-prompt-sheet .rec-sheet-foot { display: flex; }
-  .bt-prompt-sheet .rec-sheet-foot > .btn { height: 40px; }
 }
 
 /* Settings › Connections › Mailboxes you write from: the mailboxes a workspace sends its sequences to leads from

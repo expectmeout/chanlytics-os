@@ -114,7 +114,7 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
   };
   return (
     <>
-      <section className="rec-card set-card">
+      <section className="rec-card set-block">
         <div className="rec-card-head">
           <h2 className="rec-card-title">Business</h2>
         </div>
@@ -151,7 +151,7 @@ function BrokenConfig({ issues, flash }: { issues: readonly string[]; flash: Fla
  */
 function DemoBusiness() {
   return (
-    <section className="rec-card set-card">
+    <section className="rec-card set-block">
       <div className="rec-card-head">
         <h2 className="rec-card-title">Business</h2>
         {/* The mockup's compose flow asks an assistant to update details it has no way to write. */}

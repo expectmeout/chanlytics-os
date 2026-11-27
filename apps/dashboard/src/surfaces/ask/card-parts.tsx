@@ -19,6 +19,7 @@ import { Button } from "../kit/button/button";
 import { Confirm } from "../kit/confirm/confirm";
 import { Icon } from "../kit/icon/icon";
 import { LinePress } from "../kit/line/line";
+import { customProperties } from "../kit/variants";
 import { askCalls, canDo, gate, gateTitle } from "./shell";
 import type { LineWords } from "./words";
 
@@ -66,22 +67,22 @@ export interface CardFold {
 export const AskCardHead = ({ p, fold = null }: { p: AskProposal; fold?: CardFold | null }) => {
   if (!fold)
     return (
-      <div className="ask-card-head">
-        <span className="ask-card-name">
-          <span className="ask-card-title">{p.title}</span>
+      <div className="ask-job-head">
+        <span className="ask-job-name">
+          <span className="ask-job-title">{p.title}</span>
         </span>
       </div>
     );
   return (
     <LinePress
       kind="fold"
-      className="ask-card-head ask-fold"
+      className="ask-job-head ask-fold"
       aria-expanded={fold.open}
       onClick={fold.toggle}
       data-testid="ask-card-fold"
     >
-      <span className="ask-card-name">
-        <span className="ask-card-title">{p.title}</span>
+      <span className="ask-job-name">
+        <span className="ask-job-title">{p.title}</span>
         {fold.open ? null : <span className="ask-fold-line">{p.line || p.summary}</span>}
       </span>
       <Icon name="chevron" size={12} className="ask-fold-chev" />
@@ -162,15 +163,15 @@ export const AskCardChange = ({
   const follows = nonEmptyOrNull(pl.follows);
   // A record: what it keeps, in a line, with no ground under it (the Keep shape).
   if (askTraitsOf(p.kind).shape === "keep" && !written && !(p.sheet && p.sheet.rows && p.sheet.rows.length))
-    return <p className="ask-card-line">{p.line || p.summary}</p>;
+    return <p className="ask-job-line">{p.line || p.summary}</p>;
   return (
     <>
-      <div className={`ask-card-change${reply ? " bubble" : ""}`}>
+      <div className={`panel panel-inset ask-job-change${reply ? " bubble" : ""}`}>
         {written ? (
-          <div className="ask-card-said" data-testid="ask-card-versions">
+          <div className="ask-job-said" data-testid="ask-card-versions">
             {written.map((v) => (
-              <p key={v.channel} className="ask-card-summary">
-                <span className="ask-card-channel">{v.label}</span>
+              <p key={v.channel} className="ask-job-summary">
+                <span className="ask-job-channel">{v.label}</span>
                 {"\n"}
                 {v.words}
               </p>
@@ -179,13 +180,13 @@ export const AskCardChange = ({
         ) : p.sheet && p.sheet.rows && p.sheet.rows.length ? (
           <AskSheet sheet={p.sheet} alike={alike} more={more} />
         ) : (
-          <p className="ask-card-summary">{p.kind === "fix" && p.line ? p.line : p.summary}</p>
+          <p className="ask-job-summary">{p.kind === "fix" && p.line ? p.line : p.summary}</p>
         )}
       </div>
-      {written && follows ? <p className="ask-card-foot">{follows}</p> : null}
-      {reply && idle && pl.price_warning ? <div className="ask-card-note">{t.priceNote}</div> : null}
-      {reply && idle && shut ? <div className="ask-card-note">{t.windowNote}</div> : null}
-      {reply && idle && !shut && p.undo ? <p className="ask-card-foot">{p.undo}</p> : null}
+      {written && follows ? <p className="ask-job-foot">{follows}</p> : null}
+      {reply && idle && pl.price_warning ? <div className="ask-job-note">{t.priceNote}</div> : null}
+      {reply && idle && shut ? <div className="ask-job-note">{t.windowNote}</div> : null}
+      {reply && idle && !shut && p.undo ? <p className="ask-job-foot">{p.undo}</p> : null}
     </>
   );
 };
@@ -209,7 +210,7 @@ const AskFixActs = ({
   const door =
     typeof pl.to === "string" && typeof pl.door === "string" && pl.door ? { to: pl.to, words: pl.door } : null;
   return (
-    <div className="ask-card-actions" data-foot="acts">
+    <div className="ask-job-actions" data-foot="acts">
       {door ? (
         <Button variant="primary" size="sm" onClick={() => onNav(door.to)} data-testid="ask-card-door">
           {door.words}
@@ -284,14 +285,14 @@ export const AskCardActs = ({
   if (p.kind === "fix") return <AskFixActs p={p} t={t} busy={busy} onDismiss={onDismiss} onNav={onNav} />;
   const mayPress = canDo(gateKey);
   return (
-    <div className="ask-card-actions" data-foot="acts">
+    <div className="ask-job-actions" data-foot="acts">
       {waits ? (
         <span className="pill" data-testid="ask-card-waits">
           {waits}
         </span>
       ) : null}
       {!waits && !mayPress ? (
-        <p className="ask-card-foot" data-testid="ask-card-cant">
+        <p className="ask-job-foot" data-testid="ask-card-cant">
           {gateTitle(gateKey, "approve this card")}
         </p>
       ) : null}
@@ -357,7 +358,7 @@ const AskCardAlso = ({
 
 /** Not now, on an idea of Ask's own: it rests it for a week. */
 export const AskNotNow = ({ t, busy, onDismiss }: { t: LineWords; busy: boolean; onDismiss: () => void }) => (
-  <Button variant="quiet" size="sm" className="ask-card-not-now" onClick={onDismiss} disabled={busy}>
+  <Button variant="quiet" size="sm" className="ask-job-not-now" onClick={onDismiss} disabled={busy}>
     {t.notNow}
   </Button>
 );
@@ -371,7 +372,7 @@ export const AskRing = ({ from, until, onDone }: { from: number; until: number; 
   const gone = Math.min(1, Math.max(0, (at - from) / Math.max(1, until - from)));
   return (
     <svg
-      className="ask-card-ring"
+      className="ask-job-ring"
       width="16"
       height="16"
       viewBox="0 0 16 16"
@@ -385,7 +386,10 @@ export const AskRing = ({ from, until, onDone }: { from: number; until: number; 
         cy="8"
         r="6.5"
         transform="rotate(-90 8 8)"
-        style={{ strokeDashoffset: AT_RING * gone, animationDuration: `${Math.round(Math.max(1, until - at))}ms` }}
+        style={customProperties({
+          "--ring-from": AT_RING * gone,
+          "--ring-ms": `${Math.round(Math.max(1, until - at))}ms`,
+        })}
         onAnimationEnd={onDone}
       />
     </svg>
@@ -435,7 +439,7 @@ export const AskCardReceipt = ({
     setArmed(false);
   };
   return (
-    <div className="ask-card-receipt ask-landing" ref={landRef} tabIndex={-1} data-state={state}>
+    <div className="ask-job-receipt ask-landing" ref={landRef} tabIndex={-1} data-state={state}>
       {clock ? (
         <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} />
       ) : (
@@ -445,7 +449,7 @@ export const AskCardReceipt = ({
           className={state === "done" ? "ok" : ""}
         />
       )}
-      <span className="ask-card-said">
+      <span className="ask-job-said">
         {state === "failed"
           ? err || receipt
           : state === "dismissed"
@@ -458,7 +462,7 @@ export const AskCardReceipt = ({
         <Button
           variant="quiet"
           size="sm"
-          className="ask-card-undo"
+          className="ask-job-undo"
           onClick={p.kind === "playbook" ? () => setArmed(true) : onUndo}
           aria-disabled={busy || undefined}
           data-tip={p.undo ?? undefined}
@@ -476,10 +480,11 @@ export const AskCardReceipt = ({
           onYes={undoArmed}
           onNo={() => setArmed(false)}
           testid="ask-card-undo"
+          className="ask-job-undo-q"
         />
       ) : null}
       {state === "failed" ? (
-        <Button variant="quiet" size="sm" className="ask-card-undo" onClick={onRetry}>
+        <Button variant="quiet" size="sm" className="ask-job-undo" onClick={onRetry}>
           {t.tryAgain}
         </Button>
       ) : null}

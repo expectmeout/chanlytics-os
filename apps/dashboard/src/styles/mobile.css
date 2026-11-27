@@ -5,8 +5,8 @@
 
 /* Off-canvas sidebar plumbing (inert on desktop) */
 .side-wrap { display: contents; }
-.nav-backdrop { display: none; }
-.tb-menu { display: none; }
+.nav-wash { display: none; }
+.tb-nav-open { display: none; }
 
 @media (max-width: 900px) {
   /* ---------- Shell ---------- */
@@ -58,7 +58,7 @@
   .side-wrap .nav-item { padding-top: 11px; padding-bottom: 11px; }
   .side-wrap .nav-item.nav-sub { padding-top: 10px; padding-bottom: 10px; }
   .side-wrap .sb-team { padding: 16px 14px 12px; }
-  .side-wrap .user-chip { padding: 11px 10px; }
+  .side-wrap .sb-account { padding: 11px 10px; }
 
   /* Overlays always clear the drawer */
   .ask-overlay { z-index: 320; }
@@ -74,17 +74,14 @@
      --foot-clear), and Safari's bottom bar stays glass while the drawer is open (Ruben, 21 Oct 2026). It fades in as
      every wash does, never rising as a page does (route-in): from 4px lower it stood on that point as it came, and
      Safari kept the band it read then for as long as the drawer stayed open. */
-  .nav-backdrop {
+  .nav-wash {
     display: block;
     position: fixed;
     inset: 0 0 var(--foot-clear, 0px);
     z-index: 210;
-    background: var(--surface-veil);
-    backdrop-filter: blur(0);
     mask-image: var(--foot-fade, none);
-    animation: wash-in 160ms var(--ease-out);
   }
-  .tb-menu { display: inline-flex; }
+  .tb-nav-open { display: inline-flex; }
 
   /* ---------- Topbar ---------- */
   .topbar { padding: 10px 14px; gap: 8px; }
@@ -245,9 +242,7 @@
   /* A finger's worth of every control. The settings input, the icon button and
      the options in a segmented dial each set a size for a mouse, and each was
      more specific than the 44px floor in bridge/frame.css. */
-  html.frame-on .settings .set-input,
   html.frame-on .setup-rows .setup-area { min-height: 44px; }
-  html.frame-on .settings .btn-icon.btn-sm { width: 44px; }
   html.frame-on .settings .cl-bucket-link { min-height: 44px; }
   /* Except the ones that sit inside a sentence -- a fact's Change, an activity's Open.
      A 44px box in a line of text pushes the line apart, and a target inside a run
@@ -280,7 +275,7 @@
 
   /* ---------- Modals ---------- */
   .ask-overlay { padding: 12px; padding-top: 10vh; align-items: flex-start; }
-  .ask-modal { max-width: 100%; width: 100%; }
+  .ask-pane { max-width: 100%; width: 100%; }
 }
 
 @media (max-width: 720px) {
@@ -348,7 +343,7 @@
      list and the invoices are a three-column grid -- so this now guards the back
      office alone.
      .tq (Setup) is not a settings card and never had it. */
-  .set-card:has(table) { overflow-x: auto; }
+  .set-block:has(table) { overflow-x: auto; }
   /* 104px a column now the headings are words, not filing labels. Only the back
      office reaches this rule: under 720px the matrix is a list, not a table. */
   .pol-table { min-width: 640px; }
@@ -421,7 +416,7 @@
     display: none;
   }
   /* The tab bar's More replaces the hamburger */
-  .tb-menu { display: none; }
+  .tb-nav-open { display: none; }
   /* The top bar says each thing once on a phone: Ask is the ✦ in the tab bar and the theme is in More, under your
      name, and both were in the top bar as well. What stays takes a thumb's width: the bell was 26px wide. */
   .tb-ask, .tb-theme { display: none; }
@@ -429,7 +424,7 @@
      over it. */
   .main:has(.inbox) .crumbs > span:not(:first-child), .main:has(.inbox) .crumbs > button:not(:first-child) { display: none; }
   .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
-  .topbar .btn-icon { min-width: 44px; }
+  .topbar :is(.tb-bell, .tb-nav-open, .tb-theme) { min-width: 44px; }
   /* The bell's sheet covers the tab bar, so while it is open the toast sits at the bottom edge, not over its notes. */
   :root[data-bell-open][data-bell-open] .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
 
@@ -512,10 +507,10 @@
   .side-wrap .sidebar.collapsed .sb-team-body,
   .side-wrap .sidebar.collapsed .sb-team > .icon,
   .side-wrap .sidebar.collapsed .sb-chev,
-  .side-wrap .sidebar.collapsed .user-chip .who { display: revert; }
+  .side-wrap .sidebar.collapsed .sb-account .who { display: revert; }
   .side-wrap .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 11px 10px; }
   .side-wrap .sidebar.collapsed .sb-team { justify-content: flex-start; padding: 16px 14px 12px; }
-  .side-wrap .sidebar.collapsed .user-chip { justify-content: flex-start; padding: 11px 10px; }
+  .side-wrap .sidebar.collapsed .sb-account { justify-content: flex-start; padding: 11px 10px; }
   .side-wrap .sb-collapse { display: none; }
 }
 
@@ -734,7 +729,7 @@ html.in-app { --toast-foot: calc(14px + var(--app-inset-bottom, 0px)); }
 
 @media (max-width: 720px) {
   /* The strip of views at the rows' 16px, as every strip on a phone. */
-  .frame-top > .stabs {
+  .frame-top > .pg-views {
     margin: 4px 16px 8px;
   }
 

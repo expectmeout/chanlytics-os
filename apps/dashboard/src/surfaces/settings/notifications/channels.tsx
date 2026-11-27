@@ -268,7 +268,7 @@ export function ChannelsCard({
   now: number;
 }) {
   return (
-    <section className="rec-card set-card" data-testid="ntf-channels">
+    <section className="rec-card set-block" data-testid="ntf-channels">
       <div className="rec-card-head">
         <h2 className="rec-card-title">{W.where}</h2>
         <span className="rec-card-sub">{W.whereSub}</span>

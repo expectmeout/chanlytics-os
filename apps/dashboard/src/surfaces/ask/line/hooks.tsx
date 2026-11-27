@@ -383,7 +383,7 @@ export const useArFocus = ({
   // until they come back to the panel (../hooks.ts useAskAway).
   useAskAway(open && !phone, dialogRef, away);
   // A press on a card leaves focus on what became of it (AskCard), which the card's outcome must not take away.
-  const onCard = () => !!document.activeElement?.closest?.(".ask-card");
+  const onCard = () => !!document.activeElement?.closest?.(".ask-job");
   useAskFocus(
     inputRef,
     open && !doomed && field,

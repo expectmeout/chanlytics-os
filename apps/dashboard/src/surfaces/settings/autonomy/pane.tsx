@@ -239,7 +239,7 @@ const AutMatrix = ({
   lines,
   groups,
 }: { phone: boolean } & ComponentProps<typeof PolicyTable>) => (
-  <section className="rec-card set-card">
+  <section className="rec-card set-block">
     <div className="rec-card-head">
       <h2 className="rec-card-title">What AI does on its own</h2>
       <span className="rec-card-sub">What else it may do without you.</span>
@@ -308,7 +308,7 @@ function AskOnItsOwn({
     });
   };
   return (
-    <section className="rec-card set-card" data-testid="aut-ask-alone">
+    <section className="rec-card set-block" data-testid="aut-ask-alone">
       <div className="rec-card-head">
         <h2 className="rec-card-title">What you ask for</h2>
         <span className="rec-card-sub">
@@ -439,7 +439,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
   return (
     <>
       {reply ? (
-        <section className="rec-card set-card" data-testid="aut-replies">
+        <section className="rec-card set-block" data-testid="aut-replies">
           <div className="rec-card-head">
             <h2 className="rec-card-title">Replies</h2>
             <span className="rec-card-sub">How each text to a customer goes out, and how long it waits for you</span>
@@ -469,7 +469,7 @@ export const PaneAutonomyReal = ({ flash, row = null }: { flash: (f: FrameFlash)
         })}
       />
 
-      <section className="rec-card set-card">
+      <section className="rec-card set-block">
         <div className="rec-card-head">
           <h2 className="rec-card-title">Limits</h2>
           <span className="rec-card-sub">{hard.sub}</span>

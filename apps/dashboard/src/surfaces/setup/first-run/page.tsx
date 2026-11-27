@@ -63,6 +63,7 @@ import { FrCard, FrRail } from "./parts";
 import { FrReceptionist } from "./receptionist/receptionist";
 import { FrRehearse } from "./rehearse";
 import { W } from "./words";
+import { customProperties } from "../../kit/variants";
 
 interface FirstRunProps {
   param?: string | null;
@@ -314,7 +315,7 @@ function tops(o: {
     <>
       <header className="fr-top">
         <span className="fr-brand">
-          <span className="sidebar-brand-mark" aria-hidden="true">
+          <span className="face face-sm face-tile" aria-hidden="true">
             C
           </span>
           Chanlytics
@@ -332,7 +333,7 @@ function tops(o: {
           </button>
         </div>
         <div className="fr-bar" aria-hidden="true">
-          <span style={{ width: `${fr.progress}%` }} />
+          <span style={customProperties({ "--done": `${fr.progress}%` })} />
         </div>
         <button
           type="button"

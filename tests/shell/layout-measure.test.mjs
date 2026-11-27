@@ -109,7 +109,7 @@ test("Setup shares the settings column with the cards above and below it", () =>
   // The rows had no measure at all. Measured in the browser before capping
   // them: not one row's sentence or status line clips at 720, so the space
   // they were taking was empty — the fix loses no words.
-  const card = desk.style(at(".settings", ".set-card"))["max-width"];
+  const card = desk.style(at(".settings", ".set-block"))["max-width"];
   assert.equal(card, "720px", "a settings card stops at the prose measure");
   assert.equal(
     desk.style(at(".settings", ".setup-rows"))["max-width"],
@@ -117,7 +117,7 @@ test("Setup shares the settings column with the cards above and below it", () =>
     "the cards and the Setup rows are one column, not two widths on one page",
   );
   const wider = cascadeOf([...frameSheets(), { css: ":root:root[data-theme] { --measure-prose: 777px; }" }]);
-  for (const part of [".set-card", ".setup-rows"])
+  for (const part of [".set-block", ".setup-rows"])
     assert.equal(wider.style(at(".settings", part))["max-width"], "777px", `${part} takes the prose measure`);
 
   // A Setup row prints its sentence WHOLE, at every width, and always did.

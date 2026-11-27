@@ -246,7 +246,7 @@ export const AskNowPills = ({
   searches: number;
   t: LineWords;
 }) => (
-  <span className="ask-now-pills">
+  <span className="ask-now-picks">
     {people ? (
       <span className="pill pill-warn" data-testid="ask-pill">
         {t.needYou(people)}
@@ -329,7 +329,14 @@ export const AskRows = ({
 }) => {
   const selIdx = sel;
   const flat = flatRows(sections);
-  if (!flat.length) return <div className="ask-rows-empty">{empty || t.nothing}</div>;
+  if (!flat.length)
+    return (
+      <div className="empty empty-line">
+        <div className="empty-words">
+          <div className="empty-title">{empty || t.nothing}</div>
+        </div>
+      </div>
+    );
   let at = 0;
   const draw = (it: LineRow) => {
     const i = at++;
@@ -411,7 +418,7 @@ export const AskRows = ({
           ) : null}
           {runs(sec.items).map((run, k) =>
             run.chip ? (
-              <div key={`c${k}`} className="ask-chips" role="presentation">
+              <div key={`c${k}`} className="ask-picks" role="presentation">
                 {run.items.map(draw)}
               </div>
             ) : (
@@ -457,7 +464,7 @@ export const AskReads = ({ traces, since = null, t }: { traces: string[]; since?
         const now = k === shown.length - 1;
         return (
           <p key={r} className={`ask-read ${now ? "now" : "done"}`}>
-            <span className={now ? "ask-reading-dot" : "ask-read-tile"} aria-hidden="true" />
+            <span className={now ? "ask-reading-dot" : "ask-read-dot"} aria-hidden="true" />
             {r}
             {now && elapsed ? (
               <span className="ask-read-time" aria-hidden="true" data-testid="ask-read-time">

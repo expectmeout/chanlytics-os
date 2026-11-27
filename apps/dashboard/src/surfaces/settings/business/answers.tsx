@@ -134,7 +134,7 @@ const BtaNote = ({
   const endedId = `bt-note-${i}-ended`;
   const title = note && typeof note.title === "string" ? note.title : "";
   return (
-    <div className="bt-note" data-testid={`rec-note-${i}`} {...notes.row(i)}>
+    <div className="bt-note rec-quiet" data-testid={`rec-note-${i}`} {...notes.row(i)}>
       <RecordBox
         id={`bt-note-${i}-title`}
         label={`Note ${i + 1} title`}
@@ -180,7 +180,7 @@ const BtaNote = ({
       >
         <Icon name="x" size={12} />
       </button>
-      <FieldError id={problemId} message={bad} testid={`rec-note-problem-${i}`} />
+      <FieldError id={problemId} message={bad} testid={`rec-note-problem-${i}`} className="bt-note-error" />
     </div>
   );
 };

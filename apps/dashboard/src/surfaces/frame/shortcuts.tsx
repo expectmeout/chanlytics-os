@@ -8,7 +8,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useRootFlag } from "../kit/motion/root-flags";
 import { frameChrome } from "./frame-window";
 import { Icon } from "../kit/icon/icon";
-import { dialogRef } from "../kit/focus/trap";
+import { Sheet } from "../kit/sheet/sheet";
 
 // The sheet's own opener, handed here while the sheet is drawn: openShortcuts() asks it. A door is a call to the sheet
 // that answers it, never an event on the window (shortcuts:open had a listener and no sender, and nothing said so).
@@ -54,44 +54,36 @@ export function ShortcutsSheet() {
   const chrome = frameChrome();
   // Open, it holds the page (aria-modal), said on the document's root (kit/motion/root-flags.ts).
   useRootFlag("modalOpen", open && !!chrome);
-  if (!open || !chrome) return null;
-  const groups = chrome.shortcutGroups(chrome.shortcuts);
+  if (!chrome) return null;
+  // Shut, it holds no keys: the sheet is the one place a key is drawn, and only while it is up.
+  const groups = open ? chrome.shortcutGroups(chrome.shortcuts) : [];
   return (
-    <>
-      <div className="sb-sheet-backdrop" role="presentation" onClick={() => setOpen(false)} />
-      <div
-        className="sb-sheet"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Keyboard shortcuts"
-        ref={dialogRef("shortcuts")}
-        data-testid="shortcuts-sheet"
-      >
-        <div className="sb-sheet-head">
-          <span className="sb-sheet-title">Keyboard shortcuts</span>
-          <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setOpen(false)} aria-label="Close">
-            <Icon name="x" size={14} />
-          </button>
-        </div>
-        {groups.map((g) => (
-          <div key={g.group}>
-            <div className="sb-sheet-group">{g.group}</div>
-            {g.items.map((s) => (
-              <div key={s.does} className="sb-sheet-row">
-                <span>{s.does}</span>
-                <span className="sb-sheet-keys">
-                  {s.keys.map((k, i) => (
-                    <Fragment key={k}>
-                      {i > 0 && <span className="sb-sheet-sep">{sepOf(s.keys, k)}</span>}
-                      <kbd className="kbd">{k}</kbd>
-                    </Fragment>
-                  ))}
-                </span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </>
+    <Sheet
+      open={open}
+      onClose={() => setOpen(false)}
+      title="Keyboard shortcuts"
+      kicker
+      close={{ label: "Close", glyph: <Icon name="x" size={13} /> }}
+      testid="shortcuts-sheet"
+    >
+      {groups.map((g) => (
+        <section key={g.group} className="sc-group">
+          <div className="more-header">{g.group}</div>
+          {g.items.map((s) => (
+            <div key={s.does} className="sc-row">
+              <span>{s.does}</span>
+              <span className="sc-keys">
+                {s.keys.map((k, i) => (
+                  <Fragment key={k}>
+                    {i > 0 && <span className="sc-keys-sep">{sepOf(s.keys, k)}</span>}
+                    <kbd className="kbd">{k}</kbd>
+                  </Fragment>
+                ))}
+              </span>
+            </div>
+          ))}
+        </section>
+      ))}
+    </Sheet>
   );
 }

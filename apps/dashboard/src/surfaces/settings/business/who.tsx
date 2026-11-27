@@ -561,7 +561,7 @@ export const BtWhoCard = ({ brain, base = null, canEdit, flash, saver }: RowShar
       <BtPublishedRow shared={shared} brain={brain} numbers={numbers} />
 
       {/* Nothing is asked twice (spec §3): the carrier record is Connections', and this card only says where it is. */}
-      <p className="bt-card-foot" data-testid="rec-who-foot">
+      <p className="bt-foot-note" data-testid="rec-who-foot">
         Your legal name and address are on{" "}
         <button
           type="button"

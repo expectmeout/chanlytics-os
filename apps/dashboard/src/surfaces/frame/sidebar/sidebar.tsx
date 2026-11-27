@@ -31,7 +31,7 @@ function RowBadge({ item, badge, collapsed }: { item: NavItem; badge: string | n
     return <span className={`nav-dot ${item.urgent ? "urgent" : ""}`} aria-label={`${badge} ${item.label}`} />;
   return (
     <span
-      className={`nav-badge tally${item.urgent ? " urgent tally-warn" : ""}`}
+      className={`nav-count tally tally-fill${item.urgent ? " urgent tally-warn" : ""}`}
       data-tip={rowTip(item.id) || undefined}
     >
       {badge}
@@ -58,7 +58,6 @@ function SidebarRow({ item, active, onNavigate, badges = {}, collapsed = false }
   return (
     <a
       className={`nav-item ${active === item.id ? "active" : ""} ${item.urgent ? "urgent" : ""}`}
-      style={collapsed ? undefined : { paddingLeft: 10 }}
       href={door ? door.href : undefined}
       onClick={door ? door.onClick : undefined}
       onFocus={door ? door.onFocus : undefined}
@@ -148,7 +147,7 @@ function SidebarFoot({ who, collapsed, onToggleCollapse, onNavigate, flash, ...a
       </button>
       <button
         type="button"
-        className="user-chip sb-account"
+        className="sb-account"
         ref={meMenu.ref}
         onClick={meMenu.toggle}
         aria-haspopup="menu"
@@ -157,7 +156,7 @@ function SidebarFoot({ who, collapsed, onToggleCollapse, onNavigate, flash, ...a
         data-tip-side="right"
         data-testid="sb-account"
       >
-        <div className="avatar">{who.initials}</div>
+        <span className="face face-sm">{who.initials}</span>
         <div className="who">
           <div className="name">{who.name}</div>
           <div className="email">{sbAccountSub(appearance.look, who)}</div>
@@ -187,7 +186,7 @@ function SidebarWorkspace({ collapsed, onNavigate }: { collapsed: boolean; onNav
         data-tip-side="right"
         data-testid="sb-workspace"
       >
-        <SbWorkspaceFace ws={sbWorkspace()} className="sb-team-mark" />
+        <SbWorkspaceFace ws={sbWorkspace()} className="face face-sm face-tile" />
         <div className="sb-team-body">
           <div className="sb-team-name">{sbWorkspaceName()}</div>
           {sbTeamSub()}

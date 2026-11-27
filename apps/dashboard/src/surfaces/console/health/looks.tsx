@@ -307,7 +307,7 @@ export function NeedsALook({
   ) : null;
   return (
     <div className="cs-desk" data-beside={beside && look ? "true" : undefined}>
-      <section className="rec-card set-card cs-desk-list" data-testid="console-health-needs">
+      <section className="rec-card set-block cs-desk-list" data-testid="console-health-needs">
         <div className="rec-card-head">
           <h2 className="rec-card-title">{HEALTH_WORDS.needsALook}</h2>
           <span className="rec-card-sub">
@@ -322,7 +322,7 @@ export function NeedsALook({
         )}
       </section>
       {beside && look && (
-        <aside className="rec-card set-card cs-desk-side" aria-label={look.what}>
+        <aside className="rec-card set-block cs-desk-side" aria-label={look.what}>
           {detail}
         </aside>
       )}

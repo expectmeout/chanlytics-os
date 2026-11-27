@@ -112,7 +112,7 @@ const btsTools = (f: SheetFields, search: Search, setSearch: Dispatch<SetStateAc
   return (
     <>
       {searched ? (
-        <span className="bt-services-search">
+        <span className="bt-services-find">
           <Icon name="search" size={12} />
           <RecordBox
             id="bt-services-search"
@@ -232,7 +232,7 @@ const btsRow = (x: ServiceRow, i: number, env: RowEnv) => {
   return (
     <div
       key={`svc-${i}`}
-      className="bt-service-row"
+      className="bt-service-row rec-quiet"
       hidden={env.shown ? undefined : true}
       data-open={env.open ? "true" : "false"}
       data-testid={`rec-service-${i}`}

@@ -51,7 +51,7 @@ function PartnerOffer({ flash }: { flash: Flash }) {
     flash({ tone: "ok", msg: <>You are a partner. Your link is below.</> });
   };
   return (
-    <section className="rec-card set-card" data-testid="set-partner-offer" aria-labelledby="set-partner-title">
+    <section className="rec-card set-block" data-testid="set-partner-offer" aria-labelledby="set-partner-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="set-partner-title">
           {W.title}
@@ -136,7 +136,7 @@ function PartnerAccount({
   };
   return (
     <>
-      <section className="rec-card set-card" data-testid="set-partner" aria-labelledby="set-partner-title">
+      <section className="rec-card set-block" data-testid="set-partner" aria-labelledby="set-partner-title">
         <div className="rec-card-head">
           <h2 className="rec-card-title" id="set-partner-title">
             {W.tab}
@@ -213,7 +213,7 @@ export function PanePartner({ flash }: { flash: Flash }) {
   const W = partnerVerbs.words;
   if (P === undefined) {
     return (
-      <section className="rec-card set-card" data-testid="partner-loading">
+      <section className="rec-card set-block" data-testid="partner-loading">
         <div className="rec-card-head">
           <h2 className="rec-card-title">{W.tab}</h2>
         </div>

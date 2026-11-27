@@ -369,9 +369,9 @@ const PANELS = {
 test("Panel draws the gallery's Panel family, on the element its content is: a div unless it is another", () => {
   assert.deepEqual(parting(FAMILIES, "Panel", PANELS), HELD);
   const hold = ref();
-  const pane = drawn(h(Panel, { className: "set-card", ref: hold }, "Hours"));
+  const pane = drawn(h(Panel, { className: "set-block", ref: hold }, "Hours"));
   assert.equal(pane.type, "div");
-  assert.equal(pane.props.className, "panel set-card", "the page's layout class comes last");
+  assert.equal(pane.props.className, "panel set-block", "the page's layout class comes last");
   assert.equal(pane.props.ref, hold);
   assert.deepEqual(keysOf(pane), ["className", "ref"], "its look and its element are not its attributes");
   for (const as of ["section", "article", "aside", "ul", "ol", "li"]) {

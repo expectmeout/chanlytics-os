@@ -293,7 +293,7 @@ test("Earlier finds a conversation by the words typed and Enter opens it; with n
   await later(Palette, OPEN);
   cmdJ();
   let tree = await later(Palette, OPEN);
-  assert.equal(textOf(byClass(tree, "ask-rows-empty")[0]), "No earlier conversations yet.");
+  assert.equal(textOf(byClass(tree, "empty-line")[0]), "No earlier conversations yet.", "the kit's Empty, a line");
   await closes();
 
   const calls = ask([TH(1), TH(2), TH(3)]);
@@ -407,9 +407,9 @@ test("a person's note and a person's details (PR 4.6) are drawn by their title a
     cards.forEach((p) => {
       const tree = render(AskCard, { p, t: askText(lang), onNav() {} });
       assert.equal(byTestId(tree, "ask-card").props["data-kind"], p.kind);
-      const head = byClass(tree, "ask-card-head")[0];
+      const head = byClass(tree, "ask-job-head")[0];
       assert.ok(textOf(head).startsWith(p.title), `${p.kind}: its title`);
-      const said = byClass(tree, "ask-card-summary")[0] ?? byClass(tree, "ask-card-line")[0];
+      const said = byClass(tree, "ask-job-summary")[0] ?? byClass(tree, "ask-job-line")[0];
       assert.equal(textOf(said), p.summary, `${p.kind}: its summary`);
     });
 });
@@ -449,9 +449,9 @@ test("a list and a playbook's run waiting for a person (PR 4.7) are drawn by the
     cards.forEach((p) => {
       const tree = render(AskCard, { p, t: askText(lang), onNav() {} });
       assert.equal(byTestId(tree, "ask-card").props["data-kind"], p.kind);
-      const head = byClass(tree, "ask-card-head")[0];
+      const head = byClass(tree, "ask-job-head")[0];
       assert.ok(textOf(head).startsWith(p.title), `${p.kind}: its title`);
-      const said = byClass(tree, "ask-card-summary")[0] ?? byClass(tree, "ask-card-line")[0];
+      const said = byClass(tree, "ask-job-summary")[0] ?? byClass(tree, "ask-job-line")[0];
       assert.equal(textOf(said), p.summary, `${p.kind}: its summary`);
     });
 });
@@ -492,26 +492,26 @@ test("a message the card writes (the marketing manager, §5.2) is drawn whole: e
   for (const lang of ["en", "es"]) {
     const tree = render(AskCard, { p, t: askText(lang), onNav() {} });
     assert.equal(byTestId(tree, "ask-card").props["data-kind"], "message");
-    const head = byClass(tree, "ask-card-head")[0];
+    const head = byClass(tree, "ask-job-head")[0];
     assert.ok(textOf(head).startsWith(p.title));
     // Every version whole, under its channel's word, in the card's said block; the summary's quotes are the model's.
     const versions = byTestId(tree, "ask-card-versions");
-    assert.ok(versions.props.className.split(" ").includes("ask-card-said"));
-    const rows = byClass(versions, "ask-card-summary");
+    assert.ok(versions.props.className.split(" ").includes("ask-job-said"));
+    const rows = byClass(versions, "ask-job-summary");
     assert.deepEqual(
-      rows.map((r) => [textOf(byClass(r, "ask-card-channel")[0]), textOf(r)]),
+      rows.map((r) => [textOf(byClass(r, "ask-job-channel")[0]), textOf(r)]),
       said.map((s) => [s.label, `${s.label}\n${s.words}`]),
     );
     assert.equal(
-      byClass(tree, "ask-card-summary").some((n) => textOf(n) === p.summary),
+      byClass(tree, "ask-job-summary").some((n) => textOf(n) === p.summary),
       false,
       "the versions are drawn whole, never quoted twice",
     );
-    assert.equal(textOf(byClass(tree, "ask-card-foot")[0]), follows, "when each goes and who it reaches, under them");
+    assert.equal(textOf(byClass(tree, "ask-job-foot")[0]), follows, "when each goes and who it reaches, under them");
   }
   // A message card from before its versions were carried draws its summary, as every card does.
   const bare = render(AskCard, { p: { ...p, payload: {} }, t: askText("en"), onNav() {} });
-  assert.equal(textOf(byClass(bare, "ask-card-line")[0]), p.summary);
+  assert.equal(textOf(byClass(bare, "ask-job-line")[0]), p.summary);
 });
 
 test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'calendar' offered only to ask about it", async () => {
@@ -637,7 +637,7 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     tree = await later(Palette, OPEN);
     assert.deepEqual(committed, ["lead_search"], "committed through AI's door");
     assert.ok(
-      textOf(byClass(tree, "ask-card-receipt")[0]).includes("Leads shows it"),
+      textOf(byClass(tree, "ask-job-receipt")[0]).includes("Leads shows it"),
       "the receipt stays in the conversation",
     );
     assert.deepEqual(went, ["clients/leads:s-s1"], "the Line went to the new search");
@@ -718,7 +718,7 @@ test("a campaign card says campaign, never playbook (the moment spec, D19): the 
     ]) {
       const props = { p: made, messageId: "x", t: askText(lang), onNav() {} };
       let tree = render(AskCard, props);
-      press(byClass(tree, "ask-card-undo")[0]);
+      press(byClass(tree, "ask-job-undo")[0]);
       tree = settle(AskCard, props);
       const asked = textOf(tree);
       assert.ok(asked.includes(said) && asked.includes(yes), `${lang}: ${asked}`);
@@ -782,7 +782,7 @@ test("on Leads a card that answers a search commits through AI's door with no un
     tree = await later(Palette, OPEN);
     assert.deepEqual(committed, [answering.payload.amends], "the card commits as it came, its amends intact");
     assert.ok(
-      textOf(byClass(tree, "ask-card-receipt")[0]).includes("Answered."),
+      textOf(byClass(tree, "ask-job-receipt")[0]).includes("Answered."),
       "the receipt stays in the conversation",
     );
     assert.deepEqual(

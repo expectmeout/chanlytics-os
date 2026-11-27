@@ -74,7 +74,7 @@ export function PartnerInvitations({
   const pressing = (id: string, join: boolean) => !!busy && busy.id === id && busy.join === join;
   return (
     <section
-      className="rec-card set-card"
+      className="rec-card set-block"
       data-testid="partner-invitations"
       aria-labelledby="partner-invitations-title"
     >

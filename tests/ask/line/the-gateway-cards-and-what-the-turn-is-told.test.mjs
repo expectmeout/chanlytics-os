@@ -373,8 +373,8 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
     [phone, circle, "phone-ask"],
     [desk, circle, "phone-ask"],
     [shell, element("html.in-app", ".phone-ask"), "phone-ask"],
-    [phone, element(".ask-card"), "ask-card"],
-    [desk, element(".ask-card"), "ask-card"],
+    [phone, element(".ask-job"), "ask-job"],
+    [desk, element(".ask-job"), "ask-job"],
   ]) {
     const naming = cascade.rules(el).filter((r) => r.selectors.some((sel) => sel.includes(`.${cls}`)));
     assert.ok(naming.length > 0, `${cls}: drawn by its rules`);

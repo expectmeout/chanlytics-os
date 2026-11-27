@@ -890,7 +890,7 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
     const looked = draw();
     assert.ok(signOf(looked), "REGRESSION: once looked at, the closed bell said nothing though two notes were unread");
     assert.equal(
-      find(looked, (n) => classes(n).includes("tb-bell-badge")),
+      find(looked, (n) => classes(n).includes("tb-bell-count")),
       null,
       "no number: nothing is new",
     );

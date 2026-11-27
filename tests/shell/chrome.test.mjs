@@ -235,9 +235,13 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
     "center",
     "the rail centres its icons",
   );
-  assert.equal(at(desk, ".sb-menu").position, "fixed", "a menu stands over the page");
-  assert.equal(at(desk, ".sb-theme-seg")["grid-auto-flow"], "column", "the theme's choices side by side");
-  assert.equal(at(desk, ".sb-sheet").position, "fixed", "the keys' sheet over the page");
+  assert.equal(at(desk, ".sb-place").position, "fixed", "a menu stands over the page");
+  assert.equal(
+    at(desk, ".rec-seg.sb-looks").display,
+    "inline-flex",
+    "the theme's choices side by side, the kit's segments",
+  );
+  assert.equal(at(desk, ".sheet").position, "fixed", "the keys' sheet over the page, the kit's");
   assert.equal(at(desk, ".side-wrap", "aside.sidebar.collapsed").width, "56px", "a desk's rail");
   assert.equal(
     at(phone, ".side-wrap", "aside.sidebar.collapsed").width,
@@ -360,14 +364,14 @@ test("the workspace's circle wears its own logo over its initials, and its initi
         onLook: () => {},
       });
     const row = byTestId(again(sidebar), "sb-workspace");
-    const circle = all(row, (n) => n.type === "span" && classes(n).includes("sb-team-mark"))[0];
+    const circle = all(row, (n) => n.type === "span" && classes(n).includes("face-tile"))[0];
     press(row);
     const menu = byTestId(again(sidebar), "sb-workspace-menu");
     return {
       initials: textOf(circle),
       picture: all(circle, (n) => n.type === "img").map((n) => [n.props.src, classes(n)]),
       three: all(row, (n) => n.type === frameParts().Icon && n.props.name === "three").length,
-      menu: all(menu, (n) => n.type === "span" && classes(n).includes("sb-ws-mark")).map((m) => [
+      menu: all(menu, (n) => n.type === "span" && classes(n).includes("face-tile")).map((m) => [
         textOf(m),
         all(m, (n) => n.type === "img").length,
       ]),

@@ -676,7 +676,7 @@ for (const view of [
 
       // A press decides the card and opens the next; the warning stands while one still waits.
       await approve.click();
-      await expect(cards.first().locator(".ask-card-receipt")).toBeVisible();
+      await expect(cards.first().locator(".ask-job-receipt")).toBeVisible();
       await expect(cards.nth(1)).toContainText("Daily, 11:00 AM");
       await expect(ask.getByTestId("ask-card-approve")).toHaveCount(1);
       await expect(alike).toBeVisible();
@@ -698,15 +698,15 @@ for (const view of [
       const ask = page.getByTestId("ask-real");
       const cards = ask.getByTestId("ask-card");
       await ask.getByTestId("ask-card-approve").click();
-      const receipt = cards.first().locator(".ask-card-receipt");
+      const receipt = cards.first().locator(".ask-job-receipt");
       await expect(receipt, "not the page's body, and not the field").toBeFocused();
       await expect(cards.first().getByRole("status")).toContainText("Reminder");
       // The outcome is noted on the conversation a beat later, which brings the field's focus back on a desk: not here.
-      await expect(page.locator(".ask-card-receipt")).toHaveCount(1);
+      await expect(page.locator(".ask-job-receipt")).toHaveCount(1);
       await expect(receipt).toBeFocused();
 
       await cards.nth(1).getByRole("button", { name: "Not now" }).click();
-      await expect(cards.nth(1).locator(".ask-card-receipt")).toBeFocused();
+      await expect(cards.nth(1).locator(".ask-job-receipt")).toBeFocused();
 
       // A press refused says why where the press stood, and Try again gives Approve back, with the focus.
       await page.route(/\/api\/v1\/playbooks/, (route) =>
@@ -720,7 +720,7 @@ for (const view of [
         }),
       );
       await ask.getByTestId("ask-card-approve").click();
-      await expect(cards.nth(2).locator(".ask-card-receipt")).toBeFocused();
+      await expect(cards.nth(2).locator(".ask-job-receipt")).toBeFocused();
       await cards.nth(2).getByRole("button", { name: "Try again" }).click();
       await expect(cards.nth(2).getByTestId("ask-card-approve")).toBeFocused();
     });
@@ -765,7 +765,7 @@ for (const view of [
       release();
 
       // What became of it stands where the press was, with the focus, and settles at the card's own end.
-      const receipt = ask.locator(".ask-card-receipt");
+      const receipt = ask.locator(".ask-job-receipt");
       await expect(receipt).toBeFocused();
       await expect(receipt).toBeInViewport({ ratio: 1 });
       await expect(ask.locator(".ask-told[data-pinned]")).toHaveCount(1);
@@ -793,7 +793,7 @@ for (const view of [
         await ask.getByTestId("ask-card-details").click();
         await scanAsk(page, `${theme}, a card with its details`);
         await ask.getByTestId("ask-card-approve").click();
-        await expect(ask.locator(".ask-card-receipt")).toBeVisible();
+        await expect(ask.locator(".ask-job-receipt")).toBeVisible();
         await scanAsk(page, `${theme}, a receipt`);
         await page.unroute(/\/api\/v1\/ask(\?|$)/);
         await dropTheTurn(page);

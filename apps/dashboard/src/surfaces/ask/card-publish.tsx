@@ -9,10 +9,10 @@ export function AskPublishCard({ p }: { p: AskProposal }) {
   const publish = postPublishOf(p.payload ?? {});
   const captioned = !!publish.caption && (publish.places.includes("google") || publish.as === "picture");
   return (
-    <div className="ask-card-change ask-publish" data-testid="ask-publish">
+    <div className="panel panel-inset ask-job-change ask-publish" data-testid="ask-publish">
       <img className="ask-publish-picture" src={`${fileViewOf(publish.file_id)}?w=240`} alt="" loading="lazy" />
       <div className="ask-publish-words">
-        <p className="ask-card-summary">{p.summary}</p>
+        <p className="ask-job-summary">{p.summary}</p>
         {captioned ? (
           <p className="ask-publish-caption" data-testid="ask-publish-caption">
             {publish.caption}

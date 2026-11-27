@@ -54,7 +54,7 @@ function PartnerSetUp({
     }
   };
   return (
-    <section className="rec-card set-card" data-testid="partner-setup" aria-labelledby="partner-setup-title">
+    <section className="rec-card set-block" data-testid="partner-setup" aria-labelledby="partner-setup-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="partner-setup-title">
           {H.start}
@@ -214,7 +214,7 @@ function PartnerHandovers({
   const open = Object.values(handovers).filter((h) => h.state !== "accepted");
   if (!open.length) return null;
   return (
-    <section className="rec-card set-card" data-testid="partner-handovers" aria-labelledby="partner-handovers-title">
+    <section className="rec-card set-block" data-testid="partner-handovers" aria-labelledby="partner-handovers-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="partner-handovers-title">
           {api.handoverWords.waiting}
@@ -277,7 +277,7 @@ export function PartnerWorkspaces({ api, flash, active }: { api: PartnerApi; fla
   }
   if (!state.vm) {
     return (
-      <section className="rec-card set-card" data-testid="partner-workspaces-reading">
+      <section className="rec-card set-block" data-testid="partner-workspaces-reading">
         <div className="set-row">
           <div className="set-row-info">
             <span className="set-row-hint">{W.readingWorkspaces}</span>
@@ -293,7 +293,7 @@ export function PartnerWorkspaces({ api, flash, active }: { api: PartnerApi; fla
       {active ? <PartnerSetUp api={api} flash={flash} full={state.full} onMade={reread} /> : null}
       <PartnerHandovers api={api} handovers={state.handovers} flash={flash} onSent={reread} />
       <section
-        className="rec-card set-card"
+        className="rec-card set-block"
         data-testid="partner-workspaces"
         aria-labelledby="partner-workspaces-title"
       >

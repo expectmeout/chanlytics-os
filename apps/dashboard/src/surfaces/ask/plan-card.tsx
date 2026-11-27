@@ -74,7 +74,7 @@ const usePlanPress = (
   useEffect(() => {
     if (!pressed.current) return;
     pressed.current = false;
-    landRef.current?.querySelector<HTMLElement>(".ask-card-receipt")?.focus({ preventScroll: true });
+    landRef.current?.querySelector<HTMLElement>(".ask-job-receipt")?.focus({ preventScroll: true });
   });
   const version = settingsVersion();
   // Settings not read in this tab are read again by the undo itself, which refuses if anyone saved since (commit.ts).
@@ -168,13 +168,13 @@ const usePlanPress = (
 
 /** The message as a person reads it, by channel. */
 const AskPlanSays = ({ says }: { says: AskPlanHead["says"] }) => (
-  <div className="ask-card-change" data-testid="ask-plan-says">
-    <div className="ask-card-said">
+  <div className="panel panel-inset ask-job-change" data-testid="ask-plan-says">
+    <div className="ask-job-said">
       {says.map((v) => (
-        <p key={v.channel} className="ask-card-summary">
+        <p key={v.channel} className="ask-job-summary">
           {says.length > 1 && v.label ? (
             <>
-              <span className="ask-card-channel">{v.label}</span>
+              <span className="ask-job-channel">{v.label}</span>
               {"\n"}
             </>
           ) : null}
@@ -200,7 +200,7 @@ const AskPlanHow = ({
 }) =>
   ordered.length > 1 || also.length ? (
     <details
-      className="ask-card-how"
+      className="ask-job-how"
       data-testid="ask-plan-how"
       open={ordered.filter((p) => p.outcome?.state === "done").length > 1 || undefined}
     >
@@ -234,14 +234,14 @@ const AskPlanTold = ({
   const { A, busy, canUndo, forward, goPause, goUndo, running } = plan;
   const openTo = running ? A.cardOpenRoute(running) : null;
   return (
-    <div className="ask-card-receipt ask-landing" tabIndex={-1} data-testid="ask-plan-receipt">
+    <div className="ask-job-receipt ask-landing" tabIndex={-1} data-testid="ask-plan-receipt">
       <Icon name={said.ok ? "check" : "alert"} size={11} className={said.ok ? "ok" : ""} />
-      <span className="ask-card-said">{said.line}</span>
+      <span className="ask-job-said">{said.line}</span>
       {canUndo ? (
         <Button
           variant="quiet"
           size="sm"
-          className="ask-card-undo"
+          className="ask-job-undo"
           onClick={goUndo}
           aria-disabled={busy || undefined}
           data-testid="ask-plan-undo"
@@ -253,7 +253,7 @@ const AskPlanTold = ({
         <Button
           variant="quiet"
           size="sm"
-          className="ask-card-undo"
+          className="ask-job-undo"
           onClick={() => goPause(!running.outcome?.paused)}
           aria-disabled={busy || undefined}
           data-testid="ask-plan-pause"
@@ -302,7 +302,7 @@ const AskPlanPress = ({
   const stepCards = press.steps.flatMap((n) => now.find((p) => p.plan?.step === n) ?? []);
   const gateKey = stepCards.map((p) => PROPOSAL_GATE[p.kind] || "approve").find((k) => !canDo(k)) ?? "approve";
   return (
-    <div className="ask-card-actions">
+    <div className="ask-job-actions">
       {canDo(gateKey) ? (
         <Button
           variant="primary"
@@ -317,7 +317,7 @@ const AskPlanPress = ({
           {busy ? t.working : word}
         </Button>
       ) : (
-        <p className="ask-card-foot" data-testid="ask-card-cant">
+        <p className="ask-job-foot" data-testid="ask-card-cant">
           {gateTitle(gateKey, "approve this card")}
         </p>
       )}
@@ -328,10 +328,10 @@ const AskPlanPress = ({
 
 /** What it is, and how. */
 const AskPlanName = ({ title, sub }: { title?: string; sub?: string }) => (
-  <div className="ask-card-head">
-    <span className="ask-card-name">
-      <span className="ask-card-title">{title}</span>
-      {sub ? <span className="ask-card-sub">{sub}</span> : null}
+  <div className="ask-job-head">
+    <span className="ask-job-name">
+      <span className="ask-job-title">{title}</span>
+      {sub ? <span className="ask-job-sub">{sub}</span> : null}
     </span>
   </div>
 );
@@ -365,7 +365,7 @@ const AskPlanWith = ({ askApi, cards, messageId, t, onNav, onOutcome }: AskPlanP
   const says = head?.says ?? [];
   const dismissed = now.every((p) => p.outcome?.state === "dismissed");
   return (
-    <div className={`ask-card ask-plan${dismissed ? " dismissed" : ""}`} ref={landRef} data-testid="ask-plan">
+    <div className={`panel ask-job ask-plan${dismissed ? " dismissed" : ""}`} ref={landRef} data-testid="ask-plan">
       <AskPlanName title={head?.title || first?.title} sub={head?.sub} />
       {says.length && !pressedOnce ? <AskPlanSays says={says} /> : null}
       {holds.map((h) => (
@@ -374,13 +374,13 @@ const AskPlanWith = ({ askApi, cards, messageId, t, onNav, onOutcome }: AskPlanP
         </p>
       ))}
       {head?.hear && !pressedOnce ? (
-        <p className="ask-card-foot" data-testid="ask-plan-hear">
+        <p className="ask-job-foot" data-testid="ask-plan-hear">
           {head.hear}
         </p>
       ) : null}
       <AskPlanHow ordered={ordered} also={head?.also ?? []} t={t} />
       {pressedOnce && press.steps.length ? (
-        <p className="ask-card-foot" data-testid="ask-plan-left">
+        <p className="ask-job-foot" data-testid="ask-plan-left">
           {t.planLeft(now.filter((p) => !p.plan?.silent && !p.outcome).length)}
         </p>
       ) : null}
@@ -390,7 +390,7 @@ const AskPlanWith = ({ askApi, cards, messageId, t, onNav, onOutcome }: AskPlanP
       <div className="ask-told" role="status">
         {said ? <AskPlanTold said={said} plan={plan} t={t} onNav={onNav} /> : null}
       </div>
-      {err ? <div className="ask-card-note">{err}</div> : null}
+      {err ? <div className="ask-job-note">{err}</div> : null}
     </div>
   );
 };

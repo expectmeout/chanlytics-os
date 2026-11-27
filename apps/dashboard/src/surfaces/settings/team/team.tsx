@@ -129,7 +129,7 @@ export const TeamSection = ({ flash }: { flash: Flash }) => {
     .join(" or ");
   const open = sheet ? everyone.find((p) => p.id === sheet) : undefined;
   return (
-    <section className="rec-card set-card set-team" data-testid="set-team" aria-labelledby="set-team-title">
+    <section className="rec-card set-block set-team" data-testid="set-team" aria-labelledby="set-team-title">
       {teamHead({
         count: countWords(members.length, waiting.length, failed),
         // Invite is the card's act, so a role that may not invite sees it gated, saying why when pressed, instead of a

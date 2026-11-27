@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SHORTCUTS } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, find, textOf, press } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { bridgeHolds, provided } from "../_bridge-holds.mjs";
@@ -52,6 +52,9 @@ const draw = (props) => {
 };
 /** The same shell again, over its cells, as React draws it after a state change. */
 const redraw = (props) => again(() => shell(props));
+/** The keys' sheet while it is open: the kit's Sheet (kit/sheet/sheet.tsx), named for its job, its open the frame's. */
+const keysSheet = (tree) =>
+  find(tree, (n) => n.type?.name === "Sheet" && n.props?.testid === "shortcuts-sheet" && n.props.open === true);
 
 test("REGRESSION: the rail button says Collapse, and its tip on the rail says Expand the sidebar -- ⌘B stood beside both", () => {
   let tree = draw();
@@ -108,10 +111,10 @@ test("the account menu draws no key: your name is the door to your profile and S
     assert.equal(textOf(row), "Keyboard shortcuts");
     assert.deepEqual(keysDrawn(menu), [], "its words name no key");
     assert.equal(textOf(byTestId(menu, "sb-me-settings")), "Settings", "beside the doors it always had");
-    assert.equal(byTestId(tree, "shortcuts-sheet"), null, "closed until asked");
+    assert.equal(keysSheet(tree), null, "closed until asked");
     press(row);
     tree = redraw();
-    assert.ok(byTestId(tree, "shortcuts-sheet"), "the press opens the sheet");
+    assert.ok(keysSheet(tree), "the press opens the sheet");
     assert.equal(byTestId(tree, "sb-account-menu"), null, "and the menu lets go");
   });
 });
@@ -135,21 +138,21 @@ test("REGRESSION: the workspace menu names the workspaces and the one being view
 test("the sheet opens on ? and by the opener it registers, never by an event, and Esc closes it", () => {
   draw();
   W.dispatchEvent(new CustomEvent("shortcuts:open"));
-  assert.equal(byTestId(redraw(), "shortcuts-sheet"), null, "nothing sends or hears shortcuts:open any more");
+  assert.equal(keysSheet(redraw()), null, "nothing sends or hears shortcuts:open any more");
   const key = (k) => W.dispatchEvent({ type: "keydown", key: k, target: null, preventDefault() {} });
   key("?");
-  assert.ok(byTestId(redraw(), "shortcuts-sheet"), "? opens it");
+  assert.ok(keysSheet(redraw()), "? opens it");
   key("Escape");
-  assert.equal(byTestId(redraw(), "shortcuts-sheet"), null, "and Esc closes it");
+  assert.equal(keysSheet(redraw()), null, "and Esc closes it");
   shortcutsSheet.openShortcuts();
-  assert.ok(byTestId(redraw(), "shortcuts-sheet"), "openShortcuts() opens it");
+  assert.ok(keysSheet(redraw()), "openShortcuts() opens it");
 });
 
 test("the sheet is the one place a key is drawn: every key the app answers to, the Calendar's among them", () => {
   draw();
   shortcutsSheet.openShortcuts();
   const tree = redraw();
-  const sheet = byTestId(tree, "shortcuts-sheet");
+  const sheet = keysSheet(tree);
   assert.ok(sheet, "open");
   assert.deepEqual(
     all(sheet, (n) => n.type === "kbd").map(textOf),
@@ -157,13 +160,13 @@ test("the sheet is the one place a key is drawn: every key the app answers to, t
     "a key for every key of every shortcut, in the sheet's order",
   );
   assert.ok(
-    all(sheet, (n) => n.props?.className === "sb-sheet-group")
+    all(sheet, (n) => n.props?.className === "more-header")
       .map(textOf)
       .includes("Calendar"),
     "the Calendar's keys were said only in its legend and its buttons' tips",
   );
   const outside = draw();
-  assert.equal(byTestId(outside, "shortcuts-sheet"), null, "closed until asked");
+  assert.equal(keysSheet(outside), null, "closed until asked");
   assert.deepEqual(keysDrawn(outside), [], "and with it closed, the shell draws no key");
 });
 

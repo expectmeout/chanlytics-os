@@ -2,23 +2,23 @@
    Stage's section 5): one window, a head, the three in a hero, the rows or a conversation as one thread, the field at
    the foot. On a phone it is the whole screen; on a desk the same window is a panel of glass docked at the right, the
    sidebar's twin, beside a page that stays live (Ruben, 16 Oct 2026: "i like it on mobile ... on desktop i dont like
-   this", then "keep the page live"). The scrim and the window keep the mockup's .ask-overlay and .ask-modal (their fade in dashboard-a-v2.css,
+   this", then "keep the page live"). The scrim and the window keep the mockup's .ask-overlay and .ask-pane (their fade in dashboard-a-v2.css,
    their leaving in components.css); what the Line changes is here, with the answer's parts, the cards, the mic, the
    phone's ✦ and the phone's takeover. Imported last, so its phone rules win over mobile.css. No key symbol is drawn
    (D17). */
 
 /* ---- The window: a column, everywhere ---- */
-.ask-modal.ask-line {
+.ask-pane.ask-line {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 /* A phone's takes focus as it opens so no keyboard rises (S10); the window needs no ring to say so. */
-.ask-modal.ask-line:focus {
+.ask-pane.ask-line:focus {
   outline: none;
 }
 /* One character: while the Line is open the three stand in it, not also on the top bar's button. */
-body.ask-open .tb-ask .tb-ask-face {
+body.ask-open .tb-ask .tb-ask-lead {
   visibility: hidden;
 }
 
@@ -53,7 +53,7 @@ body.ask-open .tb-ask .tb-ask-face {
   .ask-overlay.ask-line-scrim[data-leaving="true"] {
     animation: none;
   }
-  .ask-modal.ask-line {
+  .ask-pane.ask-line {
     position: relative;
     width: var(--ask-dock);
     max-width: 100%;
@@ -199,11 +199,6 @@ body.ask-open .tb-ask .tb-ask-face {
 }
 /* The placeholder is one line, never a second under it (Ruben, 17 Nov 2026); words.ts keeps each short enough to fit a
    360px phone, and one that still does not ends at the field's edge, where a browser draws its ellipsis. */
-.ask-line-input::placeholder {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .ask-line-right {
   flex: none;
   display: flex;
@@ -284,7 +279,7 @@ body.ask-open .tb-ask .tb-ask-face {
   margin-left: auto;
 }
 /* The delete question sits under the middle, over the foot. */
-.ask-line .ask-confirm {
+.ask-line .ask-remove-q {
   flex: none;
   order: 8;
   margin: 8px 12px 0;
@@ -418,7 +413,7 @@ body.ask-open .tb-ask .tb-ask-face {
   flex: 1;
 }
 /* Three pills at most (people, runs, searches); the Spanish ones outgrow a phone's width, so they wrap. */
-.ask-now-pills {
+.ask-now-picks {
   display: inline-flex;
   flex: none;
   flex-wrap: wrap;
@@ -466,20 +461,15 @@ body.ask-open .tb-ask .tb-ask-face {
     inset: -6px -10px;
   }
 }
-.ask-chips {
+.ask-picks {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   padding: 0 6px;
 }
 /* Earlier's chip for the rest sits under its rows, a breath below the last. */
-.ask-row + .ask-chips {
+.ask-row + .ask-picks {
   padding-top: 6px;
-}
-.ask-rows-empty {
-  padding: 18px 20px;
-  font-size: var(--text-aside);
-  color: var(--ink-dim);
 }
 .ask-trace {
   display: flex;
@@ -714,28 +704,17 @@ body.ask-open .tb-ask .tb-ask-face {
   flex-wrap: wrap;
   gap: 6px;
 }
-.ask-tile {
+.ask-fig {
   gap: 5px;
 }
-.ask-tile.plain {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 11px;
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  font-size: var(--text-sm);
-  color: var(--ink);
-  white-space: nowrap;
-}
-.ask-tile strong {
+.ask-fig strong {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.ask-tile-label {
+.ask-fig-label {
   color: var(--ink-muted);
 }
-.ask-tile-note {
+.ask-fig-note {
   color: var(--ink-dim);
 }
 .ask-breakdown {
@@ -793,15 +772,6 @@ body.ask-open .tb-ask .tb-ask-face {
   gap: 2px;
   margin: 0 -10px;
 }
-.ask-item-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-inset-fill);
-  color: var(--ink-muted);
-}
 .ask-item-body {
   display: flex;
   flex-direction: column;
@@ -854,39 +824,28 @@ body.ask-open .tb-ask .tb-ask-face {
    line on the sunken ground. The card is the one raised surface; no coloured edge: coral is only for Ask at work. On the
    window's glass it is the glass the page's panes are and its grounds the inset's: an opaque card stood on the panel as
    a near-black slab in dark. ---- */
-.ask-card {
+.ask-job {
   margin: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface-pane-fill);
-  box-shadow: var(--shadow-sm);
-  padding: 12px 12px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-.ask-card.dismissed,
-.ask-card.undone {
+.ask-job.dismissed,
+.ask-job.undone {
   opacity: 0.6;
 }
 /* A record, once kept: one line and its Undo, no card around it (the Keep shape). */
-.ask-card.ask-quiet {
-  padding: 0;
-  border: 0;
-  background: none;
-  box-shadow: none;
-}
-.ask-card-head {
+.ask-job-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
 }
-.ask-card-name {
+.ask-job-name {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
-.ask-card-title {
+.ask-job-title {
   font-size: var(--text-title);
   font-weight: 600;
   line-height: 1.3;
@@ -894,19 +853,19 @@ body.ask-open .tb-ask .tb-ask-face {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.ask-card-sub {
+.ask-job-sub {
   font-size: var(--text-sm);
   line-height: 1.4;
   color: var(--ink-dim);
 }
 /* Which channel a version is for, where a message has more than one. */
-.ask-card-channel {
+.ask-job-channel {
   font-size: var(--text-xs);
   line-height: 1.35;
   color: var(--ink-dim);
 }
 /* A record: what it keeps in a line, with no ground under it (the Keep shape). */
-.ask-card-line {
+.ask-job-line {
   margin: 0;
   font-size: var(--text-base);
   line-height: 1.45;
@@ -914,16 +873,16 @@ body.ask-open .tb-ask .tb-ask-face {
   overflow-wrap: anywhere;
 }
 /* How a plan runs, folded: its sentences, a tick on each that is done. */
-.ask-card-how {
+.ask-job-how {
   font-size: var(--text-sm);
   line-height: 1.45;
   color: var(--ink-dim);
 }
-.ask-card-how summary {
+.ask-job-how summary {
   cursor: pointer;
   width: fit-content;
 }
-.ask-card-how ul {
+.ask-job-how ul {
   display: grid;
   gap: 4px;
   margin: 6px 0 0;
@@ -931,16 +890,11 @@ body.ask-open .tb-ask .tb-ask-face {
   list-style: none;
   color: var(--ink-muted);
 }
-.ask-card-how .ok {
+.ask-job-how .ok {
   margin-right: 5px;
   color: var(--ok-ink);
 }
-.ask-card-change {
-  padding: 10px 12px;
-  border-radius: var(--radius-inset);
-  background: var(--surface-inset-fill);
-}
-.ask-card-summary {
+.ask-job-summary {
   margin: 0;
   font-size: var(--text-base);
   line-height: 1.5;
@@ -949,24 +903,22 @@ body.ask-open .tb-ask .tb-ask-face {
   overflow-wrap: anywhere;
 }
 /* A reply as the sent bubble it will be: the Inbox's, as a question in a phone's thread is. */
-.ask-card-change.bubble {
+.ask-job-change.bubble {
   display: flex;
   justify-content: flex-end;
-  padding: 10px;
-  border-radius: var(--radius-lg);
 }
-.ask-card-change.bubble .ask-card-summary {
+.ask-job-change.bubble .ask-job-summary {
   max-width: 90%;
   padding: 8px 12px;
   border: 1px solid var(--bubble-us-line);
   border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xs) var(--radius-xl);
   background: var(--bubble-us-bg);
 }
-.ask-card-note {
+.ask-job-note {
   font-size: var(--text-xs);
   color: var(--warn);
 }
-.ask-card-foot {
+.ask-job-foot {
   margin: 0;
   font-size: var(--text-sm);
   line-height: 1.45;
@@ -1008,16 +960,16 @@ body.ask-open .tb-ask .tb-ask-face {
   /* A row may hold an email whole (a cold email's card): its paragraphs stay paragraphs. */
   white-space: pre-line;
 }
-.ask-card-actions {
+.ask-job-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
-.ask-card-not-now {
+.ask-job-not-now {
   margin-left: auto;
 }
-.ask-card-receipt {
+.ask-job-receipt {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1041,15 +993,15 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-landing[data-state="failed"] {
   color: var(--warn-ink);
 }
-.ask-card-said {
+.ask-job-said {
   flex: 1;
   min-width: 0;
 }
 /* A playbook's undo asks first: its question takes a line of its own under what happened. */
-.ask-card-receipt > .confirm {
+.ask-job-receipt > .ask-job-undo-q {
   flex: 1 1 100%;
 }
-.ask-card-receipt .ok {
+.ask-job-receipt .ok {
   color: var(--ok-ink);
 }
 /* Done draws its check once, as a press in this tab lands (`data-foot`, card.tsx): the glyph is 13.8 long. A card drawn
@@ -1065,13 +1017,13 @@ body.ask-open .tb-ask .tb-ask-face {
     stroke-dashoffset: 14;
   }
 }
-.ask-card-undo {
+.ask-job-undo {
   margin-left: auto;
 }
 /* The take-back clock (AskRing): a hairline ring emptying over a send's own window, from where the window stands and for
    what is left of it (surfaces/ask/turn.tsx sets both). Under reduced motion it holds still as long (the block at the end), so
    its end still takes the Undo. */
-.ask-card-ring {
+.ask-job-ring {
   flex: none;
   color: var(--ink-muted);
 }
@@ -1201,8 +1153,10 @@ body.ask-open .tb-ask .tb-ask-face {
 }
 .ask-ring-arc {
   stroke-dasharray: 40.84;
+  stroke-dashoffset: var(--ring-from, 0);
   stroke-linecap: round;
   animation: ask-ring linear forwards;
+  animation-duration: var(--ring-ms, 0s);
 }
 @keyframes ask-ring {
   to {
@@ -1338,7 +1292,7 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-read.now {
   color: var(--accent-ink);
 }
-.ask-read-tile {
+.ask-read-dot {
   flex: none;
   width: 6px;
   height: 6px;
@@ -1382,7 +1336,7 @@ body.ask-open .tb-ask .tb-ask-face {
   width: 100%;
 }
 /* Centred, the chips would take their own width and a long one would run past both edges: they keep to the section's. */
-.ask-rows-sec > .ask-chips {
+.ask-rows-sec > .ask-picks {
   max-width: 100%;
 }
 .ask-rows-sec > .ask-row {
@@ -1409,7 +1363,7 @@ body.ask-open .tb-ask .tb-ask-face {
   max-width: 32ch;
 }
 /* Stacked and centred, the wrapped pills centre too and never run past the 375px the row has. */
-.ask-now-pills {
+.ask-now-picks {
   justify-content: center;
   max-width: 100%;
 }
@@ -1427,7 +1381,7 @@ body.ask-open .tb-ask .tb-ask-face {
   flex: 0 1 auto;
   max-width: 34ch;
 }
-.ask-chips {
+.ask-picks {
   justify-content: center;
 }
 .ask-rows-note {
@@ -1438,7 +1392,7 @@ body.ask-open .tb-ask .tb-ask-face {
    edges, centred while it fits and from its start once it does not (`safe`), and fades at its right edge; like the next
    questions' row it holds each chip's wider press in its own room and gives it back to what is around it. */
 @media (max-width: 720px) {
-  .ask-rows-sec > .ask-chips {
+  .ask-rows-sec > .ask-picks {
     flex-wrap: nowrap;
     justify-content: flex-start;
     justify-content: safe center;
@@ -1451,14 +1405,14 @@ body.ask-open .tb-ask .tb-ask-face {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
-  .ask-rows-sec > .ask-chips::-webkit-scrollbar {
+  .ask-rows-sec > .ask-picks::-webkit-scrollbar {
     display: none;
   }
-  .ask-rows-sec > .ask-chips > .line-chip {
+  .ask-rows-sec > .ask-picks > * {
     flex: none;
     max-width: none;
   }
-  .ask-rows-sec > .ask-chips > .line-chip > span:first-child {
+  .ask-rows-sec > .ask-picks > * > span:first-child {
     overflow: visible;
   }
 }
@@ -1975,7 +1929,7 @@ body.ask-open .tb-ask .tb-ask-face {
      The engine draws the mark 0.225 of a tile above the canvas's middle (character.ts CENTRE_Y) so that the ink and the
      shadow it casts balance; at this size the shadow is a hair, and the ink is what reads as centred, so the canvas
      sits that much lower in the disc. */
-  .phone-ask .phone-ask-face {
+  .phone-ask .phone-ask-lead {
     display: block;
     width: 45px;
     height: 38px;
@@ -2100,7 +2054,7 @@ body.ask-open .tb-ask .tb-ask-face {
      much and is as tall as what is left (--vv-top), eased. What stands on the room is the page's own slide
      (surfaces/ask/hooks.ts slide). With the keys up the home bar is under them, so no room is kept for it. It fades in over
      the kit's wash and leaves as a dialog does (components.css), never dropping as a sheet. */
-  .ask-modal.ask-line {
+  .ask-pane.ask-line {
     --ask-keys: var(--kb, 0px);
     position: fixed;
     inset: 0;
@@ -2120,10 +2074,10 @@ body.ask-open .tb-ask .tb-ask-face {
       padding-bottom 250ms var(--ease-out),
       translate 250ms var(--ease-out);
   }
-  html.kb-up .ask-modal.ask-line {
+  html.kb-up .ask-pane.ask-line {
     padding-bottom: var(--ask-keys);
   }
-  html.kb-expected .ask-modal.ask-line {
+  html.kb-expected .ask-pane.ask-line {
     --ask-keys: var(--kb-last, 0px);
     padding-bottom: var(--ask-keys);
     transition: translate 250ms var(--ease-out);
@@ -2136,10 +2090,6 @@ body.ask-open .tb-ask .tb-ask-face {
   /* While it listens the band stays drawn under the pill, hidden: the button in it holds the finger until the lift. */
   .ask-line .ask-stage.listening {
     display: none;
-  }
-  .ask-line-input {
-    font-size: var(--field-text-touch);
-    min-height: 44px;
   }
   .ask-send,
   .ask-attach {
@@ -2167,33 +2117,19 @@ body.ask-open .tb-ask .tb-ask-face {
   }
   /* A card a thumb can act on (D16): the words and the line a size up, and its acts the house's on a phone: 44px
      capsules worded at the base step, as every sheet's foot and question are (19 Oct 2026: 8px corners and 14px words). */
-  .ask-card-title,
-  .ask-card-summary {
+  .ask-job-title,
+  .ask-job-summary {
     font-size: var(--text-md);
   }
   .ask-spec-rows {
     gap: 4px;
   }
-  .ask-card-actions .btn {
-    height: var(--control-h-touch);
-    padding: 0 16px;
-    font-size: var(--text-base);
-    border-radius: var(--control-radius);
-  }
-  .ask-card-actions .ask-card-not-now {
-    padding: 0 10px;
-  }
-  .ask-card-receipt {
+  .ask-job-receipt {
     min-height: 44px;
     font-size: var(--text-base);
   }
   .ask-quiet .ask-landing {
     padding: 6px 6px 6px 12px;
-  }
-  .ask-card-receipt .btn {
-    height: 32px;
-    padding: 0 10px;
-    font-size: var(--text-aside);
   }
 }
 
@@ -2245,7 +2181,7 @@ body.ask-open .tb-ask .tb-ask-face {
   .ask-reading-dot,
   .ask-part.show,
   .ask-part.do,
-  .ask-modal.ask-line,
+  .ask-pane.ask-line,
   .ask-listen,
   .ask-latest,
   .ask-read,
@@ -2258,7 +2194,7 @@ body.ask-open .tb-ask .tb-ask-face {
     animation-name: ask-ring-still;
   }
   .ask-hero-stage,
-  .ask-modal.ask-line,
+  .ask-pane.ask-line,
   .ask-rows-fold,
   .ask-line-body.thread > *,
   .ask-fold-chev {
@@ -2536,7 +2472,7 @@ body.ask-open .tb-ask .tb-ask-face {
     animation: none;
   }
   /* The window keeps the bar's room at its foot, and the keys' under that once they are up (below). Weighed as the
-     keyboard's own rules for the window are (html.kb-up .ask-modal.ask-line), so as the keys leave the room is the bar's. */
+     keyboard's own rules for the window are (html.kb-up .ask-pane.ask-line), so as the keys leave the room is the bar's. */
   html .ask-overlay[data-docked] > .ask-line {
     height: calc(100dvh - var(--vv-top, 0px) - var(--foot-clear, 0px));
     /* The bar is its field's room and 12px round it (--ask-room, which the Line keeps: line.tsx), and 8px over it. */

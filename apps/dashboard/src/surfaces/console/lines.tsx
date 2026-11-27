@@ -197,7 +197,7 @@ export function SetupAndLines({
   const lines = (setup.lines && setup.lines.rows) || [];
   return (
     <>
-      <section className="rec-card set-card" data-testid="platform-detail">
+      <section className="rec-card set-block" data-testid="platform-detail">
         <div className="rec-card-head">
           <h2 className="rec-card-title">What their Setup says</h2>
           <span className="rec-card-sub">
@@ -224,7 +224,7 @@ export function SetupAndLines({
           ))}
         </div>
       </section>
-      <section className="rec-card set-card" data-testid="platform-lines">
+      <section className="rec-card set-block" data-testid="platform-lines">
         <div className="rec-card-head">
           <h2 className="rec-card-title">Their lines</h2>
           <span className="rec-card-sub">Where each one stopped, and what can be done. Each asks why first.</span>

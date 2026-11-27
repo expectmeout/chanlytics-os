@@ -53,7 +53,7 @@ const MARISA_INPUTS = {
 };
 
 const canCard = (tree) => byTestId(tree, "rec-card-can");
-const chipsOf = (row) => all(row, (n) => classes(n).includes("rec-can-chip"));
+const chipsOf = (row) => all(row, (n) => classes(n).includes("bt-can-state"));
 /** The sentence a row keeps out of the way: drawn, for a screen reader and for a mouse's tip, and not read at rest. */
 const saidAtRest = (row) => find(row, (n) => classes(n).includes("bt-can-why"));
 

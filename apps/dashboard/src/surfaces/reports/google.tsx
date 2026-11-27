@@ -178,7 +178,7 @@ function ReviewReply({
               {drafted}
             </span>
           )}
-          <div className="bc-chips">
+          <div className="bc-picks">
             <Button
               variant="primary"
               size="sm"

@@ -123,9 +123,9 @@ test("a plan draws as one card where its first card stood, whatever order the mo
   try {
     const [s1, s2, s3] = BY_EMAIL;
     const tree = render(AskAnswer, planProps([reply, s3, close, s1, s2]));
-    assert.deepEqual(byClass(tree, "ask-card-title").map(textOf), [reply.title, HEAD.title, close.title]);
+    assert.deepEqual(byClass(tree, "ask-job-title").map(textOf), [reply.title, HEAD.title, close.title]);
     const plan = byTestId(tree, "ask-plan");
-    assert.equal(textOf(byClass(plan, "ask-card-sub")[0]), HEAD.sub);
+    assert.equal(textOf(byClass(plan, "ask-job-sub")[0]), HEAD.sub);
     assert.equal(textOf(byTestId(plan, "ask-plan-says")), HEAD.says[0].words);
     const group = byTestId(tree, "ask-plan-approve");
     assert.equal(textOf(group), "Start the offer");
@@ -745,14 +745,14 @@ test("a campaign's card draws its sheet (the answer canvas, C1): what holds it f
     "a row a fact: its label, then its words",
   );
   assert.equal(
-    byClass(tree, "ask-card-summary").some((n) => textOf(n) === p.summary),
+    byClass(tree, "ask-job-summary").some((n) => textOf(n) === p.summary),
     false,
     "the summary is not drawn beside its sheet",
   );
   const bare = render(AskCard, { p: { ...p, sheet: undefined }, t: askText("en"), onNav() {} });
   assert.ok(!byTestId(bare, "ask-card-sheet"), "no sheet drawn");
   assert.ok(
-    byClass(bare, "ask-card-summary").some((n) => textOf(n) === p.summary),
+    byClass(bare, "ask-job-summary").some((n) => textOf(n) === p.summary),
     "no sheet: the summary",
   );
 });
@@ -773,7 +773,7 @@ test("a card of the one thing to fix before a campaign reaches anyone (the 30 Oc
   for (const lang of ["en", "es"]) {
     const went = [];
     const tree = render(AskCard, { p, t: askText(lang), onNav: (to) => went.push(to) });
-    assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), p.line, "its one line");
+    assert.equal(textOf(byClass(tree, "ask-job-summary")[0]), p.line, "its one line");
     assert.equal(byTestId(tree, "ask-card-approve"), null, "REGRESSION: Approve on a card with nothing to approve");
     const door = byTestId(tree, "ask-card-door");
     assert.equal(textOf(door), "Open Connections");
@@ -856,9 +856,9 @@ test("a send's card names no kind and wears no mark: its title says what it is (
   const { AskCard } = AskAnswerKit;
   for (const kind of ["broadcast", "playbook"]) {
     const p = { id: "p1", kind, title: "T", summary: "S", payload: {}, undo: null };
-    const head = byClass(render(AskCard, { p, t: askText("en"), onNav() {} }), "ask-card-head")[0];
+    const head = byClass(render(AskCard, { p, t: askText("en"), onNav() {} }), "ask-job-head")[0];
     assert.equal(textOf(head), "T", kind);
-    assert.equal(byClass(head, "ask-card-kind").length, 0, kind);
+    assert.equal(byClass(head, "ask-job-kind").length, 0, kind);
     assert.equal(find(head, isIcon), null, kind);
   }
 });

@@ -84,7 +84,7 @@ export function AskPostCard({
           {says.gone}
         </p>
       ) : draft.undrawn && !src ? (
-        <p className="ask-card-note" data-testid="ask-post-failed">
+        <p className="ask-job-note" data-testid="ask-post-failed">
           {says.notDrawn}
         </p>
       ) : (
@@ -97,7 +97,7 @@ export function AskPostCard({
           onUnseen={() => setUnseen(true)}
         />
       )}
-      <p className="ask-card-summary">{p.summary}</p>
+      <p className="ask-job-summary">{p.summary}</p>
       {!kept && canDo("settings") ? (
         <div className="post-row">
           <Button
@@ -113,7 +113,7 @@ export function AskPostCard({
       ) : null}
       {open ? <PostEdit draft={draft} says={says} looks={false} fold /> : null}
       {!kept && (draft.refused || !draft.plan.line.trim()) ? (
-        <p className="ask-card-note" role="alert" data-testid="post-refused">
+        <p className="ask-job-note" role="alert" data-testid="post-refused">
           {draft.refused ?? says.needsLine}
         </p>
       ) : null}
