@@ -11520,16 +11520,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      conversation_draft_keep: {
-        Args: {
-          p_conversation_id: string
-          p_for_message_id?: string
-          p_kind: string
-          p_tenant_id: string
-          p_words: Json
-        }
-        Returns: Json
-      }
       conversation_draft_write: {
         Args: {
           p_conversation_id: string

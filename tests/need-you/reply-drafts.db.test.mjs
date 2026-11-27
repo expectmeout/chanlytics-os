@@ -1,7 +1,8 @@
 /**
- * Ask's drafts written ahead (decision 0071, 00475) -- on a real database. What only Postgres can answer: the door keeps
- * one draft a thread and kind, the newest over the last; it is a member who acts that keeps one (a viewer sends nothing,
- * so nothing is drafted for one), on a thread of their own workspace, answering a message of that thread; and the drafts
+ * Ask's drafts written ahead (decision 0071, 00475, 00538) -- on a real database. What only Postgres can answer: the
+ * door keeps one draft a thread and kind, the newest words over the last, and only over a row for the same message (a
+ * slow run answers null rather than write over a newer message's claim); it is the service role's, as AI writes them,
+ * and the member's door it replaced is gone (00723); it writes only on a thread of the workspace it names; and the drafts
  * are read under RLS by the workspace's members alone, never written straight into the table.
  *
  * Skipped without a local database.
@@ -93,13 +94,17 @@ async function message(w, body) {
 }
 
 const words = (text) => ({ text, subject: "", brief: null, asks: [] });
-const keep = (client, args) =>
-  client.rpc("conversation_draft_keep", {
+/** A draft written as AI writes one: through conversation_draft_write, the service role's (00538). */
+const write = (client, args) =>
+  client.rpc("conversation_draft_write", {
     p_tenant_id: A,
     p_conversation_id: thread,
     p_kind: "reply",
-    p_words: words("Friday works."),
     p_for_message_id: said,
+    p_state: "ready",
+    p_words: words("Friday works."),
+    p_source: "hold",
+    p_rules: 1,
     ...args,
   });
 
@@ -125,57 +130,68 @@ after(async () => {
   for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
-test("a member who acts keeps one draft a thread and kind: the newest over the last", { skip }, async () => {
-  const first = await keep(operator, {});
-  assert.equal(first.error, null, first.error?.message);
-  assert.equal(first.data.for_message_id, said);
-  assert.deepEqual(first.data.words, words("Friday works."));
-  const again = await keep(operator, { p_words: words("Saturday works too."), p_for_message_id: said2 });
-  assert.equal(again.error, null, again.error?.message);
-  const rows = await operator.from("conversation_drafts").select("kind, for_message_id, words").eq("tenant_id", A);
-  assert.equal(rows.error, null, rows.error?.message);
-  assert.deepEqual(rows.data, [{ kind: "reply", for_message_id: said2, words: words("Saturday works too.") }]);
-  const brief = await keep(operator, {
-    p_kind: "brief",
-    p_words: { text: "", subject: "", brief: { opening: "Hi", points: [], avoid: [], ask: "" }, asks: [] },
-  });
-  assert.equal(brief.error, null, brief.error?.message);
-  const kinds = await operator.from("conversation_drafts").select("kind").eq("tenant_id", A).order("kind");
-  assert.deepEqual(
-    kinds.data.map((r) => r.kind),
-    ["brief", "reply"],
-    "a reply and a brief side by side",
-  );
-});
-
-test("a viewer keeps no draft, and nobody keeps one on another workspace's thread", { skip }, async () => {
-  const v = await keep(viewer, { p_words: words("A viewer's words.") });
-  assert.equal(v.error, null, v.error?.message);
-  assert.deepEqual(v.data, { error: "not_acting" });
-  const s = await keep(stranger, { p_words: words("Another workspace's words.") });
-  assert.deepEqual(s.data, { error: "not_acting" }, "B's owner is no member of A");
-  const across = await keep(operator, { p_conversation_id: other, p_for_message_id: null });
-  assert.deepEqual(across.data, { error: "not_found" }, "B's thread is not A's");
-  const left = await db.from("conversation_drafts").select("words").eq("tenant_id", A).eq("kind", "reply").single();
-  assert.notEqual(left.data.words.text, "A viewer's words.");
-});
-
 test(
-  "a draft answers a message of its own thread, is a reply or a brief, and is one draft's size",
+  "the door keeps one draft a thread and kind: the newest words over the last, for the same message",
   { skip },
   async () => {
-    const b = await db.from("contacts").select("id").eq("tenant_id", B).single();
-    const theirs = await message({ tenant: B, conversation: other, contact: b.data.id }, "Someone else's words");
-    const wrongMessage = await keep(operator, { p_for_message_id: theirs });
-    assert.equal(wrongMessage.error?.code, "22023", "another thread's message is not one this draft answers");
-    const wrongKind = await keep(operator, { p_kind: "email" });
-    assert.equal(wrongKind.error?.code, "22023");
-    const huge = await keep(operator, { p_words: words("x".repeat(20_000)) });
-    assert.equal(huge.error?.code, "22023", "a draft's words, not a document");
-    const notObject = await keep(operator, { p_words: ["Friday works."] });
-    assert.equal(notObject.error?.code, "22023");
+    const first = await write(db, {});
+    assert.equal(first.error, null, first.error?.message);
+    assert.equal(first.data.for_message_id, said);
+    assert.deepEqual(first.data.words, words("Friday works."));
+    const again = await write(db, { p_words: words("Friday at ten works.") });
+    assert.equal(again.error, null, again.error?.message);
+    // A slow run for another message finds the row the newer claim holds, and answers null rather than write over it.
+    const slow = await write(db, { p_words: words("Saturday works too."), p_for_message_id: said2 });
+    assert.equal(slow.error, null, slow.error?.message);
+    assert.equal(slow.data, null);
+    const rows = await operator.from("conversation_drafts").select("kind, for_message_id, words").eq("tenant_id", A);
+    assert.equal(rows.error, null, rows.error?.message);
+    assert.deepEqual(rows.data, [{ kind: "reply", for_message_id: said, words: words("Friday at ten works.") }]);
+    const brief = await write(db, {
+      p_kind: "brief",
+      p_words: { text: "", subject: "", brief: { opening: "Hi", points: [], avoid: [], ask: "" }, asks: [] },
+    });
+    assert.equal(brief.error, null, brief.error?.message);
+    const kinds = await operator.from("conversation_drafts").select("kind").eq("tenant_id", A).order("kind");
+    assert.deepEqual(
+      kinds.data.map((r) => r.kind),
+      ["brief", "reply"],
+      "a reply and a brief side by side",
+    );
   },
 );
+
+test(
+  "a member writes no draft: the door is the service role's, and the member's old door is gone",
+  { skip },
+  async () => {
+    const member = await write(operator, { p_words: words("A member's words.") });
+    assert.ok(member.error, "a member may not call conversation_draft_write");
+    const old = await operator.rpc("conversation_draft_keep", {
+      p_tenant_id: A,
+      p_conversation_id: thread,
+      p_kind: "reply",
+      p_words: words("The old door's words."),
+      p_for_message_id: said,
+    });
+    assert.ok(old.error, "conversation_draft_keep is dropped (00723)");
+    const left = await db.from("conversation_drafts").select("words").eq("tenant_id", A).eq("kind", "reply").single();
+    assert.equal(left.error, null, left.error?.message);
+    assert.equal(left.data.words.text, "Friday at ten works.");
+  },
+);
+
+test("a draft is written on a thread of the workspace it names, and is one draft's size", { skip }, async () => {
+  const across = await write(db, { p_conversation_id: other, p_for_message_id: null });
+  assert.equal(across.error, null, across.error?.message);
+  assert.equal(across.data, null, "B's thread is not A's: nothing is written");
+  const theirs = await db.from("conversation_drafts").select("id").eq("conversation_id", other);
+  assert.deepEqual(theirs.data, []);
+  const huge = await write(db, { p_words: words("x".repeat(20_000)) });
+  assert.equal(huge.error?.code, "22023", "a draft's words, not a document");
+  const notObject = await write(db, { p_words: ["Friday works."] });
+  assert.equal(notObject.error?.code, "22023");
+});
 
 test("the drafts are read by the workspace's members alone, and written only through the door", { skip }, async () => {
   const seen = await viewer.from("conversation_drafts").select("kind").eq("tenant_id", A);

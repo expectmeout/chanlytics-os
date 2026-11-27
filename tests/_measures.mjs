@@ -352,22 +352,24 @@ const ONE_STATEMENT = String.raw`(?:(?!\n\n)[\s\S])*?`;
 /** Why a door that writes rows keeps no fact: each kind of row that is the machine's, not a record's news. */
 const NO_FACT = {
   lease:
-    "A lease, a claim or a hand-out of work: the queue's own bookkeeping of who holds what until when. The door that does the work writes its fact when it lands.",
+    "A lease, a claim or a hand-out of work: the queue's own bookkeeping of who holds what until when, a reply queued with its send's job, an inbound message marked processed. The door that does the work writes its fact when it lands (message.sent at the send door).",
   meter:
-    "A meter: what an allowance spent, a link or a form was opened, an import counted, by day. A number Reports reads, not a fact a reaction follows.",
+    "A meter: what an allowance spent, a link or a form was opened, an import counted, by day, what a message cost at its provider. A number Reports reads, not a fact a reaction follows.",
   ownMark:
     "A member's own mark or device: what they have seen or read, how their lists sort, where their phone is told. Theirs alone, not news of the workspace's records.",
   providerId:
-    "The id a provider knows a caller by (whom Anthropic is told a call is for, decision 0097), made once: bookkeeping with the provider, which no reaction follows.",
+    "The id a provider knows a caller or a message by, made once: whom Anthropic is told a call is for (decision 0097), and an email's ids once it left (its Message-ID, its thread, the mailbox it went from, whether it left as the mailbox's own), stamped on a message whose message.sent the send door wrote. Bookkeeping with the provider, which no reaction follows.",
   aiWorking:
-    "AI's working copy, or its reading of the world: a draft while it is written, a turn kept for the evals (invariant 11), what it saw or heard in a file, the numbers a platform gave. The act that takes it up writes the fact.",
+    "AI's working copy, or its reading of the world: a draft while it is written, a turn kept for the evals (invariant 11), what it saw or heard in a file, the numbers a platform gave, how it handled a message that came in. The act that takes it up writes the fact.",
   platform:
-    "The platform's own, with no workspace to write an event in: the Console's staff, and its pause of a job kind.",
+    "The platform's own, with no workspace to write an event in: the Console's staff, its pause of a job kind, and the erasure key's re-keying of every workspace's tombstones, run by hand.",
+  partner:
+    "A partner's own account, kept apart from every workspace: each row of the ledger names a workspace (events.tenant_id), and a partner has none. Its own row says it: a code taken, its letters on or off, how far its letter is written.",
   projection: "A projection filled again from records that wrote their own events: a person's moments.",
   harness:
     "A sequence's own list, made inside sequence_create_leads, whose event says it; an e2e harness calls it alone to draw a state.",
   decided:
-    "Its fact is the decision it writes in the same transaction, the Activity log's line of it (a broadcast sent now); the steps' words_ok_at beside it is the plan's memory, read by contracts batchModeOf.",
+    "Its fact is the decision it writes in the same transaction (team_decision), the Activity log's line of it: a visit marked, a handover the owner settled from the Business app, a broadcast sent now (its steps' words_ok_at beside it is the plan's memory, read by contracts batchModeOf).",
 };
 
 /**
@@ -389,7 +391,9 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "lead_run_reconcile",
       "lead_run_record_start",
       "lead_run_release",
+      "mark_processed",
       "note_candidates",
+      "queue_send",
       "reach_out_recheck",
       "reach_out_release_unavailable",
       "reach_out_reply_tell_claim",
@@ -408,6 +412,7 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "import_ledger_note",
       "lead_site_reads_spent",
       "link_open",
+      "message_keep_cost",
       "reach_out_check_take",
       "reach_out_read_take",
       "source_take_spend",
@@ -426,7 +431,7 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "push_devices_forget_all",
       "words_seen",
     ],
-    providerId: ["anthropic_profile_claim"],
+    providerId: ["anthropic_profile_claim", "stamp_email_from_mailbox", "stamp_email_left_as", "stamp_email_sent"],
     aiWorking: [
       "ad_draft_writing",
       "ad_draft_written",
@@ -435,16 +440,18 @@ export const NO_FACT_DOORS = Object.fromEntries(
       "file_look_keep",
       "file_moments_keep",
       "file_sound_keep",
+      "message_stamp_handled",
       "model_turn_keep",
       "piece_version_kept",
       "post_observations_keep",
       "reach_out_reply_draft",
       "touches_keep",
     ],
-    platform: ["job_kind_pause", "job_kind_resume", "platform_admin_add"],
+    platform: ["erasure_rekey", "job_kind_pause", "job_kind_resume", "platform_admin_add"],
+    partner: ["partner_become", "partner_letter_written", "partner_letters_set"],
     projection: ["person_moments_fill"],
     harness: ["reach_out_list_for"],
-    decided: ["assemble_broadcast"],
+    decided: ["assemble_broadcast", "conversation_echo_settles", "mark_visit"],
   }).flatMap(([why, doors]) => doors.map((d) => [`${d}()`, NO_FACT[why]])),
 );
 
