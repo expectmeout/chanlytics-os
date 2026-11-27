@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { all, byTestId, find, press, textOf } from "../../_stub-react.mjs";
+import { all, byTestId, find, installRoleStore, press, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import * as contracts from "@chanlytics/contracts";
 import {
@@ -44,7 +44,7 @@ import {
   world,
   worldFetch,
 } from "./_person-page.mjs";
-import { bridgeHolds, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, whoIsLooking } from "../../shell/_bridge-holds.mjs";
 
 test("a person's notes are a log (0007): AI's suggestion first, then newest first, each signed and dated, who it is for and whether AI reads it", () => {
   const vm = toPersonVM(withNotes(), ZONE, new Date(NOW));
@@ -149,13 +149,14 @@ test("who may do what to a note: its author changes it, an owner or its author d
     // REGRESSION: an owner previewing a viewer (View-as) is shown what a viewer is. The page read the signed-in role,
     // blind to the preview, and offered the owner's controls to the viewer they were previewing.
     bridgeHolds({ who: { me: { role: "owner" } } });
-    globalThis.window.ST_STORE.viewAsRole = "viewer";
+    // View-as is the role store's (bridge/identity.ts, the bridge's `roles`), made here as the boot makes it.
+    installRoleStore().viewAsRole = "viewer";
     draw = await notesTab(vm);
     const previewed = draw();
     assert.equal(byTestId(previewed, "person-notes-input"), null, "an owner previewing a viewer writes nothing");
     assert.deepEqual(actsOf(previewed), [[], [], []], "and deletes nothing");
   } finally {
-    globalThis.window.ST_STORE.viewAsRole = null;
+    if (provided("roles")) provided("roles").viewAsRole = null;
     bridgeHolds({ who: { me: me } });
   }
 });
@@ -166,9 +167,9 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
   const flashes = [];
   // The step sheet is asked for by the event it hears (step-sheet.tsx openStepSheet): what the window was told.
   const asked = () => dispatched.filter((e) => e.type === "step:sheet").map((e) => e.detail);
-  const keep = { toast: globalThis.window.usePPToast };
+  const keep = { toast: provided("toast") };
   recordingNotes(sent);
-  globalThis.window.usePPToast = () => [null, (t) => flashes.push(t)];
+  bridgeHolds({ parts: { toast: () => [null, (t) => flashes.push(t)] } });
   const W = contracts.NOTE_WORDS;
   try {
     const draw = await notesTab(vm);
@@ -286,7 +287,7 @@ test("a note may have a day (0007, amended): a day makes it a step and holds Tea
       { body: "Allergic to ammonia.", for_user_id: null, team_only: false, note_id: "n-plain", version: 1 },
     ]);
   } finally {
-    globalThis.window.usePPToast = keep.toast;
+    bridgeHolds({ parts: { toast: keep.toast } });
   }
 });
 
@@ -296,10 +297,10 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
   // What the window was told of a step: a done says nothing of its own when it lands (the write's refresh reads People behind it, and
   // the page follows People), and says People moved where the door refused it, as nothing is read for a write that was not made.
   const heard = (from) => dispatched.slice(from).filter((e) => e.type === "note:saved" || e.type === "surface:clients");
-  const keep = { sheet: globalThis.window.openStepSheet, me: whoIsLooking().me };
+  const keep = { sheet: provided("sheets")?.openStep, me: whoIsLooking().me };
   recordingNotes(sent);
   // The card asks the shell's step sheet, which the frame draws once: here, a stand-in that says it was asked.
-  globalThis.window.openStepSheet = (ask) => (asked.push(ask), true);
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openStep: (ask) => (asked.push(ask), true) } } });
   const S = contracts.NOTE_WORDS;
   try {
     const notes = [
@@ -379,7 +380,7 @@ test("a deal's card says its next step (0007, amended): Next, what, when, for wh
     tree = await openedRow(withDeals([dealRow()], { person_notes: [], note_team: NOTE_TEAM }), "overview");
     assert.equal(byTestId(tree, "person-deal-set-nextstep"), null);
   } finally {
-    globalThis.window.openStepSheet = keep.sheet;
+    bridgeHolds({ parts: { sheets: { ...provided("sheets"), openStep: keep.sheet } } });
     bridgeHolds({ who: { me: keep.me } });
     globalThis.window.fetch = keep.fetch;
   }

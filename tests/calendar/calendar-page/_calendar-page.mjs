@@ -40,7 +40,7 @@ import { shiftKey, stateOf, toCalendarVM } from "@chanlytics/contracts";
 import { createRequire } from "node:module";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { kitHooks, kitPages } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 export const TZ = "America/New_York";
 
@@ -123,8 +123,6 @@ export let honourDeps = false;
 export const went = [];
 
 export const listeners = {};
-
-globalThis.Icon = "Icon";
 
 globalThis.React = {
   Fragment: "Fragment",
@@ -220,7 +218,7 @@ for (const hook of [
 ])
   reactModule[hook] = globalThis.React[hook];
 
-globalThis.ReactDOM = { createPortal: (node) => node };
+drawsInPlace();
 
 globalThis.document = {
   body: {},
@@ -233,8 +231,6 @@ globalThis.document = {
 
 bridgeHolds({ parts: { surfaceState: () => "live" } }, { fresh: true });
 globalThis.window = {
-  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}`, thread: (id) => `inbox/${id}` } },
-  appNavigate: (to) => went.push(to),
   addEventListener: (type, fn) => {
     (listeners[type] ||= []).push(fn);
   },
@@ -245,34 +241,10 @@ globalThis.window = {
   setTimeout: () => 1,
   clearTimeout() {},
 };
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-
-// The bridge's hook: these tests draw once, and the redraw is proved in shell/surfaces.
-globalThis.useSurface = () => 0;
-
-// A stub React attaches no ref, so the dialog's element does not exist here: the one focus helper (frame-globals trapFocus,
-// proved on a document of its own in shell/focus-trap.test.mjs) is handed a stand-in for it, and every ask is kept.
-export const trapped = [];
-
-export const realTrapFocus = globalThis.window.trapFocus;
-
-export const dialogBox = {
-  addEventListener() {},
-  removeEventListener() {},
-  contains: (n) => !!n,
-  getAttribute: () => "-1",
-  setAttribute() {},
-  focus() {
-    globalThis.document.activeElement = dialogBox;
-  },
-};
-
-globalThis.window.trapFocus = (box) => {
-  trapped.push(box);
-  return realTrapFocus(box ?? dialogBox);
-};
-
+holdFrameParts();
+// The kit's parts on the stub's window, where these tests draw them by name (the pages import them).
 Object.assign(globalThis.window, kitPages);
 
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"])
@@ -281,7 +253,7 @@ for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill
 // One appointment on a list, the row Today's day and the agenda both wear (the kit's, which kitPages publishes).
 for (const k of ["AgendaItem", "AgendaItems", "AgendaOpen"]) globalThis[k] = globalThis.window[k];
 
-globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
+bridgeHolds({ parts: { toast: () => [null, (t) => toasts.push(t)] } });
 
 // A pill's tone and words are contracts', as the shell's chrome bridge publishes them.
 bridgeHolds({ parts: { chrome: { state: stateOf } } });
@@ -443,7 +415,6 @@ export const fresh = (week = dto(), answers = []) => {
   // The page before goes, as React lets go of it: its effects' cleanups run, its minute's timer with them, which kept
   // the file from ever ending.
   leave();
-  trapped.length = 0;
   addr = {};
   followed = went.length;
   cells = [];
@@ -622,7 +593,7 @@ export const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
   sheets = [];
   bridgeHolds({ who: { workspaces: [{ id: "t-salon", appointment_word: "meeting" }] } });
   bridgeHolds({ who: { activeWorkspaceId: "t-salon" } });
-  globalThis.window.openDealSheet = (args) => sheets.push(args);
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: (args) => sheets.push(args) } } });
   let tree = drawnAt(nowMs, () => page());
   byTestId(tree, "cal-block").props.onClick();
   tree = drawnAt(nowMs, () => page());
@@ -633,7 +604,6 @@ export const peek = ({ week = consultWeek(), nowMs = END + HOUR } = {}) => {
 export const forgetPeek = () => {
   bridgeHolds({ who: { workspaces: undefined } });
   bridgeHolds({ who: { activeWorkspaceId: undefined } });
-  delete globalThis.window.openDealSheet;
 };
 
 export const startAct = (tree) => byTestId(tree, "cal-visit-primary-proposal");

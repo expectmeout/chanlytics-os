@@ -34,7 +34,8 @@ import { bridgeHolds, provided } from "../_bridge-holds.mjs";
 
 const opened = [];
 bridgeHolds({ parts: { surfaceState: () => "live" } });
-installStubReact({ CHANLY: { nav: (to) => opened.push(to) } });
+installStubReact({});
+bridgeHolds({ doors: { navigate: (to) => opened.push(to) } });
 const S = "../../../apps/dashboard/src";
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 const { businessTrailFor } = await import(`${S}/surfaces/people/business-trail.ts`);

@@ -17,7 +17,7 @@
  * stub the shell's pages call, and one tree holds both. Its elements come from the global React its JSX compiles to.
  *
  * The kit's components the shell's pages still draw by name (FailedRead, SegmentBar, StatePill, Confirm, MoreMenu and
- * PolicyChip: surfaces/kit/kit-globals.ts, which the app publishes from seed-globals), and the
+ * PolicyChip: the kit's own, which every page imports), and the
  * parts the tests alone reach by name (`kitParts` below: the record kit, EmptyState, FieldError, TlMedia, AttnRow ...) are
  * the kit's own here too. `Icon` stays the host element every test reads by its name and its props: a page's icon is a
  * leaf here, as it was, and the kit's own components draw the real one.
@@ -28,14 +28,14 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hookFrames } from "./_hook-frames.mjs";
-import { KIT_GLOBALS } from "../apps/dashboard/src/surfaces/kit/kit-globals.ts";
-import { hearSurfaces, surfaceHook, surfaceMoved } from "../apps/dashboard/src/bridge/surface-status.ts";
+import { hearSurfaces, surfaceMoved } from "../apps/dashboard/src/bridge/surface-status.ts";
 import { installRoles } from "../apps/dashboard/src/bridge/identity.ts";
 
 const requireFromDashboard = createRequire(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../apps/dashboard/src/bridge/_.js"),
 );
 const reactModule = requireFromDashboard("react");
+const { provide, provided } = requireFromDashboard("./provided.ts");
 // A part that says a state on the document's root holds it in an insertion effect (kit/motion/root-flags.ts): whatever
 // stub a test sets, the effect runs where that stub runs a layout effect, read as it is called.
 reactModule.useInsertionEffect = (effect, deps) => reactModule.useLayoutEffect(effect, deps);
@@ -65,7 +65,32 @@ const { UnsavedAsk, tabDraft, useUnsavedWork } = requireFromDashboard("../surfac
 // components. The stub draws every row every time, as it always has; what the memo saves is proved by what the row is
 // handed (people-table.test.mjs).
 reactModule.memo = (component) => component;
-const { PEOPLE_GLOBALS } = await import("../apps/dashboard/src/surfaces/people/people-globals.ts");
+/**
+ * The kit's parts the frame once published by name (decision 0151 took the names down, and every page imports them), as
+ * the trees here name them: the tests that draw a page and the parts it draws by name hand these to their stub.
+ */
+const KIT_GLOBALS = {
+  FailedRead: requireFromDashboard("../surfaces/kit/empty/empty.tsx").FailedRead,
+  StatePill: requireFromDashboard("../surfaces/kit/pill/state-pill.tsx").StatePill,
+  Confirm: requireFromDashboard("../surfaces/kit/confirm/confirm.tsx").Confirm,
+  MoreMenu: requireFromDashboard("../surfaces/kit/more-menu/more-menu.tsx").MoreMenu,
+  PolicyChip: requireFromDashboard("../surfaces/kit/policy-chip/policy-chip.tsx").PolicyChip,
+  ViewTabs: requireFromDashboard("../surfaces/kit/view-tabs/view-tabs.tsx").ViewTabs,
+  viewPager: requireFromDashboard("../surfaces/kit/view-tabs/pager.ts").viewPager,
+  viewDeck: requireFromDashboard("../surfaces/kit/motion/view-deck.ts").viewDeck,
+  TabBar: requireFromDashboard("../surfaces/kit/tab-bar/tab-bar.tsx").TabBar,
+};
+/** People's parts as its courier hands them to the frame (people-detail.ts, provided as `sheets` and `peopleScopes`). */
+const peopleDoors = requireFromDashboard("../surfaces/people/sheets/doors.tsx");
+const peopleWords = requireFromDashboard("../surfaces/people/words.ts");
+const PEOPLE_GLOBALS = {
+  plScopes: peopleWords.plScopes,
+  plScopeRoute: peopleWords.plScopeRoute,
+  DealSheetHost: peopleDoors.DealSheetHost,
+  StepSheetHost: peopleDoors.StepSheetHost,
+  openDealSheet: peopleDoors.askDealSheet,
+  openStepSheet: peopleDoors.askStepSheet,
+};
 
 /**
  * The kit's parts the node tests reach by name and no shipped page reads off `window`: the app does not publish them (the
@@ -113,21 +138,21 @@ export const kitParts = {
 };
 
 /**
- * The kit's components the pages still draw by name, for a page test that builds its own window: what seed-globals
- * publishes in the app (surfaces/kit/kit-globals.ts), less `Icon`, which is the host element "Icon" in these trees, and
- * `kitParts` beside them. `Object.assign(globalThis.window, kitPages)` after the page's stub React is in place, and
+ * The kit's components a test draws by name, for a page test that builds its own window: what the app published until
+ * decision 0151 took the names down (every page imports them now), less `Icon`, which is the host element "Icon" in
+ * these trees, and `kitParts` beside them. `Object.assign(globalThis.window, kitPages)` after the page's stub React is in place, and
  * `useStubHooks()` when the test keeps a stub React of its own (the kit's components take their hooks from the react
  * module, which has none here).
  */
 export const kitPages = {
-  ...Object.fromEntries(Object.entries(KIT_GLOBALS).filter(([name]) => name !== "Icon")),
+  ...KIT_GLOBALS,
   ...kitParts,
 };
 
 /**
  * People's shared parts the pages that have not moved still draw or call by name (the table and its Columns menu, the rail
  * kit, the list page's two hooks, the phone's bar and sheets, the bulk bar, the row card and the words the scopes
- * share: surfaces/people/people-globals.ts, which the app publishes from seed-globals). `Object.assign(globalThis.window,
+ * share: what People's courier hands the frame, people-detail.ts). `Object.assign(globalThis.window,
  * peoplePages)` after the page's stub React is in place and `useStubHooks()` has been called, for a page test that
  * builds its own window: what the JSX files people.jsx, people-table.jsx and clients-bits.jsx published before they were
  * TSX. `React.memo` is the identity here (above).
@@ -280,7 +305,6 @@ export function installStubReact(extra = {}) {
       return true;
     },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-    Icon: "Icon",
     ...kitPages,
     ...extra,
   });
@@ -380,15 +404,13 @@ export function installStubReact(extra = {}) {
     },
   };
   useStubHooks(globalThis.React);
-  globalThis.ReactDOM = { createPortal: (node) => node };
-  // A TSX surface that draws into another node (a picker's list, on the body) imports `ReactDOM from "react-dom"` and calls
-  // `ReactDOM.createPortal` as it draws; under this runner's react-server condition that entry has no createPortal, so the
-  // stub gives it the one the pages' `window.ReactDOM` has: the node itself, drawn where it stands. Required here, not as
-  // this module loads: loading react-dom before a suite's own stub React is in place leaves People's rows undrawn.
-  requireFromDashboard("react-dom").createPortal = globalThis.ReactDOM.createPortal;
-  // The bridge's one hook (bridge/surface-status.ts), made over this React as FrameApp makes it over the
-  // app's: a page redraws when a surface it draws moves.
-  globalThis.useSurface = surfaceHook(globalThis.React);
+  // A TSX part that draws into another node (a picker's list, on the body) calls react-dom's `createPortal` as it draws,
+  // and one that draws a change at once its `flushSync`; under this runner's react-server condition that entry has
+  // neither, so the stub gives it the node itself, drawn where it stands, and the change, run. Required here, not as this
+  // module loads: loading react-dom before a suite's own stub React is in place leaves People's rows undrawn.
+  const reactDom = requireFromDashboard("react-dom");
+  reactDom.createPortal = (node) => node;
+  reactDom.flushSync = (change) => change();
   hearTheSurfaces();
 }
 
@@ -429,14 +451,15 @@ export function unmount() {
 export const redrawWanted = () => cells.wanted;
 /**
  * The role store as the app has it, for the page tests whose gates ask who is acting: settings.jsx makes the store and the
- * bridge completes it (bridge/identity.ts installRoles), so `mayAtLeast`, `myRole` and View-as read the window's
- * `__ME` and the store's own `viewAsRole` at each ask, as they do in the app. A test that changes `window.__ME.role`
- * between draws changes who is acting. `can` is only there where a test has none, and answers yes, as no store does.
+ * bridge completes it (bridge/identity.ts installRoles, provided as `roles`), so `mayAtLeast`, `myRole` and View-as read
+ * who is looking (bridge/who.ts) and the store's own `viewAsRole` at each ask, as they do in the app. A test that changes
+ * who is looking between draws changes who is acting. `can` is only there where a test has none, and answers yes, as no store does.
  */
-export function installRoleStore(win = globalThis.window) {
-  const store = (win.ST_STORE ??= { viewAsRole: null, can: () => true });
+export function installRoleStore() {
+  const store = provided("roles") ?? { viewAsRole: null, can: () => true };
   store.viewAsRole ??= null;
-  installRoles(win);
+  provide("roles", store);
+  installRoles();
   return store;
 }
 /** A surface's rows landed, or its status moved: what FrameApp's read and the seam's event count against its key. */

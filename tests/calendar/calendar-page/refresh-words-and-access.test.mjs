@@ -46,6 +46,7 @@ import {
   withNext,
 } from "./_calendar-page.mjs";
 import { bridgeHolds, provided, whoIsLooking } from "../../shell/_bridge-holds.mjs";
+const { askOnScreen, setAskOnScreen } = await import("../../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 /* ------------------- C2: refresh, loading, and a calendar that can't be read ------------------- */
 
@@ -1250,15 +1251,15 @@ test("the Calendar tells Ask what it draws (the Phase 2 plan, D3): the span on s
   });
   day.blocks = [block("p-rosa", "Rosa Díaz"), block("p-ana", "Ana Ruiz"), block("p-rosa", "Rosa Díaz")];
   ahead.blocks = [block("p-far", "Far Away")];
-  delete globalThis.window.__askOnScreen;
+  setAskOnScreen(null);
   page();
-  const s = globalThis.window.__askOnScreen;
+  const s = askOnScreen();
   assert.equal(s.key, "calendar");
   assert.match(s.view, /^\d{4}-\d{2}-\d{2}\/\d+$/, "the span drawn: its first day and how many");
   assert.deepEqual(s.ids, ["p-rosa", "p-ana"], "each person once, in the board's order, and only the days on screen");
   assert.deepEqual(s.labels, ["Rosa Díaz", "Ana Ruiz"]);
   leave();
-  assert.equal(globalThis.window.__askOnScreen, null, "the board gone, its people are no longer on screen");
+  assert.equal(askOnScreen(), null, "the board gone, its people are no longer on screen");
 });
 
 test("every testid the page is known by is drawn in its view, the date picker follows the anchor, and nothing on the page moves, cancels, syncs two ways or prices", () => {

@@ -16,7 +16,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IN_APP_CLASS, ROLE_PERMS, stateOf, billingAccountDto } from "@chanlytics/contracts";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
-import { bridgeHolds, provided } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../shell/_bridge-holds.mjs";
 
 /* ---------------------------------- the window ---------------------------------- */
 
@@ -78,8 +78,8 @@ globalThis.window = {
   clearInterval: (h) => {
     if (intervals[h - 1]) intervals[h - 1].live = false;
   },
-  ST_STORE: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now },
 };
+bridgeHolds({ parts: { roles: { can: (a) => !!(ROLE_PERMS[role.now] || {})[a], myRole: () => role.now } } });
 
 /* ------------------------------ a stub React ------------------------------ */
 
@@ -100,7 +100,6 @@ const memo = (make, deps) => {
   if (!was || !deps || !same(was.deps, deps)) cells.set(k, { value: make(), deps });
   return cells.get(k).value;
 };
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -162,18 +161,15 @@ globalThis.React = {
     cell.cleanup = fn();
   },
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
+drawsInPlace();
+holdFrameParts();
+// The frame's boot installs the shell tip (holdFrameParts here), so the test tip -- where a pressed gate showed its reason -- goes on after it.
 bridgeHolds({ parts: { tip: { show: (el) => tipped.push(el) } } });
 Object.assign(globalThis.window, kitPages);
 useStubHooks();
 for (const k of ["EmptyState", "FailedRead", "StatePill", "Confirm"]) globalThis[k] = globalThis.window[k];
 bridgeHolds({ parts: { chrome: { state: stateOf } } });
-Object.assign(globalThis.window, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: {} },
-});
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 // The billing surface as the shell installs it: the pane's verbs are the module's object, which `__billing` is.
 const { installBilling } = await import("../../apps/dashboard/src/surfaces/settings/billing/surface.ts");
 installBilling(globalThis.window);
@@ -730,7 +726,6 @@ test("no new hosted address on Connections (decision 0073, R13); the form a work
       },
     },
   });
-  Object.assign(globalThis.window, { refusalToast: (r) => ({ tone: "danger", msg: r.message }) });
   const pane = render(Connections);
   assert.equal(byTestId(pane, "connection-email-verb"), null, "no address is made any more: the row offers nothing");
   assert.equal(byTestId(pane, "email-setup"), null);
@@ -999,12 +994,12 @@ test("a number that has just connected is tried through its own link: the toast 
   asRole("owner");
   seam({ channels: [], google: null, setup: null });
   const realStart = waConnect.start;
-  const realToast = globalThis.window.usePPToast;
+  const realToast = provided("toast");
   const realOpen = globalThis.window.open;
   const flashes = [];
   const opened = [];
   let finish;
-  globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+  bridgeHolds({ parts: { toast: () => [null, (f) => flashes.push(f)] } });
   globalThis.window.open = (...args) => opened.push(args);
   Object.assign(waConnect, {
     config: async () => ({ ready: true, reason: null }),
@@ -1051,7 +1046,7 @@ test("a number that has just connected is tried through its own link: the toast 
     ]);
   } finally {
     Object.assign(waConnect, { config: async () => null, start: realStart });
-    globalThis.window.usePPToast = realToast;
+    bridgeHolds({ parts: { toast: realToast } });
     globalThis.window.open = realOpen;
   }
 });

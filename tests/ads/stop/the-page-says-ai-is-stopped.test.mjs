@@ -18,10 +18,11 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
-installStubReact({ CHANLY: { nav() {} } });
+installStubReact({});
 const S = "../../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
+holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);
 const { aiStopOf: stopOf } = await import(`${S}/surfaces/campaigns/ads/live/stop.ts`);
 const { liveModel, sheetModel } = await import(`${S}/surfaces/campaigns/ads/live/model.ts`);
@@ -226,8 +227,8 @@ const KEPT = (one) => ({ id: one.id, outcome: "soon", version: one.version + 1 }
 const route = { page: page(), pressed: [], pageFails: false, pauseAll: (set) => ({ ads: set.map(KEPT) }) };
 /** What the page said in a toast, where the frame would draw it. */
 const flashes = [];
-const realToast = globalThis.window.usePPToast;
-globalThis.window.usePPToast = () => [null, (flash) => flashes.push(flash)];
+const realToast = provided("toast");
+bridgeHolds({ parts: { toast: () => [null, (flash) => flashes.push(flash)] } });
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   const url = new URL(String(input instanceof Request ? input.url : input), "https://app.example.org");
@@ -248,7 +249,7 @@ globalThis.fetch = async (input, init) => {
 };
 after(() => {
   globalThis.fetch = realFetch;
-  globalThis.window.usePPToast = realToast;
+  bridgeHolds({ parts: { toast: realToast } });
 });
 
 /** The page with the account held and its read answered as `dto` says, drawn once both reads are in. */

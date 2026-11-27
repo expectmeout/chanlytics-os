@@ -28,6 +28,7 @@ import {
   toPersonVM,
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, byTestId } from "../../_stub-react.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
@@ -327,9 +328,8 @@ test("the person's page asks the same function: the same action, and no booking 
 /* ------------------------------ the Calendar's visit sheet ------------------------------ */
 
 const went = [];
-installStubReact({
-  CHANLY: { nav: (route) => went.push(route) },
-});
+installStubReact({});
+bridgeHolds({ doors: { navigate: (route) => went.push(route) } });
 const { visitSheetOf } = await import("../../../apps/dashboard/src/surfaces/calendar/visit/sheet-view");
 
 /** The sheet of the person's visit, kept and over: the one state whose lead act is the booking link (contracts visitSheetOf). */

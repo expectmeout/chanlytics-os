@@ -21,6 +21,7 @@ import assert from "node:assert/strict";
 import { toCalendarVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
@@ -28,7 +29,8 @@ const ANA = { id: "p1", name: "Ana Ruiz", via: "phone", thread: "t1", reply_wire
 
 /** The routes the sheet's presses went to, as the frame's one door receives them. */
 const routed = [];
-installStubReact({ CHANLY: { nav: (route) => routed.push(route) } });
+installStubReact({});
+bridgeHolds({ doors: { navigate: (route) => routed.push(route) } });
 const { OpenVisit } = await import("../../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** What the wire saw (request line and body), and what it answers a word said on a visit with. */

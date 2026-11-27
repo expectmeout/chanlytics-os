@@ -1,7 +1,7 @@
 /**
- * People's two sheets as the frame publishes them (people-globals.ts): the deal sheet (0008) and the step sheet (0007,
- * amended), each drawn once by the frame (frame/app-shell.tsx) and asked for from anywhere by name (`window.openDealSheet`,
- * `window.openStepSheet`: the person's card, a thread, the Calendar's visit, the Pipeline). Their code is a chunk of its own
+ * People's two sheets as People's courier hands them to the frame (people-detail.ts, provided as `sheets`): the deal sheet (0008) and the step sheet (0007,
+ * amended), each drawn once by the frame (frame/app-shell.tsx) and asked for from anywhere (`openDealSheet`,
+ * `openStepSheet`: the person's card, a thread, the Calendar's visit, the Pipeline). Their code is a chunk of its own
  * (code.ts), fetched once the frame is idle, or at once when a sheet is asked for before that: in the frame it was
  * about 17 KB, compressed, that every first load parsed before any page could draw (the loadability review, 19 Oct 2026).
  *
@@ -96,7 +96,7 @@ function askOnceHeard(sheet: Sheet, ask: (m: SheetsCode) => void): void {
 }
 
 /**
- * The deal sheet asked for, published as `window.openDealSheet`: the ask reaches the sheet (deal-sheet.tsx openDealSheet)
+ * The deal sheet asked for (the courier's `openDeal`): the ask reaches the sheet (deal-sheet.tsx openDealSheet)
  * once its host listens. True when it names a person and a move.
  */
 export function askDealSheet(ask: Parameters<SheetsCode["openDealSheet"]>[0] = {}): boolean {
@@ -106,7 +106,7 @@ export function askDealSheet(ask: Parameters<SheetsCode["openDealSheet"]>[0] = {
 }
 
 /**
- * The step sheet asked for, published as `window.openStepSheet`: the ask reaches the sheet (step-sheet.tsx openStepSheet)
+ * The step sheet asked for (the courier's `openStep`): the ask reaches the sheet (step-sheet.tsx openStepSheet)
  * once its host listens. True when it names a person, or several.
  */
 export function askStepSheet(ask: Parameters<SheetsCode["openStepSheet"]>[0] = {}): boolean {

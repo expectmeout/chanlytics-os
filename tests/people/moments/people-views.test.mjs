@@ -15,10 +15,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { importSrc } from "../../_source.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 let cells = [];
 const frames = hookFrames();
-globalThis.Icon = "Icon";
 globalThis.React = {
   Fragment: "Fragment",
   createElement: (type, p, ...kids) => {
@@ -56,35 +56,31 @@ globalThis.React = {
 };
 const warmed = [];
 globalThis.window = {
-  CHANLY: {
-    address: {
-      warmSoon: (routes) => warmed.push(...routes),
-      warm: (r) => warmed.push(r),
-      href: (r) => `/w/acme/${r}`,
-    },
-  },
   addEventListener() {},
   removeEventListener() {},
   setTimeout: () => 1,
   clearTimeout() {},
 };
-const win = globalThis.window;
+// The bridge's address (bridge/shell.ts, provided as `shell`), as the frame's reads it: a page warmed, a link's path.
+bridgeHolds({
+  parts: {
+    shell: {
+      route: () => "clients",
+      warmSoon: (routes) => warmed.push(...routes),
+      warm: (r) => warmed.push(r),
+      href: (r) => `/w/acme/${r}`,
+    },
+  },
+});
 
 const { peopleChrome } = await import("../../../apps/dashboard/src/surfaces/people/chrome.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { headNow, headUnder } = await import("../../../apps/dashboard/src/surfaces/kit/head/standing.ts");
-// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs draws by name, as the app's bridge
-// publishes it (seed-globals.ts); its hooks are this file's stub's.
+// The strip is the kit's (surfaces/kit/view-tabs), which the shell's SurfaceTabs imports; its hooks are this
+// file's stub's.
 (await import("../../_stub-react.mjs")).useStubHooks(globalThis.React);
-globalThis.ViewTabs = (await import("../../../apps/dashboard/src/surfaces/kit/view-tabs/view-tabs.tsx")).ViewTabs;
-// The strip (surfaces/frame/surface-tabs.tsx), under the names the frame draws and asks it by.
+// The strip (surfaces/frame/surface-tabs.tsx), as the frame imports it.
 const surfaceTabs = await importSrc("apps/dashboard/src/surfaces/frame/surface-tabs.tsx");
-Object.assign(globalThis.window, {
-  SurfaceTabs: surfaceTabs.SurfaceTabs,
-  stripPlace: surfaceTabs.stripPlace,
-  stripSlide: surfaceTabs.stripSlide,
-  stripSwipe: surfaceTabs.stripSwipe,
-});
 
 const people = () => ({ rows: [], lists: [], saved: [] });
 const viewsAt = (param) => peopleChrome({ param, backToPeople: null }).views ?? null;
@@ -103,7 +99,7 @@ const tabsOf = (tree) => {
 const strip = (props) => {
   cells = [];
   frames.begin();
-  const drawn = win.SurfaceTabs({ onNavigate() {}, ...props });
+  const drawn = surfaceTabs.SurfaceTabs({ onNavigate() {}, ...props });
   return drawn ? drawn.rendered : null;
 };
 
@@ -170,7 +166,7 @@ test("the strip draws the page's views as the Inbox's: the picked one active and
       ["scope-pipeline", false, undefined],
     ],
   );
-  // A tab is a link (a door is a link, frame-globals routeDoor): its address is the route's, so a middle click, a long press
+  // A tab is a link (a door is a link, frame-doors.ts routeDoor): its address is the route's, so a middle click, a long press
   // or a new tab opens that view, and a plain press is the app's own move, which the browser is kept from making.
   assert.deepEqual(
     tabs.map((b) => b.props.href),

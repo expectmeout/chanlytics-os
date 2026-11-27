@@ -58,11 +58,14 @@ const { installClock } = requireFromDashboard("./zone.ts");
 const { installShell } = requireFromDashboard("./shell.ts");
 const { surfaceVersion } = requireFromDashboard("./surface-status.ts");
 
-/**
- * Every part the boot installs (bridge/provided.ts), which a page reads at its first draw. The tip is the frame's helpers'
- * still (surfaces/frame/frame-globals.ts, through seed-globals.ts, which FrameApp imports before the boot).
- */
+/** Every part the boot installs (bridge/provided.ts), which a page reads at its first draw. */
 const BOOT_PARTS = [
+  "roles",
+  "policy",
+  "tip",
+  "toast",
+  "sheets",
+  "peopleScopes",
   "surfaceState",
   "surfaceRetired",
   "surfaceGate",
@@ -105,8 +108,10 @@ test("loading the boot installs nothing; running it installs every part a page r
     [],
     "every part is the boot's to install",
   );
-  // The policy store stands where the approval chips read it from the first paint (bridge/policy-store.ts).
-  assert.equal(typeof win.POLICY, "object");
+  // The policy store stands where the approval chips read it from the first paint (bridge/policy-store.ts); nothing is
+  // put on the window.
+  assert.equal(typeof provided("policy")?.modeOf, "function");
+  assert.equal(win.POLICY, undefined);
 });
 
 test("a second boot changes nothing: each part, and each listener, as the first left it", () => {

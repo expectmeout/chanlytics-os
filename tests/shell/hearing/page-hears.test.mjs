@@ -355,11 +355,11 @@ test("no golden is left for a family that is gone", () => {
 
 const PAGES_DIR = "apps/dashboard/src/surfaces";
 /**
- * The surface keys a call names, alone or in a list: `useSurface("people")`, `useMoved(["calendar", "people"])`, and a read
+ * The surface keys a call names, alone or in a list: `useSurface("people")`, the frame's `useFrameSurfaces("live")`, `useMoved(["calendar", "people"])`, and a read
  * the bridge holds itself (held-reads.ts `heldRead("reach_out_replies")`), where an override's window global was read once
  * (decision 0151).
  */
-const CALLS = /\b(?:useSurface|surfaceValue|useMoved|heldRead)\(\s*(\[[^\]]*\]|["'][a-z_]+["'])/g;
+const CALLS = /\b(?:useSurface|useFrameSurfaces|surfaceValue|useMoved|heldRead)\(\s*(\[[^\]]*\]|["'][a-z_]+["'])/g;
 
 /** Who is looking is the workspace read's (bridge/who.ts): a module that asks it draws the workspace surface. */
 const READS_WHO = /\b(?:whoIsLooking|currentWorkspace)\(/;

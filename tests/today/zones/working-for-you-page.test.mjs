@@ -19,13 +19,10 @@ bridgeHolds({
   },
 });
 installStubReact({
-  appNavigate: () => {},
-  usePPToast: () => [null, (f) => flashed.push(f)],
-  canDo: () => true,
-  gate: () => ({}),
   setInterval: () => 1,
   clearInterval() {},
 });
+bridgeHolds({ parts: { toast: () => [null, (f) => flashed.push(f)] } });
 const W = globalThis.window;
 W.matchMedia = (q) => ({
   media: q,

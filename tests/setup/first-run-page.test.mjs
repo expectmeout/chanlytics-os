@@ -46,7 +46,7 @@ import {
   went,
   withFacts,
 } from "./_first-run-world.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../shell/_bridge-holds.mjs";
 
 test("a new workspace opens on its business: the rail says where it is, the step is Check, whose one press sets AI up, and nothing answers yet", () => {
   setSetup(surface(blank));
@@ -367,8 +367,8 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
 
 test("Find is for whoever may set the workspace up (an owner, or the partner who brought it: 0012), by the role gate (View-as included): anyone else sees Check, which says an owner sets AI up", async () => {
   const asked = googleSays([found([HARBOR])]);
-  const was = globalThis.window.canDo;
-  globalThis.window.canDo = (a) => a === "approve" || a === "autonomy"; // an operator, exactly (contracts ROLE_PERMS)
+  const was = provided("roles");
+  holdRoles({ can: (a) => a === "approve" || a === "autonomy" }); // an operator, exactly (contracts ROLE_PERMS)
   try {
     setSetup(surface(findable));
     page.param = null;
@@ -380,7 +380,7 @@ test("Find is for whoever may set the workspace up (an owner, or the partner who
     assert.equal(textOf(byTestId(tree, "fr-heading")), "Set up AI");
     assert.deepEqual(asked.find, [], "and nothing is searched");
   } finally {
-    globalThis.window.canDo = was;
+    bridgeHolds({ parts: { roles: was } });
   }
 });
 

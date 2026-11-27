@@ -20,7 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, unmount, all, find, textOf, classes, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
-import { bridgeHolds } from "../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 const NOW = Date.parse("2026-09-25T15:00:00Z");
 const kept = (over) => ({
@@ -311,7 +311,7 @@ test("the unread rows the bell does not list are said once, after its own, with 
 
 installStubReact();
 // The frame's helpers, as the app publishes them, and the bell's popover (surfaces/frame/topbar/notif-popover.tsx), imported.
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const { NotifPopover } = await import("../../apps/dashboard/src/surfaces/frame/topbar/notif-popover.tsx");
 const W = globalThis.window;
 
@@ -507,7 +507,7 @@ test("a bell that reads no group as one reads each of its notes", () => {
 });
 
 /* ------------------------------ a thumb on a note ------------------------------ */
-// On a phone a thumb slides a note (frame-globals touchSwipe): left over Dismiss, where it leaves, folds shut so the notes
+// On a phone a thumb slides a note (kit/motion/swipe.ts touchSwipe): left over Dismiss, where it leaves, folds shut so the notes
 // under it glide up, then goes (Undo finds it open again); right over Mark read while it is unread, where it comes back
 // read and keeps its place under New rather than jumping down to Earlier. A read note does not move right. The × folds
 // a note the same way, on a desk too. Under reduced motion a dismissed note goes at once. The gesture runs on an element
@@ -757,7 +757,7 @@ const { Topbar } = await import("../../apps/dashboard/src/surfaces/frame/topbar/
 test("Mark all read is its own press: it reads the notes through the bell, says how many beside Undo, and is no look; the badge is the bell's own number (decision 0124)", () => {
   const flashes = [];
   const pressed = { seen: 0, read: 0, undone: 0 };
-  W.usePPToast = () => [null, (p) => flashes.push(p)];
+  bridgeHolds({ parts: { toast: () => [null, (p) => flashes.push(p)] } });
   bridgeHolds({
     parts: {
       bell: {
@@ -810,13 +810,13 @@ test("Mark all read is its own press: it reads the notes through the bell, says 
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
 test("the top bar shows the bell's own feed, read again whenever the bell says it changed; with no bell, none", () => {
   // Pinned as topbar.tsx's text in notifications.test.mjs until 26 Nov 2026.
-  W.usePPToast = () => [null, () => undefined];
+  bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
   const note = (id) => ({
     id,
     kind: "review",
@@ -861,12 +861,12 @@ test("the top bar shows the bell's own feed, read again whenever the bell says i
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
 test("looked at but not read: the closed bell says so quietly, by a sign and by its name, until the notes are read", () => {
-  W.usePPToast = () => [null, () => undefined];
+  bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
   const notes = [
     { id: "n-1", kind: "booking", title: "1 booked", message: "Tove Lind", at: 0, unread: true, actions: [] },
     { id: "n-2", kind: "review", title: "A review", message: "Five stars", at: 0, unread: true, actions: [] },
@@ -931,15 +931,15 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });
 
 test("the bell's foot is the door to Settings › Notifications, where this browser's one alert switch is; it holds no switch of its own", () => {
-  W.usePPToast = () => [null, () => undefined];
+  bridgeHolds({ parts: { toast: () => [null, () => undefined] } });
   const went = [];
-  const hadNav = W.CHANLY;
-  W.CHANLY = { ...(hadNav ?? {}), nav: (to) => went.push(to) };
+  const hadNav = heldDoors();
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   let looks = 0;
   bridgeHolds({
     parts: {
@@ -972,15 +972,15 @@ test("the bell's foot is the door to Settings › Notifications, where this brow
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
-    if (hadNav === undefined) delete W.CHANLY;
-    else W.CHANLY = hadNav;
+    bridgeHolds({ parts: { toast: undefined } });
+    if (hadNav === undefined) bridgeHolds({ doors: { navigate: undefined } });
+    else bridgeHolds({ doors: hadNav });
   }
 });
 
 test("a Mark all read, or an Undo, the server did not take is said in plain words where the toast stood", async () => {
   const flashes = [];
-  W.usePPToast = () => [null, (p) => flashes.push(p)];
+  bridgeHolds({ parts: { toast: () => [null, (p) => flashes.push(p)] } });
   const took = { read: false, undo: false };
   bridgeHolds({
     parts: {
@@ -1024,6 +1024,6 @@ test("a Mark all read, or an Undo, the server did not take is said in plain word
   } finally {
     unmount();
     bridgeHolds({ parts: { bell: undefined } });
-    delete W.usePPToast;
+    bridgeHolds({ parts: { toast: undefined } });
   }
 });

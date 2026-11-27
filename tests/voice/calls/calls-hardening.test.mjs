@@ -16,9 +16,9 @@ import { ANALYSIS_GRACE_MS, liveStillUp, stateOf, toLiveCallVM, toLiveVM } from 
 import { claimCallNotification, ingestCall } from "@chanlytics/db/voice";
 import { todayCallRows } from "../../../packages/contracts/src/today/rows.ts";
 import { fakeDb } from "../../_fake-db.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 import { changesOf } from "../../_live-feed.mjs";
 import { installStubReact, fresh, again, byTestId, find, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -172,10 +172,10 @@ test("Live says only what is true about a silent 'ongoing' row", async () => {
   // "No word from the provider" is the one pill's word for a stale call now: run in state-pill.test.mjs.
   // The page (surfaces/live, TSX since decision 0015), drawn on the legacy stub React over each state a call can be in as it
   // is drawn: the words are the ones it says, not the ones its source holds.
-  installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+  installStubReact({ setInterval: () => 1, clearInterval() {} });
   const S = "../../../apps/dashboard/src";
-  (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-  globalThis.usePPToast = () => [null, () => {}];
+  holdFrameParts();
+  bridgeHolds({ parts: { toast: () => [null, () => {}] } });
   const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
   const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
   const at = new Date();

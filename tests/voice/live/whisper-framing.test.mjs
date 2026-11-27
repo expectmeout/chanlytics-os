@@ -15,16 +15,17 @@ import assert from "node:assert/strict";
 import { frameWhisper, whisperText, toLiveCallVM, toLiveVM, toCallVM } from "@chanlytics/contracts";
 import { liveTurns } from "@chanlytics/channels/voice";
 import { installStubReact, fresh, again, all, byTestId, classes, textOf } from "../../_stub-react.mjs";
+import { bridgeHolds, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
 
 // The Live page (apps/dashboard/src/surfaces/live, TSX since decision 0015) is drawn on the legacy stub React, its view
 // model handed over the seam: the transcript says the owner's whisper the way the owner said it.
-installStubReact({ CHANLY: { nav() {} }, setInterval: () => 1, clearInterval() {} });
+installStubReact({ setInterval: () => 1, clearInterval() {} });
 const S = "../../../apps/dashboard/src";
-(await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
-globalThis.usePPToast = () => [null, () => {}];
+holdFrameParts();
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 const { LivePage } = await import(`${S}/surfaces/live/live-page.tsx`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
 

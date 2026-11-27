@@ -1,7 +1,6 @@
 /**
  * Settings › Partner (decision 0012), moved from legacy/pages/partner-real.jsx (decision 0015 step 11). Settings' page
- * draws it by its old name, `PanePartner`, and Team by `PanePartner.Team`, which seed-globals publishes
- * (settings/globals.ts).
+ * imports it, and Team `PanePartner.Team`.
  *
  * For a person who is not a partner: the offer, the code to choose, the terms, one press. For a partner: the link to
  * hand out, the share their row holds, how many workspaces came through the link, and what the ledger holds for them:

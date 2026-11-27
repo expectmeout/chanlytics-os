@@ -1,7 +1,7 @@
 /**
  * What the first run draws of the Business tab (decision 0015, step 10): its rows, its saver and its doors, which the first
  * run's Check and Live draw as that tab does, so the two screens never disagree. They were read off the window, where the
- * frame published them for every page (seed-globals.ts), so each page's first load carried the tab's rows, about 33 KB
+ * frame published them for every page, so each page's first load carried the tab's rows, about 33 KB
  * compressed, that only the first run draws (the loadability review, 19 Oct 2026). Imported here, they come with the
  * first run's own page: only its modules import this one.
  *

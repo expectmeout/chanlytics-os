@@ -42,7 +42,7 @@ const out = await build({
   stdin: {
     contents:
       'export { FormsList, websiteDoorOf } from "../../../apps/dashboard/src/surfaces/campaigns/forms/list.tsx";\n' +
-      'export { gate } from "../../../apps/dashboard/src/surfaces/frame/gate.ts";\n' +
+      'export { provide } from "../../../apps/dashboard/src/bridge/provided.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tests/forms/website"),
@@ -70,11 +70,12 @@ fs.writeFileSync(file, out.outputFiles[0].text);
 const S = createRequire(import.meta.url)(file);
 fs.rmSync(file, { force: true });
 
-/** The member acting, as the shell seeds it (bridge/seed-globals.ts): the role store and the gate's own sentence. */
+/**
+ * The member acting: the role store the gate asks (bridge/identity.ts, provided as `roles`), held in the bundle's own
+ * copy of the bridge's store, which the bundled page and its gate read.
+ */
 function actAs(role) {
-  globalThis.window.ST_STORE = { can: (perm) => ROLE_PERMS[role]?.[perm] === true, myRole: () => role };
-
-  globalThis.window.gate = S.gate;
+  S.provide("roles", { can: (perm) => ROLE_PERMS[role]?.[perm] === true, myRole: () => role });
 }
 
 const FORM = {

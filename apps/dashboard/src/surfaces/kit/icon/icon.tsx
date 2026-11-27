@@ -2,7 +2,7 @@ import type { CSSProperties, ReactElement, SVGProps } from "react";
 
 /**
  * The icon set: a 16px stroke, 1.5 wide, a tiny curated list (moved whole from legacy/components/icons.jsx, decision
- * 0015: the kit's one Icon, which seed-globals publishes as window.Icon for the pages that still read it). A glyph
+ * 0015: the kit's one Icon, imported where it is drawn). A glyph
  * is a drawing of its own, so the table is where one is added, and an unknown name draws a dot's circle.
  */
 interface IconProps {

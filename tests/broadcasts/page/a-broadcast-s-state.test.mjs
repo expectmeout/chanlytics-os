@@ -50,7 +50,7 @@ import {
   went,
   withMessage,
 } from "./_page.mjs";
-import { provided } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, provided } from "../../shell/_bridge-holds.mjs";
 
 /* ------------------------------ a slot's words ------------------------------ */
 
@@ -115,8 +115,8 @@ test("REGRESSION (C12): a failed run says why in the owner's words -- its day in
   setSurfaceValue("broadcasts", broadcastsSurface({ rows: [toBroadcastVM(failed, ZONE)] }));
   answers.set("b-failed", [{ ok: true, data: detailOf(failed, []) }]);
   const calls = [];
-  const keep = globalThis.appNavigate;
-  globalThis.appNavigate = (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]);
+  const keep = heldDoors();
+  bridgeHolds({ doors: { navigate: (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]) } });
   try {
     const props = { initialRun: "b-failed" };
     page(props);
@@ -126,7 +126,7 @@ test("REGRESSION (C12): a failed run says why in the owner's words -- its day in
     // Done, it is read in Reports: its campaign, over the day it ran for, in the run's place (Back never lands on it again).
     assert.deepEqual(calls.at(-1), ["reports/campaigns:2026-09-10~2026-09-10:seq:pb-1", "replace"]);
   } finally {
-    globalThis.appNavigate = keep;
+    bridgeHolds({ doors: keep });
   }
   // Why, where its day is said: History's row, and Reports' Each send, which says History's words.
   const day = contracts.historyDayWords(
@@ -803,8 +803,16 @@ test("the run open at its home is the address's: closing it goes back to where i
   // Going out, so its screen stands: a run that is done moves to Reports (the C12 test above).
   answers.set("b-sent", [{ ok: true, data: detailOf(dto({ state: "sending" })) }]);
   const calls = [];
-  const keep = globalThis.appNavigate;
-  globalThis.appNavigate = (to, opts) => calls.push([to, opts && opts.replace ? "replace" : "push"]);
+  const keep = heldDoors();
+  // The frame's move (frame-doors.ts navigate): where it went, and whether it replaced the entry or pushed one.
+  bridgeHolds({
+    doors: {
+      navigate: (to, opts) => {
+        went.push(to);
+        calls.push(opts && opts.replace ? "replace" : "push");
+      },
+    },
+  });
   try {
     const props = { initialRun: "b-sent" };
     page(props);
@@ -815,22 +823,22 @@ test("the run open at its home is the address's: closing it goes back to where i
     const door = find(byTestId(tree, "bc-run-solo"), (n) => n.props?.className === "bc-run-link");
     assert.ok(door, "the run's playbook is a link in the pane's head");
     assert.match(textOf(door), / campaign$/, "said as a campaign to its reader (decision 19)");
-    const before = calls.length;
     press(door);
     assert.equal(went.at(-1), "campaigns/sequences/pb-1", "its campaign, by the campaign's own id the run names");
-    assert.equal(calls.length, before, "and it did not replace the run's entry");
+    assert.equal(calls.at(-1), "push", "and it did not replace the run's entry");
     // Closed with no frame to say what opened it (a link, a reload): onto its sequence's History, the days it is one of,
-    // never a Back out of the app. The frame's own Back to the opener is the shell's (shell/surfaces/status/).
+    // never a Back out of the app, in the run's place (frame-doors.ts backFrom, replaced as the page asks). The frame's own
+    // Back to the opener is the shell's (shell/surfaces/status/).
     press(byTestId(tree, "bc-detail-close"));
     assert.equal(went.at(-1), "campaigns/sequences/pb-1/history");
-    assert.equal(calls.length, before, "nothing replaced here: the page is left as it is drawn");
+    assert.equal(calls.at(-1), "replace", "the run's entry is its History's now: Back never lands on the closed run");
     tree = again(props);
     assert.ok(
       byTestId(tree, "bc-run-solo"),
       "the pane stays drawn until its page is left, never the list a moment first",
     );
   } finally {
-    globalThis.appNavigate = keep;
+    bridgeHolds({ doors: keep });
   }
 });
 

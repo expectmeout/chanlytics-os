@@ -11,14 +11,15 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { SEQUENCE_HISTORY_WORDS, campaignReportRoute, runRoute } from "@chanlytics/contracts";
 import { again, byTestId, fresh, installStubReact, settle, textOf, unmount } from "../_stub-react.mjs";
+import { holdFrameParts } from "../shell/_bridge-holds.mjs";
 
 installStubReact();
 // use-record.ts makes the record foot's context as it loads, and "react" under this runner's react-server condition has no
 // createContext: the stub gives it one that holds its value, which nothing here draws.
 const reactOfDashboard = createRequire(new URL("../../apps/dashboard/src/bridge/_.js", import.meta.url))("react");
 reactOfDashboard.createContext ??= (value) => ({ Provider: "Provider", Consumer: "Consumer", _currentValue: value });
-// The shell's link to a route (frame-globals routeDoor), which a day's door spreads.
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+// The shell's link to a route (frame-doors.ts routeDoor), which a day's door spreads.
+holdFrameParts();
 
 const S = "../../apps/dashboard/src";
 const values = await import(`${S}/surfaces/surface-values.ts`);

@@ -52,7 +52,7 @@ import type { ViewPage } from "../view-tabs/pager";
 type Way = "down" | "back" | "away" | "page" | "none";
 
 /** What a swipe answers to: each is the page's own to do, called once the thumb has let go. */
-export interface SwipeOptions {
+interface SwipeOptions {
   onLeft?: (() => void) | null;
   onRight?: (() => void) | null;
   onDown?: (() => void) | null;
@@ -82,7 +82,7 @@ export interface SwipeOptions {
 }
 
 /** The handlers a swipe spreads onto the element it is on. */
-export interface SwipeHandlers {
+interface SwipeHandlers {
   onTouchStart?: (e: TouchEvent<HTMLElement>) => void;
   onTouchMove?: (e: TouchEvent<HTMLElement>) => void;
   onTouchEnd?: (e: TouchEvent<HTMLElement>) => void;

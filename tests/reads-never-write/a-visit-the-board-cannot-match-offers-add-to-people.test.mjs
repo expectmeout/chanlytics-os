@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { ADD_TO_PEOPLE_WORDS, addToPeopleOf, toCalendarVM } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, byTestId, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { bridgeHolds, holdRoles, provided } from "../shell/_bridge-holds.mjs";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-08T16:00:00.000Z");
@@ -76,7 +77,7 @@ test("the words", () => {
 });
 
 /* ---- the visit, drawn ---- */
-installStubReact({ CHANLY: { nav: () => {} } });
+installStubReact({});
 const { OpenVisit } = await import("../../apps/dashboard/src/surfaces/calendar/visit/visit-sheet");
 
 /** What the wire saw (request line and body) and what it answers a POST contacts with. */
@@ -220,23 +221,21 @@ test("a person already in People is said so, and a refusal is said in the door's
 test("a role that may not add people is told why at the press, and the press adds nobody", async () => {
   fresh();
   sent.length = 0;
+  const kept = provided("roles");
+  // A viewer, who may not approve: the frame's gate (frame/gate.ts) answers the press, and shows why where it was.
   const told = [];
-  globalThis.window.gate = (action, doing) => ({
-    "data-gated": "",
-    "aria-disabled": true,
-    "aria-description": `Your role can't ${doing}.`,
-    onClick: () => told.push(action),
-  });
+  holdRoles({ can: (action) => action !== "approve" });
+  bridgeHolds({ parts: { tip: { show: (at) => told.push(at) } } });
   try {
     const tree = draw(blockOf({}));
     const add = byTestId(tree, ADD);
     assert.equal(add.props["data-gated"], "", "gated, and still in the tab order");
     assert.match(add.props["aria-description"], /add this person to People/);
-    press(add);
+    add.props.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: "the add" });
     await flush();
-    assert.deepEqual(told, ["approve"], "the gate answered the press");
+    assert.deepEqual(told, ["the add"], "the gate answered the press");
     assert.deepEqual(adds(), [], "and nobody was added");
   } finally {
-    delete globalThis.window.gate;
+    bridgeHolds({ parts: { roles: kept, tip: undefined } });
   }
 });

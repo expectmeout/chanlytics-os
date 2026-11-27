@@ -27,8 +27,8 @@ import {
   clockDayLabel,
   zoneDayKey,
 } from "@chanlytics/contracts";
-import { useStubHooks, kitPages } from "../../_stub-react.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { kitPages, useStubHooks } from "../../_stub-react.mjs";
+import { bridgeHolds, drawsInPlace, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
 export const TID = "t-studio";
 
@@ -100,7 +100,7 @@ globalThis.window = {
   // The open log's minute (activity/newer.ts): a pane the stub React never unmounts holds no run open.
   setInterval: (fn, ms) => setInterval(fn, ms).unref(),
   clearInterval: (h) => clearInterval(h),
-  // As the bridge publishes them (seed-globals.ts): the role table and the gate's sentence are contracts'.
+  // As the bridge holds them (bridge/boot/installs.ts): the role table and the gate's sentence are contracts'.
   ROLE_PERMS,
 };
 
@@ -130,8 +130,6 @@ export const memo = (make, deps) => {
   if (!was || !deps || !same(was.deps, deps)) cells.set(k, { value: make(), deps });
   return cells.get(k).value;
 };
-
-globalThis.Icon = "Icon";
 
 globalThis.StatStrip = "StatStrip";
 
@@ -203,11 +201,11 @@ globalThis.React = {
   cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
 };
 
-globalThis.ReactDOM = { createPortal: (node) => node };
+drawsInPlace();
 
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 
-// frame-globals installs the shell tip on import, so the test tip -- where a pressed gate showed its reason -- goes on after it.
+// The frame's boot installs the shell tip (holdFrameParts here), so the test tip -- where a pressed gate showed its reason -- goes on after it.
 bridgeHolds({ parts: { tip: { show: (el) => tipped.push(el) } } });
 
 Object.assign(globalThis.window, kitPages);
@@ -243,14 +241,13 @@ bridgeHolds({
 });
 
 Object.assign(globalThis.window, {
-  usePPToast: () => [null, () => {}],
-  CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
   __inviteState: () => ({ expired: false, words: "invite pending" }),
 });
+bridgeHolds({ parts: { toast: () => [null, () => {}] } });
 
 await import("../../receptionist/business-tab/_business-parts.mjs");
 
-// The role store the gates ask (window.ST_STORE): the bridge installs it as the app boots (seed-globals), settings.jsx used to.
+// The role store the gates ask (the bridge's `roles`): the boot installs it (bridge/boot/installs.ts), settings.jsx used to.
 export const { installRoleStore } = await import("../../../apps/dashboard/src/bridge/identity.ts");
 
 installRoleStore();
@@ -299,7 +296,7 @@ alertVerbs.saveConfig = (config, version, accepted) => {
 /** What the pane flashed, each `{ msg, undo? }`: the frame's toast, as a list. */
 export const flashes = [];
 
-globalThis.window.usePPToast = () => [null, (f) => flashes.push(f)];
+bridgeHolds({ parts: { toast: () => [null, (f) => flashes.push(f)] } });
 
 /** Open the email row's addresses (its Change). */
 export const openEmail = (tree) => press(byTestId(tree, "ntf-email-change"));
@@ -457,7 +454,7 @@ export const workspace = (
     team,
     invites,
   });
-  globalThis.window.ST_STORE.viewAsRole = null;
+  provided("roles").viewAsRole = null;
 };
 
 /** The activity bridge, answering when told to: each read waits for `answer`. */

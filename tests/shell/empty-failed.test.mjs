@@ -18,7 +18,7 @@ import { stateOf, toTodayVM, toLiveVM } from "@chanlytics/contracts";
 import { reportFacts } from "../../apps/dashboard/src/surfaces/reports/model/facts.ts";
 import { hookFrames } from "../_hook-frames.mjs";
 import { kitPages, useStubHooks } from "../_stub-react.mjs";
-import { bridgeHolds } from "./_bridge-holds.mjs";
+import { bridgeHolds, drawsInPlace, frameParts, holdFrameParts } from "./_bridge-holds.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -33,7 +33,6 @@ const fresh = () => {
   frames.begin();
 };
 const calls = { nav: [], refresh: [], flash: [] };
-globalThis.Icon = "Icon";
 globalThis.StatStrip = "StatStrip";
 globalThis.StatCell = "StatCell";
 globalThis.Sparkline = "Sparkline";
@@ -92,7 +91,7 @@ globalThis.React = {
     }
   },
 };
-globalThis.ReactDOM = { createPortal: (node) => node };
+drawsInPlace();
 globalThis.document = {
   body: {},
   addEventListener() {},
@@ -109,8 +108,6 @@ const storage = () => {
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
 globalThis.window = {
-  CHANLY: { nav: (to) => calls.nav.push(to), R: {} },
-  gate: () => ({ "data-gated": "" }),
   location: {
     pathname: "/w/harbor",
     hash: "",
@@ -138,12 +135,14 @@ bridgeHolds(
   },
   { fresh: true },
 );
-(await import("../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
-// EmptyState and FailedRead are the kit's (surfaces/kit/empty), which the app publishes from seed-globals.
+// A route the empty state goes to is the frame's move (frame-doors.ts `navigate`), held after the fresh world.
+bridgeHolds({ doors: { navigate: (to) => calls.nav.push(to) } });
+holdFrameParts();
+// EmptyState and FailedRead are the kit's (surfaces/kit/empty), drawn by name from the stub's parts (kitPages).
 Object.assign(globalThis.window, kitPages);
-const { EmptyState, FailedRead, MoreMenu, StatePill } = globalThis.window;
-Object.assign(globalThis, { EmptyState, FailedRead, MoreMenu, StatePill });
-globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
+const { EmptyState, FailedRead } = globalThis.window;
+Object.assign(globalThis, { EmptyState });
+bridgeHolds({ parts: { toast: () => [null, (m) => calls.flash.push(m)] } });
 
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
@@ -193,7 +192,7 @@ test("EmptyState: three kinds of the one shape -- a glyph, a title, a line of bo
   });
   assert.equal(page.props.className, "empty empty-page");
   assert.equal(page.props["data-testid"], "inbox-empty");
-  assert.equal(byType(page, "Icon").props.size, 24, "a page's glyph is large");
+  assert.equal(byType(page, frameParts().Icon).props.size, 24, "a page's glyph is large");
   assert.equal(textOf(byClass(page, "empty-title")), "Inbox zero");
   assert.equal(textOf(byClass(page, "empty-body")), "The receptionist is handling everything.");
   const act = byClass(page, "btn-primary");
@@ -207,7 +206,7 @@ test("EmptyState: three kinds of the one shape -- a glyph, a title, a line of bo
     action: { label: "New playbook", onClick: () => calls.nav.push("composer"), gate: { "data-gated": "" } },
   });
   assert.equal(card.props.className, "empty empty-card");
-  assert.equal(byType(card, "Icon").props.size, 16);
+  assert.equal(byType(card, frameParts().Icon).props.size, 16);
   const cardAct = byClass(card, "btn");
   assert.equal(cardAct.props["data-gated"], "", "the honesty gate's props ride on the action");
   cardAct.props.onClick();
@@ -245,7 +244,7 @@ test("FailedRead: the alert, what could not be read, that the rest is current, a
   assert.equal(card.props.className, "empty empty-card empty-failed");
   assert.equal(card.props.role, "status");
   assert.equal(card.props["data-testid"], "campaigns-failed-campaigns");
-  assert.equal(byType(card, "Icon").props.name, "alert");
+  assert.equal(byType(card, frameParts().Icon).props.name, "alert");
   assert.equal(textOf(byClass(card, "empty-title")), "Couldn't read the campaign numbers");
   assert.ok(textOf(byClass(card, "empty-body")).includes("Everything else here is current"), textOf(card));
   const retry = byTestId(card, "campaigns-failed-campaigns-retry");
@@ -501,7 +500,6 @@ test("Worth knowing is made from the numbers it is drawn from, once, by the page
 /* -------------------- Settings › Team, with a failed read ---------------- */
 
 bridgeHolds({ who: { me: { email: "ruben@rjcapital.example", role: "owner" } } });
-Object.assign(globalThis.window, {});
 // The card is TSX (surfaces/settings/team, decision 0015 step 11), over the seam's settings value: a team read that failed.
 // Its hooks are this stub's (the kit's TSX imports them from "react"), and the seam's value is read as it draws.
 globalThis.React.useSyncExternalStore = (subscribe, snapshot) => snapshot();

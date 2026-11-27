@@ -15,7 +15,7 @@ import { toInboxThreadVM, stateOf } from "@chanlytics/contracts";
 import { keysDrawn } from "../../_keys.mjs";
 import { installStubReact, fresh, again, settle, quiet, redrawWanted } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, heldDoors, holdFrameParts } from "../../shell/_bridge-holds.mjs";
 
 const ZONE = "America/New_York";
 const NOW = new Date("2026-09-15T14:00:00Z");
@@ -97,7 +97,6 @@ installStubReact({
     replace() {},
     reload() {},
   },
-  CHANLY: { nav() {}, R: {}, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } },
   setTimeout: () => 1,
   clearTimeout() {},
   setInterval: () => 1,
@@ -105,7 +104,7 @@ installStubReact({
 });
 after(() => Object.assign(globalThis, timers));
 // The shell's own helpers the pane spreads and calls (gate, touchSwipe, the toast, canDo), as the app publishes them.
-(await import("../../../apps/dashboard/src/surfaces/frame/frame-globals.ts")).installFrameGlobals();
+holdFrameParts();
 const S = "../../../apps/dashboard/src/surfaces";
 const { InboxThread } = await import(`${S}/inbox/thread/thread.tsx`);
 const { Composer: InboxComposer } = await import(`${S}/inbox/thread/composer.tsx`);
@@ -579,8 +578,7 @@ test("REGRESSION: the reply box and a seeded approval draw no key -- Send said â
     priority: "P2",
   };
   assert.deepEqual(keysDrawn(paneOf(seeded)), [], "the demo's reply box");
-  const chanly = globalThis.window.CHANLY;
-  globalThis.window.CHANLY = { ...chanly, fmtDelta: (n) => `$${n}`, confTone: () => "safe" };
+  const chanly = heldDoors();
   try {
     const pane = paneOf({
       ...seeded,
@@ -607,7 +605,7 @@ test("REGRESSION: the reply box and a seeded approval draw no key -- Send said â
     assert.equal(find(foot, hasClass("ix-approval-shortcuts")), undefined, "the card's line of keys");
     assert.deepEqual(keysDrawn(pane), []);
   } finally {
-    globalThis.window.CHANLY = chanly;
+    bridgeHolds({ doors: chanly });
   }
 });
 

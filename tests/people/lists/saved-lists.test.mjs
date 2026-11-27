@@ -16,6 +16,7 @@ import { importSrc } from "../../_source.mjs";
 import { DESK, givenOn } from "../../_css.mjs";
 import { installStubReact, fresh, again, byTestId, find, press, textOf } from "../../_stub-react.mjs";
 import { personDto, personRow, ROW_NOW, ROW_TZ } from "../../consent/_person-row.mjs";
+import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -169,7 +170,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   const LR = await import("../../_stub-react.mjs");
   LR.installStubReact();
   const went = [];
-  globalThis.CHANLY = { nav: (to) => went.push(to) };
+  bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
   const { setSurfaceValue } = await importSrc("apps/dashboard/src/surfaces/surface-values.ts");
   const { PersonLists, ListsGroup } = await importSrc("apps/dashboard/src/surfaces/people/person/lists.tsx");
   const picked = [];
@@ -234,8 +235,8 @@ test("Lists is a view of People: a kept list is the page's title with its rename
   );
   assert.equal(reg.SURFACE_STATES.segments, "real", "the route is real: it lands on People");
   assert.equal(reg.ROUTE_SURFACE.segments, "people", "the same facts as People, never a second fetch");
-  // REGRESSION: a second page of the same people. The address is People's (above), and no page of its own is loaded:
-  // the frame's manifest loads the seed's globals alone (pinned as manifest.ts's text until 26 Nov 2026).
+  // REGRESSION: a second page of the same people. The address is People's (above), and no page of its own is loaded
+  // (the manifest that loaded the shell's pages went with decision 0151).
   assert.equal(reg.surfaceStateFor("segments"), "real");
   assert.equal(reg.routeSurfaceFor("segments"), "people");
   // The phone's way to the lists is the bar's list button now, pressed in people-honest ("on a phone the lists are

@@ -2,7 +2,7 @@
  * What People says and decides that is not markup: the states an address may name, the receptionist's word beside a
  * state, the sorts a phone offers, the empty drafts of its sheets, the scopes and where each goes, who a search finds,
  * a face on a card, a selection as a CSV (moved whole from legacy/pages/people.jsx, decision 0015). The pages that have
- * not moved (Leads, the Pipeline, the person page) still read the names published in people-globals.ts.
+ * not moved (Leads, the Pipeline, the person page) import them.
  */
 import { appointmentWords, csvCell, PEOPLE_TABS, stateOf, type AppointmentWord, UUID } from "@chanlytics/contracts";
 import type { PersonRowVM } from "@chanlytics/contracts";

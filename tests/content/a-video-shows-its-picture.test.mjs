@@ -25,7 +25,6 @@ bridgeHolds({
   },
 });
 installStubReact({
-  CHANLY: { nav() {} },
   location: { pathname: "/w/harbor/", hash: "", search: "", origin: "https://app.chanlytics.com" },
   fetch: (url) => {
     if (String(url).includes("content/note")) noteReads += 1;

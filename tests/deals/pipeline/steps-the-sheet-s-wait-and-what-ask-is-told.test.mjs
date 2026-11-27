@@ -36,7 +36,8 @@ import {
   went,
   withHead,
 } from "./_pipeline.mjs";
-import { surfaceValue } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, provided, surfaceValue } from "../../shell/_bridge-holds.mjs";
+const { askOnScreen, setAskOnScreen } = await import("../../../apps/dashboard/src/bridge/ask/on-screen.ts");
 
 test("their next step on the page: a column after Stage that sorts by its day, in the warn ink once it has come; the phone's card and the board's say it, and Steps due holds only theirs", async () => {
   const now = Date.now();
@@ -213,10 +214,9 @@ test("the page waits by the workspace's pace as People reads it: the line, the r
 test("the sheet judges a wait by People's pace, as the rows beside it do, not by the person read's own", async () => {
   // People's pace is eight days (ten to wait); Nia's own read carries none, as one taken before a fifth yes would.
   const seen = await fresh({ dealPace: { median_days: 8, yeses: 6 } });
-  const W = globalThis.window;
   // Nia's own read carries none: the wire says no pace beside their person.
   seen.person = (id) => ({ ...detailOf(seen.rawOf(id)), deal_pace: null });
-  W.openDealSheet = () => true;
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: () => true } } });
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-nia").props.onClick();
   draw();
@@ -251,7 +251,6 @@ test("the sheet says the follow-up has them where their row does (0006): the day
       heard: {},
     },
   });
-  const W = globalThis.window;
   assert.equal(
     surfaceValue("people").rows.find((r) => r.id === "wes").followUp?.kind,
     "will",
@@ -275,7 +274,7 @@ test("the sheet says the follow-up has them where their row does (0006): the day
     };
     return { ...d, conversations: [{ ...d.conversations[0], messages: [sent] }] };
   };
-  W.openDealSheet = () => true;
+  bridgeHolds({ parts: { sheets: { ...provided("sheets"), openDeal: () => true } } });
   let tree = draw();
   find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes").props.onClick();
   draw();
@@ -332,9 +331,9 @@ test("a proposal waiting that the follow-up has in hand says the day its run goe
 
 test("the Pipeline tells Ask what it draws (the Phase 2 plan, D3): the people of its open groups, in their order, and its view", async () => {
   await fresh();
-  delete globalThis.window.__askOnScreen;
+  setAskOnScreen(null);
   draw();
-  const s = globalThis.window.__askOnScreen;
+  const s = askOnScreen();
   assert.equal(s.key, "pipeline");
   assert.deepEqual(s.ids, ["hana", "sara", "wes", "nia", "cat"], "the rows on screen; a folded group's are not");
   assert.equal(s.view, "all");
@@ -343,9 +342,9 @@ test("the Pipeline tells Ask what it draws (the Phase 2 plan, D3): the people of
 
 test("People tells Ask what it draws (the Phase 2 plan, D3): the rows of its table, in the table's order, and its view", async () => {
   await fresh();
-  delete globalThis.window.__askOnScreen;
+  setAskOnScreen(null);
   const tree = drawPeople();
-  const s = globalThis.window.__askOnScreen;
+  const s = askOnScreen();
   assert.equal(s.key, "people");
   assert.ok(s.ids.length > 0);
   assert.deepEqual(s.ids, rowIds(tree).slice(0, 40), "the rows the table draws, in its order");
@@ -363,9 +362,5 @@ test("the Pipeline tells Ask its rows in the member's order: sorted by name, the
     head.props.onClick();
     tree = draw();
   }
-  assert.deepEqual(
-    globalThis.window.__askOnScreen.ids,
-    rowIds(tree).slice(0, 40),
-    "what the table draws, in its order",
-  );
+  assert.deepEqual(askOnScreen().ids, rowIds(tree).slice(0, 40), "what the table draws, in its order");
 });

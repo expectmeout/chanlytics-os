@@ -18,7 +18,7 @@ import {
   without,
   written,
 } from "../../_business-tab-harness.mjs";
-import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
+import { bridgeHolds, holdRoles, provided } from "../../shell/_bridge-holds.mjs";
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const BT = "../../../apps/dashboard/src/surfaces/settings/booking-tool";
@@ -28,7 +28,7 @@ const verbs = await import("../../../apps/dashboard/src/surfaces/frame-verbs.ts"
 after(() => unmount());
 
 const went = [];
-W.CHANLY.nav = (to) => went.push(to);
+bridgeHolds({ doors: { navigate: (to) => went.push(to) } });
 
 /** The sheet over a record, as the host draws it once a door has asked: the tab's page gone first, as on another page. */
 const drawSheet = (record, closed) => {
@@ -97,11 +97,11 @@ test("a door asks the frame's host; with none drawn, or for a role that may not 
   assert.deepEqual(went, [ROW], "no host: the route");
   let asked = 0;
   const gone = verbs.hostBookingTool(() => (asked += 1));
-  const may = W.canDo;
-  W.canDo = () => false;
+  const may = provided("roles");
+  holdRoles({ can: () => false });
   verbs.openBookingTool(ROW);
   assert.equal(went.length, 2, "a role that only reads: the route, where the row is read");
-  W.canDo = may;
+  bridgeHolds({ parts: { roles: may } });
   verbs.openBookingTool(ROW);
   assert.equal(went.length, 2, "a host and a role that may: nowhere");
   assert.equal(asked, 1, "the sheet is asked for here");
