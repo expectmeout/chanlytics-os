@@ -85,7 +85,7 @@ export async function earnFromInvoice(
   log: Log,
 ): Promise<LedgerOutcome> {
   if (!inv.id || !planInvoice(inv) || !(inv.amount_paid > 0)) return null;
-  const paidAt = inv.status_transitions?.paid_at ?? inv.created;
+  const paidAt = inv.status_transitions.paid_at ?? inv.created;
   const { data, error } = await recordPartnerEarning(db, {
     p_tenant_id: tenantId,
     p_invoice_id: inv.id,

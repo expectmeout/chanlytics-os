@@ -2,9 +2,9 @@
  * A playbook that could not run, told to the people who must hear of it: the platform at once, the owner at the day's
  * last chance.
  *
- * The hourly sweep (playbooks-sweep.ts) tries a due playbook every hour, so a failed run is tried again, and what it
- * could not do was a log line and a 200: a playbook that failed every hour of a day lost the day with nobody told, while
- * its card read "today, within the hour". Now:
+ * The hourly sweep (reach-out/playbooks-sweep.ts) tries a due playbook every hour, so a failed run is tried again, and
+ * what it could not do was a log line and a 200: a playbook that failed every hour of a day lost the day with nobody
+ * told, while its card read "today, within the hour". Now:
  *
  *   - The platform is paged (shared/alerts/page-operator.ts), one key per workspace, `playbook_failed:<tenant_id>`: the pager keeps
  *     its own six-hour memory of a key, so a workspace that fails all day pages a few times, not once an hour. Not for a

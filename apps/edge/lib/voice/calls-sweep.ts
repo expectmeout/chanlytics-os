@@ -163,12 +163,12 @@ interface ProviderTick {
 
 type ProviderTrouble = Extract<RetellCallRead, { kind: "unavailable" | "auth" }>;
 
-/** Record an answer that was about the provider, not the row. */
-function noteProvider(tick: ProviderTick, read: ProviderTrouble): void {
+/** Record an answer that was about the provider, not the row: the hold the tick is under after it. */
+function noteProvider(tick: ProviderTick, read: ProviderTrouble): ProviderTick["hold"] {
   if (read.kind === "auth") {
     tick.keyRefused ??= read.status;
     tick.hold ??= "key_refused";
-    return;
+    return tick.hold;
   }
   tick.unavailable += 1;
   if (tick.unavailable === 1) {
@@ -178,6 +178,7 @@ function noteProvider(tick: ProviderTick, read: ProviderTrouble): void {
   if (read.retryAfterMs !== null) tick.hold ??= "retry_after";
   else if (read.status === 429) tick.hold ??= "rate_limited";
   else if (read.status === null) tick.hold ??= "no_answer";
+  return tick.hold;
 }
 
 /** What both provider legs of a tick share: the database, the key, the provider's state so far and the log. */
@@ -451,8 +452,7 @@ async function retryRecordings(leg: ProviderLeg) {
       // moves its updated_at (00007's trigger) and sends it to the back of
       // the queue, where untouched it stood first every tick and starved the
       // rest.
-      noteProvider(provider, read);
-      if (provider.hold || read.status === null) {
+      if (noteProvider(provider, read) || read.status === null) {
         recordings.deferred++;
         continue;
       }
@@ -544,7 +544,7 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     retryAfterMs: null,
   };
   const leg: ProviderLeg = { db, apiKey, provider, L };
-  const { closed, stillLive, unknown, deferred } = await reconcileStale(leg, stale ?? []);
+  const { closed, stillLive, unknown, deferred } = await reconcileStale(leg, stale);
   const recordings = await retryRecordings(leg);
   const settles = await settleUnanalysed(leg);
 
@@ -570,7 +570,7 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
       deferred: deferred + recordings.deferred + settles.deferred + notices.deferred,
     });
   L.info("calls_sweep_done", {
-    candidates: stale?.length ?? 0,
+    candidates: stale.length,
     closed,
     still_live: stillLive,
     unknown,
@@ -582,7 +582,7 @@ export async function sweepCalls({ db, L }: SweepTick): Promise<Response> {
     purge: JSON.stringify(purge),
   });
   const counts = {
-    candidates: stale?.length ?? 0,
+    candidates: stale.length,
     closed,
     stillLive,
     unknown,

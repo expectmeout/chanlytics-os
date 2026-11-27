@@ -10915,10 +10915,7 @@ export type Database = {
         }
         Returns: Json
       }
-      ad_pause_for_stop: {
-        Args: { p_tenant_id: string }
-        Returns: Json
-      }
+      ad_pause_for_stop: { Args: { p_tenant_id: string }; Returns: Json }
       ad_people: {
         Args: {
           p_ad_id?: string

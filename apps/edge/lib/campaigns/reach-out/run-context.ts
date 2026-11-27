@@ -76,7 +76,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep
     after_playbook_id: row.after_step_id,
     after_days: row.after_days,
     gap_minutes: row.gap_minutes ?? 0,
-    mailbox_ids: row.mailbox_ids ?? [],
+    mailbox_ids: row.mailbox_ids,
     owner_sends: root.owner_sends === true,
     cap_per_run: row.cap_per_run,
     words_ok_at: row.words_ok_at,

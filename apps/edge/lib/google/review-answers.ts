@@ -144,7 +144,7 @@ async function writeHeldReply(
 ): Promise<boolean> {
   const up = await saveHeldReviewReply(db, tenantId, rowId, set, timed);
   if (up.error) throw new DbFailure(up.error);
-  return (up.data ?? []).length > 0;
+  return up.data.length > 0;
 }
 
 /** A reply on Google and on the row, the held one cleared; told on the ledger as the receptionist's. Throws a refusal. */
@@ -189,7 +189,7 @@ async function answerNewReviews(
   if (!(await doesWorkspaceAnswerOnItsOwn(db, conn.tenant_id))) return nothingAnswered();
   const unreplied = await listUnrepliedProfileReviews(db, conn.tenant_id, 20);
   if (unreplied.error) throw new DbFailure(unreplied.error);
-  const rows: Unreplied[] = unreplied.data ?? [];
+  const rows: Unreplied[] = unreplied.data;
   if (!rows.length) return nothingAnswered();
   // A held reply whose time came goes first, under Holds it alone: one stopped has no time, and Ask me posts nothing alone.
   const due =
