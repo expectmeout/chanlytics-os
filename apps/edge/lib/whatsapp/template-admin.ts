@@ -21,7 +21,7 @@ import {
   labelsOf,
   listTemplates,
   templateRow,
-  type MetaTemplateComponent,
+  componentsOf,
 } from "./meta-templates.js";
 
 import { logger, refuseFailure, logFailure } from "../shared/log.js";
@@ -74,7 +74,7 @@ export async function createWhatsappTemplate(
   const name = typeof body.name === "string" ? body.name : "";
   const language = typeof body.language === "string" ? body.language : "";
   const category = typeof body.category === "string" ? body.category.toUpperCase() : "";
-  const components = Array.isArray(body.components) ? (body.components as MetaTemplateComponent[]) : null;
+  const components = componentsOf(body.components);
   const text = typeof body.body === "string" ? body.body : null;
   const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
   // The words a person gave each slot, kept on the row so the composers can say them.
@@ -173,7 +173,7 @@ export async function editWhatsappTemplate(
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   const templateId = typeof body.template_id === "string" ? body.template_id : "";
-  const components = Array.isArray(body.components) ? (body.components as MetaTemplateComponent[]) : null;
+  const components = componentsOf(body.components);
   const text = typeof body.body === "string" ? body.body : null;
   const examples = Array.isArray(body.examples) ? body.examples.map(String) : [];
   const labels = Array.isArray(body.labels) ? body.labels.map((l: unknown) => textOrEmpty(l).trim().slice(0, 40)) : [];
