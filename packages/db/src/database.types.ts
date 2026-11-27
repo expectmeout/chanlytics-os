@@ -11163,6 +11163,14 @@ export type Database = {
         }
         Returns: Json
       }
+      ask_mornings_seen: {
+        Args: { p_since: string; p_tenant_id: string }
+        Returns: {
+          day: string
+          mine: boolean
+          proposals: Json
+        }[]
+      }
       ask_stopped_keep: {
         Args: { p_stopped?: Json; p_tenant_id: string }
         Returns: boolean
@@ -16183,12 +16191,20 @@ export type Database = {
           topics: Json
         }[]
       }
+      workspace_model_standing: {
+        Args: { p_tenant_id: string }
+        Returns: string
+      }
       workspace_notices_since: {
         Args: { p_since: string; p_tenant_id: string }
         Returns: {
           event: string
           payload: Json
         }[]
+      }
+      workspace_own_fields_write: {
+        Args: { p_set: Json; p_tenant_id: string }
+        Returns: Json
       }
       workspace_partner: { Args: { p_tenant: string }; Returns: Json }
       workspace_sending_stop: {

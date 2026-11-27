@@ -29,8 +29,10 @@ export const CLOCKS = {
     fn: "ads_hand_out",
   },
   calendar: {
-    kind: "event-shaped",
-    why: "hands each workspace with a feed a job hourly, which parses it to add people and stamp booked leads (0115); appointment events from push sync replace it, the iCal read a fallback (0002)",
+    kind: "due",
+    why: "hands each workspace's calendar the read whose time its row holds (00245 calendars_due, 00569 calendars_hand_out, decision 0115): tenant_config.calendar_checked_at, stamped by its last read whether it worked or not, read again once CALENDAR_REST_MS has passed, never read first. A feed's link has no push, so its row's time is when it is read; a booking tool's push would add appointments sooner (0002), not replace the read",
+    times: ["tenant_config.calendar_checked_at"],
+    fn: "calendars_due",
   },
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
   sources: {
@@ -72,15 +74,22 @@ export const CLOCKS = {
   leads: { kind: "reconcile", why: "takes up lead runs whose start or lease was lost" },
   lines: {
     kind: "event-shaped",
-    why: "resumes stuck line sagas and releases ended lines; the workflow runtime resuming its own steps replaces it",
+    why: "four halves a quarter hour: a line's setup a killed run left, taken up from its own receipts (the saga runs on the ledger since 00109; this finds the one whose run died past the ledger's take-back), and a number paid for that a webhook never started (each a reconcile); a number whose subscription ended, given back once its grace has passed (the end is its row's time); and a trial whose calls and replies reached what it includes, whose plan starts (decision 0090, trial_use): a sum no row's time holds, judged every tick, which keeps the clock event-shaped. A trial's use counted where it is spent, the reply or the call that spends its last starting the plan, replaces it",
   },
   mailboxes: {
     kind: "reconcile",
     why: "keeps each connected mailbox's watch, reads back what a push may have missed, and judges its own mail hourly",
   },
   notes: {
-    kind: "event-shaped",
-    why: "asks for note suggestions every half hour; a step started when a conversation goes quiet replaces it",
+    kind: "due",
+    why: "asks the edge only when a look is due by its rows' own times (trigger_notes_sweep, 00159): a call whose analysis came in (calls.notified_at) and a conversation six hours past its customer's last message (conversations.last_inbound_at), each looked at once by its stamp (note_checked_at, written as note_candidates hands it over); and the same of an owner's correction not yet looked at (fact_corrections, decision 0063) and a journal day an hour past its end with no entry (ask_journal_open_days, decision 0070), which the batch reads from the rows the clock read",
+    times: [
+      "calls.notified_at",
+      "calls.note_checked_at",
+      "conversations.last_inbound_at",
+      "conversations.note_checked_at",
+    ],
+    fn: "note_candidates",
   },
   partitions: { kind: "keep", why: "makes the events partition two months ahead" },
   partners: { kind: "roll", why: "a daily batch: a partner's matured earnings, and the letters that say so" },

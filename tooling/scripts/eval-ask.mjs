@@ -17,10 +17,12 @@
  * when the answer landed (previewJudged). Once the run has read each answered
  * turn's stored shape (ask_messages.content.shape), a turn that ran degraded
  * fails on it (ask-stats.mjs DEGRADED): its answer format refused by the API
- * and let go, or its answer written as text while the answer tool stood, a
- * note the model wrote to itself. Nothing else goes red for either: on 2
- * November 2026 #2046 took the format past the API's limit, every turn ran
- * without it for twenty hours, and every eval passed.
+ * and let go, or words outside the format standing as its answer while the
+ * answer tool stood, a note the model wrote to itself. Nothing else goes red
+ * for either: on 2 November 2026 #2046 took the format past the API's limit,
+ * every turn ran without it for twenty hours, and every eval passed. An
+ * answer written as text in the format is the answer, and fails nothing;
+ * one written so after a read landed whole, and is noted (landedWhole).
  * Each run times the first words (a `say` or a v1 `delta`) and the final,
  * keeps every `say` with when it came, and checks how the answer streamed
  * (ask-stats.mjs streamOf: how many previews, whether the last one met the
@@ -102,7 +104,17 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, priceOf } from "@chanlytics/contracts";
-import { degradedFails, pct, roundBands, spread, streamOf, streamSummary, wilson } from "./ask-stats.mjs";
+import {
+  LANDED_WHOLE_NOTE,
+  degradedFails,
+  landedWhole,
+  pct,
+  roundBands,
+  spread,
+  streamOf,
+  streamSummary,
+  wilson,
+} from "./ask-stats.mjs";
 import { askSpoken, spokenFails } from "./eval-ask-spoken.mjs";
 import { judge } from "./eval-ask-judge.mjs";
 import {
@@ -810,11 +822,13 @@ const shapes = await turnShapes(
   return new Map();
 });
 // A turn that ran degraded fails on its stored shape (ask-stats.mjs DEGRADED): its answer format refused by the API and
-// let go, or its answer written as text while the answer tool stood. The judge could not see either when the turn
-// landed, so its row said PASS then; the verdict is said again here, the way a turn's is.
+// let go, or words outside the format standing as its answer while the answer tool stood. The judge could not see
+// either when the turn landed, so its row said PASS then; the verdict is said again here, the way a turn's is. An
+// answer that landed whole (text after a read) is noted under its row, and fails nothing.
 for (const r of answered) {
   r.shape = shapes.get(r.message.id) ?? null;
-  const degraded = degradedFails(r.shape);
+  if (landedWhole(r.shape, r)) r.notes = [...(r.notes ?? []), LANDED_WHOLE_NOTE];
+  const degraded = degradedFails(r.shape, r);
   if (!degraded.length) continue;
   r.fails.push(...degraded);
   r.pass = false;
@@ -871,7 +885,8 @@ console.log(
     ` · line breaks lost at the final ${streamed.lines_lost} · Show drawn while writing ${streamed.show_streamed}` +
     ` · answered through the answer tool ${streamed.via.tool}, as text ${streamed.via.text}, none ${streamed.via.none}` +
     (streamed.via.unread ? ` (${streamed.via.unread} shapes unread)` : "") +
-    ` · ran degraded: format refused ${streamed.degraded.format}, note to itself ${streamed.degraded.note}`,
+    ` · ran degraded: format refused ${streamed.degraded.format}, note to itself ${streamed.degraded.note}` +
+    ` · landed whole after a read ${streamed.whole}`,
 );
 console.log(
   roundBands(answered.flatMap((r) => (r.shape ? [r.shape] : [])))

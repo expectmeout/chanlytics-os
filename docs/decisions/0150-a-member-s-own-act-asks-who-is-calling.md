@@ -74,3 +74,8 @@ the caller's own workspace; none takes a value the route worked out.
 - What is left in `SERVICE_ROLE_KEPT` under "a write a member's role allows but no door takes yet" (a held booking notice
   dismissed, the slots a week's approval left out, the stop, a morning's line, a post's move) falls as each change gets
   its door with its event, the work of lane 9 ("every change leaves one event").
+- 27 November 2026, 00724: `ledgers/events.ts` left with its last callers' doors (the workspace's name, zone and word
+  for a booking through `workspace_own_fields_write`, a first search's milestone in the search doors), and the two reads
+  a member's session was refused got theirs (`ask_mornings_seen`, `workspace_model_standing`): 35 reaches in 32 modules
+  to 32 in 29. What is kept is what no member may do from a browser; the settings as stored stay the server's, since
+  the calendar feed's link they hold opens the owner's calendar.

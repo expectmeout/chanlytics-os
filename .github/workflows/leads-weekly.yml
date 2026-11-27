@@ -8,7 +8,9 @@ name: The lead finder's weekly search
 # The run's own workspace is listed on the platform's switch (decision 30, the seed writes it), so a search runs there
 # while searching is off for everyone else. One spec: "a small search runs end to end", six bike shops by phone, from
 # Ask's card, to its ending, then removed. About $0.30 of the source and the judge, and one Ask turn (about $0.30 at what
-# a watched turn cost on 2 November 2026); the spec fails a round that spent $0.50 or more.
+# a watched turn cost on 2 November 2026); the spec fails a round that spent $0.50 or more. Since decision 0133 a search
+# widens area by area until its count is delivered: these six took three areas and 12 min 20 s on 27 November 2026, so
+# the spec waits up to twenty minutes for the end and the job has forty.
 #
 # On unless the repository variable LEADS_WEEKLY is "off" (Settings, Secrets and variables, Actions, Variables): one
 # word stops it, with no deploy. A run started by hand runs whatever the variable says. A red run keeps one issue open
@@ -34,7 +36,7 @@ jobs:
     name: A real search against production
     if: ${{ vars.LEADS_WEEKLY != 'off' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     permissions:
       contents: read
       issues: write
@@ -95,6 +97,20 @@ jobs:
           if [ "$CODE" = "0" ]; then
             node tooling/scripts/ops/rolling-issue.mjs --state green --title "The lead finder's weekly search failed" --match "The lead finder's weekly search"
           else
-            { echo "The weekly search did not end as it should. Read the report: a pinned build, the webhook, the judge or the checker."; echo "$said"; } > leads-weekly.md
+            # What it was waiting for when it gave up, in the test's own words. Three Sundays (8, 15 and 22 Nov 2026)
+            # said only "1 failed" and named four causes in the finder, while the plan stood on screen and the test
+            # waited for an id the card no longer carried: the issue has to say which it is without the report open.
+            why=$(grep -sE '^ +(Error|Locator|Expected[a-z ]*|Received[a-z ]*|Timeout):' leads-search.txt | head -8 || true)
+            {
+              echo "The weekly search did not end as it should."
+              echo "$said"
+              echo
+              echo "What the test was waiting for when it gave up:"
+              echo '```'
+              echo "${why:-The run said nothing of its own: it stopped before the test, so read the steps before it.}"
+              echo '```'
+              echo "A card or a button named here that the page still draws means the test is behind the page and no search was made. Anything after the press is the finder's: a pinned build, the webhook, the judge or the checker. The report is the run's artifact."
+            } > leads-weekly.md
+            cat leads-weekly.md >> "$GITHUB_STEP_SUMMARY"
             node tooling/scripts/ops/rolling-issue.mjs --state red --title "The lead finder's weekly search failed" --match "The lead finder's weekly search" --body-file leads-weekly.md --assignee "$OWNER"
           fi

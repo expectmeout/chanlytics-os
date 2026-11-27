@@ -30,14 +30,13 @@ import {
   isOneOf,
 } from "@chanlytics/contracts";
 import { getMemberViews } from "@chanlytics/db/notices";
-import { askFirstAnswer, askMorningOf, askMorningsSince, askMorningWrite } from "@chanlytics/db/ask";
+import { askFirstAnswer, askMorningOf, askMorningsSeen, askMorningWrite } from "@chanlytics/db/ask";
 import { batchStatesOf, getHeldSends } from "@chanlytics/db/campaigns";
 import type { Json } from "@chanlytics/db/types";
 import type { RouteContext } from "../../shared/with-route";
 import type { Member } from "../../shared/route";
 import { env } from "../../shared/env";
 import { log } from "../../shared/log";
-import { serviceDb } from "../../shared/service-db";
 import { load, readerContext, type ReaderContext } from "../../shared/reader";
 import { getEditedSince } from "../tools/read/sequences";
 import * as readers from "../../readers/facts";
@@ -79,11 +78,11 @@ async function workspaceClock(
   return { timezone: zone, day: dayInZone(zone, nowMs).key };
 }
 
-/** What every member's mornings offered lately: read with the service client, a morning's rows being its member's. */
+/** What every member's mornings offered lately: read through their door as the member (00724 ask_mornings_seen). */
 async function seenLately(ctx: RouteContext, member: Member, day: string): Promise<AskIdeaSeen[]> {
   try {
-    const mornings = await askMorningsSince(serviceDb(), member.tenantId, dayAfterDays(day, -ASK_LATELY_DAYS));
-    return ideasSeenOf(mornings.map((m) => ({ day: m.day, mine: m.user_id === ctx.userId, proposals: m.proposals })));
+    const mornings = await askMorningsSeen(ctx.supabase, member.tenantId, dayAfterDays(day, -ASK_LATELY_DAYS));
+    return ideasSeenOf(mornings);
   } catch (e) {
     log.error("ask_morning_lately_unread", { tenant_id: member.tenantId, error: e });
     return [];

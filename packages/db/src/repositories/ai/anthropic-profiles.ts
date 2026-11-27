@@ -158,9 +158,16 @@ export async function setAnthropicEnforcement(
   if (error) throw new DbFailure(error, "anthropic_profiles");
 }
 
+/**
+ * What Anthropic has said of a workspace's profile, as its members are told it: read through its door as the member signed
+ * in (00724 workspace_model_standing, for a member who may read the workspace). Null where it has no profile.
+ */
 export async function findWorkspaceModelStanding(db: Db, tenantId: TenantId): Promise<ModelStanding | null> {
-  const row = await findAnthropicProfile(db, { kind: "workspace", tenantId });
-  return row ? modelStandingOf(row.enforcement_status) : null;
+  const { data, error } = await db.rpc("workspace_model_standing", { p_tenant_id: tenantId });
+  if (error) throw new DbFailure(error, "workspace_model_standing");
+  // The generator types a text answer as a string; the door answers null for a workspace with no profile.
+  if (!data) return null;
+  return modelStandingOf(statusOfRow(data));
 }
 
 /** How many a waiting count reads at most: Health's number, which says so past it. */
