@@ -341,7 +341,7 @@ being read is dropped by a migration.
 | `google_connection_remove` | the server's | the server | code `packages/db/src/repositories/google/told.ts` | A Google Business Profile disconnected (00722): |
 | `google_listing_link` | the server's | the server | code `packages/db/src/repositories/google/told.ts` | A Google listing linked (00722): |
 | `google_listing_unlink` | the server's | the server | code `packages/db/src/repositories/google/told.ts` | A Google listing unlinked (00722): |
-| `google_profile_synced` | the server's | the server | code `apps/edge/lib/google/profile-sync.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A Google profile's sync stamped (00722): |
+| `google_profile_synced` | the server's | the server | code `apps/edge/lib/google/profile-sync.ts`, `apps/edge/lib/shared/log-events/google.ts` and 1 more | A Google profile's sync stamped (00722): |
 | `google_review_replied` | the server's | the server | code `packages/db/src/repositories/google/told.ts` | A Google review answered (00722): |
 | `google_reviews_keep` | the server's | the server | code `packages/db/src/repositories/google/told.ts` | The reviews a Google read listed (00722), each written over its row by review id with the keys the read carried (a row keeps its first_seen_at; |
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
@@ -916,7 +916,7 @@ being read is dropped by a migration.
 | `stamp_email_from_mailbox` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | An email sent from a connected mailbox, stamped (00424): |
 | `stamp_email_left_as` | the server's | the server | code `packages/db/src/repositories/email/email.ts` | How a person's email reply left (core deliver): |
 | `stamp_email_sent` | the server's | the server | code `packages/db/src/repositories/email/email.ts` |  |
-| `start_playbook` | reader | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/reach-outs/chain-acts.ts`, `packages/contracts/src/shared/enums.ts` and 1 more | A member starts a playbook and its line in the ledger together (00357): |
+| `start_playbook` | reader | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/reach-outs/chain-acts.ts`, `packages/contracts/src/shared/enums/decisions.ts` and 1 more | A member starts a playbook and its line in the ledger together (00357): |
 | `stop_all_messages` | the server's | the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | The unsubscribe page's second, confirmed act: |
 | `sweep_health` | the server's | the server | code `apps/dashboard/src/server/console/health.ts`, `packages/db/src/repositories/console/health.ts` and 1 more; SQL `trigger_call_reconcile` | One row per registered clock (public.sweep_status): |
 | `sweep_mark_alerted` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Records that an alert was DELIVERED for each sweep in p_alerted, and clears the suppression stamp of each sweep in p_healthy. |
