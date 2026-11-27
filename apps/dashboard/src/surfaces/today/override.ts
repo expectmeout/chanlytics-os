@@ -4,6 +4,7 @@
  * is live), after its own page's surfaces, so its code is fetched beside its reads instead of parsed before any page could
  * draw (the loadability review, 19 Oct 2026).
  */
+import { headStarted } from "@/bridge/api";
 import type { SurfaceOverride } from "@/bridge/surface-data";
 import { isLiveCallTurn } from "@/bridge/surface-realtime";
 import { surfaceCode } from "@/bridge/surfaces/code";
@@ -14,7 +15,7 @@ import "./setup-card-code";
 import { onRouteAsked } from "@/bridge/workspace";
 import { holdTodayForNote } from "./cold-email-note-read";
 import { holdTodayForContent } from "./content-note-read";
-import { arriveOnToday } from "./first-draw-read";
+import { arriveOnToday, dayWasRead } from "./first-draw-read";
 import { holdTodayForPeople } from "./people-read";
 
 // And Cold email's one line, which Today's first draw waits for where the tab opens on Today holding none
@@ -114,6 +115,14 @@ export const todayOverride: SurfaceOverride = {
   readAtMidnight: true,
   // And the rows that come and go by the clock alone, made again each minute while Today is on screen (hearing/clock.ts).
   // Nothing before the first read, which brings the code (todayCode) and what the clock makes the day again from.
+  // The cards beside the day read again as this lands, never as the clock makes the day again (first-draw-read.ts
+  // useReadAsTheDayIsRead): the load's own read, which the document's head started with theirs, they read with, so it is
+  // not said.
   rederive: (now) => todayCode.now()?.rederiveToday(now) ?? false,
-  apply: async (heard) => (await todayCode()).applyToday(heard),
+  apply: async (heard) => {
+    const began = headStarted("today") ? null : Date.now();
+    const status = await (await todayCode()).applyToday(heard);
+    if (began !== null) dayWasRead(began);
+    return status;
+  },
 };

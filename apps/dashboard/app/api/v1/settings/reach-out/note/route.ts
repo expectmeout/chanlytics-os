@@ -5,7 +5,7 @@ import { coldEmailNote } from "@/server/readers/reach-out/cold-email-note";
 /**
  * GET /api/v1/settings/reach-out/note: Cold email's one line on Today, or none (the page's read is GET settings/reach-out,
  * too much to ask each time Today opens). Members read, as every member reads Today; RLS scopes; counted with the other
- * aggregate reads, since Today asks it again as the day moves. The body is its reader's.
+ * aggregate reads, since Today asks it again as its own read lands. The body is its reader's.
  */
 export const GET = read({
   scope: workspace,
