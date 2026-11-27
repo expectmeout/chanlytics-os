@@ -16,10 +16,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc, readCode } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
-
-const boot = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
 
 /* ----------------------------- the database's door ----------------------------- */
 
@@ -160,24 +158,9 @@ test("the function's own messages reach the owner, by their codes", async () => 
 
 /* ------------------------------- the screen ------------------------------- */
 
-test("the create screen waits for the fetch before claiming there is nothing", () => {
-  // Before the workspace surface resolves, EVERY account looks like it has no
-  // workspaces. Flashing "create your workspace" at an owner who has one is
-  // the same class of lie as painting mockup data during a load — which this
-  // project has shipped twice.
-  assert.ok(
-    boot.includes('isSurfaceReady("workspace") && allWorkspaces.length === 0'),
-    "readiness must be part of the condition",
-  );
-});
-
-test("a created workspace becomes the active one, and opens on its first run", () => {
-  // Otherwise the owner creates a workspace and stays looking at nothing.
-  assert.ok(
-    boot.includes("switchWorkspace(w.id, w.slug, `#/${FIRST_RUN_ROUTE}`)"),
-    "by its slug: a new workspace is not in __WORKSPACES yet, and an id address boots the app twice; at #/start, its first run",
-  );
-});
+// The create screen waits for the workspace's read before claiming there is nothing, and a workspace made becomes the
+// active one by its slug and opens on its first run: the frame, drawn, in shell/boot/the-frame-draws-what-it-holds.test.mjs, where another workspace asked
+// for from the menu is the screen with its way back. Pinned as FrameApp.tsx's text until 27 Nov 2026.
 
 // The form says what its timezone decides, starts at the browser's own zone, and shows the server's refusal in its own
 // words and becomes usable again: drawn and pressed in create-workspace-screen.test.mjs ("another workspace ... keeps its

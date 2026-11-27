@@ -82,39 +82,19 @@ test("an unknown surface is neither ready nor failed", () => {
 
 /* --------------- 2. the gate exists before any consumer renders -------------- */
 
-test("the route gate and the cache are the boot's, which FrameApp runs at its module scope, before its effects", () => {
-  // The frame (surfaces/frame/shell-hooks.ts) computes routeLoading's INITIAL value during its first render, and it is a
-  // CHILD of FrameApp, whose effects run after it. A gate installed in a useEffect was undefined at the only moment it
-  // mattered: routeReady() fell back to true and a cold boot painted the seeded hero for a frame; and a cache restored
-  // inside the component showed a frame of mockup data before correcting itself. The boot itself is run, gate and cache
-  // and all, in tests/shell/boot/frame-boot.test.mjs: what is left to read is where FrameApp calls it, since FrameApp
-  // draws in a browser alone.
-  const s = src("FrameApp.tsx");
-  const call = s.indexOf("\nbootFrame();\n");
-  assert.notEqual(call, -1, "bootFrame() is called at FrameApp's top level");
-  assert.ok(call < s.indexOf("export default function FrameApp"), "before the component: React has drawn nothing");
-  const firstEffect = s.indexOf("useEffect(");
-  assert.ok(firstEffect === -1 || call < firstEffect, "never inside an effect: the first frame would be ungated");
-  assert.ok(s.indexOf('import "./manifest";') < s.indexOf('from "./boot/installs"'), "after the manifest's seeds");
-});
+// The route gate and the cache are the boot's, which FrameApp runs at its module scope, before its effects: the frame
+// (surfaces/frame/shell-hooks.ts) works out routeLoading's first value in its first draw, as a CHILD of FrameApp, whose
+// effects run after it, so a gate installed in an effect was undefined at the only moment it mattered. Run, not read:
+// FrameApp's module, loaded over a bare window, has the boot's parts in before its component exists
+// (shell/boot/the-frame-boots-before-it-draws.test.mjs), and the boot itself, gate and cache and all, runs in
+// shell/boot/frame-boot.test.mjs. Pinned as FrameApp.tsx's text until 27 Nov 2026.
 
 /* ------------- 3. loading is derived during render, not set later ------------ */
 
-test("the shell derives route loading during render", () => {
-  const shell = fs.readFileSync(path.join(here, "../../../apps/dashboard/src/surfaces/frame/shell-hooks.ts"), "utf8");
-  for (const name of ["surfaceReady", "surfaceUnavailable", "routeLoading"]) {
-    assert.match(
-      shell,
-      new RegExp(`\\bconst ${name} =`),
-      `${name} must be a const derived every render — as effect-set state it committed the PREVIOUS route's value, so a navigation painted one frame of the old page's answer`,
-    );
-    assert.doesNotMatch(
-      shell,
-      new RegExp(`useShellState\\([^)]*\\)[^\\n]*${name}|\\[${name},`),
-      `${name} became state again`,
-    );
-  }
-});
+// The shell derives route loading during render: as effect-set state it committed the PREVIOUS route's value, so a
+// navigation painted one frame of the old page's answer. Run: the route gate (surfaces/frame/shell-hooks.ts useRouteGate),
+// drawn as one component across a move, in shell/boot/the-frame-draws-what-it-holds.test.mjs ("the route gate is worked
+// out in every draw"). Pinned as shell-hooks.ts's text until 27 Nov 2026.
 
 /* ---------------- 4. one seam owner: no bypassing the runner --------------- */
 

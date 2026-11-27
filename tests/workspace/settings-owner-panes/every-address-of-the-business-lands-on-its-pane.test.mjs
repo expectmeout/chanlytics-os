@@ -7,13 +7,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CONSOLE_PATH } from "@chanlytics/contracts";
-import { all, draw, settings, textOf } from "./_settings-owner-panes.mjs";
+import { all, draw, settings, textOf, workspace } from "./_settings-owner-panes.mjs";
 import { bridgeHolds } from "../../shell/_bridge-holds.mjs";
 
 const { PaneWorkspace } = await import("../../../apps/dashboard/src/surfaces/settings/frame/workspace.tsx");
 const { PaneMemory } = await import("../../../apps/dashboard/src/surfaces/settings/memory/pane.tsx");
 const { PaneBillingReal } = await import("../../../apps/dashboard/src/surfaces/settings/billing/pane.tsx");
 const { PaneIntegrationsReal } = await import("../../../apps/dashboard/src/surfaces/settings/connections/pane.tsx");
+const { BtCreateCard } = await import("../../../apps/dashboard/src/surfaces/settings/business/create.tsx");
 
 /** The panes the page drew for `tab`, by the component each is. */
 const panesOf = (tab) => all(settings(tab), (n) => n.type === PaneWorkspace || n.type === PaneMemory);
@@ -94,4 +95,21 @@ test("Settings' Back office is a link to the Console, for the people it is for a
     globalThis.window.location.assign = assign;
     bridgeHolds({ who: { me: undefined } });
   }
+});
+
+test("REGRESSION: a workspace with no receptionist set up is told so, never shown somebody else's business", () => {
+  // Migration 00017 provisions every tenant with an EMPTY tenant_config row, so `config.brain` is undefined: the pane fell
+  // to its mockup branch and showed Serenity Spa's invented name, phone and hours to a real owner as their own business.
+  // A config the parser refuses lands in the same branch. "No configuration" is not "this is the demo".
+  workspace("owner", { record: { role: "owner", version: 1, config: {} } });
+  const empty = settings("workspace");
+  assert.equal(
+    all(empty, (n) => n.type === BtCreateCard).length,
+    1,
+    "the empty state, and the one act that sets it up",
+  );
+  assert.equal(all(empty, (n) => n.type?.name === "DemoBusiness").length, 0, "never the mockup's salon");
+  workspace("owner");
+  const real = settings("workspace");
+  assert.equal(all(real, (n) => n.type === BtCreateCard).length, 0, "a workspace with a receptionist is its record");
 });

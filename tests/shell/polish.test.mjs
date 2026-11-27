@@ -12,7 +12,7 @@ import {
   dedupeFeed,
   tzClock,
 } from "@chanlytics/contracts";
-import { readCode, importSrc } from "../_source.mjs";
+import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { PHONE, cascadeOf, declared, element, frameSheets } from "../_css.mjs";
 
@@ -149,8 +149,6 @@ test("a campaign's answered share says its window, the one a reply is counted in
   }
   // Every closing time Today says names its day (tzClock above), in the queue's, the facts', the figures' and the rows'
   // words: today/record/ and today/zones/need-you-acts.test.mjs draw them on a day that is tomorrow's.
-  // Nothing of the workshop on a customer's screen: presence was the mockup's, and went with demo mode, and the footer
-  // is the customer's. FrameApp.tsx cannot be imported in node, so its footer is still read.
-  const app = readCode("apps/dashboard/src/bridge/FrameApp.tsx");
-  assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");
+  // Nothing of the workshop on a customer's screen: presence was the mockup's, and went with demo mode, and the frame is
+  // the customer's: drawn in shell/boot/the-frame-draws-what-it-holds.test.mjs ("nothing of the workshop").
 });
