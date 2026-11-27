@@ -725,6 +725,6 @@
     "00720_a_post_s_move_and_a_held_slot_are_kept_with_their_event.sql": "f8fa7bba66da4435ac7acf19c3464ee4e9edece3e4ebda3002502e90dd17cd71",
     "00721_the_edge_s_changes_write_their_own_events.sql": "e265d02468efedfb40ed0c318365556d28431c0a133e755e6513062fd1a83720",
     "00722_the_dashboard_s_acts_write_their_own_events.sql": "7cd595a59a762d5ed3c4514d82954298e964fc800ea1e1e44cae896ec7be3980",
-    "00723_a_fact_door_writes_its_event.sql": "68b146ae1da8afe7bad162a3ef930edd363f38862dd743776977199a05c13e1f"
+    "00723_a_fact_door_writes_its_event.sql": "4fe05f78c626ad3d0bffe98f7fa940c0e9c096f9224de4e5387136ab19bdfdf2"
   }
 }

@@ -6,7 +6,7 @@
 -- from the snapshot's own text (supabase/schema.sql at 00722) with its event added beside the write, its arguments, its
 -- grants and its comment as they were: an old caller's call lands as it did, and only the ledger gains a row.
 --
---   The new kinds (47) are noise kinds by record: piece.moved, plan_slot.moved, content_plan.moved, file_copy.moved,
+--   The new kinds (48) are noise kinds by record: piece.moved, plan_slot.moved, content_plan.moved, file_copy.moved,
 --   form.moved, sequence.enrolled, conversation.control_moved, lead.found, retention.cleared, source.connected and the
 --   rest (packages/contracts enums/events.ts, each with its words). Every one is kept from Activity's rows and its
 --   picker: the page that owns each record says it as it stands. None is a row an owner sees yet.
@@ -3977,9 +3977,10 @@ end $$;
 /* -- an ad's ways in, the owner's own email, a workspace's first rows: each with its event -- */
 
 -- The ways in an account's ads take (a message, a form) kept writes ad_account.ways_in_kept; the owner's own email in
--- a mailbox they connected, kept on its thread, writes conversation.owner_replied as the owner's echo does; and a
--- workspace's first rows (its policies, its settings, its billing) write workspace.provisioned where any was made. All
--- are kept from Activity's rows.
+-- a mailbox they connected, kept on its thread, writes conversation.owner_emailed, a kind of its own: the owner's echo
+-- from WhatsApp's app (conversation.owner_replied) hands the thread back and Activity says so, and an email of theirs
+-- hands nothing back, it only answers the holds it meets; and a workspace's first rows (its policies, its settings, its
+-- billing) write workspace.provisioned where any was made. All are kept from Activity's rows.
 
 -- ad_way_in_keep
 CREATE OR REPLACE FUNCTION public.ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb) RETURNS jsonb
@@ -4119,7 +4120,7 @@ begin
     return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-  values (p_tenant_id, 'conversation.owner_replied', 'message', 'conversation', v_conv,
+  values (p_tenant_id, 'conversation.owner_emailed', 'message', 'conversation', v_conv,
           jsonb_build_object('message_id', v_message, 'channel', 'email'));
 
   -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot

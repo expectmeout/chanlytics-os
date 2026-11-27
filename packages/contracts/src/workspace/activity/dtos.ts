@@ -237,6 +237,7 @@ export const WORDS: Record<string, string> = {
   "conversation.control_moved": "Who is holding a conversation changed",
   "conversation.opened": "A conversation was opened",
   "conversation.set_aside": "A conversation was set aside",
+  "conversation.owner_emailed": "The owner emailed someone from their own mailbox",
   "message.withdrawn": "A message was taken back before it went",
   "message.unsent": "Someone unsent their message",
   "message.complained": "Someone marked an email as spam",

@@ -399,6 +399,7 @@ export const EVENT_KINDS = [
   "conversation.control_moved",
   "conversation.opened",
   "conversation.set_aside",
+  "conversation.owner_emailed",
   "message.withdrawn",
   "message.unsent",
   "message.complained",

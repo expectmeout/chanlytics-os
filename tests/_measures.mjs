@@ -59,7 +59,7 @@ import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { CLOCKS } from "./clocks/_clocks.mjs";
 import { OUT as SCHEMA_SQL, functionChangesIn, statementsOf } from "../tooling/scripts/gen/schema-snapshot.mjs";
 import { KEPT_WITH_NO_CALLER, clockOf, codeCallersOf, functionsOf, mapOf } from "../tooling/scripts/gen/sql-map.mjs";
-import { ACTIVITY_NOISE_PREFIXES, SCHEMA_SETS } from "@chanlytics/contracts";
+import { ACTIVITY_NOISE_KINDS, ACTIVITY_NOISE_PREFIXES, EVENT_KINDS, SCHEMA_SETS } from "@chanlytics/contracts";
 import { ERASURE_STRATEGIES } from "@chanlytics/db/erasure";
 import { SUITES } from "../tooling/scripts/checks/test.mjs";
 import { NAME_RATCHETS } from "./repo/names/_names.mjs";
@@ -1457,6 +1457,80 @@ export function emittedKinds() {
     }
   }
   return by;
+}
+
+/** Whether Activity shows a kind: one it does not keep from its rows and its picker (contracts' noise kinds and families). */
+export const shownInActivity = (kind) =>
+  !ACTIVITY_NOISE_KINDS.includes(kind) && !ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
+
+/** The repository's migrations, in order: `[{ name, sql }]`. */
+const migrationTexts = () =>
+  fs
+    .readdirSync(path.join(ROOT, "supabase/migrations"))
+    .filter((n) => n.endsWith(".sql"))
+    .sort()
+    .map((n) => ({ name: n.replace(/\.sql$/, ""), sql: readRaw(`supabase/migrations/${n}`) }));
+
+/**
+ * Every function the migrations define, as its last definition left it: `Map(name → { kinds, migration })`, `kinds`
+ * the declared event kinds among the dotted literals of its `insert into events` statements (a kind a `case` picks is
+ * one of them). `each` is told every definition in order, with the kinds of the one before it (an empty set for a
+ * function's first).
+ */
+export function kindsByFunction(migrations = migrationTexts(), each = () => {}) {
+  const declared = new Set(EVENT_KINDS);
+  const last = new Map();
+  for (const { name: migration, sql } of migrations) {
+    for (const m of sql.matchAll(/\bcreate\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\(/gi)) {
+      const as = /\bas\s+(\$\w*\$)/i.exec(sql.slice(m.index));
+      if (!as) continue;
+      const open = m.index + as.index + as[0].length;
+      const body = sql.slice(open, sql.indexOf(as[1], open));
+      const kinds = new Set();
+      for (const ins of body.matchAll(/\binsert\s+into\s+(?:public\.)?events\b([\s\S]*?);/gi))
+        for (const lit of ins[1].matchAll(/'([a-z_]+\.[a-z_]+)'/g)) if (declared.has(lit[1])) kinds.add(lit[1]);
+      const fn = m[1].toLowerCase();
+      each({ fn, migration, kinds, before: last.get(fn)?.kinds ?? new Set() });
+      last.set(fn, { kinds, migration });
+    }
+  }
+  return last;
+}
+
+/**
+ * The migration the shown kinds are held from: every door it and the migrations after it define writes a kind Activity
+ * shows only where the door's own definition before wrote it, or where SHOWN_KINDS_NEW_TO_A_DOOR argues the pair.
+ */
+export const SHOWN_KINDS_HELD_FROM = "00723";
+
+/**
+ * A kind Activity shows says one act, often in one channel's words ("The owner replied from the WhatsApp Business app,
+ * and AI stepped back"), so a door that starts writing one puts that line in Activity for every call it takes, true
+ * or not. Each pair a migration from SHOWN_KINDS_HELD_FROM on makes, a door and a shown kind its definition before did
+ * not write, is argued here with the act, its words, and why they are true of this door: `{ "door() <- kind": why }`.
+ * The owner's own email first wrote the WhatsApp echo's kind here (00723, before review): it writes one of its own
+ * now, conversation.owner_emailed, kept from Activity's rows.
+ */
+export const SHOWN_KINDS_NEW_TO_A_DOOR = {
+  "whatsapp_channel_activate() <- channel.connected":
+    "A WhatsApp number connected: its words (\"A WhatsApp number was connected\") are this door's act, the number's row turned active, which the edge wrote after the row from TypeScript until the door (00723)",
+};
+
+/**
+ * Each door a migration from `from` on defines that writes a kind Activity shows which the door's definition before it
+ * did not write: `{ "door() <- kind": "the migration" }`. `shown` says which kinds Activity shows.
+ */
+export function shownKindsNewToADoor({
+  migrations = migrationTexts(),
+  from = SHOWN_KINDS_HELD_FROM,
+  shown = shownInActivity,
+} = {}) {
+  const found = {};
+  kindsByFunction(migrations, ({ fn, migration, kinds, before }) => {
+    if (migration < from) return;
+    for (const k of kinds) if (!before.has(k) && shown(k)) found[`${fn}() <- ${k}`] = migration;
+  });
+  return found;
 }
 
 /**

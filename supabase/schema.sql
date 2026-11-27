@@ -23654,7 +23654,7 @@ begin
     return jsonb_build_object('kept', false, 'why', 'already', 'conversation_id', v_conv);
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
-  values (p_tenant_id, 'conversation.owner_replied', 'message', 'conversation', v_conv,
+  values (p_tenant_id, 'conversation.owner_emailed', 'message', 'conversation', v_conv,
           jsonb_build_object('message_id', v_message, 'channel', 'email'));
 
   -- The holds it answers: open, waiting on a person, opened before it was sent. Locked, so two syncs of one email cannot
