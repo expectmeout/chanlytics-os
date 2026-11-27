@@ -9,7 +9,7 @@
   min-width: 0;
 }
 .wf-site,
-.wf-empty {
+.wf-none {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -23,8 +23,7 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
-.wf-site-head > h3,
-.wf-empty > h3 {
+.wf-site-head > h3 {
   margin: 0;
   min-width: 0;
   font-size: var(--text-base);

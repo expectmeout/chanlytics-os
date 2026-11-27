@@ -190,10 +190,10 @@ export function RewriteLine({ c }: { c: ComposerDraw }) {
     } else setSaid(r.why);
   };
   return (
-    <div className="ix-steer ix-composer-rewrite-line" data-testid="ix-composer-rewrite-line">
+    <div className="rec-input-group ix-rewrite-line ix-composer-rewrite-line" data-testid="ix-composer-rewrite-line">
       <Icon name="spark" size={13} className="ix-steer-spark" />
       <input
-        className="ix-steer-input"
+        className="rec-input"
         value={asked}
         onChange={(e) => setAsked(e.target.value)}
         onKeyDown={(e) => {

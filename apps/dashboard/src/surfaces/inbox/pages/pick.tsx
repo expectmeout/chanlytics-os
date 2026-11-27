@@ -187,6 +187,7 @@ export function pickArchiveAsk(p: {
       onYes={onYes}
       onNo={onNo}
       testid="ix-bulk-archive"
+      className="ix-list-ask"
     />
   );
 }

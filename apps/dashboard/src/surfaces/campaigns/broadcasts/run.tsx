@@ -45,6 +45,7 @@ import type { BcSheetAsk } from "./run-sheet";
 import type { Flash } from "./page/types";
 import { broadcasts } from "./verbs";
 import { bcLateWords, bcOpensOnItsSheet } from "./when-words";
+import { customProperties } from "../../kit/variants";
 
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
@@ -104,7 +105,7 @@ function useBcRunWatch(id: string, d: BroadcastDetailDto | null, setAnswer: Disp
 // A live reach-out run is its own block (Reach out Part 4 PR 7, reach-out/approval.tsx), waiting on you or not (R20).
 const bcReachOutBlock = (d: BroadcastDetailDto, p: { onDecided: () => void; flash: Flash | null; armed: boolean }) =>
   d.reach_out && BC_LIVE.has(d.broadcast.state) ? (
-    <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
+    <div className="bc-report is-docked is-approval" data-testid="bc-detail">
       <ReachOutRun d={d} {...p} />
     </div>
   ) : null;
@@ -196,7 +197,7 @@ function bcFigBars(f: RunReportVM["figures"][number], span: string, tall: number
         <span
           key={i}
           data-on={v > 0 ? "" : undefined}
-          style={{ height: `${v > 0 ? Math.max(3, Math.round((v / top) * tall)) : 2}px` }}
+          style={customProperties({ "--tall": `${v > 0 ? Math.max(3, Math.round((v / top) * tall)) : 2}px` })}
         />
       ))}
     </span>
@@ -246,7 +247,7 @@ function bcTouched(p: { vm: RunReportVM; filter: RunFilterId; setFilter: (filter
   return (
     <section className="bc-touched" data-testid="bc-touched">
       <div className="bc-touched-head">
-        <span className="bc-card-title">Everyone it touched</span>
+        <span className="bc-pane-title">Everyone it touched</span>
         <SubTabs
           label="Who to show"
           className="bc-touched-filters"
@@ -274,9 +275,9 @@ function bcTouched(p: { vm: RunReportVM; filter: RunFilterId; setFilter: (filter
 function bcAside(vm: RunReportVM) {
   return (
     <div className="bc-report-aside">
-      <section className="bc-card" data-testid="bc-back">
-        <span className="bc-card-title">What came back</span>
-        <p className="bc-card-lede">
+      <section className="panel bc-pane" data-testid="bc-back">
+        <span className="bc-pane-title">What came back</span>
+        <p className="bc-pane-lede">
           A send is not a conversation. Each reply is one in the Inbox, and AI answers it as it usually does.
         </p>
         {vm.replies.length > 0 ? (
@@ -359,7 +360,7 @@ function bcDecidedPane(ask: BcDecidedAsk): ReactNode {
   const people = broadcasts.report(d).people;
   return pane(
     bcSheetHead(d, sheet),
-    <div className="bc-report is-sheet is-approval" data-testid="bc-detail">
+    <div className="bc-report is-docked is-approval" data-testid="bc-detail">
       <BcSheet d={d} people={people} avm={avm} sheet={sheet} seeAll={seeAll} onSeeAll={onSeeAll} docked={phone} />
     </div>,
     phone ? bcSheetDock({ b, avm, sheet }) : undefined,

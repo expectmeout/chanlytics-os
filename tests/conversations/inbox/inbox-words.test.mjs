@@ -717,10 +717,10 @@ test("the search asks for what it searches, and a teammate's email keeps its own
       "Search by name or message",
       "REGRESSION: 'Search threads, clients, tags…', on a workspace with no tags",
     );
-    const pill = find(tree, (n) => n.type === "span" && hasClass("ix-state-pill")(n) && textOf(n).includes("has it"));
+    const pill = find(tree, (n) => n.type === "span" && hasClass("ix-row-state")(n) && textOf(n).includes("has it"));
     assert.equal(textOf(pill), "billing@rjcapital.example has it");
     assert.ok(
-      hasClass("ix-name-pill")(pill),
+      hasClass("ix-row-name")(pill),
       "REGRESSION: a pill that capitalises shouted the email: BILLING@RJCAPITAL.EXAMPLE HAS IT",
     );
   } finally {

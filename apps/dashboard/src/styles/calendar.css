@@ -280,7 +280,6 @@
 /* A fade where it stands: rising 3px as well, the Calendar read on a phone as shifting as it drew (Ruben, 23 Oct 2026). */
 @keyframes cal-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .cal-body { animation: none; transition: none; } }
-.cal-today-btn[disabled] { opacity: 0.45; cursor: default; }
 .cal-month-cell.loading, .cal-agenda-day.loading, .cal-col.loading { opacity: 0.75; }
 
 .cal-failed { margin: 0 var(--cal-gutter, 28px) 12px; }
@@ -312,16 +311,8 @@
 .cal-head { display: flex; flex-direction: column; gap: var(--space-2); flex-shrink: 0; padding: var(--space-3) var(--cal-gutter) var(--space-2); }
 .cal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
 .cal-when { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-right: auto; }
-/* The steps are one group whose outer corners are the buttons' own: a group that clipped its buttons cut a focused
-   step's ring off at its edges. */
-.cal-steps { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
-.cal-steps .btn { height: 28px; border-radius: 0; color: var(--ink-muted); }
-.cal-steps .btn:first-child { border-radius: calc(var(--radius-md) - 1px) 0 0 calc(var(--radius-md) - 1px); }
-.cal-steps .btn:last-child { border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0; }
-.cal-steps .btn-icon { width: 30px; }
-.cal-steps .btn + .btn { border-left: 1px solid var(--line); }
-@media (hover: hover) { .cal-steps .btn:hover:not([disabled]) { color: var(--ink); } }
-.cal-steps .btn:focus-visible { position: relative; z-index: 1; }
+/* The steps are the kit's quiet buttons side by side: Previous, Today and Next. */
+.cal-steps { display: inline-flex; flex: none; gap: 2px; }
 .cal-flip { transform: scaleX(-1); }
 .cal-title { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px; margin-left: -8px; border-radius: var(--radius-sm); color: var(--ink-faint); cursor: pointer; }
 @media (hover: hover) { .cal-title:hover { background: var(--bg-hover); color: var(--ink-muted); } }
@@ -331,7 +322,6 @@
 .cal-tools .cal-service { width: auto; height: 30px; padding-top: 0; padding-bottom: 0; border-color: var(--line); border-radius: var(--radius-md); background-color: var(--bg-raised); }
 
 @media (pointer: coarse) {
-  .cal-steps .btn-icon { width: 44px; }
   .cal-title { min-height: 44px; }
   .cal-tools .cal-service { height: 44px; }
 }
@@ -1201,4 +1191,23 @@
   }
   /* The desk's peek is the kit's sheet here: nothing of it is drawn on the board. */
   .cal-side { display: none; }
+}
+
+/* Where each thing stands on the day's clock: blocks.tsx says its top and its length as custom properties (--at,
+   --long), and a block that shares its hour with others its lane (--lane-left, --lane-width). */
+.cal-appt,
+.cal-open,
+.cal-unavail {
+  top: var(--at);
+  height: var(--long);
+}
+.cal-moment,
+.cal-nowline,
+.cal-hour {
+  top: var(--at);
+}
+.cal-appt[data-laned] {
+  left: var(--lane-left);
+  width: var(--lane-width);
+  right: auto;
 }

@@ -250,7 +250,7 @@
     line-height: var(--row-name-line);
   }
   /* The outcome sits where a person's state does: at the line's end, and never pushing the name out of it. */
-  .cv-row-line1 > .pill {
+  .cv-row-line1 > .cv-row-state {
     flex: none;
     margin-left: auto;
   }

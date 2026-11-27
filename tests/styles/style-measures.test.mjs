@@ -173,14 +173,12 @@ test("the measures see the dashboard's stylesheets and the shell's markup, and l
   assert.equal(styleValues[TOKENS_CSS], undefined, "the tokens are where a literal belongs");
   const primitives = measure("primitives outside the kit");
   assert.ok(
-    Object.entries(primitives).some(([at, n]) => at.endsWith("::btn") && !at.includes("/kit/") && n > 0),
+    Object.entries(primitives).some(([at, n]) => /::btn(-[a-z]+)?$/.test(at) && !at.includes("/kit/") && n > 0),
     "a page that restyles the button, a primitive outside the kit, is counted",
   );
+  // The pages hold no style prop since lane 8's PR D (27 Nov 2026): what the measure counts is held by the fixtures above,
+  // and here only where it looks.
   const inline = Object.keys(measure("inline style props"));
-  assert.ok(
-    inline.some((f) => f.startsWith("apps/dashboard/src/surfaces/")),
-    "the pages' markup is measured",
-  );
   assert.ok(
     inline.every((f) => /^apps\/dashboard\/src\/(legacy|surfaces)\//.test(f)),
     "and only the shell's: the app's error screens are not held",

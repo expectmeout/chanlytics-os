@@ -156,9 +156,11 @@ export function WebsiteConnection({ onClose, flash }: { onClose: () => void; fla
         <div className="wf-sites">
           <p className="wf-site-says">{W.intro}</p>
           {dto.sites.length === 0 ? (
-            <div className="wf-empty" data-testid="wf-empty">
-              <h3>{W.empty.title}</h3>
-              <p className="wf-site-says">{W.empty.body}</p>
+            <div className="empty empty-block wf-none" data-testid="wf-empty">
+              <div className="empty-words">
+                <h3 className="empty-title">{W.empty.title}</h3>
+                <p className="empty-body">{W.empty.body}</p>
+              </div>
             </div>
           ) : (
             dto.sites.map((site) => (

@@ -14,6 +14,7 @@ import { confTone, fmtDelta, ROUTES } from "../constants";
 import { gate, keyPress, navigate } from "../shell";
 import type { Approval, Evidence, NextStep, Thread, Verdict, VerdictOption } from "../types";
 import { Button } from "../../kit/button/button";
+import { Meter } from "../../kit/meter/meter";
 
 /** What the decision row asks of a plan's parameter: the label picked. */
 export interface DecideExtra {
@@ -124,7 +125,7 @@ function approvalPlan(props: ApprovalCardProps) {
   return (
     <div className="ix-outcomes ix-one">
       <div className="ix-outcome recommended selected ix-plan">
-        <span className="ix-outcome-rec-tag">AI's plan</span>
+        <span className="pill pill-accent ix-plan-says">AI's plan</span>
         <div className="ix-outcome-action-line">
           <span className="ix-outcome-action">{plan.label}</span>
           {plan.confidence !== undefined && (
@@ -209,14 +210,12 @@ function evidenceRow(e: Evidence, i: number) {
 function nextStepRow(s: NextStep, i: number) {
   return (
     <div key={i} className="ix-next-step">
-      <span className={`ix-next-mark ${s.auto ? "auto" : "manual"}`}>
-        {s.auto ? <Icon name="check" size={10} /> : <Icon name="agents" size={10} />}
-      </span>
+      <span className="mark">{s.auto ? <Icon name="check" size={10} /> : <Icon name="agents" size={10} />}</span>
       <div className="ix-next-body">
         <div className="ix-next-label">{s.label}</div>
         {s.hint && <div className="ix-next-hint">{s.hint}</div>}
       </div>
-      <span className={`ix-next-tag ${s.auto ? "auto" : "manual"}`}>{s.auto ? "auto" : "next"}</span>
+      <span className={`ix-next-word ${s.auto ? "auto" : "manual"}`}>{s.auto ? "auto" : "next"}</span>
     </div>
   );
 }
@@ -327,28 +326,37 @@ const ExpanderToggle = ({
   label: string;
   count?: number;
 }) => (
-  <button className={`ix-exp-toggle ${open ? "open" : ""}`} onClick={onClick}>
+  <button className="btn btn-ghost btn-sm" aria-expanded={open} onClick={onClick}>
     <Icon name={icon} size={11} />
     <span>{label}</span>
-    {count !== undefined && <span className="ix-exp-count tabular">{count}</span>}
+    {count !== undefined && <span className="tally">{count}</span>}
     <Icon name={open ? "chevron-up" : "chevron-down"} size={10} />
   </button>
 );
 
-const ExpanderPanel = ({ children }: { children?: ReactNode }) => <div className="ix-exp-panel">{children}</div>;
+const ExpanderPanel = ({ children }: { children?: ReactNode }) => (
+  <div className="panel panel-inset panel-sm ix-exp-body">{children}</div>
+);
 
 // =============== CONFIDENCE METER (linear) ===============
+const CONF_TONE = { high: "ok", med: "ink", low: "warn" } as const;
 const ConfidenceMeter = ({ level }: { level: number | undefined }) => {
   // An unread level is NaN, as `undefined * 100` was: the bar, the words and the tone read it the same.
   const known = level ?? NaN;
   const pct = Math.round(known * 100);
   const tone = confTone(known);
+  // The kit's meter: how sure, in ok, the ink or warn, the rest of the whole in the hairline.
+  const share = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
   return (
-    <div className={`conf-meter conf-${tone}`}>
-      <div className="conf-meter-bar">
-        <div className="conf-meter-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="conf-meter-label tabular">{pct}%</span>
+    <div className="conf-line">
+      <Meter
+        size="sm"
+        className="conf-bar"
+        parts={[{ share, tone: CONF_TONE[tone] }]}
+        rest={share < 100}
+        aria-label={`${pct}% sure`}
+      />
+      <span className="conf-pct tabular">{pct}%</span>
     </div>
   );
 };

@@ -999,7 +999,7 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
     let tree = draw();
     const row = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
     // The pills as drawn: the spans, not the StatePill elements that draw them.
-    const pills = (r) => findAll(r, (n) => n.type === "span" && hasClass("ix-state-pill")(n)).map(textOf);
+    const pills = (r) => findAll(r, (n) => n.type === "span" && hasClass("ix-row-state")(n)).map(textOf);
     assert.deepEqual(pills(row("Rosa Díaz")), [], "REGRESSION: 'NEEDS YOU' on every row of the Needs you bucket");
     assert.deepEqual(pills(row("Nina Park")), ["You have it"], "REGRESSION: a thread you own read NEEDS YOU");
     assert.deepEqual(pills(row("Ada Lovelace")), ["Ana García has it"]);

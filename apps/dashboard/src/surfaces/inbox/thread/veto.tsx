@@ -37,7 +37,7 @@ export const SteerBox = ({ messageId }: { messageId: string }) => {
     <div className="ix-steer" data-testid="steer-box">
       <Icon name="spark" size={13} className="ix-steer-spark" />
       <input
-        className="ix-steer-input"
+        className="rec-input ix-steer-words"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {

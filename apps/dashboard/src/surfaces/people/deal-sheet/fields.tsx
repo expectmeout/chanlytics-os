@@ -41,7 +41,7 @@ export function DsSelect({
       <label>
         <span className="rec-field-label">{label}</span>
         <select
-          className="rec-input deal-sheet-select"
+          className="rec-input deal-select"
           value={value}
           aria-disabled={busy || undefined}
           aria-invalid={problem ? true : undefined}
@@ -119,7 +119,7 @@ function DayField(p: {
     if (!p.busy) p.onChange(day);
   };
   return (
-    <div className="rec-field deal-sheet-day" data-testid={p.testid}>
+    <div className="rec-field deal-day" data-testid={p.testid}>
       <span className="rec-field-label" id={`${p.id}-label`}>
         {p.label}
       </span>
@@ -205,7 +205,7 @@ function valueField({ sheet, draft, set, problem, busy }: FieldsProps) {
   if (!value) return null;
   const wrong = problemAt(problem, "value");
   return (
-    <div className="rec-field deal-sheet-amount" data-testid="deal-sheet-value">
+    <div className="rec-field deal-amount" data-testid="deal-sheet-value">
       {/* Who sees it is said on the label's line, a lock and its words, where it stood as a line of its own under the
           box (the fitted sheets, 14 Oct 2026); the box is described by it either way. */}
       <span className="rec-field-label ds-label-line" aria-hidden="true">
@@ -215,7 +215,7 @@ function valueField({ sheet, draft, set, problem, busy }: FieldsProps) {
           {value.private}
         </span>
       </span>
-      <div className="deal-sheet-amount-row">
+      <div className="deal-amount-row">
         <RecordBox
           id="deal-sheet-value"
           label={value.label}
@@ -272,7 +272,7 @@ function validField({ sheet, draft, set, problem, busy }: FieldsProps) {
 function reasonField({ sheet, draft, set, problem, busy }: FieldsProps) {
   if (!sheet.reason) return null;
   return (
-    <div className="rec-field deal-sheet-reasons" data-testid="deal-sheet-reason">
+    <div className="rec-field deal-reasons" data-testid="deal-sheet-reason">
       <span className="rec-field-label" aria-hidden="true">
         {sheet.reason.label}
       </span>
@@ -316,7 +316,7 @@ function howField({ sheet, draft, set, problem, busy }: FieldsProps) {
   const how = sheet.how;
   if (!how) return null;
   return (
-    <div className="deal-sheet-how" data-testid="deal-sheet-how">
+    <div className="deal-how" data-testid="deal-sheet-how">
       <DsSelect
         id="deal-sheet-how"
         label={how.label}
@@ -365,9 +365,9 @@ function sendField({ sheet, draft, set, problem, busy }: FieldsProps) {
   const hasLink = !!draft.link.trim();
   const sending = !!(send.can && draft.send);
   return (
-    <div className="deal-sheet-send" data-testid="deal-sheet-send">
-      <div className="deal-sheet-send-row">
-        <span className="deal-sheet-send-label" id="deal-sheet-send-label">
+    <div className="deal-send" data-testid="deal-sheet-send">
+      <div className="deal-send-row">
+        <span className="deal-send-label" id="deal-sheet-send-label">
           {send.label}
         </span>
         <RecordSwitch
@@ -427,7 +427,7 @@ function dsRow(word: string, testid: string, parts: ReactNode[]) {
  */
 export function DealSheetFieldsGlass(props: FieldsProps) {
   return (
-    <div className="deal-sheet-fields ds-rows" data-testid="deal-sheet-rows">
+    <div className="deal-fields ds-rows" data-testid="deal-sheet-rows">
       {dsRow("For", "ds-row-for", [serviceField(props)])}
       {dsRow("Says", "ds-row-says", [linkField(props)])}
       {dsRow("Value", "ds-row-value", [valueField(props), validField(props)])}

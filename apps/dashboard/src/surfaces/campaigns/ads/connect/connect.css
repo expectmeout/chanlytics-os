@@ -99,7 +99,7 @@
 }
 .ads-conn-need[data-tone="warn"] {
   background: var(--warn-soft);
-  box-shadow: inset 0 0 0 1px var(--warn-line);
+  box-shadow: var(--edge-warn);
 }
 .ads-conn-need > b {
   font-weight: var(--weight-semibold);
@@ -160,7 +160,7 @@
   box-shadow: var(--surface-inset-ring);
 }
 .ads-conn .ads-conn-option[aria-checked="true"] {
-  box-shadow: inset 0 0 0 1.5px var(--ink);
+  box-shadow: var(--chosen-ink);
 }
 .ads-conn-option > span {
   display: flex;

@@ -182,6 +182,8 @@ test("the rewrite box sends the owner's line and says the new draft waits its tu
     globalThis.fetch = wire;
   }
   // The rewrite's field takes the row's room and gives way to it, asked of its sheet (tests/_css.mjs cascadeOf).
-  const field = cascadeOf(["apps/dashboard/src/styles/components.css"]).given(element("input.ix-steer-input"));
+  const field = cascadeOf(["apps/dashboard/src/styles/components.css"]).given(
+    element("input.rec-input.ix-steer-words"),
+  );
   assert.deepEqual([field.flex, field["min-width"]], [declared("flex: 1").flex, "0"]);
 });

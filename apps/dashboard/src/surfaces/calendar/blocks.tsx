@@ -8,7 +8,7 @@
  * page's useMinute), so a block, its dot and its sheet never disagree with each other or with the clock.
  */
 import { useLayoutEffect, useRef } from "react";
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import type {
   CalendarBlockVM,
   CalendarRunMark,
@@ -26,6 +26,7 @@ import { DayMarks, RunMark, markLook } from "./marks";
 import type { CalendarFrame } from "./types";
 import { crWhen, fitDeskHourPx, fitHourPx } from "./words";
 import { isHtmlElement } from "../dom-reads";
+import { customProperties, type CustomProperties } from "../kit/variants";
 
 type Hours = CalendarVM["hours"];
 type Fit = (w: CalendarWindowVM) => boolean;
@@ -102,12 +103,11 @@ function CrBlock(p: {
   // of a desk's week, where half cut a name to "Mar…", and none of a phone's week, where the moment is a badge on the
   // column's edge and a share of 45px left the visit nothing (the sample walk, 18 Oct 2026).
   const room = half ? "(100% - 8px - var(--cal-side, 0px))" : "(100% - 8px)";
-  const laned: CSSProperties =
+  const laned: CustomProperties =
     b.lanes > 1 || half
       ? {
-          left: `calc(4px + ${b.lane} * ${room} / ${b.lanes})`,
-          width: `calc(${room} / ${b.lanes} - 2px)`,
-          right: "auto",
+          "--lane-left": `calc(4px + ${b.lane} * ${room} / ${b.lanes})`,
+          "--lane-width": `calc(${room} / ${b.lanes} - 2px)`,
         }
       : {};
   // How it stands (0002 step 8), said quietly: a dot, the word beside the time, a cancelled one struck, a request dashed.
@@ -117,7 +117,8 @@ function CrBlock(p: {
   return (
     <button
       className="cal-appt feed"
-      style={{ top: ofHours(from), height: `max(22px, ${ofHours(span)} - 2px)`, ...laned }}
+      style={customProperties({ "--at": ofHours(from), "--long": `max(22px, ${ofHours(span)} - 2px)`, ...laned })}
+      data-laned={b.lanes > 1 || half ? "" : undefined}
       onClick={() => onOpen(b)}
       data-tip={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}${spoken ? ` · ${spoken}` : ""}`}
       aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}${spoken ? `, ${spoken.toLowerCase()}` : ""}`}
@@ -150,7 +151,7 @@ function CrWindow({ w, hours }: { w: CalendarWindowVM; hours: Hours }) {
   return (
     <div
       className="cal-open"
-      style={{ top: ofHours(from), height: `max(18px, ${ofHours(span)} - 2px)` }}
+      style={customProperties({ "--at": ofHours(from), "--long": `max(18px, ${ofHours(span)} - 2px)` })}
       data-tip={`Open · ${w.label} · AI would offer this`}
       data-testid="cal-window"
     >
@@ -218,7 +219,7 @@ function CrMoment({ x, hours, onOpen }: { x: CrLaid; hours: Hours; onOpen: () =>
     <button
       type="button"
       className="cal-moment"
-      style={{ top: `calc(${ofHours(Math.max(0, at))} + ${x.under * CR_MOMENT_STEP}px)` }}
+      style={customProperties({ "--at": `calc(${ofHours(Math.max(0, at))} + ${x.under * CR_MOMENT_STEP}px)` })}
       onClick={onOpen}
       data-tip={said}
       aria-label={said}
@@ -368,7 +369,7 @@ function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide
         <div
           key={i}
           className={`cal-unavail ${b.from <= hours.start && b.to >= hours.end ? "full" : ""}`}
-          style={{ top: ofHours(b.from - hours.start), height: ofHours(b.to - b.from) }}
+          style={customProperties({ "--at": ofHours(b.from - hours.start), "--long": ofHours(b.to - b.from) })}
         >
           {b.label && <span>{b.label}</span>}
         </div>
@@ -378,7 +379,7 @@ function dayColumn(p: { d: CalendarFrame; hours: Hours; now: number | null; wide
       ))}
       {/* The now line under the blocks: a block it crosses stays readable over it. */}
       {d.today && now !== null && now >= hours.start && now <= hours.end && (
-        <div className="cal-nowline" style={{ top: ofHours(now - hours.start) }}>
+        <div className="cal-nowline" style={customProperties({ "--at": ofHours(now - hours.start) })}>
           <span className="cal-nowdot" />
         </div>
       )}
@@ -465,7 +466,7 @@ export function CrBoard(p: {
         {frames.map((d) => dayHead({ d, wide, onDay, a, lane: rows > 0 ? (lanes.get(d.key) ?? []) : null }))}
         <div className="cal-gutter">
           {ticks.map((h) => (
-            <span key={h} className="cal-hour tabular" style={{ top: ofHours(h - hours.start) }}>
+            <span key={h} className="cal-hour tabular" style={customProperties({ "--at": ofHours(h - hours.start) })}>
               {calendar.clockLabel(h)}
             </span>
           ))}

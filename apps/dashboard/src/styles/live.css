@@ -51,10 +51,9 @@
 /* A row keeps its fill under a finger: the row last opened stays lit (Ruben, 19 Oct 2026), and so does the one a call was
    opened from while the call stands over the calls and once they are back (kit/motion/held-list.ts pressRow, data-hover). */
 .lm-row:is(:hover, [data-hover]) { background: var(--bg-hover); }
-.lm-row.active { background: var(--bg-raised); box-shadow: inset 2px 0 0 var(--ink); }
+.lm-row.active { background: var(--bg-raised); box-shadow: var(--stripe-ink); }
 .lm-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lm-row-dot { display: flex; align-items: center; justify-content: center; height: 32px; }
-.lm-row-dot .live-dot { width: 6px; height: 6px; }
 /* The caller's face in the row is the kit's (Face), at the row's size: a 32px circle in the column the grid gives it. */
 .lm-row-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .lm-row-line1 { display: flex; align-items: baseline; gap: 6px; }
@@ -126,7 +125,7 @@
 @media (hover: hover) { .lm-link:hover { color: var(--ink); } }
 
 /* ---------- Panel ---------- */
-.lm-panel {
+.lm-pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -136,7 +135,7 @@
 /* A call pushed in over the calls on a phone plays none (kit/motion/held-list.ts, data-pushed): route-in moves `transform`,
    which an animation holds over the push's own. */
 .lm-call[data-pushed] { animation: none; }
-@media (prefers-reduced-motion: reduce) { .lm-panel { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .lm-pane { animation: none; } }
 
 /* The head wraps before it squeezes. The titles were `flex: 1` -- a zero basis -- beside controls that
    would not shrink, so the row never wrapped: the titles got whatever the controls left, and on a phone
@@ -270,7 +269,7 @@ a.lm-head-door:active { opacity: 0.72; }
   text-overflow: ellipsis;
 }
 .lm-controls-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.lm-ended-chip { font-size: var(--text-xs); color: var(--ink-dim); }
+.lm-ended-words { font-size: var(--text-xs); color: var(--ink-dim); }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes lm-eq-bounce {
     0%, 100% { height: 3px; }
@@ -379,7 +378,7 @@ a.lm-head-door:active { opacity: 0.72; }
     height: auto;
     border-radius: var(--radius-circle);
     /* The page's ground behind it, so the dot reads against the face it sits on. */
-    box-shadow: 0 0 0 2px var(--bg);
+    box-shadow: var(--dot-gap);
     background: var(--bg);
   }
   .lm-row-dot:empty {

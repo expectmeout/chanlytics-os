@@ -374,7 +374,7 @@
 /* The piece open beside the list on a desk: marked as the table marks the row it opened (the kit's cursor row). */
 .cnv-line[data-open] {
   background: var(--bg-hover);
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: var(--stripe-accent);
 }
 .cnv-line-open {
   display: grid;

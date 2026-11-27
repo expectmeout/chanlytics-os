@@ -492,7 +492,7 @@ function searchBox(list: ListCtx) {
   // A phone's empty search rests folded under the buckets' glyph (bucketTabs), open while it has the caret or words.
   const folded = !inLine && !query;
   return (
-    <div className={foldedLookup("ix-search-row ix-find-line", folded)} data-folded={folded || undefined}>
+    <div className={foldedLookup("ix-find-line", folded)} data-folded={folded || undefined}>
       {visible.length > 0 &&
         pickAll({
           ids: visible.map((t) => t.id),
@@ -512,7 +512,7 @@ function searchBox(list: ListCtx) {
       )}
       {toggle && (
         <button
-          className={`ix-views-toggle ${showViews ? "open" : ""}`}
+          className="btn btn-ghost btn-icon btn-sm"
           onClick={() => setShowViews(!showViews)}
           data-tip="Saved views"
           aria-label="Saved views"
@@ -530,16 +530,23 @@ function viewChips(list: ListCtx) {
   return (
     showViews && (
       <div className="ix-views">
-        <div className="ix-views-row">
+        <div
+          className="rec-seg ix-views-row"
+          role="group"
+          aria-label="Saved views"
+          data-look="chips-sm"
+          data-wrap="true"
+        >
           {views.map((v) => (
             <button
               key={v.id}
-              className={`ix-view-chip ${activeView === v.id ? "active" : ""}`}
+              className="rec-seg-btn"
+              aria-pressed={activeView === v.id}
               onClick={() => onViewChange(v.id)}
             >
               <Icon name={v.icon} size={11} />
               <span>{v.label}</span>
-              <span className="tabular ix-view-count">{v.count}</span>
+              <span className="tally">{v.count}</span>
             </button>
           ))}
         </div>
@@ -602,7 +609,7 @@ function searchSaid(list: ListCtx) {
             ? "conversation in view"
             : "conversations in view"}
       </span>
-      {searching && <span className="ix-search-hint">in "{query}"</span>}
+      {searching && <span className="ix-find-hint">in "{query}"</span>}
     </span>
   );
 }

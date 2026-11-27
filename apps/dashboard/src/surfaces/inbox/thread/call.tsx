@@ -531,7 +531,7 @@ function callOpened(c: CallDraw) {
         <div className="tl-call-turns" ref={turnsRef} data-testid="tl-call-lines">
           {lines.map((line, i) => callLine(c, line, i))}
         </div>
-        <div className="tl-call-mark end" data-testid="tl-call-end">
+        <div className="tl-call-line end" data-testid="tl-call-end">
           <span className="tl-call-ended">{["Call ended", ...facts].join(" · ")}</span>
         </div>
         {/* What can be done with the call, centred under where it ended: its transcript, and how it did, judged as a

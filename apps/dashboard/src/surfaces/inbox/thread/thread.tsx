@@ -390,6 +390,7 @@ function archiveAsk(p: Held, thread: Thread, setAskArchive: (v: boolean) => void
         }}
         onNo={() => setAskArchive(false)}
         testid="ix-archive"
+        className="ix-pane-ask"
       />
     )
   );

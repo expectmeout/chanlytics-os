@@ -121,8 +121,8 @@ export function emptyThreads(list: EmptyListOf) {
     : words;
   return (
     <EmptyState
-      kind="card"
-      className={`ix-empty-mini${saidBeside ? " ix-zero-beside" : ""}`}
+      kind="page"
+      className={saidBeside ? "ix-zero-beside" : ""}
       glyph={query ? "search" : meta.icon || "check"}
       tone={query ? null : "ok"}
       title={query ? `No matches for "${query}"` : meta.title || "All clear"}

@@ -9,9 +9,9 @@
  */
 import type { ReactNode } from "react";
 
-/** An act's class: the page's coral, a pane's lead in the accent's tint (Today with colour, D2), or quiet. */
+/** An act's class: the kit's small button, the page's coral (primary), a pane's lead (Today with colour, D2), or plain. */
 const actClassOf = (kind: string | undefined): string =>
-  kind === "primary" || kind === "lead" ? `setup-card-btn ${kind}` : "setup-card-btn";
+  kind === "primary" || kind === "lead" ? `btn btn-sm btn-${kind} setup-act` : "btn btn-sm setup-act";
 
 /** One act of the row: its words (a shorter pair for a narrow card), what it does, and the gate's props. */
 export interface SetupCardAct {
@@ -54,14 +54,14 @@ export const SetupCardRow = ({
   testid,
   ctaTestid = "setup-verb",
 }: SetupCardRowProps) => (
-  <div className="setup-card-row" data-testid={testid}>
-    <span className="setup-card-dot" data-tone={tone} role="img" aria-label={stateWords} data-tip={stateWords} />
-    <div className="setup-card-body">
-      <span className="setup-card-name">
+  <div className="setup-line" data-testid={testid}>
+    <span className="setup-line-dot" data-tone={tone} role="img" aria-label={stateWords} data-tip={stateWords} />
+    <div className="setup-line-body">
+      <span className="setup-line-name">
         {nameShort ? (
           <>
-            <span className="setup-card-long">{name}</span>
-            <span className="setup-card-short">{nameShort}</span>
+            <span className="setup-line-long">{name}</span>
+            <span className="setup-line-short">{nameShort}</span>
           </>
         ) : (
           name
@@ -69,15 +69,15 @@ export const SetupCardRow = ({
         {note ? (
           <span className="setup-back" data-testid={testid ? `${testid}-back` : undefined}>
             <span aria-hidden="true"> · </span>
-            <span className="setup-card-long">{note.long}</span>
-            <span className="setup-card-short">{note.short}</span>
+            <span className="setup-line-long">{note.long}</span>
+            <span className="setup-line-short">{note.short}</span>
           </span>
         ) : null}
       </span>
-      <span className="setup-card-said">
-        <span className="setup-card-words">{sentence}</span>
+      <span className="setup-line-said">
+        <span className="setup-line-words">{sentence}</span>
         {left ? (
-          <span className="setup-card-aside">
+          <span className="setup-line-aside">
             <span aria-hidden="true"> · </span>
             {left}
           </span>
@@ -85,7 +85,7 @@ export const SetupCardRow = ({
       </span>
     </div>
     {cta || also || menu ? (
-      <div className="setup-card-acts">
+      <div className="setup-line-acts">
         {cta ? (
           <button
             type="button"
@@ -98,8 +98,8 @@ export const SetupCardRow = ({
           >
             {cta.short ? (
               <>
-                <span className="setup-card-long">{cta.label}</span>
-                <span className="setup-card-short">{cta.short}</span>
+                <span className="setup-line-long">{cta.label}</span>
+                <span className="setup-line-short">{cta.short}</span>
               </>
             ) : (
               cta.label
@@ -109,7 +109,7 @@ export const SetupCardRow = ({
         {also ? (
           <button
             type="button"
-            className="setup-card-skip"
+            className="link-btn setup-skip"
             onClick={also.onClick}
             disabled={!!also.busy}
             aria-busy={also.busy ? true : undefined}

@@ -254,7 +254,7 @@ function callHead(c: ConversationLine, onBack: (() => void) | null) {
 function callLive(secs: number | null) {
   return (
     <div className="tl-call inbound live" data-testid="cv-call-live">
-      <div className="tl-call-mark">
+      <div className="tl-call-line">
         <span className="live-dot" aria-hidden="true" />
         <span className="tl-call-words">
           <span className="tl-call-what">
@@ -264,7 +264,7 @@ function callLive(secs: number | null) {
         </span>
       </div>
       <div className="tl-call-live-acts">
-        <Button type="button" size="sm" className="ix-state-go" onClick={() => navigate("live")}>
+        <Button type="button" size="sm" variant="soft" onClick={() => navigate("live")}>
           <Icon name="phone" size={12} /> Open Live
         </Button>
       </div>
@@ -485,6 +485,7 @@ function openedRow(p: { selected: ConversationLine; closeRow: () => void; flash:
   return (
     <EmptyState
       kind="page"
+      className="cv-none"
       glyph="inbox"
       title="This conversation is answered in the Inbox"
       body="Its conversation is there, with the reply box and everything it needs from you."
@@ -503,6 +504,7 @@ function noneYet(testid: string) {
   return (
     <EmptyState
       kind="page"
+      className="cv-none"
       glyph="chat"
       title="Nothing to read yet"
       body="Every WhatsApp chat and phone call with a customer lands here, with what was said."
@@ -531,6 +533,7 @@ function readingPane(p: {
     return (
       <EmptyState
         kind="page"
+        className="cv-none"
         glyph="chat"
         title="Opening this conversation…"
         body="It shows here as soon as it has been read."
@@ -545,6 +548,7 @@ function readingPane(p: {
     return (
       <EmptyState
         kind="page"
+        className="cv-none"
         glyph="chat"
         title="That conversation isn't among the newest shown here"
         body={`Conversations shows the newest ${CONVERSATIONS.length}. Open the person in People to find this one.`}
@@ -558,6 +562,7 @@ function readingPane(p: {
   return (
     <EmptyState
       kind="page"
+      className="cv-none"
       glyph="search"
       title={query.trim() ? "Nothing matches your search" : "Nothing on this channel yet"}
       body={query.trim() ? "Clear the search to see every conversation." : "Choose All to see every conversation."}
