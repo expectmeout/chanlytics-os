@@ -72,6 +72,8 @@ function world(role, { notes = [PARKING], state = "suggested", tenant = T } = {}
           return { suggestion: { id: S, state: a.p_keep ? "kept" : "dismissed" } };
         },
       },
+      // The session's person: the settings' door records the caller as the row's author (00722).
+      { userId: "u1" },
     ),
     userId: "u1",
     email: "ada@example.com",
