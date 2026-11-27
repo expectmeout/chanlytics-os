@@ -1,7 +1,8 @@
 /**
  * A playbook's and a reach-out chain's runs as the edge's clocks start and record them (decision 0111): the step, the
  * run already made for a moment, a batch moved from scheduled to sending to sent, the chain waiting on an owner, the
- * leads' clocks a send is planned by, the run planned through its door (reach_out_plan_run) and the decision kept.
+ * leads' clocks a send is planned by, the run planned through its door (reach_out_plan_run) and recorded through its own
+ * (playbook_run_record), with its stamp or its decision.
  * Each answer is the database's as it came; the caller says a failure in its words.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -23,13 +24,25 @@ export const listChainSteps = async (db: Db, tenantId: TenantId, stepIds: string
     .eq("tenant_id", tenantId)
     .in("id", stepIds);
 
-/** One of the workspace's steps stamped with the moment it last ran for, and when. */
-export const stampStepRun = async (db: Db, tenantId: TenantId, stepId: string, runFor: string, at: string) =>
-  db
-    .from("sequence_steps")
-    .update({ last_run_for: runFor, last_run_at: at })
-    .eq("id", stepId)
-    .eq("tenant_id", tenantId);
+/**
+ * A step's run recorded (playbook_run_record, 00722): playbook.run with what it made or why nothing, and in the same
+ * transaction the step stamped with the day it ran for (`stamp`: the day's run alone), or the system's decision for a
+ * batch the sweep scheduled without its owner's yes (`decision`).
+ */
+export const recordStepRun = async (
+  db: Db,
+  tenantId: TenantId,
+  stepId: string,
+  data: Json,
+  also: { stamp?: { run_for: string; at: string }; decision?: { broadcast_id: string; payload: Json } } = {},
+) =>
+  db.rpc("playbook_run_record", {
+    p_tenant_id: tenantId,
+    p_playbook_id: stepId,
+    p_data: data,
+    ...(also.stamp ? { p_stamp: also.stamp } : {}),
+    ...(also.decision ? { p_decision: also.decision } : {}),
+  });
 
 /** The run a step already made for a moment, or none. */
 export const findRunFor = async (db: Db, tenantId: TenantId, stepId: string, runFor: string) =>
@@ -85,10 +98,6 @@ export const listLeadClocks = async (db: Db, tenantId: TenantId, leadIds: string
 /** A reach-out run and its sends planned in one statement (reach_out_plan_run). */
 export const planReachOutRun = async (db: Db, run: Json, sends: Json) =>
   db.rpc("reach_out_plan_run", { p_run: run, p_sends: sends });
-
-/** A decision kept on the workspace's record. */
-export const insertDecision = async (db: Db, row: Database["public"]["Tables"]["decisions"]["Insert"]) =>
-  db.from("decisions").insert(row);
 
 /** A booking the workspace's calendar saw, counted to the reach-out that brought it (reach_out_booked). */
 export const recordReachOutBooked = async (db: Db, args: Database["public"]["Functions"]["reach_out_booked"]["Args"]) =>

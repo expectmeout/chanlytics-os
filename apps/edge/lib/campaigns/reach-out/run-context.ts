@@ -13,15 +13,14 @@ import {
   holdBatchForOk,
   getSequenceModes,
   handRun,
-  insertDecision,
   leaveSequenceForLeads,
   listReachOutAudience,
   listReachOutFollowers,
   loadChainDraft,
   mayWorkspaceSpend,
   planReachOutRun,
+  recordStepRun,
 } from "@chanlytics/db/campaigns";
-import { emitEvent } from "@chanlytics/db/events";
 import type { Database } from "@chanlytics/db/types";
 import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "@chanlytics/core";
 import {
@@ -217,33 +216,34 @@ export async function getReachOutRunContext(
     },
     recordRun: async (run, counts) => {
       const data = { run_for: run.run_for, broadcast_id: run.id, state: run.state, ...counts, reach_out: true };
-      await emitEvent(db, tenantId, "playbook.run", "playbook", run.playbook_id, data).catch(
-        logAndGoOn("event playbook.run"),
+      // The record and, for a run scheduled without its owner's yes, the system's decision under the mode the owner
+      // chose (veto), in one transaction (00722). The run is whole already: a record that could not be written is said,
+      // never the run's failure.
+      const { error } = await recordStepRun(
+        db,
+        tenantId,
+        run.playbook_id,
+        asJson(data),
+        run.state === "scheduled"
+          ? {
+              decision: {
+                broadcast_id: run.id,
+                payload: asJson({
+                  name: run.name,
+                  playbook_id: run.playbook_id,
+                  recipients: run.recipient_count,
+                  mode: mode,
+                  reach_out: true,
+                }),
+              },
+            }
+          : {},
       );
-      // Scheduled without its owner's yes: the system's decision, under the mode the owner chose (veto).
-      if (run.state === "scheduled") {
-        const { error } = await insertDecision(db, {
-          tenant_id: tenantId,
-          subject_type: "broadcast",
-          subject_id: run.id,
-          verb: "send_broadcast",
-          actor_type: "system",
-          actor_user_id: null,
-          payload: {
-            name: run.name,
-            playbook_id: run.playbook_id,
-            recipients: run.recipient_count,
-            mode: mode,
-            reach_out: true,
-          },
+      if (error)
+        logger({ tenant_id: tenantId }).error("reach_out_decision_unwritten", {
+          broadcast_id: run.id,
+          error: error.message,
         });
-        // The run is whole already: a decision that could not be written is said, never the run's failure.
-        if (error)
-          logger({ tenant_id: tenantId }).error("reach_out_decision_unwritten", {
-            broadcast_id: run.id,
-            error: error.message,
-          });
-      }
     },
     notifyWaiting: async (runId, planned, firstAt) => {
       const target = await loadTenantNotifications(db, tenantId);

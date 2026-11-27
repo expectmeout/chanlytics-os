@@ -210,13 +210,16 @@ export interface ActivityKindGroup {
 /**
  * The kinds the log may be narrowed to, family by family in the families' order, each said as its rows say it
  * ("Listened to a call's recording"), never as the ledger spells it. A family none of the kinds belongs to is left
- * out, and so is a kind with no family.
+ * out, and so is a kind with no family, and a kind kept from the log (isActivityNoise): the picker lists only the kinds
+ * that show a row (Ruben, 26 Nov 2026).
  */
 export function activityKindGroups(kinds: readonly string[]): ActivityKindGroup[] {
   return ACTIVITY_FAMILIES.map((family) => ({
     family,
     label: FAMILY_WORDS[family],
-    kinds: kinds.filter((k) => activityFamily(k) === family).map((k) => ({ kind: k, label: activityKindWords(k) })),
+    kinds: kinds
+      .filter((k) => activityFamily(k) === family && !isActivityNoise(k))
+      .map((k) => ({ kind: k, label: activityKindWords(k) })),
   })).filter((g) => g.kinds.length > 0);
 }
 

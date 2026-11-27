@@ -185,7 +185,12 @@ const { templates: templatesReader } = await import(at("apps/dashboard/src/serve
 test("Ask's new words for a refused message are kept on the ledger with the refusal they answer; a version not refused keeps none", async () => {
   const refusal = "The words promise a discount without terms.";
   const w = open({ over: { meta_status: "rejected", rejected_reason: refusal } });
-  const ctx = { supabase: fakeDb(w.tables, {}, {}), userId: USER, email: "ada@example.com", params: {} };
+  const ctx = {
+    supabase: fakeDb(w.tables, {}, {}, { userId: USER }),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
   await keepFixWords(ctx, B, { template_id: ROW, reason: refusal }, NEW_WORDS);
   const kept = w.tables.events.filter((e) => e.kind === "template.fix_written");
   assert.equal(kept.length, 1);
@@ -193,7 +198,12 @@ test("Ask's new words for a refused message are kept on the ledger with the refu
   assert.deepEqual([kept[0].data.words, kept[0].data.reason, kept[0].data.by], [NEW_WORDS, refusal, USER]);
 
   const approved = open();
-  const ctx2 = { supabase: fakeDb(approved.tables, {}, {}), userId: USER, email: "ada@example.com", params: {} };
+  const ctx2 = {
+    supabase: fakeDb(approved.tables, {}, {}, { userId: USER }),
+    userId: USER,
+    email: "ada@example.com",
+    params: {},
+  };
   await keepFixWords(ctx2, B, { template_id: ROW, reason: "anything" }, NEW_WORDS);
   assert.deepEqual(approved.tables.events, [], "nothing kept for a version WhatsApp did not refuse");
 });

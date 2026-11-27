@@ -55,7 +55,6 @@ import { log } from "@/server/shared/log";
 import { getTenantFacts } from "@/server/shared/tenant";
 import type { TenantId } from "@chanlytics/contracts";
 import { refuseTurningToHand, refuseWithoutMailbox } from "./mailbox-needed";
-import { emitWorkspaceEvent } from "@/server/shared/ledgers/events";
 
 /** One email written by the model at the edge, whose door may take thirty seconds: a little over it. */
 export const PREVIEW_TIMEOUT_MS = 35_000;
@@ -209,18 +208,13 @@ export async function saveChain(
     tenantId: member.tenantId,
     userId: ctx.userId,
     chain: { ...input, steps, root_id: rootId },
-    // A new chain is started by this save: the decision rides with it. An edit records none, and its event is below.
+    // A new chain is started by this save: the decision rides with it. An edit records none: its event rides the save.
     decision: rootId ? null : { payload: { name: input.name }, via: ctx.via ?? null, undoOf: ctx.undoOf ?? null },
   });
   if (error || !saved) throw reachOutRefusal(error ?? { message: "no chain" });
   if (saved.undo_dropped) log.error("decision_undo_of_unknown", { undo_of: ctx.undoOf, verb: "start_playbook" });
   if (rootId) {
-    // A chain edited: a new one is start_playbook, below, and an edit left nothing on the ledger.
-    await emitWorkspaceEvent(member.tenantId, "playbook.changed", "playbook", saved.root_id, {
-      name: input.name,
-      by: ctx.userId,
-      fields: ["steps"],
-    });
+    // A chain edited, its playbook.changed written with the save (00722 reach_out_edit); a new one is start_playbook.
     return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked, start: null };
   }
   // The press of an Ask card that showed every email whole is the member's OK of those words (decision 0120, as D3 of

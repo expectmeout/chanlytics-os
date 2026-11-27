@@ -16,7 +16,7 @@ import { MIN_MS, type EdgeRefusal, recordOrEmpty, DbFailure, recordOrNull } from
 import { profileClient } from "./config.js";
 import { http } from "./places.js";
 import type { Db } from "./rows.js";
-import { getGoogleCredentials, putGoogleCredentials } from "@chanlytics/db/google";
+import { finishGoogleConnect, getGoogleCredentials, putGoogleCredentials } from "@chanlytics/db/google";
 import { asJson } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -57,6 +57,20 @@ async function storeCredentials(
   if (error?.code === TOKEN_CHANGED && ifRefreshToken) return "changed";
   if (error) throw new DbFailure(error, "credentials");
   return "kept";
+}
+
+/**
+ * A connect's token, kept in Vault whatever is there, with google.connected (what the connect found) in the same
+ * transaction (00722 google_connect_finish): the connect stands once its token does, and is told then.
+ */
+async function storeConnectCredentials(
+  db: Db,
+  tenantId: TenantId,
+  storedCredentials: StoredCredentials,
+  event: Parameters<typeof finishGoogleConnect>[3],
+): Promise<void> {
+  const { error } = await finishGoogleConnect(db, tenantId, asJson(storedCredentials), event);
+  if (error) throw new DbFailure(error, "credentials");
 }
 
 async function readCredentials(db: Db, tenantId: TenantId): Promise<StoredCredentials | null> {
@@ -141,4 +155,4 @@ async function tokenFor(
   }
 }
 
-export { storeCredentials, readCredentials, grantFrom, tokenFor };
+export { storeConnectCredentials, readCredentials, grantFrom, tokenFor };

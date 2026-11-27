@@ -15,9 +15,12 @@ type TemplateUpdate = Database["public"]["Tables"]["templates"]["Update"];
 /** A template's key: one a (workspace, channel, name, language). */
 const TEMPLATE_KEY = "tenant_id,channel,name,language";
 
-/** One template saved over its key, its id back. */
-export const saveTemplateRow = async (db: Db, tenantId: TenantId, row: TemplateInsert) =>
-  tenantDb(db, tenantId).from("templates").upsert(row, { onConflict: TEMPLATE_KEY }).select("id").single();
+/**
+ * One template sent to WhatsApp, saved over its key with template.submitted and who sent it, in one transaction (00722
+ * template_submitted_keep). The answer is the database's as it came: the row's id, or its error.
+ */
+export const saveTemplateRow = async (db: Db, tenantId: TenantId, row: TemplateInsert, by: string | null) =>
+  db.rpc("template_submitted_keep", { p_tenant_id: tenantId, p_row: { ...row }, ...(by ? { p_by: by } : {}) });
 
 /** Templates saved, each over its key. */
 export const saveTemplateRows = async (db: Db, tenantId: TenantId, rows: TemplateInsert[]) =>
@@ -51,23 +54,41 @@ export const findWhatsAppTemplate = async (db: Db, tenantId: TenantId, templateI
     .maybeSingle();
 
 /**
- * A WhatsApp template's words changed here and sent back to Meta: its words, its values and its components, and in review
- * again, any refusal's reason gone with the words it was about. Meta's answer moves it on (waba-events).
+ * A WhatsApp template's new words kept, in review again, with template.submitted, who sent them and the approved words
+ * they replace, in one transaction (00722 template_words_keep). The answer is the database's as it came: true when the
+ * workspace's WhatsApp message took them.
  */
 export const keepTemplateWords = async (
   db: Db,
   tenantId: TenantId,
   templateId: string,
   words: Required<Pick<TemplateUpdate, "components" | "body_preview" | "variables">>,
+  event: { by: string | null; before: string | null },
 ) =>
-  db
-    .from("templates")
-    .update({ ...words, meta_status: "pending", rejected_reason: null, synced_at: new Date().toISOString() })
-    .eq("id", templateId)
-    .eq("tenant_id", tenantId)
-    .eq("channel", "whatsapp")
-    .select("id")
-    .maybeSingle();
+  db.rpc("template_words_keep", {
+    p_tenant_id: tenantId,
+    p_template_id: templateId,
+    p_words: { ...words },
+    ...(event.by ? { p_by: event.by } : {}),
+    ...(event.before ? { p_before: event.before } : {}),
+  });
+
+/**
+ * Ask's new words for WhatsApp's refusal of a message, kept on the ledger (template.fix_written) on the member's own
+ * session, through a door that asks who is calling (00722 template_fix_keep). The answer is the database's as it came.
+ */
+export const keepTemplateFix = async (
+  db: Db,
+  tenantId: TenantId,
+  templateId: string,
+  fix: { words: string; reason: string },
+) =>
+  db.rpc("template_fix_keep", {
+    p_tenant_id: tenantId,
+    p_template_id: templateId,
+    p_words: fix.words,
+    p_reason: fix.reason,
+  });
 
 /**
  * A WhatsApp template as a change of its words reads it: what stays (its name, language, category, footer and button),
@@ -93,9 +114,12 @@ export const listWhatsAppTwins = async (db: Db, tenantId: TenantId, body: string
     .eq("channel", "whatsapp")
     .eq("body_preview", body);
 
-/** One of the workspace's templates deleted. */
-export const deleteTemplateRow = async (db: Db, tenantId: TenantId, templateId: string) =>
-  db.from("templates").delete().eq("id", templateId).eq("tenant_id", tenantId);
+/**
+ * A template deleted, with template.removed naming it and who deleted it, in one transaction (00722 template_remove).
+ * The answer is the database's as it came: true when it was there.
+ */
+export const deleteTemplateRow = async (db: Db, tenantId: TenantId, templateId: string, by: string | null) =>
+  db.rpc("template_remove", { p_tenant_id: tenantId, p_template_id: templateId, ...(by ? { p_by: by } : {}) });
 
 /** The workspace's WhatsApp templates' keys and variables. */
 export const listWhatsAppTemplateKeys = async (db: Db, tenantId: TenantId) =>

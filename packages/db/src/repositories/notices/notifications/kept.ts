@@ -19,30 +19,6 @@ export async function forgetNotification(db: Db, params: { tenantId: TenantId; i
   if (error) throw new DbFailure(error, "cannot take the notification back");
 }
 
-/**
- * A member's morning cards on their own bell (decision 0070, kind ask_cards): one line addressed to them alone, opening
- * Today, about the morning's thread. Told once a morning: the morning's door records the count once (ask_morning_write's
- * answered) and only the call it answered `recorded` tells. Written with the service role, since a member writes no
- * bell row: the line is the member's own, and the route that asks has already checked who they are. No phone is told:
- * the member asked for the morning by arriving on Today.
- */
-export async function askCardsTold(
-  db: Db,
-  params: { tenantId: TenantId; userId: string; threadId: string; title: string; body: string },
-): Promise<void> {
-  const { error } = await db.from("notifications").insert({
-    tenant_id: params.tenantId,
-    kind: "ask_cards",
-    title: params.title.slice(0, 200),
-    body: params.body.slice(0, 4000),
-    route: "today",
-    subject_type: "ask_thread",
-    subject_id: params.threadId,
-    recipient_user_id: params.userId,
-  });
-  if (error) throw new DbFailure(error, "cannot tell the member their morning");
-}
-
 /** A kept notice as its retry finds it: which row, and whether its mail is still owed. */
 export interface KeptNotice {
   id: string;

@@ -16,7 +16,6 @@ export {
   saveGoogleConnection,
 } from "./connection";
 export {
-  deleteGoogleListing,
   deleteGoogleListingDays,
   findGoogleListing,
   findGoogleListingAddress,
@@ -28,7 +27,6 @@ export {
   patchGoogleListing,
   patchGoogleListingAtPlace,
   saveGoogleListing,
-  saveGoogleListingBack,
   saveGoogleListingDay,
 } from "./listing";
 export {
@@ -40,7 +38,17 @@ export {
   listUnrepliedProfileReviews,
   pageGoogleReviewIds,
   pageGoogleReviewReplies,
-  patchGoogleReview,
-  saveGoogleReviews,
   saveHeldReviewReply,
 } from "./reviews";
+export {
+  finishGoogleConnect,
+  keepGoogleReviews,
+  linkGoogleListing,
+  type ListingLinked,
+  markGoogleReviewReplied,
+  removeGoogleConnection,
+  type ReviewReplied,
+  type ReviewsRead,
+  stampGoogleProfileSync,
+  unlinkGoogleListing,
+} from "./told";

@@ -9,17 +9,14 @@
  * takes what the door read and says what to answer, write or log, and the
  * door (which reads the rows in the order the ops need them) applies it.
  */
-import type { Database } from "@chanlytics/db/types";
 import { PLACE_ID, cleanReply, type GbpPostAsked, type PlaceDetails } from "@chanlytics/channels/google";
 import { FILE_GOOGLE_WORDS_MAX, type EdgeRefusal, type ReviewReplyMode } from "@chanlytics/contracts";
 import type { LogEvent } from "../shared/log.js";
+import type { ListingLinked } from "@chanlytics/db/google";
 import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "../shared/google/rows.js";
 import type { CheckResult } from "./listing-check.js";
 import type { ConnectResult, LocationChoice } from "./profile-connection.js";
 import { errorMessage, type DoorAnswer } from "../shared/admin-door.js";
-import type { TenantId } from "@chanlytics/contracts";
-
-type ListingInsert = Database["public"]["Tables"]["google_listings"]["Insert"];
 
 /** A line the door logs on the plan's behalf; the event names are what alerting greps for and never change. */
 interface GoogleLog {
@@ -133,9 +130,8 @@ export function unreadablePlaceAnswer(error: unknown): DoorAnswer {
 }
 
 /** The listing row for the place just read: what the read said about it, never what the listing it replaces said. */
-export function linkRow(details: PlaceDetails, tenantId: TenantId, userId: string | null, now: Date): ListingInsert {
+export function linkRow(details: PlaceDetails, now: Date): ListingLinked {
   return {
-    tenant_id: tenantId,
     place_id: details.place_id,
     name: details.name,
     address: details.address,
@@ -144,12 +140,7 @@ export function linkRow(details: PlaceDetails, tenantId: TenantId, userId: strin
     new_review_uri: null,
     business_status: details.business_status,
     facts: details.facts,
-    linked_by: userId,
     linked_at: now.toISOString(),
-    rating: null,
-    review_count: null,
-    checked_at: null,
-    check_error: null,
   };
 }
 

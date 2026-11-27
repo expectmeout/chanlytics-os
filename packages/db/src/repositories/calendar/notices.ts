@@ -167,13 +167,8 @@ export async function findAppointmentNoticeById(
  * route can say "nothing to dismiss" rather than succeed over a row that was already read.
  */
 export async function dismissAppointmentNotice(db: Db, tenantId: TenantId, id: string): Promise<boolean> {
-  const { data, error } = await db
-    .from("appointment_notices")
-    .update({ outcome: "dismissed" })
-    .eq("tenant_id", tenantId)
-    .eq("id", id)
-    .eq("outcome", "held")
-    .select("id");
+  // The member's own session, through a door that asks who is calling, with its event (00722).
+  const { data, error } = await db.rpc("appointment_notice_dismiss", { p_tenant_id: tenantId, p_id: id });
   if (error) throw new DbFailure(error, "appointment_notice_dismiss");
-  return data.length > 0;
+  return data === true;
 }
