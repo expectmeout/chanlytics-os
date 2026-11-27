@@ -131,7 +131,7 @@ function messagesPanel(a: AskProps, d: Doing) {
         </button>{" "}
         and say where in the note.
       </div>
-      <div className="cl-prof-how-chips">
+      <div className="cl-prof-how-ways">
         <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={close}>
           Cancel
         </button>
@@ -190,15 +190,9 @@ function sourcesPanel(a: AskProps, d: Doing) {
   return (
     <>
       <div className="cl-prof-aut-hint">{st.pick === "opted_in" && yesHow ? yesHow : "How did they tell you?"}</div>
-      <div className="cl-prof-how-chips">
+      <div className="cl-prof-how-ways">
         {(st.pick === "opted_in" && yesSources ? yesSources : sources).map((so) => (
-          <button
-            key={so.id}
-            type="button"
-            className="cl-prof-how-chip"
-            disabled={st.busy}
-            onClick={() => choose(so.id)}
-          >
+          <button key={so.id} type="button" className="chip" disabled={st.busy} onClick={() => choose(so.id)}>
             {so.label}
           </button>
         ))}
@@ -221,7 +215,7 @@ function howPanel(a: AskProps, d: Doing) {
 }
 
 /**
- * The three answers, drawn as the record has them, an armed one dashed. Where a yes is not the member's to record (a
+ * The three answers, drawn as the record has them in the kit's segmented look, an armed one ringed. Where a yes is not the member's to record (a
  * person a lead names or who works at one, 0052), the Yes is disabled and the doors' sentence is its caption, said once.
  */
 function answers(a: AskProps, d: Doing) {
@@ -236,13 +230,14 @@ function answers(a: AskProps, d: Doing) {
   const caption = `${testid}-yes-locked`;
   return (
     <>
-      <div className="cl-prof-autonomy" role="group" aria-label={label}>
+      <div className="rec-seg cl-prof-autonomy" role="group" aria-label={label}>
         {choices.map(([sv, text]) => (
           <button
             key={sv}
             type="button"
-            className={`cl-prof-aut-seg ${value === sv ? "active" : ""} ${st.pick === sv ? "armed" : ""}`}
+            className="rec-seg-btn"
             aria-pressed={value === sv}
+            data-armed={st.pick === sv ? "" : undefined}
             disabled={!canRecord || st.busy || (sv === "opted_in" && lockedYes)}
             aria-describedby={sv === "opted_in" && lockedYes ? caption : undefined}
             onClick={() => d.pickAnswer(sv)}

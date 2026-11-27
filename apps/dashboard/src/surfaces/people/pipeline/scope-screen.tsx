@@ -8,6 +8,7 @@ import { PIPELINE_PHONE_SORTS, pipelineCsv } from "./board-view";
 import { Button } from "../../kit/button/button";
 import { downloadCsv } from "../../kit/download";
 import { Menu } from "../../kit/menu/menu";
+import { Segmented } from "../../kit/segmented/segmented";
 import { gate } from "../../frame-verbs";
 import { menuGroups } from "../menu-groups";
 import { PeopleBulkBar } from "../bulk/bulk-bar";
@@ -209,24 +210,21 @@ export function pipelineTools(s: PipelineState) {
     <div className="pg-tools">
       {/* Which columns show, a member's own, kept in their view: the kit's menu (kit/table/columns-menu.tsx). */}
       {!board ? <TableColumnsMenu state={table} columns={declared} desk /> : null}
-      {/* The list or the board: the house's small tab pair, a pressed state each, kept in the member's view. */}
-      <div className="cl-tabs pipe-views" role="group" aria-label={words.views.label} data-testid="pipeline-views">
-        {PIPE_LAYOUTS.map((v) => (
-          <button
-            key={v}
-            type="button"
-            className={`cl-tab${layout === v ? " active" : ""}`}
-            aria-pressed={layout === v}
-            onClick={() => {
-              if (v === "board") clearSelection();
-              setExtraView({ layout: v });
-            }}
-            data-testid={`pipeline-view-${v}`}
-          >
-            {entryOf(words.views, v)}
-          </button>
-        ))}
-      </div>
+      {/* The list or the board: the kit's Segmented, kept in the member's view. */}
+      <Segmented
+        label={words.views.label}
+        value={layout}
+        className="pipe-views"
+        options={PIPE_LAYOUTS.map((v) => ({
+          value: v,
+          label: entryOf(words.views, v) ?? v,
+          testid: `pipeline-view-${v}`,
+        }))}
+        onValueChange={(v) => {
+          if (v === "board") clearSelection();
+          setExtraView({ layout: v });
+        }}
+      />
     </div>
   );
 }
@@ -447,7 +445,7 @@ export function pipelineScreen(s: PipelineState) {
         </aside>
       )}
       {/* A phone's open deal lights its row, brought above the sheet (clients.css .has-deal): a tap is no cursor else. */}
-      <div className={`cl-main${pk.compact ? " has-peek" : ""}${phone && pk.peekVm ? " has-deal" : ""}`}>
+      <div className={`cl-main${pk.compact ? " has-aside" : ""}${phone && pk.peekVm ? " has-deal" : ""}`}>
         {phone && phoneBar(s)}
         <div className="cl-main-scroll pl-main" ref={scrollRef}>
           {/* A phone's filters stand under its bar, in the frame's top (phoneBar). */}

@@ -11,6 +11,7 @@
  */
 import type { LeadPlanFacts, LeadSearchPlan } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { Panel } from "../../kit/panel/panel";
 import { LeadPlanCard } from "./plan-card";
 import type { FinderMore, FinderProposal, FinderStage, LeadSearchCardPayload } from "./types";
 
@@ -44,9 +45,9 @@ const answerRow = (p: PlanPanelProps, composing: boolean, thinking: boolean) => 
   const typed = !!(p.words || "").trim();
   return (
     <div className={`lf-compose${thinking ? " thinking" : ""}`}>
-      <input
-        className="lf-input"
-        type="text"
+      <textarea
+        className="rec-input rec-input-words lf-answer"
+        rows={1}
         value={p.words || ""}
         maxLength={400}
         placeholder="Tell AI what you meant"
@@ -55,10 +56,10 @@ const answerRow = (p: PlanPanelProps, composing: boolean, thinking: boolean) => 
         disabled={!composing}
         onChange={(e) => p.onWords(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && composing && !p.busy && typed) {
-            e.preventDefault();
-            p.onAnswer(p.words);
-          }
+          // One line: Enter sends what is typed, and never breaks the line.
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          if (composing && !p.busy && typed) p.onAnswer(p.words);
         }}
       />
       {thinking ? (
@@ -126,8 +127,9 @@ export const LeadPlanPanel = (props: PlanPanelProps) => {
   const thinking = stage === "thinking";
   const planning = stage === "plan" || stage === "starting";
   return (
-    <div
-      className="lf-panel pl-plan"
+    <Panel
+      variant="field"
+      className="lf-asking pl-plan"
       role="dialog"
       aria-label={answering ? "Change the search" : "The plan"}
       data-testid="lead-plan-panel"
@@ -144,6 +146,6 @@ export const LeadPlanPanel = (props: PlanPanelProps) => {
         </p>
       ) : null}
       {planning ? planCardOf(props) : null}
-    </div>
+    </Panel>
   );
 };

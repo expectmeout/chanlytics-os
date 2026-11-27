@@ -15,26 +15,27 @@ import { LeadCard, LeadHover } from "./hover";
 import { LeadTile } from "./tile";
 import type { LeadCellCtx } from "./types";
 import { wantPerson } from "../../people/want-person";
+import { customProperties } from "../../kit/variants";
 
 // The name's card: enough to decide without opening the peek, and the one hover that carries links, because it is the one
 // you can keep the pointer inside.
 const LeadNameCard = ({ l, x }: { l: LeadRowVM; x: LeadCellCtx }) => (
   <LeadCard id={`${l.id}-card`} label={`About ${l.name}`} testid="lead-card-name">
-    <div className="ld-card-head">
+    <div className="ld-glance-head">
       <LeadTile l={l} size={40} />
-      <div className="ld-card-titles">
-        <div className="ld-card-name">{l.name}</div>
-        <div className="ld-card-sub">{[l.sub, l.card.today].filter(Boolean).join(" · ")}</div>
+      <div className="ld-glance-titles">
+        <div className="ld-glance-name">{l.name}</div>
+        <div className="ld-glance-sub">{[l.sub, l.card.today].filter(Boolean).join(" · ")}</div>
       </div>
     </div>
-    {l.card.about ? <p className="ld-card-about">{l.card.about}</p> : null}
-    <p className="ld-card-why">{l.why}</p>
+    {l.card.about ? <p className="ld-glance-about">{l.card.about}</p> : null}
+    <p className="ld-glance-why">{l.why}</p>
     {ldPeopleOf(l, x)?.card ? (
       <p className="ld-who-here" data-testid="lead-card-people">
         {ldPeopleOf(l, x)?.card}
       </p>
     ) : null}
-    <div className="ld-card-foot">
+    <div className="ld-glance-foot">
       {l.card.site ? (
         <a href={l.card.site.href} target="_blank" rel="noopener noreferrer">
           {l.card.site.label}
@@ -64,9 +65,9 @@ export const LeadRatedCard = ({ l }: { l: LeadRowVM }) => {
   const total = spread.reduce((a, b) => a + b, 0) || 1;
   return (
     <LeadCard label={`How ${l.name} is rated`} testid="lead-card-rated">
-      <div className="ld-card-rated">
-        <span className="ld-card-score">{l.rated?.score}</span>
-        <span className="ld-card-count">{l.rated?.reviews}</span>
+      <div className="ld-glance-rated">
+        <span className="ld-glance-score">{l.rated?.score}</span>
+        <span className="ld-glance-count">{l.rated?.reviews}</span>
       </div>
       {[5, 4, 3, 2, 1].map((star) => {
         const n = spread[star - 1] ?? 0;
@@ -74,7 +75,7 @@ export const LeadRatedCard = ({ l }: { l: LeadRowVM }) => {
           <div key={star} className="ld-bar-row">
             <span className="k">{star}</span>
             <span className="ld-bar">
-              <span style={{ width: `${Math.round((n / total) * 100)}%` }} />
+              <span style={customProperties({ "--share": `${Math.round((n / total) * 100)}%` })} />
             </span>
             <span className="n">{n.toLocaleString("en-US")}</span>
           </div>
@@ -224,7 +225,7 @@ export const ldBusinessCell = (l: LeadRowVM, x: LeadCellCtx) => (
             {l.name}
           </a>
           {l.places > 1 && (
-            <span className="ld-badge" data-tip="Two listings on the map for one business">
+            <span className="ld-twice" data-tip="Two listings on the map for one business">
               {l.places} listings
             </span>
           )}

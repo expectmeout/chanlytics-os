@@ -64,7 +64,7 @@ const benchCard = (l: LeadRowVM, x: LeadCellCtx) => {
     <div
       key={l.id}
       id={`lead-${l.id}`}
-      className="ld-bench-card"
+      className="ld-bench-row"
       data-testid="lead-bench-card"
       onClick={() => x.onOpen(l.id)}
     >
@@ -105,7 +105,7 @@ const benchCard = (l: LeadRowVM, x: LeadCellCtx) => {
             pressLabel="press to copy"
           />
         </span>
-        <span className="ld-bench-card-acts">
+        <span className="ld-bench-row-acts">
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -247,7 +247,7 @@ export const LeadReviewBench = ({
             ))}
           </div>
         </div>
-        <div className="ld-bench-cards">{cards.map((l) => benchCard(l, x))}</div>
+        <div className="ld-bench-rows">{cards.map((l) => benchCard(l, x))}</div>
       </div>
 
       {benchSide(costs, asked, nearby, onNearby)}

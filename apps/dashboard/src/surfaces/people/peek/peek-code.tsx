@@ -20,6 +20,6 @@ export function PersonPeekWhenRead(p: PersonPeekProps) {
   if (Peek) return <Peek {...p} asideRef={asideRef} />;
   const name = p.person?.head.name ?? p.row?.name ?? "";
   return (
-    <aside ref={asideRef} className="pk pl-peek pp-peek" aria-label={PERSON_PEEK_WORDS.label(name)} aria-busy="true" />
+    <aside ref={asideRef} className="pk pl-aside pp-peek" aria-label={PERSON_PEEK_WORDS.label(name)} aria-busy="true" />
   );
 }

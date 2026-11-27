@@ -73,6 +73,8 @@ import {
   tick,
   visit,
   visits,
+  pickView,
+  viewsOf,
   went,
   withHead,
 } from "./_pipeline.mjs";
@@ -276,7 +278,7 @@ test("the Pipeline keeps a view of its own, apart from People's and Leads': the 
   draw();
   assert.deepEqual(seen.viewSaves, [], "words in the box are not a view");
   // #941 kept List | Board in this browser; it is the member's saved view now, beside People's and Leads'.
-  click(byTestId(withHead(tree), "pipeline-view-board"));
+  pickView(withHead(tree), "board");
   draw();
   assert.deepEqual(
     seen.viewSaves.map((v) => [v.page, v.view.layout]),
@@ -496,7 +498,7 @@ test("the Pipeline's rows, compact in a phone's sheet: an empty view is said in 
       n.props["data-testid"].slice("pipeline-rail-row-".length),
     );
   // The stub tree reaches a node through its parent's children and its own drawing both: each is counted once.
-  const said = (tree) => [...new Set(all(tree, (n) => n.props?.className === "cl-rail-empty"))].map(textOf);
+  const said = (tree) => [...new Set(all(tree, (n) => n.props?.className === "cl-rail-none"))].map(textOf);
   const Rows = PipelineRailRows;
   const compact = Rows({ sections, view: "clients", onPick: () => {}, compact: true });
   assert.deepEqual([...new Set(ids(compact))], ["all", "consultations", "clients"]);
@@ -538,7 +540,7 @@ test("on a phone: one bar with the view's list button and search, New proposal i
     assert.equal(byTestId(bar, "pipeline-phone-find").props["aria-label"], "Search names, numbers and emails");
     assert.ok(byTestId(tree, "pipeline-summary"));
     const card = find(tree, (n) => n.type === "tr" && n.props?.id === "person-wes");
-    assert.match(card.props.className, /\bpl-card-row\b/);
+    assert.match(card.props.className, /\bpl-item-row\b/);
     assert.equal(textOf(find(card, (n) => n.props?.className === "list-row-name")), "Wes");
     assert.equal(textOf(byTestId(card, "pipe-chip")), "Nothing back");
     assert.equal(textOf(byTestId(card, "pipe-service")), "Color correction");
@@ -1121,19 +1123,13 @@ test("on a desk the rows can be a board: every group a column, the cards, a drop
   });
   globalThis.localStorage.removeItem("pipeline.view");
   let tree = draw();
-  const views = byTestId(withHead(tree), "pipeline-views");
-  assert.deepEqual(
-    all(views, (n) => n.type === "button").map((n) => [textOf(n), n.props["aria-pressed"]]),
-    [
-      ["List", true],
-      ["Board", false],
-    ],
-  );
+  const views = viewsOf(withHead(tree));
+  assert.deepEqual([views.props.options.map((o) => o.label), views.props.value], [["List", "Board"], "list"]);
   assert.ok(
     find(tree, (n) => n.type === "table"),
     "the list first",
   );
-  click(byTestId(withHead(tree), "pipeline-view-board"));
+  pickView(withHead(tree), "board");
   tree = draw();
   assert.equal(seen.viewSaves.at(-1).view.layout, "board", "kept in the member's view");
   assert.equal(
@@ -1233,7 +1229,7 @@ test("on a desk the rows can be a board: every group a column, the cards, a drop
   assert.deepEqual(asked.at(-1), { personId: "cat", mode: "ended", dealId: "d-won-12" });
   // Back to the list.
   tree = draw();
-  click(byTestId(withHead(tree), "pipeline-view-list"));
+  pickView(withHead(tree), "list");
   tree = draw();
   assert.ok(find(tree, (n) => n.type === "table"));
   // Saves go one at a time (clients-a.jsx plViewSaver): the list waits for the board's to land.

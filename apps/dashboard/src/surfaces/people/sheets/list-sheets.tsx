@@ -91,10 +91,10 @@ export function PeopleListActSheet({
           disabled={draft.busy}
         />
       )}
-      <label className="pp-field">
-        <span className="pp-field-label">{renaming ? "Its name" : "Name the list"}</span>
+      <label className="pp-entry">
+        <span className="pp-entry-label">{renaming ? "Its name" : "Name the list"}</span>
         <input
-          className="pp-input"
+          className="rec-input rec-input-touch"
           autoFocus={focusAsDrawn()}
           value={draft.name}
           maxLength={60}
@@ -111,7 +111,7 @@ export function PeopleListActSheet({
       <FieldError id="list-act-error" message={draft.error} testid="list-act-error" />
       <button
         type="button"
-        className="btn btn-primary pp-sheet-go"
+        className="btn btn-primary pp-pane-go"
         disabled={draft.busy || !draft.name.trim()}
         onClick={onGo}
         data-testid={renaming ? "list-rename-save" : "save-shown-save"}

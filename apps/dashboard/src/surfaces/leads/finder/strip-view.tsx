@@ -10,6 +10,7 @@
 import type { ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import type { StripVM } from "./types";
+import { customProperties } from "../../kit/variants";
 
 const QUIET = [
   "undo",
@@ -87,7 +88,7 @@ export const LeadStrip = ({
         </span>
       ) : null}
       {vm.state === "found" ? (
-        <span className="ok-mark">
+        <span className="ok-sign">
           <Icon name="check" size={15} />
         </span>
       ) : null}
@@ -140,7 +141,11 @@ export const LeadStrip = ({
       ) : null}
       <StripFoot count={vm.count} foot={foot} />
       {vm.progress === null ? null : (
-        <span className="lf-strip-bar" style={{ width: `${Math.round(vm.progress * 100)}%` }} aria-hidden="true" />
+        <span
+          className="lf-strip-bar"
+          style={customProperties({ "--done": `${Math.round(vm.progress * 100)}%` })}
+          aria-hidden="true"
+        />
       )}
     </div>
   );

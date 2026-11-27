@@ -6,7 +6,7 @@
  * segment carries the 4px rounded end, the foot is square on the baseline. The whole slot of a day is its target, and
  * the hovered or focused day stays while the others step back.
  */
-import type { CSSProperties, PointerEvent } from "react";
+import type { PointerEvent } from "react";
 import { ckDescribe, ckEvery, ckFrame, ckHeight, ckNice, ckTip, ckTopRound } from "./geometry";
 import type { ChartConfig, ChartRow, ChartWords } from "./geometry";
 import { ckPointer, useChartNav, useChartWidth } from "./hooks";
@@ -110,7 +110,7 @@ export function BarChart<D extends ChartRow>({
             const last = drawn.length - 1;
             const cls = active === null ? "ck-col" : active === i ? "ck-col hot" : "ck-col dim";
             return (
-              <g key={row.day || i} className={cls} style={{ "--i": i } as CSSProperties}>
+              <g key={row.day || i} className={cls} style={customProperties({ "--i": i })}>
                 {drawn.map((s, j) =>
                   j === last ? (
                     <path
@@ -178,7 +178,7 @@ export function BarList({
         const pick = onPick && (!isDoor || isDoor(r)) ? onPick : null;
         const Row = pick ? "button" : "div";
         return (
-          <li key={r.id} style={{ "--i": i } as CSSProperties}>
+          <li key={r.id} style={customProperties({ "--i": i })}>
             <Row
               type={pick ? "button" : undefined}
               className={`ck-barlist-row${pick ? " door" : ""}`}

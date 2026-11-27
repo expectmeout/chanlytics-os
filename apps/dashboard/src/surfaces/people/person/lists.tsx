@@ -193,7 +193,7 @@ export function PersonLists({
     const failed = isSurfaceFailed("people");
     return (
       <div className="cl-prof-lists">
-        {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
+        {smartChips.length > 0 && <div className="cl-lists-held cl-prof-list-chips">{smartChips}</div>}
         {failed ? (
           <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />
         ) : (
@@ -209,7 +209,7 @@ export function PersonLists({
     // A list is made where they are, in the picker, with them on it (never a trip to People and back).
     return (
       <div className="cl-prof-lists">
-        {smartChips.length > 0 && <div className="cl-tag-stack cl-prof-list-chips">{smartChips}</div>}
+        {smartChips.length > 0 && <div className="cl-lists-held cl-prof-list-chips">{smartChips}</div>}
         <div className="cl-prof-aut-hint">
           {smartChips.length > 0 ? "No lists of your own yet." : "No lists yet."}{" "}
           {canEdit ? (
@@ -223,7 +223,7 @@ export function PersonLists({
   }
   return (
     <div className="cl-prof-lists">
-      <div className="cl-tag-stack cl-prof-list-chips">
+      <div className="cl-lists-held cl-prof-list-chips">
         {smartChips}
         {on.map((s) => listChip(s, { personId, canEdit, busy, who, change }))}
         {on.length === 0 && smartChips.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}

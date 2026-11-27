@@ -149,7 +149,7 @@ function NameBox({ was, onSave, onLeave }: { was: string; onSave: (name: string)
 
 /** A member's view's menu: Update where its layout moved since it was kept, its name, and Remove. */
 const viewMenu = (v: LeadNamedView, named: LeadNamed) => (
-  <MenuInPlace>
+  <MenuInPlace className="cl-rail-acts">
     <Menu
       align="start"
       label={`More for ${v.name}`}
@@ -196,6 +196,7 @@ const viewRow = (v: LeadNamedView, named: LeadNamed, keeps: boolean) => {
             onYes={() => named.remove(v.id)}
             onNo={() => named.ask(null)}
             testid="leads-view-remove"
+            className="cl-rail-ask"
           />
         ) : null
       }

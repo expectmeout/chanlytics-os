@@ -51,7 +51,7 @@ const LeadSearchMenu = ({
   onExport: () => void;
 }) => (
   // In the box the rail's rows name (clients.css: the ⋯ shows as a pointer reaches the row).
-  <MenuInPlace>
+  <MenuInPlace className="cl-rail-acts">
     <Menu
       // Drawn on the body, against the window: the rail scrolls and cut off whatever crossed its edge (51px of 194 showed),
       // and a menu held inside it broke its words onto three to six lines. It opens rightward over the table, each item's
@@ -245,6 +245,7 @@ const railSearchRow = (s: RailSearch, p: RailRowsProps) => (
           onYes={() => p.onRemoveYes(s)}
           onNo={p.onRemoveNo}
           testid="leads-remove"
+          className="cl-rail-ask"
         />
       ) : null
     }

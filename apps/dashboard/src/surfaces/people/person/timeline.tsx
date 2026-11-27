@@ -7,12 +7,13 @@
  * the door: the whole row, as a link, with the time as plain text.
  */
 import { Fragment } from "react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { TIMELINE_FILTERS, filterTimeline, personFaceOf, timelineFilterLabel } from "@chanlytics/contracts";
 import { NEW_SINCE_WORDS } from "./model/new-since";
 import type { AppointmentWord, PersonVM } from "@chanlytics/contracts";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { EmptyState } from "../../kit/empty/empty";
+import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { holdStill, routeDoor } from "../../frame-verbs";
@@ -29,34 +30,38 @@ const FILTERS_FROM = 6;
 /** Newer than this many rows waits behind one press. The Inbox is the whole thread; a profile that drew a year of messages ran to five screens on a phone. */
 const TL_CAP = 20;
 
+/** What a row's mark holds, as the kit's Face takes it: a glyph, or the customer's initials. */
+type Mark = { glyph: ReactElement } | { initials: string };
+
 /**
  * What the customer's mark is drawn with: their initials, or the glyph of what names them while nobody has named them,
  * the face's own (contracts personFaceOf): a number is a phone and an address a mail on the History as on every page.
  */
-function customerMark(name: string | undefined, initials: string): ReactNode {
+function customerMark(name: string | undefined, initials: string): Mark {
   const face = name === undefined ? null : personFaceOf(name, initials);
-  return face?.glyph ? <Icon name={face.glyph} size={12} /> : initials;
+  return face?.glyph ? { glyph: <Icon name={face.glyph} size={12} /> } : { initials };
 }
 
-/** What a mark is drawn with: the customer's (`customer`), or a glyph for the kind. A teammate's reply is the team's glyph, never "You". */
-function timelineMarkOf(e: Item, customer: ReactNode): ReactNode {
-  if (e.kind === "customer") return customer;
-  if (e.kind === "receptionist") return <Icon name="sparkle" size={12} />;
-  if (e.kind === "team") return <Icon name="chat" size={12} />;
-  if (e.kind === "call") return <Icon name="phone" size={12} />;
-  if (e.kind === "visit") return <Icon name="calendar" size={12} />;
-  if (e.kind === "deal") return <Icon name="deal" size={12} />;
-  if (e.kind === "escalation") return <Icon name="alert" size={11} />;
-  if (e.kind === "consent") return <Icon name="shield" size={11} />;
+/** The glyph of what happened. A teammate's reply is the team's glyph, never "You". */
+function kindGlyph(kind: Item["kind"]): ReactElement {
+  if (kind === "receptionist") return <Icon name="sparkle" size={12} />;
+  if (kind === "team") return <Icon name="chat" size={12} />;
+  if (kind === "call") return <Icon name="phone" size={12} />;
+  if (kind === "visit") return <Icon name="calendar" size={12} />;
+  if (kind === "deal") return <Icon name="deal" size={12} />;
+  if (kind === "escalation") return <Icon name="alert" size={11} />;
+  if (kind === "consent") return <Icon name="shield" size={11} />;
   return <Icon name="dot" size={10} />;
 }
 
-/** The class a mark's colour follows. */
-function markClassOf(e: Item): string {
-  if (e.kind === "customer") return "client";
-  if (e.kind === "receptionist" || e.kind === "team") return "agent";
-  if (e.kind === "call" || e.kind === "visit") return "session";
-  return "event";
+/** A row's mark, the kit's Face at a desk row's size: the customer's (`customer`), or the glyph of what happened. */
+function TimelineMark({ e, customer }: { e: Item; customer: Mark }) {
+  const held = e.kind === "customer" ? customer : { glyph: kindGlyph(e.kind) };
+  return "glyph" in held ? (
+    <Face glyph={held.glyph} size="sm" className="cl-tl-node" />
+  ) : (
+    <Face initials={held.initials} size="sm" className="cl-tl-node" />
+  );
 }
 
 /** Whether a row asks the owner something: a visit that has begun and nobody has said whether they came (contracts visitLineOf's `asks`). */
@@ -85,10 +90,10 @@ function askLine(e: Item) {
  * and its time, always the row's third cell at its right edge (canvas A, D3). A row that goes somewhere is the door
  * itself, whole, so it draws no arrow of its own.
  */
-function rowBody(e: Item, customer: ReactNode, ask: ReactNode = null, isNew = false) {
+function rowBody(e: Item, customer: Mark, ask: ReactNode = null, isNew = false) {
   return (
     <>
-      <div className={`cl-tl-mark ${markClassOf(e)}`}>{timelineMarkOf(e, customer)}</div>
+      <TimelineMark e={e} customer={customer} />
       <div className="cl-tl-body">
         <div className="cl-tl-head">
           <span className="cl-tl-who">{e.who}</span>
@@ -161,7 +166,7 @@ function filterStrip(
 function rows(
   visible: Item[],
   more: { older: number; onShowAll: (() => void) | null },
-  customer: ReactNode,
+  customer: Mark,
   fresh: ReadonlySet<string>,
 ) {
   const { older, onShowAll } = more;

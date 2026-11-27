@@ -308,11 +308,11 @@ test("REGRESSION: a phone row is one cell -- the face, the name and the state; w
     });
     const tree = draw();
     const row = rowOf(tree, "p1");
-    assert.match(row.props.className, /\bpl-card-row\b/);
+    assert.match(row.props.className, /\bpl-item-row\b/);
     const tds = row.props.children.filter((k) => k && k.type === "td");
     assert.deepEqual(
       tds.map((td) => String(td.props.className)),
-      ["dtable-sel", "pl-card-cell"],
+      ["dtable-sel", "pl-item-cell"],
       "REGRESSION: the desktop's cells re-gridded into a box, 119 to 168px a person",
     );
     const card = tds[1];
@@ -450,7 +450,7 @@ test("REGRESSION: a person's cell is who they are and what they said -- the chan
 
   // The receptionist's word beside the state says only what the pill does not.
   const stateCell = (id) => find(rowOf(tree, id), (n) => n.type === "td" && /\bcl-state-cell\b/.test(cls(n)));
-  const mark = (id) => find(stateCell(id), (n) => /\bcl-row-recept-mark\b/.test(cls(n)));
+  const mark = (id) => find(stateCell(id), (n) => /\bcl-row-recept-sign\b/.test(cls(n)));
   assert.equal(
     mark("p2"),
     null,

@@ -13,7 +13,7 @@ import { isElementNode } from "../../dom-reads";
  * A sheet or a menu that is not one of the page's own overlays (its peek, Leads' plan panel, which this listener closes):
  * where an Esc is pressed in one, it is that one's own.
  */
-const OVER_THE_PEEK = '[role="dialog"]:not(.pl-peek):not(.pl-plan), [role="menu"]';
+const OVER_THE_PEEK = '[role="dialog"]:not(.pl-aside):not(.pl-plan), [role="menu"]';
 
 /** What the listener reads, left by the view as its draw ends: this draw's rows, cursor and doors, and the view's own. */
 export interface KeyDoors {

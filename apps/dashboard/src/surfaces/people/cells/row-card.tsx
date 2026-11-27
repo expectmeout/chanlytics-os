@@ -67,14 +67,14 @@ export function plRowCard({
     // A row that slides takes its own touch: the strip of views over the page is not walked by it (frame/surface-tabs.tsx).
     <td
       key="card"
-      className="pl-card-cell"
+      className="pl-item-cell"
       data-swipe={grounds ? "" : undefined}
       data-own-drag={grounds ? "" : undefined}
     >
       {grounds}
       <ListRow
         {...(swipe || {})}
-        className="pl-card"
+        className="pl-item"
         face={{
           ...holds,
           ...(face.image ? { photo: face.image } : {}),

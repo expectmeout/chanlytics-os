@@ -168,9 +168,9 @@ export const PipelinePassDock = ({
         onClose={() => setOpen(false)}
         testid="pipe-pass-sheet"
       >
-        <div className="pp-sheet-rows">
-          {vm.rest ? <p className="pp-sheet-hint pp-sheet-rows-note">{vm.rest}</p> : null}
-          {vm.more ? <p className="pp-sheet-hint pp-sheet-rows-note">{vm.more}</p> : null}
+        <div className="pp-pane-rows">
+          {vm.rest ? <p className="pp-pane-hint pp-pane-rows-note">{vm.rest}</p> : null}
+          {vm.more ? <p className="pp-pane-hint pp-pane-rows-note">{vm.more}</p> : null}
           {vm.reasons.map((x) => (
             <PhoneSheetRow
               key={x.code}

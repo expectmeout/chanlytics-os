@@ -172,7 +172,7 @@ test("the measures see the dashboard's stylesheets and the shell's markup, and l
   assert.equal(styleValues[TOKENS_CSS], undefined, "the tokens are where a literal belongs");
   const primitives = measure("primitives outside the kit");
   assert.ok(primitives[`${components}::btn`] > 0, "the button is a primitive outside the kit");
-  assert.ok(primitives["apps/dashboard/src/styles/leads.css::btn"] > 0, "a page that restyles it is counted");
+  assert.ok(primitives["apps/dashboard/src/styles/calendar.css::btn"] > 0, "a page that restyles it is counted");
   const inline = Object.keys(measure("inline style props"));
   assert.ok(
     inline.some((f) => f.startsWith("apps/dashboard/src/surfaces/ask/")),

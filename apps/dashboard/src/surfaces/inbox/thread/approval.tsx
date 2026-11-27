@@ -9,6 +9,7 @@
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { PolicyChip } from "../../kit/policy-chip/policy-chip";
+import { Segmented } from "../../kit/segmented/segmented";
 import { confTone, fmtDelta, ROUTES } from "../constants";
 import { gate, keyPress, navigate } from "../shell";
 import type { Approval, Evidence, NextStep, Thread, Verdict, VerdictOption } from "../types";
@@ -133,13 +134,16 @@ function approvalPlan(props: ApprovalCardProps) {
         {planImpact(plan)}
         <div className="ix-outcome-oneliner">{plan.oneLine}</div>
         {plan.param && (
-          <div className="cl-tabs ix-param">
-            <span className="ix-param-label">{plan.param.label}</span>
-            {plan.param.options.map((o, i) => (
-              <button key={i} className={`cl-tab ${planParam === i ? "active" : ""}`} onClick={() => onPlanParam(i)}>
-                {o.label}
-              </button>
-            ))}
+          <div className="ix-param">
+            <span className="ix-param-label" aria-hidden="true">
+              {plan.param.label}
+            </span>
+            <Segmented
+              label={plan.param.label}
+              value={String(planParam)}
+              options={plan.param.options.map((o, i) => ({ value: String(i), label: o.label }))}
+              onValueChange={(v) => onPlanParam(Number(v))}
+            />
           </div>
         )}
         {approval.fallback && <div className="ix-outcome-fallback">If you decline: {approval.fallback}</div>}

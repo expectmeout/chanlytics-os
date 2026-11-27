@@ -182,12 +182,12 @@ test("REGRESSION: on a phone a lead's row is People's row -- one cell of the fac
   try {
     let tree = draw();
     const clsOf = (k) => String((k && (k.rendered || k).props?.className) || "");
-    const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-card\b/.test(String(n.props?.className || "")));
+    const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-item\b/.test(String(n.props?.className || "")));
     const tr = rowOf(tree, "l1");
-    assert.ok(String(tr.props.className).split(/\s+/).includes("pl-card-row"), "the row People's rows wear");
+    assert.ok(String(tr.props.className).split(/\s+/).includes("pl-item-row"), "the row People's rows wear");
     assert.deepEqual(
       all(tr, (n) => n.type === "td").map((td) => String(td.props.className)),
-      ["dtable-sel", "pl-card-cell"],
+      ["dtable-sel", "pl-item-cell"],
       "one cell beside the face's box, as a person's row",
     );
     const card = cardOf("l1");
@@ -1060,7 +1060,7 @@ test("a pop hangs above its row when the room is there, every hover asks where i
     return {
       getBoundingClientRect: () => ({ top, bottom }),
       closest: (s) => (s === ".pl-table-scroll" ? pane : null),
-      querySelector: (s) => (card && s === ":scope > .ld-card" ? {} : null),
+      querySelector: (s) => (card && s === ":scope > .ld-glance" ? {} : null),
       classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), has: (c) => classes.has(c) },
     };
   };

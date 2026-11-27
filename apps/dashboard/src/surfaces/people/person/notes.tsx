@@ -19,6 +19,7 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
+import { Panel } from "../../kit/panel/panel";
 import { RecordSwitch, RecordToggleGroup } from "../../kit/record/field";
 import { tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { menuGroups, moreButton } from "../menu-groups";
@@ -374,7 +375,7 @@ function editingRow(c: Card, n: Note, edit: NoteEdit, acts: Acts) {
   return (
     <li key={n.id} className="cl-pnote is-editing" data-testid="person-note">
       <textarea
-        className="cl-prof-note-input"
+        className="rec-input"
         value={edit.text}
         rows={3}
         maxLength={NOTE_MAX}
@@ -558,10 +559,10 @@ function composer(c: Card, acts: Acts, pane = false) {
   const W = NOTE_WORDS;
   const left = NOTE_MAX - draft.text.length;
   return (
-    <div className={`cl-prof-note-compose${draft.text ? " is-open" : ""}`}>
+    <Panel variant="field" size="sm" className={`cl-prof-note-compose${draft.text ? " is-open" : ""}`}>
       <textarea
         ref={pane ? takeNoteBox : undefined}
-        className="cl-prof-note-input"
+        className="rec-input rec-input-words"
         value={draft.text}
         rows={draft.text ? 3 : 1}
         maxLength={NOTE_MAX}
@@ -594,7 +595,7 @@ function composer(c: Card, acts: Acts, pane = false) {
             </>,
           )
         : null}
-    </div>
+    </Panel>
   );
 }
 

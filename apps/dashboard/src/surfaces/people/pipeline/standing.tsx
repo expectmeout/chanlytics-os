@@ -30,7 +30,7 @@ export function usePipelineStanding(
     <Button
       variant="primary"
       size="sm"
-      className="pipe-new-btn"
+      className="pipe-new-act"
       onClick={newAct.openNew}
       data-testid="pipeline-new-open"
       {...newAct.gate}

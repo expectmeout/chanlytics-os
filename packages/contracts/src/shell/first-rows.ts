@@ -56,7 +56,7 @@ const HELD_MS = 20 * SECOND_MS;
  */
 const KEPT_PAGES: Readonly<Record<string, { part: string; rows: string; oldestMs: number }>> = {
   inbox: { part: "list", rows: ".ix-thread", oldestMs: FIRST_ROWS_OLDEST_MS },
-  people: { part: "table", rows: ".pl-card-row", oldestMs: FIRST_ROWS_OLDEST_MS },
+  people: { part: "table", rows: ".pl-item-row", oldestMs: FIRST_ROWS_OLDEST_MS },
   today: { part: "look", rows: ".dash-a-v2-phone > *, .dash-a-v2-phone section", oldestMs: 60 * MIN_MS },
 };
 

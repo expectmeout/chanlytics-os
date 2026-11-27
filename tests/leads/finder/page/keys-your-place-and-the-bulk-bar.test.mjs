@@ -185,8 +185,8 @@ test("the peek is the page's own overlay: J and K keep walking the rows behind i
   draw();
   press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null });
   draw();
-  // The peek is a dialog with .pl-peek, which PL_OVERLAY leaves out.
-  setOverlayOpen({ role: "dialog", className: "pl-peek" });
+  // The peek is a dialog with .pl-aside, which PL_OVERLAY leaves out.
+  setOverlayOpen({ role: "dialog", className: "pl-aside" });
   assert.equal(press("j"), true, "the rows walk on under the peek");
   assert.equal(cursorRow(draw()), "lead-l2");
   draw();
@@ -888,7 +888,7 @@ test("REGRESSION: on a phone Leads' selection is the dock -- Clear, Not a fit, A
         (n.type === "button" || n.type === "a") &&
         String(n.props?.className || "")
           .split(/\s+/)
-          .includes("pp-sheet-row"),
+          .includes("pp-pane-act"),
     ).map((n) => n.props["data-testid"]);
     // Not a fit and Add are the dock's own, so More holds what is left (Later too, where a search holds them).
     assert.deepEqual(rows, ["leads-select-matching", "leads-bulk-copy", "leads-bulk-export"]);

@@ -23,6 +23,7 @@ import { Icon } from "../../kit/icon/icon";
 import { PhoneSheetRow } from "../../people/sheets/phone-sheet";
 import { LeadPick, type PickOption } from "./pick";
 import type { FinderMore } from "./types";
+import { customProperties } from "../../kit/variants";
 
 type PlanPatch = Parameters<typeof planVersionOf>[1];
 
@@ -216,7 +217,7 @@ function pickStep(
   onBack: () => void,
 ) {
   return (
-    <div className="pp-sheet-rows" data-testid={`plan-${id}-options`}>
+    <div className="pp-pane-rows" data-testid={`plan-${id}-options`}>
       {options.map((o) => (
         <PhoneSheetRow
           key={o.id}
@@ -232,7 +233,7 @@ function pickStep(
       ))}
       {options.length === 0 ? (
         <>
-          <p className="pp-sheet-hint pp-sheet-rows-note">Say it differently to change who the search looks for.</p>
+          <p className="pp-pane-hint pp-pane-rows-note">Say it differently to change who the search looks for.</p>
           <PhoneSheetRow icon="three" label="Change what I asked" next onClick={onBack} testid={`plan-${id}-ask`} />
         </>
       ) : null}
@@ -296,8 +297,8 @@ export const LeadPlanCard = ({
       <div className="lf-likely" data-testid="plan-likely">
         {likely.emailPct === null ? null : (
           <span className="bar" aria-hidden="true">
-            <span className="b-email" style={{ width: `${likely.emailPct}%` }} />
-            <span className="b-phone" style={{ width: `${likely.phonePct}%` }} />
+            <span className="b-email" style={customProperties({ "--share": `${likely.emailPct}%` })} />
+            <span className="b-phone" style={customProperties({ "--share": `${likely.phonePct}%` })} />
           </span>
         )}
         <span>{likely.line}</span>

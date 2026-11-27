@@ -648,7 +648,7 @@ export function peopleScreen(s: PeopleState) {
         newListSignal={newListSignal}
       />
 
-      <div className={`cl-main${!s.phone && s.peekId ? " has-peek" : ""}`}>
+      <div className={`cl-main${!s.phone && s.peekId ? " has-aside" : ""}`}>
         {/* A phone's one bar: the switch, the list, search and the more-menu (PeoplePhoneBar). It stands over the scroller, as
             the Inbox's strip does: the rows scroll and bounce under it, and a pull down never takes it. */}
         {phone && phoneBar(s)}

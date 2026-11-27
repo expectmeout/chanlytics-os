@@ -248,7 +248,6 @@
   html.frame-on .settings .set-input,
   html.frame-on .setup-rows .setup-area { min-height: 44px; }
   html.frame-on .settings .btn-icon.btn-sm { width: 44px; }
-  html.frame-on .settings .cl-tab { min-width: 44px; }
   html.frame-on .settings .cl-bucket-link { min-height: 44px; }
   /* Except the ones that sit inside a sentence -- a fact's Change, an activity's Open.
      A 44px box in a line of text pushes the line apart, and a target inside a run

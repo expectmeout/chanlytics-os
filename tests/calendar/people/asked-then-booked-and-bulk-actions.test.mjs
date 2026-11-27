@@ -967,7 +967,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   );
   const marks = ui.LR.all(
     timeline.tree,
-    (n) => typeof n.props?.className === "string" && n.props.className.startsWith("cl-tl-mark"),
+    (n) => n.type === "span" && String(n.props?.className).split(" ").includes("cl-tl-node"),
   );
   assert.equal(
     marks.filter((m) => ui.LR.find(m, (n) => n.type === ui.Icon && n.props.name === "calendar")).length,
