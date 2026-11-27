@@ -46,7 +46,9 @@ found its subject gone was offered again. The owner saw nothing of what an appro
 - **Contracts:** `ask-memory/findings.ts`, `ask-memory/lately.ts`; `AskMorningDto` gains `findings`, `rested` and `lately`,
   each absent from a server before it; `AskProposalOutcome.moved`; `batchFactsOf` and `batchHeldEmails` for the row.
 - **Database:** no migration. `askMorningsSince` reads across members on the service client, a morning's rows being their
-  member's under RLS: titles and outcomes only, and they reach only that workspace's members' turns.
+  member's under RLS: titles and outcomes only, and they reach only that workspace's members' turns. Since 00724 the
+  read is `askMorningsSeen`, through `ask_mornings_seen` as the member, which answers each card by its title, kind and
+  outcome alone.
 - **Dashboard:** `server/ask/companion/findings.ts` beside `morning.ts`; `GET ask/morning` answers the new fields, so no new
   route; `withHeld` counts a batch waiting for an OK; `surfaces/today/need-you` draws them. The `ask_morning` surface was the
   member's alone and heard nothing; it now draws the workspace's records, so it hears `send` and `campaign` on Today, and a

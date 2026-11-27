@@ -3,15 +3,14 @@
  * route's policy is the owner's, on a workspace that may spend, counted against lead_search, as a places search is.
  * This works out what the round may cost from the card's brief prices (contracts peopleEstimateUsd) and hands the plan
  * to the door (lead_people_search_create through packages/db), which reserves the month's leads and the budget with
- * the round and refuses in a word said here as a sentence. The workspace's first search writes the funnel's third
- * milestone, as a places one does; an analytics row never costs a search.
+ * the round and refuses in a word said here as a sentence. The workspace's first search notes the funnel's third
+ * milestone in the door's own write (00724), as a places one does.
  */
 import { LEAD_CARDS, isUuid, peopleEstimateUsd, type LeadPeopleSearchInput } from "@chanlytics/contracts";
 import { createLeadPeopleSearch } from "@chanlytics/db/leads";
 import { answerOf, refusalOf } from "@/server/leads/leads";
 import type { RouteContext } from "@/server/shared/with-route";
 import type { Member } from "@/server/shared/route";
-import { recordWorkspaceActivation } from "@/server/shared/ledgers/events";
 
 /** What a people search may cost, from the people card's own prices. */
 function estimateOf(count: number): number {
@@ -36,10 +35,5 @@ export async function createPeopleSearch(ctx: RouteContext, member: Member, inpu
   const result = answerOf(answer);
   const refused = refusalOf(result);
   if (refused) throw refused;
-  try {
-    await recordWorkspaceActivation(member.tenantId, "first_lead_search", via);
-  } catch {
-    /* the milestone is written by the next search */
-  }
   return { search_id: result.search_id, round_id: result.round_id };
 }

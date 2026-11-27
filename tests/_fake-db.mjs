@@ -1640,6 +1640,53 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const { tenant_id, config, version, updated_at, updated_by } = row;
       return { tenant_id, config, version, updated_at, updated_by: updated_by ?? null, feed_hidden: false };
     },
+    // The workspace's own fields, its name, zone and word for a booking, with settings.changed in the same write (00724).
+    // The member's permission is the database's to judge: here every caller may, and no such workspace is null.
+    workspace_own_fields_write: ({ p_tenant_id, p_set }) => {
+      writeFault("tenants.update");
+      const row = (tables.tenants ?? []).find((r) => r.id === p_tenant_id);
+      if (!row) return null;
+      const was = row.name;
+      for (const field of ["name", "timezone", "appointment_word"]) if (field in p_set) row[field] = p_set[field];
+      seen.push({ table: "tenants", op: "update", values: { ...p_set }, filters: [["eq", "id", p_tenant_id]] });
+      tellEvent({
+        tenant_id: p_tenant_id,
+        kind: "settings.changed",
+        category: "system",
+        subject_type: "workspace",
+        subject_id: p_tenant_id,
+        data: {
+          fields: Object.keys(p_set).sort(),
+          by: opts.userId ?? null,
+          version: null,
+          ...("name" in p_set ? { from: was, to: row.name } : {}),
+        },
+      });
+      const { id, slug, name, status, timezone, appointment_word } = row;
+      return { id, slug, name, status, timezone, appointment_word: appointment_word ?? null };
+    },
+    // The team's mornings since a day, each with whether it is the session's person's and its first answer's cards by
+    // their title, kind and outcome (00724 ask_mornings_seen).
+    ask_mornings_seen: ({ p_tenant_id, p_since }) => {
+      const firstCards = (threadId) => {
+        const answers = (tables.ask_messages ?? [])
+          .filter((m) => m.thread_id === threadId && m.role === "assistant")
+          .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(b.id));
+        const cards = answers[0]?.content?.proposals;
+        return (Array.isArray(cards) ? cards : [])
+          .filter((c) => c && typeof c === "object")
+          .map((c) => JSON.parse(JSON.stringify({ title: c.title, kind: c.kind, outcome: c.outcome })));
+      };
+      return (tables.ask_mornings ?? [])
+        .filter((m) => m.tenant_id === p_tenant_id && m.day >= p_since && m.thread_id)
+        .sort((a, b) => b.day.localeCompare(a.day))
+        .slice(0, 120)
+        .map((m) => ({ day: m.day, mine: m.user_id === (opts.userId ?? null), proposals: firstCards(m.thread_id) }));
+    },
+    // What Anthropic has said of the workspace's profile (00724 workspace_model_standing): its row's word, or null.
+    workspace_model_standing: ({ p_tenant_id }) => {
+      return (tables.anthropic_profiles ?? []).find((r) => r.tenant_id === p_tenant_id)?.enforcement_status ?? null;
+    },
     // A WhatsApp number's row turned active once its token stands, with channel.connected in the same write (00723).
     whatsapp_channel_activate: ({ p_tenant_id, p_channel_id, p_told }) => {
       writeFault("tenant_channels.update");

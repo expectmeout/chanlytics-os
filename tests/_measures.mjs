@@ -1433,7 +1433,7 @@ export function emittedKinds() {
       );
       // Every literal inside the call, to its closing paren: a conditional that picks one of three billing kinds
       // names all three.
-      // The dashboard's events ledger (server/shared/ledgers/events.ts) names its kinds the same way, without the client.
+      // The dashboard's events ledger named its kinds the same way, without the client, until its callers' doors (00724).
       for (const m of src.matchAll(/\b(?:emitEvent|recordEvent|emitWorkspaceEvent|recordWorkspaceEvent)\(/g)) {
         let depth = 0;
         let i = m.index;
@@ -1512,6 +1512,8 @@ export const SHOWN_KINDS_HELD_FROM = "00723";
  * now, conversation.owner_emailed, kept from Activity's rows.
  */
 export const SHOWN_KINDS_NEW_TO_A_DOOR = {
+  "workspace_own_fields_write() <- settings.changed":
+    "The workspace's name, zone or word for a booking changed: its words (\"Settings changed\") are this door's act, which the dashboard wrote after a session's update of the row from TypeScript until the door (00724)",
   "whatsapp_channel_activate() <- channel.connected":
     "A WhatsApp number connected: its words (\"A WhatsApp number was connected\") are this door's act, the number's row turned active, which the edge wrote after the row from TypeScript until the door (00723)",
 };

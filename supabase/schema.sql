@@ -4433,6 +4433,52 @@ COMMENT ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_act
 
 
 --
+-- Name: ask_mornings_seen(uuid, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ask_mornings_seen(p_tenant_id uuid, p_since date) RETURNS TABLE(day date, mine boolean, proposals jsonb)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is not null then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return query
+    select m.day,
+           m.user_id is not distinct from auth.uid(),
+           -- The first answer of the morning's thread: a question asked after it, in its thread, is not the morning.
+           (select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+                      'title', c ->> 'title', 'kind', c ->> 'kind', 'outcome', c -> 'outcome'))), '[]'::jsonb)
+              from jsonb_array_elements(case when jsonb_typeof(first.proposals) = 'array'
+                                             then first.proposals else '[]'::jsonb end) c
+             where jsonb_typeof(c) = 'object')
+      from public.ask_mornings m
+      left join lateral (
+        select a.content -> 'proposals' as proposals
+          from public.ask_messages a
+         where a.thread_id = m.thread_id and a.role = 'assistant'
+         order by a.created_at, a.id
+         limit 1
+      ) first on true
+     where m.tenant_id = p_tenant_id and m.day >= p_since and m.thread_id is not null
+     order by m.day desc
+     limit 120;
+end $$;
+
+
+--
+-- Name: FUNCTION ask_mornings_seen(p_tenant_id uuid, p_since date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ask_mornings_seen(p_tenant_id uuid, p_since date) IS 'What the team''s mornings offered since a day, newest first, at most 120 (decision 0087, 00724): each morning''s day, whether it is the caller''s, and the cards of its thread''s first answer by their title, kind and outcome, never their words. For a member who may read the workspace (may_read_workspace); the service role and a session of the database itself name their workspace themselves.';
+
+
+--
 -- Name: ask_stopped_keep(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -19089,6 +19135,9 @@ begin
   values (p_tenant_id, 'lead.round', 'lead', 'lead_round', v_round,
           jsonb_build_object('search_id', v_search, 'seq', 1, 'state', 'queued', 'purpose', 'main', 'target', v_count,
                              'card', 'people_at_companies', 'by', v_user));
+  -- The workspace's first search: the funnel's third milestone, once (00721), in the search's own write (00724).
+  perform public.workspace_activation_note(p_tenant_id, 'first_lead_search',
+                                           case when p_via = 'ask' then 'ask' else 'people' end);
   return jsonb_build_object('search_id', v_search, 'round_id', v_round);
 end $$;
 
@@ -20623,6 +20672,9 @@ begin
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'lead.round', 'lead', 'lead_round', v_round,
           jsonb_build_object('search_id', v_search, 'seq', 1, 'state', 'queued', 'purpose', 'probe', 'target', least(25, v_count), 'by', v_user));
+  -- The workspace's first search: the funnel's third milestone, once (00721), in the search's own write (00724).
+  perform public.workspace_activation_note(p_tenant_id, 'first_lead_search',
+                                           case when p_via = 'ask' then 'ask' else 'people' end);
   return jsonb_build_object('search_id', v_search, 'round_id', v_round);
 end $$;
 
@@ -49860,6 +49912,33 @@ COMMENT ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to da
 
 
 --
+-- Name: workspace_model_standing(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_model_standing(p_tenant_id uuid) RETURNS text
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if auth.uid() is not null then
+    if p_tenant_id is null or not coalesce(public.may_read_workspace(p_tenant_id), false) then
+      raise exception 'Not a member of this workspace.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  return (select p.enforcement_status from public.anthropic_profiles p where p.tenant_id = p_tenant_id limit 1);
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_model_standing(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_model_standing(p_tenant_id uuid) IS 'What Anthropic has said of the workspace''s profile (decision 0097, 00724): its enforcement status, the one word the shell''s line is said from; null where it has no profile. For a member who may read the workspace (may_read_workspace); the service role and a session of the database itself name their workspace themselves.';
+
+
+--
 -- Name: workspace_notices_on_erase(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -49911,6 +49990,68 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) IS 'Decision 0019 step 4 (00508): the notices told on a workspace''s topic since a moment, read by a member as Realtime would admit them (workspace_changes_member_read), at most 201 (the 201st says there were more). A tab catches up on its load and on a rejoin. Never a row.';
+
+
+--
+-- Name: workspace_own_fields_write(uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.workspace_own_fields_write(p_tenant_id uuid, p_set jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- A signed-in member is asked who they are; the service role and a session of the database itself are let through.
+  v_by     uuid := auth.uid();
+  v_was    public.tenants;
+  v_row    public.tenants;
+  v_bad    text;
+  v_fields jsonb;
+begin
+  if v_by is not null then
+    if p_tenant_id is null or not public.caller_has_permission(p_tenant_id, 'settings') then
+      raise exception 'Not yours to change.' using errcode = '42501';
+    end if;
+  elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_set is null or jsonb_typeof(p_set) <> 'object' or p_set = '{}'::jsonb then
+    raise exception 'workspace_own_fields_write: the change names the fields it sets' using errcode = '22023';
+  end if;
+  select k into v_bad from jsonb_object_keys(p_set) k where k not in ('name', 'timezone', 'appointment_word') limit 1;
+  if v_bad is not null then
+    raise exception 'workspace_own_fields_write: % is not one of the workspace''s own fields', v_bad using errcode = '22023';
+  end if;
+  -- The row as it stood, held while it changes: what a name's event says it changed from.
+  select * into v_was from public.tenants t where t.id = p_tenant_id for update;
+  if not found then
+    return null;
+  end if;
+  update public.tenants t
+     set name = case when p_set ? 'name' then p_set ->> 'name' else t.name end,
+         timezone = case when p_set ? 'timezone' then p_set ->> 'timezone' else t.timezone end,
+         appointment_word = case when p_set ? 'appointment_word' then p_set ->> 'appointment_word'
+                                 else t.appointment_word end
+   where t.id = p_tenant_id
+  returning * into v_row;
+  -- On the ledger as every other setting is: which fields moved and who by, never the value but a name's, which the
+  -- ledger keeps from and to.
+  select jsonb_agg(k order by k) into v_fields from jsonb_object_keys(p_set) k;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'settings.changed', 'system', 'workspace', p_tenant_id,
+          jsonb_build_object('fields', v_fields, 'by', v_by, 'version', null)
+            || case when p_set ? 'name' then jsonb_build_object('from', v_was.name, 'to', v_row.name)
+                    else '{}'::jsonb end);
+  return jsonb_build_object('id', v_row.id, 'slug', v_row.slug, 'name', v_row.name, 'status', v_row.status,
+                            'timezone', v_row.timezone, 'appointment_word', v_row.appointment_word);
+end $$;
+
+
+--
+-- Name: FUNCTION workspace_own_fields_write(p_tenant_id uuid, p_set jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_own_fields_write(p_tenant_id uuid, p_set jsonb) IS 'The workspace''s own fields, its name, its zone and its word for a booking (p_set names those it sets), as a member who may change its settings (caller_has_permission ''settings''), with settings.changed (the fields, who, and a name''s from and to) in the same transaction (00724). Answers the row as it now stands (id, slug, name, status, timezone, appointment_word); null where there is no such workspace. A zone the database does not know is refused as the table refuses it (22023).';
 
 
 --
@@ -71166,6 +71307,15 @@ GRANT ALL ON FUNCTION public.ask_morning_write(p_tenant_id uuid, p_day date, p_a
 
 
 --
+-- Name: FUNCTION ask_mornings_seen(p_tenant_id uuid, p_since date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ask_mornings_seen(p_tenant_id uuid, p_since date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ask_mornings_seen(p_tenant_id uuid, p_since date) TO authenticated;
+GRANT ALL ON FUNCTION public.ask_mornings_seen(p_tenant_id uuid, p_since date) TO service_role;
+
+
+--
 -- Name: FUNCTION ask_stopped_keep(p_tenant_id uuid, p_stopped jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -78609,6 +78759,15 @@ GRANT ALL ON FUNCTION public.workspace_days(p_tenant_id uuid, p_from date, p_to 
 
 
 --
+-- Name: FUNCTION workspace_model_standing(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_model_standing(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_model_standing(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.workspace_model_standing(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION workspace_notices_on_erase(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -78623,6 +78782,15 @@ GRANT ALL ON FUNCTION public.workspace_notices_on_erase() TO service_role;
 REVOKE ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) TO authenticated;
 GRANT ALL ON FUNCTION public.workspace_notices_since(p_tenant_id uuid, p_since timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION workspace_own_fields_write(p_tenant_id uuid, p_set jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.workspace_own_fields_write(p_tenant_id uuid, p_set jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.workspace_own_fields_write(p_tenant_id uuid, p_set jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.workspace_own_fields_write(p_tenant_id uuid, p_set jsonb) TO service_role;
 
 
 --

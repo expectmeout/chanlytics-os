@@ -109,8 +109,6 @@ export const SERVICE_ROLE_KEPT = {
   "apps/dashboard/src/server/workspace/team.ts":
     "An invitation sent, read and seated by the address before the person is a member; and the team's doors (00277), which take the session's verified user as their actor and check the owner themselves",
   // The server's own work after the route's checks.
-  "apps/dashboard/src/server/shared/ledgers/events.ts":
-    "The events ledger: a member's act recorded after the route's checks; no session inserts into events. Each moves into its change's door (decision 0031) and leaves",
   "apps/dashboard/src/server/shared/ledgers/jobs.ts": "The jobs ledger: what happens later, which no session may write",
   "apps/dashboard/src/server/shared/storage.ts":
     "Storage: no policy on storage.objects lets a session write, and the media bucket is private; a caller is handed a bucket, never the client",
@@ -136,12 +134,7 @@ export const SERVICE_ROLE_KEPT = {
     "A message's version filed with its category after the route's checks (create_message_version, 00343: no session's)",
   "apps/dashboard/src/server/people/erase-contact.ts":
     "An erasure (decision 0036): its legs reach storage, the provider and rows no member may write",
-  // A write a member's role allows but no door takes yet: each goes when its door is written with its event.
-  "apps/dashboard/src/server/ask/companion/morning.ts":
-    "What every member's mornings offered lately (ask_mornings, each member's own: RLS keeps a member to their own, and the look back reads the team's)",
-  // A read a member's own session is refused, though the answer is theirs.
-  "apps/dashboard/src/server/workspace/billing.ts":
-    "What Anthropic has said of the workspace's profile (model standing): the service role's table",
+  // A read the server makes for a member that the member may not make: the answer would reach their browser.
   "apps/dashboard/src/server/workspace/config-row.ts":
-    "The settings as stored where a member's own read hides an address (tenant_config is the owner's to read), read whole for the member's own sends",
+    "The settings as stored where a member's own read hides an address (tenant_config is the owner's to read): the calendar feed's link opens the owner's calendar, so a door a member's session could call would hand it to their browser; the server reads it whole for the member's own sends and never answers it",
 };

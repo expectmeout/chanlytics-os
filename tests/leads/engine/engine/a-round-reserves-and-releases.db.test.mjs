@@ -32,6 +32,17 @@ import {
 // is revoked from authenticated and has no policy (00140), so the card's read
 // of the table raised every time and Ask answered "that could not be checked":
 // no owner could ever be shown a plan, and nothing was ever searched.
+/** The workspace's first-search milestones on the ledger (00721 workspace_activation_note), as their data. */
+const firstSearches = async () =>
+  ok(
+    await db
+      .from("events")
+      .select("data")
+      .eq("tenant_id", A)
+      .eq("kind", "workspace.activated")
+      .eq("data->>milestone", "first_lead_search"),
+  ).map((e) => e.data);
+
 test("the month's ceilings are read through a door, because the table is nobody's to read", { skip }, async () => {
   const period = leadMonth(TZ, new Date());
   ok(await db.from("lead_counters").insert({ tenant_id: A, kind: "allowance", period, used: 40, reserved: 10 }));
@@ -196,6 +207,8 @@ test(
       await db.from("events").select("data").eq("tenant_id", A).eq("kind", "lead.round").eq("subject_id", r.round_id),
     );
     assert.equal(ev[0].data.state, "queued");
+    // The workspace's first search notes the funnel's milestone in the search's own write (00724), and only the first.
+    assert.deepEqual(await firstSearches(), [{ milestone: "first_lead_search", via: "people" }]);
 
     const denied = await operator.client.rpc("lead_search_create", {
       p_tenant_id: A,
@@ -245,6 +258,7 @@ test(
       }),
     );
     assert.ok(r.search_id, "the rest of the month is taken");
+    assert.equal((await firstSearches()).length, 1, "a second search notes no second first");
     ids.search2 = r.search_id;
     ids.round2 = r.round_id;
     r = ok(

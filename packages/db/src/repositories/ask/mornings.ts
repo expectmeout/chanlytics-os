@@ -78,49 +78,24 @@ export async function askMorningOf(
   return data ? { thread_id: data.thread_id ?? null, cards: data.cards ?? null, made_at: data.made_at } : null;
 }
 
-/** A morning of the workspace, with the cards its first answer left. */
+/** A morning of the workspace: its day, whether it is the caller's, and its cards by their title, kind and outcome. */
 interface AskMorningSeen {
-  user_id: string;
   day: string;
+  mine: boolean;
   proposals: Json | null;
 }
 
-/** How many mornings a look back reads: two weeks of a large team's. */
-const MORNINGS_READ = 120;
-
 /**
- * Every member's mornings since a day, newest first, each with its first answer's cards (decision 0087): what Ask offered
+ * Every member's mornings since a day, newest first, each with its first answer's cards (decision 0087): what AI offered
  * lately, so a morning does not offer again what a teammate has or what was set aside. A morning's own rows are its
- * member's under RLS, so this takes the service client and the caller names the workspace. A read that fails throws.
+ * member's under RLS, so the team's are read through their door as the member signed in (00724 ask_mornings_seen, for a
+ * member who may read the workspace), which answers each card by its title, kind and outcome, never its words. A read
+ * that fails throws.
  */
-export async function askMorningsSince(db: Db, tenantId: TenantId, since: string): Promise<AskMorningSeen[]> {
-  const { data: mornings, error } = await db
-    .from("ask_mornings")
-    .select("user_id, day, thread_id")
-    .eq("tenant_id", tenantId)
-    .gte("day", since)
-    .not("thread_id", "is", null)
-    .order("day", { ascending: false })
-    .limit(MORNINGS_READ);
-  if (error) throw new DbFailure(error, "ask_mornings");
-  const threads = mornings.flatMap((m) => (m.thread_id ? [m.thread_id] : []));
-  if (threads.length === 0) return [];
-  const { data: answers, error: read } = await db
-    .from("ask_messages")
-    .select("thread_id, proposals:content->proposals")
-    .in("thread_id", threads)
-    .eq("role", "assistant")
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
-  if (read) throw new Error(`ask_messages: ${read.message}`);
-  // The first answer of each thread: a question asked after the morning, in its thread, is not the morning.
-  const first = new Map<string, Json | null>();
-  for (const a of answers) if (!first.has(a.thread_id)) first.set(a.thread_id, a.proposals ?? null);
-  return mornings.map((m) => ({
-    user_id: m.user_id,
-    day: m.day,
-    proposals: m.thread_id ? (first.get(m.thread_id) ?? null) : null,
-  }));
+export async function askMorningsSeen(db: Db, tenantId: TenantId, since: string): Promise<AskMorningSeen[]> {
+  const { data, error } = await db.rpc("ask_mornings_seen", { p_tenant_id: tenantId, p_since: since });
+  if (error) throw new DbFailure(error, "ask_mornings_seen");
+  return data.map((m) => ({ day: m.day, mine: m.mine === true, proposals: m.proposals ?? null }));
 }
 
 /**
