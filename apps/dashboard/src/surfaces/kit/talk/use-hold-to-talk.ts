@@ -86,10 +86,10 @@ export function useHoldToTalk({ lang, onWords, onHeard, disabled }: HoldToTalkOp
   const forEl = useRef<Element | null>(null);
   const canTalk = !!recognizer();
 
-  const begin = (SR: Recognizer) => {
+  const begin = (recognition: Recognizer) => {
     if (!want.current || rec.current) return;
     want.current = false;
-    const next = new SR();
+    const next = new recognition();
     next.lang = lang || navigator.language || "en-US";
     next.interimResults = true;
     next.continuous = true;

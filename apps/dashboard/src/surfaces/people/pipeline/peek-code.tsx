@@ -18,5 +18,5 @@ export function PipelinePeekWhenRead(p: PipelinePeekProps) {
   const Sheet = useCode(dealSheetCode, !!p.vm).loaded?.PipelinePeek;
   if (Sheet) return <Sheet {...p} asideRef={asideRef} />;
   if (!p.vm || p.phone) return null;
-  return <aside ref={asideRef} className="pk pl-peek pipe-peek" aria-label={p.vm.name} aria-busy="true" />;
+  return <aside ref={asideRef} className="pk pl-aside pipe-aside" aria-label={p.vm.name} aria-busy="true" />;
 }

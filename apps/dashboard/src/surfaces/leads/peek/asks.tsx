@@ -28,7 +28,7 @@ export const LeadNotFitWhy = ({
   testid?: string;
 }) =>
   rows ? (
-    <div className="pp-sheet-rows">
+    <div className="pp-pane-rows">
       {W.whys.map((w) => (
         <PhoneSheetRow
           key={w.id}
@@ -40,14 +40,14 @@ export const LeadNotFitWhy = ({
       ))}
     </div>
   ) : (
-    <div className="pk-nf pl-peek panel panel-pop" role="menu" aria-label={W.notFitTitle} data-testid={testid}>
-      <div className="pop-h">{W.notFitTitle}</div>
+    <div className="pk-nf pl-aside panel panel-pop" role="menu" aria-label={W.notFitTitle} data-testid={testid}>
+      <div className="more-header">{W.notFitTitle}</div>
       {W.whys.map((w) => (
         <button
           key={w.id}
           type="button"
           role="menuitem"
-          className="pop-row"
+          className="more-item"
           disabled={busy}
           data-testid={`${testid}-${w.id}`}
           onClick={() => on.onWhy(w.id)}
@@ -103,18 +103,23 @@ export const LeadCallAsk = ({
   return (
     <div className="pk-ask" role="group" aria-label={W.callQuestion} data-testid="peek-call-ask">
       <div className="t">{W.callQuestion}</div>
-      <div className="pk-chips" role="radiogroup" aria-label={W.callQuestion}>
+      <div
+        className="rec-seg pk-outcomes"
+        role="radiogroup"
+        aria-label={W.callQuestion}
+        data-look="chips"
+        data-wrap="true"
+      >
         {W.outcomes.map((o) => (
           <button
             key={o.id}
             type="button"
             role="radio"
-            aria-checked={armed && armed.outcome === o.id}
-            className={`pk-chip tone-${o.tone || "plain"}${armed && armed.outcome === o.id ? " on" : ""}`}
+            aria-checked={!!armed && armed.outcome === o.id}
+            className="rec-seg-btn"
             data-testid={`peek-outcome-${o.id}`}
             onClick={() => on.onOutcome(o.id)}
           >
-            <span className="dot" aria-hidden="true" />
             {o.label}
           </button>
         ))}
@@ -132,7 +137,7 @@ export const LeadCallAsk = ({
         />
       ) : null}
       <input
-        className="pk-input"
+        className="rec-input"
         type="text"
         value={note}
         maxLength={W.noteMax}

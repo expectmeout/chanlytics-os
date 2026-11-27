@@ -207,7 +207,7 @@ const LeadLinePhoneSheet = (p: LineSheetProps & { open: boolean }) => (
     <p className="ld-line-lead">
       <LineLead ours={p.ours} />
     </p>
-    <LineBox {...p} className="pp-input ld-line-box" />
+    <LineBox {...p} className="rec-input rec-input-touch ld-line-box" />
     <FieldError id="ld-line-error" message={p.error} testid="ld-line-error" />
     <div className="ld-line-acts">
       <LineForMe {...p} />

@@ -28,6 +28,7 @@ import {
   peekOf,
   peopleNow,
   personRow,
+  pickView,
   rowIds,
   rowNode,
   settled,
@@ -98,7 +99,7 @@ test("their next step on the page: a column after Stage that sorts by its day, i
   assert.deepEqual(rowIds(draw({ pipelineRoute: "pipeline:v-steps" })), ["wes"]);
   // The board's card: one quiet line under the chip.
   await fresh({ people: people() });
-  click(byTestId(withHead(draw()), "pipeline-view-board"));
+  pickView(withHead(draw()), "board");
   const cards = all(byTestId(draw(), "pipeline-col-proposals"), (n) => n.props?.["data-testid"] === "pipeline-card");
   const wesCard = cards.find((c) => textOf(c).includes("Wes"));
   const line = byTestId(wesCard, "pipe-next");

@@ -29,6 +29,7 @@ import { LeadCallMenu, ldCallProps } from "../cells/call-menu";
 import { LeadTile } from "../cells/tile";
 import type { LeadCellCtx } from "../cells/types";
 import { leadMapApi, type LeadMapCoverage, type LeadMapHandle } from "./lead-map";
+import { customProperties } from "../../kit/variants";
 
 const ldPinTone = (l: LeadRowVM) => leadPinTone(l);
 
@@ -200,7 +201,7 @@ const useLeadMapFit = () => {
 /** The picked lead's card over the map: its tile, its words, and Call. */
 const pickedCard = (l: LeadRowVM | undefined, x: LeadCellCtx) =>
   l ? (
-    <div className="ld-map-card" data-testid="lead-map-card">
+    <div className="ld-map-pick panel panel-pop panel-sm" data-testid="lead-map-card">
       <LeadTile l={l} size={34} />
       <div className="b">
         <div className="n">{l.name}</div>
@@ -290,12 +291,11 @@ const mapPlot = (
         className="ld-map-ring"
         aria-hidden="true"
         data-testid="lead-map-ring"
-        style={{
-          left: `${(plot.ring.x - plot.ring.r) * 100}%`,
-          top: `${(plot.ring.y - plot.ring.r) * 100}%`,
-          width: `${plot.ring.r * 200}%`,
-          height: `${plot.ring.r * 200}%`,
-        }}
+        style={customProperties({
+          "--ring-x": `${(plot.ring.x - plot.ring.r) * 100}%`,
+          "--ring-y": `${(plot.ring.y - plot.ring.r) * 100}%`,
+          "--ring-d": `${plot.ring.r * 200}%`,
+        })}
       />
     ) : null}
     {plot.pins.map((p) => {
@@ -306,7 +306,7 @@ const mapPlot = (
           key={p.id}
           type="button"
           className={`ld-pin tone-${ldPinTone(l)}${ldPinOut(l)}${a.picked === p.id ? " on" : ""}`}
-          style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+          style={customProperties({ "--pin-x": `${p.x * 100}%`, "--pin-y": `${p.y * 100}%` })}
           aria-label={`${l.name} — ${l.sub}`}
           data-testid={`lead-pin-${p.id}`}
           onMouseEnter={() => a.onPick(p.id)}
@@ -368,7 +368,7 @@ function NearbyOnPhone(o: {
         onClose={() => setOpen(false)}
         testid="map-nearby-sheet"
       >
-        <div className="pp-sheet-rows">
+        <div className="pp-pane-rows">
           {o.nearby.map((a) => (
             <PhoneSheetRow
               key={a.label}

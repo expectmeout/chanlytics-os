@@ -1257,7 +1257,7 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
   const box = byTestId(tree, "lead-lightbox");
   assert.equal(box.props.role, "dialog");
   assert.equal(
-    /\bpl-peek\b/.test(box.props.className),
+    /\bpl-aside\b/.test(box.props.className),
     true,
     "the page's own overlay, so Esc reaches the page's listener",
   );
@@ -1280,7 +1280,7 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
   );
   assert.deepEqual(
     find(week[0], (n) => n.props?.className === "ld-lb-bar").props.style,
-    { left: "37.5%", width: "37.5%" },
+    { "--bar-x": "37.5%", "--bar-w": "37.5%" },
     "9 AM to 6 PM as a bar across the day",
   );
   assert.deepEqual(all(byTestId(box, "lightbox-facts"), (n) => n.props?.className === "ld-lb-fact").map(textOf), [

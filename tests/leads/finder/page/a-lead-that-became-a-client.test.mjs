@@ -106,7 +106,7 @@ test("a converted lead whose person became a client reads Client, on the desktop
   globalThis.__phone = true;
   try {
     tree = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
-    const cardOf = (id) => find(rowOf(tree, id), (n) => n.props?.className === "pl-card");
+    const cardOf = (id) => find(rowOf(tree, id), (n) => n.props?.className === "pl-item");
     assert.equal(textOf(byTestId(cardOf("c1"), "lead-state")), "Client");
     assert.equal(cls(byTestId(cardOf("c1"), "lead-state")), "pill pill-ok");
     assert.equal(textOf(byTestId(cardOf("c2"), "lead-state")), rows[1].stateTag);
@@ -146,7 +146,7 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
     const keepAll = byTestId(heads[0], "review-sec-keep");
     assert.ok(keepAll, "the group's Keep on its line");
     assert.equal(textOf(keepAll), "Keep all");
-    const rows = all(tree, (n) => /\bpl-card-row\b/.test(String(n.props?.className || "")));
+    const rows = all(tree, (n) => /\bpl-item-row\b/.test(String(n.props?.className || "")));
     assert.ok(rows.length >= 1, "the same cards as every other list");
     const first = rows[0];
     const id = String(first.props.id).replace(/^lead-/, "");
@@ -161,17 +161,17 @@ test("at a phone's width Needs review is rows in groups: the group's acts on its
       L().rows[2].sub,
       "the reason is said once, on the group's line; the row says where it is",
     );
-    const card = find(first, (n) => n.props?.className === "pl-card");
+    const card = find(first, (n) => n.props?.className === "pl-item");
     assert.equal(typeof card.props.onTouchStart, "function", "a thumb has the row");
     // The row takes its own touch, so a slide on it never walks the strip of views over the page as well: a slide right
     // kept the lead and moved to People in one stroke (5 Oct 2026; frame/surface-tabs.tsx).
     assert.equal(
-      find(first, (n) => n.props?.className === "pl-card-cell").props["data-own-drag"],
+      find(first, (n) => n.props?.className === "pl-item-cell").props["data-own-drag"],
       "",
       "the sliding row is marked as taking its own touch",
     );
     assert.deepEqual(
-      all(first, (n) => /pl-card-ground/.test(String(n.props?.className || ""))).map(textOf),
+      all(first, (n) => /pl-item-ground/.test(String(n.props?.className || ""))).map(textOf),
       ["Keep", "Exclude"],
       "over the act's word on either side",
     );
@@ -248,7 +248,7 @@ test("at a phone's width the bar's switch is one word, the view it opens, and th
     assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 0, "no list of the map's own");
     assert.equal(all(map, (n) => n.props?.className === "ld-map-side").length, 0);
     assert.ok(
-      all(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-card-row")).length > 0,
+      all(tree, (n) => n.type === "tr" && String(n.props?.className || "").includes("pl-item-row")).length > 0,
       "the list's rows under it",
     );
     assert.ok(byTestId(map, "lead-map-count"), "how many are on it, in a line under the map");
@@ -373,7 +373,7 @@ test("a lead in a sequence wears one status, its place there, with the step and 
   globalThis.__phone = true;
   try {
     const tree = draw();
-    const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-card\b/.test(String(n.props?.className || "")));
+    const cardOf = (id) => find(rowOf(tree, id), (n) => /\blist-row pl-item\b/.test(String(n.props?.className || "")));
     const pill = (id) => byTestId(cardOf(id), "lead-state");
     assert.equal(textOf(pill("l1")), "Waits for your approval", "the place, never Not contacted beside it");
     assert.equal(String(pill("l1").rendered?.props?.className ?? pill("l1").props?.className), "pill pill-warn");

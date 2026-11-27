@@ -4,9 +4,10 @@
  * chosen, so a mark that fails to load simply uncovers the photo under it and a photo that fails uncovers the initials --
  * no state, and never a broken frame.
  */
-import type { CSSProperties, SyntheticEvent } from "react";
+import type { SyntheticEvent } from "react";
 import type { LeadRowVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
+import { customProperties } from "../../kit/variants";
 
 export const LeadTile = ({
   l,
@@ -21,10 +22,11 @@ export const LeadTile = ({
     const t = e && e.currentTarget;
     if (t && t.style) t.style.display = "none";
   };
-  const cls = "ld-tile";
-  // Its size as the caller asks it, said as a property the stylesheet reads (leads.css .ld-tile), so a table at its
+  // The kit's face, as a tile: a business's mark, its initials under its photo or its logo.
+  const cls = "face face-tile ld-logo";
+  // Its size as the caller asks it, said as a property the stylesheet reads (leads.css .ld-logo), so a table at its
   // compact height can set its own over it: a width written here outranks every rule.
-  const sized: CSSProperties = { "--tile": `${size}px` };
+  const tile = `${size}px`;
   const layers = (
     <>
       {l.tile.image ? (
@@ -35,8 +37,8 @@ export const LeadTile = ({
   );
   if (!onExpand)
     return (
-      <span className={cls} style={sized} aria-hidden="true">
-        <span className="ld-tile-initials">{l.tile.initials}</span>
+      <span className={cls} style={customProperties({ "--tile": tile })} aria-hidden="true">
+        <span className="ld-logo-letters">{l.tile.initials}</span>
         {layers}
       </span>
     );
@@ -44,7 +46,7 @@ export const LeadTile = ({
     <button
       type="button"
       className={cls}
-      style={sized}
+      style={customProperties({ "--tile": tile })}
       aria-label={`Expand ${l.name}`}
       data-testid="lead-photo"
       onClick={(e) => {
@@ -52,11 +54,11 @@ export const LeadTile = ({
         onExpand(l.id);
       }}
     >
-      <span className="ld-tile-initials" aria-hidden="true">
+      <span className="ld-logo-letters" aria-hidden="true">
         {l.tile.initials}
       </span>
       {layers}
-      <span className="ld-tile-expand" aria-hidden="true">
+      <span className="ld-logo-expand" aria-hidden="true">
         <Icon name="external" size={8} />
       </span>
     </button>

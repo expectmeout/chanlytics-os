@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { Button } from "../kit/button/button";
 import type { MenuGroup, MenuItem } from "../kit";
 import { Icon } from "../kit/icon/icon";
+import { cx } from "../kit/variants";
 
 /** One item of a People menu, or the line or heading between two groups. */
 export interface PeopleMenuItem {
@@ -101,11 +102,12 @@ export function menuGroups(items: readonly PeopleMenuItem[]): MenuGroup[] {
 /**
  * A menu standing where a press would also reach what holds it (a row that opens its lead, a card, a peek): its presses
  * are kept to itself, its control's and its items' alike (the kit's Menu is drawn on the body, and a press on it still
- * reaches its holders through React), in the `more-wrap` box the pages' layout names, as the house's MoreMenu drew it.
+ * reaches its holders through React), in the kit's `more-wrap` box, as the house's MoreMenu drew it; `className` is the
+ * page's, for its layout.
  */
-export function MenuInPlace({ children }: { children: ReactNode }) {
+export function MenuInPlace({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="more-wrap" role="presentation" onClick={(e) => e.stopPropagation()}>
+    <div className={cx("more-wrap", className)} role="presentation" onClick={(e) => e.stopPropagation()}>
       {children}
     </div>
   );

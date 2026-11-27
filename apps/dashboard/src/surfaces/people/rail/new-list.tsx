@@ -127,7 +127,7 @@ function describeBox(p: {
           {busy ? "Building…" : "Build"}
         </button>
       </div>
-      <FieldError id="new-list-error" message={error} testid="new-list-error" />
+      <FieldError id="new-list-error" message={error} testid="new-list-error" className="cl-rail-error" />
       <button
         type="button"
         className="cl-bucket-link cl-rail-newlist-mode"
@@ -163,7 +163,7 @@ function nameBox(p: {
     <div className="cl-rail-foot">
       {draft && (
         <div className="cl-rail-draft" data-testid="new-list-draft">
-          <div className="cl-tag-stack">
+          <div className="cl-lists-held">
             {lists.parts(draft.rule).map((part) => (
               <span key={part} className="chip chip-wrap" data-testid="new-list-rule">
                 {part}
@@ -207,7 +207,7 @@ function nameBox(p: {
           {draft ? "Save" : "Add"}
         </button>
       </div>
-      <FieldError id="new-list-error" message={error} testid="new-list-error" />
+      <FieldError id="new-list-error" message={error} testid="new-list-error" className="cl-rail-error" />
       {draft ? (
         <button
           type="button"

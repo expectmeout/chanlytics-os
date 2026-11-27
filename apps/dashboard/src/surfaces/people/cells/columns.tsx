@@ -315,7 +315,7 @@ const plStateCell = (p: PersonRowVM, { shows: { receptionist: inColumn } }: Peop
         column shows (is-in-column); a card draws that column's cell whatever the member chose, so a card hides this
         one wherever Visits does not take the cell's place. */}
     {p.receptionist.tone !== "answering" && !plReceptSaysTheState(p) && (
-      <span className={`cl-row-recept-mark${inColumn ? " is-in-column" : ""}`} data-tip={p.receptionist.label}>
+      <span className={`cl-row-recept-sign${inColumn ? " is-in-column" : ""}`} data-tip={p.receptionist.label}>
         {plReceptMark(p)}
       </span>
     )}
@@ -651,12 +651,12 @@ const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attentio
       // A stop the pill does not say (the State cell's, on a desktop): the first of the card's facts.
       stopToldBesideState(p) ? <StoppedMark key="stopped" testid="row-stopped" /> : null,
       line ? (
-        <span key="visit" className="pl-card-visit" data-testid="row-next-visit" {...SAYS_WHEN}>
+        <span key="visit" className="pl-item-visit" data-testid="row-next-visit" {...SAYS_WHEN}>
           <Icon name="calendar" size={11} />
           {[line.day, line.time, line.state ? line.state.text : ""].filter(Boolean).join(" · ")}
         </span>
       ) : null,
-      <span key="last" className="pl-card-last" {...SAYS_WHEN}>
+      <span key="last" className="pl-item-last" {...SAYS_WHEN}>
         {p.lastContact.label}
       </span>,
     ],
@@ -666,7 +666,7 @@ const plCardCell = (p: PersonRowVM, { attention }: Pick<PeopleCellCtx, "attentio
 export const PL_CARD: DataCard<PersonRowVM, PeopleCellCtx> = {
   label: "Person",
   cell: plCardCell,
-  rowClass: "pl-card-row",
+  rowClass: "pl-item-row",
 };
 
 /** The columns a file of the people shown follows where the page has no table of its own to follow (the Pipeline's): the ones on by default. */

@@ -1,7 +1,7 @@
 /**
  * The photo, expanded (moved from legacy/pages/leads-peek.jsx, decision 0015; D5): the one photo the listing gave (or the
  * tile), and beside it what is about the place -- where it sits, the week's hours as bars, and the listing's facts. The
- * page's own overlay (.pl-peek), so Esc reaches the page's one listener and closes this first. A viewer, not a sheet: on
+ * page's own overlay (.pl-aside), so Esc reaches the page's one listener and closes this first. A viewer, not a sheet: on
  * a phone the photo takes the whole screen. With no photo, a phone raises what is about the place as the kit's one
  * sheet, as tall as it, its name and its Close in the sheet's head (the one-sheet move, 25 Nov 2026).
  */
@@ -10,6 +10,7 @@ import type { LeadPeekVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import { keepTouch, leaving, onAPhone, touchSwipe } from "../../frame-verbs";
+import { customProperties } from "../../kit/variants";
 
 interface LightboxProps {
   vm: LeadPeekVM;
@@ -53,7 +54,7 @@ function lightboxHead({ vm, onClose }: LightboxProps) {
 function lightboxPhoto(vm: LeadPeekVM) {
   return (
     <div className="ld-lb-photo" data-testid="lightbox-photo">
-      <span className="ld-lb-initials" aria-hidden="true">
+      <span className="ld-lb-letters" aria-hidden="true">
         {vm.tile.initials}
       </span>
       {vm.tile.band ? (
@@ -85,13 +86,18 @@ function lightboxSide(vm: LeadPeekVM) {
       {vm.week.length ? (
         <div className="ld-lb-block" data-testid="lightbox-week">
           <div className="pk-label">{W.openHours}</div>
-          {vm.week.map((d) => (
-            <div key={d.day} className={`ld-lb-day${d.today ? " today" : ""}`} data-testid="lightbox-day">
-              <span className="d">{d.day.slice(0, 3)}</span>
+          {vm.week.map((day) => (
+            <div key={day.day} className={`ld-lb-day${day.today ? " today" : ""}`} data-testid="lightbox-day">
+              <span className="d">{day.day.slice(0, 3)}</span>
               <span className="ld-lb-track">
-                {d.bar ? <span className="ld-lb-bar" style={{ left: `${d.bar.x}%`, width: `${d.bar.w}%` }} /> : null}
+                {day.bar ? (
+                  <span
+                    className="ld-lb-bar"
+                    style={customProperties({ "--bar-x": `${day.bar.x}%`, "--bar-w": `${day.bar.w}%` })}
+                  />
+                ) : null}
               </span>
-              <span className="h">{d.short}</span>
+              <span className="h">{day.short}</span>
             </div>
           ))}
         </div>
@@ -135,9 +141,9 @@ export const LeadLightbox = ({ vm, onClose }: LightboxProps) =>
     <NoPhotoSheet vm={vm} onClose={onClose} />
   ) : (
     <>
-      <div className="ld-lightbox-backdrop" role="presentation" onClick={onClose} />
+      <div className="sheet-backdrop ld-photos-wash" role="presentation" onClick={onClose} />
       <div
-        className="ld-lightbox pl-peek"
+        className="ld-photos panel panel-pop panel-flush pl-aside"
         role="dialog"
         aria-label={`${W.photos}: ${vm.name}`}
         data-testid="lead-lightbox"

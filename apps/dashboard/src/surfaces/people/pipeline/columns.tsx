@@ -237,12 +237,12 @@ const pipeCardCell = (r: PipelineRowVM, _x: unknown, pick?: RowPick) => {
       p.stopped ? <StoppedMark key="stopped" testid="pipe-row-stopped" /> : null,
       r.track.length ? <PipelineTrack key="track" steps={r.track} /> : null,
       r.value ? (
-        <span key="value" className="pipe-card-value" data-testid="pipe-value">
+        <span key="value" className="pipe-item-value" data-testid="pipe-value">
           {r.value}
         </span>
       ) : null,
       r.inStage ? (
-        <span key="stage" className="pl-card-last" data-testid="pipe-in-stage">
+        <span key="stage" className="pl-item-last" data-testid="pipe-in-stage">
           {r.inStage}
         </span>
       ) : null,
@@ -258,4 +258,4 @@ const pipeCardCell = (r: PipelineRowVM, _x: unknown, pick?: RowPick) => {
 let PIPE_CARD: DataCard<PipelineRowVM, PipelineCellCtx> | null = null;
 /** A phone's one cell a row, and the class its rows wear. */
 export const pipeCard = (): DataCard<PipelineRowVM, PipelineCellCtx> =>
-  PIPE_CARD || (PIPE_CARD = { label: P.words.columns.person, cell: pipeCardCell, rowClass: "pl-card-row" });
+  PIPE_CARD || (PIPE_CARD = { label: P.words.columns.person, cell: pipeCardCell, rowClass: "pl-item-row" });

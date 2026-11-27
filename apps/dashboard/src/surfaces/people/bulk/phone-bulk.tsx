@@ -40,7 +40,7 @@ function moreStep(b: BulkCtx, a: BulkActs, messages: boolean): Step {
   return {
     title: `${n} selected`,
     body: (
-      <div className="pp-sheet-rows">
+      <div className="pp-pane-rows">
         {messages ? (
           <PhoneSheetRow
             icon="shield"
@@ -110,7 +110,7 @@ function listsStep(b: BulkCtx, a: BulkActs, newList: () => void): Step {
   return {
     title: "Add to list",
     body: (
-      <div className="pp-sheet-rows">
+      <div className="pp-pane-rows">
         {savedRead ? (
           saved
             .filter((l) => l.byHand)
@@ -128,7 +128,7 @@ function listsStep(b: BulkCtx, a: BulkActs, newList: () => void): Step {
               />
             ))
         ) : (
-          <p className="pp-sheet-hint pp-sheet-rows-note">Your saved lists couldn't be read.</p>
+          <p className="pp-pane-hint pp-pane-rows-note">Your saved lists couldn't be read.</p>
         )}
         <PhoneSheetRow icon="plus" label="New list" next disabled={busy} onClick={newList} testid="bulk-list-new" />
       </div>
@@ -146,10 +146,10 @@ function messagesStep(b: BulkCtx, back: () => void, groups: { header: string; it
     title: PERSON_ABOUT_WORDS.messages,
     onBack: back,
     body: (
-      <div className="pp-sheet-rows">
+      <div className="pp-pane-rows">
         {groups.map((g) => (
-          <div key={g.header} className="pp-sheet-rows" role="group" aria-label={g.header}>
-            <div className="pp-sheet-rows-h">{g.header}</div>
+          <div key={g.header} className="pp-pane-rows" role="group" aria-label={g.header}>
+            <div className="pp-pane-rows-h">{g.header}</div>
             {g.items.map((i) => (
               <PhoneSheetRow
                 key={i.key}
@@ -183,7 +183,7 @@ function askSteps(b: BulkCtx, a: BulkActs) {
       body: (
         <>
           <input
-            className="pp-input"
+            className="rec-input rec-input-touch"
             autoFocus={focusAsDrawn()}
             value={slipsNote}
             placeholder="Which slips, e.g. Saturday's"
@@ -199,7 +199,7 @@ function askSteps(b: BulkCtx, a: BulkActs) {
           />
           <button
             type="button"
-            className="btn btn-primary pp-sheet-go"
+            className="btn btn-primary pp-pane-go"
             disabled={busy || !slipsNote.trim()}
             onClick={a.recordSlips}
             data-testid="bulk-form-save"
@@ -215,7 +215,7 @@ function askSteps(b: BulkCtx, a: BulkActs) {
       body: (
         <>
           <input
-            className="pp-input"
+            className="rec-input rec-input-touch"
             autoFocus={focusAsDrawn()}
             value={name}
             placeholder="Name the list"
@@ -234,7 +234,7 @@ function askSteps(b: BulkCtx, a: BulkActs) {
           />
           <button
             type="button"
-            className="btn btn-primary pp-sheet-go"
+            className="btn btn-primary pp-pane-go"
             disabled={busy || !name.trim()}
             onClick={a.createAndAdd}
             data-testid="bulk-list-save"

@@ -158,7 +158,7 @@ test("AI's word is beside the state whether or not its column shows, marked when
   const queued = person(1, { queued_reply_at: iso(H) });
   const stateCell = (tree, id) =>
     find(rowOf(tree, id), (n) => n.type === "td" && /\bcl-state-cell\b/.test(String(n.props?.className || "")));
-  const isMark = (n) => /\bcl-row-recept-mark\b/.test(String(n.props?.className || ""));
+  const isMark = (n) => /\bcl-row-recept-sign\b/.test(String(n.props?.className || ""));
   const markOf = (tree) => find(stateCell(tree, "p1"), isMark);
   const inColumn = (mark) => /\bis-in-column\b/.test(String(mark.props.className));
   await freshPage({ people: [queued, person(2)] });
@@ -745,7 +745,7 @@ test("with a calendar AI's word sits beside the state until its own column is sh
   assert.ok(headings(tree).includes("AI"), "in a column of its own");
   // Controller: after Task 3's review the mark always renders; a class hides it at 901px and up, where the column shows it,
   // so a phone card (which hides the Receptionist cell beside Visits) still says it.
-  const mark = find(stateCell(tree), (n) => /cl-row-recept-mark/.test(n.props?.className || ""));
+  const mark = find(stateCell(tree), (n) => /cl-row-recept-sign/.test(n.props?.className || ""));
   assert.match(
     mark?.props?.className || "",
     /is-in-column/,
