@@ -570,18 +570,19 @@ test("the board is drawn in hours of the stylesheet's hour (--cal-hour): one val
   const hours = /^calc\([\d.]+ \* var\(--cal-hour\)\)$/;
   const block = byTestId(tree, "cal-block");
   assert.ok(block, "the week's appointment");
-  assert.match(block.props.style.top, hours, "a block starts so many hours down");
+  // Each says where it stands as custom properties its rule reads (calendar.css: top var(--at), height var(--long)).
+  assert.match(block.props.style["--at"], hours, "a block starts so many hours down");
   assert.match(
-    block.props.style.height,
+    block.props.style["--long"],
     /^max\(22px, calc\([\d.]+ \* var\(--cal-hour\)\) - 2px\)$/,
     "and runs so many hours, never under the two lines it holds",
   );
   const tick = find(tree, (n) => /\bcal-hour\b/.test(String(n.props?.className ?? "")));
-  assert.match(tick.props.style.top, hours, "an hour's label stands at its hour");
+  assert.match(tick.props.style["--at"], hours, "an hour's label stands at its hour");
   const band = find(tree, (n) => /\bcal-unavail\b/.test(String(n.props?.className ?? "")));
   assert.ok(band, "a band outside the hours");
-  assert.match(band.props.style.top, hours);
-  assert.match(band.props.style.height, hours);
+  assert.match(band.props.style["--at"], hours);
+  assert.match(band.props.style["--long"], hours);
 });
 
 test("what fits a phone's board: the room shared by the day's hours, in whole pixels, never under the floor a half-hour block needs", () => {

@@ -118,7 +118,6 @@ function CrBlock(p: {
     <button
       className="cal-appt feed"
       style={customProperties({ "--at": ofHours(from), "--long": `max(22px, ${ofHours(span)} - 2px)`, ...laned })}
-      data-laned={b.lanes > 1 || half ? "" : undefined}
       onClick={() => onOpen(b)}
       data-tip={`${b.title} · ${b.time}${b.tool ? ` · ${b.tool}` : ""}${spoken ? ` · ${spoken}` : ""}`}
       aria-label={`${b.title}, ${b.time}, ${dayLong}${b.tool ? `, booked through ${b.tool}` : ""}${spoken ? `, ${spoken.toLowerCase()}` : ""}`}

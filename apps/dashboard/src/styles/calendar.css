@@ -1194,7 +1194,7 @@
 }
 
 /* Where each thing stands on the day's clock: blocks.tsx says its top and its length as custom properties (--at,
-   --long), and a block that shares its hour with others its lane (--lane-left, --lane-width). */
+   --long), and a block that shares its hour with others its lane (--lane-left, --lane-width); alone it takes its column less 4px a side. */
 .cal-appt,
 .cal-open,
 .cal-unavail {
@@ -1206,8 +1206,8 @@
 .cal-hour {
   top: var(--at);
 }
-.cal-appt[data-laned] {
-  left: var(--lane-left);
-  width: var(--lane-width);
+.cal-appt {
+  left: var(--lane-left, 4px);
   right: auto;
+  width: var(--lane-width, calc(100% - 8px));
 }

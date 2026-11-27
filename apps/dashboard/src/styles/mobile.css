@@ -151,7 +151,7 @@
   .ix-th-closed { padding: 6px 16px 0; }
   .ix-th-channels-meta { display: none; }
   .ix-context-strip { padding: 0 16px; }
-  .ix-thread-pane > .ix-pane-ask { margin: 10px 16px 4px; }
+  .ix-thread-pane > [data-testid="ix-archive-confirm"] { margin: 10px 16px 4px; }
   .ix-approval { margin: 12px 16px 0; }
   .ix-outcomes { grid-template-columns: 1fr; }
   .ix-timeline { padding: 12px 16px; }
@@ -378,11 +378,11 @@
   /* Conversations: the same pattern */
   .conversations { grid-template-rows: minmax(0, 1fr); }
   .conversations .cv-list { border-bottom: none; }
-  .conversations .ix-thread-pane, .conversations > .cv-none { display: none; }
+  .conversations .ix-thread-pane, .conversations > :not(.cv-list) { display: none; }
   .conversations[data-takeover] .cv-list:not([data-held]) { display: none; }
   /* A row opens the one thread (thread-pane.jsx) -- a call at its card, or alone in the thread's frame -- and it takes
      the screen. So does a link's notice, which the rule above would otherwise keep off a phone. */
-  .conversations[data-takeover] .ix-thread-pane, .conversations[data-takeover] > .cv-none { display: flex; }
+  .conversations[data-takeover] .ix-thread-pane, .conversations[data-takeover] > :not(.cv-list) { display: flex; }
 
   /* Live: a short list, the cockpit gets the screen, the whisper at the thumb */
   .lm-body { grid-template-rows: minmax(0, 26vh) minmax(0, 1fr); }

@@ -10,8 +10,7 @@
  * canceled, skipped) is read in Reports (Ruben, 21 Oct 2026): its campaign narrowed to it, over its day (contracts
  * campaignReportRoute), and the pane moves there as the run is read.
  */
-import { useEffect, useReducer, useState } from "react";
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { useEffect, useReducer, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   LIFECYCLE_WORDS,
   RUN_UNNAMED_WORDS,

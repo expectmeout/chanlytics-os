@@ -1533,7 +1533,7 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: var(--text-label); color: var(--warn); border-bottom: 1px solid var(--line); }
 /* Archive's question, under the thread's header, on the header's own gutter. */
-.ix-thread-pane > .ix-pane-ask { flex-shrink: 0; margin: 10px 24px 4px; }
+.ix-thread-pane > [data-testid="ix-archive-confirm"] { flex-shrink: 0; margin: 10px 24px 4px; }
 .ix-list > .ix-list-ask { flex-shrink: 0; margin: 8px 12px 0; max-width: none; }
 
 /* The pane's own width, not the window's (I3). At 1024 the header's name column was 35px, the strip hid 399px of
