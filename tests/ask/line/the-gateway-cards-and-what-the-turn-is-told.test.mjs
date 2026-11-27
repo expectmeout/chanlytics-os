@@ -458,6 +458,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
   assert.deepEqual(
     Object.fromEntries(cases.filter((c) => c.expect?.card_fields).map((c) => [c.id, c.expect.card_fields])),
     {
+      // Someone with no deal, asked to be marked won: a deal starts as a proposal, never as won (27 Nov 2026).
+      pipeline_decline: { deal: { stage: "proposed" } },
       person_note_team: { note: { team_only: true } },
       person_note_receptionist: { note: { team_only: false } },
       person_details_email: { person_details: { email: "jordan.reyes@example.com" } },

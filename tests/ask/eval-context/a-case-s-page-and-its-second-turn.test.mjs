@@ -20,6 +20,7 @@ import {
   ordinal,
   pageProblems,
   parseRows,
+  pressesCard,
   putBack,
   resolveContext,
   secondScope,
@@ -328,6 +329,10 @@ test("turn 2 is not asked when turn 1 left it nothing to ask in, and a turn 2 an
   assert.equal(notAsked({ expect: {} }, { final: m, threadId: T1 }), null);
   assert.equal(notAsked({ expect: { names_card: true } }, { final: m, threadId: T1 }), "turn 1 made no card to name");
   assert.equal(
+    notAsked({ expect: { presses_card: true } }, { final: m, threadId: T1 }),
+    "turn 1 made no card to press",
+  );
+  assert.equal(
     notAsked({ expect: {}, between: "approve" }, { final: m, threadId: T1 }),
     "turn 1 made no card to approve",
   );
@@ -394,6 +399,57 @@ test("names_card: approve that one points at turn 1's card by its title, makes n
   assert.deepEqual(namesCard(final({ text: "Remember this" }), { final: final(), threadId: T1 }), [
     "turn 1 made no card to name",
   ]);
+});
+
+test("presses_card: their yes is the press (D18). Approve that one presses turn 1's card, and what the answer then says was done was done; a yes that pressed nothing, a press that did not land, a claim beside either, and a second card of its kind each fail", () => {
+  const t1 = { final: final({ text: "One card to review: Remember this.", proposals: [CARD] }), threadId: T1 };
+  const press = (state, proposalId = CARD.id) => ({
+    messageId: U(81),
+    proposalId,
+    outcome: { state, receipt: state === "done" ? "AI knows." : "It could not be saved." },
+  });
+  const two = (text, pressed, proposals = []) => ({ ...final({ text, proposals }), pressed });
+  // The weekly run of 22 Nov 2026, both cases: the press landed and the answer said so, which names_card failed.
+  assert.deepEqual(pressesCard(two("Done. I'll remember it from here on.", [press("done")]), t1), []);
+  assert.deepEqual(
+    pressesCard(
+      two("Done.", [{ message_id: U(81), proposal_id: CARD.id, outcome: { state: "done", receipt: "AI knows." } }]),
+      t1,
+    ),
+    [],
+    "the press in the server's own names",
+  );
+  // The weekly run of 15 Nov 2026: the yes pressed nothing, and the answer pointed at the card.
+  assert.deepEqual(pressesCard(two("I couldn't approve it from here. Press it on its card above.", undefined), t1), [
+    "their yes pressed none of turn 1's cards: “Remember this”",
+  ]);
+  assert.deepEqual(
+    pressesCard(two("Done. I'll remember it from here on.", []), t1),
+    [
+      "their yes pressed none of turn 1's cards: “Remember this”",
+      "the answer claims the card was done, and no press landed: “Done. I'll remember it from here on.”",
+    ],
+    "a claim with no press behind it",
+  );
+  assert.deepEqual(
+    pressesCard(two("It didn't save. Nothing changed.", [press("failed")]), t1),
+    ["the press of turn 1's card did not land: failed"],
+    "a press that failed, said truly",
+  );
+  assert.match(
+    pressesCard(two("Done.", [press("done", "p-of-another-turn")]), t1)[0],
+    /pressed none of turn 1's cards/,
+    "a card of another turn is not turn 1's",
+  );
+  assert.deepEqual(pressesCard(two("Done. Here it is again.", [press("done")], [{ ...CARD, id: "p-2" }]), t1), [
+    "a second settings card, where turn 1's is one press above",
+  ]);
+  assert.deepEqual(pressesCard(two("Done.", [press("done")]), { final: final(), threadId: T1 }), [
+    "turn 1 made no card to press",
+  ]);
+  const r = { final: two("Done.", [press("done")]), threadId: T1 };
+  assert.deepEqual(followUpFails({ presses_card: true }, r, t1), []);
+  assert.match(followUpFails({ presses_card: true }, { ...r, final: two("Done.", []) }, t1)[0], /pressed none/);
 });
 
 test("opens_item: open the second goes to turn 1's answer's second item, not the page's second row", () => {
