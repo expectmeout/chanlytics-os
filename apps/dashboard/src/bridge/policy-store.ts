@@ -12,6 +12,7 @@ import {
   type PolicyClass,
   type PolicyLimits,
   type PolicyMode,
+  entryOf,
 } from "@chanlytics/contracts";
 import { provide, provided } from "./provided";
 /**
@@ -175,7 +176,7 @@ export interface UiRow extends UiRowMeta {
 const EMPTY: PoliciesSurface = { rows: [], role: null };
 
 export function modeLabel(dbMode: string | null | undefined): UiMode | null {
-  return dbMode ? ((LABELS as Record<string, UiMode>)[dbMode] ?? null) : null;
+  return entryOf(LABELS, dbMode) ?? null;
 }
 
 export function dbMode(label: string | null | undefined): string | null {

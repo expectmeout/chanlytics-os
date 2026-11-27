@@ -39,9 +39,10 @@ export const IN_CHUNK = 200;
 export interface BroadcastRow {
   id: string;
   name: string;
-  template_id: string;
-  template_name: string;
-  template_language: string;
+  /** Its message: null together on a reach-out's hand step's run, which sends none (sequence_batches_template_or_hand). */
+  template_id: string | null;
+  template_name: string | null;
+  template_language: string | null;
   params: unknown;
   audience: unknown;
   state: BroadcastState;

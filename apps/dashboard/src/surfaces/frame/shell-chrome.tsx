@@ -32,6 +32,7 @@ import { Topbar } from "./topbar/topbar";
 import { Icon } from "../kit/icon/icon";
 import { viewDeck } from "../kit/motion/view-deck";
 import { provided } from "@/bridge/provided";
+import { answersClosest } from "../dom-reads";
 
 // ---- Error state --------------------------------------------------------
 class ShellErrorBoundary extends Component<{ children: ReactNode }, { err: Error | null }> {
@@ -95,8 +96,8 @@ function SurfaceUnavailable({ onNavigate }: { onNavigate: (to: string) => void }
 // A pointer that reaches a sidebar item warms its page (workspace.ts warmRoute), so the press that follows asks the server
 // for nothing. The item says which it is (sidebar/sidebar.tsx data-nav).
 const sideWarm = (e: PointerEvent<HTMLDivElement>) => {
-  const target = e.target as Element | null;
-  const item = target && target.closest ? target.closest<HTMLElement>("[data-nav]") : null;
+  const target = e.target;
+  const item = answersClosest(target) ? target.closest<HTMLElement>("[data-nav]") : null;
   const a = shellAddress();
   const nav = item && item.dataset.nav;
   if (nav && a && a.warm) a.warm(NAV_ROUTE[nav] || nav);

@@ -136,9 +136,10 @@ export interface PlaybookDto {
   list_id: string | null;
   /** The People list a saved_list playbook runs on, by its id (00168); null otherwise. One or the other, never both. */
   list_key?: string | null;
-  template_id: string;
-  template_name: string;
-  template_language: string;
+  /** Its message: null on a step a person takes by hand (a call, a note: sequence_steps_template_or_hand), which has none. */
+  template_id: string | null;
+  template_name: string | null;
+  template_language: string | null;
   params: ParamSpec[];
   policy_class: PlaybookPolicyClass;
   state: PlaybookState;

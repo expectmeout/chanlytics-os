@@ -1,3 +1,4 @@
+import { valueAt } from "@chanlytics/contracts";
 /**
  * The record kit's DOM lookups (decision 0015): `querySelector` and `querySelectorAll` with the element type a caller
  * means, and whether an element has a method at all (a test's stand-in element may not). lib.dom marks a bare read of
@@ -16,5 +17,5 @@ export function pickAll<E extends Element = HTMLElement>(root: ParentNode, selec
 
 /** Whether `el` has a method by that name: the shell's tests draw against stand-in elements that have only some. */
 export function can(el: object, method: string): boolean {
-  return typeof (el as Record<string, unknown>)[method] === "function";
+  return typeof valueAt(el, method) === "function";
 }

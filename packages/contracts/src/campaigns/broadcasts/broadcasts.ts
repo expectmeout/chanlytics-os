@@ -240,9 +240,10 @@ export function runCountsOf(answer: unknown): Record<string, BroadcastCounts> | 
 export interface BroadcastDto {
   id: string;
   name: string;
-  template_id: string;
-  template_name: string;
-  template_language: string;
+  /** Its message: null together on a reach-out's hand step's run, which sends none (sequence_batches_template_or_hand). */
+  template_id: string | null;
+  template_name: string | null;
+  template_language: string | null;
   /** What fills each numbered slot: typed text, or the person's first name, the business's name, its booking link. */
   params: ParamSpec[];
   audience: AudienceDto;

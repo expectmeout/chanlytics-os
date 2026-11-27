@@ -160,11 +160,19 @@ export const findProposalFollowUp = async (db: Db, tenantId: TenantId) =>
     .eq("trigger", "proposal_waiting")
     .maybeSingle();
 
-/** The workspace's steps with `columns` (the moments alone, or every one), newest first. */
-export const listStepsWith = async (db: Db, tenantId: TenantId, columns: string, momentsOnly: boolean) => {
-  const q = db.from("sequence_steps").select(columns).eq("tenant_id", tenantId);
-  return (momentsOnly ? q.eq("kind", "moment") : q).order("created_at", { ascending: false });
-};
+/**
+ * The workspace's moment playbooks, newest first: the columns a card reads, one literal, so each row is the table's own
+ * (its trigger, class and state the sets their CHECKs hold). Production has every column (00155, 00168, 00183, 00298).
+ */
+export const listMomentSteps = async (db: Db, tenantId: TenantId) =>
+  db
+    .from("sequence_steps")
+    .select(
+      "id, sequence_id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at, channels, until, words_ok_at",
+    )
+    .eq("tenant_id", tenantId)
+    .eq("kind", "moment")
+    .order("created_at", { ascending: false });
 
 /** The list a step runs on, or none. */
 export const findStepList = async (db: Db, stepId: string) =>

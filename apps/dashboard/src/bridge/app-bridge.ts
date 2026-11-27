@@ -20,6 +20,8 @@ import {
   type PageMessage,
   type TodayVM,
   type Waits,
+  recordOrEmpty,
+  valueAt,
 } from "@chanlytics/contracts";
 import { todayWidgetSnapshot } from "@/bridge/surfaces/today-widget";
 import { hearNeedsYou, needsYouNow, needsYouOnToday } from "../surfaces/needs-you";
@@ -160,7 +162,7 @@ export function installAppBridge(
   // and the event cancelled so the page does not also try the download a WebView drops. One that is no file the app
   // would take is left to the page.
   const file = (e: Event) => {
-    const raw = JSON.stringify({ t: "file", ...((e as CustomEvent<object>).detail ?? {}) });
+    const raw = JSON.stringify({ t: "file", ...recordOrEmpty(valueAt(e, "detail")) });
     if (!parsePageMessage(raw)) return;
     win.ReactNativeWebView?.postMessage(raw);
     e.preventDefault();
@@ -350,6 +352,17 @@ function answerShell({ doors, post, phone, shell, overlays, pushes }: Answering,
 }
 
 /** A dialog or a sheet as the page holds it: enough to tell whether it shows, and to hand it a key. */
+/** Whether a node can stand for an overlay's part: it takes an event. */
+const isOverlayNode = (value: unknown): value is OverlayNode => typeof valueAt(value, "dispatchEvent") === "function";
+
+/** The page's body, where a browser can watch it: a node, and an observer to watch with. */
+const watchableBody = (body: unknown): Node | null =>
+  typeof MutationObserver === "function" && body instanceof Node ? body : null;
+
+/** The element with focus inside an overlay, or none: what an Escape is given to before the overlay itself. */
+const focusedIn = (overlay: OverlayNode, focused: unknown): OverlayNode | null =>
+  isOverlayNode(focused) && overlay.contains(focused) ? focused : null;
+
 interface OverlayNode {
   isConnected: boolean;
   getClientRects(): { length: number };
@@ -397,21 +410,22 @@ function watchOverlays(win: BridgeWindow, post: Post): Overlays {
     const now = top() !== null;
     if (now !== open) post({ t: "overlay", open: (open = now) });
   };
-  const body = doc.body;
-  const watcher = typeof MutationObserver === "function" && body instanceof Node ? new MutationObserver(say) : null;
-  watcher?.observe(body as Node, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["role", "aria-modal", "hidden", "open"],
-  });
+  const body = watchableBody(doc.body);
+  const watcher = body ? new MutationObserver(say) : null;
+  if (body)
+    watcher?.observe(body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["role", "aria-modal", "hidden", "open"],
+    });
   return {
     tell: () => post({ t: "overlay", open: (open = top() !== null) }),
     close() {
       const el = top();
       if (!el) return say();
       const focused = doc.activeElement;
-      const target = focused && el.contains(focused) ? (focused as OverlayNode) : el;
+      const target = focusedIn(el, focused) ?? el;
       target.dispatchEvent(escapeKey());
       setTimeout(() => {
         const stands = el.isConnected && top() === el;

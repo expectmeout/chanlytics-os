@@ -89,6 +89,7 @@ import {
   versionWrite,
   visits,
 } from "./refresh/settings";
+import { keysOf } from "@chanlytics/contracts";
 
 /** Exported for the tests that hold a verb to its surfaces by running this, not by reading a courier. */
 export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
@@ -722,7 +723,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
 };
 
 /** The keys the table names, for the test that holds them to writes. */
-export const AFTER_KEYS = Object.keys(AFTER) as RouteKey[];
+export const AFTER_KEYS = keysOf(AFTER);
 
 export async function refreshAfter(key: RouteKey): Promise<void> {
   const overrides = AFTER[key]?.() ?? [];

@@ -52,6 +52,7 @@ import {
   windowTo,
 } from "./page-scroll";
 import { motionReduced, pushIn } from "./swipe";
+import { answersClosest } from "../../dom-reads";
 
 /** How long a still picture of a list kept out of the document waits for the phone to be idle. */
 const COPY_WAIT_MS = 1000;
@@ -284,8 +285,8 @@ function browserPutsBack(on: boolean): void {
  * desk's list scrolls in a box of its own, which the page puts back itself.
  */
 function restoredBack(e: Event, list: HTMLElement | null): void {
-  const at = e.target as Element | null;
-  if (!list || !at || typeof at.closest !== "function") return;
+  const at = e.target;
+  if (!list || !answersClosest(at)) return;
   const row = at.closest(ROW);
   if (!row || !list.contains(row) || !isDocumentScroller(movingScrollerOf(row))) return;
   browserPutsBack(true);

@@ -6,6 +6,7 @@
  * (installed by the boot, bridge/boot/installs.ts), and provided as `tip` (bridge/provided.ts), which a gate's press and the record kit's marks ask for.
  */
 import { provide, provided } from "@/bridge/provided";
+import { answersClosest, answersMatches } from "../dom-reads";
 
 const TIP_TOUCH_MS = 3000;
 const SHOW_MS = 280;
@@ -79,8 +80,8 @@ export function installTip(): void {
     );
   };
   const tipped = (e: Event): Element | null => {
-    const at = e.target as Element | null;
-    return at && at.closest ? at.closest("[data-tip]") : null;
+    const at = e.target;
+    return answersClosest(at) ? at.closest("[data-tip]") : null;
   };
   document.addEventListener("mouseover", (e) => {
     const t = tipped(e);
@@ -98,8 +99,8 @@ export function installTip(): void {
   );
   document.addEventListener("focusin", (e) => {
     const t = tipped(e);
-    const at = e.target as Element | null;
-    if (t && at && at.matches && at.matches(":focus-visible")) show(t);
+    const at = e.target;
+    if (t && answersMatches(at) && at.matches(":focus-visible")) show(t);
     else if (cur) hide();
   });
   window.addEventListener("scroll", hide, true);
