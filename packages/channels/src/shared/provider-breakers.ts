@@ -27,7 +27,7 @@ const BREAKER_OPEN_MS = 30_000;
 /** How long a call is held while the one let through after the pause is still waiting for its answer. */
 const PROBE_WAIT_MS = 1_000;
 /** Whose a fault was when its call named no workspace: such faults open the provider's breaker as they always did. */
-const NOBODY = "*";
+const NO_WORKSPACE = "*";
 /** Of the faults in a row that open a provider's breaker, how many must be other workspaces' than the one with most. */
 const OTHERS_FAULTS = 2;
 
@@ -127,7 +127,7 @@ export function breakerHears(
     return;
   }
   if (workspace) faulted(provider, breakerKeyOf(provider, workspace), workspace, answer, now);
-  faulted(provider, provider, workspace ?? NOBODY, answer, now);
+  faulted(provider, provider, workspace ?? NO_WORKSPACE, answer, now);
 }
 
 function faulted(provider: Provider, key: string, source: string, answer: FaultSaid, now: number): void {
@@ -159,7 +159,7 @@ function faulted(provider: Provider, key: string, source: string, answer: FaultS
  */
 function oneWorkspaceAlone(breaker: Breaker): boolean {
   let most = 0;
-  for (const [source, count] of breaker.faultsOf) if (source !== NOBODY && count > most) most = count;
+  for (const [source, count] of breaker.faultsOf) if (source !== NO_WORKSPACE && count > most) most = count;
   return breaker.failures - most < OTHERS_FAULTS;
 }
 

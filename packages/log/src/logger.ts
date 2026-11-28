@@ -15,7 +15,7 @@
 import { errText, redact } from "./redact";
 import { requestId, requestTenant, serveAs, type ServedStore, type ServingAbout } from "./request";
 
-export type LogLevel = "info" | "warn" | "error";
+type LogLevel = "info" | "warn" | "error";
 
 /** A line's fields: anything JSON can carry. An undefined field is dropped, not written as null. */
 export type LogFields = Record<string, unknown>;

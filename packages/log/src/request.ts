@@ -40,7 +40,7 @@ export interface ServingAbout {
 }
 
 /** One name's share of a request's time: how long all of it took, and how many there were. */
-export interface RequestTiming {
+interface RequestTiming {
   ms: number;
   n: number;
 }

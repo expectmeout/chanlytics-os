@@ -238,14 +238,14 @@ function honour(making: Making, gate: string, reply: ProviderReply): ProviderRep
   // The outcome stays the one its status says: Graph's and Google's "too many" in a 400 or a 403 is read as not now by
   // each adapter that meets it (whatsapp graphThrottled, the ads' slowed, Gmail's and Drive's pace); `tooMany` is the
   // door's word for all of them, and the wait the service named rides with it.
-  const said = { ...reply, retryAfterMs: tooMany.waitMs ?? reply.retryAfterMs, tooMany: tooMany.scope };
+  const named = { ...reply, retryAfterMs: tooMany.waitMs ?? reply.retryAfterMs, tooMany: tooMany.scope };
   // One person written to too often, or a workspace's "too many" in work that names no workspace: nobody else is paced.
   const holder = tooMany.scope === "platform" ? platform : tooMany.scope === "workspace" ? own : null;
-  if (!holder) return said;
+  if (!holder) return named;
   paceAfter(gate, rule.atOnce, true);
   // Held for as long as the service said, and only then: a wait it did not name is the caller's backoff to choose.
   if (tooMany.waitMs !== null) holdUntil(holder, making.deps.now() + tooMany.waitMs);
-  return said;
+  return named;
 }
 
 async function once(making: Making, tries: number): Promise<ProviderReply> {
@@ -258,9 +258,9 @@ async function once(making: Making, tries: number): Promise<ProviderReply> {
   try {
     const verdict = breakerSays(making.provider, making.workspace, making.deps.now(), making.call.breaker === "count");
     if (!verdict.go) return heldReply("breaker_open", verdict.retryAfterMs, tries);
-    const reply = honour(making, gate, await ask(making, tries));
-    const said = { status: reply.status, error: reply.error, providerRequest: providerRequestOf(reply) };
-    breakerHears(making.provider, making.workspace, said, making.deps.now(), verdict.probes);
+    const reply = honour(making, gate, await askTheService(making, tries));
+    const heard = { status: reply.status, error: reply.error, providerRequest: providerRequestOf(reply) };
+    breakerHears(making.provider, making.workspace, heard, making.deps.now(), verdict.probes);
     return reply;
   } finally {
     release();
@@ -268,7 +268,7 @@ async function once(making: Making, tries: number): Promise<ProviderReply> {
 }
 
 /** The request itself, inside its bound: the answer as it came, or what its throw says was done. */
-async function ask(making: Making, tries: number): Promise<ProviderReply> {
+async function askTheService(making: Making, tries: number): Promise<ProviderReply> {
   const { call } = making;
   const init: RequestInit = {
     method: call.method,

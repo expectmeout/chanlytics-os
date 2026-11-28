@@ -3,7 +3,7 @@
  * write through it, and it imports no other package, so a verb can log without reaching a provider.
  */
 export { errField, logAndGoOn, logger, logKeptGoing, withRequestId } from "./logger";
-export type { LogFields, Logger, LogLevel } from "./logger";
+export type { LogFields, Logger } from "./logger";
 export { errText, redact } from "./redact";
 export {
   noteOutsideCall,
@@ -18,4 +18,3 @@ export {
   sharedReads,
   shareReads,
 } from "./request";
-export type { RequestTiming, ServingAbout } from "./request";
