@@ -207,6 +207,55 @@ test("a night says its two reds apart: production's has its own issue and pages 
   assert.ok(suites.includes("$WHOLE") && suites.includes("$SUITE") && !suites.includes("$PRODUCTION"));
 });
 
+test("the morning line runs once a day and by hand, is off until its variable is 1, holds the pager's key and no other secret, and a run is never cut off part-way", () => {
+  // What it says and when it sends is its script's (tests/ops/workflows/morning-line.test.mjs). What a script's test
+  // cannot see is here: the switch reaching the script, the token's reach, and that no service's secret rides along.
+  const y = workflow("morning-line.yml");
+  assert.match(y, /cron: "7 3 \* \* \*"/, "once a day, started hours late, in New York's morning");
+  assert.ok(y.includes("workflow_dispatch:"), "and by hand, on main or on a branch");
+  assert.ok(y.includes("permissions:\n  contents: read\n  actions: read\n  issues: write"));
+  assert.ok(
+    y.includes("group: morning-line-${{ github.event.pull_request.number || 'main' }}") &&
+      y.includes("cancel-in-progress: false"),
+    "never half a line, and a pull request's dry run never waits on the day's",
+  );
+  // A change to the line is run dry on its own pull request: seen working on a runner before it merges.
+  assert.match(y, /^ {2}pull_request:\n {4}paths:\n(?: {6}- .+\n)+/m);
+  for (const path of [".github/workflows/morning-line.yml", "tooling/scripts/ops/morning/**"])
+    assert.ok(y.includes(`      - ${path}\n`), `a pull request that changes ${path} runs the line`);
+  const line = job(y, "line");
+  assert.ok(
+    line.includes('run: node tooling/scripts/ops/morning/morning-line.mjs --summary "$GITHUB_STEP_SUMMARY"'),
+    "the line is written to the run's own page, switched on or off",
+  );
+  assert.ok(line.includes("MORNING_LINE: ${{ vars.MORNING_LINE }}"), "the switch is the script's to read");
+  assert.ok(!/\n {4}if:/.test(line), "off, it still reads and writes its summary: the switch stops the message alone");
+  assert.ok(
+    line.includes("PAGER_URL: ${{ secrets.PAGER_URL }}") && line.includes("PAGER_KEY: ${{ secrets.PAGER_KEY }}"),
+  );
+  assert.ok(line.includes("OWNER: ${{ github.repository_owner }}"), "a red issue is the owner's");
+  assert.deepEqual(
+    [...new Set([...y.matchAll(/secrets\.([A-Z_0-9]+)/g)].map((m) => m[1]))].sort(),
+    ["GITHUB_TOKEN", "PAGER_KEY", "PAGER_URL"],
+    "the token and the pager's door: no database's key, no provider's",
+  );
+  assert.ok(!line.includes("pnpm install"), "it reads with Node alone, in under a minute");
+});
+
+test("the voice canary's red issue is the owner's, opened so and made so: an issue nobody was assigned reached nobody", () => {
+  // GitHub tells an assignee of every comment. The canary's issue was opened with none, so a red call told GitHub's
+  // list and no person (the nightly's issue sat so for seventeen runs in October 2026).
+  const y = workflow("voice-canary.yml");
+  const say = y.slice(y.indexOf("name: Say so where the next person will see it"));
+  assert.ok(say.includes("OWNER: ${{ github.repository_owner }}"));
+  assert.ok(say.includes('gh issue create --title "$title" --body-file issue.md --assignee "$OWNER"'));
+  const made = say.indexOf('gh issue edit "$number" --add-assignee "$OWNER"');
+  assert.ok(
+    made > 0 && made < say.indexOf('gh issue comment "$number"'),
+    "assigned before the comment that tells them",
+  );
+});
+
 test("the nightly's node suite and its whole suite hold no live secret, and the whole suite cannot reach production", () => {
   const y = workflow("nightly-e2e.yml");
   const [suite, whole] = [job(y, "suite"), job(y, "whole")];
