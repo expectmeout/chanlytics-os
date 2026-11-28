@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { DAY_KEY, UUID } from "@chanlytics/contracts";
 import type { AdCardCheckId, AdDraftMissing, AdPictureIssue, AdSpecialKind, AdVersion } from "@chanlytics/contracts";
+import type { FileCopyState, FileCopyWhy } from "@chanlytics/contracts";
 
 const SPECIAL_KINDS = [
   "employment",
@@ -182,7 +183,18 @@ export type AdCheckDto =
 /** A draft, with everything its screen says of it. */
 interface AdDraftDto {
   service: string;
-  picture: { id: string; kind: "photo" | "video"; name: string; made: boolean };
+  picture: {
+    id: string;
+    kind: "photo" | "video";
+    name: string;
+    made: boolean;
+    /**
+     * A video whose copy at the video platform is not at hand: where it stands (asked back at the pick, so usually
+     * `returning`), why where it could not come back, and whether its owner added it themselves. Absent for a photo, and
+     * for a video whose copy is here.
+     */
+    copy?: { state: Exclude<FileCopyState, "here">; why: FileCopyWhy | null; uploaded: boolean } | undefined;
+  };
   miles: number;
   area?: AdWideArea | undefined;
   total_minor: number;
