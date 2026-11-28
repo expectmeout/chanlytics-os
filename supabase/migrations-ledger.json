@@ -93,10 +93,7 @@
     "00694": "claimed by pass 1b's follow-ups (lane cm-first-post, #2535) and left empty: its files moved to 00697 and 00698 when the shelf's 00695 went on production above them and pass 2 claimed 00696 (23 Nov 2026)",
     "00696": "claimed by the content loop's pass 2 (lane cm-post-results, #2531) and left empty: its file moved to 00699 when pass 1b's follow-ups took 00697 and 00698 above it (23 Nov 2026)",
     "00702": "claimed by the content loop's pass 3 (a week is planned, lane cm-plan-week, #2545) and left empty: its file moved to 00706 when 00703, 00704 and 00705 went on production above it (23 Nov 2026)",
-    "00712": "claimed by a held week going up at 8:00 (the content loop's B5, lane cm-held-week, #2559) and left empty: its file moved to 00714 when the audit's smaller fixes merged 00713 above it before either was applied (24 Nov 2026)",
-    "00725": "claimed by the whole-system plan's lane 6 (Ads: money and list, lane cm-ads-money) on 28 Nov 2026, a pull request of its own: drop this line when its file is on main",
-    "00726": "claimed by the whole-system plan's lane 3 (Forms and requests, lane cm-forms-requests) on 28 Nov 2026, a pull request of its own: drop this line when its file is on main",
-    "00727": "this lane's own part A (AI's approval is one write, #2722), a pull request of its own: drop this line when its file is on main"
+    "00712": "claimed by a held week going up at 8:00 (the content loop's B5, lane cm-held-week, #2559) and left empty: its file moved to 00714 when the audit's smaller fixes merged 00713 above it before either was applied (24 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -730,6 +727,9 @@
     "00722_the_dashboard_s_acts_write_their_own_events.sql": "7cd595a59a762d5ed3c4514d82954298e964fc800ea1e1e44cae896ec7be3980",
     "00723_a_fact_door_writes_its_event.sql": "4fe05f78c626ad3d0bffe98f7fa940c0e9c096f9224de4e5387136ab19bdfdf2",
     "00724_a_member_s_own_fields_and_reads_ask_who_is_calling.sql": "a9bcc8758531df5c1fe2b699de2fd7628d967060281ffd760a009376ab982c21",
+    "00725_a_launch_never_ends_unrecorded.sql": "fedc182f70e762cd7fd50e3d1cc3f3820d2133aaa7d7d24c6ad04fbf7cc05bc3",
+    "00726_a_site_s_entry_is_the_same_entry_for_good.sql": "80b1c17bfa0f23e2ff5f76222b1dd8f5f25519a77a6764b2fd5e00f9f59ed750",
+    "00727_ai_s_approval_is_one_write.sql": "5120b7c29fd7d1e666bb05e19d6f7a5ad891618dd98f1f33881d77b87b410ae0",
     "00728_a_post_waits_when_its_opening_cannot_be_read.sql": "4891fbdb90001ab023d34917c7b93b91a772cd23b2508794d3d409293153f908"
   }
 }

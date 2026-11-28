@@ -161,12 +161,28 @@ test("a set with one drawn from an old version and one paused already: each says
   assert.deepEqual(w.kept.tellAsks, [AD(3)]);
 });
 
-test("nothing is kept while the switch is off, for anyone but the owner, or of a set that is not one", async () => {
+test("pausing them all is never refused for the switch or the list of workspaces: Stop everything's press always pauses", async () => {
+  // The deployment's switch off (unset is off): every pause is kept, and each account's read tells Meta.
   const off = world();
   delete process.env.ADS_WRITES;
-  assert.equal((await heard(await off.pauseAll([{ ad_id: AD(1), version: 3 }])))[1].error, "ads_writes_off");
-  assert.equal(off.kept.calls, 0);
+  const [, kept] = await heard(await off.pauseAll([{ ad_id: AD(1), version: 3 }]));
+  assert.deepEqual([kept.outcome, kept.ads.map((one) => one.outcome)], ["kept", ["soon"]]);
+  assert.deepEqual([off.kept.calls, off.ads.get(AD(1)).intent], [1, "paused"]);
 
+  // Ads switched off for the workspace (it is not on the list): the same.
+  const offList = world();
+  process.env.ADS_WORKSPACES = "another-workspace";
+  assert.equal((await heard(await offList.pauseAll([{ ad_id: AD(1), version: 3 }])))[1].outcome, "kept");
+  assert.equal(offList.ads.get(AD(1)).intent, "paused");
+
+  // Turning them back on is what can spend: refused while the switch is off, before anything is kept.
+  const back = world();
+  delete process.env.ADS_WRITES;
+  const [code, refused] = await heard(await back.pauseAll([{ ad_id: AD(1), version: 3 }], { op: "resume_all" }));
+  assert.deepEqual([code, refused.error, back.kept.calls], [409, "ads_writes_off", 0]);
+});
+
+test("nothing is kept for anyone but the owner, or of a set that is not one", async () => {
   const stranger = world({ owner: false });
   const [status, body] = await heard(await stranger.pauseAll([{ ad_id: AD(1), version: 3 }]));
   assert.deepEqual([status, body.error], [403, "ad_account_not_owner"]);

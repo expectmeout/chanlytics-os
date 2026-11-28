@@ -112,12 +112,15 @@ export async function findOutsideForm(db: Db, tenantId: TenantId, formId: string
   return data ? outsideFormOf(data) : null;
 }
 
-/** An entry of a form owned elsewhere, as its sheet lists it. */
+/** An entry of a form owned elsewhere, as its sheet lists it: one held for a look (00726) says so, and why. */
 export interface OutsideEntryRead {
   id: string;
   contactId: ContactId | null;
   createdAt: string;
   answers: Json;
+  held: boolean;
+  /** Why it is held, as the database keeps the word; null for one that is not. */
+  heldWhy: string | null;
 }
 
 /** A form's newest entries, at most `limit`: never a test, which names no form. */
@@ -127,7 +130,7 @@ export async function listOutsideFormEntries(
 ): Promise<OutsideEntryRead[]> {
   const { data, error } = await tenantDb(db, listed.tenantId)
     .from("form_entries")
-    .select("id, contact_id, created_at, answers")
+    .select("id, contact_id, created_at, answers, state, held_why")
     .eq("outside_form_id", listed.formId)
     .order("created_at", { ascending: false })
     .limit(listed.limit);
@@ -137,6 +140,8 @@ export async function listOutsideFormEntries(
     contactId: row.contact_id ? heldContactId(row.contact_id) : null,
     createdAt: row.created_at,
     answers: row.answers,
+    held: row.state === "held",
+    heldWhy: row.held_why,
   }));
 }
 

@@ -124,7 +124,7 @@ interface SlotPlacing {
   words: SlotWords;
 }
 
-/** A slot's placement readied for AI under the rung (00714): every check, its drawn piece's words kept, nothing approved. */
+/** A slot's placement readied for AI under the rung (00714): every check, nothing approved and nothing written (00727). */
 const readySlot = (ctx: RouteContext, member: Member, { slot, row, words }: SlotPlacing) =>
   slot.place === "google"
     ? prepareOnGoogle(ctx, member, row, { summary: words.caption, when: slot.at, about: postAboutOf(slot.intent) })
@@ -144,8 +144,8 @@ async function holdLate(ctx: RouteContext, member: Member, slot: PlanSlotDto): P
 }
 
 /**
- * A slot placed as AI under the rung (00714): readied, then its post and the slot's link to it in one write
- * (plan_slot_place). A making asked twice, or two at once, place it once: the second finds it taken and goes on.
+ * A slot placed as AI under the rung (00714): readied, then its post, its words and the slot's link to it in one write
+ * (plan_slot_place, 00727). A making asked twice, or two at once, place it once: the second finds it taken and goes on.
  */
 async function placeAsAI(ctx: RouteContext, member: Member, placing: SlotPlacing): Promise<void> {
   const approval = await readySlot(ctx, member, placing);
@@ -283,8 +283,10 @@ async function prepareCreative(ctx: RouteContext, member: Member, slots: readonl
 /**
  * A held week prepared ahead (00714; the making queue's overnight pass): each picture or story drawn once into its made
  * file, and each of its places readied for the door (posts/approve.ts prepareApproval), kept on its slot. Nothing approved,
- * nothing placed, no reel begun: a reel costs, and waits for the owner's look whatever the rung. A creative that cannot be
- * readied is left to be made after the approval, where it says its one fix if it cannot be then either. How many slots.
+ * nothing placed, no reel begun: a reel costs, and waits for the owner's look whatever the rung. Readying writes nothing
+ * of the approval itself (00727): a week stopped before 8:00 keeps its drawn pictures and their slots' readied approvals,
+ * and no words or facts. A creative that cannot be readied is left to be made after the approval, where it says its one
+ * fix if it cannot be then either. How many slots.
  */
 export async function prepareWeek(ctx: RouteContext, member: Member, weekOf: string): Promise<number> {
   const read = await readContentWeek(ctx.supabase, member.tenantId, weekOf);

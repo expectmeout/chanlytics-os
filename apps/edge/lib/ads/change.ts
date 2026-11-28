@@ -14,8 +14,10 @@
  *      an ad set's change as Meta's dry run, then for real; ending it, its campaign archived. Else kept, and the
  *      account's read sends it when Meta will (ad_tell_ask).
  *
- * A change sent and never answered is never sent again: the account's next read reads the campaign back and settles
- * it, taken or not. `ADS_WRITES`: `live` sends; `sandbox` does everything but the call, and says Meta took it.
+ * A change sent and never answered is never sent again blind: the account's next read reads the campaign back and
+ * settles it, taken or not. One Meta did not take is let go and its owner told, but an end: ending is a stop, so with
+ * Meta's word in hand it goes again, and is followed until Meta holds it. `ADS_WRITES`: `live` sends; `sandbox` does
+ * everything but the call, and says Meta took it; `off` holds every change but an end (tell.ts stopWrites).
  */
 import {
   callMetaAds,
@@ -63,7 +65,7 @@ import { NO_ADS_DOORS, metaAdsApp, signInOf } from "./account-ops.js";
 import { approvedOf, endOfDayIn } from "./launch/parts.js";
 import type { MetaSignIn } from "./meta-facts.js";
 import { ADS_USAGE_HOLD_PCT, mayAskMeta, readAfterOf } from "./pace.js";
-import { mayTellNow, type AdsWrites } from "./tell.js";
+import { mayTellNow, stopWrites, type AdsWrites } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -148,6 +150,13 @@ async function changeAnswered(db: Db, tenantId: TenantId, adId: string, sent: Me
   return { outcome: "told", usage, said: null };
 }
 
+/**
+ * How a change reaches Meta: ending an ad is a stop, never held by this deployment's switch (tell.ts stopWrites); any
+ * other change goes as the switch says.
+ */
+const writesFor = (on: AdChangeOnWay, writes: AdsWrites): AdsWrites =>
+  on.what === "end" ? stopWrites(writes) : writes;
+
 /** Whose change is told, and how. */
 interface ChangeTelling {
   tenantId: TenantId;
@@ -165,7 +174,9 @@ async function tellChange(db: Db, log: Log, teller: ChangeTelling, ad: AdChangeR
   const on = adChangeOnWayOf(ad.change);
   if (on === null || on.unsure || ad.platform_set_id === null || ad.platform_campaign_id === null)
     return { outcome: "nothing", usage: null, said: null };
-  if (teller.writes !== "live") {
+  const writes = writesFor(on, teller.writes);
+  if (writes === "off") return { outcome: "nothing", usage: null, said: null };
+  if (writes !== "live") {
     await markAdChangeTold(db, tenantId, { adId: ad.id, outcome: "told" });
     return { outcome: "told", usage: null, said: null };
   }
@@ -209,12 +220,17 @@ function heldAsAsked(on: AdChangeOnWay, ad: AdChangeRow, json: unknown, currency
     : false;
 }
 
-/** A change sent and never answered, settled from what Meta holds: taken, or not. One read back, never a resend. */
+/**
+ * A change sent and never answered, settled from what Meta holds: taken, or not. One read back first, always; an end
+ * Meta does not hold then goes once more, and nothing else is ever sent again.
+ */
 async function settleChange(db: Db, log: Log, teller: ChangeTelling, ad: AdChangeRow): Promise<ChangeTold> {
   const on = adChangeOnWayOf(ad.change);
   if (on === null || !on.unsure || ad.platform_campaign_id === null)
     return { outcome: "nothing", usage: null, said: null };
-  if (teller.writes !== "live") {
+  const writes = writesFor(on, teller.writes);
+  if (writes === "off") return { outcome: "nothing", usage: null, said: null };
+  if (writes !== "live") {
     await markAdChangeTold(db, teller.tenantId, { adId: ad.id, outcome: "told" });
     return { outcome: "told", usage: null, said: null };
   }
@@ -229,8 +245,15 @@ async function settleChange(db: Db, log: Log, teller: ChangeTelling, ad: AdChang
     // An answer that is not the campaign settles nothing: it is read again on the next pass.
     return { outcome: "waits", usage: read.usage, said: null };
   }
-  await markAdChangeTold(db, teller.tenantId, { adId: ad.id, outcome: taken ? "told" : "not_taken" });
   log.info("ads_change_settled", { ad_id: ad.id, what: on.what, taken });
+  // An end Meta does not hold was never taken, and ending is a stop: with Meta's word in hand it goes again, never
+  // blind, and stays followed until Meta holds it. Any other change Meta did not take is let go, and its owner told.
+  if (!taken && on.what === "end") {
+    const again = await callMetaAds(metaAdSwitchRequest(token, appSecret, ad.platform_campaign_id, "ARCHIVED"));
+    log.info("ads_change_told", { ad_id: ad.id, what: on.what, fault: again.fault, status: again.status, again: true });
+    return changeAnswered(db, teller.tenantId, ad.id, again);
+  }
+  await markAdChangeTold(db, teller.tenantId, { adId: ad.id, outcome: taken ? "told" : "not_taken" });
   return { outcome: taken ? "told" : "refused", usage: read.usage, said: null };
 }
 
@@ -249,8 +272,11 @@ export async function runChanges(
 ): Promise<{ told: number; usage: MetaUsage | null; revoked: boolean }> {
   let usage: MetaUsage | null = null;
   let sent = 0;
-  if (teller.writes === "off") return { told: sent, usage, revoked: false };
-  const changes = await listAdChanges(db, teller.tenantId, at.accountId);
+  // While this deployment's switch is off only an end goes: a stop is never held by it (tell.ts stopWrites).
+  const off = teller.writes === "off";
+  const changes = (await listAdChanges(db, teller.tenantId, at.accountId)).filter(
+    (ad) => !off || adChangeOnWayOf(ad.change)?.what === "end",
+  );
   const unsure = changes.filter((ad) => adChangeOnWayOf(ad.change)?.unsure === true);
   const waiting = changes.filter(
     (ad) => adChangeOnWayOf(ad.change)?.unsure === false && mayTellNow(ad.told_at, at.nowMs),
