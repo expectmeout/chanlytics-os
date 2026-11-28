@@ -23,9 +23,9 @@ export interface MigrationHead {
 /**
  * `migration_head()`, over the CLI's ledger, which PostgREST cannot read: a release compares this head with main's
  * (docs/runbook.md, Deploy). A database the function has not reached yet refuses, and that refusal is thrown as it was
- * worded.
+ * worded. It takes the door call alone, so the health door's read, which holds no more, asks through it too.
  */
-export async function getMigrationHead(db: Db): Promise<MigrationHead> {
+export async function getMigrationHead(db: Pick<Db, "rpc">): Promise<MigrationHead> {
   const { data, error } = await db.rpc("migration_head");
   if (error) throw new DbFailure(error);
   const row = data[0];
