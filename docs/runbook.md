@@ -1864,56 +1864,183 @@ Rehearsed: never yet (29 Sep 2026). The first rehearsal is Ruben's, with a deplo
 
 ## Restore the database
 
-Written on 8 October 2026 from the architecture review, which found no backup or restore page anywhere in `docs/`.
-**Rehearsed: never yet.** Until it has been, every step below is a plan and every time a guess.
+Written on 8 October 2026 from the architecture review, which found no backup or restore page anywhere in `docs/`,
+and made ready to rehearse on 28 November 2026. **Rehearsed: never yet.** The rehearsal below is an hour of steps a
+person follows; it runs on Ruben's go. Until it has, every time here is a guess.
 
 **What a restore brings back, and what it does not.** The database is the system of record: every workspace, person,
-message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the
-clocks (`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings
-and other files (Storage is kept apart from the database's backups), anything a provider holds (a WhatsApp template's
-review, a Twilio line, a Resend domain), or the two apps' environment (Vercel's, listed in each `.env.example`).
+message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the clocks
+(`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings and other
+files (Storage is kept apart from the database's backups: by Supabase's own account a backup holds the rows that
+describe each file and never the file), anything a provider holds (a WhatsApp template's review, a Twilio line, a
+Resend domain), or the two apps' environment (Vercel's, listed in each `.env.example`). A restore **to a new project**
+also leaves behind, in Supabase's own list: the Auth settings and the API keys (the copy has new keys), Realtime's
+settings, the database's settings, integrations, Edge Functions, and project settings such as add-ons. It carries the
+schema, the data, the roles, the sign-in accounts and the Vault's root key, so the copy can read its secrets.
 
 **Which backups there are** is a fact of the project's plan. Read on 9 October 2026 with
 `supabase backups list --project-ref <ref> --experimental` (the project's Database, Backups page says the same), and
-to be read again whenever the plan changes:
+to be read again before the rehearsal and whenever the plan changes:
 
 - Daily backups: one physical backup a night, at about 04:05 UTC, the last seven kept (the nights of 2 to 8 October
   were there, each complete). Everything since the newest is lost by a restore from it: up to a day.
 - Point-in-time recovery: **off**. So the loss in a bad hour is up to a day of messages and bookings; on, it is
-  minutes. It is the add-on that buys the difference, and the review recommends it for a product whose customers'
-  conversations are its only memory. Turning it on is Ruben's: it is billed.
+  two minutes at worst (the vendor's stated recovery point). It is the add-on that buys the difference, and the review
+  recommends it for a product whose customers' conversations are its only memory. Turning it on is Ruben's: it is
+  billed by the hour, about $100 a month for seven days kept, $200 for fourteen and $400 for twenty-eight, on any
+  compute size, and once it is on Supabase takes no daily backups: the recovery window is the backup (read on
+  28 Nov 2026 at supabase.com/docs/guides/platform/backups).
 - The project is in `us-east-1`.
+
+**The read that says which exist today** holds no customer's data and needs a personal access token of the Supabase
+account (Account, Access Tokens):
+
+```bash
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/backups"
+```
+
+It answers `region`, `pitr_enabled`, `walg_enabled`, `backups` (each with `inserted_at`, `status` and
+`is_physical_backup`) and `physical_backup_data` (the earliest and the latest moment a restore can reach). Seven
+entries, each `COMPLETED` and physical, the newest from last night, is what 9 October read. A restore to a new
+project needs a paid plan and physical backups.
 
 **When to restore, and when not.** A bad migration is undone by a migration (Roll back, above), and a bad write by a
 script with its backup (Scripts that touch production, below): neither is a restore, and a restore to undo either
 takes every workspace back with it. A restore is for a database that is gone, or wrong in a way nothing narrower
 reaches: a dropped table, a mass update with no backup file, the project lost.
 
+**Know this first: a copy's clocks call production.** Every clock is a `cron.job` row that calls `request_sweep()`,
+which reads the edge's address and its key from the database's own Vault (`edge_base_url`, `cron_sweep_key`) and posts
+to it. A restore to a new project carries the jobs, the Vault and the Vault's root key, and Supabase's page on
+restoring to a new project warns that such a copy's jobs "start running as soon as the restore completes", and that
+nothing leaves them out or holds them back on the way in (supabase.com/docs/guides/platform/clone-project, read 28 Nov
+2026). So from the minute a copy is up, its pg_cron asks **production's edge** for every sweep, with production's own
+key, beside production's clocks. Jobs are claimed under a lock and run once whoever asks; a sweep that sends by itself
+(the text canary at 14:00 UTC) could send twice. The first act on any copy, before anything is looked at, is this, in
+the **copy's** SQL editor (read the project's name in the editor's header before running it):
+
+```sql
+-- On the COPY only. It takes the edge's address out of the copy's Vault and stops the copy's clocks.
+delete from vault.secrets where name = 'edge_base_url';
+select cron.alter_job(jobid, active := false) from cron.job;
+-- Both must answer 0:
+select (select count(*) from vault.decrypted_secrets where name = 'edge_base_url') as edge_address,
+       (select count(*) from cron.job where active) as clocks_running;
+```
+
+Without its address a sweep records "missing cron_sweep_key or edge_base_url in Vault" and sends nothing, which is how
+every replayed database is kept quiet (`supabase/seed.sql`). A copy that is to become production gets the address
+back in step 4 below, once nothing else holds it.
+
 **How.** Prefer a copy to an overwrite, so the damaged database is still there to read and to compare with:
 
 1. **Stop the writers**, so nothing more is written to a database that is about to be left behind, and write down
-   the minute. How is settled at the first rehearsal and written here; it has not been tried. The candidates: pausing
-   each Vercel project from its settings, if the plan offers it (a provider whose webhook is refused sends it again
-   for hours, so a paused edge loses no message that arrives after the restore point); failing that, removing the
-   edge's production domain for the length of the restore.
-2. **Restore to a new project** from the Backups page (a daily backup, or the minute just before the damage with
-   point-in-time recovery), if the plan offers it. In place is the fallback: it overwrites the project, and everything
-   written since the chosen moment is gone the moment it starts.
-3. **Check the copy before anything points at it**: `supabase migration list` against it ends at main's head
-   (`migration-ledger.mjs --compare`); the newest `messages.created_at` and `events.created_at` are the moment
-   chosen; `select count(*) from tenants` is what it was; `cron.job` holds the sweeps and
-   `vault.decrypted_secrets` names the edge's key and base URL.
+   the minute. The writers are four: the database's own clocks (`select cron.alter_job(jobid, active := false) from
+cron.job;` on the damaged database stops every sweep and the jobs' heartbeat, and is ours for certain); the
+   providers' webhooks and the members' pages, which stop when each Vercel project stops answering (its pause, if the
+   plan offers it: a provider whose webhook is refused sends it again for hours, so a paused edge loses no message
+   that arrives after the restore point; failing that, removing the edge's production domain for the length of the
+   restore); and a person with a script. The Vercel half is read, not pressed, at the rehearsal (step 7 there), and
+   what it found is written here.
+2. **Restore to a new project** from the Backups page, the tab "Restore to a New Project" (a daily backup, or the
+   minute just before the damage with point-in-time recovery). In place is the fallback: it overwrites the project,
+   the project is unreachable while it runs, and everything written since the chosen moment is gone the moment it
+   starts. **The moment the copy is up, stop its clocks** (the statement above).
+3. **Check the copy before anything points at it**: the rehearsal's steps 3 to 5.
 4. **Point the apps at it**: both Vercel projects' `SUPABASE_URL` and keys (a new project has new ones), the
    Supabase Auth settings the old project held (site URL, redirect URLs, the Google provider, the SMTP sender), and
-   the base URL the clocks call (`vault`, 00018: a copy keeps the original's, which is right only when the edge's
-   address did not change). Redeploy both, the edge first.
-5. **Bring the writers back** the way they were stopped, then read `/api/cron/health`, the jobs ledger (Read the
+   the base URL the clocks call: put `edge_base_url` back in the copy's Vault (00018 says how) and start its clocks,
+   `select cron.alter_job(jobid, active := true) from cron.job;`, only now, with the damaged database's clocks
+   stopped. Redeploy both apps, the edge first.
+5. **Bring the writers back** the way they were stopped, then read `/api/health`, the jobs ledger (Read the
    jobs ledger, above) for what was due while it was down, and the Inbox of one real workspace.
 6. **Tell the workspaces** what window was lost, in their own words: a message a customer sent in it is gone from
    the Inbox though the customer still has it on their phone.
 
-**Rehearse it** before it is needed, on a copy that nothing points at: step 2 and step 3 alone, timed. Write the
-date, how long the restore took and what step 3 found here.
+### Rehearse it: one hour, on a copy nothing points at
+
+It runs on Ruben's go, and he is the one at Supabase's dashboard. It restores last night's backup to a new project,
+proves the copy is whole, and deletes it. It changes nothing on production, and stops none of production's writers.
+**It costs** a second project at production's compute size for the hours it exists: Supabase bills the copy as a
+project of its own, sized like its source, and shows the amount before it starts. Not across 14:00 to 14:20 UTC, when
+the text canary sends and checks. Write each minute down as it passes.
+
+1. **Before, 5 minutes: what production holds now.** One read-only statement on production (the SQL editor, or the
+   coordinator's read), kept beside the rehearsal's notes:
+
+   ```sql
+   select
+     (select max(version) from supabase_migrations.schema_migrations) as migration_head,
+     (select count(*) from supabase_migrations.schema_migrations) as migrations,
+     (select count(*) from public.tenants) as workspaces,
+     (select count(*) from public.memberships) as memberships,
+     (select count(*) from public.contacts) as people,
+     (select count(*) from public.conversations) as conversations,
+     (select count(*) from public.messages) as messages,
+     (select max(created_at) from public.messages) as newest_message,
+     (select count(*) from public.appointments) as appointments,
+     (select count(*) from public.jobs) as jobs,
+     (select count(*) from public.files) as files,
+     (select count(*) from auth.users) as sign_ins,
+     (select count(*) from storage.objects) as stored_files,
+     (select count(*) from cron.job) as clocks,
+     (select count(*) from vault.secrets) as vault_secrets,
+     now() as read_at;
+   ```
+
+   And the backups' read above: the newest backup's `inserted_at` is the moment the copy will stand at.
+
+2. **Minute 0: start the restore.** Supabase's dashboard, production's project, Database, Backups, the tab "Restore to
+   a New Project". Pick the newest daily backup, read the cost it shows, name the project
+   `chanlytics-restore-rehearsal`, start it. Supabase gives no figure for how long it takes, only that it grows with
+   the data: the minute it reports ready is the first number this rehearsal is for.
+
+3. **The minute it is ready: stop the copy's clocks.** The statement under "Know this first", in the copy's SQL
+   editor. Both counts 0 before anything else is done.
+
+4. **Compare, 10 minutes.** The statement of step 1 on the copy. What must hold:
+   - `migration_head` and `migrations` are production's as they stood at the backup's moment: the same as step 1
+     unless a migration was applied since last night. `node tooling/scripts/checks/migration-ledger.mjs --compare -`
+     with the copy's ledger piped in ("Apply a migration", step 6) says whether it has what main carries.
+   - `workspaces`, `memberships`, `sign_ins`, `clocks` and `vault_secrets` (less the one deleted in step 3)
+     are step 1's, or differ by what a person can name from the hours between.
+   - `people`, `conversations`, `messages`, `appointments`, `jobs` and `files` are at or under step 1's, and
+     `newest_message` is no later than the backup's `inserted_at`. The gap between it and step 1's is what a real
+     restore from this backup would lose: the second number this rehearsal is for.
+
+5. **One sign-in and one conversation read, 10 minutes.** As the nightly's test owner, whose workspace holds only
+   made-up people. The copy's address and its two new keys are on its API settings page. Sign-in here is an emailed
+   code and the copy has no mail sender, so the session is minted the way the browser tests mint theirs
+   (`e2e/session.ts`), which sends nothing:
+
+   ```bash
+   # COPY is the copy's URL, SERVICE and ANON its own keys. Never production's.
+   HASH=$(curl -s -X POST "$COPY/auth/v1/admin/generate_link" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+     -H "content-type: application/json" -d '{"type":"magiclink","email":"e2e-owner@example.com"}' | jq -r '.hashed_token // .properties.hashed_token')
+   TOKEN=$(curl -s -X POST "$COPY/auth/v1/verify" -H "apikey: $ANON" -H "content-type: application/json" \
+     -d "{\"type\":\"magiclink\",\"token_hash\":\"$HASH\"}" | jq -r .access_token)
+   curl -s "$COPY/rest/v1/conversations?select=id,updated_at&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN"
+   ```
+
+   A token, then one conversation's row, is a restored account signing in and reading its own workspace through the
+   row rules. An empty list with a 200 is the rules standing with nothing to show: read `memberships` for that user.
+
+6. **What the copy lacks, 5 minutes.** `stored_files` matches production's, since the rows came across, and a
+   download of any one of them from the copy fails: the files themselves are not in a database backup. Write down the
+   count: it is what a lost project would lose with no restore to bring it back (the shelf's and the recordings'
+   lanes hold what keeps a second copy).
+
+7. **The writers, read and not pressed, 10 minutes.** On each Vercel project's settings, find where the project is
+   paused and what the page says a paused project answers; on production's database, read
+   `select jobname, schedule, active from cron.job order by jobname;`, the list step 1 of "How" would stop. Press
+   nothing. Write here which lever exists on the plan.
+
+8. **Delete the copy, and write it down.** The copy's Settings, General, Delete project: its name is
+   `chanlytics-restore-rehearsal`, read twice. Then the line below, filled in.
+
+**Rehearsed:** never yet. To write here: the date; minutes from start to ready; the copy's `newest_message` beside
+production's; what step 4 found different; whether step 5 signed in and read; what step 7 found; what it cost.
 
 **A workspace, not the platform.** The levers in `docs/system-prd.md` S-23:
 silence one receptionist (`tenant_channels.status = 'disabled'`), hold one

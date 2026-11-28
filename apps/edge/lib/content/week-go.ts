@@ -18,7 +18,8 @@
  * A try again after the approval starts the queue again (it begins only what waits). A week the owner approved by hand
  * before its time is theirs: the job leaves it, and a making the queue had begun for it gives its place back at once
  * (leaveTheQueue), as one does whose week was stopped or whose rung now asks. A week changed in the instant it was
- * approved is read again by the job's next try, never left saying it goes up.
+ * approved is read again by the job's next try, never left saying it goes up. Stop everything is read here and again by
+ * the door, inside the approval (00727): pressed in between, the door lets the week go and nothing is approved.
  *
  * Every ending is said to the owner once (the Week review of 25 Nov 2026, C2; contracts week-endings.ts): approved, with
  * how many go up and how many were left out; or not approved because AI is paused, the setting asks again, nothing was
@@ -215,9 +216,11 @@ export async function putTheWeekUp(db: Db, job: ClaimedJob): Promise<void | { sk
     if ((job.attempts ?? 1) < MAX_ATTEMPTS) throw new Error("content_week_go: the week changed as it was approved");
     return letTheWeekGo(db, week, { is: "changed" });
   }
-  // The door read the rung again and let the week go itself: the setting asks now, so the owner is told it waits.
-  if (answer.fate === "asks") {
-    await notifyWeekEnding(db, week, { is: "asks" });
+  // The door read the rung again and let the week go itself: the setting asks now, so the owner is told it waits. So it
+  // is for everything stopped in the moment after this job's own read of it (00727: the door reads the stop inside the
+  // approval, and a Stop pressed first leaves nothing approved).
+  if (answer.fate === "asks" || answer.fate === "paused") {
+    await notifyWeekEnding(db, week, { is: answer.fate });
     return { skipped: answer.fate };
   }
   // Stopped by its owner meanwhile, or not yet its time: anything else but approved leaves the week as it stands.

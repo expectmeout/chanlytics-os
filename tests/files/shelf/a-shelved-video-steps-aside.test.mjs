@@ -187,7 +187,8 @@ test("room is made of shelved videos, the least recently used first, each checke
 
 test("the sweep that finishes a letting go left half done asks the shelf too", async () => {
   const file = old();
-  const web = theWeb();
+  // The video platform still holds the copy, and says so when the pass asks: its delete was never sent.
+  const web = theWeb({ held: [{ uid: file.media_ref, state: "ready" }] });
   const w = theWorld({ files: [file] });
   await shelvedLongAgo(w, file);
   // Marked going long ago, and its job died before the delete: the half-hourly pass finishes it.

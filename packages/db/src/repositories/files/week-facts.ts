@@ -2,9 +2,14 @@
  * What a week's plan reads of a workspace (00706; the content loop PRD's 10.1, 10.2), under the service role: the
  * footage it could be made from, what went out in the last three weeks and why, the new reviews of four or five stars,
  * and the plans asked for; and, for the week's patterns (the PRD's 9.4), what each of its own posts did: its kind, when,
- * its file's length and what its look said it shows, its reach seven days after it went up, and whether any of its
- * numbers then came while it also ran as an ad. Each a narrow read with its bound; the reasons and the patterns are
- * worked out from them in core (opportunities, content/plan, contentPatternsOf), never here.
+ * its file's length and what its footage's look said it shows, its reach seven days after it went up, and whether any
+ * of its numbers then came while it also ran as an ad. Each a narrow read with its bound; the reasons and the patterns
+ * are worked out from them in core (opportunities, content/plan, contentPatternsOf), never here.
+ *
+ * What goes out is always a made file (a drawn picture, a made video); what a plan picks from, and what a look says a
+ * thing shows, is the footage under it. So both reads follow each made file to the footage it was made from
+ * (readFootageOfMade): before that, "posted in the last three weeks" named made files, which no footage ever is, and a
+ * post's "shows" was its made file's own line ("A post saying ..."), which no two posts share.
  */
 import {
   DbFailure,
@@ -12,7 +17,9 @@ import {
   isOneOf,
   listOrEmpty,
   nonBlankOrNull,
+  pieceFileIdsOf,
   pieceIntentOf,
+  piecePlanOf,
   PLAN_PLACES,
   POST_KINDS,
   recordOrEmpty,
@@ -107,7 +114,52 @@ export async function listWeekFootage(db: Db, tenantId: TenantId, sinceIso: stri
   });
 }
 
-/** What went out lately: the files posted, and the reasons the pieces were made for. */
+/**
+ * The most made files one read follows to their footage: past about 200 ids one `.in()` passes the gateway's 8 KiB.
+ */
+const MADE_MOST = 150;
+
+/**
+ * The footage each made file was made from, by the made file's id: a drawn picture's photo or clip (how it was made
+ * says so, `files.made.from`), and a made video's clips and photos (the plan its piece was drawn by, a version's own).
+ * A made file whose making is not kept names none.
+ */
+async function readFootageOfMade(
+  db: Db,
+  tenantId: TenantId,
+  madeIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  const ids = [...new Set(madeIds)].slice(0, MADE_MOST);
+  const footage = new Map<string, string[]>();
+  if (ids.length === 0) return footage;
+  const [files, pieces] = await Promise.all([
+    db.from("files").select("id, made").eq("tenant_id", tenantId).in("id", ids).limit(ids.length),
+    // A version's drawing row names its own file too: a little over one piece a file.
+    db
+      .from("pieces")
+      .select("file_id, plan")
+      .eq("tenant_id", tenantId)
+      .in("file_id", ids)
+      .limit(ids.length * 2),
+  ]);
+  if (files.error) throw new DbFailure(files.error, "made files' footage");
+  if (pieces.error) throw new DbFailure(pieces.error, "made videos' footage");
+  const named = (madeId: string, from: readonly string[]) => {
+    if (from.length > 0) footage.set(madeId, [...new Set([...(footage.get(madeId) ?? []), ...from])]);
+  };
+  for (const file of files.data) {
+    const from = nonBlankOrNull(recordOrEmpty(file.made).from);
+    if (from) named(file.id, [from]);
+  }
+  for (const piece of pieces.data)
+    if (piece.file_id) named(piece.file_id, pieceFileIdsOf(piecePlanOf(recordOrEmpty(piece.plan))));
+  return footage;
+}
+
+/**
+ * What went out lately: the files posted (each made file, and the footage it was made from, which is what a plan
+ * picks), and the reasons the pieces were made for.
+ */
 export interface RecentlyPosted {
   files: Set<string>;
   reasons: Set<string>;
@@ -140,7 +192,9 @@ export async function readRecentlyPosted(db: Db, tenantId: TenantId, sinceIso: s
       if (reason) reasons.add(reason);
     }
   }
-  return { files: new Set(rows.map((r) => r.file_id)), reasons };
+  const madeIds = rows.map((r) => r.file_id);
+  const footage = await readFootageOfMade(db, tenantId, madeIds);
+  return { files: new Set([...madeIds, ...[...footage.values()].flat()]), reasons };
 }
 
 /** A new review as the plan reads it: the reviewer's first name and initial only, never their full name (PRD 10.5). */
@@ -213,8 +267,9 @@ export async function listPostOutcomes(db: Db, tenantId: TenantId, sinceIso: str
   if (up.length === 0) return [];
   const fileIds = [...new Set(up.map((post) => post.file_id))];
   const postIds = up.map((post) => post.id);
-  const [files, numbers] = await Promise.all([
-    db.from("files").select("id, seconds, look").eq("tenant_id", tenantId).in("id", fileIds).limit(fileIds.length),
+  const [files, footage, numbers] = await Promise.all([
+    db.from("files").select("id, seconds").eq("tenant_id", tenantId).in("id", fileIds).limit(fileIds.length),
+    readFootageOfMade(db, tenantId, fileIds),
     db
       .from("post_observations")
       .select("post_id, availability, value, paid_mixed")
@@ -226,18 +281,32 @@ export async function listPostOutcomes(db: Db, tenantId: TenantId, sinceIso: str
   ]);
   if (files.error) throw new DbFailure(files.error, "post outcomes' files");
   if (numbers.error) throw new DbFailure(numbers.error, "post outcomes' reach");
+  // What a post shows is what its footage's look said: the made file's own look only says it is a post.
+  const footageIds = [...new Set([...footage.values()].flat())].slice(0, MADE_MOST);
+  const looks =
+    footageIds.length === 0
+      ? { data: [], error: null }
+      : await db
+          .from("files")
+          .select("id, look")
+          .eq("tenant_id", tenantId)
+          .in("id", footageIds)
+          .limit(footageIds.length);
+  if (looks.error) throw new DbFailure(looks.error, "post outcomes' footage");
+  const lookOf = new Map(looks.data.map((file) => [file.id, file.look]));
   const fileOf = new Map(files.data.map((file) => [file.id, file]));
   const reachOf = new Map(numbers.data.map((row) => [row.post_id, row]));
   return up.map((post): PostOutcome => {
     const file = fileOf.get(post.file_id);
     const reach = reachOf.get(post.id);
+    const shown = (footage.get(post.file_id) ?? []).flatMap((id) => showsOfLook(lookOf.get(id)));
     return {
       postId: post.id,
       place: post.place,
       kind: post.kind,
       at: post.at,
       seconds: file?.seconds ?? null,
-      shows: file ? showsOfLook(file.look) : [],
+      shows: [...new Set(shown)],
       paid: reach?.paid_mixed === true,
       reach: reach?.availability === "available" && reach.value !== null ? Number(reach.value) : null,
     };

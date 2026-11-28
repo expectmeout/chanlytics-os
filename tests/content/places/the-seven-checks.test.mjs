@@ -117,6 +117,28 @@ test("the reason: open time a piece was made for is asked again, and the owner's
   );
 });
 
+test("the reason: open time that could not be read is not known to stand, and says so under a why of its own", () => {
+  const thursday = intent({ opportunity_id: "open_capacity:2026-11-26", day: "2026-11-26" });
+  const asked = (part) => refused({ reason: reason({ intent: thursday, moment: "send", ...part }) });
+  const unread = asked({ opportunities: "unread" });
+  assert.equal(unread.code, "reason_unread", "not reason_passed: nothing says Thursday filled up");
+  assert.equal(unread.words, CONTENT_CHECK_WORDS.openingsUnread("Thursday"));
+  assert.doesNotMatch(unread.words, /anyway/i);
+  assert.equal(
+    asked({ opportunities: "unread", facts: [{ says: "Thursday still has openings", until: "2026-11-26" }] }),
+    null,
+    "the owner's own word needs no read",
+  );
+  // A piece that promises no open time is asked nothing of the book, read or not.
+  const plain = intent({ day: "2026-11-26" });
+  assert.equal(refused({ reason: reason({ intent: plain, opportunities: "unread", moment: "send" }) }), null);
+  // Its last moment comes first: a post whose day passed is late, whatever could or could not be read.
+  const late = refused({
+    reason: reason({ intent: thursday, opportunities: "unread", goodUntil: "2026-11-01T00:00:00Z", moment: "send" }),
+  });
+  assert.equal(late.code, "late");
+});
+
 test("publishing: the place takes the kind, the connection allows it, the words and the video fit", () => {
   const says = (part) => refused({ publishing: place(part) });
   assert.equal(says({}), null);

@@ -236,7 +236,8 @@ function heldSaid(post: PostDto, known: GoesKnown): Said {
     return lineSaysOf(GOES_WORDS.needsConnecting(post.place), "you", { acts: mine([{ is: "connect" }]) });
   if (heldWhy === "stopped") return lineSaysOf(GOES_WORDS.paused, "you");
   const reason = post.held_reason ?? ON_INSTAGRAM.heldNoReason;
-  if (heldWhy === "reason_passed")
+  // Its reason passed, or the open time it promises could not be read when it was to go (00728): the same three ways on.
+  if (heldWhy === "reason_passed" || heldWhy === "reason_unread")
     return lineSaysOf(reason, "you", {
       acts: mine([leave, words, { is: "say_ai", hint: GOES_WORDS.stillSo, begin: GOES_WORDS.ask.stillSo }]),
     });

@@ -1,10 +1,13 @@
 import "server-only";
 import {
   AppError,
+  FILE_COPY_STATES,
+  FILE_COPY_WHYS,
   adDraftOf,
   adLeastTotal,
   adPictureIssue,
   daysBetween,
+  isOneOf,
   minorPerUnit,
   serviceNamedIn,
   type AdDraftInputs,
@@ -17,7 +20,7 @@ import { keepAdDraft, keepAdMost } from "@chanlytics/db/ads";
 import { logAndGoOn } from "@chanlytics/log";
 import { adBriefOf, adServiceFacts, type AdAsk, type AdOfferFacts } from "../ask/skills/ad/brief";
 import { stableJson, type ReaderContext } from "../shared/reader";
-import { readAdsOffered } from "../connections/ads-ready";
+import { callAdsEdge, readAdsOffered } from "../connections/ads-ready";
 import { adDeclared, adDraftChecks, adKindsOf } from "./draft-checks";
 import { readAdDraftFacts, type AdDraftAccount, type AdDraftFacts, type AdDraftService } from "./draft-facts";
 import { findCustomersPlace } from "./area";
@@ -204,6 +207,10 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
         kind: pictureKind,
         name: file?.name ?? "",
         made: file?.source === "made",
+        // A video whose copy is not at hand: where it stands, as its row says it until the pick's ask says more.
+        ...(file?.kind === "video" && file.copy !== "here"
+          ? { copy: { state: file.copy, why: file.copy_why, uploaded: file.owner_uploaded === true } }
+          : {}),
       },
     },
     today: facts.today,
@@ -344,10 +351,43 @@ export async function draftAd(rc: ReaderContext, body: AdDraftBody): Promise<AdD
   await requireAdsOffered(rc);
   const read = await readAdDraftFacts(rc, [body.picture, body.draft?.picture]);
   const facts = body.most === undefined ? read : await keepOwnersMost(rc, read, body.most);
+  // The picture the screen showed when it asked: any other the answer shows is a pick, and a pick asks for its copy.
+  const picked = (answer: AdDraftAnswer) => askPickedCopy(rc, answer, body.act ? undefined : body.draft?.picture);
   if ((body.service !== undefined || body.picture !== undefined) && body.draft === undefined)
-    return keepDraftAnswer(rc, facts, startedDraftAnswer(await withProposedArea(rc, facts), body));
+    return picked(await keepDraftAnswer(rc, facts, startedDraftAnswer(await withProposedArea(rc, facts), body)));
   const sent = body.draft ?? facts.kept?.draft ?? null;
-  if (sent === null) return keepDraftAnswer(rc, facts, adDraftAnswer(await withProposedArea(rc, facts), null));
+  if (sent === null)
+    return picked(await keepDraftAnswer(rc, facts, adDraftAnswer(await withProposedArea(rc, facts), null)));
   const moved = body.act === "next_picture" ? { ...sent, picture: nextAdPicture(facts, sent.picture) } : sent;
-  return keepDraftAnswer(rc, facts, adDraftAnswer(facts, moved));
+  return picked(await keepDraftAnswer(rc, facts, adDraftAnswer(facts, moved)));
+}
+
+/**
+ * The pick (the archive review of 28 Nov 2026, R1.6): a video whose copy stepped aside is asked back as a draft comes to
+ * show it, through the copy's one door on the edge, as an ad asks (files/copy/ensure.ts, the purpose `ad`). The answer
+ * then says where the copy stands, usually on its way back, and the screen waits and goes on by itself. Asked once a
+ * pick: a draft that still shows the picture it showed asks nothing, so judging a draft again never spends a return,
+ * and one already on its way is only waited for. Where the edge can't be asked, the row's own word stands.
+ */
+async function askPickedCopy(
+  rc: ReaderContext,
+  answer: AdDraftAnswer,
+  shownBefore: string | undefined,
+): Promise<AdDraftAnswer> {
+  if (!answer.can) return answer;
+  const { picture } = answer.draft;
+  const copy = picture.copy;
+  if (!copy || picture.id === shownBefore || copy.state === "returning" || copy.state === "lost") return answer;
+  const reply = await callAdsEdge({ op: "copy", tenant_id: rc.tenantId, user_id: rc.userId, file_id: picture.id });
+  const state = reply.status === 200 && isOneOf(FILE_COPY_STATES, reply.body?.copy) ? reply.body.copy : null;
+  if (state === null) return answer;
+  const reason = isOneOf(FILE_COPY_WHYS, reply.body?.why) ? reply.body.why : null;
+  const { copy: _was, ...shown } = picture;
+  return {
+    ...answer,
+    draft: {
+      ...answer.draft,
+      picture: state === "here" ? shown : { ...shown, copy: { state, why: reason, uploaded: copy.uploaded } },
+    },
+  };
 }

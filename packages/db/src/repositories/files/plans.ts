@@ -174,13 +174,25 @@ export async function readContentWeek(db: Db, tenantId: TenantId, weekOf: string
 
 /** What approving the week came to. */
 export interface WeekApproved {
-  // A rung's approval may also find the week held to a later time, stopped, or under a rung that now asks (00714).
-  fate: "approved" | "changed" | "gone" | "nothing" | "drafting" | "done" | "held" | "stopped" | "asks";
+  // A rung's approval may also find the week held to a later time, stopped, or under a rung that now asks (00714), or
+  // everything stopped as the door read it (00727: paused, the week let go by the door itself).
+  fate: "approved" | "changed" | "gone" | "nothing" | "drafting" | "done" | "held" | "stopped" | "asks" | "paused";
   approvalId: string | null;
   slots: number;
 }
 
-const WEEK_FATES = ["approved", "changed", "gone", "nothing", "drafting", "done", "held", "stopped", "asks"] as const;
+const WEEK_FATES = [
+  "approved",
+  "changed",
+  "gone",
+  "nothing",
+  "drafting",
+  "done",
+  "held",
+  "stopped",
+  "asks",
+  "paused",
+] as const;
 
 /**
  * Approve the week (content_week_approve): as the member, the snapshot's slots under one approval of the plan; as the
@@ -505,12 +517,14 @@ export async function markSlotPrepared(
 
 /**
  * What placing a slot came to (plan_slot_place): post_approve's own answer, or taken where the slot has its post already or
- * is no longer AI's to place, and past where its time has come.
+ * is no longer AI's to place, past where its time has come, and stopped while everything is stopped (00727: read by the
+ * door inside its own write).
  */
 const SLOT_PLACED = [
   "approved",
   "taken",
   "past",
+  "stopped",
   "busy",
   "gone",
   "not_a_post",

@@ -7,17 +7,19 @@
 import { z } from "zod";
 import { FORM_LIMITS } from "./limits";
 import { FormDescription } from "./shape";
+import type { EntryHeldWhyDto } from "./limits";
 import type { OutsideFormRowDto } from "./outside";
 import type { RequestLine } from "./request-words";
 import type { FormTimeStatus } from "./times";
 
 export type FormStateDto = "draft" | "live" | "off";
 
-/** Where an entry stands for its owner: nobody has answered it, it was answered, it is held for a look, or it is a test. */
-export type EntryStandingDto = "open" | "answered" | "held" | "test";
-
-/** Why an entry is held, as the database keeps it. */
-export type EntryHeldWhyDto = "hidden_field" | "too_fast" | "too_many" | "member" | "elsewhere";
+/**
+ * Where an entry stands for its owner: nobody has answered it, its reply is still going (`sending`, the seconds it can
+ * be taken back), it was answered, nobody answered it and its sixty days in Needs you passed (`aged`: "Never
+ * answered"), it is held for a look, or it is a test. Read from what is kept, never stored (00726).
+ */
+export type EntryStandingDto = "open" | "sending" | "answered" | "aged" | "held" | "test";
 
 /** A form as Campaigns › Forms lists it. */
 export interface FormListRowDto {
@@ -148,8 +150,11 @@ export interface FormRequestDto {
   /** The place its link was shared, and who sent them where a site or a campaign said so. */
   place: string | null;
   sender: string | null;
-  /** Their page, once the entry has its person; null while it is held with none. */
-  person: { id: string; name: string | null; email: string | null } | null;
+  /**
+   * Their page, once the entry has its person; null while it is held with none. `offers`: they said yes to offers by
+   * email, a yes their address gave, which ends where their page takes another address (00726).
+   */
+  person: { id: string; name: string | null; email: string | null; offers?: boolean } | null;
   /** Whether the business knew them before this request: their record is older than it. Null with no person yet. */
   known: boolean | null;
   standing: EntryStandingDto;
@@ -203,7 +208,9 @@ export interface FormOpenRequestDto {
  */
 export interface FormHeldDto {
   form_id: string;
-  /** The form's heading, as the visitor of the newest of them saw it. */
+  /** A form the business's own website owns (00726): its held pile is on its own sheet. Absent: a form made here. */
+  site?: boolean;
+  /** The form's heading, as the visitor of the newest of them saw it; a site's form's name. */
   heading: string;
   /** How many of its held entries have waited that long. */
   held: number;
