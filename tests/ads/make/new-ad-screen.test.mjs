@@ -138,13 +138,19 @@ test("written: one of three versions, the next at a press and round again; the a
     src: `/api/v1/files/${FILE}/view?w=720`,
     alt: "The ad's picture, front desk",
     video: false,
+    copy: null,
   });
   const made = written({}, { picture: { id: FILE, kind: "video", name: "spring reel", made: true } });
   assert.deepEqual(view({ answer: made }).shown.picture, {
     src: `/api/v1/files/${FILE}/view?shape=portrait`,
     alt: "The ad's video, spring reel",
     video: true,
+    copy: null,
   });
+  // A video whose copy stepped aside carries where it stands, for the line under the ad and the asks after it.
+  const aside = { state: "returning", why: null, uploaded: false };
+  const away = written({}, { picture: { id: FILE, kind: "video", name: "spring reel", made: true, copy: aside } });
+  assert.deepEqual(view({ answer: away }).shown.picture.copy, { id: FILE, ...aside, made: true });
 });
 
 test("Turn on: pressed where nothing stops it, naming the most it can cost; grey with why where something does", () => {
@@ -444,7 +450,7 @@ let worlds = 0;
  * New ad open in a tab of its own, over a source the test answers by hand: every ask waits in `asks` until the test
  * lands it. `same` opens it again in the tab a world before it used.
  */
-function world({ same = false, preview = false, start = null } = {}) {
+function world({ same = false, preview = false, copy = false, start = null } = {}) {
   if (!same) worlds += 1;
   globalThis.location.pathname = `/w/screen-${worlds}/campaigns/ads`;
   fresh();
@@ -471,6 +477,7 @@ function world({ same = false, preview = false, start = null } = {}) {
       words: ask("words"),
       turnOn: (key, expect) => ask("turn_on")({ key, expect }),
       ...(preview ? { preview: ask("preview") } : {}),
+      ...(copy ? { copy: ask("copy") } : {}),
     },
     need: null,
     onClose: () => went.push("closed"),
@@ -998,6 +1005,51 @@ test("a video's preview is not asked of Meta, and a source with no way to ask dr
   await writing.asked(2, "the writer to be asked");
   assert.equal(writing.asks[1].kind, "words");
   assert.equal(lineOf(writing), NEW.shown.drawn);
+  unmount();
+});
+
+test("a video whose copy stepped aside says so under the ad while it comes back, and the line goes by itself once it is here", async () => {
+  const video = (copy, over = {}) =>
+    written({}, { picture: { id: OTHER, kind: "video", name: "spring reel", made: true, copy, ...over } });
+  const w = world({ copy: true });
+  w.asks[0].land(video({ state: "returning", why: null, uploaded: false }));
+  await w.shows("ads-new-copy", "the line for a video on its way back");
+  assert.equal(w.said("ads-new-copy"), "Getting your video ready…");
+  // The screen asks after it by itself, and nothing is asked of its owner. Still on its way: asked after again.
+  const first = await w.asked(2, "the video's copy to be asked after");
+  assert.deepEqual([first.kind, first.body], ["copy", OTHER]);
+  first.land({ state: "returning", why: null });
+  const second = await w.asked(3, "it to be asked after again while it still comes back");
+  assert.equal(w.said("ads-new-copy"), "Getting your video ready…");
+  // Here: the line goes, and nothing more is asked.
+  second.land({ state: "here", why: null });
+  await until(() => w.said("ads-new-copy") === null, "the line to go once the video is here");
+  assert.equal(w.asks.length, 3);
+
+  // A clip kept in Google Drive says where it comes from; an ask that gave no answer is made again.
+  const drive = world({ copy: true });
+  drive.asks[0].land(video({ state: "returning", why: null, uploaded: false }, { made: false }));
+  await drive.shows("ads-new-copy", "the line for a clip on its way back");
+  assert.equal(drive.said("ads-new-copy"), "Getting it from Google Drive…");
+  (await drive.asked(2, "the clip's copy to be asked after")).land(null);
+  await drive.asked(3, "an ask that gave no answer to be made again");
+
+  // It can't come back today: the line says so, and nothing asks after what will not mend by itself.
+  const tomorrow = world({ copy: true });
+  tomorrow.asks[0].land(video({ state: "away", why: "budget", uploaded: false }));
+  await tomorrow.shows("ads-new-copy", "the line for a video that can't come back today");
+  assert.equal(tomorrow.said("ads-new-copy"), "It plays again tomorrow");
+  assert.equal(tomorrow.asks.length, 1);
+
+  // A photo, and a video whose copy is here, say nothing; a source with no way to ask says what the draft said.
+  const photo = world({ copy: true });
+  photo.asks[0].land(written());
+  await photo.shows("ads-new-text", "the written draft");
+  assert.equal(photo.said("ads-new-copy"), null);
+  const plain = world();
+  plain.asks[0].land(video({ state: "returning", why: null, uploaded: false }));
+  await plain.shows("ads-new-copy", "the line, from the draft alone");
+  assert.equal(plain.asks.length, 1);
   unmount();
 });
 
