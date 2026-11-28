@@ -494,6 +494,66 @@ test("ending an ad archives its campaign, with no dry run, and the ad is ended; 
   assert.deepEqual((await heard(await w.press(raise(w.row))))[1].error, "ad_not_ready", "an ended ad is over");
 });
 
+test("an end Meta never answered is settled from what Meta holds, and one Meta did not take goes again, never blind", async () => {
+  const log = logger({ tenant_id: T });
+  const later = () => ({ accountId: ACCOUNT, nowMs: Date.now() + 60_000 });
+  // Taken after all: Meta holds the campaign archived, so the ad is ended, with one switch and one read back.
+  const took = world();
+  answers.switch = [503, undefined];
+  assert.deepEqual(await heard(await took.press({ what: "end" })), [200, { ok: true, outcome: "sent", version: 4 }]);
+  assert.ok(took.row.change.sent_at, "kept as sent, with no answer");
+  assert.deepEqual(took.kept.readAsks, ["meta:1200000000000071"], "the account's read is asked for at once");
+  answers.read = [200, heldOf({ status: "ARCHIVED" })];
+  await runChanges(took.db, log, who(), later());
+  assert.deepEqual(asked, ["switch ARCHIVED", "read back"], "never sent again: Meta holds it");
+  assert.deepEqual([took.row.intent, took.row.change], ["ended", null]);
+
+  // Not taken: Meta holds it on. Ending is a stop, so with Meta's word in hand it goes once more, and lands.
+  const lost = world();
+  answers.switch = [503, undefined];
+  await lost.press({ what: "end" });
+  answers.read = [200, heldOf({ status: "ACTIVE" })];
+  answers.switch = [200, { success: true }];
+  await runChanges(lost.db, log, who(), later());
+  assert.deepEqual(asked, ["switch ARCHIVED", "read back", "switch ARCHIVED"], "Meta is asked before it goes again");
+  assert.deepEqual(
+    [lost.row.intent, lost.row.change, lost.kept.events.map(([kind]) => kind)],
+    ["ended", null, ["ad.ended"]],
+    "the owner's End is not let go while the ad still runs",
+  );
+
+  // Still no answer: it stays an end on its way, and the next read asks Meta again before anything is sent.
+  const quiet = world();
+  answers.switch = [503, undefined];
+  await quiet.press({ what: "end" });
+  answers.read = [200, heldOf({ status: "ACTIVE" })];
+  await runChanges(quiet.db, log, who(), later());
+  await runChanges(quiet.db, log, who(), later());
+  assert.deepEqual(asked, ["switch ARCHIVED", "read back", "switch ARCHIVED", "read back", "switch ARCHIVED"]);
+  assert.ok(quiet.row.change?.sent_at, "followed until Meta holds it");
+  assert.deepEqual(quiet.kept.events, [], "and never said to have failed");
+});
+
+test("with the switch off an end still reaches Meta, on the press and from the read; a raise is refused before it is kept", async () => {
+  const w = world();
+  delete process.env.ADS_WRITES;
+  assert.deepEqual(await heard(await w.press({ what: "end" })), [200, { ok: true, outcome: "told", version: 4 }]);
+  assert.deepEqual([asked, w.row.intent], [["switch ARCHIVED"], "ended"]);
+
+  // Kept on its way while the switch was on (Meta was holding the account back), then the switch went off.
+  const held = world({ account: { read_after: new Date(Date.now() + 300_000).toISOString() } });
+  assert.equal((await heard(await held.press({ what: "end" })))[1].outcome, "soon");
+  delete process.env.ADS_WRITES;
+  const log = logger({ tenant_id: T });
+  assert.equal((await runChanges(held.db, log, who(), { accountId: ACCOUNT, nowMs: Date.now() + 60_000 })).told, 1);
+  assert.deepEqual([asked, held.row.intent], [["switch ARCHIVED"], "ended"]);
+
+  const raised = world();
+  delete process.env.ADS_WRITES;
+  const [status, body] = await heard(await raised.press(raise(raised.row)));
+  assert.deepEqual([status, body.error, raised.kept.decisions, asked], [409, "ads_writes_off", [], []]);
+});
+
 test("an ad made in Meta is changed in Meta, and anyone but the owner is refused", async () => {
   const inMeta = world({ ad: { origin: "platform" } });
   assert.deepEqual((await heard(await inMeta.press(raise(inMeta.row))))[1].error, "ad_not_ready");

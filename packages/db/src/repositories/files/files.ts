@@ -204,12 +204,17 @@ export async function listFilesOnShelf(
 /**
  * The newest files of one shelf and kind that may be offered for an ad (the Ads plan's G15; New ad's picture,
  * server/content/ad-pictures.ts): filed and arrived; one the business keeps, once the look has read it, since the rule
- * of a before and an after reads what the look saw; and for a video one ready to play here. What the rules judge (a
+ * of a before and an after reads what the look saw; and for a video one the video platform made ready, whose copy is
+ * here or can come back (away, on its way out or back), never one that is lost: New ad asks for its copy at the pick
+ * (the archive review of 28 Nov 2026, R1.6: a video whose copy stepped aside was missing from New ad). What the rules judge (a
  * size, a shape, a length, music, a before and after) stays theirs (contracts ads/draft.ts). Who is in a picture is
  * not asked: footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
  * Read apart by kind, and only what may be offered: a folder that brings hundreds of files nobody has looked at yet can
  * never push one that is fine out of the few read, as the newest of a whole shelf once did (20 Nov 2026).
  */
+/** Where a video's copy may stand and still be offered for an ad: here, or anywhere it comes back from. Never lost. */
+const AD_VIDEO_COPIES = ["here", "going", "away", "returning"] as const;
+
 export async function listFilesForAds(
   db: Db,
   tenantId: TenantId,
@@ -225,7 +230,7 @@ export async function listFilesForAds(
     .eq("status", "filed")
     .eq("kind", pick.kind);
   query = pick.made ? query.eq("source", "made") : query.neq("source", "made").eq("look_status", "done");
-  if (pick.kind === "video") query = query.eq("media_status", "ready").eq("copy_state", "here");
+  if (pick.kind === "video") query = query.eq("media_status", "ready").in("copy_state", [...AD_VIDEO_COPIES]);
   const { data, error } = await query
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })

@@ -462,27 +462,64 @@ CREATE FUNCTION public.ad_accounts_stop_launches() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+declare
+  v_why text := case new.status when 'revoked' then 'signed_out' else 'disconnected' end;
 begin
-  -- Nothing more is sent to the platform for this account: a launch on its way stops where it is, and whatever it made
-  -- stays there, named and paused, for the owner to see and remove in Meta (the plan's 4.7, 8).
-  with stopped as (
+  -- Nothing more is sent to the platform for this account. A launch whose campaign's switch, the one that lets the ad
+  -- start, is out or done may be running there: it is the ad it is, with the platform's ids its parts hold and the
+  -- platform's word for it owed, never one that couldn't finish and was left paused. Any other launch on its way stops
+  -- where it is, and whatever it made stays there, named and paused, for the owner to see and remove in Meta (the plan's
+  -- 4.7, 8).
+  with late as (
+    select a.id, p.campaign_id, p.set_id, p.first_ad_id
+      from public.ads a
+      cross join lateral (
+        select max(o.platform_id) filter (where o.kind = 'campaign' and o.version = 0) as campaign_id,
+               max(o.platform_id) filter (where o.kind = 'set' and o.version = 0) as set_id,
+               max(o.platform_id) filter (where o.kind = 'ad' and o.version = 1) as first_ad_id
+          from public.ad_objects o
+         where o.tenant_id = a.tenant_id and o.ad_id = a.id and o.state = 'made'
+      ) p
+     where a.tenant_id = new.tenant_id and a.account_id = new.id and a.status = 'sending'
+       and (a.launch ->> 'switching' = 'campaign'
+            or (jsonb_typeof(a.launch -> 'switched') = 'array' and a.launch -> 'switched' ? 'campaign'))
+       and p.campaign_id is not null and p.set_id is not null and p.first_ad_id is not null
+  ), made as (
+    update public.ads a
+       set status = 'made',
+           platform_campaign_id = l.campaign_id,
+           platform_set_id = l.set_id,
+           platform_ad_id = l.first_ad_id,
+           launch = (coalesce(a.launch, '{}'::jsonb) - 'switching')
+                    || jsonb_build_object(
+                         'step', 'done',
+                         'unknown_at', case when jsonb_typeof(a.launch -> 'unknown_at') = 'string'
+                                            then a.launch -> 'unknown_at' else to_jsonb(now()) end)
+      from late l
+     where a.id = l.id
+    returning a.id, a.platform, a.name
+  ), stopped as (
     update public.ads a
        set status = 'failed',
-           launch = coalesce(a.launch, '{}'::jsonb)
-                    || jsonb_build_object('stopped', case new.status when 'revoked' then 'signed_out' else 'disconnected' end,
-                                          'stopped_at', now())
+           launch = coalesce(a.launch, '{}'::jsonb) || jsonb_build_object('stopped', v_why, 'stopped_at', now())
      where a.tenant_id = new.tenant_id and a.account_id = new.id and a.status = 'sending'
+       and a.id not in (select l.id from late l)
     returning a.id, a.platform, a.name
   ), left_there as (
     update public.ad_objects o
        set state = 'left'
      where o.tenant_id = new.tenant_id and o.ad_id in (select s.id from stopped s) and o.state in ('sent', 'made')
     returning o.ad_id
+  ), told_made as (
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    select new.tenant_id, 'ad.made', 'ads', 'ad', m.id,
+           jsonb_build_object('platform', m.platform, 'name', m.name, 'unconfirmed', true, 'why', v_why)
+      from made m
+    returning 1
   )
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   select new.tenant_id, 'ad.setup_stopped', 'ads', 'ad', s.id,
-         jsonb_build_object('platform', s.platform, 'name', s.name,
-                            'why', case new.status when 'revoked' then 'signed_out' else 'disconnected' end,
+         jsonb_build_object('platform', s.platform, 'name', s.name, 'why', v_why,
                             'left', (select count(*) from left_there l where l.ad_id = s.id))
     from stopped s;
   return new;
@@ -493,7 +530,7 @@ end $$;
 -- Name: FUNCTION ad_accounts_stop_launches(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_accounts_stop_launches() IS 'Trigger (00666, 00676): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. The ad is failed with why (disconnected, signed_out) and when (stopped_at), every part it made is kept as left at the platform (named and paused there), and an ad.setup_stopped event says so. Nothing is sent to the platform after.';
+COMMENT ON FUNCTION public.ad_accounts_stop_launches() IS 'Trigger (00666, 00676, 00725): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way, and nothing is sent to the platform after. A launch whose campaign''s switch is out or done (ads.launch switching, switched) may be running there: it is kept as the ad it is, made, with the platform''s ids its parts hold and the platform''s word for it owed (launch.unknown_at), and an ad.made event says it is unconfirmed and why. Every other launch is failed with why (disconnected, signed_out) and when (stopped_at), every part it made is kept as left at the platform (named and paused there), and an ad.setup_stopped event says so.';
 
 
 --
@@ -7710,6 +7747,8 @@ declare
   v_left      timestamptz;
   v_put       integer := 0;
   v_snapshot  jsonb := p_snapshot;
+  -- 00727: Stop everything, read inside the approval.
+  v_paused    timestamptz;
 begin
   if v_actor is null and not v_service then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -7732,6 +7771,14 @@ begin
     end if;
     if v_plan.goes_at is null or v_plan.goes_at > now() + interval '1 minute' then
       return jsonb_build_object('fate', 'held');
+    end if;
+    -- 00727: AI approves nothing while everything is stopped, and the stop is read here, inside the approval, on a
+    -- lock its own write waits for (workspace_sending_stop takes the row for update): pressed first, the week is let go
+    -- and waits for its owner's press; pressed after, the week was approved before it, and each post's own send holds it.
+    select t.sending_stopped_at into v_paused from public.tenants t where t.id = p_tenant_id for share;
+    if v_paused is not null then
+      update public.content_plans set goes_at = null, make_queued_at = null where id = v_plan.id;
+      return jsonb_build_object('fate', 'paused');
     end if;
     select p.mode into v_rung from public.policies p
      where p.tenant_id = p_tenant_id and p.class = 'plan_approve' and p.subject_type is null;
@@ -7807,7 +7854,7 @@ end $$;
 -- Name: FUNCTION content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver, the rung rides on its snapshot, each slot prepared ahead is placed in the same transaction (plan_slot_place) and the week is queued for what is left; a member''s own approval takes a held week out of that queue. Answers {fate: approved, approval_id, slots, placed} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
+COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver, the rung rides on its snapshot, each slot prepared ahead is placed in the same transaction (plan_slot_place) and the week is queued for what is left; a member''s own approval takes a held week out of that queue. 00727: the service approves nothing while everything is stopped (tenants.sending_stopped_at, read here on a lock the stop''s own write waits for): the week is let go and answers paused. Answers {fate: approved, approval_id, slots, placed} or {fate: gone | changed | nothing | asks | held | stopped | paused | <status>}.';
 
 
 --
@@ -13606,6 +13653,63 @@ COMMENT ON FUNCTION public.form_entries_purge() IS 'A held form entry nobody let
 
 
 --
+-- Name: form_entries_standing(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entries_standing(p_tenant_id uuid, p_entry_ids uuid[]) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Nothing here is kept apart from the record (00726): each standing is read from the entry's own links and their
+  -- messages, by form_requests_open's rule. Answered: a member's word (marked), a conversation that took it over, or a
+  -- reply that left (its message neither failed, taken back, nor still waiting to go), said by the first of those
+  -- there is and when. Sending: no such answer, and a reply to it still waits to go (queued, for the seconds it can be
+  -- taken back); form_requests_open counts it answered until that reply fails. Aged: nobody answered it and its sixty
+  -- days in Needs you passed. Open: none of these. Unreached: a reply to it failed. Held and test are the entry's own
+  -- columns, which its reader reads beside this.
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', s.id, 'standing', s.standing, 'how', s.how, 'at', s.at, 'conversation_id', s.conversation_id,
+           'unreached', s.unreached)), '[]'::jsonb)
+    from (
+      select e.id,
+             case when a.how is not null then 'answered'
+                  when exists (
+                         select 1 from form_entry_links k
+                           join messages m on m.tenant_id = k.tenant_id and m.id = k.message_id
+                          where k.tenant_id = e.tenant_id and k.entry_id = e.id and k.kind = 'reply'
+                            and m.status = 'queued') then 'sending'
+                  when e.created_at <= now() - interval '60 days' then 'aged'
+                  else 'open' end as standing,
+             a.how, a.at, a.conversation_id,
+             exists (
+               select 1 from form_entry_links k
+                 join messages m on m.tenant_id = k.tenant_id and m.id = k.message_id
+                where k.tenant_id = e.tenant_id and k.entry_id = e.id and k.kind = 'reply'
+                  and m.status = 'failed') as unreached
+        from form_entries e
+        left join lateral (
+          select k.kind as how, k.created_at as at, k.conversation_id
+            from form_entry_links k
+           where k.tenant_id = e.tenant_id and k.entry_id = e.id
+             and (k.kind in ('marked', 'conversation')
+                  or (k.kind = 'reply' and exists (
+                        select 1 from messages m
+                         where m.tenant_id = k.tenant_id and m.id = k.message_id
+                           and m.status not in ('failed', 'canceled', 'queued'))))
+           order by case k.kind when 'marked' then 0 when 'conversation' then 1 else 2 end, k.created_at desc
+           limit 1) a on true
+       where e.tenant_id = p_tenant_id and e.id = any (coalesce(p_entry_ids, '{}'::uuid[]))) s;
+$$;
+
+
+--
+-- Name: FUNCTION form_entries_standing(p_tenant_id uuid, p_entry_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entries_standing(p_tenant_id uuid, p_entry_ids uuid[]) IS 'Where the named entries of a workspace''s forms stand (00726), read under the member''s own row rules from each entry''s links and their messages, by form_requests_open''s rule: [{id, standing: answered|sending|open|aged, how: marked|conversation|reply (what answered it, a member''s word first), at, conversation_id, unreached}]. Sending: its only answer is a reply still waiting to go. Aged: nobody answered it and its sixty days passed. Unreached: a reply to it failed. An entry of another workspace, or one the member may not read, is not in the answer.';
+
+
+--
 -- Name: form_entry_hold(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -13626,9 +13730,11 @@ begin
   elsif coalesce((select auth.role()), '') in ('anon', 'authenticated') then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
+  -- A hosted form's entry, or a site's (00726): a test names neither and is never held.
   update public.form_entries
      set state = 'held', held_why = 'member'
-   where tenant_id = p_tenant_id and id = p_entry_id and form_id is not null and state <> 'held' and not test;
+   where tenant_id = p_tenant_id and id = p_entry_id and (form_id is not null or outside_form_id is not null)
+     and state <> 'held' and not test;
   get diagnostics v_held = row_count;
   if v_held > 0 then
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
@@ -13643,7 +13749,7 @@ end $$;
 -- Name: FUNCTION form_entry_hold(p_tenant_id uuid, p_entry_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) IS 'A request a member says is not a real one, held (00680): it leaves every count and waits in its form''s held pile, where form_entry_let_through brings it back. Answers whether one was held. A member who acts (is_acting_member), or the service role (00717).';
+COMMENT ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) IS 'A request a member says is not a real one, held (00680; a site''s too, 00726): it leaves every count and waits in its form''s held pile, where form_entry_let_through brings it back. Answers whether one was held. A member who acts (is_acting_member), or the service role (00717).';
 
 
 --
@@ -13686,6 +13792,37 @@ begin
      where e.tenant_id = p_tenant_id and e.id = p_entry_id;
     return jsonb_build_object('outcome', 'back', 'entry_id', p_entry_id, 'contact_id', v_entry.contact_id);
   end if;
+  -- A site's entry the door held (00726): its person is resolved now as the website's, from who it is about as typed
+  -- and what the site sent with it; it owes what the door said it owed; its form and its site are stamped and its
+  -- event written now. A person who asked to be forgotten is not made again, and the entry goes.
+  if v_entry.outside_form_id is not null then
+    begin
+      v_person := public.resolve_person(
+        p_tenant_id, '', '', coalesce(v_entry.reach ->> 'phone', ''), coalesce(v_entry.reach ->> 'email', ''),
+        coalesce(v_entry.reach ->> 'name', ''), 'found', 'website',
+        jsonb_build_object('form', v_entry.form, 'about', v_entry.answers -> 'about', 'page', v_entry.answers -> 'page',
+                           'lang', v_entry.answers -> 'lang', 'at', v_entry.answers -> 'at'));
+    exception when sqlstate 'PE001' then
+      delete from public.form_entries e where e.tenant_id = p_tenant_id and e.id = p_entry_id;
+      return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null);
+    end;
+    v_contact := (v_person ->> 'contact_id')::uuid;
+    update public.form_entries
+       set contact_id = v_contact, state = 'accepted', held_why = null
+     where tenant_id = p_tenant_id and id = p_entry_id;
+    update public.outside_forms o
+       set first_entry_at = coalesce(o.first_entry_at, now()), last_entry_at = now()
+     where o.tenant_id = p_tenant_id and o.id = v_entry.outside_form_id;
+    update public.form_sites s
+       set first_entry_at = coalesce(s.first_entry_at, now()), last_entry_at = now()
+     where s.tenant_id = p_tenant_id
+       and s.id = (select o.site_id from public.outside_forms o
+                    where o.tenant_id = p_tenant_id and o.id = v_entry.outside_form_id);
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', p_entry_id,
+            jsonb_build_object('form', v_entry.form, 'owed', to_jsonb(v_entry.owed)));
+    return jsonb_build_object('outcome', 'accepted', 'entry_id', p_entry_id, 'contact_id', v_contact);
+  end if;
   -- Its person is resolved now, and its event written now: everything it should have started starts now. A person
   -- who asked to be forgotten is not made again, and the entry goes.
   begin
@@ -13712,7 +13849,7 @@ end $$;
 -- Name: FUNCTION form_entry_let_through(p_tenant_id uuid, p_entry_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) IS 'A held form entry let through (00680): one held with no person has its person resolved now and its form_entry.accepted written now, so its note and its notice start then; one a member had set aside is a request again, and tells nobody twice. Answers {outcome: accepted|back|forgotten|gone, entry_id, contact_id}: a forgotten person''s entry is deleted. A member who acts (is_acting_member), or the service role (00717).';
+COMMENT ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) IS 'A held form entry let through (00680; a site''s too, 00726): one held with no person has its person resolved now and its form_entry.accepted written now, so its note and its notice start then (a site''s as the website''s, owing what the door said it owed, its form and site stamped then); one a member had set aside is a request again, and tells nobody twice. Answers {outcome: accepted|back|forgotten|gone, entry_id, contact_id}: a forgotten person''s entry is deleted. A member who acts (is_acting_member), or the service role (00717).';
 
 
 --
@@ -13776,10 +13913,10 @@ COMMENT ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid,
 
 
 --
--- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text, text, text, text, jsonb, boolean); Type: FUNCTION; Schema: public; Owner: -
+-- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text, text, text, text, jsonb, boolean, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text, p_form_ref text DEFAULT NULL::text, p_form_name text DEFAULT NULL::text, p_host text DEFAULT NULL::text, p_source jsonb DEFAULT NULL::jsonb, p_test boolean DEFAULT false) RETURNS jsonb
+CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text, p_form_ref text DEFAULT NULL::text, p_form_name text DEFAULT NULL::text, p_host text DEFAULT NULL::text, p_source jsonb DEFAULT NULL::jsonb, p_test boolean DEFAULT false, p_held_why text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -13793,11 +13930,14 @@ declare
   v_clash     boolean := false;
   v_test      boolean := coalesce(p_test, false);
   v_ref       text := nullif(btrim(coalesce(p_ref, '')), '');
+  v_sent      text;
+  v_held      text := nullif(btrim(coalesce(p_held_why, '')), '');
   v_form_ref  text := left(nullif(btrim(coalesce(p_form_ref, '')), ''), 100);
   v_form_name text := left(nullif(btrim(coalesce(p_form_name, '')), ''), 120);
   v_host      text := lower(nullif(btrim(coalesce(p_host, '')), ''));
   v_source    jsonb := case when jsonb_typeof(p_source) = 'object' and octet_length(p_source::text) <= 4000
                             then p_source end;
+  v_reach     jsonb;
 begin
   if p_tenant_id is null then
     raise exception 'Workspace not found.' using errcode = 'P0002';
@@ -13810,6 +13950,9 @@ begin
   end if;
   if p_words is null or p_words !~ '^[0-9a-f]{64}$' then
     raise exception 'The words are a digest.' using errcode = '22023';
+  end if;
+  if v_held is not null and v_held not in ('too_many') then
+    raise exception 'The door holds an entry for one reason: too many.' using errcode = '22023';
   end if;
   if v_host is not null and (char_length(v_host) > 253 or v_host !~ '^[a-z0-9][a-z0-9.-]*$') then
     v_host := null;
@@ -13852,17 +13995,21 @@ begin
   returning o.id into v_outside;
 
   -- Once, within its form. The site's own id is the entry's: the same id with the same words is the same entry, and
-  -- with other words a new one, its id left with the first and said (`clash`), never merged. With no id, the same
-  -- words within ten minutes are a retry (call 19), and later they are a new entry. Two at once wait for each other.
+  -- with other words a new one, its id left with the first and said (`clash`), never merged. That new one keeps the id
+  -- as sent (sent_ref), so the same id with ITS words again is that entry, however much later (00726). With no id, the
+  -- same words within ten minutes are a retry (call 19), and later they are a new entry. Two at once wait for each
+  -- other. An entry found again that is held for a look has no person yet, and is answered as held.
   if v_ref is not null then
     select e.id, e.contact_id, e.words = p_words into v_entry, v_contact, v_same
       from public.form_entries e
      where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.ref = v_ref;
     if v_entry is not null and v_same then
-      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+      return jsonb_build_object('outcome', case when v_contact is null then 'held' else 'again' end,
+                                'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
     end if;
     if v_entry is not null then
       v_clash := true;
+      v_sent := v_ref;
       v_ref := null;
       v_entry := null;
       v_contact := null;
@@ -13870,52 +14017,86 @@ begin
   end if;
   if v_ref is null then
     perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || v_outside::text || '|' || p_words, 0));
-    select e.id, e.contact_id into v_entry, v_contact
-      from public.form_entries e
-     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.words = p_words and e.ref is null
-       and e.created_at > now() - interval '10 minutes'
-     order by e.created_at desc
-     limit 1;
+    if v_sent is not null then
+      select e.id, e.contact_id into v_entry, v_contact
+        from public.form_entries e
+       where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.sent_ref = v_sent and e.words = p_words
+       order by e.created_at
+       limit 1;
+    end if;
+    if v_entry is null then
+      select e.id, e.contact_id into v_entry, v_contact
+        from public.form_entries e
+       where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.words = p_words and e.ref is null
+         and e.created_at > now() - interval '10 minutes'
+       order by e.created_at desc
+       limit 1;
+    end if;
     if v_entry is not null then
-      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+      return jsonb_build_object('outcome', case when v_contact is null then 'held' else 'again' end,
+                                'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
     end if;
   end if;
 
-  -- The person through the one door, as the website's. A person who asked to be forgotten is not made again, and
-  -- nothing of theirs is written: the door's own writes are taken back with it.
-  begin
-    v_person := public.resolve_person(
-      p_tenant_id, '', '', coalesce(p_person ->> 'phone', ''), coalesce(p_person ->> 'email', ''),
-      coalesce(p_person ->> 'name', ''), 'found', 'website', coalesce(p_person -> 'detail', '{}'::jsonb));
-  exception when sqlstate 'PE001' then
-    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null, 'clash', false);
-  end;
-  v_contact := (v_person ->> 'contact_id')::uuid;
+  if v_held is not null then
+    -- Past the door's limit (00726): kept for a look with who it is about as typed, never dropped, never the bell. No
+    -- person is made, and nothing it owes starts, until a member lets it through (form_entry_let_through).
+    v_reach := jsonb_strip_nulls(jsonb_build_object(
+      'name', nullif(btrim(coalesce(p_person ->> 'name', '')), ''),
+      'email', nullif(btrim(coalesce(p_person ->> 'email', '')), ''),
+      'phone', nullif(btrim(coalesce(p_person ->> 'phone', '')), '')));
+  else
+    -- The person through the one door, as the website's. A person who asked to be forgotten is not made again, and
+    -- nothing of theirs is written: the door's own writes are taken back with it.
+    begin
+      v_person := public.resolve_person(
+        p_tenant_id, '', '', coalesce(p_person ->> 'phone', ''), coalesce(p_person ->> 'email', ''),
+        coalesce(p_person ->> 'name', ''), 'found', 'website', coalesce(p_person -> 'detail', '{}'::jsonb));
+    exception when sqlstate 'PE001' then
+      return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null, 'clash', false);
+    end;
+    v_contact := (v_person ->> 'contact_id')::uuid;
+  end if;
 
   -- The entry, where its visitor came from, its form: one write.
   begin
-    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed, outside_form_id,
-                                     source)
-    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, v_ref, p_words, coalesce(p_owed, '{}'), v_outside,
-            v_source)
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, sent_ref, words, owed, state,
+                                     held_why, outside_form_id, source, reach)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, v_ref, v_sent, p_words, coalesce(p_owed, '{}'),
+            case when v_held is null then 'accepted' else 'held' end, v_held, v_outside, v_source, v_reach)
     returning id into v_entry;
   exception when unique_violation then
     -- The same site id at the same moment, kept by the other post: the same entry where its words are these, and
-    -- where they are not, a new one, its id left with the first and said, as above.
+    -- where they are not, a new one, its id left with the first and said, as above: once by its sent id and words.
     select e.id, e.contact_id, e.words = p_words into v_entry, v_contact, v_same
       from public.form_entries e
      where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.ref = v_ref;
     if v_same then
-      return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+      return jsonb_build_object('outcome', case when v_contact is null then 'held' else 'again' end,
+                                'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
+    end if;
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || v_outside::text || '|' || p_words, 0));
+    select e.id, e.contact_id into v_entry, v_contact
+      from public.form_entries e
+     where e.tenant_id = p_tenant_id and e.outside_form_id = v_outside and e.sent_ref = v_ref and e.words = p_words
+     order by e.created_at
+     limit 1;
+    if found then
+      return jsonb_build_object('outcome', case when v_contact is null then 'held' else 'again' end,
+                                'entry_id', v_entry, 'contact_id', v_contact, 'clash', false);
     end if;
     v_clash := true;
     v_contact := (v_person ->> 'contact_id')::uuid;
-    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed, outside_form_id,
-                                     source)
-    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, null, p_words, coalesce(p_owed, '{}'), v_outside,
-            v_source)
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, sent_ref, words, owed, state,
+                                     held_why, outside_form_id, source, reach)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, null, v_ref, p_words, coalesce(p_owed, '{}'),
+            case when v_held is null then 'accepted' else 'held' end, v_held, v_outside, v_source, v_reach)
     returning id into v_entry;
   end;
+
+  if v_held is not null then
+    return jsonb_build_object('outcome', 'held', 'entry_id', v_entry, 'contact_id', null, 'clash', v_clash);
+  end if;
 
   update public.outside_forms o
      set first_entry_at = coalesce(o.first_entry_at, now()), last_entry_at = now()
@@ -13934,10 +14115,10 @@ end $_$;
 
 
 --
--- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean, p_held_why text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) IS 'The website form door''s one write (00675, 00709): the key''s last use and its site (the first key''s row and site made at their first use), the form the entry is of (found by its site, kind and the site''s id for it, or made), the once rule within that form (the site''s own id, the same words with it; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry with where its visitor came from, and its form_entry.accepted event, together. A test keeps no person, owes nothing, names no form, writes no event and stamps its site''s test_at. Answers {outcome: accepted|again|forgotten|test, entry_id, contact_id, person, clash}: clash is an id the form had with other words, kept as a new entry. The service role''s alone.';
+COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean, p_held_why text) IS 'The website form door''s one write (00675, 00709, 00726): the key''s last use and its site (the first key''s row and site made at their first use), the form the entry is of (found by its site, kind and the site''s id for it, or made), the once rule within that form (the site''s own id, the same words with it; an id the form had with other words kept as a new entry under the id as sent, and the same again by that id and its words with no time limit; with no id, the same words within ten minutes), the person through resolve_person as the website''s, the entry with where its visitor came from, and its form_entry.accepted event, together. A test keeps no person, owes nothing, names no form, writes no event and stamps its site''s test_at. An entry past the door''s limit (p_held_why: too_many) is kept held with who it is about as typed, no person, no event and no stamp, until form_entry_let_through. Answers {outcome: accepted|again|held|forgotten|test, entry_id, contact_id, person, clash}: clash is an id the form had with other words, kept as a new entry; held is also the answer for a held entry sent again. The service role''s alone.';
 
 
 --
@@ -14274,20 +14455,21 @@ COMMENT ON FUNCTION public.form_request_take(p_tenant_id uuid, p_form_id uuid, p
 
 
 --
--- Name: form_requests_open(uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: form_requests_open(uuid, timestamp with time zone, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
+CREATE FUNCTION public.form_requests_open(p_tenant_id uuid, p_before timestamp with time zone DEFAULT NULL::timestamp with time zone, p_before_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
   -- A request is open until a link answers it: a member's word, a conversation that took it over, or a reply whose
   -- message did not fail and was not taken back. Sixty days: an older one stays in its form's own list. A hosted
   -- form's request says the time it asked for as its visit stands now (00691); a website's is a request from its form's
-  -- requests_from on (00709), its heading the form's name, its answers the site's own fields.
-  select coalesce(jsonb_agg(r.line order by r.created_at desc), '[]'::jsonb)
+  -- requests_from on (00709), its heading the form's name, its answers the site's own fields. Read on from where a
+  -- list ended (00726): the next 200 older than p_before, and among those of its very moment, below p_before_id.
+  select coalesce(jsonb_agg(r.line order by r.created_at desc, r.id desc), '[]'::jsonb)
     from (
-      select e.created_at,
+      select e.created_at, e.id,
              jsonb_build_object(
                'id', e.id, 'form_id', e.form_id, 'version_id', e.version_id, 'outside_form_id', e.outside_form_id,
                'contact_id', e.contact_id, 'created_at', e.created_at, 'answers', e.answers, 'reach', e.reach,
@@ -14316,6 +14498,9 @@ CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
          and ((e.form_id is not null and v.id is not null)
               or (o.id is not null and e.form = 'request' and e.created_at >= o.requests_from))
          and e.created_at > now() - interval '60 days'
+         and (p_before is null
+              or e.created_at < p_before
+              or (p_before_id is not null and e.created_at = p_before and e.id < p_before_id))
          and not exists (
                select 1 from form_entry_links k
                 where k.tenant_id = e.tenant_id and k.entry_id = e.id
@@ -14324,16 +14509,16 @@ CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
                              select 1 from messages m
                               where m.tenant_id = k.tenant_id and m.id = k.message_id
                                 and m.status not in ('failed', 'canceled')))))
-       order by e.created_at desc
+       order by e.created_at desc, e.id desc
        limit 200) r;
 $$;
 
 
 --
--- Name: FUNCTION form_requests_open(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION form_requests_open(p_tenant_id uuid, p_before timestamp with time zone, p_before_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s forms nobody has answered (00680, 00691, 00709; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: a hosted form''s, and a website form''s from its requests_from on. Each with its answers, who it is about as typed (reach: a hosted form''s), its form''s heading (a website form''s name, null where it has none yet), the outside form it is of, the place it came through, whether a reply to it failed to reach them (unreached), and the time it asked for as its visit stands now. Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back. Counted whole by form_requests_open_count.';
+COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid, p_before timestamp with time zone, p_before_id uuid) IS 'The requests of a workspace''s forms nobody has answered (00680, 00691, 00709, 00726; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: a hosted form''s, and a website form''s from its requests_from on. Each with its answers, who it is about as typed (reach: a hosted form''s), its form''s heading (a website form''s name, null where it has none yet), the outside form it is of, the place it came through, whether a reply to it failed to reach them (unreached), and the time it asked for as its visit stands now. Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back. p_before and p_before_id read on from where a list ended: the next 200 older than that request. Counted whole by form_requests_open_count; where any one entry stands is form_entries_standing''s.';
 
 
 --
@@ -31044,6 +31229,14 @@ declare
   v_slot    public.plan_slots;
   v_place   jsonb := p_approval -> 'placements' -> 0;
   v_placed  jsonb;
+  -- 00727: what a readied approval carries to be kept with its placement, and what is read inside the write.
+  v_words   text := nullif(btrim(p_approval ->> 'words'), '');
+  v_claims  jsonb := case when jsonb_typeof(p_approval -> 'claims') = 'array' then p_approval -> 'claims' else '[]'::jsonb end;
+  v_claim   jsonb;
+  v_claimed uuid;
+  v_made    jsonb;
+  v_paused  timestamptz;
+  v_refused boolean := false;
 begin
   if coalesce((select auth.role()), '') <> 'service_role' then
     raise exception 'Only the service places a slot of a week.' using errcode = '42501';
@@ -31073,11 +31266,59 @@ begin
   if v_slot.at <= now() then
     return jsonb_build_object('fate', 'past', 'posts', '[]'::jsonb);
   end if;
-  v_placed := public.post_approve(p_tenant_id, p_file_id, p_approval);
-  if v_placed ->> 'fate' = 'approved' then
+  -- 00727: Stop everything is read here, inside the write, on a lock its own write waits for (workspace_sending_stop
+  -- takes the row for update). Pressed first, nothing is placed; pressed after, the placement was made before it, and the
+  -- send's own check holds it while everything is stopped.
+  select t.sending_stopped_at into v_paused from public.tenants t where t.id = p_tenant_id for share;
+  if v_paused is not null then
+    return jsonb_build_object('fate', 'stopped', 'posts', '[]'::jsonb);
+  end if;
+  -- 00727: the workspace's posts lock before any post is read or written (post_approve takes the same one, and an
+  -- owner's press takes it first too, post_approve_whole): one order of locks for every approval.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
+  -- 00727: held to what stands now. An approval readied ahead says how the made picture's words stood then
+  -- (stood.caption). Words on it now that are neither those nor the ones this approval keeps (another slot of the same
+  -- picture, placed a moment before) are somebody's since: not what was readied, and nothing is written.
+  select f.made into v_made from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if jsonb_typeof(p_approval -> 'stood') = 'object'
+     and (v_made ->> 'caption') is distinct from (p_approval -> 'stood' ->> 'caption')
+     and (v_words is null or (v_made ->> 'caption') is distinct from v_words) then
+    return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+  end if;
+  begin
+    -- A fact the approval carries, kept as the owner's claim until its day ends (00706 owner_claims), with its event:
+    -- owner_claims_keep's own write, for an approval nobody is signed in to make.
+    for v_claim in select * from jsonb_array_elements(v_claims) loop
+      insert into public.owner_claims (tenant_id, kind, text, source, valid_until)
+      values (p_tenant_id, v_claim ->> 'kind', btrim(v_claim ->> 'text'), v_claim ->> 'source',
+              nullif(v_claim ->> 'valid_until', '')::date)
+      returning id into v_claimed;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'owner_claim.kept', 'setup', 'workspace', p_tenant_id,
+              jsonb_build_object('claim_id', v_claimed, 'claim', v_claim ->> 'kind', 'source', v_claim ->> 'source'));
+    end loop;
+    -- The words that go, the piece's own from now on (00681 piece_words_keep) and on how the picture was made
+    -- (files.made, where Details and AI's card read them): only where the picture does not say them already.
+    if v_words is not null and (v_made ->> 'caption') is distinct from v_words then
+      perform public.piece_words_keep(p_tenant_id, p_file_id, v_words);
+      update public.files f set made = jsonb_set(f.made, '{caption}', to_jsonb(v_words)), updated_at = now()
+       where f.tenant_id = p_tenant_id and f.id = p_file_id and f.source = 'made' and f.kind <> 'video'
+         and f.removed_at is null and jsonb_typeof(f.made) = 'object';
+    end if;
+    v_placed := public.post_approve(p_tenant_id, p_file_id, p_approval);
+    if v_placed ->> 'fate' is distinct from 'approved' then
+      v_refused := true;
+      raise exception 'not approved' using errcode = 'P0001';
+    end if;
     update public.plan_slots set post_id = (v_placed -> 'posts' -> 0 ->> 'post_id')::uuid, updated_at = now()
      where id = v_slot.id;
-  end if;
+  exception when raise_exception then
+    -- Only this door's own refusal is an answer: the facts and the words go with it. Any other is raised as it came.
+    if not v_refused then
+      raise;
+    end if;
+    return v_placed;
+  end;
   return v_placed;
 end $$;
 
@@ -31086,7 +31327,7 @@ end $$;
 -- Name: FUNCTION plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) IS 'A slot of a week AI approved placed (00714), by the service: its post approved via rung (post_approve) and the slot linked to it in one transaction, only for a slot still approved under the rung''s own approval with no post and no video, and only its own placement (its place, kind and time as they stand, a time still ahead). Answers post_approve''s answer, or {fate: taken | changed | past | gone} with nothing written. One post a slot, however often it is asked.';
+COMMENT ON FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) IS 'A slot of a week AI approved placed (00714), by the service: its post approved via rung (post_approve) and the slot linked to it in one transaction, only for a slot still approved under the rung''s own approval with no post and no video, and only its own placement (its place, kind and time as they stand, a time still ahead). 00727: the approval kept whole or not at all. Beside post_approve''s keys it may carry claims [{kind, text, source, valid_until}] (kept as owner_claims with their event), words (piece_words_keep, and the made picture''s own caption) and stood {caption}: how the made picture''s words stood when the approval was readied. Words on it now that are neither those nor this approval''s own answer changed. Refused while everything is stopped (tenants.sending_stopped_at, read on a lock the stop''s own write waits for). Answers post_approve''s answer, or {fate: taken | changed | past | gone | stopped} with nothing written. One post a slot, however often it is asked.';
 
 
 --
@@ -32965,6 +33206,10 @@ begin
   if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
+  -- 00727: the workspace's posts lock, before the posts the owner saw are read (post_approve takes the same one, so
+  -- does a slot AI places): nothing of the piece is added between that read and the swap, and a press that waited here
+  -- reads what the one before it left.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
   -- A version set in place of the posts still waiting: those the owner saw, held still until the swap is made. Where
   -- one has begun to send, or another is waiting now, it is not what they approved.
   if v_replace then
@@ -33015,7 +33260,7 @@ end $$;
 -- Name: FUNCTION post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00713; the outside audit''s 4.2 and 4.3): an approval kept whole or not at all. p_approval is post_approve''s, with claims [{kind, text, source, valid_until}] (owner_claims_keep), words (piece_words_keep, where there are words), replace (piece_posts_replace in place of post_approve) and, with replace, expected: the ids of the posts still waiting that the owner saw, held still while they are swapped. Answers the approving door''s answer; a refusal keeps nothing, and a set of waiting posts that moved since is {fate: changed}.';
+COMMENT ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00713; the outside audit''s 4.2 and 4.3): an approval kept whole or not at all. p_approval is post_approve''s, with claims [{kind, text, source, valid_until}] (owner_claims_keep), words (piece_words_keep, where there are words), replace (piece_posts_replace in place of post_approve) and, with replace, expected: the ids of the posts still waiting that the owner saw, held still while they are swapped. 00727: the workspace''s posts lock is taken first (post_approve''s own), so nothing of the piece is added between that read and the swap, and of two presses at once the second reads what the first left. The posts are compared by id: one whose time or words moved since the owner looked is replaced all the same, since it is being replaced. Answers the approving door''s answer; a refusal keeps nothing, and a set of waiting posts that moved since is {fate: changed}.';
 
 
 --
@@ -41466,7 +41711,7 @@ begin
    where e.tenant_id    = p_tenant_id
      and e.subject_type = 'contact'
      and e.subject_id   = p_contact_id
-     and e.kind in ('contact.named', 'contact.added')
+     and e.kind in ('contact.named', 'contact.added', 'contact.email_set')
      -- Idempotent, and it does not churn a row that holds nothing: whatever
      -- is left once the kept keys are removed is the reason to write.
      and (e.data - 'by' - 'source' - 'scrubbed_at') <> '{}'::jsonb;
@@ -41479,7 +41724,7 @@ end $$;
 -- Name: FUNCTION scrub_contact_events(p_tenant_id uuid, p_contact_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.scrub_contact_events(p_tenant_id uuid, p_contact_id uuid) IS 'Rewrite the contact.named and contact.added events of one erased person to keep only `by`, `source` and a scrubbed_at stamp. Every other key -- the name, the appointment title, the calendar uid and start -- is dropped. Returns the number of rows rewritten.';
+COMMENT ON FUNCTION public.scrub_contact_events(p_tenant_id uuid, p_contact_id uuid) IS 'Rewrite the contact.named, contact.added and contact.email_set events of one erased person to keep only `by`, `source` and a scrubbed_at stamp. Every other key -- the name, the appointment title, the calendar uid and start, an address before and after a change (00726) -- is dropped. Returns the number of rows rewritten.';
 
 
 --
@@ -45623,9 +45868,15 @@ CREATE FUNCTION public.set_person_email(p_contact_id uuid, p_email text) RETURNS
     SET search_path TO 'public'
     AS $_$
 declare
-  v_user   uuid := auth.uid();
-  v_tenant uuid;
-  v_email  text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  v_user    uuid := auth.uid();
+  v_tenant  uuid;
+  v_email   text := nullif(lower(btrim(coalesce(p_email, ''))), '');
+  v_was     text;
+  v_offers  text;
+  v_stopped timestamptz;
+  v_why     text;
+  v_moved   boolean;
+  v_back    record;
 begin
   if v_email is not null and (
        char_length(v_email) not between 3 and 254
@@ -45639,17 +45890,60 @@ begin
   if v_tenant is null or (v_user is not null and not public.is_acting_member(v_tenant)) then
     raise exception 'Person not found.' using errcode = 'P0002';
   end if;
+  -- What the change leaves behind (00726), read under the row's lock: the address before, whether it had a yes to
+  -- offers by email, and what had stopped mail to it.
+  select nullif(lower(btrim(coalesce(c.email, ''))), ''), c.email_marketing, c.email_suppressed_at,
+         c.email_suppressed_reason
+    into v_was, v_offers, v_stopped, v_why
+    from contacts c where c.id = p_contact_id
+     for update;
+  v_moved := v_was is distinct from v_email;
   begin
     update contacts set email = v_email, updated_at = now() where id = p_contact_id;
   exception when unique_violation then
     raise exception 'Another person here already has that address.' using errcode = '23505';
   end;
-  -- Who, and which path: a member's id and 'member', or null and
-  -- 'customer_message'. Never the address.
+  if v_moved then
+    -- A yes to offers by email is the address's that gave it (set_email_offers_yes refuses one for an address the
+    -- person no longer has): it is not carried to another. Not asked again, said with why; a no is the person's and stays.
+    if v_was is not null and v_offers = 'opted_in' then
+      update contacts
+         set email_marketing = 'unknown', email_marketing_source = 'address_changed', email_marketing_updated_at = now()
+       where id = p_contact_id;
+      insert into events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (v_tenant, 'contact.consent_changed', 'contact', 'contact', p_contact_id,
+              jsonb_build_object('purpose', 'email_marketing', 'consent', 'unknown', 'source', 'address_changed',
+                                 'previous', 'opted_in', 'channel', 'email'));
+    end if;
+    -- The change clears what stopped mail to the old address (contacts_email_change_clears_suppression: a changed
+    -- address is a new one to the wire). It is kept with the change below, and an address this person had before that
+    -- was stopped when it left is stopped again as it comes back: the newest change away from it says.
+    if v_email is not null then
+      select e.data ->> 'was_stopped' as why, (e.data ->> 'was_stopped_at')::timestamptz as at into v_back
+        from events e
+       where e.tenant_id = v_tenant and e.subject_type = 'contact' and e.subject_id = p_contact_id
+         and e.kind = 'contact.email_set' and e.data ->> 'was' = v_email
+       order by e.created_at desc
+       limit 1;
+      if v_back.why in ('hard_bounce', 'complaint', 'provider') then
+        update contacts
+           set email_suppressed_at = coalesce(v_back.at, now()), email_suppressed_reason = v_back.why
+         where id = p_contact_id;
+      end if;
+    end if;
+  end if;
+  -- Who, and which path: a member's id and 'member', or null and 'customer_message'. A first address is not named, as
+  -- before. Where an address is replaced or cleared (00726), the one before would be lost with the change: the event
+  -- holds it, the one after, and what had stopped mail to the one before. A person's own data, so scrub_contact_events
+  -- drops them when the person is erased.
   insert into events (tenant_id, kind, category, subject_type, subject_id, data)
   values (v_tenant, 'contact.email_set', 'contact', 'contact', p_contact_id,
           jsonb_build_object('set', v_email is not null, 'by', v_user,
-                             'source', case when v_user is null then 'customer_message' else 'member' end));
+                             'source', case when v_user is null then 'customer_message' else 'member' end)
+          || case when v_moved and v_was is not null
+                  then jsonb_strip_nulls(jsonb_build_object('was', v_was, 'now', v_email, 'was_stopped', v_why,
+                                                            'was_stopped_at', v_stopped))
+                  else '{}'::jsonb end);
   return jsonb_build_object('contact_id', p_contact_id, 'email', v_email);
 end $_$;
 
@@ -45658,7 +45952,7 @@ end $_$;
 -- Name: FUNCTION set_person_email(p_contact_id uuid, p_email text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.set_person_email(p_contact_id uuid, p_email text) IS 'Set or clear a person''s email address: a member where the person lives, or the edge with no session recording what the customer wrote. One address per person per workspace; the event says which of the two set it, never the address.';
+COMMENT ON FUNCTION public.set_person_email(p_contact_id uuid, p_email text) IS 'Set or clear a person''s email address: a member where the person lives, or the edge with no session recording what the customer wrote. One address per person per workspace; the event says which of the two set it, and a first address is never named. Where an address is replaced or cleared (00726) the event also holds the one before and the one after (was, now) and what had stopped mail to the one before (was_stopped, was_stopped_at), dropped when the person is erased; a yes to offers by email given by the address before is set back to not asked (source address_changed, with contact.consent_changed); and an address that comes back stopped as it left is stopped again.';
 
 
 --
@@ -52901,6 +53195,7 @@ CREATE TABLE public.form_entries (
     code text,
     code_used_at timestamp with time zone,
     outside_form_id uuid,
+    sent_ref text,
     CONSTRAINT form_entries_answers_check CHECK (((jsonb_typeof(answers) = 'object'::text) AND (octet_length((answers)::text) <= 16000))),
     CONSTRAINT form_entries_code_check CHECK (((code IS NULL) OR (code ~ '^[A-HJ-NP-Z2-9]{6}$'::text))),
     CONSTRAINT form_entries_effects_check CHECK ((jsonb_typeof(effects) = 'object'::text)),
@@ -52913,6 +53208,7 @@ CREATE TABLE public.form_entries (
     CONSTRAINT form_entries_person_unless_held CHECK (((contact_id IS NOT NULL) OR (state = 'held'::text) OR test)),
     CONSTRAINT form_entries_reach_check CHECK (((reach IS NULL) OR ((jsonb_typeof(reach) = 'object'::text) AND (octet_length((reach)::text) <= 1000)))),
     CONSTRAINT form_entries_ref_check CHECK (((ref IS NULL) OR ((char_length(ref) >= 1) AND (char_length(ref) <= 100)))),
+    CONSTRAINT form_entries_sent_ref_check CHECK (((sent_ref IS NULL) OR ((char_length(sent_ref) >= 1) AND (char_length(sent_ref) <= 100)))),
     CONSTRAINT form_entries_source_check CHECK (((source IS NULL) OR ((jsonb_typeof(source) = 'object'::text) AND (octet_length((source)::text) <= 4000)))),
     CONSTRAINT form_entries_state_check CHECK ((state = ANY (ARRAY['accepted'::text, 'processed'::text, 'held'::text]))),
     CONSTRAINT form_entries_words_check CHECK ((words ~ '^[0-9a-f]{64}$'::text))
@@ -53008,6 +53304,13 @@ COMMENT ON COLUMN public.form_entries.code IS 'The short code the thank-you carr
 --
 
 COMMENT ON COLUMN public.form_entries.outside_form_id IS 'The form owned elsewhere this entry is of (00709): a website''s. An entry names a form made here (form_id) or one of these, never both; a test names neither.';
+
+
+--
+-- Name: COLUMN form_entries.sent_ref; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.sent_ref IS 'The id a site sent on an entry kept as a clash (00726): its form already had that id with other words, so the id itself (ref) stays with the first. The same form, this id and the same words again are this entry, with no time limit. Not unique.';
 
 
 --
@@ -56023,7 +56326,7 @@ CREATE TABLE public.plan_slots (
     CONSTRAINT plan_slots_ask_shape CHECK (((state <> 'needs_footage'::text) OR (ask IS NOT NULL))),
     CONSTRAINT plan_slots_blocked_reason_check CHECK (((blocked_reason IS NULL) OR ((char_length(blocked_reason) >= 1) AND (char_length(blocked_reason) <= 400)))),
     CONSTRAINT plan_slots_blocked_shape CHECK (((state = 'blocked'::text) = ((blocked_why IS NOT NULL) AND (blocked_reason IS NOT NULL)))),
-    CONSTRAINT plan_slots_blocked_why_check CHECK (((blocked_why IS NULL) OR (blocked_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text, 'unmade'::text])))),
+    CONSTRAINT plan_slots_blocked_why_check CHECK (((blocked_why IS NULL) OR (blocked_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text, 'unmade'::text, 'reason_unread'::text])))),
     CONSTRAINT plan_slots_intent_check CHECK (((intent IS NULL) OR (jsonb_typeof(intent) = 'object'::text))),
     CONSTRAINT plan_slots_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
     CONSTRAINT plan_slots_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text]))),
@@ -56339,7 +56642,7 @@ CREATE TABLE public.posts (
     CONSTRAINT posts_attempts_shape CHECK (((attempts >= 0) AND (attempts <= 2))),
     CONSTRAINT posts_caption_shape CHECK (((caption IS NULL) OR (char_length(caption) <= 2200))),
     CONSTRAINT posts_held_shape CHECK (((((status = 'held'::text) OR ((status = 'pulled'::text) AND (held_why = 'late'::text))) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)) AND ((held_why IS NULL) OR (status = ANY (ARRAY['held'::text, 'pulled'::text]))))),
-    CONSTRAINT posts_held_why_check CHECK ((held_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text]))),
+    CONSTRAINT posts_held_why_check CHECK ((held_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text, 'reason_unread'::text]))),
     CONSTRAINT posts_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
     CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'facebook'::text, 'hand'::text]))),
     CONSTRAINT posts_revision_shape CHECK ((((revision IS NULL) OR (revision >= 1)) AND ((capability_edition IS NULL) OR (capability_edition >= 1)))),
@@ -61205,6 +61508,13 @@ CREATE UNIQUE INDEX form_entries_ref_outside ON public.form_entries USING btree 
 --
 
 CREATE INDEX form_entries_requests ON public.form_entries USING btree (tenant_id, created_at) WHERE ((form_id IS NOT NULL) AND (state <> 'held'::text) AND (NOT test));
+
+
+--
+-- Name: form_entries_sent_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_sent_ref ON public.form_entries USING btree (tenant_id, outside_form_id, sent_ref) WHERE (sent_ref IS NOT NULL);
 
 
 --
@@ -72957,6 +73267,15 @@ GRANT ALL ON FUNCTION public.form_entries_purge() TO service_role;
 
 
 --
+-- Name: FUNCTION form_entries_standing(p_tenant_id uuid, p_entry_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entries_standing(p_tenant_id uuid, p_entry_ids uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entries_standing(p_tenant_id uuid, p_entry_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.form_entries_standing(p_tenant_id uuid, p_entry_ids uuid[]) TO service_role;
+
+
+--
 -- Name: FUNCTION form_entry_hold(p_tenant_id uuid, p_entry_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -72983,11 +73302,11 @@ GRANT ALL ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uui
 
 
 --
--- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean, p_held_why text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean) TO service_role;
+REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean, p_held_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text, p_form_ref text, p_form_name text, p_host text, p_source jsonb, p_test boolean, p_held_why text) TO service_role;
 
 
 --
@@ -73035,12 +73354,12 @@ GRANT ALL ON FUNCTION public.form_request_take(p_tenant_id uuid, p_form_id uuid,
 
 
 --
--- Name: FUNCTION form_requests_open(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION form_requests_open(p_tenant_id uuid, p_before timestamp with time zone, p_before_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) TO authenticated;
-GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid, p_before timestamp with time zone, p_before_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid, p_before timestamp with time zone, p_before_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid, p_before timestamp with time zone, p_before_id uuid) TO service_role;
 
 
 --
