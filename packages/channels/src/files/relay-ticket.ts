@@ -110,9 +110,9 @@ interface ShelfTicketClaim {
 export function signShelfTicket(signingKey: string, claim: ShelfTicketClaim): string {
   if (!signingKey) throw new Error("a shelf ticket is signed with the ticket's key");
   if (!SHELF_USES.some((use) => use === claim.use)) throw new Error("a shelf ticket reads, puts, deletes or lists");
-  const listing = claim.use === "list";
-  if (listing && claim.file !== undefined) throw new Error("a list names a workspace and no file");
-  if (!RELAY_ITEM.test(claim.tenant) || (!listing && !RELAY_ITEM.test(claim.file ?? "")))
+  const forList = claim.use === "list";
+  if (forList && claim.file !== undefined) throw new Error("a list names a workspace and no file");
+  if (!RELAY_ITEM.test(claim.tenant) || (!forList && !RELAY_ITEM.test(claim.file ?? "")))
     throw new Error("a shelf ticket names a workspace and a file, each by its id");
   const names = claim.bytes !== undefined || claim.sha256 !== undefined;
   if (claim.use !== "put" && names) throw new Error("only a put names bytes");
@@ -126,7 +126,7 @@ export function signShelfTicket(signingKey: string, claim: ShelfTicketClaim): st
   const claimJson = JSON.stringify({
     for: "shelf",
     tenant: claim.tenant,
-    ...(listing ? {} : { file: claim.file }),
+    ...(forList ? {} : { file: claim.file }),
     use: claim.use,
     exp: Math.floor(claim.expiresAt),
     ...(claim.use === "put" ? { bytes: claim.bytes, sha256: claim.sha256 } : {}),

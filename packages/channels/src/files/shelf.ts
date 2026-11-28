@@ -46,7 +46,7 @@ const ASK_TRY_MS = 10 * SECOND_MS;
 /** How long a ticket the app itself uses runs: a put, a delete, a list, and its own read of a record. */
 const OWN_TICKET_MS = 5 * MIN_MS;
 /** One page of a workspace's list: the relay names up to a thousand files a page. Asked once: a list is a floor, tried again next pass. */
-const LIST_TRY_MS = 5 * SECOND_MS;
+const LIST_PAGE_TRY_MS = 5 * SECOND_MS;
 /** The most pages one list is read for. A shelf holds a workspace's made videos, never this many thousands. */
 const LIST_PAGES_MAX = 10;
 
@@ -218,7 +218,7 @@ export async function listShelf(
     const reply = await fetchFromProvider(
       "relay",
       address.toString(),
-      { method: "GET", headers: { authorization: `Bearer ${ticket}` }, timeoutMs: LIST_TRY_MS, idempotent: true },
+      { method: "GET", headers: { authorization: `Bearer ${ticket}` }, timeoutMs: LIST_PAGE_TRY_MS, idempotent: true },
       deps,
     );
     const read = listPageOf(reply);

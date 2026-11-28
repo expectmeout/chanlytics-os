@@ -313,11 +313,11 @@ export async function answerShelf(request: Request, env: ShelfEnv, deps: ShelfDe
   const head = request.method === "HEAD";
   const url = new URL(request.url);
   // The list is one path, asked one way; every other path is a file's, and its method says what is asked of it.
-  const listing = url.pathname === LIST_PATH;
-  const use = listing ? (request.method === "GET" ? "list" : undefined) : USE_OF[request.method];
+  const forList = url.pathname === LIST_PATH;
+  const use = forList ? (request.method === "GET" ? "list" : undefined) : USE_OF[request.method];
   if (!use)
-    return relayRefusal(false, 405, { error: "request", reason: "method" }, { allow: listing ? "GET" : METHODS });
-  const file = listing ? null : (SHELF_PATH.exec(url.pathname)?.[1] ?? "");
+    return relayRefusal(false, 405, { error: "request", reason: "method" }, { allow: forList ? "GET" : METHODS });
+  const file = forList ? null : (SHELF_PATH.exec(url.pathname)?.[1] ?? "");
   if (file === "") return relayRefusal(head, 404, { error: "request", reason: "path" });
   const read = await readShelfTicket(env.TICKET_KEY, ticketOf(request, url, use), deps.nowMs());
   if (!read.ok) return relayRefusal(head, 403, { error: "ticket", reason: read.reason });
