@@ -110,7 +110,7 @@ export function isOurOwnApp(provider: Provider): boolean {
 }
 
 /** What an answer's "too many" says: whose limit it spent, and how long the service asked us to wait, when it said. */
-export interface TooMany {
+interface TooMany {
   scope: TooManyScope;
   waitMs: number | null;
 }
