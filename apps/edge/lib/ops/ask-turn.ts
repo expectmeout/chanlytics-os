@@ -135,7 +135,8 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   const t0 = Date.now();
   const gatewayMs = t0 - tIn;
   const { model: asked, betas, ...rest } = ask.request;
-  // The whole call, the fallback's try included, inside the function's sixty seconds (vercel.json).
+  // The whole call, the fallback's try included, inside the function's sixty seconds (vercel.json). It ends at the model
+  // when whoever asked has gone: the dashboard's own abort, before the first word or after it (channels provider-fetch).
   const up = await streamModelCall(
     {
       purpose: modelPurpose,
@@ -143,6 +144,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
       body: rest,
       ...(betas ? { betas } : {}),
       deadlineMs: MODEL_ROUTES[modelPurpose].timeoutMs,
+      signal: request.signal,
     },
     { tenantId, userId },
   );

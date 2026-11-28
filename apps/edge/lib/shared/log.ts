@@ -27,9 +27,9 @@ import {
   type Logger as OneLogger,
   type LogFields,
 } from "@chanlytics/log";
-import { noteAnswerAtCap } from "@chanlytics/db/ops";
+import { noteAnswerAtCap, noteDoorRefusing } from "@chanlytics/db/ops";
 import { observeDb } from "@chanlytics/db/shared";
-import { DbFailure, textOrEmpty, valueAt } from "@chanlytics/contracts";
+import { DbFailure, MIN_MS, textOrEmpty, valueAt } from "@chanlytics/contracts";
 import { env } from "./env.js";
 import { pg } from "./pg.js";
 import { refuse } from "./http.js";
@@ -118,6 +118,96 @@ async function answerCaught(request: Request | undefined, answer: () => Promise<
 }
 
 /**
+ * A door that refuses signed knocks tells somebody (lane 8 of the "prove it works" plan, on lane 16's design, 28 Nov 2026).
+ * WhatsApp's door and Instagram's answered a knock whose signature failed with a 401 and wrote nothing: if the signing
+ * secret stopped matching (rotated at Meta, or changed here), every customer's message would be refused, Meta would
+ * retry and then stop delivering, and nothing anywhere would say so. Now each door's refusals of knocks that carried a
+ * credential are counted in this instance, in a row; an answer that lets one in sets its count back to nothing; at
+ * three, spread over five minutes or more, the door is noted in the pager's memory (packages/db noteDoorRefusing), once
+ * for the run of refusals, which Health shows and the health sweep pages once a window (ops/cap-watch.ts). The logger
+ * cannot page itself: the pager logs through it. A stranger's knock with no credential is never counted, and a burst of
+ * forged ones (anyone can send the header) notes nothing: a secret that stopped matching refuses the provider's
+ * deliveries and its retries for as long as it is wrong, a burst does not last. A door's answer about the act itself (an
+ * ad account that is not the owner's, a paused AI) is not a refused credential.
+ */
+const CREDENTIAL_HEADERS = [
+  "x-hub-signature-256",
+  "x-twilio-signature",
+  "svix-signature",
+  "stripe-signature",
+  "x-retell-signature",
+  "webhook-signature",
+  "x-goog-channel-token",
+  "x-edge-token",
+] as const;
+/** The codes a door refuses a knock's credential itself with (`refuse`): its signature, its token, its key. */
+const CREDENTIAL_REFUSALS: ReadonlySet<string> = new Set([
+  "bad_signature",
+  "unauthorized",
+  "token_signature",
+  "token_malformed",
+  "token_expired",
+]);
+/** Refused signed knocks in a row, with none let in, that note a door for the pager, over at least REFUSING_SPAN_MS. */
+const REFUSALS_NOTED = 3;
+const REFUSING_SPAN_MS = 5 * MIN_MS;
+/** A door's run of refused signed knocks in this instance: how many, since when, and whether it was noted. */
+interface Refusing {
+  refused: number;
+  since: number;
+  noted: boolean;
+}
+const refusing = new Map<string, Refusing>();
+
+/** A refusal's code where its answer is the edge's own JSON (`refuse`); null for any other body (TwiML, none). */
+async function readRefusalCode(res: Response): Promise<string | null> {
+  try {
+    const code = valueAt(JSON.parse(await res.clone().text()), "error");
+    return typeof code === "string" ? code : null;
+  } catch {
+    // Not the edge's JSON: a provider's own shape (Twilio's TwiML), or no body.
+    return null;
+  }
+}
+
+/** Whether an answer refused the knock's credential itself: Stripe's is a 400 `signature`, the rest a 401 or a 403. */
+async function hasRefusedTheCredential(res: Response): Promise<boolean> {
+  if (res.status !== 400 && res.status !== 401 && res.status !== 403) return false;
+  const code = await readRefusalCode(res);
+  if (res.status === 400) return code === "signature";
+  return code === null || CREDENTIAL_REFUSALS.has(code);
+}
+
+/** One knock's answer, counted for its door when it carried a credential; a run of refusals that lasts is noted once. */
+async function heardKnock(request: Request | undefined, res: Response): Promise<void> {
+  if (!request?.headers || !CREDENTIAL_HEADERS.some((header) => request.headers.has(header))) return;
+  const path = URL.canParse(request.url) ? new URL(request.url).pathname : "";
+  if (!(await hasRefusedTheCredential(res))) {
+    refusing.delete(path);
+    return;
+  }
+  const now = Date.now();
+  const run = refusing.get(path) ?? { refused: 0, since: now, noted: false };
+  run.refused += 1;
+  refusing.set(path, run);
+  if (run.noted || run.refused < REFUSALS_NOTED || now - run.since < REFUSING_SPAN_MS) return;
+  run.noted = true;
+  oneLogger<LogEvent>().error("door_refuses_signed_knocks", {
+    door: path,
+    refused: run.refused,
+    since: new Date(run.since).toISOString(),
+    status: res.status,
+  });
+  const db = pg();
+  if (!db) return;
+  await noteDoorRefusing(db, path, new Date().toISOString())
+    .then(({ error }) => {
+      if (error) throw new DbFailure(error, "note a door that refuses signed knocks");
+    })
+    .catch(logAndGoOn("note a door that refuses signed knocks"));
+}
+
+/**
  * A door: `handler` runs as the request it serves, named once as it enters. Every line it logs, every job it
  * schedules and every event it writes carries the name, and the answer carries it back. `trustCaller` is the admin
  * doors': the dashboard names the request it calls with (src/server/shared/edge.ts), signed into its token, so a click's lines
@@ -142,7 +232,15 @@ export function door<A extends unknown[] = []>(
       : globalThis.crypto.randomUUID();
     // What it is for is the door's path: its outside calls are said under it once it has answered (packages/log).
     const purpose = request?.url && URL.canParse(request.url) ? new URL(request.url).pathname : undefined;
-    return withRequestId(id, async () => named(await answerCaught(request, call), id), purpose ? { purpose } : {});
+    return withRequestId(
+      id,
+      async () => {
+        const res = await answerCaught(request, call);
+        await heardKnock(request, res);
+        return named(res, id);
+      },
+      purpose ? { purpose } : {},
+    );
   };
   return Object.assign((request: Request) => answer(request, () => handler(request)), {
     with:

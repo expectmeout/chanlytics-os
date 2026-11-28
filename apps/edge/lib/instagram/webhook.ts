@@ -279,7 +279,11 @@ export function instagramReceiver(settleMs: number): (request: Request) => Promi
 
 async function receiveWith(request: Request, settleMs: number): Promise<Response> {
   const raw = await request.text();
-  if (!signedByInstagramApp(request, raw)) return refuse(401, "bad_signature");
+  if (!signedByInstagramApp(request, raw)) {
+    // Said, as every other webhook door says its own: a secret that stopped matching refuses every comment and DM.
+    doorLog.warn("instagram_bad_signature", { signed: request.headers.has("x-hub-signature-256") });
+    return refuse(401, "bad_signature");
+  }
   await keepIgDelivery(request, raw);
   let body: unknown = null;
   try {

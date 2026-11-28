@@ -33,4 +33,5 @@ export const WHATSAPP_EVENTS = [
   "waba_event_write_failed",
   "waba_route_failed",
   "waba_unroutable",
+  "whatsapp_bad_signature",
 ] as const;

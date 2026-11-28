@@ -20,9 +20,11 @@ export {
 } from "./health";
 export {
   AT_CAP_PAGE,
+  DOOR_REFUSING_PAGE,
   findOperatorPage,
   listOperatorPages,
   noteAnswerAtCap,
+  noteDoorRefusing,
   saveOperatorPage,
   stampOperatorPage,
 } from "./pages";

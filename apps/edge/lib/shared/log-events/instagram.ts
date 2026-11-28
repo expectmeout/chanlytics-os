@@ -36,6 +36,7 @@ export const INSTAGRAM_EVENTS = [
   "ig_unsent",
   "ig_unsent_failed",
   "ig_unsent_media_kept",
+  "instagram_bad_signature",
   "meta_connect_refused",
   "meta_connected",
   "meta_disconnected",

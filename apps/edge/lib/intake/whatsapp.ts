@@ -342,7 +342,11 @@ function owedBy(change: Change): number {
 
 export async function receiveWhatsappEvent(request: Request): Promise<Response> {
   const raw = await request.text();
-  if (!signedByMeta(request, raw)) return refuse(401, "bad_signature");
+  if (!signedByMeta(request, raw)) {
+    // Said, as every other webhook door says its own: a secret that stopped matching refuses every customer's message.
+    L.warn("whatsapp_bad_signature", { signed: request.headers.has("x-hub-signature-256") });
+    return refuse(401, "bad_signature");
+  }
   const delivery = await keepMetaDelivery(request, raw);
 
   interface WebhookBody {
