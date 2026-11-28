@@ -15,6 +15,8 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     tenant_id: DOOR_ID.optional(),
     user_id: DOOR_ID.optional(),
     code: z.string().optional(),
+    /** `copy`: the video a draft came to show, whose copy at the video platform is asked back. */
+    file_id: DOOR_ID.optional(),
     /** `choose`: the platform's id of the account the owner meant. */
     external_id: z.string().optional(),
     /** `disconnect`: whether the ads that are running are paused first. */
@@ -23,8 +25,6 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     place: z
       .object({ kind: z.enum(["city", "region", "country"]), query: z.string().trim().min(1).max(120) })
       .optional(),
-    /** `copy`: the video a draft came to show, whose copy at the video platform is asked back. */
-    file_id: DOOR_ID.optional(),
   }),
   answerFields({
     ready: z.boolean(),
