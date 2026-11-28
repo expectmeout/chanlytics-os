@@ -14,6 +14,8 @@
  *               doors that begin a copy write its job themselves, so this is only the floor under them.
  *   owed        what the shelf never got (00729, shelf/catch-up.ts): a made video with no copy's row has its kept file
  *               read and its copy begun, a copy the shelf refused is put back, and a full shelf is said.
+ *   held        what the shelf really holds against its rows (shelf/holds.ts), a few workspaces a pass: an object no
+ *               row names is taken off, and a row that says checked with nothing behind it is put back.
  *   the grace   an item seen in its provider's bin, or moved out to a place its account can see, seven days ago: its
  *               Library file leaves only if nothing used it and no other origin holds it, and its row goes. One
  *               statement for every workspace (source_items_grace_end), which reads tombstones alone: a file with
@@ -39,6 +41,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { errField, logger } from "../../shared/log.js";
 import { keepShelfCaughtUp } from "../shelf/catch-up.js";
+import { keepShelfTrue } from "../shelf/holds.js";
 import { COPY_RETURN, LET_GO, SHELF_REQUEUE, SOURCE_GRACE } from "../takes/budgets.js";
 import { streamAccount } from "../video-keys.js";
 import { hearCopyWord } from "./bring-back.js";
@@ -115,6 +118,7 @@ interface CopiesMoved {
   asked: number;
   shelved: number;
   owed: number;
+  held: number;
   removed: number;
   kept: number;
   cleared: number;
@@ -122,7 +126,8 @@ interface CopiesMoved {
 
 /**
  * The pass. Answers how many copies it asked after, how many it asked for again, how many shelf copies it wrote a
- * job for again, how many copies the shelf was owed it began or put back, and what the cleanup did.
+ * job for again, how many copies the shelf was owed it began or put back, how many it mended against the shelf's own
+ * list, and what the cleanup did.
  */
 export async function keepCopiesMoving(db: Db, nowMs: number): Promise<CopiesMoved> {
   const log = logger({});
@@ -161,7 +166,12 @@ export async function keepCopiesMoving(db: Db, nowMs: number): Promise<CopiesMov
     log.error("files_sweep_failed", { part: "shelf_owed", error: errField(failure) });
     return 0;
   });
+  // What the shelf holds, held to its rows. A failure here is a line too.
+  const held = await keepShelfTrue(db, nowMs).catch((failure: unknown) => {
+    log.error("files_sweep_failed", { part: "shelf_held", error: errField(failure) });
+    return 0;
+  });
   const grace = await endSourceGrace(db, { graceSeconds: SOURCE_GRACE.seconds, limit: SOURCE_GRACE.aSweep });
   if (grace.cleared > 0) log.info("copy_grace", grace);
-  return { copies: moving.length, asked: askedAgain, shelved, owed, ...grace };
+  return { copies: moving.length, asked: askedAgain, shelved, owed, held, ...grace };
 }

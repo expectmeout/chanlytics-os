@@ -12,6 +12,7 @@ import { DbFailure, FILE_ARCHIVE_STATES, heldTenantId, isOneOf, type TenantId } 
 import { z } from "zod";
 import type { Database } from "../../types";
 import { isMissingDoor } from "../../shared/missing-door";
+import { readAllRowsByKey } from "../../shared/paged";
 import { readAnswer } from "../../shared/read-json";
 import { platformWide } from "../../shared/tenant-db";
 
@@ -202,4 +203,78 @@ export async function markShelfUnkept(db: Db, tenantId: TenantId, fileId: string
   const { data, error } = await db.rpc("file_shelf_unkept", { p_tenant_id: tenantId, p_file_id: fileId });
   if (error) throw new DbFailure(error, "cannot say the video has no file to shelve");
   return data === true;
+}
+
+/** The most shelf copies one workspace's compare reads: past it the read refuses, and nothing is judged by a part. */
+const SHELF_COPIES_MAX = 5_000;
+
+/** A shelf copy's row, as the compare reads it off the table. */
+type ShelfCopyRead = Pick<Database["public"]["Tables"]["file_archives"]["Row"], "file_id" | "state" | "checked_at">;
+
+/** A workspace's shelf copy, as the compare with what the shelf holds reads one: whose, where it stands, and since when. */
+interface ShelfCopy {
+  fileId: string;
+  state: (typeof FILE_ARCHIVE_STATES)[number];
+  checkedAt: string | null;
+}
+
+/**
+ * Every shelf copy's row of one workspace, whole: what the shelf's own list is compared with. Read by the file's id,
+ * a page after the last, so a row purged meanwhile costs nothing but itself. Throws where the workspace holds more
+ * than a compare reads: a part of the rows would make every row past it look like nothing names its object.
+ */
+export async function listShelfCopies(db: Db, tenantId: TenantId): Promise<ShelfCopy[]> {
+  const rows = await readAllRowsByKey<ShelfCopyRead>(
+    "the workspace's shelf copies",
+    (row) => row.file_id,
+    (after, size) => {
+      const page = db
+        .from("file_archives")
+        .select("file_id, state, checked_at")
+        .eq("tenant_id", tenantId)
+        .eq("origin", "shelf")
+        .order("file_id", { ascending: true })
+        .limit(size);
+      return after ? page.gt("file_id", after) : page;
+    },
+    "whole",
+    SHELF_COPIES_MAX,
+  );
+  return rows.flatMap((row) =>
+    isOneOf(FILE_ARCHIVE_STATES, row.state)
+      ? [{ fileId: row.file_id, state: row.state, checkedAt: row.checked_at }]
+      : [],
+  );
+}
+
+/** Whether a file has a shelf copy's row at this moment, in any state: asked again before anything is taken off the shelf. */
+export async function hasShelfCopy(db: Db, tenantId: TenantId, fileId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("file_archives")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("file_id", fileId)
+    .eq("origin", "shelf")
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "cannot read whether the file has a shelf copy");
+  return data !== null;
+}
+
+/**
+ * How many workspaces keep a shelf (features.video_shelf true, read as the app reads it), and a few of them in the
+ * order of their ids, from the `from`-th: what the compare walks, a slice a pass.
+ */
+export async function listShelvingWorkspaces(
+  db: Db,
+  slice: { from: number; size: number },
+): Promise<{ total: number; tenantIds: TenantId[] }> {
+  const { data, error, count } = await platformWide(db)
+    .from("tenant_config")
+    .select("tenant_id", { count: "exact" })
+    // The switch as JSON, held to JSON's own true: a workspace that wrote the word "true" is off, as the app reads it.
+    .eq("config->features->video_shelf", true)
+    .order("tenant_id", { ascending: true })
+    .range(slice.from, slice.from + Math.max(slice.size, 1) - 1);
+  if (error) throw new DbFailure(error, "cannot read the workspaces that keep a shelf");
+  return { total: count ?? data.length, tenantIds: data.map((row) => heldTenantId(row.tenant_id)) };
 }
