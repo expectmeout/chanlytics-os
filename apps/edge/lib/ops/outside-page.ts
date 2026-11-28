@@ -11,13 +11,19 @@
  * What became of the page is the answer: 200 for one that went (`sent`) or was told inside its window already
  * (`suppressed`), 503 for one that did not go out (`failed`, `unaddressed`), so the workflow that knocked goes red.
  *
+ * A third knock is no alarm: the morning line (.github/workflows/morning-line.yml), one message a day that says what
+ * is red on main and on production and what did not run, or that nothing is. Checks existed for almost everything
+ * and a red one woke nobody (two weekly checks of production red for three weeks, November 2026). It goes to the same
+ * addresses by the same transport, with the day's count in its subject (`headline`), and keeps no memory: a line sent
+ * every day is never held back, and leaves no row for Health to read as a condition that never clears.
+ *
  * The platform's key only (DIAG_KEY, held by the workflows as a secret): nothing mints a token for this door, and a
  * token, which names a workspace, is refused. The conditions are a closed set, so a workflow cannot page anything
  * else; the words are the workflow's, cut to what a page carries.
  */
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
-import { pageOperator } from "../shared/alerts/page-operator.js";
+import { pageOperator, tellOperator, type PageOutcome } from "../shared/alerts/page-operator.js";
 import { logger } from "../shared/log.js";
 import type { Admitted } from "../shared/admin-auth.js";
 
@@ -25,21 +31,30 @@ import type { Admitted } from "../shared/admin-auth.js";
 const OUTSIDE_CONDITIONS = {
   production_check_red: "The check of production is red",
   migration_ledger: "Production's migrations disagree with main's",
+  morning_line: "Morning line",
 } as const;
 
 type OutsideCondition = keyof typeof OUTSIDE_CONDITIONS;
 
 /** The longest detail a page carries: the workflow's summary and its run's address, not a log. */
 const DETAIL_MAX = 4000;
+/** The longest headline the morning line's subject carries: the day's count, one line. */
+const HEADLINE_MAX = 120;
 
 const isCondition = (v: unknown): v is OutsideCondition =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(OUTSIDE_CONDITIONS, v);
+
+/** The morning line's subject: its name and the day's count, one line of the workflow's, cut to a subject's length. */
+function morningSubject(headline: unknown): string {
+  const said = typeof headline === "string" ? headline.replace(/\s+/g, " ").trim().slice(0, HEADLINE_MAX) : "";
+  return said ? `${OUTSIDE_CONDITIONS.morning_line}: ${said}` : OUTSIDE_CONDITIONS.morning_line;
+}
 
 export async function readPageFromOutside(auth: Admitted, request: Request): Promise<Response> {
   // screen-word: the platform's pager door, which no workspace calls
   if (auth.via !== "key") return refuse(403, "platform_only", "the platform's key pages; a workspace's token does not");
 
-  let body: { condition?: unknown; detail?: unknown } = {};
+  let body: { condition?: unknown; detail?: unknown; headline?: unknown } = {};
   try {
     const parsed: unknown = JSON.parse(await request.text());
     if (typeof parsed === "object" && parsed !== null) body = parsed;
@@ -52,9 +67,15 @@ export async function readPageFromOutside(auth: Admitted, request: Request): Pro
   const detail = typeof body.detail === "string" ? body.detail.trim().slice(0, DETAIL_MAX) : "";
   if (!detail) return refuse(400, "bad_request", "detail says what was seen and where");
 
-  const db = pg();
-  if (!db) return refuse(503, "no_database");
-  const outcome = await pageOperator({ db }, `outside:${condition}`, OUTSIDE_CONDITIONS[condition], detail);
+  let outcome: PageOutcome;
+  if (condition === "morning_line") {
+    // A report, not an alarm: no memory to read, so no database to wait on.
+    outcome = await tellOperator(morningSubject(body.headline), detail);
+  } else {
+    const db = pg();
+    if (!db) return refuse(503, "no_database");
+    outcome = await pageOperator({ db }, `outside:${condition}`, OUTSIDE_CONDITIONS[condition], detail);
+  }
   logger().info("outside_page", { condition, outcome });
   // A page that did not go out is not a success. The door said 200 for every outcome until 13 Nov 2026, and the
   // workflow that knocked printed "paged: failed" on a green step. The outcome rides beside the code, which is what

@@ -1,0 +1,73 @@
+name: Morning line
+
+# Once a day, one message that says what is red on main, what is red on
+# production, and what did not run that should have; or, in one short line,
+# that nothing is, so a morning with no message means the line itself broke
+# (tooling/scripts/ops/morning/morning-line.mjs).
+#
+# Why: checks existed for almost everything and a red one woke nobody. The
+# weekly AI test and the lead finder's weekly search were red for three Sundays
+# of November 2026; the two AI evals had been skipped since their switch was
+# made, with nothing saying so; the voice canary ended green every day having
+# placed no call; and the weekly compare of production's migrations sat
+# disabled on GitHub from 5 October. Each workflow told GitHub. This tells a
+# person.
+#
+# What it reads holds no customer's data: each watched check's last runs
+# (tooling/scripts/ops/morning/watched.mjs is the list), with the workflow's own
+# token; the edge's keyless health door; and, with the pager's key, the alarms
+# the platform was paged for in the last day. The run's summary is the line
+# with no alarm's key in it: the repository is public, and a key can name a
+# workspace.
+#
+# Off until the repository variable MORNING_LINE is "1" (Settings, Secrets and
+# variables, Actions, Variables), and the first message is Ruben's yes. Off, a
+# run still reads and writes the line to its own summary, sends nothing and
+# touches no issue. On, on main: the message goes through the edge's pager door
+# (POST /api/admin/page, condition morning_line) to the platform's addresses,
+# the edge's LEAD_TO, which needs the secrets PAGER_URL and PAGER_KEY; and a
+# check red twice running whose workflow opens no issue of its own gets one
+# rolling issue, the owner's, closed by its first green. A message that did not
+# go out fails the run. A run by hand on a branch only writes its summary.
+#
+# The hour it asks for is not the hour it gets: GitHub starts a schedule here
+# six to ten hours late (nightly-e2e.yml says how late). Asked for at 03:07 UTC,
+# it starts between about 09:00 and 13:30 UTC, the morning in New York, after
+# the nightly's run of the night before has ended.
+on:
+  schedule:
+    - cron: "7 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+# One line at a time, and never cancelled part-way: a line cut off after its
+# issues and before its message would say half.
+concurrency:
+  group: morning-line
+  cancel-in-progress: false
+
+jobs:
+  line:
+    name: What is red and what did not run, said once
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # No install: the script and what it imports read with Node alone.
+      - name: Read the checks, write the line, and send it when it is switched on
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          EDGE: https://chanlytics-messaging.vercel.app
+          PAGER_URL: ${{ secrets.PAGER_URL }}
+          PAGER_KEY: ${{ secrets.PAGER_KEY }}
+          MORNING_LINE: ${{ vars.MORNING_LINE }}
+        run: node tooling/scripts/ops/morning/morning-line.mjs --summary "$GITHUB_STEP_SUMMARY"

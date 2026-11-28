@@ -110,6 +110,31 @@ async function pageOnce(ports: PagePorts, key: string, subject: string, body: st
   return "sent";
 }
 
+/**
+ * A word for the platform that is no alarm: the morning line (lib/ops/outside-page.ts). The same addresses and the
+ * same transport as a page, and none of its memory: it is sent every day by design, so it is never held back inside a
+ * window, and it leaves no row in operator_pages, where Health reads what paged us and a daily line would read as a
+ * condition that never clears. What became of it is the answer, as a page's is.
+ */
+export async function tellOperator(
+  subject: string,
+  body: string,
+  send: NonNullable<PagePorts["send"]> = post,
+): Promise<Exclude<PageOutcome, "suppressed">> {
+  const log = logger();
+  const to = platformTo();
+  const from = platformFrom();
+  if (!to.length || !from) {
+    log.error("operator_page_unaddressed", { key: "morning_line", subject });
+    return "unaddressed";
+  }
+  const ok = await send(from, to, `[Chanlytics] ${subject}`, body).catch((e: unknown) => {
+    log.error("operator_page_send_threw", { key: "morning_line", error: errField(e) });
+    return false;
+  });
+  return ok ? "sent" : "failed";
+}
+
 /** One row of the pager's memory, as the table holds it. */
 interface PageRow {
   key: string;
