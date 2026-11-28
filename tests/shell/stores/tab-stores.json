@@ -113,12 +113,8 @@
     "src/surfaces/calendar/visit/next.tsx": { "SAID": "by record" },
     "src/surfaces/campaigns/ads/crumb-names.ts": { "NAMES": "by record" },
     "src/surfaces/campaigns/ads/first-read.ts": { "settleFirstRead": "tab" },
-    "src/surfaces/campaigns/ads/live/ad-list.ts": { "looked": "new document", "lookHearers": "tab" },
-    "src/surfaces/campaigns/ads/needs-you.ts": {
-      "noted": "new document",
-      "adsListed": "new document",
-      "hearers": "tab"
-    },
+    "src/surfaces/campaigns/ads/live/ad-list.ts": { "looked": "keyed", "lookHearers": "tab" },
+    "src/surfaces/campaigns/ads/needs-you.ts": { "noted": "keyed", "hearers": "tab" },
     "src/surfaces/campaigns/ads/new/meta-preview.ts": { "previewsHeld": "new document" },
     "src/surfaces/campaigns/broadcasts/detail-read.ts": { "details": "keyed", "runHearers": "tab" },
     "src/surfaces/campaigns/broadcasts/run-names.ts": { "RUNS": "by record" },
