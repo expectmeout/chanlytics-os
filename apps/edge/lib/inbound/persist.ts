@@ -52,8 +52,10 @@ import { keepWhatTheAdSaid } from "./ad-entry.js";
 import { recordTokens } from "../ai/budget.js";
 import {
   addressOf,
+  BOOKING_REQUEST_WORDS,
   clockTime,
   heldReplyNotice,
+  slotShort,
   type BrainIntent,
   type BrainMeta,
   type Handled,
@@ -408,8 +410,10 @@ function tellReplyHeld(
 
 /**
  * A booking the receptionist asks for (decision 0061), the sink's `request`: the request and its hold opened together
- * (00443 booking_request_open), so neither is ever there without the other. A slot an hour away or less, or a door that
- * failed, is a person's to answer (booking_reply): the customer was told the team will confirm.
+ * (00443 booking_request_open), so neither is ever there without the other. A slot an hour away or less, a time
+ * another booking took a moment before (00730: of two people who pick the last time at once, one is given it), or a door
+ * that failed, is a person's to answer (booking_reply): the customer was told the team will confirm. A taken time says so
+ * on the hold, so its owner offers another time rather than confirm one that is gone.
  */
 async function requestOpened(
   db: SupabaseClient<Database>,
@@ -418,15 +422,19 @@ async function requestOpened(
   req: BookingRequestHold,
   details: string,
 ): Promise<EscalationOutcome | undefined> {
+  let words = details;
   try {
     const at = { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id };
     const result = await openBookingRequest(db, { ...at, ...req });
     if (!("error" in result)) return result.hold;
-    logger().info("booking_request_too_soon", { tenant_id: tenantId });
+    if (result.error === "taken") {
+      logger().info("booking_request_time_taken", { tenant_id: tenantId });
+      words = BOOKING_REQUEST_WORDS.taken(slotShort(Date.parse(req.startsAt), req.timezone), req.service);
+    } else logger().info("booking_request_too_soon", { tenant_id: tenantId });
   } catch (e) {
     logger().error("booking_request_open_failed", { tenant_id: tenantId, error: errField(e) });
   }
-  return upsertEscalation(db, tenantId, ing.conversation_id, "booking_reply", details.slice(0, 400));
+  return upsertEscalation(db, tenantId, ing.conversation_id, "booking_reply", words.slice(0, 400));
 }
 
 /** A WhatsApp attachment's bytes, asked for by its id with the workspace's own token; nothing without one, said. */

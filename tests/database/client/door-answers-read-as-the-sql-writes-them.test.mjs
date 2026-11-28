@@ -46,6 +46,8 @@ const CASES = [
         { hold: "opened", appointmentId: "a1" },
       ],
       [{ error: "too_soon" }, { error: "too_soon" }],
+      // 00730: a time another live visit holds.
+      [{ error: "taken" }, { error: "taken" }],
     ],
   },
   {

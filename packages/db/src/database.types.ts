@@ -11103,6 +11103,15 @@ export type Database = {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
       }
+      appointments_time_taken: {
+        Args: {
+          p_contact_id: string
+          p_ends_at: string
+          p_starts_at: string
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
       approval_hash: { Args: { p_snapshot: Json }; Returns: string }
       approve_broadcast: {
         Args: {

@@ -26,6 +26,7 @@ import {
   itemOfAppointment,
   parseBrainOutput,
   requestedBookingOf,
+  slotShort,
   takesBookingRequests,
 } from "@chanlytics/contracts";
 import { inboundFromWhatsapp } from "@chanlytics/channels/whatsapp";
@@ -469,4 +470,26 @@ test("the edge's sink opens the request and its hold together; too soon, or a do
     ["booking_reply", "Saturday?"],
   ]);
   assert.equal(await pgSink(null, "t1", ING).request(REQ, "x"), undefined, "no database, nothing to write");
+});
+
+test("a time another booking took a moment before is no request: the owner is asked to offer another time", async () => {
+  // Two customers picked the last Saturday 2 PM a moment apart; the door gave it to the first (00730).
+  const holds = [];
+  const taken = fakeDb(
+    {},
+    {},
+    {
+      booking_request_open: () => ({ error: "taken" }),
+      escalation_open: (args) => {
+        holds.push([args.p_reason, args.p_details]);
+        return "opened";
+      },
+    },
+  );
+  assert.equal(await pgSink(taken, "t1", ING).request(REQ, "Saturday?"), "opened");
+  assert.deepEqual(holds, [
+    ["booking_reply", BOOKING_REQUEST_WORDS.taken(slotShort(Date.parse(REQ.startsAt), TZ), "Balayage")],
+  ]);
+  assert.match(holds[0][1], /Oct 17/);
+  assert.match(holds[0][1], /another booking: offer them another time$/);
 });

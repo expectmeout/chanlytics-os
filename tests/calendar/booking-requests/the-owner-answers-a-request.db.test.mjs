@@ -61,7 +61,10 @@ async function person(name = "Ana Ruiz", phone = "+13055550142") {
 const thread = async (contact) =>
   ok(await w.admin.from("conversations").insert({ tenant_id: w.tenant, contact_id: contact }).select("id").single()).id;
 
-/** The service role's door, as the edge asks it: a slot `fromNowH` hours from now, an hour long. */
+/**
+ * The service role's door, as the edge asks it: a slot `fromNowH` hours from now, an hour long. Each test asks its own
+ * hours: a time another request or visit of the workspace holds is taken (00730).
+ */
 const open = (who, fromNowH, over = {}) => {
   const start = Date.now() + fromNowH * HOUR;
   return w.admin
@@ -264,7 +267,7 @@ test(
 
 test("Can't cancels it and leaves the thread waiting on a reply, in the words the page gave", { skip }, async () => {
   const gia = await person("Gia", "+13055550148");
-  const { appointment } = await open(gia, 30);
+  const { appointment } = await open(gia, 32);
   const r = await answer(
     w.operator,
     appointment.id,
@@ -279,7 +282,7 @@ test("Can't cancels it and leaves the thread waiting on a reply, in the words th
   );
   // Without the page's words, the database says the time itself.
   const hal = await person("Hal", "+13055550149");
-  const second = await open(hal, 30);
+  const second = await open(hal, 34);
   await answer(w.operator, second.appointment.id, false);
   const [said] = await holdsOf(hal.thread);
   assert.match(said.details, /^Couldn't book .+ · Balayage: reply to them$/);
@@ -304,7 +307,7 @@ test("refused: a row that was no request, a viewer, a stranger", { skip }, async
   ).id;
   assert.deepEqual(await answer(w.operator, booked, true), { error: "not_a_request" });
   const ivy = await person("Ivy", "+13055550150");
-  const { appointment } = await open(ivy, 30);
+  const { appointment } = await open(ivy, 36);
   assert.match((await answer(w.viewer, appointment.id, true)).raised ?? "", /not found/i, "a viewer acts in nothing");
   assert.match(
     (await answer(w.stranger, appointment.id, true)).raised ?? "",
@@ -318,7 +321,7 @@ test("an expired request takes no slot and leaves the board; one standing does",
   const jo = await person("Jo", "+13055550151");
   const from = new Date(Date.now() + 20 * HOUR).toISOString();
   const to = new Date(Date.now() + 40 * HOUR).toISOString();
-  const { appointment } = await open(jo, 30);
+  const { appointment } = await open(jo, 38);
   const read = async () => (await listAppointmentsBetween(w.admin, w.tenant, from, to)).map((r) => r.id);
   assert.ok((await read()).includes(appointment.id), "standing, it takes its slot");
   ok(

@@ -21,8 +21,11 @@ export interface FormTimeAsked {
   timezone: string;
 }
 
-/** What became of the time: held until `expiresAt`, too soon to hold (an hour away or less), or not asked of the door. */
-export type FormTimeHeld = { appointmentId: string; expiresAt: string } | { refused: "too_soon" } | null;
+/**
+ * What became of the time: held until `expiresAt`, too soon to hold (an hour away or less), taken by another live visit
+ * a moment before (00730), or not asked of the door.
+ */
+export type FormTimeHeld = { appointmentId: string; expiresAt: string } | { refused: "too_soon" | "taken" } | null;
 
 /** The entry kept as form_request_take keeps it, and the time held for its owner beside it (form_time_request_take). */
 export async function takeFormTimeRequest(
@@ -51,8 +54,8 @@ export async function takeFormTimeRequest(
   if (error) throw new DbFailure(error, "form_time_request_take");
   const held = recordOrEmpty(recordOrEmpty(data).time);
   const kept: FormTimeHeld =
-    held.error === "too_soon"
-      ? { refused: "too_soon" }
+    held.error === "too_soon" || held.error === "taken"
+      ? { refused: held.error }
       : typeof held.appointment_id === "string" && typeof held.expires_at === "string"
         ? { appointmentId: held.appointment_id, expiresAt: held.expires_at }
         : null;

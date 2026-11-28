@@ -179,13 +179,14 @@ export interface BookingRequestOpen {
 
 /**
  * A request and its thread's hold, opened together (00443 booking_request_open, the service role's), the person's open
- * request before it cancelled: how the hold landed, as escalation_open answers it, or `too_soon` for a slot an hour
- * away or less. A failure throws, and then nothing moved.
+ * request before it cancelled: how the hold landed, as escalation_open answers it, `too_soon` for a slot an hour away or
+ * less, or `taken` for a time another live visit holds (00730: two people who pick one time a moment apart are given it
+ * once). A failure throws, and then nothing moved.
  */
 export async function openBookingRequest(
   db: Db,
   bookingRequestOpen: BookingRequestOpen,
-): Promise<{ hold: "opened" | "changed" | "refreshed"; appointmentId: string } | { error: "too_soon" }> {
+): Promise<{ hold: "opened" | "changed" | "refreshed"; appointmentId: string } | { error: "too_soon" | "taken" }> {
   const { data, error } = await db.rpc("booking_request_open", {
     p_tenant_id: bookingRequestOpen.tenantId,
     p_conversation_id: bookingRequestOpen.conversationId,
@@ -198,7 +199,7 @@ export async function openBookingRequest(
   });
   if (error) throw new DbFailure(error, "booking_request_open");
   const answer = readAnswer("booking_request_open", BookingRequestOpened, data ?? {});
-  if (answer.error === "too_soon") return { error: "too_soon" };
+  if (answer.error === "too_soon" || answer.error === "taken") return { error: answer.error };
   const hold = answer.hold;
   const id = answer.appointment?.id;
   if ((hold !== "opened" && hold !== "changed" && hold !== "refreshed") || typeof id !== "string")
