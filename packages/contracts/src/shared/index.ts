@@ -4,6 +4,7 @@
  */
 export { ROUTE_KEYS } from "../route-keys.generated";
 export type { ApiRouteKey } from "../route-keys.generated";
+export { SCHEMA_HEAD } from "../schema-head.generated";
 export { SCHEMA_SETS } from "../schema-sets.generated";
 export { hexOf, utf8Bytes } from "./bytes";
 export {
