@@ -20,6 +20,9 @@ import {
   ON_INSTAGRAM,
   POST_PLACES,
   isOneOf,
+  piecePlanOf,
+  recordOrEmpty,
+  versionSaysOther,
   type PlaceAdapter,
   type PlacementToSend,
 } from "@chanlytics/contracts";
@@ -34,7 +37,7 @@ import {
 import { CertainFailure, isCertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
 import { MAX_ATTEMPTS, markSpoke, scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
-import { findVersionDrawing } from "@chanlytics/db/files";
+import { findPieceForWork, findVersionDrawing } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { settleNeverUp } from "../files/post-never-up.js";
 import { logger } from "../shared/log.js";
@@ -150,22 +153,34 @@ const VERSION_WAITS_MOST = 10;
 
 /**
  * Nothing of a piece goes up while a new version of it is drawn (00708, the version board's call 14): the send asks again a
- * minute on. Once the version plays, what was approved of the one before stops standing and the recheck holds it; a
- * version that could not be made leaves the post to go as approved. Past its most waits, it goes as approved.
+ * minute on. Once the version plays, what was approved of the one before stops standing and the recheck holds it.
+ *
+ * Where the new version is late (past its most waits) or could not be made, what it was to say decides, and nobody is
+ * asked (the outside review of 28 Nov 2026, R3.8; before, the old one always went as approved). One that says something
+ * else, in its words under the post or on it, means its owner no longer wants the old words up: the post is held,
+ * changed, for their look. One that only looks different leaves the post to go as approved. A post approved after the
+ * new version was asked for is its owner's word for this one, knowing of the other: it goes, and waits for nothing.
  */
-async function waitsForVersion(db: Db, post: PostRow, job: ClaimedJob): Promise<boolean> {
-  if (!post.piece_id) return false;
+async function askVersion(db: Db, post: PostRow, job: ClaimedJob): Promise<"go" | "wait" | "hold"> {
+  if (!post.piece_id) return "go";
   const drawing = await findVersionDrawing(db, post.tenant_id, post.piece_id);
+  if (!drawing) return "go";
+  if (post.approved_at && Date.parse(post.approved_at) > Date.parse(drawing.begun_at)) return "go";
   const waits = Number(job.payload.wait ?? 0) || 0;
-  if (!drawing || drawing.failed || waits >= VERSION_WAITS_MOST) return false;
-  await scheduleJobOnce(db, {
-    tenantId: post.tenant_id,
-    kind: "post_publish",
-    dueAt: new Date(Date.now() + VERSION_WAIT_MS),
-    payload: { post_id: post.id, attempt: String(postJobOf(job).attempt), wait: String(waits + 1) },
-  });
-  logger({ tenant_id: post.tenant_id }).info("placement_waits_for_version", { post_id: post.id, waits: waits + 1 });
-  return true;
+  if (!drawing.failed && waits < VERSION_WAITS_MOST) {
+    await scheduleJobOnce(db, {
+      tenantId: post.tenant_id,
+      kind: "post_publish",
+      dueAt: new Date(Date.now() + VERSION_WAIT_MS),
+      payload: { post_id: post.id, attempt: String(postJobOf(job).attempt), wait: String(waits + 1) },
+    });
+    logger({ tenant_id: post.tenant_id }).info("placement_waits_for_version", { post_id: post.id, waits: waits + 1 });
+    return "wait";
+  }
+  const stands = await findPieceForWork(db, post.tenant_id, post.piece_id);
+  if (!stands) return "go";
+  const other = versionSaysOther(piecePlanOf(recordOrEmpty(stands.plan)), piecePlanOf(recordOrEmpty(drawing.plan)));
+  return other ? "hold" : "go";
 }
 
 /** post_publish: the recheck, then the one send. */
@@ -175,7 +190,11 @@ async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promis
   if (!post) return { skipped: "gone" };
   if (post.status !== "preparing" || !post.container_id) return { skipped: post.status };
   instagramKindOf(post);
-  if (await waitsForVersion(db, post, job)) return { skipped: "version" };
+  const version = await askVersion(db, post, job);
+  if (version === "wait") return { skipped: "version" };
+  // Its new version says something else and is late or was not made: the old words wait for their owner's look.
+  if (version === "hold")
+    return holdPlacement(db, post, { held: ON_INSTAGRAM.held.changed, why: "changed", from: HOLDABLE });
   const posting = await recheck(db, post, deps);
   // The open time it promises could not be read (00728): asked again a minute on, then held, never sent on a guess.
   if ("unread" in posting)

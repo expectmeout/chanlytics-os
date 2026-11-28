@@ -80,6 +80,8 @@ function world({
   asApproved,
   profile = {},
   faults = {},
+  pieces = [],
+  approvedAt = null,
 } = {}) {
   const now = new Date().toISOString();
   const tables = {
@@ -109,7 +111,7 @@ function world({
         status,
         scheduled_for: now,
         approved_by: OWNER,
-        approved_at: now,
+        approved_at: approvedAt ?? now,
         via: "press",
         held_reason: null,
         held_why: null,
@@ -131,6 +133,8 @@ function world({
       },
     ],
     publish_attempts: [],
+    // The post's piece, and a new version of it being made or that could not be, where a test hands them.
+    pieces,
     // What the book's reasons are read from, besides the calendar (lib/opportunities/book.ts): none here.
     google_reviews: [],
     // The run that holds the job: the send says it is about to speak on it (ledger markSpoke).
@@ -465,4 +469,112 @@ test("making it ready is not held by a book that cannot be read: the send asks, 
   assert.deepEqual(await postJobs(late.db, quick).publish(asked(1)), { skipped: "late" });
   assert.equal(late.post().status, "pulled");
   assert.equal(late.post().held_why, "late");
+});
+
+/* ------------------------------------------- the old version when a new one is late or could not be made -- */
+
+const DRAWING = "ffff6666-4444-4000-8000-000000000026";
+const STANDS = {
+  blocks: [{ is: "clip", file_id: "abab0000-4444-4000-8000-0000000000c1", from: 0, to: 4 }],
+  lines: ["The finish"],
+  caption: "Forty-five minutes, one round brush.",
+};
+/** Version 2 as it was asked for: a new cut alone, or other words on it. */
+const NEW_CUT = { ...STANDS, blocks: [{ ...STANDS.blocks[0], from: 1, to: 3 }] };
+const OTHER_WORDS = { ...STANDS, lines: ["Half price this week"] };
+const AGO = (ms) => new Date(Date.now() - ms).toISOString();
+/** The piece the post is of, and a new version of it: being made or failed, asked for a minute ago unless said. */
+const versioned = (plan, { status = "making", begun = AGO(60_000) } = {}) => [
+  {
+    id: PIECE,
+    tenant_id: T,
+    revises: null,
+    revision: 1,
+    shape: "blocks",
+    plan: STANDS,
+    look: {},
+    status: "made",
+    stage: "queued",
+    edition: 3,
+    card_key: "card-1",
+    file_id: FILE,
+    created_at: AGO(86_400_000),
+    updated_at: AGO(86_400_000),
+  },
+  {
+    id: DRAWING,
+    tenant_id: T,
+    revises: PIECE,
+    revision: 1,
+    shape: "blocks",
+    plan,
+    look: {},
+    status,
+    stage: "drawing",
+    edition: 3,
+    card_key: "card-2",
+    file_id: null,
+    created_at: begun,
+    updated_at: begun,
+  },
+];
+/** A reel of the piece, approved an hour ago and made ready, with a version asked for since. */
+const reelWith = (pieces, over = {}) =>
+  world({
+    status: "preparing",
+    kind: "reel",
+    fileKind: "video",
+    asApproved: stands(`${T}/${FILE}/video.mp4`),
+    approvedAt: AGO(3_600_000),
+    pieces,
+    ...over,
+  });
+/** The send's job as it comes back, having waited `n` minutes for the version. */
+const waited = (n) => ({ ...job("post_publish"), payload: { post_id: POST, attempt: "1", wait: String(n) } });
+
+test("while a new version is made the send waits, a minute at a time, as before", async () => {
+  const w = reelWith(versioned(OTHER_WORDS));
+  assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "version" });
+  assert.equal(w.post().status, "preparing");
+  assert.ok(w.tables.jobs.find((j) => j.kind === "post_publish" && j.payload.wait === "1"));
+  assert.equal(calls.length, 0);
+});
+
+test("a new version that is late and only looks different leaves the post to go as approved", async () => {
+  const w = reelWith(versioned(NEW_CUT));
+  await postJobs(w.db, quick).publish(waited(10));
+  assert.equal(w.post().status, "published");
+});
+
+test("a new version that is late and says something else holds the post: the old words do not go up in its place", async () => {
+  const w = reelWith(versioned(OTHER_WORDS));
+  assert.deepEqual(await postJobs(w.db, quick).publish(waited(10)), { skipped: "held" });
+  assert.equal(w.post().status, "held");
+  assert.equal(w.post().held_why, "changed");
+  assert.equal(w.post().held_reason, ON_INSTAGRAM.held.changed);
+  assert.equal(calls.length, 0, "nothing reached Instagram");
+});
+
+test("a new version that could not be made decides the same way, at once: other words hold, a new look goes", async () => {
+  const other = reelWith(versioned(OTHER_WORDS, { status: "failed" }));
+  assert.deepEqual(await postJobs(other.db, quick).publish(job("post_publish")), { skipped: "held" });
+  assert.equal(other.post().held_why, "changed");
+  const look = reelWith(versioned(NEW_CUT, { status: "failed" }));
+  await postJobs(look.db, quick).publish(job("post_publish"));
+  assert.equal(look.post().status, "published");
+});
+
+test("a post approved after the new version was asked for is its owner's word for this one: it goes, and waits for nothing", async () => {
+  // Asked for an hour ago, and since then the owner approved version 1 again (Look again, or Post this one instead).
+  const begun = AGO(3_600_000);
+  for (const status of ["making", "failed"]) {
+    const w = reelWith(versioned(OTHER_WORDS, { status, begun }), { approvedAt: AGO(60_000) });
+    await postJobs(w.db, quick).publish(job("post_publish"));
+    assert.equal(w.post().status, "published", status);
+    assert.equal(
+      w.tables.jobs.some((j) => "wait" in j.payload),
+      false,
+      status,
+    );
+  }
 });

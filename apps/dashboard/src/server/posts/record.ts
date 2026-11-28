@@ -8,7 +8,9 @@ import {
   fileSoundOf,
   piecePlanOf,
   postPlanOf,
+  recordOrEmpty,
   recordOrNull,
+  versionSaysOther,
   type FilePosted,
   type FileRecordDto,
   type PieceTakeDownDto,
@@ -126,6 +128,10 @@ async function readVersions(
     n: piece.revision,
     drawing: drawing && !drawing.failed ? drawing.stage : null,
     failed: drawing?.failed ?? false,
+    // Whether the one being made, or that could not be, says other words than the one that stands: then its posts wait
+    // for their owner where it is late or was not made (the edge's send decides the same, instagram/post-send.ts).
+    says_other:
+      !!drawing && versionSaysOther(piecePlanOf(recordOrEmpty(piece.plan)), piecePlanOf(recordOrEmpty(drawing.plan))),
     list: drawn.map((v) => ({ n: v.n, changed: v.changed, at: v.created_at, file_id: v.file_id ?? "" })),
   };
 }

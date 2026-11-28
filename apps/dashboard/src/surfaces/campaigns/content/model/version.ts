@@ -17,6 +17,9 @@ export const VERSION_WORDS = {
     `Version ${n} replaced what you approved, so it waits for you before it goes up ${at}.`,
   couldnt: (n: number) => `Version ${n} couldn't be made this time`,
   stillGoes: (n: number, at: string) => `Version ${n} still goes up ${at}, as you approved it.`,
+  /** The version that could not be made says other words: the one that stands waits for its owner's look. */
+  waitsForYou: (n: number, at: string) =>
+    `Version ${n} says something else, so it waits for you before it goes up ${at}.`,
   approve: (n: number) => `Approve version ${n}`,
   again: "Try again",
   version: (n: number) => `Version ${n}`,
@@ -140,14 +143,17 @@ export function versionStandingOf(
   const ver = list.length
     ? [VERSION_WORDS.version(version.n), changedSaidOf(changed)].filter(Boolean).join(" · ")
     : null;
-  if (version.failed)
+  if (version.failed) {
+    // What the new version was to say differs from what stands: the old words do not go up in its place unasked.
+    const under = version.says_other ? VERSION_WORDS.waitsForYou : VERSION_WORDS.stillGoes;
     return {
       ...NO_VERSION_STANDING,
       ver: VERSION_WORDS.couldnt(next),
-      under: soonest ? VERSION_WORDS.stillGoes(version.n, soonest) : null,
+      under: soonest ? under(version.n, soonest) : null,
       lead: { words: VERSION_WORDS.again, is: "again" },
       list,
     };
+  }
   const asking = waiting.filter((p) => version.waiting.includes(p.id));
   if (asking.length && soonest)
     return {
