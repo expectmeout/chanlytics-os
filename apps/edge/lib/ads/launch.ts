@@ -18,7 +18,14 @@
  * a few minutes unfound, the launch stops), and a switch is followed by the account's read, the page saying "Couldn't
  * confirm it's on" past a few minutes. The one thing sent twice is the picture, which Meta's library keeps once by its
  * bytes. A launch that stops part way removes its campaign, with everything under it; what cannot be removed stays
- * there, named and paused, and the ad says what was left. A disconnect or a sign-out stops a launch at its next step
+ * there, named and paused, and the ad says what was left.
+ *
+ * Every step is kept before the next is asked of Meta, a switch as a make: each is kept as going before it goes. A run
+ * that dies with a switch out asks Meta what it holds before it sends anything: on there, the switch went, and is never
+ * sent again; paused there, Meta never took it. And once the campaign's switch, the one that lets the ad start, is out
+ * or done, no stop says the ad couldn't finish with its parts left paused unless Meta confirmed its campaign removed: it
+ * is kept as the ad it is, Meta's word for it owed, so its account's read says what stands, its page says it couldn't
+ * confirm it's on, and its Pause reaches its campaign. A disconnect or a sign-out stops a launch at its next step
  * (00666's trigger), and so does AI's stop before any switch. A cancel (its owner's, or a yes taken back on its picture,
  * 00676) stops it at its next step too, and is read fresh before every switch; one that lands after the last switch
  * leaves the ad made and paused at once (ad_launch_keep). Just before the first switch the ad's way in is read again:
@@ -29,146 +36,49 @@
  */
 import { randomUUID } from "node:crypto";
 import {
-  callMetaAds,
   metaAdImageRequest,
   metaAdRequest,
   metaAdSetRequest,
-  metaAdSwitchRequest,
-  metaCampaignReadBackRequest,
   metaCampaignRemoveRequest,
   metaCampaignRequest,
-  metaConfirmed,
   metaFoundByNameRequest,
-  parseMetaCampaignHeld,
   parseMetaFoundByName,
   parseMetaImageHash,
   parseMetaMadeId,
-  parseMetaRefusal,
   parseMetaRemoved,
   type MetaAdsAnswer,
-  type MetaCampaignHeld,
   type MetaPartEdge,
   type MetaUsage,
 } from "@chanlytics/channels/ads";
-import { MIN_MS, SECOND_MS, recordOrEmpty, type AdStopped, type TenantId } from "@chanlytics/contracts";
-import {
-  isAdLaunchCancelled,
-  keepAdLaunch,
-  listAdLaunches,
-  type AdLaunchRow,
-  type AdLaunchStep,
-  type AdPartKept,
-} from "@chanlytics/db/ads";
-import type { Database } from "@chanlytics/db/types";
-import { isSendingStopped } from "@chanlytics/db/workspace";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { logger } from "../shared/log.js";
+import { MIN_MS, recordOrEmpty, type AdStopped } from "@chanlytics/contracts";
+import { keepAdLaunch, listAdLaunches, type AdPartKept } from "@chanlytics/db/ads";
 import { checksumOf, readAdPhoto } from "./launch/approval.js";
-import { readWayIn } from "./chat/answered.js";
-import { approvedOf, launchDiffers, type LaunchApproved, type LaunchMoment } from "./launch/parts.js";
-import type { MetaSignIn } from "./meta-facts.js";
-import { ADS_USAGE_HOLD_PCT } from "./pace.js";
-import { sandboxAnswer, sandboxHeld } from "./launch/sandbox.js";
+import { approvedOf, launchDiffers, type LaunchApproved } from "./launch/parts.js";
+import {
+  campaignReadBack,
+  hasRoom,
+  keepStep,
+  letGoFor,
+  mayBeOn,
+  metaWordsOf,
+  partKey,
+  send,
+  unanswered,
+  type Db,
+  type Launcher,
+  type Log,
+  type MetaRequest,
+  type Pass,
+  type Step,
+  type Stopping,
+} from "./launch/pass.js";
+import { switchAll } from "./launch/switches.js";
 import { launchNameOf } from "./tag.js";
-import type { AdsWrites } from "./tell.js";
 
-type Db = SupabaseClient<Database>;
-type Log = ReturnType<typeof logger>;
-/** One request to Meta, as the wire sends it. */
-type MetaRequest = Parameters<typeof callMetaAds>[0];
-
-/** No call is started with less than this left of the job: its answer and the write after it end inside it. */
-const CALL_ROOM_MS = 25 * SECOND_MS;
 /** How long a make whose answer never came is looked for by its name before the launch stops. */
 const FOLLOW_MS = 10 * MIN_MS;
 
-/** Whose launches are sent, how, and the time the job has. */
-interface Launcher {
-  tenantId: TenantId;
-  signIn: MetaSignIn;
-  writes: AdsWrites;
-  account: { id: string; externalId: string; currency: string };
-  deadline: number;
-}
-
-/** One launch's pass: what it has made, what Meta's last answer said of the pace, and what it called. */
-interface Pass {
-  db: Db;
-  log: Log;
-  who: Launcher;
-  ad: AdLaunchRow;
-  approved: LaunchApproved;
-  parts: Map<string, AdPartKept>;
-  launch: Record<string, unknown>;
-  usage: MetaUsage | null;
-  calls: number;
-  /** Its owner cancelled it, or a yes taken back did (00676): the launch stops at its next step. */
-  cancelled: boolean;
-}
-
-/** What stopping a launch needs of its pass: never what was approved, which a stop may not have. */
-type Stopping = Omit<Pass, "approved">;
-
-/** What a step came to: Meta's id for it, a stop with why, a wait for a later pass, or Meta's sign-in gone. */
-type Step = { id: string } | { stop: AdStopped; said: string | null } | { wait: true } | { revoked: true };
-
 const DRY = { dryRun: true } as const;
-const partKey = (kind: AdPartKept["kind"], version: number): string => `${kind}:${version}`;
-const hasRoom = (pass: Stopping): boolean =>
-  Date.now() <= pass.who.deadline - CALL_ROOM_MS && (pass.usage === null || pass.usage.pct < ADS_USAGE_HOLD_PCT);
-
-/* ------------------------------------------------------------------------------------------- the calls -- */
-
-/** One more call counted on the pass, and Meta's pace as its answer says it. */
-function heardFrom(pass: Stopping, answer: MetaAdsAnswer): void {
-  pass.calls += 1;
-  if (answer.usage !== null) pass.usage = answer.usage;
-}
-
-/** One call to Meta for a step: sent once, its pace kept on the pass, and a line for Health. */
-async function send(pass: Stopping, at: string, request: MetaRequest): Promise<MetaAdsAnswer> {
-  const began = Date.now();
-  const answer =
-    pass.who.writes === "live" ? await callMetaAds(request) : sandboxAnswer(request, `${pass.ad.id}:${at}`);
-  heardFrom(pass, answer);
-  const refusal = answer.fault === null ? null : parseMetaRefusal(answer.json);
-  pass.log.info("ads_launch_step", {
-    ad_id: pass.ad.id,
-    at,
-    outcome: answer.fault ?? "ok",
-    ms: Date.now() - began,
-    ...(refusal ? { code: refusal.code, subcode: refusal.subcode, fields: refusal.fields } : {}),
-    ...(answer.usage ? { usage_pct: answer.usage.pct } : {}),
-  });
-  return answer;
-}
-
-/** Meta's own words for a refusal, for the owner, in quotes; else what the wire said. */
-const metaWordsOf = (answer: MetaAdsAnswer): string | null => parseMetaRefusal(answer.json)?.words ?? answer.said;
-
-/**
- * A step's door: what it made, sent or found kept. Answers `going`, or why the launch stops here: its owner cancelled it
- * meanwhile (00676), or its account was let go (a disconnect).
- */
-async function keepStep(pass: Stopping, step: AdLaunchStep): Promise<"going" | "cancelled" | "disconnected"> {
-  for (const part of step.objects ?? []) pass.parts.set(partKey(part.kind, part.version), part);
-  if (step.launch) Object.assign(pass.launch, step.launch);
-  const after = await keepAdLaunch(pass.db, pass.who.tenantId, pass.ad.id, step);
-  if (step.status !== undefined) return "going";
-  if (after.cancelled) return "cancelled";
-  return after.status === "sending" ? "going" : "disconnected";
-}
-
-/** A launch its door let go of stops, for the door's reason. */
-const letGoFor = (reason: "cancelled" | "disconnected"): Step => ({ stop: reason, said: null });
-
-/** A launch's write went unanswered: when, kept, so it is followed and never sent again. */
-const unanswered = (pass: Pass) =>
-  keepStep(pass, {
-    launch: {
-      unknown_at: typeof pass.launch.unknown_at === "string" ? pass.launch.unknown_at : new Date().toISOString(),
-    },
-  });
 
 /* ------------------------------------------------------------------------------------------- the parts -- */
 
@@ -358,70 +268,35 @@ async function pictureHash(pass: Pass, name: string): Promise<Step> {
   });
 }
 
-/* ------------------------------------------------------------------------------ read back, switch, stop -- */
-
-/** The campaign read back whole: what Meta holds, or how the pass ended. */
-async function campaignReadBack(
-  pass: Pass,
-  built: { campaign: string; set: string; ads: string[] },
-  moment: LaunchMoment,
-): Promise<MetaCampaignHeld | Exclude<Step, { id: string }>> {
-  if (!hasRoom(pass)) return { wait: true };
-  const { token, appSecret } = pass.who.signIn;
-  const answer = await send(pass, `read_back_${moment}`, metaCampaignReadBackRequest(token, appSecret, built.campaign));
-  if (answer.fault === "revoked") return { revoked: true };
-  if (answer.fault !== null) return { wait: true };
-  if (pass.who.writes !== "live")
-    return sandboxHeld({ ad: pass.ad, approved: pass.approved, accountId: pass.who.account.externalId }, built, moment);
-  try {
-    return parseMetaCampaignHeld(answer.json, pass.approved.currency);
-  } catch {
-    // An answer that is not a campaign is read again on a later pass: nothing is compared against it.
-    return { wait: true };
-  }
-}
+/* --------------------------------------------------------------------------------------------- stop, finish -- */
 
 /**
- * What stops the next switch, read fresh before each one: no room left in this pass; AI stopped, since nobody would answer
- * the people it brings (0050, call 11); a cancel its owner pressed meanwhile, so none goes after they said stop; and, just
- * before the first, a way in that closed since the press, of the exact number the ad names (call 11). Null: switch it.
+ * A launch stopped once its campaign's switch was out or done, whose campaign Meta did not confirm removed: the ad may be
+ * running, so it is never kept as one that couldn't finish with its parts left paused. It is kept as the ad it is, with
+ * Meta's ids and Meta's word for it owed: its account's read says what stands, its page says it couldn't confirm it's on,
+ * its Pause reaches its campaign, and one its owner cancelled is paused at once (ad_launch_keep). False where Meta's ids
+ * for it are not all held, which no launch this far along is without.
  */
-async function checkBeforeSwitch(pass: Pass, first: boolean): Promise<Step | null> {
-  if (!hasRoom(pass)) return { wait: true };
-  if (await isSendingStopped(pass.db, pass.who.tenantId)) return { stop: "ai_stopped", said: null };
-  if (await isAdLaunchCancelled(pass.db, pass.who.tenantId, pass.ad.id)) return { stop: "cancelled", said: null };
-  if (first && (await readWayIn(pass.db, pass.who.tenantId, pass.approved.whatsapp)) !== "open")
-    return { stop: "way_in", said: null };
-  return null;
-}
-
-/** Every part switched on from the bottom, each once: the ads, the ad set, the campaign. How the pass ended, or done. */
-async function switchAll(pass: Pass, built: { campaign: string; set: string; ads: string[] }): Promise<Step | null> {
-  const done = new Set(Array.isArray(pass.launch.switched) ? pass.launch.switched.map(String) : []);
-  const order = [
-    ...built.ads.map((id, nth) => ({ key: `ad:${nth + 1}`, id })),
-    { key: "set", id: built.set },
-    { key: "campaign", id: built.campaign },
-  ];
-  const { token, appSecret } = pass.who.signIn;
-  for (const part of order) {
-    if (done.has(part.key)) continue;
-    const held = await checkBeforeSwitch(pass, done.size === 0);
-    if (held) return held;
-    const answer = await send(pass, `switch_${part.key}`, metaAdSwitchRequest(token, appSecret, part.id, "ACTIVE"));
-    if (answer.fault === "revoked") return { revoked: true };
-    if (answer.fault === "slowed") return { wait: true };
-    if (answer.fault !== null && answer.fault !== "silent") return { stop: "refused", said: metaWordsOf(answer) };
-    // Unanswered, it went or it did not: it is never sent again, and the account's read says which.
-    if (answer.fault === "silent" || !metaConfirmed(answer.json)) await unanswered(pass);
-    done.add(part.key);
-    const kept = await keepStep(pass, { launch: { step: "switch", switched: [...done] } });
-    // The last switch went before its cancel was seen: the ad is made and paused at once (ad_launch_keep), so its own
-    // pause, followed at Meta's pace, stops it, never a removal that may not land while it runs.
-    if (kept === "cancelled" && part.key === "campaign") return null;
-    if (kept !== "going") return letGoFor(kept);
-  }
-  return null;
+async function keepMaybeOn(pass: Stopping, why: AdStopped): Promise<boolean> {
+  const idOf = (kind: AdPartKept["kind"], version: number): string | null => {
+    const part = pass.parts.get(partKey(kind, version));
+    return part?.state === "made" && part.platform_id ? part.platform_id : null;
+  };
+  const [campaign, set, first] = [idOf("campaign", 0), idOf("set", 0), idOf("ad", 1)];
+  if (campaign === null || set === null || first === null) return false;
+  await keepAdLaunch(pass.db, pass.who.tenantId, pass.ad.id, {
+    status: "made",
+    campaign_id: campaign,
+    set_id: set,
+    platform_ad_id: first,
+    launch: {
+      step: "done",
+      switching: null,
+      unknown_at: typeof pass.launch.unknown_at === "string" ? pass.launch.unknown_at : new Date().toISOString(),
+    },
+  });
+  pass.log.info("ads_launch_done", { ad_id: pass.ad.id, outcome: "made", confirmed: false, why, calls: pass.calls });
+  return true;
 }
 
 /**
@@ -439,6 +314,8 @@ async function stopLaunch(pass: Stopping, stop: { stop: AdStopped; said: string 
     const answer = await send(pass, "remove", metaCampaignRemoveRequest(token, appSecret, campaign.platform_id));
     removed = answer.fault === null && (pass.who.writes !== "live" || parseMetaRemoved(answer.json));
   }
+  // Its campaign's switch is out or done, and Meta did not confirm the campaign gone: the ad may be running.
+  if (!removed && mayBeOn(pass) && (await keepMaybeOn(pass, stop.stop))) return;
   // The picture stays in the account's library either way: it is no part of an ad, and shows nowhere.
   const objects = parts
     .filter((part) => part.kind !== "picture")
@@ -446,7 +323,13 @@ async function stopLaunch(pass: Stopping, stop: { stop: AdStopped; said: string 
   await keepAdLaunch(pass.db, pass.who.tenantId, pass.ad.id, {
     objects,
     status: "failed",
-    launch: { stopped: stop.stop, said: stop.said, step: "stopped" },
+    // A switch kept as going that Meta took nothing of, or whose campaign is gone, is no longer out.
+    launch: {
+      stopped: stop.stop,
+      said: stop.said,
+      step: "stopped",
+      ...(pass.launch.switching ? { switching: null } : {}),
+    },
   });
   pass.log.info("ads_launch_done", {
     ad_id: pass.ad.id,

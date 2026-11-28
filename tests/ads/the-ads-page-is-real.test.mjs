@@ -325,6 +325,64 @@ test("signed out: the page says when, which ad was on, and what each ad was doin
   assert.equal(sheetModel(out, "s", SAID).foot.kind, "none");
 });
 
+test("an ad whose last switch Meta had not answered when its account was let go may be on, and is never said to be paused", () => {
+  // Made here, its launch over, Meta's word for it never read: the page followed it, then could not confirm it.
+  const launch = { stopped: null, said: null, left: [], sending: false, cancelling: false };
+  const unsure = ad("u", { name: "First visit", state: "unconfirmed", made_in_platform: false, launch });
+  const paused = ad("o", { state: "paused" });
+  const gone = liveModel(
+    page({
+      account: { ...page().account, status: "disconnected", disconnected_at: "2026-11-18T17:00:00Z" },
+      ads: [unsure, paused],
+      can_press: false,
+    }),
+    SAID,
+  );
+  assert.deepEqual(
+    gone.rows.map((row) => row.line),
+    ["Left in Meta · may be on", "Left in Meta · was paused"],
+  );
+  assert.deepEqual(gone.notice, {
+    title: "First visit may be on in Meta",
+    body: "Meta hadn't said whether it was turned on when you disconnected, today. If it was, Meta charges while it runs. Check in Meta: it can only be paused there now.",
+    door: "Open Meta",
+  });
+  // The minutes the page still follows it read the same: nothing will read it again.
+  const lately = liveModel(
+    page({
+      account: { ...page().account, status: "disconnected", disconnected_at: "2026-11-18T17:00:00Z" },
+      ads: [{ ...unsure, state: "setting-up" }],
+      can_press: false,
+    }),
+    SAID,
+  );
+  assert.equal(lately.rows[0].line, "Left in Meta · may be on");
+  // Signed out by Meta: the same, in that notice's own words.
+  const out = liveModel(
+    page({
+      account: { ...page().account, status: "revoked", revoked_at: "2026-11-18T17:00:00Z" },
+      ads: [unsure],
+      can_press: false,
+    }),
+    SAID,
+  );
+  assert.match(out.rows[0].line, /^May be on/);
+  assert.equal(
+    out.notice.body,
+    "Meta hadn't said whether First visit was turned on. If it was, Meta charges while it runs. Check it in Meta, or connect again.",
+  );
+  // An ad that runs is said first, as it was: the one that may be on says so on its own row.
+  const both = liveModel(
+    page({
+      account: { ...page().account, status: "disconnected", disconnected_at: "2026-11-18T17:00:00Z" },
+      ads: [ad("s", { name: "Spring colour offer" }), unsure],
+      can_press: false,
+    }),
+    SAID,
+  );
+  assert.equal(both.notice.title, "Spring colour offer was on when you disconnected");
+});
+
 test("after a disconnect an ad left running is said at the top, with Meta as the only place to stop it", () => {
   const left = page({
     account: { ...page().account, status: "disconnected", disconnected_at: "2026-11-18T17:00:00Z" },

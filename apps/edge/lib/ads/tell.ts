@@ -2,11 +2,14 @@
  * Telling Meta of an owner's press on an ad (decision 0050, calls 1 and 9; the Ads plan's 5.2 and 6.4): the ad's own
  * switch set, then the ad read back so the page says what Meta says. Nothing is sent that Meta is likely to refuse:
  * Meta takes one change to an ad every thirty seconds, so a press inside that time waits, and a change is not sent
- * while Meta holds the account back. A change that got no answer is never sent again: it is marked sent, and the next
- * read says what stands at Meta.
+ * while Meta holds the account back. A change that got no answer is never sent again blind: Meta is asked at once where
+ * the part stands. Holding what was asked, it is told. A pause Meta does not hold was never taken, so it stays on its
+ * way and goes again when Meta will take it. Anything else (a turning back on Meta does not show yet, or no answer to
+ * that question either) is marked sent, never sent again, and the next read says what stands at Meta.
  *
- * `ADS_WRITES` decides whether anything reaches Meta at all: `live` sends; `sandbox` does everything but the call,
- * and says Meta took it; `off` (or unset) is refused before a press is kept (press.ts).
+ * `ADS_WRITES` decides whether what can spend reaches Meta: `live` sends; `sandbox` does everything but the call, and
+ * says Meta took it; `off` (or unset) is refused before a press is kept (press.ts). A pause is never held by that
+ * switch: one an owner can see, they can stop, so `off` sends a pause as `live` does (`stopWrites`).
  */
 import {
   callMetaAds,
@@ -43,6 +46,12 @@ export function adsWrites(): AdsWrites {
   return set === "live" || set === "sandbox" ? set : "off";
 }
 
+/**
+ * How a stop (a pause, an end, a cancel) reaches Meta, whatever this deployment's switch says of what can spend: sent,
+ * but in the sandbox, which calls nobody. The switch never stands between an owner and stopping an ad.
+ */
+export const stopWrites = (writes: AdsWrites): Exclude<AdsWrites, "off"> => (writes === "sandbox" ? "sandbox" : "live");
+
 /** How long Meta takes between two changes to the same ad (its page: thirty seconds), with a second to spare. */
 const CHANGE_EVERY_MS = 31 * SECOND_MS;
 
@@ -50,9 +59,12 @@ const CHANGE_EVERY_MS = 31 * SECOND_MS;
 export const mayTellNow = (toldAt: string | null, nowMs: number): boolean =>
   toldAt === null || nowMs - Date.parse(toldAt) >= CHANGE_EVERY_MS;
 
-/** What telling Meta came to. `slowed`: Meta took nothing and the press is still on its way. */
+/**
+ * What telling Meta came to. `slowed`: Meta took nothing and the press is still on its way. `not_taken`: a pause Meta
+ * never answered, and Meta, asked, does not hold it: still on its way, and it goes again when Meta will take it.
+ */
 interface Told {
-  outcome: "told" | "refused" | "unknown" | "slowed" | "revoked" | "again" | "kept" | "not_found";
+  outcome: "told" | "refused" | "unknown" | "slowed" | "not_taken" | "revoked" | "again" | "kept" | "not_found";
   usage: MetaUsage | null;
   /** Meta's own words where it refused. */
   said: string | null;
@@ -90,18 +102,40 @@ export async function tellAd(
     usage,
     said,
   });
-  if (who.writes !== "live") return done(await kept("told", SWITCH[ad.intent], null), null, null);
+  // A pause is a stop: this deployment's switch never holds it. What turns an ad on is held while the switch is off.
+  const writes = ad.intent === "paused" ? stopWrites(who.writes) : who.writes;
+  if (writes === "off") return { outcome: "slowed", usage: null, said: null };
+  if (writes !== "live") return done(await kept("told", SWITCH[ad.intent], null), null, null);
 
-  const sent = await callMetaAds(
-    // An ad made here is switched at its own campaign, which holds its versions and nothing else (00666).
-    metaAdSwitchRequest(signIn.token, signIn.appSecret, ad.switch_id ?? ad.platform_ad_id, SWITCH[ad.intent]),
-  );
+  // An ad made here is switched at its own campaign, which holds its versions and nothing else (00666).
+  const part = ad.switch_id ?? ad.platform_ad_id;
+  const sent = await callMetaAds(metaAdSwitchRequest(signIn.token, signIn.appSecret, part, SWITCH[ad.intent]));
   if (sent.fault === "revoked") return { outcome: "revoked", usage: sent.usage, said: sent.said };
   // Meta took nothing and said to come back: the press stays on its way.
   if (sent.fault === "slowed") return { outcome: "slowed", usage: sent.usage, said: sent.said };
   log.info("ads_ad_told", { ad_id: ad.id, asked: ad.intent, fault: sent.fault, status: sent.status });
-  // No answer: whether it went is not known. Never sent again; the next read says what stands.
-  if (sent.fault === "silent") return done(await kept("unknown", null, null), sent.usage, null);
+  if (sent.fault === "silent") {
+    // No answer: Meta is asked where the part stands before anything is said of it, or sent again. Its own word says
+    // whether its own switch is off (PAUSED: an ad's, never its ad set's or its campaign's, which Meta words apart).
+    const stands = await askMetaAds(
+      log,
+      "ad_standing",
+      callMetaAds(metaAdStandingRequest(signIn.token, signIn.appSecret, part)),
+      parseMetaAdStanding,
+    );
+    const usage = stands.usage ?? sent.usage;
+    const word = stands.ok ? stands.value : null;
+    const held = word === null ? null : (word === SWITCH.paused) === (ad.intent === "paused");
+    // Meta holds what was asked: it took it. The ad's own word is kept where the part asked is the ad itself.
+    if (held === true) {
+      const says = ad.intent === "paused" ? SWITCH.paused : part === ad.platform_ad_id ? word : null;
+      return done(await kept("told", says, null), usage, null);
+    }
+    // A pause Meta does not hold was never taken: nothing is marked, it stays on its way, and goes again, never blind.
+    if (held === false && ad.intent === "paused") return { outcome: "not_taken", usage, said: null };
+    // Not known: never sent again, and the next read says what stands.
+    return done(await kept("unknown", null, null), usage, null);
+  }
   if (sent.fault !== null || !metaConfirmed(sent.json))
     return done(await kept("refused", null, sent.said), sent.usage, sent.said);
   // Taken. What Meta now says of the ad, where its allowance leaves room to ask: else the next read says.
@@ -128,7 +162,8 @@ const TELL_MAX = 5;
 /**
  * An account's presses still on their way, sent before its read: each whose thirty seconds have passed, while Meta's
  * allowance leaves room. A pause goes before a turning back on, since a pause stops money and waits for nothing; of
- * a kind, the oldest ask first. What it came to, for the read's line; `revoked` ends the read.
+ * a kind, the oldest ask first. What it came to, for the read's line; `revoked` ends the read. While this deployment's
+ * switch is off only the pauses go: a stop is never held by it, and nothing that turns an ad on is sent.
  */
 export async function tellPending(
   db: Db,
@@ -139,8 +174,8 @@ export async function tellPending(
   const { accountId, nowMs } = at;
   let usage: MetaUsage | null = null;
   let told = 0;
-  if (who.writes === "off") return { told, usage, revoked: false };
   const pending = (await listPendingAds(db, who.tenantId, accountId))
+    .filter((ad) => who.writes !== "off" || ad.intent === "paused")
     .filter((ad) => mayTellNow(ad.told_at, nowMs))
     .sort(
       (a, b) => Number(b.intent === "paused") - Number(a.intent === "paused") || a.intent_at.localeCompare(b.intent_at),
@@ -151,7 +186,8 @@ export async function tellPending(
     usage = answer.usage ?? usage;
     if (answer.outcome === "revoked") return { told, usage, revoked: true };
     if (answer.outcome === "slowed") break;
-    told += 1;
+    // A pause Meta never took is still on its way: the next read sends it, and it is not counted as told.
+    if (answer.outcome !== "not_taken") told += 1;
   }
   return { told, usage, revoked: false };
 }
@@ -180,7 +216,8 @@ export async function pauseLeftOn(
   for (const ad of leftOn) {
     const held = account.read_after !== null && Date.parse(account.read_after) > Date.now();
     const room = usage === null || usage.pct < ADS_USAGE_HOLD_PCT;
-    if (who.signIn === null || who.writes === "off" || held || !room) {
+    // Held only by Meta, never by this deployment's switch: a pause is a stop.
+    if (who.signIn === null || held || !room) {
       unconfirmed.push(ad.name);
       continue;
     }
