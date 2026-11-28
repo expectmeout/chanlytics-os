@@ -142,7 +142,7 @@ test("every asker joins the one return, and the job run again asks for nothing",
   assert.equal(platformSaw(web).asked, 1);
 });
 
-test("a shelf that holds nothing puts the copy back from the kept file: the video waits, and the next Play brings it back", async () => {
+test("a shelf that holds nothing puts the copy back from the kept file: the video waits, and comes back by itself once it is there", async () => {
   const { w, web, file, row } = await shelvedAway();
   w.relay.shelf.held.clear();
   await ensureCopy(w.db, T, file.id, "play");
@@ -160,10 +160,10 @@ test("a shelf that holds nothing puts the copy back from the kept file: the vide
   await ensureCopy(w.db, T, file.id, "play");
   assert.deepEqual(await runReturns(w), [{ returned: "waits:unreadable" }]);
   assert.equal(w.shelveJobs().filter((job) => job.state === "scheduled").length, 1, "one job puts it back");
-  // The job runs: the shelf holds the video again, from its own kept file. The next Play brings it back.
-  assert.deepEqual(await runShelving(w), [{ shelved: "checked" }]);
+  // The job runs: the shelf holds the video again, from its own kept file, and the return that waited goes back on
+  // the ledger with the check (00729): nobody presses Play a second time.
   for (const job of w.returns()) job.state = "done";
-  assert.equal((await ensureCopy(w.db, T, file.id, "play")).copy, "returning");
+  assert.deepEqual(await runShelving(w), [{ shelved: "checked" }]);
   assert.deepEqual(await runReturns(w), [{ returned: "asked" }]);
   assert.equal(platformSaw(web).asked, 1);
 });
