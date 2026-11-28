@@ -47,7 +47,7 @@ create index if not exists form_entries_sent_ref on public.form_entries (tenant_
 comment on column public.form_entries.sent_ref is
   'The id a site sent on an entry kept as a clash (00726): its form already had that id with other words, so the id itself (ref) stays with the first. The same form, this id and the same words again are this entry, with no time limit. Not unique.';
 
-/* ------------------------------------------------------------------------------------ 2. the door''s write -- */
+/* ------------------------------------------------------------------------------------- 2. the door's write -- */
 
 drop function if exists public.form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text, text, text, text, jsonb, boolean);
 create or replace function public.form_entry_take(
@@ -265,7 +265,7 @@ grant execute on function public.form_entry_take(uuid, text, jsonb, jsonb, text,
 comment on function public.form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text, text, text, text, jsonb, boolean, text) is
   'The website form door''s one write (00675, 00709, 00726): the key''s last use and its site (the first key''s row and site made at their first use), the form the entry is of (found by its site, kind and the site''s id for it, or made), the once rule within that form (the site''s own id, the same words with it; an id the form had with other words kept as a new entry under the id as sent, and the same again by that id and its words with no time limit; with no id, the same words within ten minutes), the person through resolve_person as the website''s, the entry with where its visitor came from, and its form_entry.accepted event, together. A test keeps no person, owes nothing, names no form, writes no event and stamps its site''s test_at. An entry past the door''s limit (p_held_why: too_many) is kept held with who it is about as typed, no person, no event and no stamp, until form_entry_let_through. Answers {outcome: accepted|again|held|forgotten|test, entry_id, contact_id, person, clash}: clash is an id the form had with other words, kept as a new entry; held is also the answer for a held entry sent again. The service role''s alone.';
 
-/* -------------------------------------------------------------------- 3. a site''s entry held, and let through -- */
+/* --------------------------------------------------------------------- 3. a site's entry held, and let through -- */
 
 create or replace function public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid)
 returns boolean
