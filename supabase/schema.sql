@@ -17007,6 +17007,7 @@ CREATE FUNCTION public.jobs_take_their_kind() RETURNS trigger
     AS $_$
 declare
   v_kind public.job_kinds;
+  v_request text;
 begin
   select * into v_kind from public.job_kinds k where k.kind = NEW.kind;
   -- A kind with no row is refused by the foreign key, in its own words.
@@ -17022,8 +17023,22 @@ begin
     NEW.dedupe_key := public.job_dedupe_key_of(NEW.kind, NEW.tenant_id, NEW.payload);
   end if;
   NEW.dedupe_kept := v_kind.once_kept and NEW.dedupe_key is not null and NEW.dedupe_key not like 'requeue:%';
+  -- The request this insert serves, after the key: the job runs as the act that wrote it (00731).
+  if jsonb_typeof(NEW.payload) = 'object' and not (NEW.payload ? 'request_id') then
+    v_request := public.request_id_of_caller();
+    if v_request is not null then
+      NEW.payload := NEW.payload || jsonb_build_object('request_id', v_request);
+    end if;
+  end if;
   return NEW;
 end $_$;
+
+
+--
+-- Name: FUNCTION jobs_take_their_kind(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.jobs_take_their_kind() IS 'Before every insert into jobs, whoever writes it: the lane and the once-only key from the kind''s job_kinds row (00526), and the request the insert serves stamped into a payload that names none (00731, request_id_of_caller), so a job a SQL door writes runs as the act that wrote it.';
 
 
 --
