@@ -26,8 +26,9 @@ name: Database
 # database suites that read what it writes pass against the new schema
 # (deploy-order/last-release-suites.mjs). A suite the migration fails on purpose is argued
 # in the description, `Last release: <why>`. By hand, `last_release` names a
-# commit to take as the base, for the proof of a migration already on a branch;
-# such a run replays and runs that leg alone.
+# commit to take as the base, for the proof of a migration already on a branch,
+# and `argued` gives the reason a description would; such a run replays and
+# runs that leg alone, and its summary says what the old release came to.
 on:
   pull_request:
   push:
@@ -38,6 +39,10 @@ on:
     inputs:
       last_release:
         description: "A commit to take as the last release: its database suites that read what this branch's migrations write are run against this branch's schema, and nothing else is"
+        type: string
+        default: ""
+      argued:
+        description: "Why a suite of that release fails on purpose, where one does: what a pull request's description says after 'Last release:'"
         type: string
         default: ""
 
@@ -178,10 +183,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           LAST_RELEASE: ${{ inputs.last_release }}
+          ARGUED: ${{ inputs.argued }}
         run: |
           if [ -n "$PR" ]; then
             PR_BODY="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
             export PR_BODY
+          elif [ -n "$ARGUED" ]; then
+            # A run by hand has no description: its reason is the input.
+            export PR_BODY="Last release: $ARGUED"
           fi
           node tooling/scripts/checks/deploy-order/last-release-suites.mjs "${LAST_RELEASE:-HEAD^1}" HEAD
       - if: always() && steps.changed.outputs.db == 'true'

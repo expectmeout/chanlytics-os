@@ -59,6 +59,13 @@ export function reasonIn(body) {
 }
 
 const git = (...args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 });
+
+/** What the leg came to, said in the log and, on a runner, on the run's own page. */
+function say(text, failed = false) {
+  (failed ? console.error : console.log)(text);
+  const summary = process.env.GITHUB_STEP_SUMMARY;
+  if (summary) fs.appendFileSync(summary, `## The last release against this schema\n\n${text}\n`);
+}
 const lines = (text) => text.split("\n").filter(Boolean);
 
 /**
@@ -124,25 +131,31 @@ function main() {
     base,
     run.map(([suite]) => suite),
   );
+  const ran = `${run.length} of its database suites, the ones that read what ${added.map((f) => path.basename(f).slice(0, 5)).join(" and ")} write`;
   if (code === null) {
     // Not a red of the schema's, so no line in the description argues it.
-    console.error(`The last release (${at}) could not be checked out and installed, so its suites did not run.`);
+    say(`The last release (${at}) could not be checked out and installed, so its suites did not run.`, true);
     process.exit(1);
   }
   if (code === 0) {
-    console.log(`The last release (${at}) passes its database suites against this schema: either deploy order holds.`);
+    say(`The last release (${at}) passes ${ran}, against this schema: either deploy order holds.`);
     return;
   }
   const reason = reasonIn(process.env.PR_BODY);
   if (reason) {
-    console.log(`The last release (${at}) fails a suite against this schema, and the description says why: ${reason}`);
+    say(
+      `The last release (${at}) ran ${ran}, and one or more fail against this schema (the log names each test). ` +
+        `The change says why: ${reason}`,
+    );
     return;
   }
-  console.error(
-    `The last release (${at}) fails a database suite against this schema (above). A migration is applied before its ` +
-      "merge, so that code runs against it until both apps deploy, and again after a roll back. Keep what the old code " +
-      "calls and reads working; or, where the migration means the change (a body the last release pinned, a rule " +
-      "tightened once the code stopped breaking it), say so in the description: `Last release: <why>`.",
+  say(
+    `The last release (${at}) ran ${ran}, and one or more fail against this schema (the log names each test). A ` +
+      "migration is applied before its merge, so that code runs against it until both apps deploy, and again after a " +
+      "roll back. Keep what the old code calls and reads working; or, where the migration means the change (a body " +
+      "the last release pinned, a rule tightened once the code stopped breaking it), say so in the description: " +
+      "`Last release: <why>`.",
+    true,
   );
   process.exit(1);
 }
