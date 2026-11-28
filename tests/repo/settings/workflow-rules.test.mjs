@@ -470,6 +470,37 @@ test("the replay runs every database suite on main, and on a pull request the on
   assert.ok(workflow("nightly-database.yml").includes("run: pnpm test:db"), "every night, every suite");
 });
 
+test("the replay is from nothing: a stack started fresh on the runner, with every migration from the first applied to it, on a pull request, on main and every night", () => {
+  // Confirmed on 28 Nov 2026 from a run's own log: the Database run of #2721 applied 631 migrations, 00001 to 00724,
+  // the folder's whole count. What keeps it so is here: both workflows start a stack of their own (`supabase start`
+  // on a runner that holds none applies the folder in order), neither is handed a database that already exists, and
+  // the folder still begins at its first migration, so nothing was folded into a baseline that a replay would skip.
+  for (const file of ["database.yml", "nightly-database.yml"]) {
+    const code = workflow(file)
+      .split("\n")
+      .filter((l) => !/^\s*#/.test(l))
+      .join("\n");
+    assert.ok(
+      code.includes("supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector"),
+      `${file} starts its own stack`,
+    );
+    assert.ok(
+      !/--db-url|--linked|pg_restore|supabase db (dump|pull|remote)/.test(code),
+      `${file} is handed no database that already holds a schema`,
+    );
+    assert.ok(code.includes("uses: supabase/setup-cli@"), `${file} installs the CLI that replays`);
+  }
+  const folder = fs
+    .readdirSync(path.join(ROOT, "supabase/migrations"))
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  assert.match(
+    folder[0],
+    /^00001_/,
+    "the folder begins at its first migration: no baseline stands in for the ones before",
+  );
+});
+
 test("either deploy order is held on a pull request: a function written again takes the last release's call, and the last release's suites run on the new schema", () => {
   // A migration is applied before its merge, so the code that meets it first is main's. The first step reads the
   // snapshot and needs no stack, so it runs on every pull request, before the question of a replay; the second needs
