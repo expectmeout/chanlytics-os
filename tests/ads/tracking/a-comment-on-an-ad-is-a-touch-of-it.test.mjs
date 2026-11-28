@@ -46,7 +46,8 @@ const { readAdCommenters } = await import(at("packages/db/src/repositories/ads/e
 const { listTouchesOf } = await import(at("packages/db/src/repositories/content/touches.ts"));
 const { adsPage } = await import(at("apps/dashboard/src/server/readers/ads-page.ts"));
 const { readerContext, readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { liveModel, sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { liveModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model/sheet.ts"));
 
 const realFetch = globalThis.fetch;
 globalThis.fetch = async () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
