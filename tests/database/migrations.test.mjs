@@ -21,7 +21,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ledgerProblems, readFolder, readLedger } from "../../tooling/scripts/checks/migration-ledger.mjs";
+import {
+  ledgerProblems,
+  readFolder,
+  readLedger,
+  readSchemaHead,
+  schemaHeadProblems,
+} from "../../tooling/scripts/checks/migration-ledger.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DIR = path.join(ROOT, "supabase", "migrations");
@@ -63,6 +69,14 @@ test("every migration is in the ledger with the text it was recorded with, in th
   // the head, a rename and an edit all passed it (the scorecard's defect 59). ledgerProblems names each of those; the
   // cases that plant them are in migration-ledger.test.mjs.
   const problems = ledgerProblems(readLedger(ROOT), readFolder(ROOT));
+  assert.deepEqual(problems, [], problems.join(" | "));
+});
+
+test("a build of this tree says the ledger's head as the newest migration it was written against", () => {
+  // Each app's /api/version answers contracts' SCHEMA_HEAD, and the smoke after a deploy is red when it is above what
+  // production has applied. A migration's pull request that left it behind would have its build say it needs an older
+  // database than it does, and the smoke would pass a deploy whose migration was never applied.
+  const problems = schemaHeadProblems(readLedger(ROOT), readSchemaHead(ROOT));
   assert.deepEqual(problems, [], problems.join(" | "));
 });
 
