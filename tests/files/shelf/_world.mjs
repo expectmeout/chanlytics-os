@@ -19,6 +19,7 @@ export { shaOf } from "./_shelf.mjs";
 
 const { shelver } = await import(at("apps/edge/lib/files/shelf/shelve.ts"));
 export const { beginShelving } = await import(at("apps/edge/lib/files/shelf/shelve.ts"));
+export const { keepShelfCaughtUp } = await import(at("apps/edge/lib/files/shelf/catch-up.ts"));
 export const { fileMadePathOf } = await import(at("packages/contracts/src/files/kinds.ts"));
 export const { FILE_SHELF_MINUTES_MAX } = await import(at("packages/contracts/src/files/limits.ts"));
 
@@ -44,7 +45,7 @@ export function shelfWorld({ shelfOn = true, kept = [], bucket, ...copies } = {}
   w.tables.file_archives ??= [];
   w.tables.file_archive_parts ??= [];
   const files = new Map(kept.map(([fileId, bytes]) => [fileMadePathOf(T, fileId, "video"), bytes]));
-  const storage = { signed: [], signFails: null };
+  const storage = { signed: [], signFails: null, read: [], readFails: null };
   const base = w.db.storage.from();
   w.db.storage = {
     from: () => ({
@@ -56,6 +57,14 @@ export function shelfWorld({ shelfOn = true, kept = [], bucket, ...copies } = {}
         if (!files.has(path))
           return { data: null, error: { message: "Object not found", status: 400, statusCode: "404" } };
         return { data: { signedUrl: `${FILES_START}${path}?token=signed-for-a-while` }, error: null };
+      },
+      // A kept file read whole, as the half-hourly pass reads one to take its SHA-256: its bytes, or Storage's refusal.
+      download: async (path) => {
+        storage.read.push(path);
+        if (storage.readFails) return { data: null, error: { message: storage.readFails, status: 500 } };
+        if (!files.has(path))
+          return { data: null, error: { message: "Object not found", status: 400, statusCode: "404" } };
+        return { data: new Blob([files.get(path)]), error: null };
       },
     }),
   };
