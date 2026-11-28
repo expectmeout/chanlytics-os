@@ -1,0 +1,73 @@
+name: Rules broken on purpose
+
+# Would the tests notice if a rule were removed? tooling/scripts/checks/break-rules.mjs takes one line out of the code
+# or the database at a time (a door's workspace check, the send door's stop, the shelf asked before a copy goes), runs
+# the tests named beside it and expects red. A rule whose tests stay green has no test, and this run fails.
+#
+# Weekly, by hand, and when the `rules` label is added to a pull request: never on a push. It breaks code, so it has
+# no place among the checks a merge waits on, and neither job is a required check. Both run on a checkout of their
+# own and a database of their own (the local stack), and write nothing anywhere else.
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: rules-broken-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  code:
+    name: Rules kept in code, each broken once
+    if: github.event_name != 'pull_request' || github.event.label.name == 'rules'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node tooling/scripts/checks/break-rules.mjs --run
+
+  database:
+    name: Rules kept in the database, each broken once on the local stack
+    if: github.event_name != 'pull_request' || github.event.label.name == 'rules'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+      - run: pnpm install --frozen-lockfile
+      # As database.yml starts it, and for its reason: a failed start keeps what it pulled, so a few more attempts,
+      # spaced out, finish the set.
+      - run: |
+          for attempt in 1 2 3 4 5 6; do
+            if supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector; then exit 0; fi
+            echo "supabase start failed on attempt $attempt; pulling the rest after a pause" >&2
+            supabase stop --no-backup || true
+            sleep $((attempt * 15))
+          done
+          exit 1
+      - name: Point the suites at the local database
+        run: |
+          echo "SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
+          echo "SUPABASE_ANON_KEY=$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
+      - run: node tooling/scripts/checks/break-rules.mjs --run --db
+      - if: always()
+        run: supabase stop --no-backup
