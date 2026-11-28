@@ -40,13 +40,31 @@ const googleSaid = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const BUSY_STATUSES: readonly number[] = [429, 503];
 
 /** Google answered and said no (a 4xx): it made nothing. Anything else is not known to have made nothing. */
-const saidNo = (e: unknown): boolean => e instanceof PlacesError && e.status >= 400 && e.status < 500;
+const saidNo = (failure: unknown): boolean =>
+  failure instanceof PlacesError && failure.status >= 400 && failure.status < 500;
 
 /**
  * The ask never left: the wire to Google is resting after its failures (channels provider-fetch, `breaker_open`, which
  * the Google wire raises by that word). Nothing was made, as when Google says it is too busy.
  */
-const neverAsked = (e: unknown): boolean => e instanceof Error && e.message.endsWith("breaker_open");
+const wireRested = (failure: unknown): boolean => failure instanceof Error && failure.message.endsWith("breaker_open");
+
+/**
+ * An ask to post that failed, as its callers read it: too busy to take it (nothing made, asked once more), a plain no
+ * (nothing made), or neither, where Google may hold the post: said `unanswered`, and never read as a refusal that made
+ * nothing.
+ */
+function postRefusedOf(failure: unknown): EdgeRefusal & { busy?: true; unanswered?: true } {
+  const busy = wireRested(failure) || (failure instanceof PlacesError && BUSY_STATUSES.includes(failure.status));
+  const unanswered = !busy && !saidNo(failure);
+  return {
+    ok: false,
+    error: "google_refused",
+    detail: googleSaid(failure),
+    ...(busy ? { busy: true as const } : {}),
+    ...(unanswered ? { unanswered: true as const } : {}),
+  };
+}
 
 export async function postOnProfile(
   db: Db,
@@ -63,16 +81,7 @@ export async function postOnProfile(
   try {
     created = await createLocalPost(http, owner.token, owner.parent, input.post);
   } catch (e) {
-    const busy = neverAsked(e) || (e instanceof PlacesError && BUSY_STATUSES.includes(e.status));
-    // Neither busy nor a plain no: Google may hold the post. Said so, and never read as a refusal that made nothing.
-    const unanswered = !busy && !saidNo(e);
-    return {
-      ok: false,
-      error: "google_refused",
-      detail: googleSaid(e),
-      ...(busy ? { busy: true as const } : {}),
-      ...(unanswered ? { unanswered: true as const } : {}),
-    };
+    return postRefusedOf(e);
   }
   await emitEvent(db, tenantId, "file.posted", "workspace", tenantId, {
     file_id: input.fileId,
