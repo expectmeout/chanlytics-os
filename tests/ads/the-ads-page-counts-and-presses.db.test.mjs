@@ -3,8 +3,9 @@
  * 0049, calls 5 and 6; decision 0050, calls 1, 2, 8 and 9; the Ads plan's C1).
  *
  * What must hold. The page's people for its ads plus the ones from an ad it cannot name are exactly the people the
- * people report counts under "An ad", so the two pages cannot disagree. A person is booked from an ad when a visit of
- * theirs starts after their first touch and is neither cancelled nor only asked for. Two records of one person, merged,
+ * people report counts under "An ad", so the two pages cannot disagree. A person is booked from an ad when a booking
+ * of theirs is put down to it by the one rule (00732, booking_sources: made inside the window after their touch, the
+ * ad its main source, neither cancelled nor only asked for; a visit with no moment it was made is none). Two records of one person, merged,
  * are one person. A press is kept once: two at once make one change, a stale one is refused, turning back on is refused
  * where the rule says no, and taking back a press the platform was never told of leaves nothing to tell. A change the
  * platform refuses puts the ad back and says so. Disconnect is the owner's, never refused, lets go what was on its way,
@@ -141,12 +142,17 @@ async function arrive(ws, adId, channel = "whatsapp") {
   );
 }
 
-const visit = (ws, contactId, status, inHours = 24) =>
+/**
+ * A visit that came by the business's booking tool. `arrived`: the moment it arrived as a customer's booking, which the
+ * arrival rule stamps as its event is delivered (00647); a second on, so it is after the message whatever the two clocks say.
+ */
+const visit = (ws, contactId, status, inHours = 24, arrived = true) =>
   db.from("appointments").insert({
     tenant_id: ws.tenant,
     contact_id: contactId,
     source: "booking_tool",
     status,
+    ...(arrived ? { arrived_at: new Date(Date.now() + 1000).toISOString() } : {}),
     timezone: "America/New_York",
     starts_at: new Date(Date.now() + inHours * 3_600_000).toISOString(),
     ends_at: new Date(Date.now() + (inHours + 1) * 3_600_000).toISOString(),
@@ -199,9 +205,11 @@ test("the page's people, with the unnamed line, are the people Reports counts un
   const third = await arrive(ws, "23850000000000801");
   await arrive(ws, "23850000000000899"); // an ad Chanlytics does not hold
   await arrive(ws, null); // nobody's ad
-  // Booked: a visit after the first touch that stands. Cancelled, or only asked for, is not.
+  // Booked: a booking made after the first touch that stands. Cancelled, or only asked for, is not; nor is a visit
+  // with no moment it was made (a tool's copy that never arrived as a booking), which is put down to nothing.
   ok(await visit(ws, first.contact_id, "booked"));
   ok(await visit(ws, second.contact_id, "cancelled"));
+  ok(await visit(ws, second.contact_id, "booked", 30, false));
   ok(await visit(ws, third.contact_id, "proposed"));
 
   const page = await counts(ws);

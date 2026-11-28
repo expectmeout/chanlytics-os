@@ -196,7 +196,10 @@ export const outsideFormSheet: Reader<{ form: string }, OutsideFormSheetDto> = {
         people: brought?.people ?? 0,
         new_people: brought?.newPeople ?? 0,
         talked: brought?.talked ?? 0,
-        visits: brought?.visits ?? 0,
+        booked: brought?.booked ?? 0,
+        helped: brought?.helped ?? 0,
+        appointments: brought?.appointments ?? null,
+        subscribers: brought?.subscribers ?? null,
         confirmed: brought?.confirmed ?? 0,
       },
       entries: entries

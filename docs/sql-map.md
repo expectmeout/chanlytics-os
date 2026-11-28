@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 241 | 241 |
-| reader | 99 | 0 |
+| reader | 102 | 0 |
 | the server's | 483 | 412 |
 | computed column | 3 | 0 |
 | trigger | 128 | 94 |
-| all | 954 | 747 |
+| all | 957 | 747 |
 
 ## Called by nothing
 
@@ -69,7 +69,7 @@ being read is dropped by a migration.
 | `ad_draft_writing` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00672; |
 | `ad_draft_written` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00672): |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
-| `ad_held_for` | reader | a signed-in person, the server | SQL `ad_chats_kept`, `ad_named` and 3 more | The one ad Chanlytics holds for a platform's id for an ad (00666): |
+| `ad_held_for` | reader | a signed-in person, the server | SQL `ad_chats_kept`, `ad_named` and 4 more | The one ad Chanlytics holds for a platform's id for an ad (00666): |
 | `ad_launch_cancel` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts`; SQL `ads_remediate_files` | Service-role only: an ad made here cancelled while it is set up (00676; |
 | `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00666, 00676; |
 | `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
@@ -77,9 +77,9 @@ being read is dropped by a migration.
 | `ad_pause_all` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_pause_for_stop`, `ads_remediate_files` | Service-role only: ads paused together, each through ad_set_intent, in one transaction, in the ads' own order (00671, 00676; |
 | `ad_pause_for_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/presses.ts` | Stop everything's pause of the ads made here that are on (00722), as the member who pressed it: |
 | `ad_people` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/results.ts`, `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
-| `ad_people_back` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The people an ad brought back (the Ads tracking plan's T3 and its call 2, 00678): |
-| `ad_people_in` | reader | a signed-in person, the server | SQL `ad_people`, `ads_page_counts` | The people an ad brought in a window, a row a person (00651; |
-| `ad_ref_parts` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` and 1 more | A first touch's reference (contacts.acquired_ref) as its platform and the platform's id for the ad (00651, decision 0049 call 4): |
+| `ad_people_back` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The people an ad brought back (the Ads tracking plan's T3 and its call 2, 00678; |
+| `ad_people_in` | reader | a signed-in person, the server | SQL `ad_people`, `ads_page_counts` | The people an ad brought in a window, a row a person (00651, 00732; |
+| `ad_ref_parts` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` and 2 more | A first touch's reference (contacts.acquired_ref) as its platform and the platform's id for the ad (00651, decision 0049 call 4): |
 | `ad_resume_stopped` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: the owner turns back on the ads Stop everything paused, after Resume, as a press of its own that names them (00676; |
 | `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_pause_all`, `ad_resume_stopped` | Service-role only: an ad paused or turned back on (00652, 00676; |
 | `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_launch_keep`, `ad_pause_all` and 1 more | Service-role only: an owner's press that the platform will not take yet (00652). |
@@ -89,7 +89,7 @@ being read is dropped by a migration.
 | `ad_way_in_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what stands between each running ad made here and AI answering the chat it opens, as one read of its account worked it out (00676; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
-| `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |
+| `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651, 00732; |
 | `ads_paused_by_holds` | trigger | the server | trigger `ads_paused_by_holds on ads` | Trigger (00676): an ad that is not paused holds no paused_by: |
 | `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). |
 | `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, 00719, decision 0049). |
@@ -135,6 +135,8 @@ being read is dropped by a migration.
 | `booking_request_nudged` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/lapses.ts` | Stamps that a request's owner was nudged it is about to run out (00679): |
 | `booking_request_open` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/rows.ts` | A booking the receptionist asks for (00443, decision 0061): |
 | `booking_requests_due` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/lapses.ts` | What the request clock is due to act on (00679, decision 0061): |
+| `booking_sources` | reader | a signed-in person, the server | code `packages/contracts/src/content/results/credit.ts`; SQL `ad_people_back`, `ad_people_in` and 3 more | What each booking is put down to: |
+| `bookings_with_sources` | reader | a signed-in person, the server | code `packages/db/src/repositories/content/visits.ts` | The one rule as a page reads it (00732): |
 | `business_record_keep` | the server's | the server | code `packages/db/src/repositories/lines/lines.ts` | The business on record saved whole for its workspace, with business.recorded in the same transaction (00721): |
 | `calendar_grant_note` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | The calendar read through a connected mailbox (decision 0073, R20): |
 | `calendars_due` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out` | The workspaces with a calendar to read (a feed's link, or a calendar read through a connected mailbox, 00478) never read or last read before p_before, never read first, then least recently read, each |
@@ -207,6 +209,7 @@ being read is dropped by a migration.
 | `create_workspace` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/preview-claims/route.ts`, `apps/dashboard/app/api/v1/workspaces/create/route.ts` and 1 more | Create a workspace and make the calling user its owner, in one transaction; |
 | `create_workspace_for` | the server's | the server | SQL `create_workspace`, `create_workspace_for_business` | Create a workspace and make p_user its owner, in one transaction; |
 | `create_workspace_for_business` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The calling partner makes a workspace for a business (0016): |
+| `credit_window_days` | reader | a signed-in person, the server | SQL `ads_page_counts`, `booking_sources` and 2 more | The days before a booking was made that a touch counts for it (00732; |
 | `deadman_candidates` | the server's | the server | code `packages/db/src/repositories/conversations/unfinished.ts` |  |
 | `deadman_mark_alerted` | the server's | the server | code `packages/db/src/repositories/conversations/unfinished.ts` |  |
 | `deal_record` | door | a signed-in person, the server | SQL `record_deal` | Record a deal on a person's word (0004, 0008). |

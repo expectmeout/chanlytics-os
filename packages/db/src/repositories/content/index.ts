@@ -27,16 +27,8 @@ export {
   keepTouch,
   listPostTouches,
   listTouchesIn,
-  listTouchesOf,
   scrubOldTouches,
 } from "./touches";
 export type { CommentKept, CommentToKeep, TouchToKeep } from "./touches";
-export {
-  listReviewAsksOf,
-  listVisitsMadeIn,
-  listVisitsOf,
-  makePostLink,
-  readPostLinks,
-  readReviewAskFacts,
-} from "./visits";
-export type { PostLinkRead, ReviewAskFactsRead, ReviewAskRead, VisitForCredit } from "./visits";
+export { listReviewAsksOf, makePostLink, readBookingsWithSources, readPostLinks, readReviewAskFacts } from "./visits";
+export type { BookingsRead, PostLinkRead, ReviewAskFactsRead, ReviewAskRead } from "./visits";

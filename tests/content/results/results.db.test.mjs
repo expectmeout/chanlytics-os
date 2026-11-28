@@ -7,7 +7,7 @@
  * asked for in the conversation a post's touch is in records what it answered; an erased person's touches keep only
  * that they happened; a comment left on an ad is kept by the ad Meta names, even on a post made by hand, and the Ads
  * page's reads name who commented and sum what its days did (00719), and the person's touches name the ad, so a visit
- * they book after it is put down to it by the one credit rule. Each table's rows: a member of the workspace reads
+ * they book after it is put down to it by the one rule (00732, booking_sources). Each table's rows: a member of the workspace reads
  * them, another workspace sees none.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
@@ -15,8 +15,14 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { creditFor, creditOf } from "@chanlytics/contracts";
-import { findComment, findCommentForWork, listComments, listTouchesOf, listVisitsOf } from "@chanlytics/db/content";
+import { CREDIT_WINDOW_DAYS } from "@chanlytics/contracts";
+import {
+  findComment,
+  findCommentForWork,
+  listComments,
+  listTouchesIn,
+  readBookingsWithSources,
+} from "@chanlytics/db/content";
 import { readAdCommenters, readAdsEngaged } from "@chanlytics/db/ads";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -471,10 +477,13 @@ test(
     const engaged = await readAdsEngaged(as.stranger.client, B, "2026-11-24");
     assert.deepEqual(engaged?.get(adId), { plays: 320, comments: 2, saves: 1 });
 
-    // The person is credited to the ad (the whole-system plan of 28 Nov 2026, lane 6, item 7): their touches, as their
-    // page and their visits' credit read them, are of the ad, and a visit made after the comment is put down to it.
+    // The person is credited to the ad (the whole-system plan of 28 Nov 2026, lane 6, item 7; lane 4's one rule): their
+    // touches are of the ad, and a visit made after the comment is put down to it.
     const who = first.contact_id;
-    const touches = await listTouchesOf(as.stranger.client, B, { contactIds: [who], since });
+    const until = new Date(Date.now() + 3_600_000).toISOString();
+    const touches = (await listTouchesIn(as.stranger.client, B, { since, until })).filter(
+      (touch) => touch.contact_id === who,
+    );
     assert.deepEqual(
       touches.map((touch) => [touch.kind, touch.subject.type, touch.subject.id, touch.contact_id]),
       [
@@ -484,7 +493,7 @@ test(
       "both of their comments, each a touch of the ad",
     );
     const starts = new Date(Date.now() + 2 * 86_400_000);
-    ok(
+    const visit = ok(
       await db
         .from("appointments")
         .insert({
@@ -499,11 +508,42 @@ test(
         .select("id")
         .single(),
       "their visit",
+    ).id;
+    // What the one rule puts their booking down to, read as their workspace's member: the ad they commented on is its
+    // main source, since it is all they touched, and the booking does not name it itself.
+    const put = ok(
+      await as.stranger.client.rpc("bookings_with_sources", { p_tenant_id: B, p_since: since, p_people: [who] }),
+      "what their booking is put down to",
     );
-    const visits = await listVisitsOf(as.stranger.client, B, { contactIds: [who], since });
-    assert.equal(visits.length, 1, "the visit, read as its workspace's member");
-    assert.equal(creditFor({ type: "ad", id: adId }, creditOf(visits[0], touches)), "assisted", "the ad helped it");
-    const others = await listTouchesOf(as.owner.client, B, { contactIds: [who], since });
-    assert.equal(others.length, 0, "another workspace's member reads none of them");
+    assert.deepEqual(
+      put.bookings.map((one) => [
+        one.appointment_id,
+        one.contact_id,
+        one.sources.map((s) => [s.type, s.id, s.standing, s.tied]),
+      ]),
+      [[visit, who, [["ad", adId, "main", false]]]],
+      "one booking, one main source: the ad",
+    );
+    // The window a page says is the database's own, and the pages' own read answers the same booking.
+    assert.equal(put.window_days, CREDIT_WINDOW_DAYS);
+    assert.equal(ok(await db.rpc("credit_window_days"), "the window"), CREDIT_WINDOW_DAYS);
+    const read = await readBookingsWithSources(as.stranger.client, B, { since, until: null, people: [who], of: "ad" });
+    assert.deepEqual(
+      read?.bookings.map((one) => [one.appointment_id, one.sources.map((s) => s.standing)]),
+      [[visit, ["main"]]],
+    );
+    assert.deepEqual(
+      (await readBookingsWithSources(as.stranger.client, B, { since, until: null, people: [who], of: "post" }))
+        ?.bookings,
+      [],
+      "asked for the bookings a post touched, it is none of them",
+    );
+    const others = ok(await as.owner.client.rpc("bookings_with_sources", { p_tenant_id: B, p_since: since }));
+    assert.deepEqual(others.bookings, [], "another workspace's member reads none of it");
+    assert.equal(
+      (await listTouchesIn(as.owner.client, B, { since, until })).length,
+      0,
+      "nor any of the touches behind it",
+    );
   },
 );

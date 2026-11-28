@@ -207,6 +207,9 @@ function SitePart({ sheet, now, go, io }: { sheet: OutsideFormSheetDto; now: num
       <p className="fmv-note" data-testid="forms-site-results">
         {W.results.line(brought, sheet.form)}
         {brought.entries > 0 ? ` ${W.results.who(brought)}` : ""}
+        {sheet.form === "signup" && brought.subscribers !== null
+          ? ` ${W.results.subscribers(brought.subscribers)}`
+          : ""}
       </p>
       {sheet.entries.length > 0 ? <h4>{W.entries}</h4> : null}
       {sheet.entries.map((entry) => (

@@ -2,7 +2,9 @@
  * The week's line and Reports' content section (the content loop PRD's 9.3, Appendix A.8; the canvas, Today cell 4):
  * posts up, reached as the places report it, conversations (people who wrote about a post), booked from a post and it
  * helped; and the total, where a booking an ad and a post both touched is counted once and lists both, new people and
- * known ones apart, kept, missed and cancelled apart. Views are never added together.
+ * known ones apart, kept, missed and cancelled apart. Views are never added together. What each booking is put down to
+ * is the one rule's answer (the database's booking_sources, 00732: proved on a real database by
+ * a-booking-is-put-down-to-one-source.db.test.mjs); here is what a week's posts make of that answer.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -24,16 +26,21 @@ const touch = (subject, contact, days, over = {}) => ({
   said: null,
   ...over,
 });
-const visit = (id, contact, days, over = {}) => ({
-  id,
+/** A booking as the rule answers it: made `days` in, with what it is put down to, its main source first. */
+const booking = (id, contact, days, sources, over = {}) => ({
+  appointment_id: id,
   contact_id: contact,
   status: "booked",
-  source: "receptionist",
-  created_at: at(days),
-  through_type: null,
-  through_id: null,
+  made_at: at(days),
   starts_at: at(days + 2),
-  service: null,
+  sources: sources.map(([subject, standing, tied = false], index) => ({
+    type: subject.type,
+    id: subject.id,
+    ref: null,
+    at: at(days - 1 + index / 10),
+    standing,
+    tied,
+  })),
   ...over,
 });
 const REEL = { type: "post", id: "reel" };
@@ -53,12 +60,15 @@ const world = {
     touch(AD, "rosa", 2),
     touch(REEL, "lucia", 2, { kind: "comment" }),
   ],
-  visits: [
-    visit("v-ana", "ana", 1, { through_type: "post", through_id: "reel" }),
-    visit("v-dana", "dana", 2, { through_type: "post", through_id: "reel", status: "kept" }),
-    visit("v-rosa", "rosa", 3, { through_type: "ad", through_id: "ad-1", source: "receptionist" }),
-    visit("v-old", "ana", -20, { source: "person" }),
-    visit("v-feed", "lucia", 3, { source: "calendar_feed" }),
+  // Ana and Dana booked in the conversation the reel opened. Rosa booked in the ad's; the picture she answered first
+  // helped. Lucía's visit was first read from a calendar, with no moment it was made: the rule answers nothing for it.
+  bookings: [
+    booking("v-ana", "ana", 1, [[REEL, "main", true]]),
+    booking("v-dana", "dana", 2, [[REEL, "main", true]], { status: "kept" }),
+    booking("v-rosa", "rosa", 3, [
+      [AD, "main", true],
+      [PIC, "helped"],
+    ]),
   ],
 };
 
@@ -71,7 +81,7 @@ test("posts up, reached, conversations, from a post and it helped, each said for
   assert.equal(totals.assisted, 1, "Rosa booked from the ad; the picture helped");
 });
 
-test("the total counts each booking once and lists what touched it; a calendar's copy is none of it", () => {
+test("the total counts each booking once and lists what touched it, its main source first", () => {
   const totals = contentTotalsOf(world);
   assert.equal(totals.bookings.length, 3);
   const rosa = totals.bookings.find((b) => b.visitId === "v-rosa");
@@ -83,6 +93,35 @@ test("the total counts each booking once and lists what touched it; a calendar's
   assert.deepEqual(totals.people, { new: 2, known: 1 });
 });
 
+test("a booking no post was on the way to is none of content's, and one an unnamed ad touched still lists the ad", () => {
+  const FORM = { type: "form", id: "form-1" };
+  const totals = contentTotalsOf({
+    ...world,
+    bookings: [
+      ...world.bookings,
+      // An ad and a form, no post: Ads' and Forms' to count, never content's.
+      booking("v-else", "noor", 3, [
+        [AD, "main"],
+        [FORM, "helped"],
+      ]),
+      // The picture first, then an ad Chanlytics holds no record of: named by its reference at its platform.
+      {
+        ...booking("v-ines", "ines", 3, [[PIC, "main"]]),
+        sources: [
+          { type: "post", id: "pic", ref: null, at: at(1), standing: "main", tied: false },
+          { type: "ad", id: null, ref: "meta:999", at: at(2), standing: "helped", tied: false },
+        ],
+      },
+    ],
+  });
+  assert.equal(totals.bookings.length, 4, "the three, and Inés's");
+  assert.equal(totals.direct, 3, "Inés's is the picture's: nothing else came first");
+  assert.deepEqual(totals.bookings.find((b) => b.visitId === "v-ines").touched, [
+    { type: "post", id: "pic", class: "direct" },
+    { type: "ad", id: "meta:999", class: "assisted" },
+  ]);
+});
+
 test("the week's line, as Today's weekly card says it", () => {
   const said = contentWeekSaid(contentWeekOf(contentTotalsOf(world), 7));
   assert.equal(said.title, "Your posts brought 4 conversations last week.");
@@ -90,9 +129,9 @@ test("the week's line, as Today's weekly card says it", () => {
 });
 
 test("a week with no post up has no line, and one with posts and no conversation says so", () => {
-  assert.equal(contentWeekSaid(contentWeekOf(contentTotalsOf({ posts: [], touches: [], visits: [] }), 7)), null);
+  assert.equal(contentWeekSaid(contentWeekOf(contentTotalsOf({ posts: [], touches: [], bookings: [] }), 7)), null);
   const quiet = contentWeekSaid(
-    contentWeekOf(contentTotalsOf({ posts: [{ post_id: "pic", reach: 12 }], touches: [], visits: [] }), 7),
+    contentWeekOf(contentTotalsOf({ posts: [{ post_id: "pic", reach: 12 }], touches: [], bookings: [] }), 7),
   );
   assert.equal(quiet.title, "Your posts went up last week.");
   assert.equal(quiet.line, "1 up · 12 reached");

@@ -55,7 +55,8 @@ export interface FormLinkDto {
   stopped: boolean;
   opens: number;
   requests: number;
-  visits: number;
+  /** The people who booked from a request that came through this place (00732): a count of people, never of visits. */
+  booked: number;
   /**
    * The sites the form may show on, framed in their own page (F4), each with when a request last came from it: null for
    * every place that is not the website.
@@ -98,7 +99,17 @@ export interface FormSheetDto {
     /** How often the business's own booking page was opened from the form (F3): a count, never a visitor. */
     booking_opens?: number;
     talked: number;
-    visits: number;
+    /**
+     * The people who booked from the form (00732): a booking made inside `window_days` of their request, the form being
+     * what it was booked through or the first thing they touched. People, each once.
+     */
+    booked: number;
+    /** The people it helped: their booking is put down to something else they touched. Never in `booked` too. */
+    helped: number;
+    /** The bookings themselves, each once; null from a database before 00732. */
+    appointments: number | null;
+    /** The days a booking is counted within; null from a database before 00732. */
+    window_days: number | null;
     new_people: number;
     known_people: number;
   };
@@ -220,7 +231,7 @@ export interface FormHeldDto {
 
 /**
  * What a workspace's forms brought over the last `days` days, as Reports › Campaigns says it: each form that was
- * ever published, with its opens, its requests, the conversations and visits that followed, who was new, and each
+ * ever published, with its opens, its requests, the conversations and the people who booked, who was new, and each
  * place a request came through. Opens are counted, never people.
  */
 export interface FormsReportDto {
@@ -229,7 +240,7 @@ export interface FormsReportDto {
     id: string;
     heading: string;
     results: Omit<FormSheetDto["results"], "days">;
-    places: Array<{ place: string; requests: number; visits: number }>;
+    places: Array<{ place: string; requests: number; booked: number }>;
   }>;
 }
 

@@ -1,11 +1,12 @@
 /**
- * What a week's or a report's posts brought, counted once (the content loop PRD's 9.3, Appendix A.8): posts up, reached
- * as each place reports it, conversations (people who wrote about a post, once each), booked from a post and it helped
- * (content's own lines), and the total: each booking any touch helped or answered counted once, listing what touched it,
- * by its state, new people and known ones apart. Ads keep their own lines and labels; a booking may show in both views,
- * which are never added together. Pure: handed posts, touches from every home, and visits.
+ * What a week's or a report's posts brought, counted once (the content loop PRD's 9.3, Appendix A.8; 00732): posts up,
+ * reached as each place reports it, conversations (people who wrote about a post, once each), booked from a post (a post
+ * is the booking's main source) and it helped (another source is), and the total: each booking a post was on the way to,
+ * counted once, listing what touched it, by its state, new people and known ones apart. Ads keep their own lines and
+ * labels; a booking may show in both views, which are never added together. Pure: handed posts, touches from every home,
+ * and the bookings as the one rule put them down (contracts credit.ts; the database's booking_sources).
  */
-import { creditFor, creditOf, type CreditSubject, type CreditVisit } from "./credit";
+import type { BookingWithSources, CreditSubject } from "./credit";
 import type { CreditClass } from "./sets";
 import type { ContentWeekDto } from "./dtos";
 import type { RecordedTouch } from "./touch";
@@ -16,13 +17,10 @@ export interface PostReach {
   reach: number | null;
 }
 
-/** A visit as the totals read it. */
-export type VisitCounted = CreditVisit & { id: string };
-
 /** One booking in the total: the visit, its state, and every thing that touched it with its class. */
 export interface CountedBooking {
   visitId: string;
-  status: CreditVisit["status"];
+  status: BookingWithSources["status"];
   newPerson: boolean;
   touched: Array<CreditSubject & { class: Exclude<CreditClass, "none"> }>;
 }
@@ -51,29 +49,33 @@ export interface ContentTotals {
 
 const isPost = (subject: CreditSubject) => subject.type === "post";
 
-/** One booking counted once: what touched it, from the person's touches; null for one nothing helped or answered. */
-function countedOf(visit: VisitCounted, touches: readonly RecordedTouch[]): CountedBooking | null {
-  const mine = touches.filter((touch) => touch.contact_id === visit.contact_id);
-  const credit = creditOf(visit, mine);
-  const subjects = [...(credit.direct ? [credit.direct] : []), ...credit.assisted];
-  const touched = subjects.flatMap((subject) => {
-    const klass = creditFor(subject, credit);
-    return klass === "none" ? [] : [{ ...subject, class: klass }];
-  });
-  if (touched.length === 0 || !touched.some(isPost)) return null;
-  return { visitId: visit.id, status: visit.status, newPerson: mine.some((touch) => touch.new_person), touched };
+/** A source's class on a page: `direct` for a booking's main source, `assisted` for one that helped. */
+const classOf = (standing: BookingWithSources["sources"][number]["standing"]): Exclude<CreditClass, "none"> =>
+  standing === "main" ? "direct" : "assisted";
+
+/** One booking counted once: what it is put down to, as the rule answered; null for one no post was on the way to. */
+function countedOf(booking: BookingWithSources, touches: readonly RecordedTouch[]): CountedBooking | null {
+  // An ad Chanlytics holds no record of is named by its reference: it is still an ad on the way.
+  const touched = booking.sources.map((source) => ({
+    type: source.type,
+    id: source.id ?? source.ref ?? "",
+    class: classOf(source.standing),
+  }));
+  if (!touched.some(isPost)) return null;
+  const newPerson = touches.some((touch) => touch.contact_id === booking.contact_id && touch.new_person);
+  return { visitId: booking.appointment_id, status: booking.status, newPerson, touched };
 }
 
 /** What these posts brought: their own lines, and the total counted once. */
 export function contentTotalsOf(world: {
   posts: readonly PostReach[];
   touches: readonly RecordedTouch[];
-  visits: readonly VisitCounted[];
+  bookings: readonly BookingWithSources[];
 }): ContentTotals {
   const reaches = world.posts.flatMap((post) => (post.reach === null ? [] : [post.reach]));
   const postIds = new Set(world.posts.map((post) => post.post_id));
   const aboutPosts = world.touches.filter((touch) => isPost(touch.subject) && postIds.has(touch.subject.id));
-  const bookings = world.visits.flatMap((visit) => countedOf(visit, world.touches) ?? []);
+  const bookings = world.bookings.flatMap((booking) => countedOf(booking, world.touches) ?? []);
   const postClass = (booking: CountedBooking, klass: "direct" | "assisted") =>
     booking.touched.some((t) => isPost(t) && postIds.has(t.id) && t.class === klass);
   const byStatus = { booked: 0, kept: 0, missed: 0, cancelled: 0 };

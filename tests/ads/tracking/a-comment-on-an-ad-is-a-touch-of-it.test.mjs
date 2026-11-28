@@ -7,7 +7,8 @@
  * door is answered here as 00719's `post_comment_keep` answers (its SQL is held by tests/content/results/results.db.test.mjs
  * on a real Postgres). Then the readers the pages use read what was kept: who commented on each ad (packages/db
  * readAdCommenters), the Ads page's own read and model (server/readers/ads-page.ts, surfaces live/model.ts), and a
- * person's touches (listTouchesOf) under the one credit rule (contracts creditOf).
+ * workspace's touches (listTouchesIn), which is what the one rule reads (the database's booking_sources, 00732: what
+ * their booking is put down to is proved on a real database by tests/content/results/results.db.test.mjs).
  *
  * What must hold. The comment is kept once, on the ad Meta names, with its person. It is counted on that ad, where its
  * owner reads it. And the person is credited to it: a visit they book after it, inside the window, is put down to the ad.
@@ -26,7 +27,6 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { CREDIT_WINDOW_DAYS, creditFor, creditOf } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const IG_SECRET = "instagram-app-secret-for-this-file";
@@ -43,7 +43,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { instagramReceiver } = await import(at("apps/edge/lib/instagram/webhook.ts"));
 const { readAdCommenters } = await import(at("packages/db/src/repositories/ads/engaged.ts"));
-const { listTouchesOf } = await import(at("packages/db/src/repositories/content/touches.ts"));
+const { listTouchesIn } = await import(at("packages/db/src/repositories/content/touches.ts"));
 const { adsPage } = await import(at("apps/dashboard/src/server/readers/ads-page.ts"));
 const { readerContext, readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { liveModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
@@ -335,38 +335,19 @@ test("it is counted on the ad: who commented, in the read, on the ad's row and i
   assert.equal(sheetModel(dto, w.AD, said).commenters.count, 2, "and its drawer lists who");
 });
 
-test("the person is credited to it: a visit they book after it, inside the window, is put down to the ad", async () => {
+test("the person's comment is a touch of the ad with their name on it: what a booking of theirs is put down to", async () => {
   const w = world();
   await deliver(w.comment("18452487913130021", PERSON));
   const [touch] = w.tables.touches;
   const since = new Date(Date.parse(touch.at) - 3_600_000).toISOString();
-  // A person's touches, as their page and their visits' credit read them: the ad is among them.
-  const touches = await listTouchesOf(w.db, w.T, { contactIds: [touch.contact_id], since });
+  const until = new Date(Date.parse(touch.at) + 3_600_000).toISOString();
+  // The workspace's touches, as Reports and the one rule read them: the ad is among them, with its person and its time.
+  const touches = await listTouchesIn(w.db, w.T, { since, until });
   assert.deepEqual(
-    touches.map((one) => [one.kind, one.subject.type, one.subject.id, one.contact_id]),
-    [["comment", "ad", w.AD, touch.contact_id]],
+    touches.map((one) => [one.kind, one.subject.type, one.subject.id, one.contact_id, one.at]),
+    [["comment", "ad", w.AD, touch.contact_id, touch.at]],
   );
-  const subject = { type: "ad", id: w.AD };
-  const visit = (over = {}) => ({
-    contact_id: touch.contact_id,
-    status: "booked",
-    source: "receptionist",
-    created_at: new Date(Date.parse(touch.at) + 2 * 86_400_000).toISOString(),
-    through_type: null,
-    through_id: null,
-    ...over,
-  });
-  // Booked two days after the comment: the ad helped. Recorded as what the visit answered, it is where it came from.
-  assert.equal(creditFor(subject, creditOf(visit(), touches)), "assisted");
-  assert.equal(creditFor(subject, creditOf(visit({ through_type: "ad", through_id: w.AD }), touches)), "direct");
-  // Never for another person's visit, one made before the comment, one past the window, or one cancelled.
-  const not = [
-    visit({ contact_id: "c0c0c0c0-7777-4000-8000-999999999999" }),
-    visit({ created_at: new Date(Date.parse(touch.at) - 86_400_000).toISOString() }),
-    visit({ created_at: new Date(Date.parse(touch.at) + (CREDIT_WINDOW_DAYS + 1) * 86_400_000).toISOString() }),
-    visit({ status: "cancelled" }),
-  ];
-  for (const one of not) assert.equal(creditFor(subject, creditOf(one, touches)), "none");
+  assert.ok(touch.contact_id, "a touch with no person could be put down to nobody's booking");
 });
 
 test("a comment that names no ad of this workspace's, on a post Chanlytics did not send, is acknowledged and kept nowhere", async () => {

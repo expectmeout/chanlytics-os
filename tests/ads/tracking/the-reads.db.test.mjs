@@ -5,9 +5,9 @@
  *
  * What must hold. Meta's chats over the days it has settled stand beside the entries kept on them, for an ad whose chat
  * the workspace hears, and never for one that opens Messenger or an Instagram account it does not hear. A known person
- * who writes from an ad is counted once for it, and booked after only for a visit asked for in the chat and confirmed,
- * or one a member added, made after the message; never for one read in from a calendar, and never the ad's own new
- * person. A thread's messages say the ad they came from, and a first touch its ad, named as every page names it. A
+ * who writes from an ad is counted once for it, and booked after only for a booking the one rule puts down to that ad
+ * (00732, booking_sources: asked for in the chat and confirmed, or added by a member, made after the message and inside
+ * the window); never for one read in from a calendar with no moment it was made, and never the ad's own new person. A thread's messages say the ad they came from, and a first touch its ad, named as every page names it. A
  * member reads all three for their own workspace and nothing of another's. Runs against the database `supabase start`
  * builds on this machine, never production.
  */

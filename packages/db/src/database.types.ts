@@ -11272,6 +11272,41 @@ export type Database = {
           what: string
         }[]
       }
+      booking_sources: {
+        Args: {
+          p_people?: string[]
+          p_since: string
+          p_tenant_id: string
+          p_until?: string
+        }
+        Returns: {
+          appointment_id: string
+          contact_id: string
+          made_at: string
+          standing: string
+          starts_at: string
+          status: string
+          subject_id: string
+          subject_ref: string
+          subject_type: string
+          tied: boolean
+          touch_at: string
+          touch_home: string
+          touch_id: string
+          worth_currency: string
+          worth_minor: number
+        }[]
+      }
+      bookings_with_sources: {
+        Args: {
+          p_of?: string
+          p_people?: string[]
+          p_since: string
+          p_tenant_id: string
+          p_until?: string
+        }
+        Returns: Json
+      }
       business_record_keep: {
         Args: { p_data?: Json; p_row: Json; p_tenant_id: string }
         Returns: boolean
@@ -11681,6 +11716,7 @@ export type Database = {
           timezone: string
         }[]
       }
+      credit_window_days: { Args: never; Returns: number }
       deadman_candidates: {
         Args: { p_older_than?: string }
         Returns: {

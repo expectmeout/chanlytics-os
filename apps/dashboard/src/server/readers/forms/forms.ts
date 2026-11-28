@@ -60,6 +60,8 @@ import {
   type FormEntryLink,
   type FormEntryRead,
   type FormEntryStanding,
+  type FormOwnResult,
+  type FormPlaceResult,
   type FormRead,
   type OpenFormRequest,
   type OpenFormRequestTime,
@@ -150,6 +152,26 @@ async function sheetEmailOf(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promis
   return { ready: email.ready, why: email.why, connect: email.mend === "connect", unchecked: email.unchecked === true };
 }
 
+/**
+ * A form's own totals over the window: the database's (form_results' `forms`, each person once however many places they
+ * came through); from a database before 00732, its places added, as they were.
+ */
+function formTotalsOf(own: FormOwnResult | undefined, places: readonly FormPlaceResult[]) {
+  const sum = (pick: (place: FormPlaceResult) => number) => places.reduce((total, place) => total + pick(place), 0);
+  const people = own?.people ?? sum((place) => place.people);
+  const newPeople = own?.newPeople ?? sum((place) => place.newPeople);
+  return {
+    requests: own?.requests ?? sum((place) => place.requests),
+    asked: own?.asked ?? sum((place) => place.asked),
+    talked: own?.talked ?? sum((place) => place.talked),
+    booked: own?.booked ?? sum((place) => place.booked),
+    helped: own?.helped ?? sum((place) => place.helped),
+    appointments: own?.appointments ?? null,
+    new_people: newPeople,
+    known_people: Math.max(0, people - newPeople),
+  };
+}
+
 /** A form's sheet: the form as it is being changed, where it is shared and what each place brought, and its entries. */
 export const formSheet: Reader<{ form: string }, FormSheetDto> = {
   name: "form_sheet",
@@ -177,8 +199,6 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
       sheetEmailOf(rc),
     ]);
     const mine = results.places.filter((place) => place.formId === form.id);
-    const sum = (pick: (place: (typeof mine)[number]) => number) =>
-      mine.reduce((total, place) => total + pick(place), 0);
     // The website (F4): when a request last came from each site the form may show on.
     const website = links.find((link) => link.sites !== null);
     const fromSites = website ? await listLinkEntrySites(db, rc.tenantId, website.id) : [];
@@ -192,7 +212,7 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
         stopped: link.stoppedAt !== null,
         opens: results.opens.get(link.id) ?? 0,
         requests: brought?.requests ?? 0,
-        visits: brought?.visits ?? 0,
+        booked: brought?.booked ?? 0,
         sites:
           link.sites?.map((host) => ({
             host,
@@ -202,8 +222,6 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
     });
     const places = new Map(links.map((link) => [link.id, link.place]));
     const rows = entries.map((entry) => entryRow(entry, standings, places));
-    const people = sum((place) => place.people);
-    const newPeople = sum((place) => place.newPeople);
     const data: FormSheetDto = {
       id: form.id,
       slug: form.slug,
@@ -217,13 +235,9 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
       results: {
         days: FORM_RESULT_DAYS,
         opens: linkRows.reduce((total, link) => total + link.opens, 0),
-        requests: sum((place) => place.requests),
-        asked: sum((place) => place.asked),
         booking_opens: results.bookingOpens.get(form.id) ?? 0,
-        talked: sum((place) => place.talked),
-        visits: sum((place) => place.visits),
-        new_people: newPeople,
-        known_people: Math.max(0, people - newPeople),
+        window_days: results.windowDays,
+        ...formTotalsOf(results.forms?.get(form.id), mine),
       },
       entries: rows.filter((row) => row.standing !== "held"),
       held: rows.filter((row) => row.standing === "held"),
@@ -260,27 +274,19 @@ export const formsReport: Reader<undefined, FormsReportDto> = {
       days: FORM_RESULT_DAYS,
       forms: published.map((form) => {
         const mine = results.places.filter((place) => place.formId === form.id);
-        const sum = (pick: (place: (typeof mine)[number]) => number) =>
-          mine.reduce((total, place) => total + pick(place), 0);
         const own = links.filter((link) => link.formId === form.id);
-        const people = sum((place) => place.people);
-        const newPeople = sum((place) => place.newPeople);
         return {
           id: form.id,
           heading: (form.liveVersionId ? headingBy.get(form.liveVersionId) : null) ?? form.draft?.heading ?? form.slug,
           results: {
             opens: own.reduce((total, link) => total + (results.opens.get(link.id) ?? 0), 0),
-            requests: sum((place) => place.requests),
-            asked: sum((place) => place.asked),
             booking_opens: results.bookingOpens.get(form.id) ?? 0,
-            talked: sum((place) => place.talked),
-            visits: sum((place) => place.visits),
-            new_people: newPeople,
-            known_people: Math.max(0, people - newPeople),
+            window_days: results.windowDays,
+            ...formTotalsOf(results.forms?.get(form.id), mine),
           },
           places: own.flatMap((link) => {
             const brought = mine.find((place) => place.linkId === link.id);
-            return brought ? [{ place: link.place, requests: brought.requests, visits: brought.visits }] : [];
+            return brought ? [{ place: link.place, requests: brought.requests, booked: brought.booked }] : [];
           }),
         };
       }),

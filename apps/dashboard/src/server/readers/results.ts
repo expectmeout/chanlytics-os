@@ -3,9 +3,9 @@ import "server-only";
 /**
  * What a business's posts said back, as its screens and AI read it (00699; the content loop PRD's 9 and 12.1): a
  * piece's numbers and what it brought, the week's line, Reports' content section, and the comments Inbox lists. Each is
- * read on the member's own session, under the tables' row rules, and worked out when read: nothing is kept, and the
- * credit is the one rule's (contracts creditOf). AI's report read asks these same readers, so the number AI says is the
- * number the page shows.
+ * read on the member's own session, under the tables' row rules, and worked out when read: nothing is kept, and what
+ * a booking is put down to is the one rule's (the database's booking_sources, 00732: the same answer a form's and an
+ * ad's results read). AI's report read asks these same readers, so the number AI says is the number the page shows.
  */
 import {
   AppError,
@@ -14,14 +14,13 @@ import {
   DAY_MS,
   contentTotalsOf,
   contentWeekOf,
-  creditFor,
-  creditOf,
   fileSaidOf,
   isOneOf,
   personName,
   shiftKey,
   zoneDayKey,
   zoneMidnight,
+  type BookingWithSources,
   type BroughtPersonDto,
   type CommentRowDto,
   type CommentsDto,
@@ -40,16 +39,13 @@ import {
   listPostTouches,
   listReviewAsksOf,
   listTouchesIn,
-  listTouchesOf,
-  listVisitsMadeIn,
-  listVisitsOf,
+  readBookingsWithSources,
   readCommentPosts,
   readPostLinks,
   readPostNumbers,
   type CommentRead,
   type PostNumber,
   type ReviewAskRead,
-  type VisitForCredit,
 } from "@chanlytics/db/content";
 import { findLiveAdAccount, listAdsShowingFile } from "@chanlytics/db/ads";
 import { listFilePosts, listPostsInSpan } from "@chanlytics/db/files";
@@ -104,25 +100,41 @@ function postsNumbersOf(posts: readonly PostShape[], numbers: readonly PostNumbe
   });
 }
 
-/** One person's row: their newest touch of these posts, and their best visit's class for any of them. */
+/** A person's booking that these posts were on the way to: from them (a post is its main source), or one they helped. */
+interface BestBooking {
+  klass: "direct" | "assisted";
+  tied: boolean;
+  booking: BookingWithSources;
+}
+
+/** Their best booking for these posts, the newest first: one a post is the main source of before one a post helped. */
+function bestBookingOf(bookings: readonly BookingWithSources[], posts: ReadonlySet<string>): BestBooking | null {
+  let best: BestBooking | null = null;
+  for (const booking of bookings) {
+    const ours = booking.sources.filter(
+      (source) => source.type === "post" && source.id !== null && posts.has(source.id),
+    );
+    if (ours.length === 0) continue;
+    const main = ours.find((source) => source.standing === "main");
+    if (!best || (main && best.klass !== "direct"))
+      best = { klass: main ? "direct" : "assisted", tied: main?.tied === true, booking };
+  }
+  return best;
+}
+
+/** One person's row: their newest touch of these posts, and what their booking is put down to, by the one rule. */
 function broughtPersonOf(
   contactId: string,
   of: {
     mine: RecordedTouch[];
-    all: RecordedTouch[];
-    visits: VisitForCredit[];
+    bookings: BookingWithSources[];
     posts: Set<string>;
     name: string;
     asks: readonly ReviewAskRead[];
   },
 ): BroughtPersonDto {
   const newest = of.mine[0];
-  let best: { klass: BroughtPersonDto["class"]; visit: VisitForCredit } | null = null;
-  for (const visit of of.visits) {
-    const credit = creditOf(visit, of.all);
-    const klass = [...of.posts].map((id) => creditFor({ type: "post", id }, credit)).find((c) => c !== "none");
-    if (klass && (!best || (klass === "direct" && best.klass !== "direct"))) best = { klass, visit };
-  }
+  const best = bestBookingOf(of.bookings, of.posts);
   return {
     contact_id: contactId,
     name: of.name,
@@ -131,12 +143,13 @@ function broughtPersonOf(
     touched_at: newest?.at ?? "",
     words: newest?.said?.words ?? null,
     class: best?.klass ?? "none",
-    visit: best ? { starts_at: best.visit.starts_at, status: best.visit.status } : null,
+    ...(best ? { tied: best.tied } : {}),
+    visit: best ? { starts_at: best.booking.starts_at, status: best.booking.status } : null,
     // Where its chain's steps live (pass 6; the canvas's Loop3): the review ask is the first sent after the visit.
     chain: {
       conversation_id: newest?.conversation_id ?? null,
-      visit: best ? { id: best.visit.id, asked_at: best.visit.created_at } : null,
-      review_ask: chainAskOf(of.asks, best?.visit.starts_at ?? null),
+      visit: best ? { id: best.booking.appointment_id, asked_at: best.booking.made_at } : null,
+      review_ask: chainAskOf(of.asks, best?.booking.starts_at ?? null),
     },
   };
 }
@@ -162,9 +175,9 @@ async function readPieceResults(db: Db, tenantId: TenantId, fileId: string): Pro
   ]);
   const people = [...new Set(touches.flatMap((touch) => (touch.contact_id ? [asContactId(touch.contact_id)] : [])))];
   const since = new Date(Math.min(...posts.map((post) => Date.parse(post.published_at ?? "")), Date.now()) - DAY_MS);
-  const [all, visits, names, asks] = await Promise.all([
-    listTouchesOf(db, tenantId, { contactIds: people, since: since.toISOString() }),
-    listVisitsOf(db, tenantId, { contactIds: people, since: since.toISOString() }),
+  const [put, names, asks] = await Promise.all([
+    // Their bookings made since, each with everything it is put down to; none from a database before the rule (00732).
+    readBookingsWithSources(db, tenantId, { since: since.toISOString(), until: null, people, of: "post" }),
     listNamesOfPeople(db, tenantId, people),
     // What each chain ends at (pass 6): a read that fails leaves the chains without their last step.
     listReviewAsksOf(db, tenantId, people, since.toISOString()).catch(
@@ -176,8 +189,7 @@ async function readPieceResults(db: Db, tenantId: TenantId, fileId: string): Pro
   const rows = people.map((contactId) =>
     broughtPersonOf(contactId, {
       mine: touches.filter((touch) => touch.contact_id === contactId),
-      all: all.filter((touch) => touch.contact_id === contactId),
-      visits: visits.filter((visit) => visit.contact_id === contactId),
+      bookings: (put?.bookings ?? []).filter((booking) => booking.contact_id === contactId),
       posts: postSet,
       name: nameOf.get(contactId) ?? "",
       asks: asks.filter((ask) => ask.contactId === contactId),
@@ -191,7 +203,7 @@ async function readPieceResults(db: Db, tenantId: TenantId, fileId: string): Pro
     assisted: rows.filter((row) => row.class === "assisted").length,
     people: rows,
     link: link ? { code: link.code, lands: link.lands, opens: link.opens } : null,
-    window_days: CREDIT_WINDOW_DAYS,
+    window_days: put?.windowDays || CREDIT_WINDOW_DAYS,
   };
 }
 
@@ -211,7 +223,7 @@ async function readContentTotals(
   const posts = (
     await listPostsInSpan(db, tenantId, { fromIso: window.since, toIso: window.until, limit: POSTS_IN_WINDOW })
   ).filter((post) => post.published_at && post.published_at >= window.since && post.place !== "hand");
-  const [numbers, touches, visits] = await Promise.all([
+  const [numbers, touches, put] = await Promise.all([
     readPostNumbers(
       db,
       tenantId,
@@ -221,7 +233,8 @@ async function readContentTotals(
       since: new Date(since.getTime() - CREDIT_WINDOW_DAYS * DAY_MS).toISOString(),
       until: window.until,
     }),
-    listVisitsMadeIn(db, tenantId, window),
+    // The bookings made in the window that a post was on the way to, each put down by the one rule (00732).
+    readBookingsWithSources(db, tenantId, { since: window.since, until: window.until, of: "post" }),
   ]);
   const reachOf = (postId: string) =>
     numbers.find((number) => number.postId === postId && number.metric === "reach" && number.value !== null)?.value ??
@@ -229,7 +242,7 @@ async function readContentTotals(
   const totals = contentTotalsOf({
     posts: posts.map((post) => ({ post_id: post.id, reach: reachOf(post.id) })),
     touches,
-    visits,
+    bookings: put?.bookings ?? [],
   });
   return { totals, posts };
 }

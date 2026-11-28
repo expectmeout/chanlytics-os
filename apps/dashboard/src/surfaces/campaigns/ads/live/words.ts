@@ -4,7 +4,13 @@
  * its check or its own page is meant; AI is AI; nothing here is a system's word. The model (model.ts) chooses among
  * these and writes none of its own.
  */
-import { AD_STATE_WORDS, type AdOpens, type AdPartLeft, type AdStopped } from "@chanlytics/contracts";
+import {
+  AD_STATE_WORDS,
+  CREDIT_WINDOW_DAYS,
+  type AdOpens,
+  type AdPartLeft,
+  type AdStopped,
+} from "@chanlytics/contracts";
 
 const peopleCount = (n: number): string => (n === 1 ? "1 person" : `${n} people`);
 
@@ -471,8 +477,8 @@ export const LENS = {
   heads: { ad: "Ad", came: "Wrote to AI", booked: "Booked", each: "Each", spent: "Spent (Meta)" },
   unnamed: "An ad you run in Meta that Chanlytics can't name yet",
   elsewhere: "Ads in an ad account you connected before this one",
-  counted:
-    "A person counts once, for the ad they first wrote from. Booked: on your calendar after that, and not cancelled.",
+  // Booked is the one rule's (00732): a booking is one ad's, one form's or one post's, never counted on each.
+  counted: `A person counts once, for the ad they first wrote from. Booked: they booked within ${CREDIT_WINDOW_DAYS} days of writing from it, and it is not cancelled. A booking is counted for one ad, form or post only.`,
   open: "Open Ads",
   /** No ad account was ever connected here. */
   none: {

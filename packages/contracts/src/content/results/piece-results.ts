@@ -45,7 +45,13 @@ export interface BroughtPersonDto {
   touched_at: string;
   /** A comment's words, where the touch was a comment and its person is still here. */
   words?: string | null;
+  /**
+   * What their booking is put down to, of this piece's posts (00732): `direct`, a post is its main source (what the
+   * booking answered or the first thing they touched); `assisted`, a post helped and something else is; `none`.
+   */
   class: CreditClass;
+  /** Whether the booking itself names the post (asked for in the conversation the post opened). Absent on an older read. */
+  tied?: boolean;
   visit: { starts_at: string; status: string } | null;
   /**
    * Where the steps from its post to the chair live (pass 6; the canvas's Loop3): the conversation it wrote in, its
@@ -217,6 +223,7 @@ function broughtRowOf(person: BroughtPersonDto, kind: string, tz: string): Broug
     person.touch === "comment" && person.words ? `Commented “${person.words}”` : TOUCH_WORDS[person.touch](kind);
   const visit =
     person.visit && person.class !== "none" ? ` · booked ${dayTime(Date.parse(person.visit.starts_at), tz)}` : "";
+  // A booking put down to something else they touched says so; one this post is the main source of says only when.
   const helped = person.class === "assisted" ? " another way · it helped" : "";
   return { contactId: person.contact_id, name: person.name ?? "Someone", line: `${did}${visit}${helped}` };
 }
@@ -231,7 +238,8 @@ function broughtOf(dto: PieceResultsDto, tz: string): PieceResultsSaid["whatItBr
   const head = dto.conversations || dto.direct || dto.assisted ? parts.join(" · ") : "No one has written about it yet";
   const rows = (isNew: boolean) =>
     dto.people.filter((p) => p.new_person === isNew).map((p) => broughtRowOf(p, kind, tz));
-  const helped = `“It helped” counts people who answered or wrote about it in the ${dto.window_days || CREDIT_WINDOW_DAYS} days before they booked another way.`;
+  const days = dto.window_days || CREDIT_WINDOW_DAYS;
+  const helped = `A booking counts when it was made in the ${days} days after they answered or wrote about it. It is from this post where the post is what they booked through, or the first thing they touched. “It helped” where that was something else.`;
   const link = dto.link
     ? dto.link.lands === "booking"
       ? ` Your booking link was opened ${groupedPlural(dto.link.opens, "time")}: bookings made there can't be traced to a post.`
