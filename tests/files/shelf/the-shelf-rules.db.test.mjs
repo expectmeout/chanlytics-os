@@ -620,6 +620,69 @@ test("a made video whose kept file is gone says so once, and is asked for no mor
     assert.equal(await unkept(on, id), false, what);
 });
 
+test(
+  "the compare's two reads, as the app sends them: the workspaces that keep a shelf, and one workspace's copies",
+  { skip },
+  async () => {
+    // packages/db listShelvingWorkspaces: the switch as JSON, held to JSON's own true, a slice at a time, with the count.
+    const on = await shelving();
+    const word = await workspace();
+    ok(
+      await db.from("tenant_config").upsert({ tenant_id: word.T, config: { features: { video_shelf: "true" } } }),
+      "a workspace that wrote the word, not JSON's true",
+    );
+    const off = await workspace();
+    const keeping = await db
+      .from("tenant_config")
+      .select("tenant_id", { count: "exact" })
+      .eq("config->features->video_shelf", true)
+      .order("tenant_id", { ascending: true })
+      .range(0, 999);
+    const ids = ok(keeping, "the workspaces that keep a shelf").map((row) => row.tenant_id);
+    assert.ok(ids.includes(on.T), "a workspace whose switch is on");
+    assert.ok(!ids.includes(word.T), 'the word "true" is off, as the app reads it');
+    assert.ok(!ids.includes(off.T), "and so is no switch at all");
+    assert.ok(keeping.count >= ids.length && ids.length >= 1, "with how many there are");
+    assert.deepEqual(ids, [...ids].sort(), "in the order of their ids, so a slice is a slice");
+
+    // packages/db listShelfCopies: one workspace's shelf copies by their file's id, a page after the last.
+    const first = await shelved(on);
+    const second = await video(on);
+    await begin(on, second);
+    const elsewhere = await shelved(await workspace());
+    const [low, high] = [first, second].sort();
+    const page = (after) => {
+      const read = db
+        .from("file_archives")
+        .select("file_id, state, checked_at")
+        .eq("tenant_id", on.T)
+        .eq("origin", "shelf")
+        .order("file_id", { ascending: true })
+        .limit(1);
+      return after ? read.gt("file_id", after) : read;
+    };
+    const one = ok(await page(null), "the first page");
+    assert.deepEqual(
+      one.map((row) => row.file_id),
+      [low],
+    );
+    const two = ok(await page(low), "the page after it");
+    assert.deepEqual(
+      two.map((row) => row.file_id),
+      [high],
+    );
+    assert.deepEqual(ok(await page(high), "the page after the last"), []);
+    assert.deepEqual(
+      [...one, ...two]
+        .map((row) => [row.file_id === first ? "checked" : "saving", row.state])
+        .every(([want, got]) => want === got),
+      true,
+      "each with where it stands",
+    );
+    assert.ok(![...one, ...two].some((row) => row.file_id === elsewhere), "and none of another workspace's");
+  },
+);
+
 test("a member asks whether a video is on the shelf, reads no key, and calls no door", { skip }, async () => {
   const ws = await workspace();
   const file = await shelved(ws);
