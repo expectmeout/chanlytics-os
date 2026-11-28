@@ -13,7 +13,6 @@ export { readFormAnswers } from "./answers";
 export type { FormAnswer, FormAnswersRead, FormProblem } from "./answers";
 export { FormLinkPress, FormPress, FormRequestPress } from "./dtos";
 export type {
-  EntryHeldWhyDto,
   EntryStandingDto,
   FormEntryRowDto,
   FormHeldDto,
@@ -37,7 +36,7 @@ export {
   FORM_PRESS_WAIT_MS,
   FORM_RESULT_DAYS,
 } from "./limits";
-export type { FormFieldKind } from "./limits";
+export type { EntryHeldWhyDto, FormFieldKind } from "./limits";
 export {
   formSiteNameOf,
   outsideFormNameOf,

@@ -119,7 +119,7 @@ test("an erased row holds no address: whatever sets erased_at, the trigger clear
 });
 
 test(
-  "set_person_email: an acting member where the person lives, the stored spelling, a taken address refused in the owner's words, an empty one clears, the event names no address",
+  "set_person_email: an acting member where the person lives, the stored spelling, a taken address refused in the owner's words, an empty one clears, the event names no first address",
   { skip },
   async () => {
     const email = `person-email-${Date.now()}@example.test`;
@@ -174,10 +174,10 @@ test(
         [true, false],
         "set, then cleared",
       );
-      assert.ok(
-        events.every((e) => !JSON.stringify(e.data).includes("@")),
-        "an event outlives an erasure, so it names no address",
-      );
+      assert.equal(JSON.stringify(events[0].data).includes("@"), false, "a first address is never named");
+      // An address cleared would be lost with the change: its event keeps the one that went (00726), and an erasure
+      // scrubs it (the test below).
+      assert.deepEqual([events[1].data.was, "now" in events[1].data], ["dee@example.com", false]);
       assert.ok(
         events.every((e) => e.data.by === userId && e.data.source === "member"),
         "a member's own write names them and says so",
@@ -234,6 +234,114 @@ test(
     assert.equal(ev.data.source, "customer_message", "the address came from their own message");
     assert.equal(JSON.stringify(ev.data).includes("example.com"), false, "never the address itself");
     // A member's own write names them and says source 'member': the signed-in case above asserts it.
+  },
+);
+
+test(
+  "set_person_email, an address that changes (00726): its line holds the one before and after, a yes to offers by email is not carried to the new one, the old one's stop is kept and comes back with it, and an erasure scrubs every address",
+  { skip },
+  async () => {
+    const { id } = await person({ phone_e164: "+15550100161", email: "first@example.com" });
+    const row = async () =>
+      (
+        await db
+          .from("contacts")
+          .select("email, email_marketing, email_marketing_source, email_suppressed_at, email_suppressed_reason")
+          .eq("id", id)
+          .single()
+      ).data;
+    const set = async (email) => {
+      const { error } = await db.rpc("set_person_email", { p_contact_id: id, p_email: email });
+      assert.equal(error, null, error?.message);
+    };
+    const eventsOf = async (kind) =>
+      (
+        await db
+          .from("events")
+          .select("data")
+          .eq("tenant_id", tenantId)
+          .eq("subject_id", id)
+          .eq("kind", kind)
+          .order("created_at")
+      ).data.map((e) => e.data);
+    const yes = { email_marketing: "opted_in", email_marketing_source: "confirmed_signup" };
+    await db
+      .from("contacts")
+      .update({ ...yes, email_marketing_updated_at: new Date().toISOString() })
+      .eq("id", id);
+
+    // The same address in another spelling is no change: nothing is named, and the yes stays.
+    await set(" FIRST@example.com ");
+    assert.equal("was" in (await eventsOf("contact.email_set")).at(-1), false);
+    assert.equal((await row()).email_marketing, "opted_in");
+
+    await set("second@example.com");
+    const moved = (await eventsOf("contact.email_set")).at(-1);
+    assert.deepEqual(
+      [moved.was, moved.now],
+      ["first@example.com", "second@example.com"],
+      "REGRESSION: the change's line named neither address",
+    );
+    assert.deepEqual(
+      [(await row()).email_marketing, (await row()).email_marketing_source],
+      ["unknown", "address_changed"],
+      "REGRESSION: a yes the old address gave was carried to one that never gave it",
+    );
+    const consent = await eventsOf("contact.consent_changed");
+    assert.deepEqual(
+      consent.map((c) => [c.purpose, c.consent, c.previous, c.source, c.channel]),
+      [["email_marketing", "unknown", "opted_in", "address_changed", "email"]],
+      "said with its own line",
+    );
+
+    // A no is the person's, and stays through any change.
+    await db
+      .from("contacts")
+      .update({ email_marketing: "opted_out", email_marketing_source: "unsubscribe" })
+      .eq("id", id);
+    await set("third@example.com");
+    assert.deepEqual(
+      [(await row()).email_marketing, (await row()).email_marketing_source],
+      ["opted_out", "unsubscribe"],
+      "an unsubscribe is kept",
+    );
+    assert.equal((await eventsOf("contact.consent_changed")).length, 1, "and writes no second line");
+
+    // A bounce against the old address: kept with the change, cleared for the new one, back if the old one returns.
+    const stoppedAt = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    await db
+      .from("contacts")
+      .update({ email_suppressed_at: stoppedAt, email_suppressed_reason: "hard_bounce" })
+      .eq("id", id);
+    await set("fourth@example.com");
+    assert.equal((await row()).email_suppressed_at, null, "the new address is not stopped");
+    const kept = (await eventsOf("contact.email_set")).at(-1);
+    assert.deepEqual(
+      [kept.was, kept.was_stopped, Date.parse(kept.was_stopped_at)],
+      ["third@example.com", "hard_bounce", Date.parse(stoppedAt)],
+      "REGRESSION: the old address's bounce was cleared and forgotten",
+    );
+    await set("third@example.com");
+    assert.deepEqual(
+      [(await row()).email_suppressed_reason, Date.parse((await row()).email_suppressed_at)],
+      ["hard_bounce", Date.parse(stoppedAt)],
+      "the old address back: stopped again, for the reason and from the moment it was",
+    );
+    await set("fourth@example.com");
+    await set("fifth@example.com");
+    await set("fourth@example.com");
+    assert.equal((await row()).email_suppressed_at, null, "an address that left clean comes back clean");
+
+    // Erased: no line of theirs names an address, and each keeps who and which path.
+    const { error } = await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
+    assert.equal(error, null, error?.message);
+    const scrubbed = await eventsOf("contact.email_set");
+    assert.ok(scrubbed.length >= 7);
+    assert.ok(
+      scrubbed.every((data) => !JSON.stringify(data).includes("@")),
+      "an event outlives an erasure, so the erasure scrubs every address from it",
+    );
+    assert.ok(scrubbed.every((data) => "by" in data && data.source === "customer_message" && data.scrubbed_at));
   },
 );
 
