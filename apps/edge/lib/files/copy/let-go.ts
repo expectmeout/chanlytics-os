@@ -77,9 +77,14 @@ export async function finishCopyGoing(db: Db, account: StreamAccount, copy: Copy
   if (!copy.mediaRef) return (await finishOne(db, account, copy)).went;
   const read = await readStreamVideo(account, copy.mediaRef);
   if (!read.ok && read.gone) {
-    const went = await markCopyGone(db, copy.tenantId, copy.id);
-    logger({ tenant_id: copy.tenantId }).warn("copy_let_go", { by: "second_try", file: copy.id, found: "gone", went });
-    return went;
+    const away = await markCopyGone(db, copy.tenantId, copy.id);
+    logger({ tenant_id: copy.tenantId }).warn("copy_let_go", {
+      by: "second_try",
+      file: copy.id,
+      found: "gone",
+      went: away,
+    });
+    return away;
   }
   return (await finishOne(db, account, copy, read.ok)).went;
 }
