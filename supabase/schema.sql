@@ -17411,6 +17411,11 @@ CREATE FUNCTION public.lead_allowance(p_tenant_id uuid) RETURNS numeric
     SET search_path TO 'public'
     AS $$
 begin
+  -- A signed-in role that names no person is nobody (00733, decision 0150). The edge holds the service key and a session
+  -- of the database itself carries no role: each is let through as before.
+  if auth.uid() is null and coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   -- A member reads their own workspace's; the service role (no session: lead_reserve asked by the edge) any.
   if auth.uid() is not null and not public.may_read_workspace(p_tenant_id) then
     raise exception 'Not a member of this workspace.' using errcode = '42501';
@@ -21679,7 +21684,9 @@ CREATE FUNCTION public.lead_search_widens(p_tenant_id uuid) RETURNS boolean
     SET search_path TO 'public'
     AS $$
   select coalesce((select p.widen_on or p_tenant_id = any (p.widen_tenants) from public.lead_platform p where p.id), false)
-     and (auth.uid() is null or public.may_read_workspace(p_tenant_id))
+     and (public.may_read_workspace(p_tenant_id)
+          -- The service role and a session of the database itself, never a signed-in role that names no person (00733).
+          or (auth.uid() is null and coalesce((select auth.role()), '') not in ('anon', 'authenticated')))
 $$;
 
 
@@ -24538,6 +24545,9 @@ begin
   update public.memberships
      set views = coalesce(views, '{}'::jsonb) || jsonb_build_object(p_page, p_view)
    where tenant_id = p_tenant_id and user_id = v_user
+     -- A partner's seat counts for this session only with its second factor (00261, 00280), as it does where they
+     -- say which notices ring their phone (member_push_off_set): 00733.
+     and (role <> 'partner' or public.session_shows_second_factor())
   returning views into v_views;
   if v_views is null then
     raise exception 'Not a member of this workspace.' using errcode = '42501';
@@ -45915,6 +45925,11 @@ declare
   v_words    text;
   v_evidence jsonb := p_evidence;
 begin
+  -- A signed-in role that names no person is nobody (00733, decision 0150). The edge holds the service key and a session
+  -- of the database itself carries no role: each is let through as before.
+  if auth.uid() is null and coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   if p_consent not in ('unknown', 'opted_in', 'opted_out') then
     raise exception 'consent must be unknown, opted_in or opted_out' using errcode = '22023';
   end if;
@@ -46049,6 +46064,11 @@ declare
   v_moved   boolean;
   v_back    record;
 begin
+  -- A signed-in role that names no person is nobody (00733, decision 0150). The edge holds the service key and a session
+  -- of the database itself carries no role: each is let through as before.
+  if auth.uid() is null and coalesce((select auth.role()), '') in ('anon', 'authenticated') then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
   if v_email is not null and (
        char_length(v_email) not between 3 and 254
        or v_email !~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$') then
