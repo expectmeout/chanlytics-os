@@ -22,6 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import type { lastClientError } from "@/client/client-error";
 import { api } from "@/bridge/api";
+import { getActiveWorkspace } from "@/bridge/workspace-on-screen";
 import { meNow } from "../frame-verbs";
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";
@@ -35,9 +36,6 @@ export type Caught = ReturnType<typeof lastClientError>;
 type Phase =
   { at: "writing" } | { at: "sending" } | { at: "sent"; code: string; meanwhile: string | null } | { at: "failed" };
 
-/** The workspace the address names (`/w/<slug>/…`), or none. */
-const workspaceOnScreen = (): string | null => /^\/w\/([^/]+)/.exec(window.location.pathname)?.[1] ?? null;
-
 export function ReportSheet({ error, opened, onClose }: { error: Caught; opened: ReportKind; onClose: () => void }) {
   const [kind, setKind] = useState<ReportKind>(opened);
   const [words, setWords] = useState("");
@@ -48,7 +46,7 @@ export function ReportSheet({ error, opened, onClose }: { error: Caught; opened:
   const send = async () => {
     if (!words.trim()) return;
     setPhase({ at: "sending" });
-    const body = reportProblemOf(kind, words, page, error, workspaceOnScreen());
+    const body = reportProblemOf(kind, words, page, error, getActiveWorkspace());
     const r = await api()("POST support/report", { body, once: true });
     setPhase(r.ok ? { at: "sent", code: r.data.code, meanwhile: r.data.meanwhile } : { at: "failed" });
   };

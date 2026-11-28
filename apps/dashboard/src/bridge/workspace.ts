@@ -14,7 +14,8 @@
  * one place (decision 0015, "The address first"). Its words are contracts' (shell/address.ts).
  *
  * Its own module, importing only those pure words, so the client and the surfaces can both read it without either
- * importing the other.
+ * importing the other. Which workspace the address names is said by a leaf of its own (workspace-on-screen.ts), for the
+ * stores a page's chrome reads, which cannot import this module: the route registry it reads imports them.
  */
 import {
   MIN_MS,
@@ -33,25 +34,11 @@ import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { PHONE_WARM_ROUTES } from "../surfaces/frame/places";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 import { inPlace } from "../surfaces/see/see-over";
+import { pathWorkspace } from "./workspace-on-screen";
+
+export { getActiveWorkspace, pathWorkspace } from "./workspace-on-screen";
 
 const LAST_KEY = LAST_WORKSPACE_STORAGE;
-
-/** The workspace a path names, /w/<slug or id>, or null off a workspace page. */
-export function pathWorkspace(pathname: string): string | null {
-  const m = /^\/w\/([^/?#]+)/.exec(pathname);
-  if (!m) return null;
-  try {
-    return decodeURIComponent(m[1] ?? "") || null;
-  } catch {
-    return null;
-  }
-}
-
-/** The workspace this page is about, as its address says; null off a workspace page, or outside a browser. */
-export function getActiveWorkspace(): string | null {
-  if (typeof window === "undefined" || !window.location) return null;
-  return pathWorkspace(window.location.pathname);
-}
 
 /**
  * A workspace page's address, with what rides after it: a query, and the route as a hash (`#/inbox`, how a link from

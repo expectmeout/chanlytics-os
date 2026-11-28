@@ -17,12 +17,17 @@
  * Content reads the same two ahead of the Ads tab's press (surfaces/campaigns/ads/warm.ts says why), so Ads is drawn hidden
  * beside Made and the Library and a press on it shows the page whole. A load of Content, where Ads is drawn, opens on them as
  * well (readAdsBesideContent): the Ads tab's figure is said from them at Content's first draw, beside Made's and the Library's,
- * where it came 2.7 s after them, once the frame was idle (Ruben, 26 Nov 2026).
+ * where it came 2.7 s after them, once the frame was idle (Ruben, 26 Nov 2026). Content waits for them half a second at
+ * most (ADS_BESIDE_CONTENT_WAIT_MS): past it Content draws, and the figure follows as Content reads Ads ahead.
+ *
+ * Whose the answer is: one workspace's, kept with the workspace the address named as it was asked, and said only for that
+ * workspace (adsFirstAnswer, adsFirstPage). A switch loads the page again today; this holds if one ever does not.
  */
 import type { AdAccountDto, AdsLiveDto } from "@chanlytics/contracts";
 import { SECOND_MS } from "@chanlytics/contracts";
 import type { Output } from "../../client/api";
 import { firstDrawWaitsFor } from "../surface-status";
+import { getActiveWorkspace } from "../workspace-on-screen";
 
 /** The boot's read (bridge/api read), for the two routes Ads opens on. */
 type AdsReader = <K extends "GET ads/account" | "GET ads/page">(route: K) => Promise<Output<K>>;
@@ -50,6 +55,14 @@ interface AdsFirstRead {
  * asks nothing more; older, it is drawn at once and read again behind it.
  */
 const FIRST_ANSWER_STANDS_MS = 30 * SECOND_MS;
+
+/**
+ * How long Content's first draw waits for Ads' two reads (readAdsBesideContent). They are database reads the document's
+ * head started with Content's own, so they are most often in first; on a slow day they held Content's first screen for as
+ * long as any first draw is held, three seconds (the review of 28 Nov 2026, R2.9). Past this Content draws without the Ads
+ * tab's figure, which lands when the reads do and Content has read Ads ahead (surfaces/campaigns/ads/warm.ts).
+ */
+const ADS_BESIDE_CONTENT_WAIT_MS = SECOND_MS / 2;
 
 /** Campaigns › Ads, at any of its addresses (an ad open, New ad, its results). */
 const ADS_ROUTE = /^campaigns\/ads(:|\/|$)/;
@@ -105,18 +118,31 @@ export function readAdsOpening(io: AdsOpeningIo): Promise<void> | null {
  * Where the tab is on Content and Ads is drawn (the settings read says so), Content's first draw waits for both reads too,
  * which the document's head started beside Content's own (contracts PREFETCH_READS): the Ads tab then says how many ads it
  * holds, and amber where one needs the owner, with Made's and the Library's figures (surfaces/campaigns/ads/needs-you.ts).
- * The wait, or null where the tab is elsewhere. One that failed is over, and the tab's figure comes with the page's own read.
+ * The reads, settled, or null where the tab is elsewhere. One that failed is over, and the tab's figure comes with the page's
+ * own read. The first draw waits for them ADS_BESIDE_CONTENT_WAIT_MS at most: reads slower than that still land here, for
+ * the read ahead and the Ads page to start from, and hold nothing.
  */
 export function readAdsBesideContent(io: AdsOpeningIo): Promise<void> | null {
   if (!CONTENT_ADDRESSES.test(io.route)) return null;
   // The boot's, once a tab, as readAdsOpening's: what the head started is taken, and a read ahead later waits for it.
   const wait = readAdsFirst(io).catch(() => undefined);
-  firstDrawWaitsFor("campaigns", wait);
+  firstDrawWaitsFor("campaigns", settledWithin(wait, ADS_BESIDE_CONTENT_WAIT_MS));
   return wait;
 }
 
+/** Settled as `wait` settles, or `ms` from now where that comes first; `wait` itself goes on. */
+function settledWithin(wait: Promise<void>, ms: number): Promise<void> {
+  return new Promise((done) => {
+    const cap = setTimeout(done, ms);
+    void wait.then(() => {
+      clearTimeout(cap);
+      done();
+    });
+  });
+}
+
 /** The ads the first answer holds, as the Ads tab's figure reads them before the page has noted its own: none unread. */
-export const adsFirstPage = (): AdsLiveDto | null => adsOpenedOn?.page ?? null;
+export const adsFirstPage = (): AdsLiveDto | null => adsFirstAnswer(getActiveWorkspace())?.page ?? null;
 
 /**
  * The first answer as a hook starts from it; none in a workspace other than the one it was read in (a switch loads the page
