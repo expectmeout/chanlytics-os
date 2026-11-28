@@ -149,8 +149,8 @@ async function readCaptionKept(
     listFilePosts(ctx.supabase, tenantId, fileId),
   ]);
   const created = recordOrNull(kept);
-  const made = created ? fileMadeOf(created, null) : null;
-  return { caption: postCaptionOf(posts, made), posts, stood: made?.caption ?? null };
+  const madeAs = created ? fileMadeOf(created, null) : null;
+  return { caption: postCaptionOf(posts, madeAs), posts, stood: madeAs?.caption ?? null };
 }
 
 /**

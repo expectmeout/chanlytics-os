@@ -15,9 +15,8 @@
  * missed.
  *
  * A race is run by holding the first door's transaction open through the Supabase CLI (a `do` block that calls it, then
- * sleeps) and calling the second on its own connection, as
- * partners/a-refund-racing-the-first-share-is-applied.db.test.mjs does. Never production: it makes a workspace, a
- * member and rows.
+ * sleeps) and calling the second on a connection of its own, which waits inside the database until the first is asleep
+ * and then runs. Never production: it makes a workspace, a member and rows.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -47,8 +46,8 @@ const skip =
         : false;
 
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-/** How long the first door's transaction stays open: past the CLI's start for the second, which then waits on it. */
-const HOLD_S = 8;
+/** How long the first door's transaction stays open once it has run: the second begins the moment it is asleep. */
+const HOLD_S = 6;
 const WORDS = "Warm colour, all winter.";
 const FACT = { kind: "fact", text: "Thursday still has openings", source: "said", valid_until: "2027-01-01" };
 
@@ -90,36 +89,48 @@ function running(sql) {
 
 /** The words that find a tagged statement in pg_stat_activity, spelt so no other query's text holds them whole. */
 const tagged = (word, tag) => `'%' || '${word}-' || '${tag}-${RUN}' || '%'`;
-const isHeld = (tag) =>
-  `exists (select 1 from pg_stat_activity where query like ${tagged("held", tag)} and pid <> pg_backend_pid() and state = 'active')`;
-
-/** `first`, run and its transaction left sleeping: settles once it is asleep, with the promise of how it ends. */
-async function hold(tag, first) {
-  const held = running(`do $$ begin ${first} perform pg_sleep(${HOLD_S}); end $$ /* held-${tag}-${RUN} */`);
-  const deadline = Date.now() + HOLD_S * 1000;
-  for (;;) {
-    const [row] = query(
-      `select count(*)::int as n from pg_stat_activity where query like ${tagged("held", tag)} and wait_event = 'PgSleep'`,
-    );
-    if (row?.n >= 1) return held;
-    assert.ok(Date.now() < deadline, `${tag}: the first door's transaction never got to its sleep`);
-  }
-}
 
 /**
- * Holds `first` open, and while it sleeps runs `second` on its own connection, which first asks that `first` is still
- * open: the race, run. `second` may keep an answer in `a` and raise where it is not the one expected.
+ * Inside a block: looks every 50 ms until the statement tagged `word-tag` stands as `where` says (its transaction
+ * asleep, or waiting on a lock), and raises `otherwise` where it never does. Each look clears the statistics snapshot,
+ * which a transaction otherwise keeps from its first read. A tag opens its statement: pg_stat_activity cuts a long one
+ * short, and a tag at its end would be cut away.
+ */
+const until = (word, tag, where, otherwise, looks = 400) => `
+    for look in 1..${looks} loop
+      perform pg_stat_clear_snapshot();
+      exit when exists (select 1 from pg_stat_activity
+                         where query like ${tagged(word, tag)} and pid <> pg_backend_pid() and ${where});
+      if look = ${looks} then
+        raise exception '${otherwise}';
+      end if;
+      perform pg_sleep(0.05);
+    end loop;`;
+const ASLEEP = "wait_event = 'PgSleep'";
+
+/** `first`, run and its transaction left sleeping on a connection of its own: the promise of how it ends. */
+const hold = (tag, first) =>
+  running(`/* held-${tag}-${RUN} */ do $$ begin ${first} perform pg_sleep(${HOLD_S}); end $$`);
+
+/**
+ * Holds `first` open (it runs, then its transaction sleeps) and, on a connection of its own, runs `second` the moment
+ * `first` is asleep: the race is run inside the database, so nothing hangs on how fast the CLI starts. `second` may
+ * keep an answer in `a` and raise where it is not the one expected. Settles when both have.
  */
 async function race(tag, first, second) {
-  const held = await hold(tag, first);
-  query(`do $$ declare a jsonb; begin
-    if not ${isHeld(tag)} then
-      raise exception 'the first door''s transaction ended before the second came: no race was run';
-    end if;
-    ${second}
-  end $$`);
+  const held = hold(tag, first);
+  let failed = null;
+  try {
+    query(`do $$ declare a jsonb; begin
+      ${until("held", tag, ASLEEP, "the first door''s transaction never got to its sleep")}
+      ${second}
+    end $$`);
+  } catch (e) {
+    failed = e;
+  }
   const first_ = await held;
   assert.equal(first_.status, 0, `${tag}: the held door failed: ${first_.said.slice(-600)}`);
+  if (failed) throw failed;
 }
 
 /** Inside a block: who the doors after it are called as. */
@@ -449,27 +460,29 @@ test("Stop everything pressed second: it waits for the approval, which was whole
   const w = await week();
   await prepare(w, { words: WORDS, stood: { caption: null } });
   try {
-    const held = await hold(
-      "stop-all-second",
+    const tag = "stop-all-second";
+    const held = hold(
+      tag,
       `${AS_SERVICE} perform public.content_week_approve('${T}', '${w.plan}', ${jsonb(snapshotOf(w))});`,
     );
-    const stop = running(
-      `do $$ begin ${AS_SERVICE} perform public.workspace_sending_stop('${T}', now()); end $$ /* stop-stop-all-second-${RUN} */`,
-    );
-    // The Stop waits on a lock while the approval's transaction is open: it is ordered after it, never beside it.
-    const deadline = Date.now() + HOLD_S * 1000;
-    let waited = false;
-    while (!waited && Date.now() < deadline) {
-      const [row] = query(
-        `select count(*)::int as n from pg_stat_activity
-          where query like ${tagged("stop", "stop-all-second")} and wait_event_type = 'Lock' and pid <> pg_backend_pid()`,
-      );
-      waited = row?.n >= 1;
+    // The Stop, pressed the moment the approval's transaction is asleep.
+    const stop = running(`/* stop-${tag}-${RUN} */ do $$ begin
+      ${until("held", tag, ASLEEP, "the approval''s transaction never got to its sleep")}
+      ${AS_SERVICE} perform public.workspace_sending_stop('${T}', now());
+    end $$`);
+    // It waits on a lock while that transaction is open: it is ordered after the approval, never beside it.
+    let unwaited = null;
+    try {
+      query(`do $$ begin
+        ${until("stop", tag, "wait_event_type = 'Lock'", "the Stop did not wait for the approval''s transaction", 240)}
+      end $$`);
+    } catch (e) {
+      unwaited = e;
     }
     const [first, second] = await Promise.all([held, stop]);
     assert.equal(first.status, 0, `the approval failed: ${first.said.slice(-600)}`);
     assert.equal(second.status, 0, `the stop failed: ${second.said.slice(-600)}`);
-    assert.equal(waited, true, "the Stop waited for the approval's transaction to end");
+    assert.equal(unwaited, null, `the Stop waited for the approval's transaction to end: ${unwaited?.message}`);
     assert.equal((await planOf(w)).status, "approved");
     const now = await kept(w);
     assert.deepEqual({ caption: now.caption, posts: now.posts }, { caption: WORDS, posts: 1 });
