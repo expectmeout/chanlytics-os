@@ -35,7 +35,7 @@ import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
 import { takeDownPlaceFor } from "../instagram/post-ready.js";
 import { findPageHeld, findPagePosting } from "../facebook/posting.js";
-import { sendGooglePost } from "../google/post-later.js";
+import { reconcileGooglePost, sendGooglePost } from "../google/post-later.js";
 import { googlePlace } from "../google/place.js";
 import { findGoogleHeld } from "../google/posts-held.js";
 import { planTheWeek } from "../content/plan.js";
@@ -154,8 +154,11 @@ async function customersOf(db: SweepTick["db"], tenantIds: readonly TenantId[]):
   return new Set(ours.filter((t): t is TenantId => t !== null));
 }
 
-/** Who posts at each place besides Instagram, for the post jobs and the take-down: a Page through the Meta link. */
-const POSTING_AT = { postingAt: { facebook: findPagePosting } };
+/**
+ * Who posts at each place besides Instagram, for the post jobs and the take-down: a Page through the Meta link. And who
+ * settles a send with no answer its own way: Google, by asking its profile what it holds.
+ */
+const POSTING_AT = { postingAt: { facebook: findPagePosting }, reconcileAt: { google: reconcileGooglePost } };
 
 /**
  * The place a post's numbers are read at (00699): Google's adapter gives none yet, so each reads unsupported there;

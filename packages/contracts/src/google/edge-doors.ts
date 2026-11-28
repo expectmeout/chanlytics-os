@@ -51,5 +51,7 @@ export const GOOGLE_DOOR = edgeDoor(
     name: z.string(),
     search_url: z.string().nullable(),
     state: z.string().nullable(),
+    /** A post Google neither took nor refused: it may be up, and its profile is asked before it is sent again. */
+    unanswered: z.boolean(),
   }),
 );
