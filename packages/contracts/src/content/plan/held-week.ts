@@ -8,8 +8,7 @@
  * suggests one only with its record behind it, and Use it is the owner's own press. The edge's call to make the week is
  * week-made-door.ts (zod, the server's alone).
  */
-import { DAY_MS } from "../../shared/time";
-import { wallClockAt, zoneDayKey } from "../../shared/clock";
+import { tomorrowAtIn, wallClockAt, zoneDayKey } from "../../shared/clock";
 import { POLICY_MODE_WORDS, type PolicyMode } from "../../config/workspace-config/policy-classes";
 
 /** The hour a held week goes up, in the business's own zone: the board's "8:00 AM". */
@@ -17,16 +16,14 @@ const WEEK_GOES_HOUR = 8;
 
 /**
  * When a ready week goes under the rung, as an ISO time: holding it, the next 8:00 AM in the business's zone; sending it,
- * now; asking (or no rung read), never.
+ * now; asking (or no rung read), never. Tomorrow is the calendar's next day (tomorrowAtIn): counted as 24 hours on, a
+ * week ready in the last hour before a 23-hour day went up a day late, at 8:00 AM the day after (28 Nov 2026).
  */
 export function weekGoesAtOf(mode: string | null | undefined, zone: string, nowMs: number): string | null {
   if (mode === "auto") return new Date(nowMs).toISOString();
   if (mode !== "veto") return null;
-  const today = zoneDayKey(nowMs, zone);
-  const at = wallClockAt(zone, today, WEEK_GOES_HOUR, 0);
-  return new Date(
-    at > nowMs ? at : wallClockAt(zone, zoneDayKey(nowMs + DAY_MS, zone), WEEK_GOES_HOUR, 0),
-  ).toISOString();
+  const at = wallClockAt(zone, zoneDayKey(nowMs, zone), WEEK_GOES_HOUR, 0);
+  return new Date(at > nowMs ? at : tomorrowAtIn(zone, nowMs, WEEK_GOES_HOUR)).toISOString();
 }
 
 /** How many weeks in a row the owner approved as AI planned them before AI suggests holding the week. */

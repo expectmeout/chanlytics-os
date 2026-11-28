@@ -27,7 +27,7 @@ import { clockHistoryDay, clockNextSend, clockStamp, clockTime, clockWhen, zoneD
 import { pct } from "../../shared/numbers";
 import { RUN_OPEN_WORDS, RUN_WAITING_SHORT } from "../../shell/campaign-rooms";
 import { plural } from "../../shared/words";
-import { DAY_MS } from "../../shared/time";
+import { dayPlusInZone, usableZone } from "../../shared/zone/math";
 import type {
   SequenceBatchDto,
   SequenceHistoryDto,
@@ -456,10 +456,13 @@ export interface SequenceHistoryFigure {
 export const batchWent = (sequenceBatch: Pick<SequenceBatchDto, "state">): boolean =>
   sequenceBatch.state === "sent" || sequenceBatch.state === "sending" || sequenceBatch.state === "failed";
 
-/** The first business day a period counts, or null for all of it. */
+/**
+ * The first business day a period counts, or null for all of it: counted back by the calendar (dayPlusInZone), since
+ * 24-hour steps back from the first hour after a 23-hour day land on the day before the period's first.
+ */
 export function historySince(period: SequenceHistoryPeriod, tz: string, nowMs: number): string | null {
   const p = SEQUENCE_HISTORY_PERIODS.find((x) => x.id === period);
-  return p && p.days !== null ? zoneDayKey(nowMs - (p.days - 1) * DAY_MS, tz) : null;
+  return p && p.days !== null ? dayPlusInZone(usableZone(tz), nowMs, -(p.days - 1)).key : null;
 }
 
 /** The batches a period holds: those whose day falls on or after its first. */
