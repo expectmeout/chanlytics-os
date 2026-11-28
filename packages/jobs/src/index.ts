@@ -12,6 +12,7 @@ export type {
 export { incomingEmailOf } from "./handlers/incoming-email";
 export { askReplyDraftOf, replyDraftPortsOf } from "./handlers/reply-draft";
 export type { BookingLapseEdge, ReplyDraftEdge } from "./runner/context";
+export { keepJob } from "./runner/keep";
 export { KIND_POLICY, kindPolicyOf } from "./runner/kinds";
 export type { KindPolicy, KindSettles, KindTold } from "./runner/kinds";
 export {
@@ -22,7 +23,6 @@ export {
   deferJob,
   failJob,
   FUNCTION_CEILING_MS,
-  keepJob,
   LEAD_YIELD_AT_MS,
   LEASE_SECONDS,
   markSpoke,

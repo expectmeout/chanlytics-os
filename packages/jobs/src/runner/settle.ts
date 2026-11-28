@@ -387,6 +387,25 @@ async function settleImport(db: Db, job: TerminalJob): Promise<Settled[]> {
 }
 
 /**
+ * An Instagram account's read that will not finish (00626): its line says it stopped, in the words every stopped import
+ * says, with what came kept, so the Content page never goes on saying it is reading an account nothing is reading. Its
+ * provider down for every try used to leave the line as it stood until the page gave up on it by itself.
+ */
+async function settleInstagramRead(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const handle = idFrom(job.payload, "handle");
+  if (!handle) return [{ what: "import", changed: false, error: "no account on the job" }];
+  await noteImport(db, {
+    tenantId: job.tenant_id,
+    source: "instagram",
+    state: "failed",
+    via: handle,
+    error: IMPORT_STOPPED_WORDS.failed,
+    add: true,
+  });
+  return [{ what: "import", changed: true }];
+}
+
+/**
  * A booking tool's notice that will not be read (00345): held for a person, unless the ledger already keeps one for it,
  * so it is in Settings › Business with Read again and never only a failed job. Its last try holds it itself; this is the
  * run that died on it.
@@ -603,7 +622,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   post_observe: null,
   comment_reply: settleCommentReply,
   file_fetch: null,
-  instagram_read: null,
+  instagram_read: settleInstagramRead,
   file_purge: null,
   line_provision: null,
   lead_round_start: null,
@@ -636,6 +655,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   email_ingest: "email",
   preview_build: "preview",
   history_import: "import",
+  instagram_read: "import",
   booking_read: "notice",
   event_deliver: "delivery",
   reply_draft: "draft",

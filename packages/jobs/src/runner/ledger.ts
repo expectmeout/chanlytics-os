@@ -21,7 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db/types";
 import { claimDueJob, stampJobSpoke, swapFiredJob } from "@chanlytics/db/jobs";
-import { DAY_MS, MIN_MS, SECOND_MS, jittered, DbFailure } from "@chanlytics/contracts";
+import { DAY_MS, MIN_MS, jittered, DbFailure } from "@chanlytics/contracts";
 import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 import { TWILIO_TIMEOUT_MS } from "@chanlytics/channels/lines";
 import { WHATSAPP_SEND_TIMEOUT_MS } from "@chanlytics/channels/whatsapp";
@@ -279,23 +279,6 @@ export async function markSpoke(
   if (error) throw new DbFailure(error, "mark_spoke");
   if (data.length === 0) throw new Error("mark_spoke: this run no longer holds the job");
   job.spoke_at = at;
-}
-
-/**
- * The claim renewed for a lease more, by the same compare-and-swap as the exits: true while this run still holds the
- * row. What the tick asks before it settles a job it is giving up on (tick.ts conclude), so the settle is made by the
- * run that holds the row, and the row is still claimed, to come back, if that run dies before it fails it.
- */
-export async function keepJob(
-  db: Db,
-  job: { id: string; attempts: number },
-  leaseSeconds = LEASE_SECONDS,
-): Promise<boolean> {
-  const { data, error } = await swapFiredJob(db, job, {
-    lease_until: new Date(Date.now() + leaseSeconds * SECOND_MS).toISOString(),
-  });
-  if (error) throw new DbFailure(error, "keep_job");
-  return data.length > 0;
 }
 
 /**
