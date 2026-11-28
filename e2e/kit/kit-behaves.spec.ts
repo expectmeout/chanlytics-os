@@ -207,6 +207,11 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     ready: '[data-entry="subtabs-standing"] .subtab-dot[data-look]',
   },
   { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
+  {
+    entry: "subtabs-coming",
+    bring: async () => undefined,
+    ready: '[data-entry="subtabs-coming"] .subtab-count[data-coming]',
+  },
   { entry: "subtabs-capsule", bring: async () => undefined, ready: '[data-entry="subtabs-capsule"] .rec-seg' },
   { entry: "subtabs-chips", bring: async () => undefined, ready: '[data-entry="subtabs-chips"] .subtab-chips' },
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
@@ -834,6 +839,50 @@ const subTabsKeys: Check = async (page) => {
 };
 
 /**
+ * A tab whose figure is on its way keeps the room of one: as the figure lands (the entry lands it on that tab's press,
+ * and picks nothing), the strip is as large as it was and each tab stands where it stood in it and as large, to a
+ * hundredth of a pixel. Each is measured from the strip's own corner, so the window scrolling to the press moves none.
+ * Not the bar: its width is Base UI's own measure of the picked tab, taken again as the strip draws again.
+ */
+const subTabsKeepRoom: Check = async (page) => {
+  const here = '[data-entry="subtabs-coming"]';
+  const boxes = () =>
+    page.evaluate((sel) => {
+      const strip = document.querySelector(`${sel} [role="tablist"]`)?.getBoundingClientRect();
+      if (!strip) return [];
+      const spelled = (said: string, sizes: number[]) =>
+        `${said} ${sizes.map((n) => Math.round(n * 100) / 100).join(" ")}`;
+      return [
+        spelled("the strip", [strip.width, strip.height]),
+        ...Array.from(document.querySelectorAll(`${sel} [role="tab"]`)).map((el) => {
+          const box = el.getBoundingClientRect();
+          return spelled((el.textContent ?? "").replace(/\d+$/, ""), [
+            box.x - strip.x,
+            box.y - strip.y,
+            box.width,
+            box.height,
+          ]);
+        }),
+      ];
+    }, here);
+  if ((await page.locator(`${here} .subtab-count[data-coming]`).count()) !== 1)
+    return ["the sub-tabs: the entry draws no figure on its way"];
+  const before = await boxes();
+  await page.locator(`${here} [role="tab"]`).last().click();
+  const landed = await met(
+    page,
+    (sel) =>
+      !document.querySelector(`${sel} .subtab-count[data-coming]`) &&
+      document.querySelector(`${sel} [role="tab"]:last-of-type .subtab-count`)?.textContent === "1",
+    here,
+  );
+  if (!landed) return ["the sub-tabs: the figure on its way never landed"];
+  const after = await boxes();
+  const moved = before.filter((box, at) => box !== after[at]).map((box, at) => `${box} became ${after[at]}`);
+  return moved.length === 0 ? [] : [`the sub-tabs: a figure landing moved the strip: ${moved.join("; ")}`];
+};
+
+/**
  * The combobox narrows its list as you type, draws none where nothing matches, walks it with the arrows and chooses
  * with Enter; and a search after a choice replaces the words chosen, since focus selects them.
  */
@@ -1004,6 +1053,7 @@ const CHECKS: [string, Check][] = [
   ["a switch answers Space", switchSpace],
   ["the segmented control answers the arrows", segmentedArrows],
   ["the sub-tabs answer the arrows and Enter, and the bar follows the pick", subTabsKeys],
+  ["a sub-tab keeps the room of a figure on its way, and the strip holds still as it lands", subTabsKeepRoom],
   ["the combobox narrows and chooses by the keys", comboboxKeys],
   ["the tooltip shows on hover and on focus, and hides on Escape", tooltipShows],
   ["a toast is heard and goes on a press beside it", toastArrives],
@@ -1392,6 +1442,11 @@ test("the other checks name each fault planted: the menu's keys and acts, the po
     await show(page);
     await swallow("ArrowRight");
     expect((await subTabsKeys(page, run))[0]).toMatch(/^the sub-tabs: ArrowRight left focus on /);
+
+    // The room of a figure on its way taken away: the tab grows as its figure lands.
+    await show(page);
+    await page.addStyleTag({ content: ".subtab-count[data-coming]::before { content: none; }" });
+    expect((await subTabsKeepRoom(page, run))[0]).toMatch(/^the sub-tabs: a figure landing moved the strip: /);
 
     // The toast's live region taken off: nothing a screen reader hears.
     await show(page);

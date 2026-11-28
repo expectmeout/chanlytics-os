@@ -458,6 +458,16 @@ test("where the workspace runs ads, Ads is the third list: how many it holds, am
   const on = lists({ ads: ads({ on: true }) });
   assert.match(on, /aria-selected="true"[^>]*data-testid="cnv-list-ads"/);
   assert.doesNotMatch(on, /aria-selected="true"[^>]*data-testid="cnv-list-made"/);
-  // Before the Ads page has been read on this visit, it says no figure.
-  assert.doesNotMatch(lists({ ads: ads({ count: null }) }).slice(at("ads")), />12</);
+  // Before the Ads page has been read on this visit, it says no figure, and keeps the room of one: the tab stands as it
+  // will once the figure lands, so the strip does not move (the kit's SubTab `count: null`).
+  const coming = /<span class="subtab-count" data-coming=""><\/span>/g;
+  const unread = lists({ ads: ads({ count: null }) });
+  assert.doesNotMatch(unread.slice(at("ads")), />12</);
+  assert.equal(unread.slice(at("ads")).match(coming)?.length, 1, "the Ads tab keeps its figure's room");
+  assert.equal(unread.slice(0, at("ads")).match(coming), null, "Made and the Library say theirs");
+  // Where there is none to say (no account was ever connected, or its read could not be made), no room is kept.
+  assert.equal(lists({ ads: ads({ count: undefined }) }).match(coming), null);
+  assert.equal(html.match(coming), null, "a figure said keeps no second room");
+  // Made's and the Library's are on their way with the page's own read: each keeps its room until the tally is in.
+  assert.equal(lists({ tally: null, ads: ads() }).match(coming)?.length, 2);
 });

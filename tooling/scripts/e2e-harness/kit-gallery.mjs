@@ -1398,12 +1398,19 @@ const kitSwitches = () =>
 
 /**
  * One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after, and
- * its dot: needs you, new, or where its own thing stands (`standing`: ready, not written yet, never sent that way).
+ * its dot: needs you, new, or where its own thing stands (`standing`: ready, not written yet, never sent that way). A
+ * figure on its way (`count: null`) is its room alone.
  */
+const kitSubtabFigure = (count) =>
+  count === undefined
+    ? ""
+    : count === null
+      ? '<span class="subtab-count" data-coming=""></span>'
+      : `<span class="subtab-count">${count}</span>`;
 const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh, need, standing } = {}) =>
   `<button type="button" role="tab" aria-selected="${on}" aria-disabled="false" tabindex="${on ? 0 : -1}" class="subtab"` +
   `${tone ? ` data-tone="${tone}"` : ""}>${glyph}<span class="subtab-label" data-text="${label}">${label}</span>` +
-  `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}` +
+  `${kitSubtabFigure(count)}` +
   `${need ? `<span class="subtab-dot is-warn" role="img" aria-label="${need}"></span>` : ""}` +
   `${fresh && !need ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}` +
   `${standing && !need && !fresh ? `<span class="subtab-dot" data-look="${standing.look}" role="img" aria-label="${standing.said}"></span>` : ""}</button>`;
@@ -1433,8 +1440,7 @@ const kitSubtabsChips = (name, tabs, on = 0) =>
     .map(
       ([label, count], at) =>
         `<button type="button" role="tab" aria-selected="${at === on}" aria-disabled="false" ` +
-        `tabindex="${at === on ? 0 : -1}" class="subtab-chip">${label}` +
-        `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}</button>`,
+        `tabindex="${at === on ? 0 : -1}" class="subtab-chip">${label}${kitSubtabFigure(count)}</button>`,
     )
     .join("") +
   "</div></div>";
@@ -2149,7 +2155,7 @@ export const FAMILIES = [
   {
     family: "Sub-tabs, on Base UI",
     about:
-      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; a glyph before the words; a pane's few tabs as the segmented capsule (look=\"capsule\": a lead sheet's), still tabs to a screen reader, sharing the row; and a list's few cuts as chips (look=\"chips\": Today's Need you), the picked one filled in the ink.",
+      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; a glyph before the words; a figure on its way, whose room the tab keeps so the strip holds still as it lands; a pane's few tabs as the segmented capsule (look=\"capsule\": a lead sheet's), still tabs to a screen reader, sharing the row; and a list's few cuts as chips (look=\"chips\": Today's Need you), the picked one filled in the ink.",
     entries: [
       {
         id: "subtabs",
@@ -2232,6 +2238,19 @@ export const FAMILIES = [
             kitSubtab("Email", { glyph: icon("mail", 13) }),
           ],
           { left: "18px", width: "74px", direction: "right" },
+        ),
+      },
+      {
+        // A figure on its way (SubTab `count: null`): the last tab keeps the room of one, and stands as it will once it lands.
+        id: "subtabs-coming",
+        html: kitSubtabs(
+          "What was made, and what it is made from",
+          [
+            kitSubtab("Made", { on: true, count: 8 }),
+            kitSubtab("Library", { count: 41 }),
+            kitSubtab("Ads", { count: null }),
+          ],
+          { width: "48px" },
         ),
       },
       { id: "subtabs-capsule", html: kitSubtabsCapsule("About this lead", ["Why", "Contact", "Sequence"]) },

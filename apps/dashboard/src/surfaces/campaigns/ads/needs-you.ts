@@ -13,13 +13,15 @@
  */
 import { useSyncExternalStore } from "react";
 import type { AdsLiveDto } from "@chanlytics/contracts";
-import { adsFirstPage } from "@/bridge/surfaces/ads-first-reads";
+import { adsFirstPage, adsFirstReadIn } from "@/bridge/surfaces/ads-first-reads";
 import { adsListedOf } from "./live/listed";
 
 /** The count as the Ads page last read it on this page; null before it has. */
 let noted: number | null = null;
 /** How many ads its list holds, as the Ads page last read them, for the Ads tab's figure; null before it has. */
 let adsListed: number | null = null;
+/** Whether the reads made ahead of the Ads tab's press came back with no figure to say (warm.ts noteAdsUnlisted). */
+let adsUnlisted = false;
 /** Who hears the counts change: the strip, and the Ads tab. */
 const hearers = new Set<() => void>();
 
@@ -34,11 +36,17 @@ export const adsNeedingNow = (): number => {
   return first ? adsNeedingOf(first) : 0;
 };
 
-/** How many ads the Ads tab says: as the Ads page last read them, else as Ads' first reads hold them; none before. */
-const adsListedNow = (): number | null => {
+/**
+ * How many ads the Ads tab says: as the Ads page last read them, else as Ads' first reads hold them. Before either, `null`:
+ * the figure is on its way, and the tab keeps its room (the kit's SubTab `count: null`), so the strip does not move as it
+ * lands a moment after a press from another of Campaigns' views (Ruben, 28 Nov 2026). And none at all (`undefined`) where the
+ * reads answered with no page, no account ever connected, or could not be made: the tab then keeps no room for one.
+ */
+const adsListedNow = (): number | null | undefined => {
   if (adsListed !== null) return adsListed;
   const first = adsFirstPage();
-  return first ? adsListedOf(first) : null;
+  if (first) return adsListedOf(first);
+  return adsUnlisted || adsFirstReadIn() ? undefined : null;
 };
 
 /** Kept as the Ads page reads its ads, for the strip and Made's views to say; each that hears it is told of a change. */
@@ -64,5 +72,13 @@ export function noteAdsListed(count: number): void {
   for (const tell of [...hearers]) tell();
 }
 
-/** How many ads the Ads tab says, for a component: none before Ads has been read on this visit. */
-export const useAdsListed = (): number | null => useSyncExternalStore(hearAdsNeeding, adsListedNow, () => null);
+/** Told as the reads made ahead of the Ads tab's press say no figure (warm.ts): the tab stops keeping room for one. */
+export function noteAdsUnlisted(): void {
+  if (adsUnlisted) return;
+  adsUnlisted = true;
+  for (const tell of [...hearers]) tell();
+}
+
+/** How many ads the Ads tab says, for a component: `null` while its read is on its way, and none where there is none to say. */
+export const useAdsListed = (): number | null | undefined =>
+  useSyncExternalStore(hearAdsNeeding, adsListedNow, () => null);

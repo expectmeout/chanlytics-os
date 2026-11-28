@@ -281,12 +281,13 @@ const listsOf = (planned: boolean): readonly ContentList[] =>
 
 /**
  * Ads, the third list where the workspace runs ads (Ruben, 25 Nov 2026: beside Made and the Library, where it stands still
- * on every list): lit on Ads, how many ads its list holds as the Ads page last read them (none before), amber while one
- * needs the owner. Ads is a page of its own at its own address (`campaigns/ads`), so its press goes there.
+ * on every list): lit on Ads, how many ads its list holds as the Ads page last read them, amber while one needs the owner.
+ * Its figure is `null` while the read that says it is on its way, and the tab keeps its room; none where there is none to say
+ * (ads/needs-you.ts). Ads is a page of its own at its own address (`campaigns/ads`), so its press goes there.
  */
 export interface AdsTab {
   on: boolean;
-  count: number | null;
+  count: number | null | undefined;
   owed: boolean;
   onPress: () => void;
 }
@@ -299,10 +300,14 @@ export interface AdsTab {
  */
 const LIST_SAYS = CONTENT_WORDS.lists;
 
-/** How many a list holds, as it was last read: the Week's own count, else Content's tally; none before either. */
+/**
+ * How many a list holds, as it was last read: the Week's own count, else Content's tally. Before the tally is read, Made's
+ * and the Library's are on their way with the page's own read (`null`: the tab keeps the figure's room). The Week's is said
+ * only once its own read was made, which Made and the Library do not make, so before it the tab says none and keeps no room.
+ */
 function listCountOf(each: ContentList, tally: ContentTally | null, week: { count: number | null } | null) {
   if (each === "week") return week?.count ?? undefined;
-  if (!tally) return undefined;
+  if (!tally) return null;
   return each === "made" ? tally.made : tally.library;
 }
 
@@ -317,11 +322,11 @@ function listNeedOf(each: ContentList, tally: ContentTally | null): string | und
   return tally.waiting > 0 && canDo("settings") ? LIST_SAYS.libraryWaits : undefined;
 }
 
-/** Ads' own tab, after the lists: how many it holds, and amber while one needs the owner. */
+/** Ads' own tab, after the lists: how many it holds (its room while that is on its way), and amber while one needs the owner. */
 const adsTabOf = (ads: AdsTab) => ({
   id: "ads",
   label: ADS_WORDS.adsTab,
-  count: ads.count ?? undefined,
+  count: ads.count,
   need: ads.owed ? LIST_SAYS.adsNeeds : undefined,
   testid: "cnv-list-ads",
 });

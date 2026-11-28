@@ -88,8 +88,10 @@ export const MARKUP_READ = [
   "data-highlighted",
   "data-hints",
   "data-tone",
+  "data-coming",
 ];
 export const MARKUP_PRESENT = [
+  "data-coming",
   "disabled",
   "hidden",
   "href",

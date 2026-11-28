@@ -1,7 +1,9 @@
 /**
  * The kit's sub-tabs (kit.css, "Sub-tabs"; docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4): a page's own
  * sub-menu, the few ways to cut the list it shows (the Inbox's buckets, Conversations' channels), as small text tabs on
- * a line: the picked one in ink with a bar under it, the others dim, a figure beside each where it has something to say.
+ * a line: the picked one in ink with a bar under it, the others dim, a figure beside each where it has something to say,
+ * and the room of one kept where a figure is on its way and not read yet (a tab's `count: null`), so the strip does not
+ * move as it lands.
  * It is not the strip of views a page sits in (`.stabs`, the shell's SurfaceTabs): that strip is the page, this one is
  * what is on it, so the two are drawn apart (the frame's capsule over a line of words).
  *
@@ -38,8 +40,13 @@ import { cx } from "../variants";
 export type SubTab = {
   id: string;
   label: string;
-  /** The figure beside its words, where there is one to say (a zero is the page's to say or not). */
-  count?: number;
+  /**
+   * The figure beside its words, where there is one to say (a zero is the page's to say or not). `null` where there is
+   * one and it is not read yet: the tab keeps the room of one figure, so it stands as wide and as tall as it does once
+   * the figure lands and no tab after it moves (kit.css). Only where the read that says it is on its way: a tab that may
+   * never say one leaves it out, or the room stands empty.
+   */
+  count?: number | null;
   /** The tab whose figure matters: someone is waiting there. It is the one a phone keeps (`quietCounts`). */
   tone?: "warn";
   /** A glyph before the words, for a strip with room for one. */
@@ -107,6 +114,16 @@ function linkTab(href: string) {
   };
 }
 
+/** A tab's figure: the number, the room of one where it is not read yet (`null`), and nothing where the tab says none. */
+function tabFigure(count: number | null | undefined) {
+  if (count === undefined) return null;
+  return count === null ? (
+    <span className="subtab-count" data-coming="" />
+  ) : (
+    <span className="subtab-count">{count}</span>
+  );
+}
+
 /** A pane's few tabs as the segmented capsule: each its words alone, the picked one the lozenge. */
 function capsuleOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
   return (
@@ -153,7 +170,7 @@ function chipsOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
             aria-controls={tab.controls}
           >
             {tab.label}
-            {tab.count === undefined ? null : <span className="subtab-count">{tab.count}</span>}
+            {tabFigure(tab.count)}
           </Tabs.Tab>
         ))}
       </Tabs.List>
@@ -193,7 +210,7 @@ export function SubTabs(props: SubTabsProps) {
             <span className="subtab-label" data-text={tab.label}>
               {tab.label}
             </span>
-            {tab.count === undefined ? null : <span className="subtab-count">{tab.count}</span>}
+            {tabFigure(tab.count)}
             {tab.need ? (
               <span className="subtab-dot is-warn" role="img" aria-label={tab.need} />
             ) : tab.fresh ? (

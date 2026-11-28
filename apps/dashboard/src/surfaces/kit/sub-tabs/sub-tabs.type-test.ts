@@ -20,7 +20,8 @@ function _subTabsTake(glyph: ReactElement): void {
   type _Its = [
     Holds<Exactly<ComponentProps<typeof SubTabs>, SubTabsProps>>,
     Holds<Exactly<SubTab["tone"], "warn" | undefined>>,
-    Holds<Exactly<SubTab["count"], number | undefined>>,
+    // A figure, none, or one on its way (`null`), whose room the tab keeps.
+    Holds<Exactly<SubTab["count"], number | null | undefined>>,
     Holds<Exactly<SubTabsProps["quietCounts"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["dense"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["look"], "capsule" | "chips" | undefined>>,

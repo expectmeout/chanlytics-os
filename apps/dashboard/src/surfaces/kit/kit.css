@@ -4921,6 +4921,13 @@ a.list-row {
   font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
 }
+/* A figure on its way (SubTab `count: null`) keeps the room of one: a nought drawn unseen in the figure's own type, so
+   the tab is as wide and as tall as it stands once the figure lands, and no tab after it moves. The Ads tab said its 1 a
+   moment after its word, and grew by it (Ruben, 28 Nov 2026). A longer figure grows the tab by its other digits alone. */
+.subtab-count[data-coming]::before {
+  content: "0";
+  visibility: hidden;
+}
 /* Something new there to the reader (a person's History): a small dot after the words, in the accent, no figure. */
 .subtab-dot {
   flex: none;
