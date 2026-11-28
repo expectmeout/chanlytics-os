@@ -46,3 +46,15 @@ test("a read asks whether it is still the newest when it lands: a slow answer fo
   assert.equal(first.still(), false, "a newer view was asked for");
   assert.equal(second.still(), true);
 });
+
+test("and whether it is still in the workspace it was asked in: an answer that lands under another's address is dropped", () => {
+  // A switch of workspace loads the page today; this holds if one ever does not (the review of 28 Nov 2026, R3.12).
+  at("/w/salon");
+  const v = heldViews(8);
+  const asked = v.ask();
+  assert.equal(asked.still(), true);
+  at("/w/other");
+  assert.equal(asked.still(), false, "REGRESSION: the salon's view held, and painted, as the other workspace's");
+  at("/w/salon");
+  assert.equal(asked.still(), true, "back where it was asked, with nothing asked since, it is the newest still");
+});

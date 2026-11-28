@@ -7,7 +7,8 @@
  * - The last `max` views by key, the newest kept: holding one again makes it the newest.
  * - Each workspace's apart (from the address), so the same view of another workspace is never painted.
  * - `ask()` for each read of the view on screen; `still()` when it lands says whether a newer one was asked for
- *   since, and a slow answer for a view already left is dropped rather than landing on the new one.
+ *   since, or the address has come to name another workspace, and a slow answer for a view already left is dropped
+ *   rather than landing on the new one.
  * - In memory only: a view held is read again the moment it is shown, so it is safe across a write, and signing out
  *   or changing workspace is a new document.
  */
@@ -45,7 +46,9 @@ export function heldViews<T>(max: number): HeldViews<T> {
     },
     ask() {
       const mine = ++asked;
-      return { still: () => mine === asked };
+      const from = getActiveWorkspace();
+      // And still in the workspace it was asked in: an answer that lands under another's address is dropped with the rest.
+      return { still: () => mine === asked && from === getActiveWorkspace() };
     },
   };
 }
