@@ -44,10 +44,10 @@
  * the request's timings (packages/log noteTiming), beside the database's `db` and each reader's `read.<name>`, so the
  * dashboard's answer says it in Server-Timing and its `route_answered` line, and a call that took half its bound or more
  * says so (`outside_call_slow`). Whose it is and what for (28 Nov): a call to a service outside our two apps is added to
- * the work it serves (noteOutsideCall), whose one `outside_calls` line names the workspace and the purpose, so what a
- * workspace costs can be added up. A call this door held went nowhere and notes nothing.
+ * the work it serves under its provider too (noteTiming's `outside`), whose one `outside_calls` line names the workspace
+ * and the purpose, so what a workspace costs can be added up. A call this door held went nowhere and notes nothing.
  */
-import { logger, noteOutsideCall, noteTiming, requestAttempt, requestTenant } from "@chanlytics/log";
+import { logger, noteTiming, requestAttempt, requestTenant } from "@chanlytics/log";
 
 import { jittered, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { breakerHears, breakerSays, resetBreakerStates } from "./provider-breakers";
@@ -316,8 +316,7 @@ const heldByDoor = (r: ProviderReply): boolean =>
 /** A call's time, under its name: the request's share, and a line when it took half its bound or more. */
 function sayTime(provider: Provider, call: ProviderCall, providerReply: ProviderReply, ms: number): void {
   if (heldByDoor(providerReply)) return;
-  noteTiming(`out.${provider}`, ms);
-  if (!isOurOwnApp(provider)) noteOutsideCall(provider, ms);
+  noteTiming(`out.${provider}`, ms, isOurOwnApp(provider) ? undefined : provider);
   if (ms < call.timeoutMs * SLOW_SHARE) return;
   logger().warn("outside_call_slow", {
     provider,

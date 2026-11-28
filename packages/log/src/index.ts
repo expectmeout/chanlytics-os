@@ -6,7 +6,6 @@ export { errField, logAndGoOn, logger, logKeptGoing, withRequestId } from "./log
 export type { LogFields, Logger } from "./logger";
 export { errText, redact } from "./redact";
 export {
-  noteOutsideCall,
   noteTenant,
   noteTiming,
   noteTouch,

@@ -13,7 +13,7 @@
  * EVENT NAMES DO NOT CHANGE: they are what alerting and every incident's first query grep for.
  */
 import { errText, redact } from "./redact";
-import { requestId, requestTenant, serveAs, type ServedStore, type ServingAbout } from "./request";
+import { requestId, requestTenant, runNamed, type ServedStore, type ServingAbout } from "./request";
 
 type LogLevel = "info" | "warn" | "error";
 
@@ -152,5 +152,5 @@ function sayOutsideCalls(store: ServedStore): void {
  * name, and its outside calls are said once it has ended. `about` is what the work says of itself as it enters.
  */
 export function withRequestId<T>(id: string, fn: () => Promise<T>, about: ServingAbout = {}): Promise<T> {
-  return serveAs(id, about, fn, sayOutsideCalls);
+  return runNamed(id, about, fn, sayOutsideCalls);
 }
