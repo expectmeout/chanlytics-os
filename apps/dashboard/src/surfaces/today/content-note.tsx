@@ -66,7 +66,12 @@ function DownLine({ down }: { down: ContentDownDto }) {
   return (
     <CalmRow
       first={{
-        face: { glyph: <Icon name="image" size={14} />, photo: `${fileViewOf(down.file.id)}?w=320`, tile: true },
+        face: {
+          glyph: <Icon name="image" size={14} />,
+          photo: `${fileViewOf(down.file.id)}?w=320`,
+          tile: true,
+          eager: true,
+        },
       }}
       name={fileSaidOf(down.file.name)}
       said={<span data-tone={down.is === "by_hand" ? "warn" : undefined}>{W.down(down)}</span>}
@@ -87,7 +92,12 @@ function VersionLine({ version }: { version: NonNullable<ContentTodayDto["versio
   return (
     <CalmRow
       first={{
-        face: { glyph: <Icon name="video" size={14} />, photo: `${fileViewOf(version.file.id)}?w=320`, tile: true },
+        face: {
+          glyph: <Icon name="video" size={14} />,
+          photo: `${fileViewOf(version.file.id)}?w=320`,
+          tile: true,
+          eager: true,
+        },
       }}
       name={fileSaidOf(version.file.name)}
       said={<span data-tone="warn">{W.versionWaits(version.n, at)}</span>}
@@ -159,7 +169,7 @@ function newestFace(newest: ContentTodayDto["week"][number] | undefined) {
   return {
     face: {
       glyph: <Icon name={video ? "video" : "image"} size={14} />,
-      ...(ready ? { photo: `${fileViewOf(newest.file.id)}?w=320` } : {}),
+      ...(ready ? { photo: `${fileViewOf(newest.file.id)}?w=320`, eager: true } : {}),
       tile: true,
     },
   };

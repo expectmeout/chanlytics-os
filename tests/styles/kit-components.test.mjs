@@ -415,12 +415,21 @@ test("Face draws the gallery's Face family, hidden from a screen reader, its pic
   const [initials, picture] = face.props.children;
   // The initials are words in a span of their own, so a face that is a row's checkbox can hold them back.
   assert.deepEqual([initials.type, initials.props.children].flat(), ["span", "AR"]);
-  assert.deepEqual(keysOf(picture), ["alt", "className", "decoding", "key", "loading", "onError", "src"]);
+  assert.deepEqual(keysOf(picture), ["alt", "className", "decoding", "key", "loading", "onError", "onLoad", "src"]);
   assert.deepEqual(
     ["key", "src", "alt", "loading", "decoding"].map((p) => picture.props[p]),
     [PHOTO, PHOTO, "", "lazy", "async"],
     "keyed by its address, so a row that comes to hold someone else draws their picture afresh",
   );
+  // A picture on a page's first screen is asked for with the page, and drawn in its first paint.
+  const soon = drawn(h(Face, { initials: "AR", photo: PHOTO, eager: true })).props.children[1];
+  assert.deepEqual([soon.props.loading, soon.props.decoding], ["eager", "sync"]);
+  // One this document has drawn is too, wherever it is drawn again: a page that comes back shows it at once, never the
+  // initials first and the picture a frame after. `eager` reaches no element.
+  assert.equal("eager" in drawn(h(Face, { initials: "AR", photo: PHOTO, eager: true })).props, false);
+  picture.props.onLoad();
+  const again = drawn(h(Face, { initials: "AR", photo: PHOTO })).props.children[1];
+  assert.deepEqual([again.props.loading, again.props.decoding], ["eager", "sync"], "drawn once, there at once");
   const img = { hidden: false };
   picture.props.onError({ currentTarget: img });
   assert.equal(img.hidden, true, "a picture that does not load stands aside, and the initials show again");
