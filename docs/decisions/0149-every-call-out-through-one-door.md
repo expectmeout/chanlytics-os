@@ -158,7 +158,8 @@ The rows. "Bound" is each try's; "at once" is the door's starting room.
   `quotaExceeded` is the project's; a 429 (a user's mail sending, Drive's backend, the Business Profile's 300 a minute
   and ten edits a minute per profile) is the workspace's, since Google says it for both. Google names no wait as a
   rule, so it holds nothing and its gate is lowered. At once 8 per workspace. An unknown post is settled by listing the profile's posts (by time, and now by their words,
-  `summary`); an ask that provably never left is typed (`GoogleUnanswered`, `neverLeft`).
+  `summary`); an ask that provably never left is typed (`GoogleUnanswered`, `neverLeft`), and the post on the
+  profile reads it, so a call held for a "too many" is known to have made nothing, as an open breaker's always was.
 - **Gemini** (`gemini`): the platform's key. A 429 holds everyone for its wait; at once 8.
 - **Microsoft 365 mail** (`microsoft`): bound 10 s. Reads twice; a send once. A 429 with Retry-After in seconds is the
   workspace's (Outlook takes four requests at once per app per mailbox); at once 4 per workspace. Paused with the
