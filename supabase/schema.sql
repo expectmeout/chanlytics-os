@@ -7710,6 +7710,8 @@ declare
   v_left      timestamptz;
   v_put       integer := 0;
   v_snapshot  jsonb := p_snapshot;
+  -- 00727: Stop everything, read inside the approval.
+  v_paused    timestamptz;
 begin
   if v_actor is null and not v_service then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -7732,6 +7734,14 @@ begin
     end if;
     if v_plan.goes_at is null or v_plan.goes_at > now() + interval '1 minute' then
       return jsonb_build_object('fate', 'held');
+    end if;
+    -- 00727: AI approves nothing while everything is stopped, and the stop is read here, inside the approval, on a
+    -- lock its own write waits for (workspace_sending_stop takes the row for update): pressed first, the week is let go
+    -- and waits for its owner's press; pressed after, the week was approved before it, and each post's own send holds it.
+    select t.sending_stopped_at into v_paused from public.tenants t where t.id = p_tenant_id for share;
+    if v_paused is not null then
+      update public.content_plans set goes_at = null, make_queued_at = null where id = v_plan.id;
+      return jsonb_build_object('fate', 'paused');
     end if;
     select p.mode into v_rung from public.policies p
      where p.tenant_id = p_tenant_id and p.class = 'plan_approve' and p.subject_type is null;
@@ -7807,7 +7817,7 @@ end $$;
 -- Name: FUNCTION content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver, the rung rides on its snapshot, each slot prepared ahead is placed in the same transaction (plan_slot_place) and the week is queued for what is left; a member''s own approval takes a held week out of that queue. Answers {fate: approved, approval_id, slots, placed} or {fate: gone | changed | nothing | asks | held | stopped | <status>}.';
+COMMENT ON FUNCTION public.content_week_approve(p_tenant_id uuid, p_plan_id uuid, p_snapshot jsonb) IS 'Approve the week (00706; the content loop PRD''s 8.4, canvas call 10), by a member with the settings permission: the snapshot''s slots ({slots: [{id, place, kind, at, file_id, title, intent}]}), each this plan''s, still proposed and as named, go under one approval of subject plan with its hash; a blocked slot or one asking for footage stays. 00714: or by the service at a held week''s time (goes_at reached, not stopped) under a plan_approve rung that still holds or sends it, read again here; nobody is its approver, the rung rides on its snapshot, each slot prepared ahead is placed in the same transaction (plan_slot_place) and the week is queued for what is left; a member''s own approval takes a held week out of that queue. 00727: the service approves nothing while everything is stopped (tenants.sending_stopped_at, read here on a lock the stop''s own write waits for): the week is let go and answers paused. Answers {fate: approved, approval_id, slots, placed} or {fate: gone | changed | nothing | asks | held | stopped | paused | <status>}.';
 
 
 --
@@ -31044,6 +31054,14 @@ declare
   v_slot    public.plan_slots;
   v_place   jsonb := p_approval -> 'placements' -> 0;
   v_placed  jsonb;
+  -- 00727: what a readied approval carries to be kept with its placement, and what is read inside the write.
+  v_words   text := nullif(btrim(p_approval ->> 'words'), '');
+  v_claims  jsonb := case when jsonb_typeof(p_approval -> 'claims') = 'array' then p_approval -> 'claims' else '[]'::jsonb end;
+  v_claim   jsonb;
+  v_claimed uuid;
+  v_made    jsonb;
+  v_paused  timestamptz;
+  v_refused boolean := false;
 begin
   if coalesce((select auth.role()), '') <> 'service_role' then
     raise exception 'Only the service places a slot of a week.' using errcode = '42501';
@@ -31073,11 +31091,59 @@ begin
   if v_slot.at <= now() then
     return jsonb_build_object('fate', 'past', 'posts', '[]'::jsonb);
   end if;
-  v_placed := public.post_approve(p_tenant_id, p_file_id, p_approval);
-  if v_placed ->> 'fate' = 'approved' then
+  -- 00727: Stop everything is read here, inside the write, on a lock its own write waits for (workspace_sending_stop
+  -- takes the row for update). Pressed first, nothing is placed; pressed after, the placement was made before it, and the
+  -- send's own check holds it while everything is stopped.
+  select t.sending_stopped_at into v_paused from public.tenants t where t.id = p_tenant_id for share;
+  if v_paused is not null then
+    return jsonb_build_object('fate', 'stopped', 'posts', '[]'::jsonb);
+  end if;
+  -- 00727: the workspace's posts lock before any post is read or written (post_approve takes the same one, and an
+  -- owner's press takes it first too, post_approve_whole): one order of locks for every approval.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
+  -- 00727: held to what stands now. An approval readied ahead says how the made picture's words stood then
+  -- (stood.caption). Words on it now that are neither those nor the ones this approval keeps (another slot of the same
+  -- picture, placed a moment before) are somebody's since: not what was readied, and nothing is written.
+  select f.made into v_made from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if jsonb_typeof(p_approval -> 'stood') = 'object'
+     and (v_made ->> 'caption') is distinct from (p_approval -> 'stood' ->> 'caption')
+     and (v_words is null or (v_made ->> 'caption') is distinct from v_words) then
+    return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+  end if;
+  begin
+    -- A fact the approval carries, kept as the owner's claim until its day ends (00706 owner_claims), with its event:
+    -- owner_claims_keep's own write, for an approval nobody is signed in to make.
+    for v_claim in select * from jsonb_array_elements(v_claims) loop
+      insert into public.owner_claims (tenant_id, kind, text, source, valid_until)
+      values (p_tenant_id, v_claim ->> 'kind', btrim(v_claim ->> 'text'), v_claim ->> 'source',
+              nullif(v_claim ->> 'valid_until', '')::date)
+      returning id into v_claimed;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'owner_claim.kept', 'setup', 'workspace', p_tenant_id,
+              jsonb_build_object('claim_id', v_claimed, 'claim', v_claim ->> 'kind', 'source', v_claim ->> 'source'));
+    end loop;
+    -- The words that go, the piece's own from now on (00681 piece_words_keep) and on how the picture was made
+    -- (files.made, where Details and AI's card read them): only where the picture does not say them already.
+    if v_words is not null and (v_made ->> 'caption') is distinct from v_words then
+      perform public.piece_words_keep(p_tenant_id, p_file_id, v_words);
+      update public.files f set made = jsonb_set(f.made, '{caption}', to_jsonb(v_words)), updated_at = now()
+       where f.tenant_id = p_tenant_id and f.id = p_file_id and f.source = 'made' and f.kind <> 'video'
+         and f.removed_at is null and jsonb_typeof(f.made) = 'object';
+    end if;
+    v_placed := public.post_approve(p_tenant_id, p_file_id, p_approval);
+    if v_placed ->> 'fate' is distinct from 'approved' then
+      v_refused := true;
+      raise exception 'not approved' using errcode = 'P0001';
+    end if;
     update public.plan_slots set post_id = (v_placed -> 'posts' -> 0 ->> 'post_id')::uuid, updated_at = now()
      where id = v_slot.id;
-  end if;
+  exception when raise_exception then
+    -- Only this door's own refusal is an answer: the facts and the words go with it. Any other is raised as it came.
+    if not v_refused then
+      raise;
+    end if;
+    return v_placed;
+  end;
   return v_placed;
 end $$;
 
@@ -31086,7 +31152,7 @@ end $$;
 -- Name: FUNCTION plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) IS 'A slot of a week AI approved placed (00714), by the service: its post approved via rung (post_approve) and the slot linked to it in one transaction, only for a slot still approved under the rung''s own approval with no post and no video, and only its own placement (its place, kind and time as they stand, a time still ahead). Answers post_approve''s answer, or {fate: taken | changed | past | gone} with nothing written. One post a slot, however often it is asked.';
+COMMENT ON FUNCTION public.plan_slot_place(p_tenant_id uuid, p_slot_id uuid, p_file_id uuid, p_approval jsonb) IS 'A slot of a week AI approved placed (00714), by the service: its post approved via rung (post_approve) and the slot linked to it in one transaction, only for a slot still approved under the rung''s own approval with no post and no video, and only its own placement (its place, kind and time as they stand, a time still ahead). 00727: the approval kept whole or not at all. Beside post_approve''s keys it may carry claims [{kind, text, source, valid_until}] (kept as owner_claims with their event), words (piece_words_keep, and the made picture''s own caption) and stood {caption}: how the made picture''s words stood when the approval was readied. Words on it now that are neither those nor this approval''s own answer changed. Refused while everything is stopped (tenants.sending_stopped_at, read on a lock the stop''s own write waits for). Answers post_approve''s answer, or {fate: taken | changed | past | gone | stopped} with nothing written. One post a slot, however often it is asked.';
 
 
 --
@@ -32965,6 +33031,10 @@ begin
   if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
+  -- 00727: the workspace's posts lock, before the posts the owner saw are read (post_approve takes the same one, so
+  -- does a slot AI places): nothing of the piece is added between that read and the swap, and a press that waited here
+  -- reads what the one before it left.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
   -- A version set in place of the posts still waiting: those the owner saw, held still until the swap is made. Where
   -- one has begun to send, or another is waiting now, it is not what they approved.
   if v_replace then
@@ -33015,7 +33085,7 @@ end $$;
 -- Name: FUNCTION post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00713; the outside audit''s 4.2 and 4.3): an approval kept whole or not at all. p_approval is post_approve''s, with claims [{kind, text, source, valid_until}] (owner_claims_keep), words (piece_words_keep, where there are words), replace (piece_posts_replace in place of post_approve) and, with replace, expected: the ids of the posts still waiting that the owner saw, held still while they are swapped. Answers the approving door''s answer; a refusal keeps nothing, and a set of waiting posts that moved since is {fate: changed}.';
+COMMENT ON FUNCTION public.post_approve_whole(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00713; the outside audit''s 4.2 and 4.3): an approval kept whole or not at all. p_approval is post_approve''s, with claims [{kind, text, source, valid_until}] (owner_claims_keep), words (piece_words_keep, where there are words), replace (piece_posts_replace in place of post_approve) and, with replace, expected: the ids of the posts still waiting that the owner saw, held still while they are swapped. 00727: the workspace''s posts lock is taken first (post_approve''s own), so nothing of the piece is added between that read and the swap, and of two presses at once the second reads what the first left. The posts are compared by id: one whose time or words moved since the owner looked is replaced all the same, since it is being replaced. Answers the approving door''s answer; a refusal keeps nothing, and a set of waiting posts that moved since is {fate: changed}.';
 
 
 --

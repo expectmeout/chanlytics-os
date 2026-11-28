@@ -117,35 +117,40 @@ export async function keepMadeWords(member: Member, row: FileMemberRow, caption:
 /**
  * A post's words, where they change what the piece says, as an approval keeps them (Ruben, 12 Nov 2026: one step, so the words
  * that go and the words kept are never two). Held to what the piece and its posts still waiting take, and refused in the
- * owner's words, before anything is kept; the approval's own door keeps them with it (00713 post_approve_whole). Null where
- * they are the piece's already.
+ * owner's words, before anything is kept; the approval's own door keeps them with it (00713 post_approve_whole). `words` is
+ * null where they are the piece's already. `stood` is how the made picture's own words stood as they were read (null where
+ * none were ever written on it): what AI's approval, readied ahead, is held to at its write (00727 plan_slot_place).
  */
 export async function readWordsToKeep(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
   words: string,
-): Promise<string | null> {
-  const { caption, posts } = await readCaptionKept(ctx, member.tenantId, row.id);
+): Promise<{ words: string | null; stood: string | null }> {
+  const { caption, posts, stood } = await readCaptionKept(ctx, member.tenantId, row.id);
   const trimmed = words.trim();
-  if (caption === (trimmed || null)) return null;
+  if (caption === (trimmed || null)) return { words: null, stood };
   const refused = captionRefusalOf(row, trimmed, posts);
   if (refused) throw new AppError(refused.code, refused.words);
-  return trimmed;
+  return { words: trimmed, stood };
 }
 
-/** The caption a made post keeps, with the posts it was read from: both under the caller's RLS. */
+/**
+ * The caption a made post keeps, with the posts it was read from (both under the caller's RLS), and the words written on
+ * how it was made as they stand (`stood`: files.made's caption, null where none).
+ */
 async function readCaptionKept(
   ctx: RouteContext,
   tenantId: TenantId,
   fileId: string,
-): Promise<{ caption: string | null; posts: MemberPostRow[] }> {
+): Promise<{ caption: string | null; posts: MemberPostRow[]; stood: string | null }> {
   const [kept, posts] = await Promise.all([
     getFileMade(ctx.supabase, tenantId, fileId),
     listFilePosts(ctx.supabase, tenantId, fileId),
   ]);
   const created = recordOrNull(kept);
-  return { caption: postCaptionOf(posts, created ? fileMadeOf(created, null) : null), posts };
+  const made = created ? fileMadeOf(created, null) : null;
+  return { caption: postCaptionOf(posts, made), posts, stood: made?.caption ?? null };
 }
 
 /**

@@ -629,7 +629,7 @@ being read is dropped by a migration.
 | `piece_version_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/versions.ts` | A member's press, with the settings permission (00708): |
 | `piece_version_kept` | the server's | the server | code `apps/edge/lib/files/piece-make.ts`, `apps/edge/lib/shared/log-events/content.ts` and 1 more | When a new version's drawn bytes are kept (00708; |
 | `piece_version_ready` | the server's | the server | code `packages/db/src/repositories/files/versions.ts` | When a new version's file plays (00708; |
-| `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts`; SQL `post_approve_whole` | A member's door, with the settings permission (00681; |
+| `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts`; SQL `plan_slot_place`, `post_approve_whole` | A member's door, with the settings permission (00681; |
 | `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00706; |
 | `plan_slot_place` | the server's | the server | code `packages/db/src/repositories/files/plans.ts`; SQL `content_week_approve` | A slot of a week AI approved placed (00714), by the service: |
 | `plan_slot_prepared` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | A slot of a held week prepared ahead (00714), by the service: |
