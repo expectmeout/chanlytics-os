@@ -11,6 +11,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -40,6 +41,8 @@ const ok = (res, what = "") => {
 };
 let digest = 0;
 const hex = () => (digest += 1).toString(16).padStart(64, "0");
+/** A key's hash: unique across every workspace (form_keys_hash), so it is this run's own, never a counter's. */
+const keyHash = (name) => createHash("sha256").update(`for-good ${RUN} ${name}`).digest("hex");
 const phoneOf = (n) => `+1646555${String(3000 + n).slice(-4)}`;
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
 
@@ -105,7 +108,7 @@ before(async () => {
     ["viewer", "viewer", tenantId],
     ["owner", "stranger", otherId],
   ]) {
-    const email = `${who}-${RUN}@example.com`;
+    const email = `for-good-${who}-${RUN}@example.com`;
     const user = ok(
       await db.auth.admin.createUser({ email, password: `pw-${RUN}-Aa1!`, email_confirm: true }),
       who,
@@ -115,8 +118,14 @@ before(async () => {
     if (who === "owner") ownerId = user.id;
   }
   const owner = await signedIn("owner");
-  studio = ok(await owner.rpc("form_key_make", { p_tenant_id: tenantId, p_name: "Studio", p_hash: hex() }));
-  popUp = ok(await owner.rpc("form_key_make", { p_tenant_id: tenantId, p_name: "Pop-up", p_hash: hex() }));
+  studio = ok(
+    await owner.rpc("form_key_make", { p_tenant_id: tenantId, p_name: "Studio", p_hash: keyHash("studio") }),
+    "the studio's key",
+  );
+  popUp = ok(
+    await owner.rpc("form_key_make", { p_tenant_id: tenantId, p_name: "Pop-up", p_hash: keyHash("pop-up") }),
+    "the pop-up's key",
+  );
 });
 
 after(async () => {
@@ -131,7 +140,7 @@ after(async () => {
 /** A session of a member of the workspace, or of the stranger's. */
 async function signedIn(who) {
   const as = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
-  ok(await as.auth.signInWithPassword({ email: `${who}-${RUN}@example.com`, password: `pw-${RUN}-Aa1!` }), who);
+  ok(await as.auth.signInWithPassword({ email: `for-good-${who}-${RUN}@example.com`, password: `pw-${RUN}-Aa1!` }), who);
   return as;
 }
 
