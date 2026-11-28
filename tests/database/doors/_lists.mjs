@@ -292,7 +292,7 @@ export const REFUSES_IN_WORDS = {
 /**
  * The doors that run as their owner, name a workspace or a row, and answer a session with no person in it without
  * raising: each answers no, nothing or not found, which tells and changes nothing. A door that takes such a session
- * as the server (it wrote, or read the workspace's own) is an offence, never an entry here (00732).
+ * as the server (it wrote, or read the workspace's own) is an offence, never an entry here (00733).
  */
 export const ANSWERS_NO_PERSON_IN_WORDS = {
   "caller_has_permission(uuid,text)": "answers false: nobody has a permission",
@@ -301,4 +301,60 @@ export const ANSWERS_NO_PERSON_IN_WORDS = {
   "reach_out_reply_undoable(uuid)": 'answers "not_found", as to a stranger',
   "sequence_queued_why_not(uuid,uuid[],uuid[])": "answers no rows, as to a stranger",
   "tenant_config_read(uuid)": "answers no rows, as to a stranger",
+};
+
+/**
+ * What an erasure keeps (an-erasure-leaves-what-is-named.db.test.mjs): the erased keep their row as a tombstone, so a
+ * key to it deletes nothing by itself. Every column that names a person (`contacts`) or a lead (`leads`) is found in
+ * the catalog; after the owner's press its rows are gone, or the column is here with why the row stays and what of the
+ * person it no longer holds. A new table that names a person arrives in neither state until it is deleted with them
+ * (the door or a trigger on the tombstone) or named here.
+ */
+export const AN_ERASURE_KEEPS = {
+  contacts: {
+    "appointments.contact_id":
+      "a visit is the business's fact, kept with its time and service: the client's name, number, address and note are cleared by the erasure's own pass (appointments_scrub)",
+    "contact_marks.contact_id": "how far a member had read of the person: an id and a time, nothing of the person's",
+    "contacts.merged_into_contact_id":
+      "a record merged into them is them (decision 0028): erased with them and kept, as they are, as a tombstone",
+    "deals.contact_id":
+      "what was sold stays the business's record, with its stage and amount: its note, evidence and link are cleared by the trigger on the tombstone",
+    "leads.contact_id":
+      "the lead they were found as is blanked by the trigger on the tombstone and kept, so the search that found it keeps its count and never finds them again",
+    "person_moments.contact_id":
+      "when they were first and last in touch: two times, kept on the tombstone so the People list's order is not rebuilt; no page lists an erased person",
+    "sequence_enrollments.contact_id":
+      "their place in a sequence, left as erased by the trigger on the tombstone: kept as the sequence's history",
+    "sequence_sends.contact_id":
+      "a run's row for them is the run's count: kept, the words it held for them cleared by the trigger on the tombstone",
+  },
+  leads: {
+    "appointments.lead_id": "a visit is the business's fact: it keeps which lead it was booked for, by id alone",
+    "contacts.lead_id": "the business a person works at, by id: the lead's row stays as a tombstone, blanked",
+    "deals.lead_id": "what was sold stays the business's record: it keeps which lead it was sold to, by id alone",
+    "lead_preferences.from_lead_id": "a learned exclusion keeps which lead taught it, by id alone",
+    "lead_previews.lead_id": "the preview made for them, ended: its row is the record that one was made",
+    "lead_search_members.lead_id":
+      "their place on a search's list: kept so the search keeps its count, the lead it names blanked",
+    "sequence_enrollments.lead_id":
+      "their place in a sequence, left as erased by the trigger on the tombstone: kept as the sequence's history",
+    "sequence_replies.lead_id": "that they wrote back is the sequence's count: kept by id",
+    "sequence_sends.lead_id": "a run's row for them is the run's count: kept by id",
+  },
+};
+
+/**
+ * Where a row an erasure keeps may still stand, by table: a row that says where it stands (`state`) is left in a state
+ * nothing sends from, or its state is here with why. Leaving a sequence skips the erased person's waiting sends IN THAT
+ * SEQUENCE (sequence_enrollments_leave); the walk's send stands in no sequence, as a lead's own email does, and is left
+ * waiting: what keeps it from going is the send door, which refuses an erased person on every way out
+ * (tests/consent/stops/no-way-out-reaches-who-said-stop.test.mjs).
+ */
+export const A_KEPT_ROW_MAY_STAND = {
+  lead_previews: { ended: "over" },
+  sequence_enrollments: { left: "over: left as erased" },
+  sequence_sends: {
+    queued:
+      "a send that stands in no sequence is not skipped by the erasure: the send door refuses it when its turn comes",
+  },
 };

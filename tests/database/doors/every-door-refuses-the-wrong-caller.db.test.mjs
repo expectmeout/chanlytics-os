@@ -11,9 +11,6 @@
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   ANSWERS_NO_PERSON_IN_WORDS,
   A_PASSWORD_ALONE_MAY,
@@ -21,32 +18,14 @@ import {
   REFUSES_IN_WORDS,
   SAME_FOR_EVERYONE,
 } from "./_lists.mjs";
-import { reportOf, walkSql } from "./_walk.mjs";
+import { noLocalStack, reportOf, saidBy, walkSql } from "./_walk.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const URL_ = process.env.SUPABASE_URL;
-const CLI = process.env.SUPABASE_CLI || "supabase";
-const skip = !URL_
-  ? "no database in env"
-  : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
-    ? "refusing a database that is not on this machine: this suite reads the local stack through the CLI"
-    : false;
-
-/** One statement through `supabase db query --local`: what it printed. */
-function run(sql) {
-  const r = spawnSync(CLI, ["db", "query", "--local", "--output-format", "json", sql], {
-    cwd: ROOT,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
-  return [r.stderr, r.stdout].map((s) => (s ?? "").trim()).join("\n");
-}
+const skip = noLocalStack();
 
 let report;
 before(() => {
   if (skip) return;
-  const said = run(walkSql());
+  const said = saidBy(walkSql());
   report = reportOf(said);
   assert.ok(report, `the walk itself broke, before it could say what it found:\n${said.slice(-2000)}`);
 });

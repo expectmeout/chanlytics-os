@@ -56,6 +56,9 @@ export const DB_PATHS = [
   // their rows (database/tenancy/), and the lead engine's workspaces, members and listings (leads/engine/engine/)
   "tests/database/tenancy/_*.mjs",
   "tests/leads/engine/engine/_*.mjs",
+  // and the door walk's statement and its lists, which the suites that call every door and erase a person are held to
+  // (database/doors/, 00733)
+  "tests/database/doors/_*.mjs",
   // what the suites run against it: the packages that write rows, their sources (the suites read each as the bundle the
   // launcher builds from them, decision 0074)
   "packages/core/**",

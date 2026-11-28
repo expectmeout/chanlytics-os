@@ -35,9 +35,58 @@
  * Proved on PGlite first (dev-tools/db-without-docker example-doors-refuse.mjs runs this same statement); CI's stack is
  * the judge, through the CLI, as the catalog suites are.
  */
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ARG_ROWS, DOOR_ARGS, SEED_MORE, SEED_VALUES } from "./_lists.mjs";
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+
+/** Why a suite over the walk is skipped: no database in the environment, or one that is not on this machine. */
+export const noLocalStack = () =>
+  !process.env.SUPABASE_URL
+    ? "no database in env"
+    : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(process.env.SUPABASE_URL)
+      ? "refusing a database that is not on this machine: this suite reads the local stack through the CLI"
+      : false;
+
+/**
+ * One statement through `supabase db query --local`, and everything the CLI printed: the walk ends by raising, so what
+ * it found comes back as the failure's words. The statement goes in a file, since as one argument it outgrows Windows'
+ * 32 KB command line (people/erasure/erasure-completeness.db.test.mjs does the same). SUPABASE_CLI names the binary
+ * when `supabase` is not on PATH.
+ */
+export function saidBy(sql) {
+  const cli = process.env.SUPABASE_CLI || "supabase";
+  const dir = mkdtempSync(path.join(os.tmpdir(), "door-walk-"));
+  const file = path.join(dir, "walk.sql");
+  writeFileSync(file, sql);
+  let r;
+  try {
+    r = spawnSync(cli, ["db", "query", "--local", "--output-format", "json", "--file", file], {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  if (r.error) throw new Error(`could not run ${cli} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
+  return [r.stderr, r.stdout].map((text) => (text ?? "").trim()).join("\n");
+}
+
 const q = (value) => `'${JSON.stringify(value).replace(/'/g, "''")}'::jsonb`;
+
+/**
+ * The same seeded workspace, and one person erased in it: what an erasure leaves in every table that names a person
+ * (people/erasure/what-an-erasure-leaves.db.test.mjs). It walks no door. Every column that names a person or a lead is
+ * filled with A's, the owner erases the lead and then the person through the doors a press reaches (`lead_erase`,
+ * `erase_contact`, and the triggers on what they leave), and the block raises, for each such column, how many rows
+ * named them before and how many still do.
+ */
+export const erasureSql = (lists = {}) => walkSql({ ...lists, only: [], erase: true });
 
 /** The walk, as one statement. `only` names the doors to walk (a run by hand); none walks every door. */
 export function walkSql({
@@ -46,8 +95,8 @@ export function walkSql({
   seedValues = SEED_VALUES,
   seedMore = SEED_MORE,
   only = null,
+  erase = false,
 } = {}) {
-  // Sent as one argument to the CLI, so its indentation and its comments are left behind.
   return compact(String.raw`
 do $walk$
 declare
@@ -63,6 +112,10 @@ declare
   seed_values constant jsonb := ${q(seedValues)};
   seed_more   constant jsonb := ${q(seedMore)};
   only_doors  constant jsonb := ${q(only)};
+  erasing     constant boolean := ${erase ? "true" : "false"};
+  named       record;
+  named_n     bigint;
+  erasure     jsonb := '{}';   -- 'contacts' or 'leads', then 'table.column', then { before, after }
   uuid_re     constant text := '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
   callers     jsonb;
   seeded      jsonb := '{}';   -- table, then the id of A's row there ('' where the table has no id)
@@ -141,6 +194,11 @@ begin
         from pg_constraint k
        where k.contype = 'f' and k.conrelid <> k.confrelid
          and k.conrelid in (select oid from tenant_tables) and k.confrelid in (select oid from tenant_tables)
+         -- Only a key that must be filled orders two tables: one that may be empty would tie people and leads,
+         -- who name each other, in a circle.
+         and exists (select 1 from unnest(k.conkey) ck
+                       join pg_attribute xa on xa.attrelid = k.conrelid and xa.attnum = ck
+                      where xa.attname <> 'tenant_id' and xa.attnotnull)
     ), depth (oid, d) as (
       select t.oid, 0 from tenant_tables t
       union
@@ -153,7 +211,8 @@ begin
         -- A second row of a table, after every table's first: SEED_MORE's.
         select m.value ->> 'table', m.key, 100 + (m.value ->> 'order')::integer from jsonb_each(seed_more) m
       ) w
-     order by w.d, w.label
+     -- People first, then leads: every table that may name one is seeded after them.
+     order by w.label not in ('contacts', 'leads'), w.label = 'leads', w.d, w.label
   loop
     -- What the lists say of this row, with '{a}' read as A's id and '{table}' as the id of A's row there.
     stmt := coalesce(case when task.label = task.tbl then seed_values -> task.tbl
@@ -176,6 +235,15 @@ begin
                  when forced ? x.attname::text
                    then format('%L::%s', forced ->> x.attname::text, format_type(x.atttypid, x.atttypmod))
                  when x.attname = 'tenant_id' then format('%L::uuid', a)
+                 -- For the erasure: every column that names a person or a lead names A's, filled or not by rule.
+                 when erasing and x.atttypid = 'uuid'::regtype and x.attname <> 'id'
+                      and (ref.tbl = 'contacts' or x.attname ~ '(^|_)contact_id$')
+                      and coalesce(seeded ->> 'contacts', '') <> ''
+                   then format('%L::uuid', seeded ->> 'contacts')
+                 when erasing and x.atttypid = 'uuid'::regtype and x.attname <> 'id'
+                      and (ref.tbl = 'leads' or x.attname ~ '(^|_)lead_id$')
+                      and coalesce(seeded ->> 'leads', '') <> ''
+                   then format('%L::uuid', seeded ->> 'leads')
                  when not x.attnotnull or x.atthasdef or x.attidentity <> '' then null
                  when ref.tbl is not null and coalesce(seeded ->> ref.tbl, '') <> ''
                    then format('%L::uuid', seeded ->> ref.tbl)
@@ -594,7 +662,63 @@ begin
     end if;
   end loop;
 
+  -- 3. One lead, then one person, erased by the owner, and what every column that names them holds after.
+  if erasing then
+    for who in select w from unnest(array['leads', 'contacts']) w loop
+      for named in
+        select c.relname::text as tbl, x.attname::text as col
+          from pg_attribute x
+          join pg_class c on c.oid = x.attrelid
+         where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') and not c.relispartition
+           and x.attnum > 0 and not x.attisdropped and x.atttypid = 'uuid'::regtype and x.attname <> 'id'
+           and (x.attname ~ ('(^|_)' || case who when 'leads' then 'lead' else 'contact' end || '_id$')
+                or exists (
+                  select 1 from pg_constraint k
+                   cross join lateral unnest(k.conkey, k.confkey) as u(child_att, parent_att)
+                   where k.contype = 'f' and k.conrelid = c.oid and u.child_att = x.attnum
+                     and k.confrelid = format('public.%I', who)::regclass
+                     and (select pa.attname from pg_attribute pa
+                           where pa.attrelid = k.confrelid and pa.attnum = u.parent_att) = 'id'))
+         order by 1, 2
+      loop
+        execute format('select count(*) from public.%I t where t.%I = %L', named.tbl, named.col, seeded ->> who)
+          into named_n;
+        erasure := jsonb_set(erasure, array[who], coalesce(erasure -> who, '{}'::jsonb)
+          || jsonb_build_object(named.tbl || '.' || named.col, jsonb_build_object('before', named_n)));
+      end loop;
+      -- The owner's press, as the door takes it. A refusal here breaks the walk, which says so.
+      perform set_config('request.jwt.claims', (callers -> 'owner')::text, true);
+      perform set_config('request.jwt.claim.sub', callers -> 'owner' ->> 'sub', true);
+      perform set_config('request.jwt.claim.role', 'authenticated', true);
+      execute 'set local role authenticated';
+      if who = 'leads' then
+        perform public.lead_erase((seeded ->> 'leads')::uuid);
+      else
+        perform public.erase_contact((seeded ->> 'contacts')::uuid, '{}'::jsonb);
+      end if;
+      execute 'reset role';
+      for named in select k.key as name from jsonb_each(erasure -> who) k loop
+        execute format('select count(*) from public.%I t where t.%I = %L',
+                       split_part(named.name, '.', 1), split_part(named.name, '.', 2), seeded ->> who)
+          into named_n;
+        erasure := jsonb_set(erasure, array[who, named.name],
+                             (erasure -> who -> named.name) || jsonb_build_object('after', named_n));
+        -- Where a row that is kept says where it stands, what it says: a row left waiting is work still to come.
+        if named_n > 0 and exists (
+             select 1 from pg_attribute x
+              where x.attrelid = format('public.%I', split_part(named.name, '.', 1))::regclass
+                and x.attname = 'state' and not x.attisdropped) then
+          execute format('select to_jsonb(array_agg(distinct t.state order by t.state)) from public.%I t where t.%I = %L',
+                         split_part(named.name, '.', 1), split_part(named.name, '.', 2), seeded ->> who)
+            into one;
+          erasure := jsonb_set(erasure, array[who, named.name, 'states'], one);
+        end if;
+      end loop;
+    end loop;
+  end if;
+
   report := jsonb_build_object(
+    'erasure', erasure,
     'doors', doors_n, 'calls', calls_n, 'trigger_functions', skipped,
     'unseeded', unseeded, 'seeded_tables', (select count(*) from jsonb_object_keys(seeded)),
     'unresolved', unresolved, 'offences', offences, 'password_alone', password_alone,

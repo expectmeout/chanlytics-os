@@ -16,8 +16,10 @@ import path from "node:path";
 import { ROOT } from "../../_source.mjs";
 import { OUT as SNAPSHOT, statementsOf } from "../../../tooling/scripts/gen/schema-snapshot.mjs";
 import {
+  AN_ERASURE_KEEPS,
   ANSWERS_NO_PERSON_IN_WORDS,
   ARG_ROWS,
+  A_KEPT_ROW_MAY_STAND,
   A_PASSWORD_ALONE_MAY,
   A_VIEWER_WRITES,
   DOOR_ARGS,
@@ -61,6 +63,7 @@ function schemaOf(sql) {
   const granted = new Map();
   const made = new Map();
   const tables = new Map();
+  const ids = new Set();
   for (const st of statementsOf(sql)) {
     const head = flat(st.text.slice(0, 4000));
     const grant = /^GRANT ALL ON FUNCTION public\.(\w+)\((.*)\) TO authenticated$/.exec(head.replace(/;$/, ""));
@@ -72,7 +75,10 @@ function schemaOf(sql) {
       made.set(fn[1], { trigger: returnsTrigger && (prev?.trigger ?? true), body: `${prev?.body ?? ""}\n${st.text}` });
     }
     const table = /^CREATE TABLE public\.(\w+) \(/.exec(head);
-    if (table) tables.set(table[1], /\n\s+tenant_id uuid\b/.test(st.text));
+    if (table) {
+      tables.set(table[1], /\n\s+tenant_id uuid\b/.test(st.text));
+      for (const m of st.text.matchAll(/\n\s+(\w+) uuid\b/g)) ids.add(`${table[1]}.${m[1]}`);
+    }
   }
   const doors = [...granted.values()]
     .filter((d) => !made.get(d.name)?.trigger)
@@ -81,11 +87,11 @@ function schemaOf(sql) {
       sig: `${d.name}(${d.args.map((a) => a.type).join(",")})`,
       body: made.get(d.name)?.body ?? "",
     }));
-  return { doors, tables };
+  return { doors, tables, ids };
 }
 
 const snapshot = fs.readFileSync(path.join(ROOT, SNAPSHOT), "utf8").replace(/\r\n/g, "\n");
-const { doors, tables } = schemaOf(snapshot);
+const { doors, tables, ids } = schemaOf(snapshot);
 const names = new Set(doors.map((d) => d.name));
 const sigs = new Set(doors.map((d) => d.sig));
 
@@ -170,6 +176,11 @@ test("the lists name what the schema holds: no entry for a door, an argument or 
     for (const sig of Object.keys(named))
       if (!sigs.has(sig))
         stale.push(`${list}: ${sig} is not a door a signed-in person may call, as the database prints it`);
+  for (const [who, kept] of Object.entries(AN_ERASURE_KEEPS))
+    for (const column of Object.keys(kept))
+      if (!ids.has(column)) stale.push(`AN_ERASURE_KEEPS.${who}: ${column} is not an id column of the schema`);
+  for (const table of Object.keys(A_KEPT_ROW_MAY_STAND))
+    if (!tables.has(table)) stale.push(`A_KEPT_ROW_MAY_STAND.${table}: not a table`);
   assert.deepEqual(stale, [], "take the entry out, or name it as the schema does now");
 });
 
