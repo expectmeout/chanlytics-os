@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { breakerOf, breakerStates, fetchFromProvider, resetBreakers } from "@chanlytics/channels/shared";
 import { withRequestId } from "@chanlytics/log";
 import { fieldsOf, linesOf } from "../../_log-lines.mjs";
+import { until } from "../../shared/_until.mjs";
 
 beforeEach(() => resetBreakers());
 
@@ -177,16 +178,17 @@ test("our own apps' 429 is their answer, never a pace: the next call is made", a
   );
 });
 
-/** A service whose answers the case gives by hand, one call at a time. */
+/** A service whose answers the case gives by hand, one call at a time, and how many calls have reached it. */
 function heldOpen() {
   const waiting = [];
+  let reached = 0;
   const fetch = (url) =>
     new Promise((resolve) => {
+      reached += 1;
       waiting.push({ url, answer: (status) => resolve(new Response("{}", { status })) });
     });
-  return { waiting, fetch };
+  return { waiting, fetch, reached: () => reached };
 }
-const settled = () => new Promise((resolve) => setImmediate(resolve));
 
 test("a 'too many' lowers how many calls run at once, and answers raise it back", async () => {
   // Microsoft's Outlook takes four at once per app per mailbox: the gate opens at four.
@@ -194,11 +196,10 @@ test("a 'too many' lowers how many calls run at once, and answers raise it back"
   const calls = Array.from({ length: 5 }, (_, i) =>
     fetchFromProvider("microsoft", `u${i}`, read(W1, { timeoutMs: 5_000 }), { fetch: open.fetch }),
   );
-  await settled();
+  await until(() => open.reached() === 4, "four calls out at once");
   assert.equal(open.waiting.length, 4, "four at once; the fifth waits for room");
   open.waiting.shift().answer(200);
-  await settled();
-  assert.equal(open.waiting.length, 4, "room came: the fifth went");
+  await until(() => open.reached() === 5, "room came: the fifth went");
   for (const w of open.waiting.splice(0)) w.answer(200);
   await Promise.all(calls);
 
@@ -210,33 +211,30 @@ test("a 'too many' lowers how many calls run at once, and answers raise it back"
   const next = Array.from({ length: 3 }, (_, i) =>
     fetchFromProvider("microsoft", `v${i}`, read(W1, { timeoutMs: 5_000 }), { fetch: after.fetch }),
   );
-  await settled();
-  assert.equal(after.waiting.length, 2, "two at once after the 'too many'");
+  await until(() => after.reached() === 2, "two calls out after the 'too many'");
   const other = heldOpen();
   const theirs = Array.from({ length: 4 }, (_, i) =>
     fetchFromProvider("microsoft", `x${i}`, read(W2, { timeoutMs: 5_000 }), { fetch: other.fetch }),
   );
-  await settled();
-  assert.equal(other.waiting.length, 4, "another mailbox's room is its own");
+  await until(() => other.reached() === 4, "another mailbox's four out: its room is its own");
+  assert.equal(after.reached(), 2, "and still two of the first mailbox's, the third waiting for room");
   for (const w of other.waiting.splice(0)) w.answer(200);
   await Promise.all(theirs);
   // Two answers at a room of two raise it to three.
   after.waiting.shift().answer(200);
-  await settled();
+  await until(() => after.reached() === 3, "the third went in the room the first left");
   after.waiting.shift().answer(200);
-  await settled();
-  for (const w of after.waiting.splice(0)) w.answer(200);
+  after.waiting.shift().answer(200);
   await Promise.all(next);
   const third = heldOpen();
   const more = Array.from({ length: 4 }, (_, i) =>
     fetchFromProvider("microsoft", `y${i}`, read(W1, { timeoutMs: 5_000 }), { fetch: third.fetch }),
   );
-  await settled();
-  assert.equal(third.waiting.length, 3, "raised back by one after a run of answers");
-  for (let i = 0; i < 4; i++) {
-    third.waiting.shift()?.answer(200);
-    await settled();
-  }
+  await until(() => third.reached() === 3, "three calls out");
+  assert.equal(third.waiting.length, 3, "raised back by one after a run of answers: the fourth waits");
+  third.waiting.shift().answer(200);
+  await until(() => third.reached() === 4, "the fourth went in the room the first left");
+  for (const w of third.waiting.splice(0)) w.answer(200);
   await Promise.all(more);
 });
 
@@ -246,11 +244,11 @@ test("a call that finds no room within the time it may wait is answered 'not now
   const running = Array.from({ length: 4 }, (_, i) =>
     fetchFromProvider("microsoft", `u${i}`, read(W1, { timeoutMs: 5_000 }), { fetch: open.fetch }),
   );
-  await settled();
+  await until(() => open.reached() === 4, "four calls out");
   // The clock's wait passes at once: no room came within it.
   const late = await fetchFromProvider("microsoft", "late", read(W1, { timeoutMs: 5_000 }), { ...open, ...c });
   assert.deepEqual([late.outcome, late.error, late.status], ["retryable", "too_many_at_once", 0]);
-  assert.equal(open.waiting.length, 4, "it never left");
+  assert.equal(open.reached(), 4, "it never left");
   for (const w of open.waiting.splice(0)) w.answer(200);
   await Promise.all(running);
 });
@@ -286,7 +284,7 @@ test("a breaker's pause ends with one call: the others wait for its answer, whic
 
   const open = heldOpen();
   const probe = fetchFromProvider("retell", "first", { timeoutMs: 5_000 }, { fetch: open.fetch, now: c.now });
-  await settled();
+  await until(() => open.reached() === 1, "the first call after the pause is out");
   const meanwhile = service(200);
   const second = await fetchFromProvider("retell", "second", { timeoutMs: 1 }, { ...meanwhile, ...c });
   assert.deepEqual([second.error, meanwhile.calls.length], ["breaker_open", 0], "held while the first is out");

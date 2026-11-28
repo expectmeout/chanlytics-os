@@ -50,10 +50,15 @@ const requestHolder = globalThis as { [REQUEST_SLOT]?: AsyncLocalStorage<Serving
 const serving: AsyncLocalStorage<Serving> = (requestHolder[REQUEST_SLOT] ??= new AsyncLocalStorage<Serving>());
 
 /**
- * Run `fn` as the unit of work named `id`, with what it says of itself: the store it runs in, handed to `ended` once it
- * has (for a promise, once it settles, its answer or failure unchanged). logger.ts's `withRequestId` is the one caller.
+ * Run `fn` as the unit of work named `id`, with what it says of itself: the store it runs in, handed to `ended` once
+ * the work has settled, its answer or failure unchanged. logger.ts's `withRequestId` is the one caller.
  */
-export function serveAs<T>(id: string, about: ServingAbout, fn: () => T, ended: (store: ServedStore) => void): T {
+export async function serveAs<T>(
+  id: string,
+  about: ServingAbout,
+  fn: () => Promise<T>,
+  ended: (store: ServedStore) => void,
+): Promise<T> {
   const store: Serving = {
     id,
     ...(about.tenantId ? { tenantId: about.tenantId } : {}),
@@ -61,24 +66,12 @@ export function serveAs<T>(id: string, about: ServingAbout, fn: () => T, ended: 
     ...(about.attempt !== undefined && Number.isFinite(about.attempt) ? { attempt: about.attempt } : {}),
   };
   // The end is said inside the name too, so its line carries the request it closes.
-  return serving.run(store, () => {
-    const out = fn();
-    if (!(out instanceof Promise)) {
+  return serving.run(store, async () => {
+    try {
+      return await fn();
+    } finally {
       ended(store);
-      return out;
     }
-    const settled: unknown = out.then(
-      (value: unknown) => {
-        ended(store);
-        return value;
-      },
-      (failure: unknown) => {
-        ended(store);
-        throw failure;
-      },
-    );
-    // The same promise's answer, settled after the line: T is that promise's own type.
-    return settled as T;
   });
 }
 
@@ -112,6 +105,15 @@ export function requestAttempt(): number | null {
 /** How many providers one unit of work keeps the calls of. */
 const CALLS_HELD = 24;
 
+/** One more share under a name, added up and counted; past `held` names a new one is not kept. */
+function addShare(shares: Map<string, RequestTiming>, name: string, ms: number, held: number): void {
+  const had = shares.get(name);
+  if (had) {
+    had.ms += ms;
+    had.n += 1;
+  } else if (shares.size < held) shares.set(name, { ms, n: 1 });
+}
+
 /**
  * One call to a service outside our own two apps, said by the provider door (channels provider-fetch) after it: added up
  * by provider, so the work's one line says what it spent where (`outside_calls`, logger.ts), under its workspace and
@@ -120,12 +122,7 @@ const CALLS_HELD = 24;
 export function noteOutsideCall(provider: string, ms: number): void {
   const store = serving.getStore();
   if (!store || !Number.isFinite(ms) || ms < 0) return;
-  const calls = (store.calls ??= new Map<string, RequestTiming>());
-  const had = calls.get(provider);
-  if (had) {
-    had.ms += ms;
-    had.n += 1;
-  } else if (calls.size < CALLS_HELD) calls.set(provider, { ms, n: 1 });
+  addShare((store.calls ??= new Map<string, RequestTiming>()), provider, ms, CALLS_HELD);
 }
 
 /** How many names one request keeps the time of. */
@@ -139,12 +136,7 @@ const TIMINGS_HELD = 32;
 export function noteTiming(name: string, ms: number): void {
   const store = serving.getStore();
   if (!store || !Number.isFinite(ms) || ms < 0) return;
-  const timings = (store.timings ??= new Map<string, RequestTiming>());
-  const had = timings.get(name);
-  if (had) {
-    had.ms += ms;
-    had.n += 1;
-  } else if (timings.size < TIMINGS_HELD) timings.set(name, { ms, n: 1 });
+  addShare((store.timings ??= new Map<string, RequestTiming>()), name, ms, TIMINGS_HELD);
 }
 
 /** Where the request running now has spent its time so far, by name; none outside a request. */

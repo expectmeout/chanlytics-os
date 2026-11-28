@@ -151,6 +151,6 @@ function sayOutsideCalls(store: ServedStore): void {
  * Run `fn` as the request named `id`: every line it logs, every job it schedules and every event it writes carries the
  * name, and its outside calls are said once it has ended. `about` is what the work says of itself as it enters.
  */
-export function withRequestId<T>(id: string, fn: () => T, about: ServingAbout = {}): T {
+export function withRequestId<T>(id: string, fn: () => Promise<T>, about: ServingAbout = {}): Promise<T> {
   return serveAs(id, about, fn, sayOutsideCalls);
 }
