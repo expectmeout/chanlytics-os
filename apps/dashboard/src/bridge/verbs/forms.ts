@@ -15,6 +15,12 @@ export const readFormSheet = (form: string) => read("GET forms/sheet", { query: 
 /** One form the business's own website owns (00709): its names, its site, what it brought, and its newest entries. */
 export const readSiteFormSheet = (form: string) => read("GET forms/site-sheet", { query: { form } });
 
+/**
+ * The requests nobody has answered past those a list holds (00726): the next 200 older than the request it ended on.
+ * A refusal is answered, never thrown: the line that asked says it could not load them.
+ */
+export const readFormRequestsMore = (after: string) => api()("GET forms/requests/more", { query: { after } });
+
 /** One request as the Inbox answers it. A refusal is answered, never thrown: a request that is gone is said so. */
 export const readFormRequest = (id: string) => api()("GET forms/requests", { query: { id } });
 

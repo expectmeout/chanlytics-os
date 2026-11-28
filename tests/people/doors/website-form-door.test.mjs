@@ -45,6 +45,8 @@ const firstKeyOf = (t, service = SERVICE_KEY) =>
   createHmac("sha256", service).update(`website-form:${t}`).digest("base64url");
 const NOW = Date.now();
 const DAY_MS = 86_400_000;
+/** The door's limit (00726), never reached here: a-flood-at-the-website-door-is-held.test.mjs is its own test. */
+const UNDER_THE_LIMIT = { take_rate: () => ({ allowed: true, used: 1 }) };
 
 /**
  * A workspace in New York unless said; `zone: null` is one whose row cannot be read. `person` is the row the person
@@ -107,6 +109,7 @@ function world({
   const faults = {};
   const db = fakeDb(tables, faults, {
     resolve_person: resolve,
+    ...UNDER_THE_LIMIT,
     ...doors,
     person_note_suggest: (a) => {
       if (suggested.some((s) => s.p_source_id === a.p_source_id)) return { error: "already" };
@@ -264,6 +267,7 @@ test("a database that fails the write answers the site with a refusal, never ok,
     w.tables,
     {},
     {
+      ...UNDER_THE_LIMIT,
       ...doors,
       form_entry_take: () => {
         throw Object.assign(new Error("canceling statement due to lock timeout"), { code: "55P03" });
@@ -276,7 +280,11 @@ test("a database that fails the write answers the site with a refusal, never ok,
   assert.deepEqual([w.entries.length, w.notifications.length, w.tables.events.length], [0, 0, 0]);
 
   // A key that cannot be checked is not called wrong: it is a refusal of the same kind.
-  w.db = fakeDb(w.tables, { "form_keys.select": { message: "unreachable", code: "08006" } }, doors);
+  w.db = fakeDb(
+    w.tables,
+    { "form_keys.select": { message: "unreachable", code: "08006" } },
+    { ...UNDER_THE_LIMIT, ...doors },
+  );
   setPg(w.db);
   assert.deepEqual((await post(REQUEST))[0], 503);
 });

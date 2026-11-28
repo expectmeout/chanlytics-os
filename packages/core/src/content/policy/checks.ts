@@ -186,9 +186,10 @@ export interface ReasonAsked {
   facts: readonly OwnersFact[];
   /**
    * The reasons to post as they stand this moment (opportunitiesOf, read again), where the piece was made for one; null
-   * where none was read (a piece made for no opportunity, or a caller that has no reader of them).
+   * where none was read (a piece made for no opportunity, or a caller that has no reader of them); `unread` where the
+   * send asked and they could not be read: a promise of open time is then not known to stand.
    */
-  opportunities: readonly Pick<Opportunity, "key">[] | null;
+  opportunities: readonly Pick<Opportunity, "key">[] | "unread" | null;
   /** Before a send the words say what to change; at a send, what changed since it was approved. */
   moment: "before" | "send";
 }
@@ -252,13 +253,17 @@ export function reasonStands(reason: ReasonAsked): PolicyRefusal | null {
 /**
  * The opportunity a piece was made for, asked again (PRD 6.1, the seventh check): open time on a day it named is still
  * open. Asked only where the piece names one and the caller read them; an owner's stated fact for its day covers it
- * ("Thursday still has openings"), since Chanlytics sees only its own calendar.
+ * ("Thursday still has openings"), since Chanlytics sees only its own calendar. Where the caller asked and could not
+ * read them, the promise is not known to stand: refused under a why of its own (`reason_unread`), never let through.
  */
 function opportunityRefusal(reason: ReasonAsked, today: string): PolicyRefusal | null {
   const named = reason.intent?.opportunity_id;
-  if (!named || reason.opportunities === null || reason.opportunities.some((o) => o.key === named)) return null;
+  const now = reason.opportunities;
+  if (!named || now === null || (now !== "unread" && now.some((o) => o.key === named))) return null;
   const day = dayNamed(reason.intent, reason.zone);
   if (factCovers(reason.facts, day, today)) return null;
+  // Not read is not known: neither gone nor still there. Its own why, so whoever asked may ask again before holding it.
+  if (now === "unread") return refusal("reason", "reason_unread", CONTENT_CHECK_WORDS.openingsUnread(day));
   return refusal(
     "reason",
     "reason_passed",
