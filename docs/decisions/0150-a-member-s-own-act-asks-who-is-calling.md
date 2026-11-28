@@ -83,3 +83,19 @@ the caller's own workspace; none takes a value the route worked out.
   `SERVICE_ROLE_KEPT`: a broadcast's holds past the month's allowance stay a second write after the run, whose update
   the run's triggers read (a run every person of which left is ended, an enrolment moves), and a member's reply keeps its
   send job the server's, its destination and words the route's.
+
+## Amended 28 November 2026: every door is called as the wrong person (00733)
+
+The decision's first point was held by reading each door's text (`tests/database/privileges.db.test.mjs`: a door asks
+who is calling, and a door that names a workspace asks about that workspace). Since 28 November every function a
+signed-in person may execute is also called (`tests/database/doors/`): as nobody signed in, a session with no person in
+it, another workspace's owner, a viewer, an operator, a partner with and without the second step, and the owner, each in
+its own savepoint on rows seeded for it, the list read from the database's own grants. What a call is held to is said in
+`tests/database/doors/_walk.mjs`; `tests/database/doors/every-door-is-walked.test.mjs` fails, with no database, a door
+that takes an id the walk has no row for.
+
+The first run found five doors that answered otherwise than this decision says, and 00733 re-makes each from its newest
+body with the one check added: `set_marketing_consent`, `set_person_email` and `lead_allowance` took a signed-in role
+that names no person as they take the service role, `lead_search_widens` answered it, and `member_view_set` kept a
+partner's saved view on a password alone where `member_push_off_set` asks for the second step. No sign-in issues a
+token for the session role without a person, so no browser could make the first four calls.
