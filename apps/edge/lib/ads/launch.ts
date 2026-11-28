@@ -55,7 +55,7 @@ import { keepAdLaunch, listAdLaunches, type AdPartKept } from "@chanlytics/db/ad
 import { checksumOf, readAdPhoto } from "./launch/approval.js";
 import { approvedOf, launchDiffers, type LaunchApproved } from "./launch/parts.js";
 import {
-  campaignReadBack,
+  readCampaignBack,
   hasRoom,
   keepStep,
   letGoFor,
@@ -64,19 +64,21 @@ import {
   partKey,
   send,
   unanswered,
-  type Db,
   type Launcher,
-  type Log,
   type MetaRequest,
   type Pass,
   type Step,
   type Stopping,
 } from "./launch/pass.js";
-import { switchAll } from "./launch/switches.js";
+import { activateAll } from "./launch/switches.js";
 import { launchNameOf } from "./tag.js";
 
 /** How long a make whose answer never came is looked for by its name before the launch stops. */
 const FOLLOW_MS = 10 * MIN_MS;
+
+/** The database a pass writes through, and its log: the pass's own. */
+type Db = Pass["db"];
+type Log = Pass["log"];
 
 const DRY = { dryRun: true } as const;
 
@@ -277,7 +279,7 @@ async function pictureHash(pass: Pass, name: string): Promise<Step> {
  * its Pause reaches its campaign, and one its owner cancelled is paused at once (ad_launch_keep). False where Meta's ids
  * for it are not all held, which no launch this far along is without.
  */
-async function keepMaybeOn(pass: Stopping, why: AdStopped): Promise<boolean> {
+async function keepMaybeOn(pass: Stopping, reason: AdStopped): Promise<boolean> {
   const idOf = (kind: AdPartKept["kind"], version: number): string | null => {
     const part = pass.parts.get(partKey(kind, version));
     return part?.state === "made" && part.platform_id ? part.platform_id : null;
@@ -295,7 +297,13 @@ async function keepMaybeOn(pass: Stopping, why: AdStopped): Promise<boolean> {
       unknown_at: typeof pass.launch.unknown_at === "string" ? pass.launch.unknown_at : new Date().toISOString(),
     },
   });
-  pass.log.info("ads_launch_done", { ad_id: pass.ad.id, outcome: "made", confirmed: false, why, calls: pass.calls });
+  pass.log.info("ads_launch_done", {
+    ad_id: pass.ad.id,
+    outcome: "made",
+    confirmed: false,
+    why: reason,
+    calls: pass.calls,
+  });
   return true;
 }
 
@@ -342,7 +350,7 @@ async function stopLaunch(pass: Stopping, stop: { stop: AdStopped; said: string 
 
 /** A launch whose every part is on: the ad made, with Meta's ids and Meta's word for it once read back again. */
 async function finishLaunch(pass: Pass, built: { campaign: string; set: string; ads: string[] }): Promise<void> {
-  const held = await campaignReadBack(pass, built, "switched");
+  const held = await readCampaignBack(pass, built, "switched");
   const read = "id" in held && "sets" in held ? held : null;
   // Meta's best word for any version (fold.ts reads the same way); none where the read back did not come.
   const word = read?.ads.map((one) => one.state).find((state) => state === "ACTIVE") ?? read?.ads[0]?.state ?? null;
@@ -398,7 +406,7 @@ async function advanceLaunch(pass: Pass): Promise<"done" | "waits" | "revoked"> 
     return "done";
   }
   if (pass.launch.step !== "switch") {
-    const held = await campaignReadBack(pass, built, "made");
+    const held = await readCampaignBack(pass, built, "made");
     if ("revoked" in held) return "revoked";
     if ("wait" in held) return "waits";
     if ("stop" in held) {
@@ -412,7 +420,7 @@ async function advanceLaunch(pass: Pass): Promise<"done" | "waits" | "revoked"> 
       return "done";
     }
   }
-  const switched = await switchAll(pass, built);
+  const switched = await activateAll(pass, built);
   if (switched === null) {
     await finishLaunch(pass, built);
     return "done";

@@ -175,7 +175,7 @@ export const LIVE = {
     none: "Chanlytics can't read or pause your ads until you connect again.",
     /** None known to be on, and one whose last switch Meta had not answered. */
     mayBeOn: (names: string) =>
-      `Meta hadn't said whether ${names} was turned on. If it was, Meta charges while it runs. Check it in Meta, or connect again.`,
+      `${names} may be on, and Meta charges while it runs. Check it in Meta, or connect again.`,
   },
   /** After a disconnect (the plan's 4.9, point 3). */
   disconnected: {
@@ -193,7 +193,7 @@ export const LIVE = {
     /** None known to be on, and one whose last switch Meta had not answered when the account was let go. */
     unsureTitle: (names: string) => `${names} may be on in Meta`,
     unsureBody: (day: string, many: boolean) =>
-      `Meta hadn't said whether ${many ? "they were" : "it was"} turned on when you disconnected, ${day}. If ${many ? "they were" : "it was"}, Meta charges while ${many ? "they run" : "it runs"}. Check in Meta: ${many ? "they" : "it"} can only be paused there now.`,
+      `Meta hadn't answered when you disconnected, ${day}. Check ${many ? "them" : "it"} in Meta: ${many ? "they" : "it"} can only be paused there now.`,
     openMeta: "Open Meta",
     again: "Connect to read and pause them here again.",
   },

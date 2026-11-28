@@ -10,7 +10,7 @@ import { isSendingStopped } from "@chanlytics/db/workspace";
 import { readWayIn } from "../chat/answered.js";
 import {
   LAST_SWITCH,
-  campaignReadBack,
+  readCampaignBack,
   hasRoom,
   keepStep,
   letGoFor,
@@ -56,7 +56,7 @@ async function switchHeld(
   built: { campaign: string; set: string; ads: string[] },
   part: PartSwitch,
 ): Promise<"on" | "paused" | Exclude<Step, { id: string }>> {
-  const held = await campaignReadBack(pass, built, "switched");
+  const held = await readCampaignBack(pass, built, "switched");
   if (!("sets" in held)) return held;
   const paused =
     part.key === LAST_SWITCH
@@ -108,7 +108,7 @@ async function switchPart(pass: Pass, done: Set<string>, part: PartSwitch): Prom
 }
 
 /** Every part switched on from the bottom, each once: the ads, the ad set, the campaign. How the pass ended, or done. */
-export async function switchAll(
+export async function activateAll(
   pass: Pass,
   built: { campaign: string; set: string; ads: string[] },
 ): Promise<Step | null> {
@@ -120,20 +120,20 @@ export async function switchAll(
   ];
   for (const part of order) {
     if (done.has(part.key)) continue;
-    let came: Switched = "next";
+    let outcome: Switched = "next";
     if (pass.launch.switching === part.key) {
       // Out since a run that died: Meta's word first. Paused there, it is sent as any switch is, after what stops one.
       const held = await switchHeld(pass, built, part);
       if (held !== "on" && held !== "paused") return held;
-      if (held === "on") came = await switchDone(pass, done, part);
+      if (held === "on") outcome = await switchDone(pass, done, part);
       else noSwitchOut(pass);
     }
     if (!done.has(part.key)) {
       const stops = await checkBeforeSwitch(pass, done.size === 0);
       if (stops) return stops;
-      came = await switchPart(pass, done, part);
+      outcome = await switchPart(pass, done, part);
     }
-    if (came !== "next") return came;
+    if (outcome !== "next") return outcome;
   }
   return null;
 }

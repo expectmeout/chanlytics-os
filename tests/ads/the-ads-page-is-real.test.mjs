@@ -344,7 +344,7 @@ test("an ad whose last switch Meta had not answered when its account was let go 
   );
   assert.deepEqual(gone.notice, {
     title: "First visit may be on in Meta",
-    body: "Meta hadn't said whether it was turned on when you disconnected, today. If it was, Meta charges while it runs. Check in Meta: it can only be paused there now.",
+    body: "Meta hadn't answered when you disconnected, today. Check it in Meta: it can only be paused there now.",
     door: "Open Meta",
   });
   // The minutes the page still follows it read the same: nothing will read it again.
@@ -369,7 +369,7 @@ test("an ad whose last switch Meta had not answered when its account was let go 
   assert.match(out.rows[0].line, /^May be on/);
   assert.equal(
     out.notice.body,
-    "Meta hadn't said whether First visit was turned on. If it was, Meta charges while it runs. Check it in Meta, or connect again.",
+    "First visit may be on, and Meta charges while it runs. Check it in Meta, or connect again.",
   );
   // An ad that runs is said first, as it was: the one that may be on says so on its own row.
   const both = liveModel(

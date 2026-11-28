@@ -24,8 +24,8 @@ import type { AdsWrites } from "../tell.js";
 import type { LaunchApproved, LaunchMoment } from "./parts.js";
 import { sandboxAnswer, sandboxHeld } from "./sandbox.js";
 
-export type Db = SupabaseClient<Database>;
-export type Log = ReturnType<typeof logger>;
+type Db = SupabaseClient<Database>;
+type Log = ReturnType<typeof logger>;
 /** One request to Meta, as the wire sends it. */
 export type MetaRequest = Parameters<typeof callMetaAds>[0];
 
@@ -136,7 +136,7 @@ export const unanswered = (pass: Pass) =>
 /* ----------------------------------------------------------------------------------------- what Meta holds -- */
 
 /** The campaign read back whole: what Meta holds, or how the pass ended. */
-export async function campaignReadBack(
+export async function readCampaignBack(
   pass: Pass,
   built: { campaign: string; set: string; ads: string[] },
   moment: LaunchMoment,
