@@ -44,6 +44,7 @@ import {
 } from "@chanlytics/db/notices";
 import { findConversationOfEscalation } from "@chanlytics/db/ask";
 import { payloadRefusal } from "../runner/schedule";
+import { withRunningJob } from "../runner/running";
 import type { DispatchOutcome } from "../runner/tick";
 import { broadcastSend } from "./broadcast-send";
 import { finishErasure } from "./erasure";
@@ -642,7 +643,10 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<Dis
   // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
   // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
   // has none and runs as itself, named by its row.
-  const out = await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
+  // And as itself on the ledger (running.ts): an ask it writes for its own next run is judged against its own key.
+  const out = await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () =>
+    withRunningJob({ id: job.id, kind: job.kind, payload: job.payload }, () => handler(ctx, job)),
+  );
   return out && typeof out === "object" ? out : "done";
 }
 

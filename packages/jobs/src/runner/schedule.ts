@@ -11,7 +11,14 @@
  * payload that names one already keeps it, so a job a job schedules (a
  * broadcast's next batch) carries the request that started the chain.
  */
-import { cancelScheduledJobs, hasRequeuedCopy, insertJob, insertJobOnce, readJobToRequeue } from "@chanlytics/db/jobs";
+import {
+  cancelScheduledJobs,
+  hasRequeuedCopy,
+  insertJob,
+  insertJobOnce,
+  listLiveJobsKeyed,
+  readJobToRequeue,
+} from "@chanlytics/db/jobs";
 import type { Json } from "@chanlytics/db/types";
 import { jsonCopyOf } from "@chanlytics/db/shared";
 import {
@@ -22,8 +29,10 @@ import {
   recordOrNull,
   DbFailure,
 } from "@chanlytics/contracts";
+import { isDeepStrictEqual } from "node:util";
 import { logger, requestId } from "@chanlytics/log";
 import { kindPolicyOf } from "./kinds";
+import { runningJob } from "./running";
 import { SPEAKS_TO_A_PERSON, type Db } from "./ledger";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -138,10 +147,49 @@ export async function scheduleJobOnce<K extends JobKind>(
   return writeOnce(db, asKeptJob(scheduleParams));
 }
 
+/** The once-only key a refused insert names, in the database's own words for it (`Key (dedupe_key)=(...) already exists.`). */
+const refusedKeyOf = (details: unknown): string | null =>
+  typeof details === "string" ? (/\(dedupe_key\)=\((.+)\) already exists/.exec(details)?.[1] ?? null) : null;
+
+/** A payload as two asks are compared: what the work is, the request it was scheduled in aside. */
+const workOf = (payload: unknown): Record<string, unknown> => {
+  const { request_id: _request, ...work } = recordOrEmpty(payload);
+  return work;
+};
+
+/**
+ * The key that refused an ask, where the ask is for OTHER work than the job that wrote it is doing and nothing holds the
+ * key but that job; null for every other refusal. A handler that asks for its own next run (same kind, same subject,
+ * one more wait) while it is still running writes the key it is itself holding where the key does not count its asks:
+ * the database refuses it, nothing else is coming, and read as "already on the ledger" the next run was never written
+ * and nobody heard (a post waiting for a new version stayed Getting ready for good, #2728).
+ *
+ * Not a refusal of the same work asked again from inside it (a copy's return asks for "its return" and is that return:
+ * every asker joins the one in flight), nor of a key kept past its job's end (a lead's collect is once per run and
+ * minute, by design). Asked only inside a job of the same kind, and a ledger that cannot say is read as it always was.
+ */
+async function keyHeldByItsWriter(db: Db, job: KeptJob, details: unknown): Promise<string | null> {
+  const writer = runningJob();
+  const key = writer?.kind === job.kind ? refusedKeyOf(details) : null;
+  if (!writer || !key || isDeepStrictEqual(workOf(job.payload), workOf(writer.payload))) return null;
+  const { data, error } = await listLiveJobsKeyed(db, key);
+  if (error || data.length === 0) return null;
+  return data.every((held) => held.id === writer.id && !held.dedupe_kept) ? key : null;
+}
+
 async function writeOnce(db: Db, job: KeptJob): Promise<"scheduled" | "already_scheduled"> {
   const { error } = await insertJobOnce(db, rowToInsert(job));
   if (!error) return "scheduled";
-  if (error.code === "23505") return "already_scheduled";
+  if (error.code === "23505") {
+    const own = await keyHeldByItsWriter(db, job, error.details);
+    // Thrown, so the job fails by its kind's policy and whoever its kind tells hears: its key needs a part that counts
+    // its asks (job_kinds.once_parts, as post_publish's `wait?` and `unread?` are).
+    if (own)
+      throw new Error(
+        `schedule_job: ${job.kind}: its next ask carries the key of the job that wrote it (${own}), so the ledger refused it`,
+      );
+    return "already_scheduled";
+  }
   // The database's code travels with it: a caller tells a refusal (a kind the database does not know) from a write that
   // may have landed.
   throw new DbFailure(error, "schedule_job");
