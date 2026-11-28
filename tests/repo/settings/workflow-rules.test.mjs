@@ -364,6 +364,14 @@ test("the weekly compare reads production's ledger with its names, and the produ
   assert.ok(y.includes("sleep 30") && y.includes("for attempt in 1 2 3 4 5 6 7 8 9 10"), "a host may lag");
   assert.ok(y.includes("gh issue list") && y.includes("gh issue create") && y.includes("gh issue comment"));
   assert.ok(y.includes('title="Production smoke failed ('), "one issue per deployed commit");
+  // The issue was opened assigned to nobody, so a deploy that failed its smoke told GitHub's list and no person.
+  assert.ok(y.includes("OWNER: ${{ github.repository_owner }}"));
+  assert.ok(y.includes('gh issue create --title "$title" --body-file issue.md --assignee "$OWNER"'), "the owner's");
+  assert.ok(
+    y.indexOf('gh issue edit "$number" --add-assignee "$OWNER"') < y.indexOf('gh issue comment "$number"'),
+    "one opened before it was the owner's is made so before the comment that tells them",
+  );
+  assert.ok(y.includes('gh issue edit "$number" --add-assignee "$OWNER"'));
 });
 
 test("Typecheck, the check branch protection requires, is a gate over parts that run side by side", () => {
