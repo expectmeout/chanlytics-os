@@ -6,7 +6,8 @@
  * numbers are kept a read at a time, a missing one with no value; a post's link is one, and an open counts; a visit
  * asked for in the conversation a post's touch is in records what it answered; an erased person's touches keep only
  * that they happened; a comment left on an ad is kept by the ad Meta names, even on a post made by hand, and the Ads
- * page's reads name who commented and sum what its days did (00719). Each table's rows: a member of the workspace reads
+ * page's reads name who commented and sum what its days did (00719), and the person's touches name the ad, so a visit
+ * they book after it is put down to it by the one credit rule. Each table's rows: a member of the workspace reads
  * them, another workspace sees none.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
@@ -14,7 +15,8 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { findComment, findCommentForWork, listComments } from "@chanlytics/db/content";
+import { creditFor, creditOf } from "@chanlytics/contracts";
+import { findComment, findCommentForWork, listComments, listTouchesOf, listVisitsOf } from "@chanlytics/db/content";
 import { readAdCommenters, readAdsEngaged } from "@chanlytics/db/ads";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -468,5 +470,40 @@ test(
     assert.equal((await readAdCommenters(as.owner.client, B, since))?.size, 0, "another workspace's member reads none");
     const engaged = await readAdsEngaged(as.stranger.client, B, "2026-11-24");
     assert.deepEqual(engaged?.get(adId), { plays: 320, comments: 2, saves: 1 });
+
+    // The person is credited to the ad (the whole-system plan of 28 Nov 2026, lane 6, item 7): their touches, as their
+    // page and their visits' credit read them, are of the ad, and a visit made after the comment is put down to it.
+    const who = first.contact_id;
+    const touches = await listTouchesOf(as.stranger.client, B, { contactIds: [who], since });
+    assert.deepEqual(
+      touches.map((touch) => [touch.kind, touch.subject.type, touch.subject.id, touch.contact_id]),
+      [
+        ["comment", "ad", adId, who],
+        ["comment", "ad", adId, who],
+      ],
+      "both of their comments, each a touch of the ad",
+    );
+    const starts = new Date(Date.now() + 2 * 86_400_000);
+    ok(
+      await db
+        .from("appointments")
+        .insert({
+          tenant_id: B,
+          contact_id: who,
+          source: "receptionist",
+          status: "booked",
+          starts_at: starts.toISOString(),
+          ends_at: new Date(starts.getTime() + 3_600_000).toISOString(),
+          timezone: "UTC",
+        })
+        .select("id")
+        .single(),
+      "their visit",
+    );
+    const visits = await listVisitsOf(as.stranger.client, B, { contactIds: [who], since });
+    assert.equal(visits.length, 1, "the visit, read as its workspace's member");
+    assert.equal(creditFor({ type: "ad", id: adId }, creditOf(visits[0], touches)), "assisted", "the ad helped it");
+    const others = await listTouchesOf(as.owner.client, B, { contactIds: [who], since });
+    assert.equal(others.length, 0, "another workspace's member reads none of them");
   },
 );
