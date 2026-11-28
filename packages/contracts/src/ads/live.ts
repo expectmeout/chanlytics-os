@@ -253,12 +253,21 @@ export interface AdsLiveDto {
    * cannot name among them (T3): Reports › Ads says it. Absent where the read of it failed.
    */
   back?: { people: number; booked: number };
-  /** Whether this member may pause and resume here: the owner, on a connected account whose sign-in may change ads. */
+  /**
+   * Whether this member may stop an ad here (Pause, Pause all, End, Cancel, Check): the owner, on a connected account
+   * whose sign-in may change ads. Never held by the deployment's switch or its list of workspaces: an ad an owner can
+   * see, they can stop.
+   */
   can_press: boolean;
   /**
-   * Why not, on a connected account, so a drawer says the true reason: this member may not run ads (`role`), turning ads
-   * on and off from here is not switched on for the workspace yet (`off`), or Meta has not let Chanlytics change them
-   * (`meta`). Null where they may, and absent from a server before it was said.
+   * Whether this member may also do here what can spend: turn an ad back on, change one. False where they may stop one
+   * and the deployment's switch is off. Absent from a server before it was said, where `can_press` said both.
+   */
+  can_spend?: boolean;
+  /**
+   * Why not, on a connected account, so a drawer says the true reason: this member may not run ads (`role`); turning an
+   * ad on or changing one from here is not switched on (`off`: with `can_press` an ad is still paused and ended here);
+   * or Meta has not let Chanlytics change them (`meta`). Null where they may, and absent from a server before it was said.
    */
   press_off?: "role" | "off" | "meta" | null;
   /**

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-475 handlers in 63 domains.
+476 handlers in 63 domains.
 
 ## activity
 
@@ -1858,6 +1858,14 @@ Body 3:
 | --- | --- | --- | --- |
 | `act` | one of `"book"`, `"cant"` | yes |  |
 | `entry_id` | string (uuid) | yes |  |
+
+### `GET /api/v1/forms/requests/more`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `after` | string (uuid) | yes |  |
 
 ### `GET /api/v1/forms/sheet`
 

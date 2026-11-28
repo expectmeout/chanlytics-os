@@ -411,6 +411,8 @@ async function seed() {
   for (const [kind, data] of [
     ["contact.named", { name: WORDS, by: U }],
     ["contact.added", { source: "manual", title: WORDS, by: U }],
+    // An address of theirs that changed (00726): its line holds the one before and the one after.
+    ["contact.email_set", { set: true, by: U, source: "member", was: EMAIL, now: `new.${EMAIL}` }],
   ])
     await insert("events", { tenant_id: T, kind, category: "contact", subject_type: "contact", subject_id: A, data });
   // Jobs: one finished with the number, one finished with the address (the scrub by key), one scheduled naming them
@@ -636,6 +638,8 @@ async function seed() {
     form: "request",
     answers: { form: "request", email: EMAIL, phone: PHONE, note: WORDS },
     ref: WORDS.slice(0, 100),
+    // The id its site sent, where its form already had that id with other words (00726).
+    sent_ref: `sent ${WORDS}`.slice(0, 100),
     words: SHAPED["form_entries.words"],
     owed: SHAPED["form_entries.owed"],
     effects: { note: { state: "failed", why: WORDS } },
@@ -661,6 +665,7 @@ async function seed() {
     form: "request",
     answers: { email: EMAIL, note: WORDS },
     ref: `held ${WORDS}`.slice(0, 100),
+    sent_ref: `held sent ${WORDS}`.slice(0, 100),
     words: SHAPED["form_entries.words"],
     owed: [],
     state: "held",
