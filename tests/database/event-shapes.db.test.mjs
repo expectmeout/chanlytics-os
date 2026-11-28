@@ -18,7 +18,8 @@
  *     second act: a STOP, and the email unsubscribe with it) and contact_stop_ends_offers_yes (the trigger that ends a
  *     yes to offers when a stop is recorded, 00323) and merge_people (two records of one person become one, 00326:
  *     the more careful answer, from the merge) and record_provider_stop (a no a provider reported on the person's
- *     behalf, the carrier's or WhatsApp's, with its event in one write, 00383);
+ *     behalf, the carrier's or WhatsApp's, with its event in one write, 00383) and set_person_email (a yes to offers by
+ *     email set back to not asked when the address that gave it leaves the person's page, 00726);
  *   - platform.acted <- partner_status_set, partner_standing_set, partner_second_factor_reset (a platform admin's).
  * And the list of writers is not this file's word for it: the catalog is asked which functions insert into events with
  * one of the three kinds named in them, and the answer must be the list above, so a new SQL writer fails here until it
@@ -72,6 +73,7 @@ const WRITERS = {
     "set_email_marketing",
     "set_email_offers_yes",
     "set_marketing_consent",
+    "set_person_email",
     "stop_all_messages",
   ],
   "platform.acted": ["partner_second_factor_reset", "partner_standing_set", "partner_status_set"],
@@ -689,6 +691,37 @@ test(
       ["marketing", "unknown", "opted_in", "customer_message"],
       "whose answer, what it is now, what it was, and which stop ended it",
     );
+  },
+);
+
+test(
+  "set_person_email (00726): a yes to offers by email ends with the address that gave it, as its own entry",
+  { skip },
+  async () => {
+    const c = await contact(w.t, {
+      email: `said-yes-${RUN}@example.com`,
+      email_marketing: "opted_in",
+      email_marketing_source: "confirmed_signup",
+      email_marketing_updated_at: new Date().toISOString(),
+    });
+    const address = (email) => w.owner.client.rpc("set_person_email", { p_contact_id: c, p_email: email });
+    const same = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(await address(`SAID-YES-${RUN}@example.com`), "the same address in another spelling"),
+    );
+    assert.equal(same.rows.length, 0, "no change of address, no entry");
+    const moved = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(await address(`moved-${RUN}@example.com`), "set_person_email"),
+    );
+    const [ended] = holds("contact.consent_changed", "set_person_email", moved.rows, 1);
+    assert.deepEqual(
+      [ended.purpose, ended.consent, ended.previous, ended.source, ended.channel],
+      ["email_marketing", "unknown", "opted_in", "address_changed", "email"],
+      "whose answer, what it is now, what it was, why, and on which channel",
+    );
+    const again = await wrote(w.t, "contact.consent_changed", async () =>
+      ok(await address(`moved-again-${RUN}@example.com`), "a second change"),
+    );
+    assert.equal(again.rows.length, 0, "with no yes left to end, a change of address writes none");
   },
 );
 

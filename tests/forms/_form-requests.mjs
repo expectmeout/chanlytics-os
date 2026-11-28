@@ -78,15 +78,37 @@ export function formRequestDoors(tables, { resolve, clock = Date.now, member = (
       p_detail: { form_id: formId },
     });
   const refused = () => Object.assign(new Error("Not yours to change."), { code: "42501" });
+  const statusOf = (link) => (tables.messages ?? []).find((m) => m.id === link.message_id)?.status;
   const answered = (entry) =>
     entryLinks().some(
       (link) =>
         link.entry_id === entry.id &&
         (link.kind === "marked" ||
           link.kind === "conversation" ||
-          (link.kind === "reply" &&
-            !["failed", "canceled"].includes((tables.messages ?? []).find((m) => m.id === link.message_id)?.status))),
+          (link.kind === "reply" && !["failed", "canceled"].includes(statusOf(link)))),
     );
+  /**
+   * form_entries_standing's rule for one entry (00726): what answered it (a member's word first, then a conversation,
+   * then the newest reply that left), else sending where a reply still waits to go, else aged past its sixty days,
+   * else open; and whether a reply to it failed.
+   */
+  const standingOf = (entry) => {
+    const mine = entryLinks().filter((link) => link.entry_id === entry.id);
+    const replies = mine.filter((link) => link.kind === "reply");
+    const left = replies.filter((link) => !["failed", "canceled", "queued"].includes(statusOf(link)));
+    const by = (kind) => mine.filter((link) => link.kind === kind).at(-1);
+    const how = by("marked") ?? by("conversation") ?? left.at(-1) ?? null;
+    const sending = replies.some((link) => statusOf(link) === "queued");
+    const aged = Date.parse(entry.created_at) <= clock() - 60 * DAY_MS;
+    return {
+      id: entry.id,
+      standing: how ? "answered" : sending ? "sending" : aged ? "aged" : "open",
+      how: how?.kind ?? null,
+      at: how?.created_at ?? null,
+      conversation_id: how?.conversation_id ?? null,
+      unreached: replies.some((link) => statusOf(link) === "failed"),
+    };
+  };
 
   return {
     link_code_new: () => codeFrom(LINK_CHARS, ++made),
@@ -203,21 +225,56 @@ export function formRequestDoors(tables, { resolve, clock = Date.now, member = (
         entry.state = entry.owed.every((o) => entry.effects[o]?.state === "done") ? "processed" : "accepted";
         return { outcome: "back", entry_id: entry.id, contact_id: entry.contact_id };
       }
+      // A site's entry the door held (00726): resolved as the website's, owing what the door said, its form stamped.
+      const outside = outsideOf(entry);
       let person;
       try {
-        person = personOf(a.p_tenant_id, entry.reach, entry.form_id);
+        person = outside
+          ? resolve({
+              p_tenant_id: a.p_tenant_id,
+              p_channel: "",
+              p_external: "",
+              p_phone: entry.reach?.phone ?? "",
+              p_email: entry.reach?.email ?? "",
+              p_name: entry.reach?.name ?? "",
+              p_assurance: "found",
+              p_source: "website",
+              p_detail: { form: entry.form, about: entry.answers?.about ?? null, page: entry.answers?.page ?? null },
+            })
+          : personOf(a.p_tenant_id, entry.reach, entry.form_id);
       } catch (e) {
         if (!e || e.code !== "PE001") throw e;
         tables.form_entries = entries().filter((e2) => e2.id !== entry.id);
         return { outcome: "forgotten", entry_id: null, contact_id: null };
+      }
+      if (outside) {
+        Object.assign(entry, { contact_id: person.contact_id, state: "accepted", held_why: null });
+        Object.assign(outside, { first_entry_at: outside.first_entry_at ?? now(), last_entry_at: now() });
+        (tables.events ??= []).push({
+          id: randomUUID(),
+          tenant_id: a.p_tenant_id,
+          kind: "form_entry.accepted",
+          category: "contact",
+          subject_type: "form_entry",
+          subject_id: entry.id,
+          data: { form: entry.form, owed: entry.owed },
+          created_at: now(),
+        });
+        return { outcome: "accepted", entry_id: entry.id, contact_id: person.contact_id };
       }
       Object.assign(entry, { contact_id: person.contact_id, state: "accepted", held_why: null, owed: [...OWED] });
       event(a.p_tenant_id, entry);
       return { outcome: "accepted", entry_id: entry.id, contact_id: person.contact_id };
     },
     form_entry_hold: (a) => {
+      // A hosted form's entry, or a site's (00726): a test names neither.
       const entry = entries().find(
-        (e) => e.tenant_id === a.p_tenant_id && e.id === a.p_entry_id && e.form_id && e.state !== "held" && !e.test,
+        (e) =>
+          e.tenant_id === a.p_tenant_id &&
+          e.id === a.p_entry_id &&
+          (e.form_id || e.outside_form_id) &&
+          e.state !== "held" &&
+          !e.test,
       );
       if (!entry) return false;
       Object.assign(entry, { state: "held", held_why: "member" });
@@ -291,10 +348,88 @@ export function formRequestDoors(tables, { resolve, clock = Date.now, member = (
         ...(form ? { slug: form.slug, state: form.state } : {}),
       };
     },
+    /**
+     * set_person_email (00171, 00726) for a member's own write: the address kept in its spelling; where one is
+     * replaced or cleared, the event holds the one before and after and what had stopped mail to the one before, a yes
+     * to offers by email the old address gave is set back to not asked, and an address that left stopped comes back
+     * stopped. A first address is never named in its event.
+     */
+    set_person_email: (a) => {
+      const person = (tables.contacts ?? []).find((c) => c.id === a.p_contact_id && !c.erased_at);
+      if (!person) throw Object.assign(new Error("Person not found."), { code: "P0002" });
+      const email =
+        String(a.p_email ?? "")
+          .trim()
+          .toLowerCase() || null;
+      const was =
+        String(person.email ?? "")
+          .trim()
+          .toLowerCase() || null;
+      const moved = was !== email;
+      const events = (tables.events ??= []);
+      const say = (kind, data) =>
+        events.push({
+          id: randomUUID(),
+          tenant_id: person.tenant_id,
+          kind,
+          category: "contact",
+          subject_type: "contact",
+          subject_id: person.id,
+          data,
+          created_at: now(),
+        });
+      const stopped = { why: person.email_suppressed_reason ?? null, at: person.email_suppressed_at ?? null };
+      person.email = email;
+      if (moved) Object.assign(person, { email_suppressed_at: null, email_suppressed_reason: null });
+      if (moved && was && person.email_marketing === "opted_in") {
+        Object.assign(person, { email_marketing: "unknown", email_marketing_source: "address_changed" });
+        say("contact.consent_changed", {
+          purpose: "email_marketing",
+          consent: "unknown",
+          source: "address_changed",
+          previous: "opted_in",
+          channel: "email",
+        });
+      }
+      if (moved && email) {
+        const back = events
+          .filter((e) => e.kind === "contact.email_set" && e.subject_id === person.id && e.data.was === email)
+          .at(-1);
+        if (back?.data.was_stopped)
+          Object.assign(person, {
+            email_suppressed_at: back.data.was_stopped_at ?? now(),
+            email_suppressed_reason: back.data.was_stopped,
+          });
+      }
+      say("contact.email_set", {
+        set: email !== null,
+        by: "member",
+        source: "member",
+        ...(moved && was
+          ? {
+              was,
+              ...(email ? { now: email } : {}),
+              ...(stopped.why ? { was_stopped: stopped.why, was_stopped_at: stopped.at } : {}),
+            }
+          : {}),
+      });
+      return { contact_id: person.id, email };
+    },
+    form_entries_standing: (a) =>
+      entries()
+        .filter((e) => e.tenant_id === a.p_tenant_id && (a.p_entry_ids ?? []).includes(e.id))
+        .map(standingOf),
     form_requests_open: (a) =>
       entries()
         .filter((e) => openRequest(e, a.p_tenant_id))
-        .sort((x, y) => y.created_at.localeCompare(x.created_at))
+        // Read on from where a list ended (00726): older than that request, and among those of its moment, below its id.
+        .filter(
+          (e) =>
+            !a.p_before ||
+            Date.parse(e.created_at) < Date.parse(a.p_before) ||
+            (!!a.p_before_id && Date.parse(e.created_at) === Date.parse(a.p_before) && e.id < a.p_before_id),
+        )
+        .sort((x, y) => y.created_at.localeCompare(x.created_at) || y.id.localeCompare(x.id))
         .slice(0, 200)
         .map((e) => ({
           id: e.id,
