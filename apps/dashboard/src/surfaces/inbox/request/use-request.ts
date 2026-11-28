@@ -349,7 +349,9 @@ function replyDraftOf(dto: FormRequestDto | null, wire: WriteWay["wire"] | null,
     wire,
     about: timeReply.about ? `${W.draft.about} ${timeReply.about}` : W.draft.about,
     asked: dto?.note ?? "",
-    alone: requestUnanswered(dto) && !!dto?.drafts && !!wire && !dto.unreached && timeReply.ready,
+    // AI drafts by itself only for a request still waiting in Needs you. One past its sixty days is answered by hand,
+    // or drafted on the member's own ask: opening an old request spends nothing.
+    alone: dto?.standing === "open" && dto.drafts && !!wire && !dto.unreached && timeReply.ready,
   };
 }
 
