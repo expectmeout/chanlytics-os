@@ -23,13 +23,16 @@ export interface PictureCopy {
 /** Where a copy stands at an ask; null where the ask was not made or not answered, and is made again. */
 export type CopyAsked = { state: FileCopyState; why: FileCopyWhy | null } | null;
 
+/** How the screen asks after a copy: the source's own read, at the source's own pace (source.ts). */
+type CopyAsk = (fileId: string) => Promise<CopyAsked>;
+
 /**
  * The one line under the ad for a video whose copy is not at hand: Files' own head for where it stands. Null where
  * Files says nothing of it (a video made here, aside and not yet asked for, reads as any video).
  */
 export function pictureCopyLine(copy: PictureCopy | null): string | null {
   if (copy === null) return null;
-  const said = copySaidOf(copy.state, copy.why, {
+  const words = copySaidOf(copy.state, copy.why, {
     folder: null,
     account: null,
     leaves: null,
@@ -37,46 +40,64 @@ export function pictureCopyLine(copy: PictureCopy | null): string | null {
     uploaded: copy.uploaded,
     made: copy.made,
   });
-  return said?.head || null;
+  return words?.head || null;
 }
 
 /** Whether a copy comes back by itself, so the screen asks after it: on its way out or back, or waiting for room. */
 const mends = (copy: { state: FileCopyState; why: FileCopyWhy | null }): boolean =>
   copy.state === "returning" || copy.state === "going" || (copy.state === "away" && copy.why === "room");
 
+/** What an ask after a copy heard, and of which file. */
+interface CopyHeard {
+  id: string;
+  now: { state: FileCopyState; why: FileCopyWhy | null };
+}
+
+/**
+ * Where the draft's video's copy stands now: as the draft's answer said it, then as the last ask after that same file
+ * says. Null for a photo, and once the copy is here.
+ */
+function standingOf(copy: PictureCopy | null, heard: CopyHeard | null): PictureCopy | null {
+  if (copy === null) return null;
+  if (heard === null || heard.id !== copy.id) return copy;
+  const { state, why } = heard.now;
+  return state === "here" ? null : { ...copy, state, why };
+}
+
+/**
+ * A copy asked after until it is here, or stands where it will not mend by itself: each answer is handed on as it
+ * comes, and an ask that gave none is made again. Ends when the screen no longer wants it (`open` says).
+ */
+async function followCopy(
+  ask: CopyAsk,
+  id: string,
+  screen: { open: () => boolean; hear: (heard: CopyHeard) => void },
+): Promise<void> {
+  while (screen.open()) {
+    const now = await ask(id).catch(() => null);
+    if (!screen.open()) return;
+    if (now === null) continue;
+    screen.hear({ id, now });
+    if (!mends(now)) return;
+  }
+}
+
 /**
  * The draft's video's copy while New ad is open: as the draft's answer said it, then as each ask after it says, until it
- * is here, when it is null and the line goes. `ask` is the source's (source.ts): it waits its own pace and asks once; a
- * source with none only says what the draft said. A draft that comes to show another picture starts again from its own.
+ * is here, when it is null and the line goes. `ask` is the source's: a source with none only says what the draft said.
+ * A draft that comes to show another picture starts again from its own.
  */
-export function usePictureCopy(
-  copy: PictureCopy | null,
-  ask: ((fileId: string) => Promise<CopyAsked>) | undefined,
-): PictureCopy | null {
-  const [heard, setHeard] = useState<{ id: string; at: CopyAsked } | null>(null);
-  const said = heard !== null && copy !== null && heard.id === copy.id ? heard.at : null;
-  const here = said?.state === "here";
-  const now: PictureCopy | null =
-    copy === null || here ? null : said && said.state !== "here" ? { ...copy, state: said.state, why: said.why } : copy;
-  const waits = now !== null && mends(now) && ask !== undefined;
-  const id = now?.id ?? null;
+export function usePictureCopy(copy: PictureCopy | null, ask: CopyAsk | undefined): PictureCopy | null {
+  const [heard, setHeard] = useState<CopyHeard | null>(null);
+  const now = standingOf(copy, heard);
+  const follows = now !== null && mends(now) ? now.id : null;
   useEffect(() => {
-    if (!waits || id === null || ask === undefined) return undefined;
+    if (follows === null || ask === undefined) return undefined;
     let open = true;
-    const follow = async (): Promise<void> => {
-      while (open) {
-        const at = await ask(id).catch(() => null);
-        if (!open) return;
-        if (at === null) continue;
-        setHeard({ id, at });
-        // Here, or where it can't come back just now: nothing more is asked. Still on its way: asked after again.
-        if (!mends(at)) return;
-      }
-    };
-    void follow();
+    void followCopy(ask, follows, { open: () => open, hear: setHeard });
     return () => {
       open = false;
     };
-  }, [waits, id, ask]);
+  }, [follows, ask]);
   return now;
 }

@@ -378,16 +378,16 @@ async function askPickedCopy(
   const { picture } = answer.draft;
   const copy = picture.copy;
   if (!copy || picture.id === shownBefore || copy.state === "returning" || copy.state === "lost") return answer;
-  const asked = await callAdsEdge({ op: "copy", tenant_id: rc.tenantId, user_id: rc.userId, file_id: picture.id });
-  const state = asked.status === 200 && isOneOf(FILE_COPY_STATES, asked.body?.copy) ? asked.body.copy : null;
+  const reply = await callAdsEdge({ op: "copy", tenant_id: rc.tenantId, user_id: rc.userId, file_id: picture.id });
+  const state = reply.status === 200 && isOneOf(FILE_COPY_STATES, reply.body?.copy) ? reply.body.copy : null;
   if (state === null) return answer;
-  const why = isOneOf(FILE_COPY_WHYS, asked.body?.why) ? asked.body.why : null;
+  const reason = isOneOf(FILE_COPY_WHYS, reply.body?.why) ? reply.body.why : null;
   const { copy: _was, ...shown } = picture;
   return {
     ...answer,
     draft: {
       ...answer.draft,
-      picture: state === "here" ? shown : { ...shown, copy: { state, why, uploaded: copy.uploaded } },
+      picture: state === "here" ? shown : { ...shown, copy: { state, why: reason, uploaded: copy.uploaded } },
     },
   };
 }

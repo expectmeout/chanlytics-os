@@ -443,9 +443,19 @@ async function findPlaces(db: Db, app: MetaApp, tenantId: TenantId, place: unkno
 async function askPickedCopy(db: Db, tenantId: TenantId, fileId: string): Promise<Response> {
   if (!UUID.test(fileId)) return refuse(400, "bad_request", "file_id required");
   const held = await ensureCopy(db, tenantId, fileId, "ad");
-  const why = held.copy === "away" ? held.reason : held.copy === "lost" ? held.loss : null;
-  logger({ tenant_id: tenantId }).info("ads_picture_copy", { file: fileId, copy: held.copy, why });
-  return json(200, { ok: true, copy: held.copy, why });
+  const reason = held.copy === "away" ? held.reason : held.copy === "lost" ? held.loss : null;
+  logger({ tenant_id: tenantId }).info("ads_picture_copy", { file: fileId, copy: held.copy, why: reason });
+  return json(200, { ok: true, copy: held.copy, why: reason });
+}
+
+/**
+ * The two ops any member who may draft an ad asks, neither of which changes anything at Meta: a place by its name
+ * (places.ts), and the video a draft came to show, asked back at the pick. Null for any other op.
+ */
+function draftOp(db: Db, app: MetaApp, tenantId: TenantId, body: Partial<AdsAccountBody>): Promise<Response> | null {
+  if (body.op === "place") return findPlaces(db, app, tenantId, body.place);
+  if (body.op === "copy") return askPickedCopy(db, tenantId, String(body.file_id ?? ""));
+  return null;
 }
 
 /** The door's ops: what each answers is in the module's head. */
@@ -467,10 +477,9 @@ export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBo
   }
   if (!app) return refuse(503, "no_app_credentials");
   if (!adsOfferedIn(tenantId)) return refuse(409, "meta_off", "Ads is not offered in this workspace yet.");
-  // A place by its name (places.ts): a read that changes nothing, asked for any member who may draft an ad.
-  if (op === "place") return findPlaces(db, app, tenantId, body.place);
-  // The video a draft came to show, asked back at the pick: any member who may draft, and nothing reaches Meta.
-  if (op === "copy") return askPickedCopy(db, tenantId, String(body.file_id ?? ""));
+  // What any member who may draft an ad asks: a place by its name, and a draft's video's copy at the pick.
+  const drafting = draftOp(db, app, tenantId, body);
+  if (drafting !== null) return drafting;
   // The owner alone, asked before anything is asked of Meta (decision 0050, call 2).
   if (!(await mayRunAds(db, tenantId, userId))) return refuse(403, "ad_account_not_owner");
   const by = { tenantId, userId };
