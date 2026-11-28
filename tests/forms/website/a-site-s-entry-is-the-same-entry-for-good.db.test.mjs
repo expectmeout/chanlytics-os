@@ -140,7 +140,10 @@ after(async () => {
 /** A session of a member of the workspace, or of the stranger's. */
 async function signedIn(who) {
   const as = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
-  ok(await as.auth.signInWithPassword({ email: `for-good-${who}-${RUN}@example.com`, password: `pw-${RUN}-Aa1!` }), who);
+  ok(
+    await as.auth.signInWithPassword({ email: `for-good-${who}-${RUN}@example.com`, password: `pw-${RUN}-Aa1!` }),
+    who,
+  );
   return as;
 }
 
