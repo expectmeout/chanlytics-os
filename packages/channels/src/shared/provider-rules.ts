@@ -187,3 +187,23 @@ export function tooManyOf(
   } else if (rule.tooMany === "google") scope = googleScopeOf(answer.status, answer.json);
   return scope ? { scope, waitMs } : null;
 }
+
+/**
+ * The headers a service names its own record of one request in: what its support asks for (Anthropic's and Stripe's
+ * `request-id`, Twilio's `Twilio-Request-Id`, Meta's `x-fb-trace-id`, Cloudflare's `cf-ray`, and the common
+ * `x-request-id`), in the order read.
+ */
+const PROVIDER_REQUEST_HEADERS = ["request-id", "x-request-id", "twilio-request-id", "x-fb-trace-id", "cf-ray"];
+
+/**
+ * The service's own name for the request, where it gave one: a header above, or Meta's `fbtrace_id` in an error's
+ * body. The last leg of an act's search: what to hand the service's support when its answer is the one in question.
+ */
+export function providerRequestOf(answer: { headers: Headers | null; json: unknown }): string | null {
+  for (const name of PROVIDER_REQUEST_HEADERS) {
+    const value = answer.headers?.get(name)?.trim();
+    if (value) return value.slice(0, 128);
+  }
+  const trace = valueAt(answer.json, "error", "fbtrace_id");
+  return typeof trace === "string" && trace ? trace.slice(0, 128) : null;
+}

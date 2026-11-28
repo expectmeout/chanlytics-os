@@ -133,6 +133,9 @@ What every row shares, said once:
   refusal, a sign-in the service will not take (401, 403) and a "too many" are answers, never faults.
 - **Whose and what for:** each call is counted under the workspace the work acts on and the work's purpose (a door's or
   a route's path, a job's kind), in one `outside_calls` line when the work ends. Our own two apps are left out.
+- **The service's own name for the request** (`provider_request`: Anthropic's and Stripe's `request-id`, Twilio's
+  `Twilio-Request-Id`, Meta's `x-fb-trace-id` or its error's `fbtrace_id`, Cloudflare's `cf-ray`) rides on the door's
+  own lines, `outside_call_slow` and `breaker_open`: what to hand that service's support.
 
 The rows. "Bound" is each try's; "at once" is the door's starting room.
 

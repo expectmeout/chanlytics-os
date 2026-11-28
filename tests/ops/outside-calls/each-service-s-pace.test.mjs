@@ -423,3 +423,22 @@ test("a write that got no answer is unknown, never asked again blind, on any att
     resetBreakers();
   }
 });
+
+test("the door's own lines name the service's record of the request, so its support can be asked about that one", async () => {
+  const c = clock();
+  const slowly = async () => {
+    c.pass(3_000);
+    return new Response("{}", { status: 200, headers: { "request-id": "req_011CZ0example" } });
+  };
+  const { lines: slow } = await linesOf(() =>
+    fetchFromProvider("anthropic", "u", { timeoutMs: 5_000, breaker: "count" }, { ...c, fetch: slowly }),
+  );
+  assert.equal(slow.find((l) => l.event === "outside_call_slow")?.provider_request, "req_011CZ0example");
+
+  const down = () =>
+    new Response(JSON.stringify({ error: { code: 2, message: "down", fbtrace_id: "AbCdEf123" } }), { status: 500 });
+  const { lines: opened } = await linesOf(async () => {
+    for (let i = 0; i < 5; i++) await fetchFromProvider("meta", "u", { timeoutMs: 1_000 }, { ...service(down), ...c });
+  });
+  assert.equal(opened.find((l) => l.event === "breaker_open")?.provider_request, "AbCdEf123", "Meta's trace, read");
+});

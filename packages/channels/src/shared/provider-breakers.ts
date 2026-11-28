@@ -60,6 +60,13 @@ const breakerKeyOf = (provider: Provider, workspace: string | null): string =>
 const breakerKeysOf = (provider: Provider, workspace: string | null): string[] =>
   workspace ? [provider, breakerKeyOf(provider, workspace)] : [provider];
 
+/** What a breaker reads of an answer: its status, why none came, and the service's own name for the request. */
+interface FaultSaid {
+  status: number;
+  error: string | null;
+  providerRequest?: string | null;
+}
+
 /** What the breakers say of a call about to leave: it goes (and which breakers' pause it ends), or it is held. */
 type BreakerVerdict = { go: true; probes: string[] } | { go: false; retryAfterMs: number };
 
@@ -97,7 +104,7 @@ const isFault = (a: { status: number; error: string | null }): boolean =>
 export function breakerHears(
   provider: Provider,
   workspace: string | null,
-  answer: { status: number; error: string | null },
+  answer: FaultSaid,
   now: number,
   probes: string[],
 ): void {
@@ -123,13 +130,7 @@ export function breakerHears(
   faulted(provider, provider, workspace ?? NOBODY, answer, now);
 }
 
-function faulted(
-  provider: Provider,
-  key: string,
-  source: string,
-  answer: { status: number; error: string | null },
-  now: number,
-): void {
+function faulted(provider: Provider, key: string, source: string, answer: FaultSaid, now: number): void {
   const breaker: Breaker = breakers.held.get(key) ?? { failures: 0, openUntil: 0, probing: false, faultsOf: new Map() };
   const wasOpen = breaker.openUntil > now;
   breaker.failures += 1;
@@ -146,6 +147,7 @@ function faulted(
     status: answer.status,
     error: answer.error,
     open_ms: BREAKER_OPEN_MS,
+    ...(answer.providerRequest ? { provider_request: answer.providerRequest } : {}),
     ...(key === provider ? {} : { tenant_id: source }),
   });
 }

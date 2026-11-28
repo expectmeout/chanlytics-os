@@ -52,7 +52,14 @@ import { logger, noteOutsideCall, noteTiming, requestAttempt, requestTenant } fr
 import { jittered, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { breakerHears, breakerSays, resetBreakerStates } from "./provider-breakers";
 import { PACE_WAIT_CAP_MS, holdLeftOf, holdUntil, paceAfter, resetPace, takeRoom } from "./provider-gates";
-import { isOurOwnApp, providerRuleOf, tooManyOf, type Provider, type TooManyScope } from "./provider-rules";
+import {
+  isOurOwnApp,
+  providerRequestOf,
+  providerRuleOf,
+  tooManyOf,
+  type Provider,
+  type TooManyScope,
+} from "./provider-rules";
 
 export type { Provider } from "./provider-rules";
 export { breakerOf, breakerStates } from "./provider-breakers";
@@ -252,7 +259,8 @@ async function once(making: Making, tries: number): Promise<ProviderReply> {
     const verdict = breakerSays(making.provider, making.workspace, making.deps.now(), making.call.breaker === "count");
     if (!verdict.go) return heldReply("breaker_open", verdict.retryAfterMs, tries);
     const reply = honour(making, gate, await ask(making, tries));
-    breakerHears(making.provider, making.workspace, reply, making.deps.now(), verdict.probes);
+    const said = { status: reply.status, error: reply.error, providerRequest: providerRequestOf(reply) };
+    breakerHears(making.provider, making.workspace, said, making.deps.now(), verdict.probes);
     return reply;
   } finally {
     release();
@@ -318,6 +326,7 @@ function sayTime(provider: Provider, call: ProviderCall, providerReply: Provider
     status: providerReply.status,
     outcome: providerReply.outcome,
     tries: providerReply.tries,
+    provider_request: providerRequestOf(providerReply) ?? undefined,
   });
 }
 
