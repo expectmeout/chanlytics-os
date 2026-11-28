@@ -3,6 +3,7 @@ export const PLUMBING_EVENTS = [
   "admin_door_key_only",
   "db_answer_at_cap",
   "door_body_unexpected",
+  "door_refuses_signed_knocks",
   "door_reply_failed",
   "emit_event_failed",
   "env_invalid",

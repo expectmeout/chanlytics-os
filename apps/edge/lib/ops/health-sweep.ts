@@ -36,7 +36,7 @@ import { campaignsDomain } from "../email/campaigns-domain.js";
 import { emailDomain } from "../email/email.js";
 import { watchAnswerSilence, watchTargets } from "./day-watch.js";
 import { watchModels } from "./model-watch.js";
-import { watchRowCap } from "./cap-watch.js";
+import { watchRefusingDoors, watchRowCap } from "./cap-watch.js";
 import { keepAnthropicProfiles } from "../ai/anthropic-profiles/keep.js";
 import { keepFilesMoving } from "../files/upkeep.js";
 import { keepResultsMoving } from "../content/results-upkeep.js";
@@ -205,6 +205,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   const voice = await watchVoice(db);
   // A list either app read at the 1,000-row cap, noted as it happened (layer 12), paged once per window.
   const rowCapPaged = await watchRowCap(db);
+  // A door that refused three signed knocks in a row with none let in, noted by its door() (28 Nov 2026), paged the same way.
+  const doorsRefusingPaged = await watchRefusingDoors(db);
   // Forms' watch (00675, 00680); a post's numbers read at their steps, and touches aged to counts (00699).
   const kept = { ...(await watchForms(db, Date.now())), ...(await keepResultsMoving(db)) };
 
@@ -234,6 +236,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
     voice_concurrency: voice.concurrency,
     voice_drifted: voice.drifted,
     row_cap_paged: rowCapPaged,
+    doors_refusing_paged: doorsRefusingPaged,
     ...kept,
   });
 

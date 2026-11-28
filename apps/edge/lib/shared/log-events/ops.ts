@@ -20,6 +20,7 @@ export const OPS_EVENTS = [
   "broadcast_unsubscribe_unsigned",
   "cancel_jobs_failed",
   "cron_key_unavailable",
+  "door_watch_unreadable",
   "email_ingested",
   "email_sender_unread",
   "erase_appointments_scrub_failed",

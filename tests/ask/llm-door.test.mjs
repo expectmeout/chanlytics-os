@@ -627,6 +627,44 @@ test("a round cut short is counted all the same: the dashboard abandoning the an
   }
 });
 
+test("whoever asked has gone before the model's first word: the call to the model ends with it, never waits out its bound, and asks no fallback", async () => {
+  // Before 28 Nov 2026 the edge's call to the model rode with no signal of the dashboard's: a turn abandoned before its
+  // first word kept the platform's key waiting, and the model writing, for the route's whole bound (lane 8).
+  const ws = T(43);
+  use({ events: [] });
+  const asked = [];
+  wired(
+    (req) =>
+      new Promise((_, reject) => {
+        asked.push(req);
+        req.signal?.addEventListener("abort", () =>
+          reject(new DOMException("This operation was aborted", "AbortError")),
+        );
+      }),
+  );
+  const gone = new AbortController();
+  const raw = JSON.stringify(turn());
+  const pending = door.POST(
+    new Request(`http://edge${AUD}`, {
+      method: "POST",
+      headers: minted({ "x-edge-token": token({ workspace: ws }), "content-type": "application/json" }, raw),
+      body: raw,
+      signal: gone.signal,
+    }),
+  );
+  const until = Date.now() + 5_000;
+  while (asked.length === 0 && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(asked.length, 1, "the model was asked");
+  assert.equal(asked[0].signal?.aborted, false, "and is left to answer while the dashboard waits");
+  const t0 = Date.now();
+  gone.abort();
+  const res = await pending;
+  assert.ok(Date.now() - t0 < 2_000, "the door answered at once, not at the route's bound");
+  assert.equal(asked[0].signal.aborted, true, "the call to the model ended with the dashboard's");
+  assert.equal(res.status, 503);
+  assert.equal(asked.length, 1, "no fallback was asked for a turn nobody waits for");
+});
+
 test("the budget spent: the day's rows add up to the cap, so the knock is refused with 429 before the key is spent -- no request to the model, no row written -- and stays refused within the minute even once the rows are gone: the count kept is the count believed; another workspace is another count", async () => {
   const ws = T(2);
   const tables = { events: [usage(ws, 2_000_000, 900_000, 3 * HOUR), usage(ws, 100_000, 0, 10 * HOUR)] };
