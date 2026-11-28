@@ -16,6 +16,9 @@
  *             the owner comes back from mending something at Meta, and never faster than Meta's pace allows.
  *   place     The places Meta keys by a name (a city, a region, a country), for an ad shown wider than the circle
  *             around a business (places.ts). A read that keeps nothing, asked for any member who may draft.
+ *   copy      The video a draft came to show, asked back to the video platform through the copy's one door, as an ad
+ *             asks (files/copy/ensure.ts): one that stepped aside is on its way back, and the answer says where it
+ *             stands. Asked for any member who may draft; nothing of it reaches Meta.
  *
  * The owner alone: `has_permission(…, 'ads')` is asked here before anything is asked of Meta, and again by the door
  * that writes. Every answer is JSON with `ok`; a refusal is a code (http.ts refuse) with words for support in `detail`.
@@ -57,6 +60,7 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { ensureCopy } from "../files/copy/ensure.js";
 import { findMetaPlaces } from "./places.js";
 import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
@@ -93,6 +97,8 @@ interface AdsAccountBody {
   pause?: boolean;
   /** `place`: the kind of place and the name looked for (places.ts). */
   place?: unknown;
+  /** `copy`: the video whose copy is asked back. */
+  file_id?: string;
 }
 
 /** The Meta app's sign-in for ads as this deployment holds it, or null when any part is not set. */
@@ -429,6 +435,29 @@ async function findPlaces(db: Db, app: MetaApp, tenantId: TenantId, place: unkno
   return findMetaPlaces(live && signIn ? { tenantId, accountId: live.id, signIn } : null, place);
 }
 
+/**
+ * `copy`: the video a draft came to show, asked back at the pick. The copy's door decides everything (a copy that is
+ * here is marked used; one away has its return asked for, once however many ask; one lost says why): this hands it the
+ * file and the purpose, and answers where the copy stands.
+ */
+async function askPickedCopy(db: Db, tenantId: TenantId, fileId: string): Promise<Response> {
+  if (!UUID.test(fileId)) return refuse(400, "bad_request", "file_id required");
+  const held = await ensureCopy(db, tenantId, fileId, "ad");
+  const reason = held.copy === "away" ? held.reason : held.copy === "lost" ? held.loss : null;
+  logger({ tenant_id: tenantId }).info("ads_picture_copy", { file: fileId, copy: held.copy, why: reason });
+  return json(200, { ok: true, copy: held.copy, why: reason });
+}
+
+/**
+ * The two ops any member who may draft an ad asks, neither of which changes anything at Meta: a place by its name
+ * (places.ts), and the video a draft came to show, asked back at the pick. Null for any other op.
+ */
+function draftOp(db: Db, app: MetaApp, tenantId: TenantId, body: Partial<AdsAccountBody>): Promise<Response> | null {
+  if (body.op === "place") return findPlaces(db, app, tenantId, body.place);
+  if (body.op === "copy") return askPickedCopy(db, tenantId, String(body.file_id ?? ""));
+  return null;
+}
+
 /** The door's ops: what each answers is in the module's head. */
 export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBody>): Promise<Response> {
   const op = typeof body.op === "string" ? body.op : "";
@@ -448,8 +477,9 @@ export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBo
   }
   if (!app) return refuse(503, "no_app_credentials");
   if (!adsOfferedIn(tenantId)) return refuse(409, "meta_off", "Ads is not offered in this workspace yet.");
-  // A place by its name (places.ts): a read that changes nothing, asked for any member who may draft an ad.
-  if (op === "place") return findPlaces(db, app, tenantId, body.place);
+  // What any member who may draft an ad asks: a place by its name, and a draft's video's copy at the pick.
+  const drafting = draftOp(db, app, tenantId, body);
+  if (drafting !== null) return drafting;
   // The owner alone, asked before anything is asked of Meta (decision 0050, call 2).
   if (!(await mayRunAds(db, tenantId, userId))) return refuse(403, "ad_account_not_owner");
   const by = { tenantId, userId };

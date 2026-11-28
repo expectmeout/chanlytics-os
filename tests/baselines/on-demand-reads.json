@@ -584,5 +584,10 @@
     "kind": "on-open",
     "fresh": "Read once Today has drawn, as its weekly card is asked for; kept in the tab by workspace (read-cache.ts `tab`), so a return draws it at once and reads it again behind it.",
     "why": "The weekly card says what the last seven days' posts brought once a week, until Got it: a number a minute old is the week's all the same, and a read that fails says AI's week instead of guessing."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/source.ts GET files/[id]/copy": {
+    "kind": "on-open",
+    "fresh": "Read every ten seconds while New ad shows a video whose copy is on its way back (or waits for room), and only while the tab is in view; the moment it answers that the copy is here, the line under the ad goes.",
+    "why": "It reads one row's two words and asks for nothing, so waiting never spends a return: the draft's own route asked for the copy once, at the pick. The files surface hears the same change through the feed, which New ad does not draw from; this is the open draft's own wait."
   }
 }
