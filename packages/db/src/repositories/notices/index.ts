@@ -51,6 +51,7 @@ export {
   recordMailSent,
   reviewRowsByGoogleId,
   wasEventTold,
+  wasSameNewsTold,
   wasNoticeKept,
   wasOptOutTold,
 } from "./notifications/kept";
