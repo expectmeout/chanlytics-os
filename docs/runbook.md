@@ -1853,7 +1853,7 @@ ledger with each version's name, whoever pushes and from wherever.
    **A migration that starts writing an event says whether the kind is new or its writer moved, and which side stops
    first.** The database is applied before its code merges, and the two apps deploy apart, so for some minutes the old
    writer and the new one both run. 00722 moved twenty of the dashboard's events into SQL doors: for the minutes
-   between its apply and the deploy, each of those acts wrote two events, the door's and the old code's. From 00732
+   between its apply and the deploy, each of those acts wrote two events, the door's and the old code's. From 00734
    on, a file that is the first to write a kind from SQL names it in a comment line of its own, and
    `database/migrations.test.mjs` fails one that does not:
 

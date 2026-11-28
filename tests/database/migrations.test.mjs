@@ -337,7 +337,7 @@ test("the transaction rules read a migration as the CLI sends it: a body in doll
  * before its code was live, each of those acts wrote two events for the minutes between the two deploys, the door's
  * and the old code's. Nothing asked the migration to say so.
  */
-const WRITER_RULE_FROM = 732;
+const WRITER_RULE_FROM = 734;
 
 /**
  * What a migration says of each kind it is the first to write from SQL, in a comment line of its own:
