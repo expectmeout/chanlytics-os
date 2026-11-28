@@ -18,7 +18,7 @@ const C = await import("@chanlytics/contracts");
 const { changeSentenceOf, changeEditOf, changeToastOf, typedOf } = await import(
   `${S}/surfaces/campaigns/ads/live/change-model.ts`
 );
-const { sheetModel } = await import(`${S}/surfaces/campaigns/ads/live/model.ts`);
+const { sheetModel } = await import(`${S}/surfaces/campaigns/ads/live/model/sheet.ts`);
 const { FIX } = await import(`${S}/surfaces/campaigns/ads/live/change-words.ts`);
 
 const TZ = "America/New_York";
