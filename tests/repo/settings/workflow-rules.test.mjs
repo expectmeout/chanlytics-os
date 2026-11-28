@@ -214,7 +214,15 @@ test("the morning line runs once a day and by hand, is off until its variable is
   assert.match(y, /cron: "7 3 \* \* \*"/, "once a day, started hours late, in New York's morning");
   assert.ok(y.includes("workflow_dispatch:"), "and by hand, on main or on a branch");
   assert.ok(y.includes("permissions:\n  contents: read\n  actions: read\n  issues: write"));
-  assert.ok(y.includes("group: morning-line") && y.includes("cancel-in-progress: false"), "never half a line");
+  assert.ok(
+    y.includes("group: morning-line-${{ github.event.pull_request.number || 'main' }}") &&
+      y.includes("cancel-in-progress: false"),
+    "never half a line, and a pull request's dry run never waits on the day's",
+  );
+  // A change to the line is run dry on its own pull request: seen working on a runner before it merges.
+  assert.match(y, /^ {2}pull_request:\n {4}paths:\n(?: {6}- .+\n)+/m);
+  for (const path of [".github/workflows/morning-line.yml", "tooling/scripts/ops/morning/**"])
+    assert.ok(y.includes(`      - ${path}\n`), `a pull request that changes ${path} runs the line`);
   const line = job(y, "line");
   assert.ok(
     line.includes('run: node tooling/scripts/ops/morning/morning-line.mjs --summary "$GITHUB_STEP_SUMMARY"'),
@@ -232,6 +240,20 @@ test("the morning line runs once a day and by hand, is off until its variable is
     "the token and the pager's door: no database's key, no provider's",
   );
   assert.ok(!line.includes("pnpm install"), "it reads with Node alone, in under a minute");
+});
+
+test("the voice canary's red issue is the owner's, opened so and made so: an issue nobody was assigned reached nobody", () => {
+  // GitHub tells an assignee of every comment. The canary's issue was opened with none, so a red call told GitHub's
+  // list and no person (the nightly's issue sat so for seventeen runs in October 2026).
+  const y = workflow("voice-canary.yml");
+  const say = y.slice(y.indexOf("name: Say so where the next person will see it"));
+  assert.ok(say.includes("OWNER: ${{ github.repository_owner }}"));
+  assert.ok(say.includes('gh issue create --title "$title" --body-file issue.md --assignee "$OWNER"'));
+  const made = say.indexOf('gh issue edit "$number" --add-assignee "$OWNER"');
+  assert.ok(
+    made > 0 && made < say.indexOf('gh issue comment "$number"'),
+    "assigned before the comment that tells them",
+  );
 });
 
 test("the nightly's node suite and its whole suite hold no live secret, and the whole suite cannot reach production", () => {

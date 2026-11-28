@@ -671,7 +671,7 @@ green one. The nightly, the kit, the two weeklies, the canary, the smoke and the
 
 **To switch it on** (Ruben's, and the first message is his yes): set the secret `PAGER_KEY` to the edge's `DIAG_KEY`
 (Settings, Secrets and variables, Actions), then the variable `MORNING_LINE` to `1`. To read a line before that, or
-at any time: Actions, Morning line, Run workflow; the summary is the line, and a run on a branch never sends. To stop
+at any time: Actions, Morning line, Run workflow; the summary is the line, and a run on a branch never sends. A pull request that changes the line gets one such run among its checks. To stop
 it: delete the variable.
 
 **A new check on a clock** is added to `watched.mjs` in the change that adds its workflow:
