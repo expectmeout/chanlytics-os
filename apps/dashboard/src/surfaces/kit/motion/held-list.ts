@@ -97,6 +97,12 @@ interface Place {
   opened: Element | null;
   /** What the frame's head said over it: drawn again under the row's page while a thumb carries that page away. */
   head: HeadAt;
+  /**
+   * The list's own rows that stood in the frame's top under its views (kit/head/under-row.tsx), as still copies, and
+   * where the top ended on the screen with them in it: drawn there again while a thumb carries the row's page away.
+   */
+  under: HTMLElement[];
+  topEnd: number;
 }
 
 /** The list held now, the page that holds it (its useHeldList), its still picture once made, and the page pushed in. */
@@ -127,6 +133,8 @@ let backNow: Element | null = null;
 interface Carry {
   standIn: HTMLElement;
   along: HTMLElement[];
+  /** The list's rows drawn again in the frame's top (standUnder). */
+  under: HTMLElement[];
 }
 
 let carrying: Carry | null = null;
@@ -172,7 +180,68 @@ function listPlace(list: HTMLElement): Place | null {
     box: { top: r.top, left: r.left, width: r.width, height: r.height },
     opened: rowUnderPointer(list),
     head: headNow(),
+    under: underRowsNow(),
+    topEnd: frameTopEnd(),
   };
+}
+
+/** The frame's place under its row of views (frame/shell-chrome.tsx `pg-under`), and a list's rows drawn in it. */
+const UNDER_PLACE = "#pg-under";
+const UNDER_ROWS = ":scope > .under-row";
+/** The place now; null with none, or where the document cannot be asked for one. */
+const underPlace = (): HTMLElement | null =>
+  "querySelector" in document ? document.querySelector<HTMLElement>(UNDER_PLACE) : null;
+
+/**
+ * Still copies of a list's own rows as they stand in the frame's top (kit/head/under-row.tsx: the Inbox's Needs you,
+ * Waiting and Handled; People's bar; a Campaigns list's top), taken as its row opens. While the row's page stands, those
+ * rows leave the top: they are drawn in the list again (the Inbox, Conversations, Campaigns), or are out of the document
+ * with it (People). So the screen a thumb uncovered was not the one it landed on: the rows stood in the list 44 px under
+ * where they had been, with every row of the list that far down, and all of it moved up as the Back landed (the Inbox;
+ * 86 px in Conversations), or they were missing from the top until it did (People). Production, 28 Nov 2026.
+ */
+function underRowsNow(): HTMLElement[] {
+  const place = underPlace();
+  if (!place || place.getClientRects().length === 0) return [];
+  return Array.from(place.querySelectorAll<HTMLElement>(UNDER_ROWS))
+    .filter((row) => row.getClientRects().length > 0)
+    .flatMap((row) => {
+      const copy = stillCopyOf(row);
+      if (!(copy instanceof HTMLElement)) return [];
+      copy.setAttribute("aria-hidden", "true");
+      copy.setAttribute("inert", "");
+      return [copy];
+    });
+}
+
+/**
+ * The copies stand in the frame's top again, under the views the frame draws again for the list (headUnder): now, where
+ * the place is there, and once the frame has drawn (it draws its head in a microtask of its own, and may draw the place
+ * anew), so they are in the top before it is painted.
+ */
+function standUnder(rows: HTMLElement[]): void {
+  if (rows.length === 0) return;
+  const stand = (): void => {
+    if (!carrying || carrying.under !== rows) return;
+    const place = underPlace();
+    if (!place) return;
+    for (const row of rows) if (row.parentElement !== place) place.append(row);
+  };
+  stand();
+  queueMicrotask(stand);
+  if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(stand);
+}
+
+/**
+ * How far the list's rows stand under where they stood, now that the row's page is drawn: what the list drew back into
+ * itself from the frame's top (underRowsNow). Nothing where the row kept has left the list, or moved further than a top holds.
+ */
+const MOST_GROWN = 240;
+function grownBy(place: Place): number {
+  const { row, rowAt } = place;
+  if (!row || !row.isConnected || row.getClientRects().length === 0) return 0;
+  const by = row.getBoundingClientRect().top - rowAt;
+  return Math.abs(by) >= 1 && Math.abs(by) <= MOST_GROWN ? by : 0;
 }
 
 /** A held list, or its picture, stands where the list stood. */
@@ -255,8 +324,12 @@ function holdList(place: Place, owner: object, arrival: Arrival | null): void {
   const page = arrival && pushesOverBox(place.scroller) ? arrival.page() : null;
   // Still laid out once marked (the page hides only a list nobody holds): it stands where it was, out of sight. A list its
   // page keeps out of the document is stood in for by a picture, only where a thumb may carry the row's page away.
-  if (list.getClientRects().length > 0) standAt(list, place.box);
-  else if (page) pictureOf(now);
+  if (list.getClientRects().length > 0) {
+    standAt(list, place.box);
+    // Its rows where they stood: what it drew back into itself over them lies above its box, under the frame's top.
+    const grown = grownBy(place);
+    if (grown !== 0) standAt(list, { ...place.box, top: place.box.top - grown, height: place.box.height + grown });
+  } else if (page) pictureOf(now);
   else if (touchScreen() && carriedHere()) now.idle = whenIdle(() => pictureOf(now));
   // The row's page starts at its top where the window scrolls it, as a page arriving does (view-deck.ts toTop).
   if (isDocumentScroller(place.scroller)) windowTo(0);
@@ -608,16 +681,18 @@ export function showHeld(on: boolean): void {
   const standIn = heldStandIn();
   if (!standIn || carrying || !holding) return;
   // Taken before the frame draws its head again, as the page has it now.
-  carrying = { standIn, along: [groundOver(), ...pagesOwnTop().map(goesWith)] };
+  carrying = { standIn, along: [groundOver(), ...pagesOwnTop().map(goesWith)], under: holding.place.under };
   standIn.dataset.held = "shown";
   holdFrameTop(true);
   document.documentElement.toggleAttribute("data-carrying", true);
   headUnder(holding.place.head);
+  standUnder(carrying.under);
   // Cut where the frame's top, drawn again over it, ends: what of the list stood under the top was hidden by its ground,
   // and both are dimmed as the page covers them, so the list's head scrolled under the top read through the frame's
   // (Campaigns' search and first row through its name and strip, 22 Oct 2026).
   const box = standIn.getBoundingClientRect();
-  const end = frameTopEnd();
+  // The top as the list had it, where that is lower than the top is now: the list's own rows stand in it again.
+  const end = Math.max(frameTopEnd(), carrying.under.length > 0 ? holding.place.topEnd : 0);
   standIn.style.clipPath = clearOfFoot(box.bottom, end > 0 ? end - box.top : 0);
 }
 
@@ -634,6 +709,7 @@ function endCarry(): void {
   if (was.standIn.dataset.held === "shown") was.standIn.dataset.held = "";
   was.standIn.style.clipPath = "";
   for (const copy of was.along) copy.remove();
+  for (const row of was.under) row.remove();
   document.documentElement.removeAttribute("data-carrying");
   headUnder(null);
   holdFrameTop(false);

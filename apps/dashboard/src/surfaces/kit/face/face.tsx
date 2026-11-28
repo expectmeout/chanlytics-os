@@ -74,7 +74,27 @@ export type FaceProps = FaceHolds & {
   pick?: "choose" | "chosen";
   /** Drawn as a tile, a rounded square (a business on a run's screen), where a person's is a circle. */
   tile?: boolean;
+  /** Its picture is on a page's first screen (Today's note of what was made): asked for with the page, not once it is seen. */
+  eager?: boolean;
 } & FaceSpan;
+
+/**
+ * The pictures this document has drawn, by address. A picture is asked for once its face is seen and decoded off the
+ * main thread, which is right for a list of two hundred people and wrong for one the browser already holds: each time a
+ * page came back (Today, opened again from the tab bar) its face was drawn new, so the glyph under the picture showed
+ * first and the picture came in a frame or more after, every time (Ruben, 28 Nov 2026: "has to load reload every time").
+ * One drawn before is asked for at once and decoded in the draw, and is there in the first paint.
+ */
+const picturesDrawn = new Set<string>();
+/** How a picture is asked for: with the page and drawn in its first paint, or once it is seen. */
+interface PictureAsk {
+  loading: "eager" | "lazy";
+  decoding: "sync" | "async";
+}
+const WITH_THE_PAGE: PictureAsk = { loading: "eager", decoding: "sync" };
+const ONCE_SEEN: PictureAsk = { loading: "lazy", decoding: "async" };
+const pictureAsk = (address: string, eager: boolean): PictureAsk =>
+  eager || picturesDrawn.has(address) ? WITH_THE_PAGE : ONCE_SEEN;
 
 /** A picture that does not load stands aside, and the initials under it show again, as People's row does. */
 function standAside(event: SyntheticEvent<HTMLImageElement>) {
@@ -109,6 +129,7 @@ export function Face({
   priority,
   pick,
   tile = false,
+  eager = false,
   className,
   ...span
 }: FaceProps) {
@@ -134,8 +155,8 @@ export function Face({
           className="face-photo"
           src={photo}
           alt=""
-          loading="lazy"
-          decoding="async"
+          {...pictureAsk(photo, eager)}
+          onLoad={() => picturesDrawn.add(photo)}
           onError={standAside}
         />
       )}
@@ -145,8 +166,8 @@ export function Face({
           className="face-photo face-mark"
           src={mark}
           alt=""
-          loading="lazy"
-          decoding="async"
+          {...pictureAsk(mark, eager)}
+          onLoad={() => picturesDrawn.add(mark)}
           onError={standAside}
         />
       )}

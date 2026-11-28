@@ -1640,6 +1640,21 @@ section:has(> .tpl-composer:not(.is-translate)) {
   overscroll-behavior: contain;
   container: cm-list / inline-size;
 }
+/* Its rim holds still while its rows scroll (parts/split.tsx useListRim, which says how tall the pane stands): the kit
+   places the rim against the pane, and this pane is what scrolls, so the rim went up with the rows. Here it is the
+   list's last box, as tall as the pane and drawn back over it, held to the pane's foot. Only where a pointer scrolls a
+   pane on a desk: on a touch screen the same box is the list's pull pixel (mobile.css), and a phone's list has no pane. */
+@media (width > 900px) and (pointer: fine) {
+  .cm-split > .cm-list[data-rim]::after {
+    position: sticky;
+    inset: auto;
+    bottom: 0;
+    flex: none;
+    box-sizing: border-box;
+    height: var(--cm-list-h);
+    margin-top: calc(-1 * var(--cm-list-h));
+  }
+}
 .cm-pane {
   overflow: hidden;
 }

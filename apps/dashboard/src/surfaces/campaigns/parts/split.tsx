@@ -10,7 +10,7 @@
  * under itself (a playbook, a reach-out, a template, an email) and an inline sheet of its own (a run's approval).
  */
 import type { HTMLAttributes, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { showHeld } from "../../kit/motion/held-list";
@@ -65,6 +65,29 @@ export interface CmView extends ScopeView {
   shown?: boolean;
 }
 
+/**
+ * The list's pane scrolls itself (campaigns.css, .cm-list), so the pane's rim, which the kit draws once at the pane's
+ * own height and places against it (kit.css, .panel::after), went up with the rows: sixteen campaigns down, its rounded
+ * foot stood across the middle of the list and the rows under it had no pane round them (Ruben, 28 Nov 2026). The rim
+ * holds to the pane's foot instead (campaigns.css, [data-rim]), and to do that it has to be told how tall the pane
+ * stands, which no rule can ask of a box as tall as what it holds: the height is written here, before the first paint
+ * and again whenever the pane's box changes.
+ */
+function useListRim() {
+  const ref = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const say = () => el.style.setProperty("--cm-list-h", `${el.clientHeight}px`);
+    say();
+    if (typeof ResizeObserver !== "function") return undefined;
+    const seen = new ResizeObserver(say);
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, []);
+  return ref;
+}
+
 interface CmSplitProps {
   /** The tab's list: its head (the filters, the search), its rows and its foot. */
   list: ReactNode;
@@ -95,6 +118,7 @@ export function CmSplit({ list, open, className, testid, view, keepPane = false 
   const takesOver = opened && view?.shown !== false;
   // What it says on its root, it says on the document's too, where the frame's rules ask it (kit/motion/root-flags.ts).
   useRootFlag(["takenOver", "threadOpen"], takesOver);
+  const rim = useListRim();
   return (
     <div
       ref={view?.ref}
@@ -107,7 +131,7 @@ export function CmSplit({ list, open, className, testid, view, keepPane = false 
     >
       {/* Whether this view is the one shown, for the parts that say their draw (use-surface.ts PartShown). */}
       <ViewShownAs shown={view?.shown !== false}>
-        <Panel as="section" size="flush" className="cm-list">
+        <Panel as="section" size="flush" className="cm-list" ref={rim} data-rim="">
           {list}
         </Panel>
         {opened ? (
