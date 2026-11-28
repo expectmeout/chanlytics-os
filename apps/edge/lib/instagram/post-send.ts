@@ -153,7 +153,7 @@ const VERSION_WAITS_MOST = 10;
  * could not be read), as its next ask carries them: both, always, so the next ask's once-only key is its own
  * (job_kinds.once_parts, 00728) and never the key of the send that writes it.
  */
-const asksOf = (job: ClaimedJob): { wait: string; unread: string } => ({
+const asksMadeOf = (job: ClaimedJob): { wait: string; unread: string } => ({
   wait: String(Number(job.payload.wait ?? 0) || 0),
   unread: String(Number(job.payload.unread ?? 0) || 0),
 });
@@ -175,7 +175,7 @@ async function waitsForVersion(db: Db, post: PostRow, job: ClaimedJob): Promise<
     payload: {
       post_id: post.id,
       attempt: String(postJobOf(job).attempt),
-      ...asksOf(job),
+      ...asksMadeOf(job),
       wait: String(waits + 1),
     },
   });
@@ -202,7 +202,7 @@ async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promis
           tenantId: post.tenant_id,
           kind: "post_publish",
           dueAt: new Date(Date.now() + OPENING_ASK_MS),
-          payload: { post_id: post.id, attempt: String(attempt), ...asksOf(job), unread },
+          payload: { post_id: post.id, attempt: String(attempt), ...asksMadeOf(job), unread },
         }),
     });
   if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });
