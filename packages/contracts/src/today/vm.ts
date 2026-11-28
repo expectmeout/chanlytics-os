@@ -430,6 +430,11 @@ export interface TodayVM {
     searches: number;
     /** The reply windows closing, drawn or not: said as windows, never as people who need you. */
     windows: number;
+    /**
+     * The requests nobody has answered past those the rows hold (the list stops at 200): how many, and the request the
+     * list ended on, which the Inbox reads on from (GET forms/requests/more, 00726). Null or absent: none beyond.
+     */
+    requests_beyond?: { count: number; after: string } | null;
     parts: string[];
     empty: TodayQueueEmptyVM;
   };
