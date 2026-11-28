@@ -289,6 +289,17 @@ const channelConnectedWords = (p: Record<string, unknown>, base: string): string
     ? joinBits("An Instagram account was connected", [handleBit(p)])
     : joinBits(base, [textAt(p, "verified_name")]);
 
+/**
+ * A person's address replaced or cleared (set_person_email, 00726): the one before, and the one after where there is
+ * one. A first address is said by the kind's words alone, as before: nothing was lost with it.
+ */
+const emailSetWords = (p: Record<string, unknown>, base: string): string => {
+  const was = textAt(p, "was");
+  if (!was) return base;
+  const now = textAt(p, "now");
+  return joinBits(base, [now ? `from ${was} to ${now}` : `${was} taken off`]);
+};
+
 export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
   ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
@@ -298,6 +309,7 @@ export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base:
   ["preview.claimed", (p, base) => (textAt(p, "preview_id") ? base : "This workspace began as a preview")],
   ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
   ["mailbox.offers_paused", offersPausedWords],
+  ["contact.email_set", emailSetWords],
   ["lead.stage", leadStageWords],
   ["lead.not_a_fit", leadNotAFitWords],
   ["lead.emailed", leadEmailedWords],
