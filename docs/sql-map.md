@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 241 | 241 |
 | reader | 99 | 0 |
-| the server's | 480 | 410 |
+| the server's | 483 | 412 |
 | computed column | 3 | 0 |
 | trigger | 128 | 94 |
-| all | 951 | 745 |
+| all | 954 | 747 |
 
 ## Called by nothing
 
@@ -285,7 +285,10 @@ being read is dropped by a migration.
 | `file_shelf_begin` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video's copy on the shelf begun (00695, the archive plan's B2). |
 | `file_shelf_checked` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf holds of a video compared with what was sent (00695): |
 | `file_shelf_failed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy that could not be put (00695): |
+| `file_shelf_owed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf is owed, for every workspace in one statement (00729), in workspaces whose switch is on (features.video_shelf true) and for files still there. |
 | `file_shelf_requeue` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00695), p_limit at most, for every workspace in one statement: |
+| `file_shelf_seconds` | the server's | the server | SQL `file_shelf_again`, `file_shelf_begin` and 1 more | The seconds of video a workspace's shelf holds room for now (00729): |
+| `file_shelf_unkept` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video whose own kept file is gone can be given no shelf copy, and its row says so (00729): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |

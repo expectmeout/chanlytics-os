@@ -12321,27 +12321,39 @@ COMMENT ON FUNCTION public.file_search_words(p_name text, p_look jsonb, p_sound_
 
 
 --
--- Name: file_shelf_again(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+-- Name: file_shelf_again(uuid, uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid) RETURNS boolean
+CREATE FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid, p_seconds_max numeric DEFAULT NULL::numeric) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
-  v_id uuid;
+  v_id      uuid;
+  v_state   text;
+  v_seconds numeric;
 begin
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
-  -- The same bytes and the same SHA-256 are kept: only those can ever be put under its key.
-  update public.file_archives a set state = 'saving', why = null, checked_at = null
+  -- A copy that was checked or that failed, of a file still there, whose piece names the bytes it is put from: one
+  -- with no piece has no file to be put from (file_shelf_unkept), and no job could ever finish it.
+  select a.id, a.state, coalesce(f.seconds, 0) into v_id, v_state, v_seconds
+    from public.file_archives a
+    join public.files f on f.tenant_id = a.tenant_id and f.id = a.file_id
    where a.tenant_id = p_tenant_id and a.file_id = p_file_id and a.origin = 'shelf'
-     and a.state = any (array['checked', 'failed'])
-     and exists (select 1 from public.files f
-                  where f.tenant_id = a.tenant_id and f.id = a.file_id and f.removed_at is null)
-  returning a.id into v_id;
+     and a.state = any (array['checked', 'failed']) and f.removed_at is null
+     and exists (select 1 from public.file_archive_parts p
+                  where p.tenant_id = a.tenant_id and p.archive_id = a.id and p.part = 'video');
   if not found then
     return false;
   end if;
+  -- The shelf's one room (file_shelf_seconds, 00729). A checked copy is counted in it already, so putting it back
+  -- moves nothing; a failed one is not, so it comes back only where it fits. No limit given: as before 00729.
+  if v_state = 'failed' and p_seconds_max is not null
+     and public.file_shelf_seconds(p_tenant_id) + v_seconds > p_seconds_max then
+    return false;
+  end if;
+  -- The same bytes and the same SHA-256 are kept: only those can ever be put under its key.
+  update public.file_archives a set state = 'saving', why = null, checked_at = null where a.id = v_id;
   update public.file_archive_parts p set state = 'saving', checked_at = null
    where p.tenant_id = p_tenant_id and p.archive_id = v_id and p.part = 'video';
   insert into public.jobs (tenant_id, kind, due_at, payload)
@@ -12355,10 +12367,10 @@ end $$;
 
 
 --
--- Name: FUNCTION file_shelf_again(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION file_shelf_again(p_tenant_id uuid, p_file_id uuid, p_seconds_max numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid) IS 'A shelf copy put back (00695): one that was checked and is found missing or wrong on the shelf, or one that failed, is saving again with its file_shelve job, in one step, its bytes and SHA-256 kept. Its video is not one that may step aside until it is checked again, and one that is away is not lost while this runs. Not for a removed file. Answers whether it was begun. The service role''s.';
+COMMENT ON FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid, p_seconds_max numeric) IS 'A shelf copy put back (00695): one that was checked and is found missing or wrong on the shelf, or one that failed, is saving again with its file_shelve job, in one step, its bytes and SHA-256 kept. A failed copy holds no room on the shelf, so with p_seconds_max given (00729) it comes back only where the workspace''s shelved seconds (file_shelf_seconds) and its own stay within it; a checked one is counted already. Its video is not one that may step aside until it is checked again, and one that is away is not lost while this runs. Not for a removed file, nor for a copy with no piece (file_shelf_unkept). Answers whether it was begun. The service role''s.';
 
 
 --
@@ -12372,7 +12384,6 @@ CREATE FUNCTION public.file_shelf_begin(p_tenant_id uuid, p_file_id uuid, p_byte
 declare
   v_file  public.files;
   v_state text;
-  v_used  numeric;
   v_id    uuid;
 begin
   if p_bytes is null or p_bytes < 1 or p_sha256 is null or p_sha256 !~ '^[0-9a-f]{64}$' then
@@ -12390,13 +12401,8 @@ begin
   if found then
     return jsonb_build_object('fate', 'kept', 'state', v_state);
   end if;
-  -- The shelf's room: what is there and what is on its way there, together (contracts FILE_SHELF_MINUTES_MAX).
-  select coalesce(sum(f.seconds), 0) into v_used
-    from public.file_archives a
-    join public.files f on f.tenant_id = a.tenant_id and f.id = a.file_id
-   where a.tenant_id = p_tenant_id and a.origin = 'shelf' and a.state = any (array['saving', 'saved', 'checked'])
-     and f.removed_at is null;
-  if v_used + coalesce(v_file.seconds, 0) > p_seconds_max then
+  -- The shelf's room, counted the one way (file_shelf_seconds, 00729) against the caller's limit.
+  if public.file_shelf_seconds(p_tenant_id) + coalesce(v_file.seconds, 0) > p_seconds_max then
     return jsonb_build_object('fate', 'full');
   end if;
   insert into public.file_archives (tenant_id, file_id, origin, state)
@@ -12422,7 +12428,7 @@ end $_$;
 -- Name: FUNCTION file_shelf_begin(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text, p_seconds_max numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_shelf_begin(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text, p_seconds_max numeric) IS 'A made video''s copy on the shelf begun (00695, the archive plan''s B2). Answers {fate}: none (no such video, removed, or not made here); kept, with state (it has a shelf copy already); full (the workspace''s shelved seconds and this video''s would pass p_seconds_max, the caller''s setting: contracts FILE_SHELF_MINUTES_MAX); or begun: the copy saving, its video piece with its key (workspace/file/video), the bytes and the SHA-256 taken as the video was made, and its file_shelve job, all in this one step. The service role''s.';
+COMMENT ON FUNCTION public.file_shelf_begin(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text, p_seconds_max numeric) IS 'A made video''s copy on the shelf begun (00695, the archive plan''s B2). Answers {fate}: none (no such video, removed, or not made here); kept, with state (it has a shelf copy already); full (the workspace''s shelved seconds, as file_shelf_seconds counts them (00729), and this video''s would pass p_seconds_max, the caller''s setting: contracts FILE_SHELF_MINUTES_MAX); or begun: the copy saving, its video piece with its key (workspace/file/video), the bytes and the SHA-256 taken as the video was made, and its file_shelve job, all in this one step. The service role''s.';
 
 
 --
@@ -12464,6 +12470,16 @@ begin
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
             jsonb_strip_nulls(jsonb_build_object('to', 'checked')));
+    -- A return that waited on this copy (00729): the video was asked for while its shelf copy was being put back,
+    -- and was left away as unreadable. Its return goes back on the ledger in this step, so it comes back by itself
+    -- for whoever asked: Play, a video being made, a post, an ad or AI all ask through the one door. Held once a
+    -- file, as every return's job is. As text: a job's once-only key is made of strings (job_dedupe_key_of).
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    select f.tenant_id, 'copy_return', now(), jsonb_build_object('file_id', f.id::text)
+      from public.files f
+     where f.tenant_id = p_tenant_id and f.id = p_file_id and f.removed_at is null
+       and f.copy_state = 'away' and f.copy_why = 'unreadable'
+    on conflict do nothing;
     return 'checked';
   end if;
   update public.file_archive_parts p set state = 'failed', checked_at = null
@@ -12482,7 +12498,7 @@ end $$;
 -- Name: FUNCTION file_shelf_checked(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_shelf_checked(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text) IS 'What the shelf holds of a video compared with what was sent (00695): p_bytes and p_sha256 are the shelf''s own record. Equal to the piece''s own: the copy and its piece are checked, answers checked (and so again for one already checked). Anything else, a SHA-256 the shelf does not say among it: both failed, why mismatch, answers mismatch, and a copy that is away with nothing left to give it back is settled as lost. No copy saving: none. The service role''s.';
+COMMENT ON FUNCTION public.file_shelf_checked(p_tenant_id uuid, p_file_id uuid, p_bytes bigint, p_sha256 text) IS 'What the shelf holds of a video compared with what was sent (00695): p_bytes and p_sha256 are the shelf''s own record. Equal to the piece''s own: the copy and its piece are checked, answers checked (and so again for one already checked); and where the video is away and was left waiting on this copy (copy_why unreadable), its copy_return job is written in the same step (00729), so the return resumes by itself. Anything else, a SHA-256 the shelf does not say among it: both failed, why mismatch, answers mismatch, and a copy that is away with nothing left to give it back is settled as lost. No copy saving: none. The service role''s.';
 
 
 --
@@ -12527,6 +12543,100 @@ COMMENT ON FUNCTION public.file_shelf_failed(p_tenant_id uuid, p_file_id uuid, p
 
 
 --
+-- Name: file_shelf_owed(numeric, bigint, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_shelf_owed(p_seconds_max numeric, p_bytes_max bigint, p_stale_seconds integer, p_limit integer) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with shelving as (
+    -- The workspaces whose made videos keep a shelf copy: the switch read as the app reads it, true and nothing else
+    -- (contracts videoShelfOf).
+    select c.tenant_id from public.tenant_config c where c.config -> 'features' -> 'video_shelf' = 'true'::jsonb
+  ),
+  bare as materialized (
+    -- A video made here, still there, with no shelf copy's row at all, old enough that its making is over: its run
+    -- ended between "sent" and its copy's first step, that call failed, its shelf was full, or it was made before
+    -- the switch was on. Found from the made videos' own index against the shelf copies' key (files_made_videos,
+    -- file_archives_one_shelf_copy), and kept apart so no file's row is read until it is known to be owed.
+    select f.tenant_id, f.id, f.created_at
+      from shelving s
+      join public.files f on f.tenant_id = s.tenant_id
+     where f.kind = 'video' and f.source = 'made' and f.removed_at is null
+       and f.created_at < now() - make_interval(secs => greatest(p_stale_seconds, 0))
+       and not exists (select 1 from public.file_archives a
+                        where a.tenant_id = f.tenant_id and a.file_id = f.id and a.origin = 'shelf')
+  ),
+  unshelved as (
+    select f.tenant_id, f.id as file_id, coalesce(f.seconds, 0) as seconds, coalesce(f.bytes, 0) as bytes,
+           b.created_at as at, 'begin' as act
+      from bare b
+      join public.files f on f.tenant_id = b.tenant_id and f.id = b.id
+  ),
+  refused as (
+    -- A copy the shelf would not take, or whose job ended, a while ago: its own file is still there to put it from.
+    -- A failed copy holds no room, so it is weighed against the room as one never begun is.
+    select a.tenant_id, a.file_id, coalesce(f.seconds, 0) as seconds, 0::bigint as bytes, a.updated_at as at,
+           'again' as act
+      from public.file_archives a
+      join shelving s on s.tenant_id = a.tenant_id
+      join public.files f on f.tenant_id = a.tenant_id and f.id = a.file_id
+     where a.origin = 'shelf' and a.state = 'failed' and a.why = 'refused'
+       and a.updated_at < now() - make_interval(secs => greatest(p_stale_seconds, 0))
+       and f.removed_at is null
+       and exists (select 1 from public.file_archive_parts p
+                    where p.tenant_id = a.tenant_id and p.archive_id = a.id and p.part = 'video')
+  ),
+  owed as (
+    select * from unshelved union all select * from refused
+  ),
+  room as (
+    -- The shelf's one room (file_shelf_seconds), read once a workspace that is owed anything.
+    select w.tenant_id, public.file_shelf_seconds(w.tenant_id) as used
+      from (select distinct o.tenant_id from owed o) w
+  ),
+  judged as (
+    select o.tenant_id, o.file_id, o.bytes, o.at, o.act,
+           r.used + o.seconds <= p_seconds_max as fits,
+           o.bytes <= p_bytes_max as light
+      from owed o
+      join room r on r.tenant_id = o.tenant_id
+  ),
+  to_begin as (
+    -- Newest first: a video made today is shelved before one made last month.
+    select j.tenant_id, j.file_id, j.bytes, j.at from judged j
+     where j.act = 'begin' and j.fits and j.light
+     order by j.at desc, j.file_id
+     limit greatest(p_limit, 0)
+  ),
+  to_try as (
+    select j.tenant_id, j.file_id, j.at from judged j
+     where j.act = 'again' and j.fits
+     order by j.at, j.file_id
+     limit greatest(p_limit, 0)
+  )
+  select jsonb_build_object(
+    'begin', coalesce((select jsonb_agg(jsonb_build_object('tenant_id', b.tenant_id, 'file_id', b.file_id,
+                                                           'bytes', b.bytes)
+                                        order by b.at desc, b.file_id) from to_begin b), '[]'::jsonb),
+    'again', coalesce((select jsonb_agg(jsonb_build_object('tenant_id', t.tenant_id, 'file_id', t.file_id)
+                                        order by t.at, t.file_id) from to_try t), '[]'::jsonb),
+    'full', jsonb_build_object(
+      'videos', (select count(*) from judged j where not j.fits),
+      'workspaces', (select count(distinct j.tenant_id) from judged j where not j.fits)),
+    'heavy', (select count(*) from judged j where j.act = 'begin' and j.fits and not j.light))
+$$;
+
+
+--
+-- Name: FUNCTION file_shelf_owed(p_seconds_max numeric, p_bytes_max bigint, p_stale_seconds integer, p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_shelf_owed(p_seconds_max numeric, p_bytes_max bigint, p_stale_seconds integer, p_limit integer) IS 'What the shelf is owed, for every workspace in one statement (00729), in workspaces whose switch is on (features.video_shelf true) and for files still there. Answers {begin: [{tenant_id, file_id, bytes}], the videos made here more than p_stale_seconds ago that have no shelf copy''s row, fit the room left (file_shelf_seconds against p_seconds_max) and weigh no more than p_bytes_max, newest first, p_limit at most; again: [{tenant_id, file_id}], the copies the shelf refused more than p_stale_seconds ago that fit, the longest waiting first, p_limit at most; full: {videos, workspaces}, how many of either a full shelf holds back and in how many workspaces; heavy: how many videos that fit weigh more than p_bytes_max}. A read: the caller begins each through file_shelf_begin and file_shelf_again, which judge the room again under the workspace''s lock. Every number is the caller''s setting. The service role''s.';
+
+
+--
 -- Name: file_shelf_requeue(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -12567,6 +12677,67 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.file_shelf_requeue(p_stale_seconds integer, p_limit integer) IS 'Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00695), p_limit at most, for every workspace in one statement: the floor under file_shelf_begin and file_shelf_again, which write the job themselves. One whose job is still on the ledger gets none (a job is held once a file). Answers how many jobs it wrote. The service role''s.';
+
+
+--
+-- Name: file_shelf_seconds(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_shelf_seconds(p_tenant_id uuid) RETURNS numeric
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- What is there and what is on its way there, together: a copy that failed holds no room, and neither does one
+  -- whose file was removed (its purge takes it off the shelf).
+  select coalesce(sum(f.seconds), 0)
+    from public.file_archives a
+    join public.files f on f.tenant_id = a.tenant_id and f.id = a.file_id
+   where a.tenant_id = p_tenant_id and a.origin = 'shelf' and a.state = any (array['saving', 'saved', 'checked'])
+     and f.removed_at is null
+$$;
+
+
+--
+-- Name: FUNCTION file_shelf_seconds(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_shelf_seconds(p_tenant_id uuid) IS 'The seconds of video a workspace''s shelf holds room for now (00729): the lengths of its files, still there, whose shelf copy is saving, saved or checked. A failed copy holds none. The one place the shelf''s room is counted: file_shelf_begin, file_shelf_again and file_shelf_owed ask it, each against the caller''s limit (contracts FILE_SHELF_MINUTES_MAX). The service role''s.';
+
+
+--
+-- Name: file_shelf_unkept(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_shelf_unkept(p_tenant_id uuid, p_file_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Only a video made here, still there, with no shelf copy's row: one whose copy was ever begun says what became of
+  -- it itself. No piece is written: there are no bytes to name.
+  insert into public.file_archives (tenant_id, file_id, origin, state, why)
+  select f.tenant_id, f.id, 'shelf', 'failed', 'not_found'
+    from public.files f
+   where f.tenant_id = p_tenant_id and f.id = p_file_id and f.removed_at is null
+     and f.kind = 'video' and f.source = 'made'
+     and not exists (select 1 from public.file_archives a
+                      where a.tenant_id = f.tenant_id and a.file_id = f.id and a.origin = 'shelf');
+  if not found then
+    return false;
+  end if;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file_shelf.moved', 'content', 'file', p_file_id,
+          jsonb_strip_nulls(jsonb_build_object('to', 'failed', 'why', 'not_found')));
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION file_shelf_unkept(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_shelf_unkept(p_tenant_id uuid, p_file_id uuid) IS 'A made video whose own kept file is gone can be given no shelf copy, and its row says so (00729): a shelf copy failed as not_found, with no piece, written once for a video made here, still there, that has no shelf copy''s row. file_shelf_owed then lists it no more, and the video keeps its place at the video platform, as one with no checked copy always does. Answers whether the row was written. The service role''s.';
 
 
 --
@@ -61323,6 +61494,13 @@ CREATE UNIQUE INDEX file_archives_one_shelf_copy ON public.file_archives USING b
 
 
 --
+-- Name: file_archives_shelf_refused; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX file_archives_shelf_refused ON public.file_archives USING btree (updated_at) WHERE ((origin = 'shelf'::text) AND (state = 'failed'::text) AND (why = 'refused'::text));
+
+
+--
 -- Name: file_archives_shelf_saving; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -61390,6 +61568,13 @@ CREATE INDEX files_created_by ON public.files USING btree (created_by) WHERE (cr
 --
 
 CREATE INDEX files_look_again ON public.files USING btree (looked_at) WHERE ((removed_at IS NULL) AND (look_status <> 'refused'::text));
+
+
+--
+-- Name: files_made_videos; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_made_videos ON public.files USING btree (tenant_id, id) INCLUDE (created_at) WHERE ((kind = 'video'::text) AND (source = 'made'::text) AND (removed_at IS NULL));
 
 
 --
@@ -73006,11 +73191,11 @@ GRANT ALL ON FUNCTION public.file_search_words(p_name text, p_look jsonb, p_soun
 
 
 --
--- Name: FUNCTION file_shelf_again(p_tenant_id uuid, p_file_id uuid); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION file_shelf_again(p_tenant_id uuid, p_file_id uuid, p_seconds_max numeric); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid, p_seconds_max numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_shelf_again(p_tenant_id uuid, p_file_id uuid, p_seconds_max numeric) TO service_role;
 
 
 --
@@ -73038,11 +73223,35 @@ GRANT ALL ON FUNCTION public.file_shelf_failed(p_tenant_id uuid, p_file_id uuid,
 
 
 --
+-- Name: FUNCTION file_shelf_owed(p_seconds_max numeric, p_bytes_max bigint, p_stale_seconds integer, p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_shelf_owed(p_seconds_max numeric, p_bytes_max bigint, p_stale_seconds integer, p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_shelf_owed(p_seconds_max numeric, p_bytes_max bigint, p_stale_seconds integer, p_limit integer) TO service_role;
+
+
+--
 -- Name: FUNCTION file_shelf_requeue(p_stale_seconds integer, p_limit integer); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.file_shelf_requeue(p_stale_seconds integer, p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_shelf_requeue(p_stale_seconds integer, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION file_shelf_seconds(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_shelf_seconds(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_shelf_seconds(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_shelf_unkept(p_tenant_id uuid, p_file_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_shelf_unkept(p_tenant_id uuid, p_file_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_shelf_unkept(p_tenant_id uuid, p_file_id uuid) TO service_role;
 
 
 --
