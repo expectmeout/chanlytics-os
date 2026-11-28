@@ -604,6 +604,7 @@ export { agoLabel, ALERT_KINDS, applyReadState, bellCalls, bellReadThroughMs, EM
 export { todayPeopleOf } from "./today/people";
 export { firstLine, isPushKind, parseDevice, parseMemberAlerts, PUSH_KINDS, PUSH_PLATFORMS, pushesFor, pushFor, pushOffOf, BELL_LIST_ROWS, BELL_WINDOW_DAYS, isForReader, keptUnreadOf, olderUnreadOf, PUSH_RECEIPTS_AFTER_MS, unreadFor } from "./today/push";
 export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./today/queue";
+export { formRequestRowOf } from "./today/queue/form-rows";
 export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today/runs";
 export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./today/to-do";
 export { callBackNotOwed, callerStandingOf, strangerCaller } from "./voice/call-back-owed";
