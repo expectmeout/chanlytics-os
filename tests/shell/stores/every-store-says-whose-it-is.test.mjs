@@ -10,8 +10,9 @@
  * The rule: every variable a module keeps at its top level and can change has a row in tab-stores.json that says whose it
  * is, in one of five words (the list's own head says what each means). This finds them in the syntax tree (_stores.mjs)
  * and fails on a store with no row, on a row for a store that is gone, and on a word that is none of the five. What each
- * word promises is run, not read: keyed-stores-keep-workspaces-apart.test.mjs moves the address under the bridge's keyed
- * stores, and a-switch-is-a-new-document.test.mjs holds the reload that every "new document" row leans on.
+ * word promises is run, not read: the bridge's keyed stores each have the address moved under them with nothing loaded
+ * again (tests/shell/surfaces/read-cache.test.mjs, held-views.test.mjs, tab-memory.test.mjs, surface-cache.test.mjs), and
+ * a-switch-is-a-new-document.test.mjs holds the reload that every "new document" row leans on.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

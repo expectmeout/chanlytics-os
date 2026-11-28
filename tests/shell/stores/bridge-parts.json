@@ -1,0 +1,185 @@
+{
+  "about": [
+    "Every part the bridge installs at boot and holds by name (apps/dashboard/src/bridge/provided.ts, decision 0151), where",
+    "it is declared, what it is, and why it is installed and not imported. the-bridge-stays-narrow.test.mjs reads the",
+    "declarations in the syntax tree and fails on a part with no row here, and on a row for a part that is gone.",
+    "",
+    "The store holds the frame's own tools: the route gate, moving between pages, the tip and the toast, the shell, a",
+    "refresh, and the verbs a page reaches without carrying their code. It never holds a workspace's records: a read's",
+    "answer is the seam's (surfaces/surface-values.ts) or the bridge module's that read it (held-reads.ts, who.ts).",
+    "Before a new part: a plain import is the first choice, wherever it does not pull a page's code into the code every",
+    "page shares or lean the frame on a page. A part earns its row by saying which of those an import would break.",
+    "",
+    "gate     the route gate and the registry's word for a page, asked by the frame before its first draw",
+    "tool     a tool of the frame's own, one for the tab: the shell, the tip, the toast, the clock, the tab's memory",
+    "courier  verbs a page reaches without carrying their code, which stays in the chunk that owns it",
+    "dial     a number the frame is told, which a test turns down"
+  ],
+  "parts": {
+    "surfaceState": {
+      "from": "src/bridge/provided.ts",
+      "is": "gate",
+      "why": "The registry's word for a page (real, demo, unknown), which the frame asks in its first render; the frame's pages and the kit read it without importing the registry and every surface it names."
+    },
+    "surfaceRetired": {
+      "from": "src/bridge/provided.ts",
+      "is": "gate",
+      "why": "Where a retired address lands now, asked beside surfaceState by the same first render."
+    },
+    "surfaceGate": {
+      "from": "src/bridge/provided.ts",
+      "is": "gate",
+      "why": "Whether a route's surfaces are in: the frame's hooks ask it during their first render, before any effect, and a page drawn alone in a test draws without it."
+    },
+    "surfaceFailed": {
+      "from": "src/bridge/provided.ts",
+      "is": "gate",
+      "why": "Whether the surface a route draws from failed to read, asked with the gate."
+    },
+    "onSurfaceReady": {
+      "from": "src/bridge/provided.ts",
+      "is": "gate",
+      "why": "Hears a surface's readiness move, for the gate's hooks; the stop is the answer."
+    },
+    "routeWaitMs": {
+      "from": "src/bridge/provided.ts",
+      "is": "dial",
+      "why": "How long a first draw waits for a band beside its page. A number, held so a test and the e2e harness turn it down."
+    },
+    "afterTheMoveMs": {
+      "from": "src/bridge/hearing/after-the-move.ts",
+      "is": "dial",
+      "why": "How long a move's reads wait for its motion to end. A number, held so a test turns it down."
+    },
+    "refreshSurface": {
+      "from": "src/bridge/provided.ts",
+      "is": "tool",
+      "why": "A page's Retry: one surface read again through the runner, so its status, its cache and the pill agree. The runner's list of surfaces imports every page; a page cannot import it back."
+    },
+    "tip": {
+      "from": "src/bridge/provided.ts",
+      "is": "tool",
+      "why": "The one tooltip, shown at a control at once. The kit reads it, and the kit imports nothing of the frame."
+    },
+    "toast": {
+      "from": "src/surfaces/frame/flash.tsx",
+      "is": "tool",
+      "why": "The one toast every page raises. Read where a part draws it, so the kit and the pages do not import the frame."
+    },
+    "shell": {
+      "from": "src/bridge/shell.ts",
+      "is": "tool",
+      "why": "The shell's verbs over the window: moving between pages, the address, sign-out, the status line. The record kit and the pages reach them without importing the bridge's boot."
+    },
+    "chrome": {
+      "from": "src/bridge/shell.ts",
+      "is": "tool",
+      "why": "The chrome's own words and choices: the themes and looks the account menu offers, what the theme button says. Read by the frame, the toast and the record kit, which imports nothing of the bridge's boot."
+    },
+    "clock": {
+      "from": "src/bridge/zone.ts",
+      "is": "tool",
+      "why": "The business's clock: every page says a time by the workspace's zone from the first paint. One for the tab, and a test hands in its own."
+    },
+    "tz": {
+      "from": "src/bridge/identity.ts",
+      "is": "tool",
+      "why": "The zone's words and the list its picker offers, contracts' own functions, handed to Settings' Business pane beside the workspace's verbs. A candidate for a plain import."
+    },
+    "tabMemory": {
+      "from": "src/bridge/tab-memory.ts",
+      "is": "tool",
+      "why": "The tab's memory of a page's place and its half-done work, over the tab's storage and kept by workspace. Read by the record kit, which imports nothing of the bridge's boot."
+    },
+    "bell": {
+      "from": "src/bridge/notifications.ts",
+      "is": "tool",
+      "why": "The bell: its rows as this device sees them, its number, and who hears it. Each is worked out as it is asked from the notices the bridge holds (held-reads.ts); the part holds no rows."
+    },
+    "roles": {
+      "from": "src/bridge/identity.ts",
+      "is": "tool",
+      "why": "Who is acting and what they may do: every gate asks it from the first draw. It reads who is looking (who.ts) as it is asked and holds no list of its own; a test hands in a role."
+    },
+    "workspace": {
+      "from": "src/bridge/identity.ts",
+      "is": "tool",
+      "why": "The active workspace's own change, owner-only: its zone and what it calls a booking. Settings' Business pane reaches it; it reads who is looking (who.ts) as it is asked and holds nothing."
+    },
+    "policy": {
+      "from": "src/bridge/policy-store.ts",
+      "is": "tool",
+      "why": "The autonomy modes as a chip asks for one. It reads the settings surface as it is asked and holds no rows; every page reaches it through the frame's verbs, and a test hands in a charter."
+    },
+    "phoneDoor": {
+      "from": "src/bridge/app-bridge.ts",
+      "is": "tool",
+      "why": "The phone app's door at sign-out (forget this phone). Installed only inside the app, so the shell asks for it by name."
+    },
+    "href": {
+      "from": "src/bridge/inbox-verbs.ts",
+      "is": "courier",
+      "why": "A link the browser follows instead of a request it makes (a download, a photo), to one of the app's own routes with the workspace named as the client names it. Reached through the frame's verbs."
+    },
+    "setPolicy": {
+      "from": "src/bridge/inbox-verbs.ts",
+      "is": "courier",
+      "why": "A mode set from a chip: the policy store calls the save by this name, so a test stands one in for it."
+    },
+    "saveSettings": {
+      "from": "src/bridge/inbox-verbs.ts",
+      "is": "courier",
+      "why": "The settings save as the Business pane sends it; reached by name so the pane does not carry the bridge's save, and a test stands one in."
+    },
+    "replies": {
+      "from": "src/bridge/reach-out/replies.ts",
+      "is": "courier",
+      "why": "The verbs over a lead's replies, reached from a thread's strip. The replies themselves are a read the bridge holds (held-reads.ts), not this part."
+    },
+    "warmPerson": {
+      "from": "src/bridge/provided.ts",
+      "is": "courier",
+      "why": "Read someone before their row is pressed, and their page's code with them. People's code stays out of the pages that only reach a person."
+    },
+    "personNotes": {
+      "from": "src/surfaces/people/people-detail.ts",
+      "is": "courier",
+      "why": "A person's notes, from a thread or Today's row that names them: the sheet's rules stay in People's chunk (the loadability review, 19 Oct 2026)."
+    },
+    "deal": {
+      "from": "src/surfaces/people/people-detail.ts",
+      "is": "courier",
+      "why": "The deal menu's verbs, from a thread that draws a deal: its rules stay in People's chunk."
+    },
+    "sheets": {
+      "from": "src/surfaces/people/sheets/frame-parts.ts",
+      "is": "courier",
+      "why": "People's sheets and the asks that open them, which the frame draws and other pages ask for; handed over so the frame does not lean on People."
+    },
+    "peopleScopes": {
+      "from": "src/surfaces/people/sheets/frame-parts.ts",
+      "is": "courier",
+      "why": "People's scopes and their routes, the strip's order, for the frame's strip; handed over so the frame does not lean on People."
+    },
+    "refreshPlaybooks": {
+      "from": "src/bridge/provided.ts",
+      "is": "courier",
+      "why": "The playbooks read again after a run's verb on another page; Campaigns' read stays in Campaigns' chunk."
+    },
+    "broadcasts": {
+      "from": "src/surfaces/campaigns/broadcasts/verbs.ts",
+      "is": "courier",
+      "why": "Sent's verbs, reached from a run's acts on another page without carrying Campaigns' code."
+    },
+    "calendar": {
+      "from": "src/surfaces/calendar/verbs.ts",
+      "is": "courier",
+      "why": "The Calendar's verbs, reached from Settings' Business pane without carrying the Calendar's code."
+    },
+    "billing": {
+      "from": "src/surfaces/settings/billing/surface.ts",
+      "is": "courier",
+      "why": "Billing's verbs (its view model, the way to checkout), reached from the shell's band without carrying Settings' billing code."
+    }
+  }
+}

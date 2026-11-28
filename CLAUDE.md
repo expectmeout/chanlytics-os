@@ -107,6 +107,14 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   page's own read, and a surface read only where it is drawn is read as its page is reached for. `tests/shell/surfaces/route-prefetch.test.mjs` runs
   each page's surfaces against the list and fails a page with no entry. `docs/architecture.md`, "How a page opens",
   says the six things a new page takes.
+- **A store in the tab says whose it is.** A variable a module of the dashboard's browser code keeps at its top level and
+  can change has a row in `tests/shell/stores/tab-stores.json`: the tab's own, or one workspace's and how it is kept apart
+  (keyed by the workspace the address names, by its record, emptied by the switch, or right only because a switch loads
+  the page again). `tests/shell/stores/every-store-says-whose-it-is.test.mjs` finds them in the syntax tree and fails one
+  with no row, and `tests/shell/stores/a-switch-is-a-new-document.test.mjs` holds the reload the last kind leans on. What
+  the bridge installs by name (`apps/dashboard/src/bridge/provided.ts`) is a tool of the frame's, never a workspace's
+  records: each part has its row and its reason in `tests/shell/stores/bridge-parts.json`
+  (`tests/shell/stores/the-bridge-stays-narrow.test.mjs`).
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
 - **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
   declared once. The tests it names hold it, and it marks the ones still owed.

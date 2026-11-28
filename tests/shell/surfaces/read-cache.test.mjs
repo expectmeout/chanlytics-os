@@ -67,6 +67,30 @@ test("an answer read under one workspace is invisible under another", async () =
   assert.deepEqual(c.peek("first-page").rows, ["the salon's history"], "and each keeps its own");
 });
 
+test("a read asked in one workspace that lands once the address names another is the first one's alone", async () => {
+  // A switch of workspace loads the page today, so no read lands under another's address. Were one ever to keep the
+  // page, an answer named as it landed would be kept under the workspace arrived at (the review of 28 Nov 2026, R3.12).
+  const c = readCache("rows");
+  let land = () => {};
+  const asked = c.through("first-page", () => new Promise((answer) => (land = answer)));
+  asWorkspace("harbor-moving");
+  land({ ok: true, rows: ["the salon's history"] });
+  await asked;
+  assert.equal(c.peek("first-page"), null, "REGRESSION: the salon's answer kept as harbor's, and painted there");
+  asWorkspace("salon");
+  assert.deepEqual(c.peek("first-page").rows, ["the salon's history"], "kept for the workspace it was asked in");
+
+  // A read ahead is the same read: named as it is asked.
+  let warm = () => {};
+  const ahead = c.warm("second-page", () => new Promise((answer) => (warm = answer)));
+  asWorkspace("harbor-moving");
+  warm({ ok: true, rows: ["the salon's second page"] });
+  await ahead;
+  assert.equal(c.peek("second-page"), null, "REGRESSION: a read ahead of the salon's kept as harbor's");
+  asWorkspace("salon");
+  assert.deepEqual(c.peek("second-page").rows, ["the salon's second page"]);
+});
+
 test("warming reads once, and not at all for something already held", async () => {
   const c = readCache("rows");
   let reads = 0;

@@ -1,7 +1,7 @@
 /**
  * What the dashboard's browser code keeps outside a component, found in the syntax tree: a module's own variables that
- * can change (`storesIn`), and the places that write the browser's storage (`storageWritersIn`). The rule that reads
- * them is every-store-says-whose-it-is.test.mjs, with the list each must be in (tab-stores.json, browser-storage.json).
+ * can change (`storesIn`). The rule that reads them is every-store-says-whose-it-is.test.mjs, with the list each must be
+ * in (tab-stores.json).
  *
  * A store is, at a module's top level:
  *   - any `let`;
@@ -152,26 +152,3 @@ export function browserStores() {
   }
   return found;
 }
-
-/** Whether a module writes the browser's storage: a call of `setItem`, whatever it is called on. */
-export function writesStorage(sf) {
-  let writes = false;
-  const visit = (node) => {
-    if (writes) return;
-    if (
-      ts.isCallExpression(node) &&
-      (ts.isPropertyAccessExpression(node.expression) || ts.isPropertyAccessChain(node.expression)) &&
-      node.expression.name.text === "setItem"
-    )
-      writes = true;
-    else ts.forEachChild(node, visit);
-  };
-  visit(sf);
-  return writes;
-}
-
-/** The modules of the browser's code that write its storage, said from the dashboard's own tree. */
-export const storageWriters = () =>
-  browserFiles()
-    .filter((file) => writesStorage(parse(file)))
-    .map((file) => file.slice(DASHBOARD.length));

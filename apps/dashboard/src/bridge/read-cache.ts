@@ -215,11 +215,13 @@ export function readCache<T>(
     },
     async through(key, fresh) {
       const asked = generation;
+      // Named as it is asked: an answer that lands once the address names another workspace is the first one's still,
+      // and is never kept under the one arrived at (a switch loads the page today; this holds if one ever does not).
+      const at = scoped(key);
       const value = await fresh();
       if (asked !== generation) return value;
       load();
       if (isWorthKeeping(value)) {
-        const at = scoped(key);
         // An answer the same as the one held changes nothing in the tab: a person's page is read again on every
         // message the workspace receives, and each read wrote every held person back.
         const said = opts.tab ? JSON.stringify(value) : "";
