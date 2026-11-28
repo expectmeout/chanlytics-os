@@ -271,6 +271,7 @@ tests/
   styles/
   table/
   templates/
+  time/
   today/
   types/
   voice/
