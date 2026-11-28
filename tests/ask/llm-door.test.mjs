@@ -39,6 +39,7 @@ import {
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
+import { until } from "../shared/_until.mjs";
 
 // Each test file is its own process: this is the whole environment. No
 // Supabase credentials, so `setPg(null)` really is no database.
@@ -652,9 +653,7 @@ test("whoever asked has gone before the model's first word: the call to the mode
       signal: gone.signal,
     }),
   );
-  const until = Date.now() + 5_000;
-  while (asked.length === 0 && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 5));
-  assert.equal(asked.length, 1, "the model was asked");
+  await until(() => asked.length === 1, "the model was asked");
   assert.equal(asked[0].signal?.aborted, false, "and is left to answer while the dashboard waits");
   const t0 = Date.now();
   gone.abort();
