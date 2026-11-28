@@ -18,6 +18,7 @@ import { Segmented } from "../../../kit/segmented/segmented";
 import { MetaFrame } from "./meta-frame";
 import { useMetaPreview, type MetaPreviewHere } from "./meta-preview";
 import type { NewAdVM } from "./model";
+import { pictureCopyLine, usePictureCopy, type CopyAsked } from "./picture-copy";
 import { NEW } from "./words";
 
 type Face = AdPreviewPlace;
@@ -96,6 +97,8 @@ interface ShownProps {
   onNext: () => void;
   /** Meta's own preview of a version, where New ad's source can ask for one. */
   preview?: ((version: number) => Promise<AdPreviewAnswer | null>) | undefined;
+  /** Where the draft's video's copy stands now, where the source can ask after it while it comes back. */
+  copy?: ((fileId: string) => Promise<CopyAsked>) | undefined;
 }
 
 /** The version on show, as Meta's preview of it is asked for; null while there are no words. */
@@ -142,8 +145,10 @@ function useFramesBegun(
   return onShow === null || begun.includes(onShow) ? begun : [...begun, onShow];
 }
 
-export function AdShown({ shown, onNext, preview }: ShownProps) {
+export function AdShown({ shown, onNext, preview, copy }: ShownProps) {
   const [face, setFace] = useState<Face>("feed");
+  // A video whose copy stepped aside: said in one line while it comes back, which goes by itself once it is here.
+  const copyLine = pictureCopyLine(usePictureCopy(shown.picture.copy, copy));
   const meta = useMetaPreview(versionAsked(shown), shown.picture.video, preview);
   const heard = useFramesHeard();
   const frames = meta.at === "answered" ? meta.frames : {};
@@ -208,6 +213,11 @@ export function AdShown({ shown, onNext, preview }: ShownProps) {
       <p className="ads-drawn" role="status" data-testid="ads-new-shown-line">
         {shownLine(meta, frame ? { loaded, late } : null)}
       </p>
+      {copyLine ? (
+        <p className="ads-drawn" role="status" data-testid="ads-new-copy">
+          {copyLine}
+        </p>
+      ) : null}
     </section>
   );
 }

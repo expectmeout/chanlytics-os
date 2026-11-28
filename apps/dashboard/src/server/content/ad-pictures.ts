@@ -41,7 +41,7 @@ import type { ReaderContext } from "../shared/reader";
 
 /**
  * How many a draft looks through of each shelf and kind, newest first, of what Files knows may be offered (looked at, a
- * video ready here): what AI made, then what the business keeps, photos and videos apart. Never the newest of a whole
+ * video made ready): what AI made, then what the business keeps, photos and videos apart. Never the newest of a whole
  * shelf: on 20 November 2026 a Drive folder's 29 new clips, none looked at yet, pushed the one photo fine in ads out of
  * the 24 read, and every draft said a picture was missing.
  */
@@ -75,9 +75,13 @@ function adPictureOfFile(file: FileDto, music: boolean | null): AdPicture {
   };
 }
 
-/** Whether a file can be shown at all: a video the video platform holds ready, with its copy still here. */
+/**
+ * Whether a file can be shown at all: a video the video platform made ready, whose copy is here or can come back. One
+ * whose copy stepped aside is offered as any other, and asked back at the pick (server/ads/draft.ts); only one whose
+ * copy is lost is not, since nothing can bring it back.
+ */
 const playable = (file: FileDto): boolean =>
-  file.kind !== "video" || (file.media_status === "ready" && file.copy === "here");
+  file.kind !== "video" || (file.media_status === "ready" && file.copy !== "lost");
 
 /** What a draft picks its picture from: each as the rule reads it, and the file itself for what a page draws. */
 export interface AdPictures {

@@ -23,6 +23,8 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     place: z
       .object({ kind: z.enum(["city", "region", "country"]), query: z.string().trim().min(1).max(120) })
       .optional(),
+    /** `copy`: the video a draft came to show, whose copy at the video platform is asked back. */
+    file_id: DOOR_ID.optional(),
   }),
   answerFields({
     ready: z.boolean(),
@@ -34,6 +36,9 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     writes: z.string(),
     /** `disconnect`: the ads left running, or the ones a pause could not be confirmed for (`not_paused`). */
     names: z.array(z.string()),
+    /** `copy`: where the video's copy stands once asked for (contracts files/copy.ts), and why where it can't come back. */
+    copy: z.string(),
+    why: z.string().nullable(),
     /** `place`: Meta's places by that name, best first, each with its key and where it is. */
     places: z.array(
       z.object({

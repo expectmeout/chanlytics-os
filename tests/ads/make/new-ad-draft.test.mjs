@@ -7,7 +7,9 @@
  * What must hold. A draft's parts are picked by rules in code, and the sentence needs no model. Where a draft cannot
  * be written, the one thing missing is said. Only a picture that shows nobody and has no music is ever offered. The
  * ad writer is asked under its own purpose, its words are held to the checks before they are shown, and where it has
- * none the draft stands as it was. "Tell AI what to change" makes one change from the closed list, or none.
+ * none the draft stands as it was. "Tell AI what to change" makes one change from the closed list, or none. A video
+ * whose copy stepped aside is offered as any other, asked back once as a draft comes to show it, and never one whose
+ * copy is lost (the archive review of 28 Nov 2026, R1.6).
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
@@ -1356,9 +1358,15 @@ test("a made piece says as it opens whether it may run as an ad: Content's one r
   assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR }), { tables: { ad_accounts: [] } }), {
     is: "no_account",
   });
-  // Nothing said: a photo of the Library, a video not ready to play, and Ads not on in this workspace here.
+  // A video whose copy stepped aside may run as any other: Run as an ad is offered, and the pick asks for its copy.
+  for (const copy_state of ["away", "returning", "going"])
+    assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(false), width: 1080, height: 1080, copy_state })), {
+      is: "may",
+    });
+  // Nothing said: a photo of the Library, a video not ready to play, one whose copy is lost, and Ads not on here.
   assert.equal(await standsOf(file(1)), null);
   assert.equal(await standsOf(pieceVideo({ media_status: "processing" })), null);
+  assert.equal(await standsOf(pieceVideo({ sound: HEARD(false), copy_state: "lost", copy_why: "not_found" })), null);
   offered = false;
   assert.equal(await standsOf(piece(7)), null);
 });
@@ -1453,4 +1461,99 @@ test("AI's card for a piece already up: the model is told what its posts did, in
   // A piece not up anywhere yet: nothing is said of results.
   const before = await pieceToolOf([piece(7)]).tool({});
   assert.equal(before.noted, undefined);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// A video whose copy stepped aside (the archive review of 28 Nov 2026, R1.6)
+
+/** A quiet square video the business keeps, ready at the video platform: fine in ads wherever its copy stands. */
+const clip = (n, over = {}) =>
+  file(n, {
+    kind: "video",
+    mime: "video/mp4",
+    width: 1080,
+    height: 1080,
+    seconds: 20,
+    media_status: "ready",
+    sound: HEARD(false),
+    ...over,
+  });
+
+/** The edge: whether Ads is on, and, asked for a video's copy, where it stands (or no answer). Every ask is kept. */
+function edgeAnswersCopy(copy = { copy: "returning", why: null }) {
+  const asked = [];
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).endsWith("/api/admin/ads/account")) throw new Error(`nothing else is reachable: ${url}`);
+    const body = JSON.parse(String(init?.body ?? "{}"));
+    if (body.op === "copy") asked.push(body.file_id);
+    const status = {
+      ready: true,
+      on: true,
+      writes: "sandbox",
+      app: { client_id: "1", config_id: "2", redirect_uri: "x" },
+    };
+    const answer = body.op !== "copy" ? { ok: true, ...status } : copy ? { ok: true, ...copy } : { ok: false };
+    return new Response(JSON.stringify(answer), {
+      status: body.op === "copy" && !copy ? 502 : 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  return asked;
+}
+
+test("New ad offers a video whose copy stepped aside as any other, and never one whose copy is lost", async () => {
+  edgeAnswersCopy();
+  const offeredOf = async (files) => {
+    const { answer } = await fresh(world({ tables: { files } }));
+    return answer.can ? answer.draft.picture.id : answer.missing;
+  };
+  for (const copy_state of ["here", "away", "returning", "going"])
+    assert.equal(await offeredOf([clip(2, { copy_state })]), FILE(2), copy_state);
+  // Lost: nothing can bring it back, so it is never offered. Alone, there is no picture; beside a photo, the photo.
+  const lost = clip(2, { copy_state: "lost", copy_why: "not_found" });
+  assert.equal(await offeredOf([lost]), "picture_none");
+  assert.equal(await offeredOf([file(1), lost]), FILE(1));
+});
+
+test("the pick asks for the video's copy once, through the edge, and the draft says it is on its way back", async () => {
+  const asked = edgeAnswersCopy();
+  const who = seated(world({ tables: { files: [file(1), clip(2, { copy_state: "away" })] } }));
+  // A fresh draft comes to show the video, the newest that is fine in ads: that is a pick.
+  const first = await draftAd(who.rc, {});
+  assert.deepEqual(
+    [first.draft.picture.id, first.draft.picture.copy],
+    [FILE(2), { state: "returning", why: null, uploaded: false }],
+  );
+  assert.deepEqual(asked, [FILE(2)]);
+  // Judged again as its owner changes the amount: the same picture, so nothing is asked.
+  await draftAd(who.rc, { draft: { ...sent(first), total_minor: 9000 } });
+  assert.deepEqual(asked, [FILE(2)], "judging a draft again never asks for a copy");
+  // The next picture is the photo, which has no copy to wait for; the next after it is the video again, picked again.
+  const photo = await draftAd(who.rc, { draft: sent(first), act: "next_picture" });
+  assert.deepEqual([photo.draft.picture.id, photo.draft.picture.copy], [FILE(1), undefined]);
+  const back = await draftAd(who.rc, { draft: sent(photo), act: "next_picture" });
+  assert.deepEqual([back.draft.picture.id, asked], [FILE(2), [FILE(2), FILE(2)]]);
+});
+
+test("a video on its way back is only waited for; one that is here says nothing; what the door says is what the draft says", async () => {
+  const video = (over) => world({ tables: { files: [clip(2, over)] } });
+  // Asked for already: nothing more is asked, and the draft says it is coming back.
+  const none = edgeAnswersCopy();
+  const coming = await fresh(video({ copy_state: "returning" }));
+  assert.deepEqual([coming.answer.draft.picture.copy, none], [{ state: "returning", why: null, uploaded: false }, []]);
+  // Back by the time it is asked for: nothing is said of it.
+  const once = edgeAnswersCopy({ copy: "here", why: null });
+  const came = await fresh(video({ copy_state: "away" }));
+  assert.deepEqual([came.answer.draft.picture.copy, once.length], [undefined, 1]);
+  // It can't come back today: the draft says why, as the door said it, and whose video it is.
+  edgeAnswersCopy({ copy: "away", why: "budget" });
+  const tomorrow = await fresh(video({ copy_state: "away", owner_uploaded: true }));
+  assert.deepEqual(tomorrow.answer.draft.picture.copy, { state: "away", why: "budget", uploaded: true });
+  // The edge gives no answer: the draft is drawn all the same, with the row's own word.
+  edgeAnswersCopy(null);
+  const unasked = await fresh(video({ copy_state: "away" }));
+  assert.deepEqual(
+    [unasked.answer.can, unasked.answer.draft.picture.copy],
+    [true, { state: "away", why: null, uploaded: false }],
+  );
 });
