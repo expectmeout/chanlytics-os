@@ -99,6 +99,8 @@ const READERS = {
   "apps/edge/lib/files/look.ts": "a look again, and its poster",
   "apps/edge/lib/files/upkeep.ts": "the sweep's ask after an upload, and a purge",
   "apps/edge/lib/files/copy/sweep.ts": "the sweep's ask after a copy on its way",
+  "apps/edge/lib/ads/account-ops.ts":
+    "New ad's pick: the video a draft comes to show, asked back while its owner looks",
 };
 
 /** Whether a module imports the copy's door. */
@@ -114,9 +116,11 @@ test("each reader of a video's copy imports the door", () => {
  * a clip a piece being made names is held back. A post waiting to go is sent from the made video's own kept file
  * (apps/edge/lib/instagram/post-ready.ts, apps/dashboard/src/server/posts/approve.ts) and an ad sends no video at
  * all yet (apps/edge/lib/ads/launch.ts), so neither needs the copy at the video platform, and a copy that stepped
- * aside holds neither back. A module that starts asking the door changes that: add it above, and where it asks at a
- * time set in advance, protect its video in the let-go by the relation that names it (`posts.file_id`, an ad's
- * picture), never by searching text.
+ * aside holds neither back. New ad asks for a video's copy at the pick (apps/edge/lib/ads/account-ops.ts, the op
+ * `copy`), while its owner is looking at the draft and never at a time set in advance: it is asked back then, so the
+ * let-go has nothing of it to protect. A module that starts asking the door changes that: add it above, and where
+ * it asks at a time set in advance, protect its video in the let-go by the relation that names it
+ * (`posts.file_id`, an ad's picture), never by searching text.
  */
 test("nothing else reads a video's copy: a post and an ad send nothing from it", () => {
   const askers = repoFiles(TREES)
