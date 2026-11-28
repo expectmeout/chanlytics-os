@@ -31,6 +31,7 @@ const forms = await import(at("apps/dashboard/app/api/v1/forms/route.ts"));
 const sheet = await import(at("apps/dashboard/app/api/v1/forms/sheet/route.ts"));
 const links = await import(at("apps/dashboard/app/api/v1/forms/links/route.ts"));
 const requests = await import(at("apps/dashboard/app/api/v1/forms/requests/route.ts"));
+const requestsMore = await import(at("apps/dashboard/app/api/v1/forms/requests/more/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/shared/model-json.ts"));
@@ -133,6 +134,11 @@ function world({ role = "owner", ...options } = {}) {
     list: () => forms.GET.run(new Request(address("forms")), ctx),
     sheetOf: (id) => sheet.GET.run(new Request(address("forms/sheet", `&form=${id}`)), ctx),
     requestOf: (id) => requests.GET.run(new Request(address("forms/requests", `&id=${id}`)), ctx),
+    /** Needs you's own list, as Today's read carries it: the requests, and the one count. */
+    needsYou: async () => (await load(readerContext(ctx, { tenantId: A, role }), formRequestsOpen, undefined)).data,
+    /** The requests past a list's end (GET forms/requests/more): read on from the request it ended on. */
+    moreAfter: (id) => requestsMore.GET.run(new Request(address("forms/requests/more", `&after=${id}`)), ctx),
+    open: () => made.db.rpc("form_requests_open", { p_tenant_id: A }).then((r) => r.data),
   };
 }
 
@@ -414,10 +420,26 @@ test("a reply answers the request it was sent from, and one taken back or failed
     created_by: U,
     created_at: new Date().toISOString(),
   });
+  // Still waiting to go, for the seconds it can be taken back: sending, never answered yet (00726).
+  const going = await w.requestOf(first.entry_id);
+  assert.deepEqual(
+    [going.standing, going.answered],
+    ["sending", null],
+    "REGRESSION: a reply that had not left yet read as answered",
+  );
+  assert.equal((await w.sheetOf(FORM)).entries.find((e) => e.id === first.entry_id).standing, "sending");
+  assert.equal(
+    (await w.open()).some((line) => line.id === first.entry_id),
+    false,
+    "and it waits in Needs you no more while it goes",
+  );
+  assert.equal((await w.requestOf(second.entry_id)).standing, "open", "a reply never closes another request");
+  // It left: answered, and by what.
+  message.status = "sent";
   const answered = await w.requestOf(first.entry_id);
   assert.equal(answered.standing, "answered");
   assert.equal(answered.answered.how, "reply");
-  assert.equal((await w.requestOf(second.entry_id)).standing, "open", "a reply never closes another request");
+  assert.equal((await w.sheetOf(FORM)).entries.find((e) => e.id === first.entry_id).standing, "answered");
   // Undo, inside its seconds: the message is canceled, and the request is open again with no write of its own.
   message.status = "canceled";
   assert.equal((await w.requestOf(first.entry_id)).standing, "open");
@@ -425,6 +447,34 @@ test("a reply answers the request it was sent from, and one taken back or failed
   message.status = "failed";
   const bounced = await w.requestOf(first.entry_id);
   assert.deepEqual([bounced.standing, bounced.unreached], ["open", true]);
+  assert.equal((await w.open()).find((line) => line.id === first.entry_id)?.unreached, true, "back in Needs you");
+});
+
+test("a request nobody answered in sixty days is never called answered, on its page or in its form's list", async () => {
+  const w = world();
+  const old = await w.arrives(ANA);
+  const fresh = await w.arrives(ANA);
+  // Sixty-one days on: it has left Needs you, on purpose (form_requests_open's sixty days).
+  w.tables.form_entries.find((e) => e.id === old.entry_id).created_at = new Date(
+    Date.now() - 61 * 86_400_000,
+  ).toISOString();
+  assert.deepEqual(
+    (await w.open()).map((line) => line.id),
+    [fresh.entry_id],
+    "Needs you holds the one inside its sixty days",
+  );
+  const listed = (await w.sheetOf(FORM)).entries;
+  assert.equal(
+    listed.find((e) => e.id === old.entry_id).standing,
+    "aged",
+    "REGRESSION: the form's own list called it answered, since it was not in the open list",
+  );
+  assert.equal(listed.find((e) => e.id === fresh.entry_id).standing, "open");
+  const page = await w.requestOf(old.entry_id);
+  assert.deepEqual([page.standing, page.answered], ["aged", null], "and its own page said answered, by nothing");
+  // Answered late, it is answered: a member's word counts whatever its age.
+  await w.pressRequest({ act: "mark", entry_id: old.entry_id });
+  assert.equal((await w.requestOf(old.entry_id)).standing, "answered");
 });
 
 test("one that is not a real request is held and counted nowhere, and let through it is a request again", async () => {
@@ -597,4 +647,93 @@ test("a viewer reads a business's forms and presses nothing", async () => {
   ])
     await refused(pressed, "forbidden", 403);
   assert.equal(JSON.stringify(w.tables), before, "nothing moved");
+});
+
+test("Needs you reads on past the 200 it lists: every request the count counts can be reached", async () => {
+  const w = world();
+  const sent = [];
+  // 207 requests nobody has answered, a minute apart, the oldest first.
+  for (let n = 0; n < 207; n += 1) {
+    const taken = await w.arrives({ name: `Visitor ${n}`, email: `visitor${n}@example.com` });
+    w.tables.form_entries.find((e) => e.id === taken.entry_id).created_at = new Date(
+      Date.now() - (207 - n) * 60_000,
+    ).toISOString();
+    sent.push(taken.entry_id);
+  }
+  const listed = await w.needsYou();
+  assert.deepEqual([listed.requests.length, listed.count], [200, 207], "the list holds 200, the count every one");
+  const seen = new Set(listed.requests.map((request) => request.id));
+  const more = await w.moreAfter(listed.requests.at(-1).id);
+  assert.equal(more.requests.length, 7, "REGRESSION: the seven past the list were counted and could not be reached");
+  assert.equal(
+    more.requests.some((request) => seen.has(request.id)),
+    false,
+    "none of them one the list already holds",
+  );
+  assert.deepEqual(
+    more.requests.map((request) => request.id),
+    sent.slice(0, 7).reverse(),
+    "the next ones in the list's own order: the newest of the rest first",
+  );
+  assert.deepEqual(
+    Object.keys(more.requests[0]).sort(),
+    Object.keys(listed.requests[0]).sort(),
+    "each read as Needs you reads a request: who asked, in their words, through which form",
+  );
+  assert.deepEqual((await w.moreAfter(more.requests.at(-1).id)).requests, [], "read on to the end: none is left");
+  assert.deepEqual(
+    (await w.moreAfter("99999999-9999-4999-8999-999999999999")).requests,
+    [],
+    "a request that is not this workspace's reads nothing on",
+  );
+});
+
+test("the reply's pick puts the request's address on their page: the line names both, and a yes to offers by email ends", async () => {
+  const w = world();
+  const ANA_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  w.tables.contacts.push({
+    id: ANA_ID,
+    tenant_id: A,
+    phone_e164: "+13055550142",
+    email: "ana.old@example.com",
+    display_name: "Ana Ruiz",
+    consent: "unknown",
+    dnc: false,
+    // She confirmed a sign-up from the address on her page: a yes that address gave.
+    email_marketing: "opted_in",
+    email_marketing_source: "confirmed_signup",
+    created_at: "2026-01-01T00:00:00Z",
+  });
+  const taken = await w.arrives({ name: "Ana Ruiz", email: "ana.new@example.com", phone: "+13055550142" });
+  const before = await w.requestOf(taken.entry_id);
+  assert.deepEqual(
+    [before.other_email, before.person.email, before.person.offers],
+    ["ana.new@example.com", "ana.old@example.com", true],
+    "the page says both addresses, and that the old one said yes to offers, before the pick",
+  );
+  // The member picks the request's own. Whatever becomes of the send, the pick is the page's from then on.
+  await w
+    .pressRequest({
+      act: "reply",
+      entry_id: taken.entry_id,
+      wire: "email",
+      text: "Hello Ana",
+      email_to: "ana.new@example.com",
+    })
+    .catch(() => undefined);
+  const ana = w.tables.contacts.find((c) => c.id === ANA_ID);
+  assert.equal(ana.email, "ana.new@example.com", "her page takes it");
+  const line = w.tables.events.filter((e) => e.kind === "contact.email_set").at(-1);
+  assert.deepEqual(
+    [line.data.was, line.data.now],
+    ["ana.old@example.com", "ana.new@example.com"],
+    "REGRESSION: the change left a line that named neither address, so the old one was lost",
+  );
+  assert.deepEqual(
+    [ana.email_marketing, ana.email_marketing_source],
+    ["unknown", "address_changed"],
+    "REGRESSION: a yes the old address gave was carried to one that never gave it",
+  );
+  assert.equal((await w.requestOf(taken.entry_id)).person.offers, false);
+  assert.equal((await w.requestOf(taken.entry_id)).other_email, null, "and the request and her page agree now");
 });

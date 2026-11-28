@@ -17,6 +17,10 @@
  * A test (`test`, the lines a developer pastes send one): kept as a test, it tells nobody, keeps no person, counts nowhere
  * and goes in 7 days; its site stands at "test received" until its first real entry.
  *
+ * Past the door's limit (form-limit.ts, 00726: a key's entries in a minute, a site's in an hour) an entry is kept HELD
+ * for a look: answered ok like any other, with no person, no event and nothing owed started, until a member lets it
+ * through from its form's held pile. Nothing is dropped and no visitor is refused.
+ *
  * Everything an entry owes happens after, each by its own step with its own outcome (form-effects.ts, from the event):
  * what they asked as a note on their page waiting for a member's Keep (0007), the owner's notice, and a sign-up's ask to
  * confirm (signup-confirm.ts, 00489). The answer says `confirm: "sent"` when the entry owes that ask and it would go,
@@ -37,6 +41,7 @@ import { errField, logger, type Logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { entryAnswersOf, entryOwes, entrySourceOf, entryWords } from "./form-entry.js";
 import { checkWebsiteFormKey } from "./form-key.js";
+import { websiteFormHeldWhy } from "./form-limit.js";
 import { checkSignupWouldAsk } from "./signup-confirm.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
@@ -110,6 +115,8 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
 
   const owed = entryOwes(data, nowMs);
   const test = data.test === true;
+  // A test spends none of the limit; a real entry past it is held for a look, never refused.
+  const heldWhy = test ? null : await websiteFormHeldWhy(db, log, { tenantId, keyId: key.keyId, siteId: key.siteId });
   let taken: FormEntryTaken;
   try {
     taken = await takeFormEntry(db, {
@@ -136,6 +143,7 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
       // Where they came from (T4), kept in the same write as the entry.
       source: entrySourceOf(data),
       test,
+      heldWhy,
     });
   } catch (e) {
     // Nothing was kept, so the site is not told it was: it sends the form again.
@@ -152,6 +160,8 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
   if (taken.clash) log.warn("form_entry_ref_clashed", { tenant_id: tenantId, entry_id: taken.entryId });
   if (taken.outcome === "forgotten") return json(200, { ok: true, kept: false });
   if (taken.outcome === "test") return json(200, { ok: true, kept: true, test: true });
+  // Held for a look: kept, and its site told so as for any entry. Nothing it owes has started, so nothing is promised.
+  if (taken.outcome === "held") return json(200, { ok: true, kept: true });
   const owesAsk = owed.includes("confirm");
   const confirm = await confirmWillGo(db, log, { taken, owesAsk, data, email: person.email, nowMs });
   return json(200, { ok: true, kept: true, ...(confirm ? { confirm: "sent" } : {}) });

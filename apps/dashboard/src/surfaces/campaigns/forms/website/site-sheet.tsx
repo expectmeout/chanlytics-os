@@ -26,7 +26,7 @@ import { navigate, type FrameFlash } from "../../../frame-verbs";
 import { gate } from "../../../shell-doors";
 import { CmPane } from "../../parts/split";
 import { NextLine } from "../next-part";
-import { doFormPress, useSiteFormSheet } from "../use-forms";
+import { doFormEntryPress, doFormPress, useSiteFormSheet } from "../use-forms";
 import { FORMS_WORDS } from "../words";
 import { SITE_FORM_WORDS as W } from "./words";
 
@@ -163,8 +163,39 @@ function SiteNextPart({ sheet }: { sheet: OutsideFormSheetDto }) {
   );
 }
 
-/** Site: where it comes from, what it brought, its newest entries, and the way to the website connection. */
-function SitePart({ sheet, now, go }: { sheet: OutsideFormSheetDto; now: number; go: Go }) {
+/** One entry held for a look: who, when and why, let through by a press, opened where a request is answered. */
+function HeldEntry({ entry, now, io }: { entry: OutsideFormSheetDto["held"][number]; now: number; io: SiteIo }) {
+  const letThrough = async () => {
+    const pressed = await doFormEntryPress({ act: "let_through", entry_id: entry.id });
+    if (!pressed.ok) io.flash?.({ tone: "danger", msg: pressed.message });
+    await io.again();
+  };
+  return (
+    <div className="fmv-ent" data-testid="forms-entry" data-standing="held">
+      <strong>{entry.name ?? FORMS_WORDS.share.noName}</strong>
+      <time>{agoWords(Date.parse(entry.created_at), now)}</time>
+      <span>{entry.held_why ? W.held.why[entry.held_why] : ""}</span>
+      <div className="fmv-acts">
+        <Button
+          size="sm"
+          onClick={() => void letThrough()}
+          data-testid="forms-entry-through"
+          {...gate("approve", "let a request through")}
+        >
+          {W.held.letThrough}
+        </Button>
+        <Button size="sm" variant="quiet" onClick={() => navigate(requestAddress(entry.id))}>
+          Open
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Site: where it comes from, what it brought, its newest entries, its held pile, and the way to the website connection.
+ */
+function SitePart({ sheet, now, go, io }: { sheet: OutsideFormSheetDto; now: number; go: Go; io: SiteIo }) {
   const brought = sheet.results;
   return (
     <div className="fmv-share" data-testid="forms-site-site">
@@ -192,6 +223,15 @@ function SitePart({ sheet, now, go }: { sheet: OutsideFormSheetDto; now: number;
           ) : null}
         </div>
       ))}
+      {sheet.held.length > 0 ? (
+        <>
+          <h4 data-testid="forms-site-held">{W.held.title(sheet.held.length)}</h4>
+          {sheet.held.map((entry) => (
+            <HeldEntry key={entry.id} entry={entry} now={now} io={io} />
+          ))}
+          <p className="fmv-note">{W.held.left}</p>
+        </>
+      ) : null}
       <LinkButton onClick={() => go({ form: null, website: true })} data-testid="forms-site-connection">
         {W.site.open}
       </LinkButton>
@@ -227,7 +267,7 @@ function SiteSheetRead(props: { sheet: OutsideFormSheetDto; part: FormPart; io: 
       {part === "next" ? (
         <SiteNextPart sheet={sheet} />
       ) : part === "site" ? (
-        <SitePart sheet={sheet} now={now} go={go} />
+        <SitePart sheet={sheet} now={now} go={go} io={io} />
       ) : (
         <ReceivesPart />
       )}

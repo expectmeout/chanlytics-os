@@ -160,7 +160,7 @@ function PrintedRow({ link, io }: { link: FormLinkDto; io: ShareIo }) {
   );
 }
 
-/** One entry of the sheet: who, when, and where it stands; an open or answered one opens where it is answered. */
+/** One entry of the sheet: who, when, and where it stands; all but a test open where a request is answered. */
 function EntryRow({ entry, now, io }: { entry: FormEntryRowDto; now: number; io: ShareIo }) {
   const lineWords = entryWords(entry);
   const held = entry.standing === "held";
@@ -169,7 +169,7 @@ function EntryRow({ entry, now, io }: { entry: FormEntryRowDto; now: number; io:
     if (!pressed.ok) io.fail(pressed.message);
     await io.again();
   };
-  const opens = entry.standing === "open" || entry.standing === "answered" || held;
+  const opens = entry.standing !== "test";
   return (
     <div className="fmv-ent" data-testid="forms-entry" data-standing={entry.standing}>
       <strong>{entry.name ?? SHARE_WORDS.noName}</strong>

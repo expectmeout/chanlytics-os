@@ -28,7 +28,7 @@ function timeStatusOf(time: NonNullable<FormOpenRequestDto["time"]>): string {
   return time.status === "cancelled" ? form.timeCant : form.timeBooked;
 }
 
-function requestRow(request: FormOpenRequestDto, todayFacts: TodayFacts): TodayQueueRowVM {
+function requestRow(request: FormOpenRequestDto, todayFacts: Pick<TodayFacts, "now">): TodayQueueRowVM {
   const asker = request.name?.trim() || NEED_YOU_WORDS.form.someone;
   const waitedMs = Math.max(0, todayFacts.now.getTime() - Date.parse(request.created_at));
   const time = request.time ?? null;
@@ -87,11 +87,24 @@ function heldPileRow(held: FormHeldDto, todayFacts: TodayFacts): TodayQueueRowVM
     status: [NEED_YOU_WORDS.formHeld.status],
     tone: "warn",
     warn: false,
-    cta: { label: NEED_YOU_WORDS.formHeld.open, to: formsRouteOf({ form: held.form_id, part: "share" }) },
+    // A site's form keeps its held pile on its own sheet's Site part (00726); a form made here on Share.
+    cta: {
+      label: NEED_YOU_WORDS.formHeld.open,
+      to: formsRouteOf(
+        held.site ? { form: held.form_id, site: true, part: "site" } : { form: held.form_id, part: "share" },
+      ),
+    },
     also: null,
     waitedMs: Number.NEGATIVE_INFINITY,
   };
 }
+
+/**
+ * One request nobody has answered as its row, at `now`: what the Inbox draws for a request it read on to, past those
+ * Today's read lists (00726), in the words Needs you says every other one.
+ */
+export const formRequestRowOf = (request: FormOpenRequestDto, now: Date): TodayQueueRowVM =>
+  requestRow(request, { now });
 
 /** The forms' rows of a day: each request nobody has answered, then each held pile left three days. */
 export function formRowsOf(todayFacts: TodayFacts): TodayQueueRowVM[] {
