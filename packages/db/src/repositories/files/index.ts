@@ -169,10 +169,13 @@ export {
   beginShelfCopy,
   failShelfCopy,
   findShelfPart,
+  listShelfOwed,
   markShelfChecked,
+  markShelfUnkept,
   putShelfCopyBack,
   requeueShelfCopies,
 } from "./shelf";
+export type { ShelfOwed } from "./shelf";
 export {
   askForListedItems,
   askForStoppedItems,

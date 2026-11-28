@@ -99,11 +99,32 @@ const READERS = {
   "apps/edge/lib/files/look.ts": "a look again, and its poster",
   "apps/edge/lib/files/upkeep.ts": "the sweep's ask after an upload, and a purge",
   "apps/edge/lib/files/copy/sweep.ts": "the sweep's ask after a copy on its way",
+  "apps/edge/lib/ads/account-ops.ts":
+    "New ad's pick: the video a draft comes to show, asked back while its owner looks",
 };
 
+/** Whether a module imports the copy's door. */
+const asksTheDoor = (file) => importsOf(parse(file)).some((imported) => /(^|\/)ensure\.js$/.test(imported.specifier));
+
 test("each reader of a video's copy imports the door", () => {
-  for (const [file, reads] of Object.entries(READERS)) {
-    const door = importsOf(parse(file)).some((imported) => /(^|\/)ensure\.js$/.test(imported.specifier));
-    assert.ok(door, `${file} (${reads}) asks the door`);
-  }
+  for (const [file, reads] of Object.entries(READERS)) assert.ok(asksTheDoor(file), `${file} (${reads}) asks the door`);
+});
+
+/**
+ * What the letting go protects follows from this list (file_copies_let_go; lane 1 of the "Prove it works" plan, item
+ * 7, read on 28 November 2026). Only a video being made reads its clips' copies at a time nobody is watching, so only
+ * a clip a piece being made names is held back. A post waiting to go is sent from the made video's own kept file
+ * (apps/edge/lib/instagram/post-ready.ts, apps/dashboard/src/server/posts/approve.ts) and an ad sends no video at
+ * all yet (apps/edge/lib/ads/launch.ts), so neither needs the copy at the video platform, and a copy that stepped
+ * aside holds neither back. New ad asks for a video's copy at the pick (apps/edge/lib/ads/account-ops.ts, the op
+ * `copy`), while its owner is looking at the draft and never at a time set in advance: it is asked back then, so the
+ * let-go has nothing of it to protect. A module that starts asking the door changes that: add it above, and where
+ * it asks at a time set in advance, protect its video in the let-go by the relation that names it
+ * (`posts.file_id`, an ad's picture), never by searching text.
+ */
+test("nothing else reads a video's copy: a post and an ad send nothing from it", () => {
+  const askers = repoFiles(TREES)
+    .filter((file) => file !== DOOR && asksTheDoor(file))
+    .sort();
+  assert.deepEqual(askers, Object.keys(READERS).sort());
 });
