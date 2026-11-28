@@ -15,7 +15,14 @@
  * asks after the first container again before it makes anything).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MIN_MS, ON_INSTAGRAM, type PlaceAdapter, type PlacementToSend } from "@chanlytics/contracts";
+import {
+  MIN_MS,
+  ON_INSTAGRAM,
+  POST_PLACES,
+  isOneOf,
+  type PlaceAdapter,
+  type PlacementToSend,
+} from "@chanlytics/contracts";
 import {
   closePostAttempt,
   findPostForWork,
@@ -31,7 +38,14 @@ import { findVersionDrawing } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { settleNeverUp } from "../files/post-never-up.js";
 import { logger } from "../shared/log.js";
-import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
+import {
+  OPENING_ASK_MS,
+  askAgainOrHold,
+  holdPlacement,
+  readSendRecheck,
+  type SendHold,
+  type SendUnread,
+} from "../content/recheck.js";
 import type { Posting } from "../content/posting.js";
 import {
   HOLDABLE,
@@ -49,10 +63,13 @@ import {
 
 type Db = SupabaseClient<Database>;
 
-/** The recheck: why the post may not go now, in the owner's words, or the poster it goes through. */
-async function recheck(db: Db, post: PostRow, deps: PostDeps): Promise<Posting | SendHold> {
+/**
+ * The recheck: why the post may not go now, in the owner's words, that the open time it promises could not be read, or
+ * the poster it goes through.
+ */
+async function recheck(db: Db, post: PostRow, deps: PostDeps): Promise<Posting | SendHold | SendUnread> {
   const bytes = await readSendRecheck(db, post, { approver: true });
-  if ("held" in bytes) return bytes;
+  if ("held" in bytes || "unread" in bytes) return bytes;
   return postingOf(db, post, deps);
 }
 
@@ -132,6 +149,16 @@ const VERSION_WAIT_MS = MIN_MS;
 const VERSION_WAITS_MOST = 10;
 
 /**
+ * How often a send has asked again already, for each thing it asks again for (a version being made; an opening that
+ * could not be read), as its next ask carries them: both, always, so the next ask's once-only key is its own
+ * (job_kinds.once_parts, 00728) and never the key of the send that writes it.
+ */
+const asksMadeOf = (job: ClaimedJob): { wait: string; unread: string } => ({
+  wait: String(Number(job.payload.wait ?? 0) || 0),
+  unread: String(Number(job.payload.unread ?? 0) || 0),
+});
+
+/**
  * Nothing of a piece goes up while a new version of it is drawn (00708, the version board's call 14): the send asks again a
  * minute on. Once the version plays, what was approved of the one before stops standing and the recheck holds it; a
  * version that could not be made leaves the post to go as approved. Past its most waits, it goes as approved.
@@ -145,7 +172,12 @@ async function waitsForVersion(db: Db, post: PostRow, job: ClaimedJob): Promise<
     tenantId: post.tenant_id,
     kind: "post_publish",
     dueAt: new Date(Date.now() + VERSION_WAIT_MS),
-    payload: { post_id: post.id, attempt: String(postJobOf(job).attempt), wait: String(waits + 1) },
+    payload: {
+      post_id: post.id,
+      attempt: String(postJobOf(job).attempt),
+      ...asksMadeOf(job),
+      wait: String(waits + 1),
+    },
   });
   logger({ tenant_id: post.tenant_id }).info("placement_waits_for_version", { post_id: post.id, waits: waits + 1 });
   return true;
@@ -160,6 +192,19 @@ async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promis
   instagramKindOf(post);
   if (await waitsForVersion(db, post, job)) return { skipped: "version" };
   const posting = await recheck(db, post, deps);
+  // The open time it promises could not be read (00728): asked again a minute on, then held, never sent on a guess.
+  if ("unread" in posting)
+    return askAgainOrHold(db, post, job, {
+      ...posting,
+      from: HOLDABLE,
+      again: (unread) =>
+        scheduleJobOnce(db, {
+          tenantId: post.tenant_id,
+          kind: "post_publish",
+          dueAt: new Date(Date.now() + OPENING_ASK_MS),
+          payload: { post_id: post.id, attempt: String(attempt), ...asksMadeOf(job), unread },
+        }),
+    });
   if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });
   if (!(await movePost(db, { postId: post.id, from: ["preparing"], to: "publishing" }))) return { skipped: "moved" };
   const { place } = posting;
@@ -248,6 +293,9 @@ async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Prom
   const { postId, attempt } = postJobOf(job);
   const post = await findPostForWork(db, job.tenant_id, postId);
   if (!post) return { skipped: "gone" };
+  // A place with no draft to ask after settles its own unanswered send (Google: its profile's own list).
+  const own = isOneOf(POST_PLACES, post.place) ? deps.reconcileAt?.[post.place] : undefined;
+  if (own) return own(db, post, job);
   if (post.status === "published" && job.payload.seen === "ask")
     return verifyPublished(db, post, deps, (job.attempts ?? 1) >= MAX_ATTEMPTS);
   if (post.status !== "checking" || !post.container_id) return { skipped: post.status };
