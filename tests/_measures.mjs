@@ -1514,6 +1514,8 @@ export const SHOWN_KINDS_HELD_FROM = "00723";
 export const SHOWN_KINDS_NEW_TO_A_DOOR = {
   "workspace_own_fields_write() <- settings.changed":
     "The workspace's name, zone or word for a booking changed: its words (\"Settings changed\") are this door's act, which the dashboard wrote after a session's update of the row from TypeScript until the door (00724)",
+  "ad_accounts_stop_launches() <- ad.made":
+    "An ad made here whose campaign's switch was out or done as its account was let go is the ad it is, never one that stopped part way (00725): its words (\"An ad was set up at Meta\") are the launch's own act, which ad_launch_keep writes where a launch ends by itself and this trigger writes, once, where the account was let go first. Every other launch it stops writes ad.setup_stopped, as before",
   "whatsapp_channel_activate() <- channel.connected":
     "A WhatsApp number connected: its words (\"A WhatsApp number was connected\") are this door's act, the number's row turned active, which the edge wrote after the row from TypeScript until the door (00723)",
 };

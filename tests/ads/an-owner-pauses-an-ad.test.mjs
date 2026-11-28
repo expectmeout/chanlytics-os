@@ -179,19 +179,58 @@ const who = () => ({
   writes: adsWrites(),
 });
 
-test("nothing is kept or sent while the switch is off, in a workspace not on the list, or for anyone but the owner", async () => {
-  const w = world();
-  delete process.env.ADS_WRITES;
-  assert.deepEqual((await heard(await w.press("pause")))[1].error, "ads_writes_off", "unset is off");
-  process.env.ADS_WRITES = "live";
+test("a pause is never refused for the switch or the list of workspaces: it is kept, and reaches Meta", async () => {
+  // Ads switched off for this workspace (it is not on the list), the deployment live: its owner still pauses the ad.
+  const offList = world();
   process.env.ADS_WORKSPACES = "another-workspace";
-  assert.deepEqual((await heard(await w.press("pause")))[1].error, "ads_writes_off");
+  assert.deepEqual(await heard(await offList.press("pause")), [200, { ok: true, outcome: "told", version: 4 }]);
+  assert.deepEqual(
+    [asked, offList.row.intent, offList.row.platform_state],
+    [["set PAUSED", "standing"], "paused", "PAUSED"],
+  );
+  // And turns it back on: the list takes away making a new ad, and nothing of an ad that is there.
+  offList.row.told_at = new Date(Date.now() - 60_000).toISOString();
+  offList.row.intent_at = offList.row.told_at;
+  answers.standing = [200, { effective_status: "ACTIVE" }];
+  assert.equal((await heard(await offList.press("resume")))[1].outcome, "told");
+
+  // The deployment's own switch off (unset is off): a pause still reaches Meta, for real, never as a pretended one.
+  const unset = world();
+  delete process.env.ADS_WRITES;
+  assert.deepEqual(await heard(await unset.press("pause")), [200, { ok: true, outcome: "told", version: 4 }]);
+  assert.deepEqual([asked, unset.kept.told], [["set PAUSED", "standing"], [["paused", "told"]]]);
+});
+
+test("with the switch off what can spend is refused before it is kept, and nothing is kept for anyone but the owner", async () => {
+  const paused = world({ ad: { intent: "paused", platform_state: "PAUSED" } });
+  delete process.env.ADS_WRITES;
+  const [code, refused] = await heard(await paused.press("resume"));
+  assert.deepEqual([code, refused.error], [409, "ads_writes_off"]);
+  assert.deepEqual([paused.kept.decisions, paused.row.intent, paused.row.version], [[], "paused", 3]);
   const stranger = world({ owner: false });
   const [status, body] = await heard(await stranger.press("pause"));
   assert.deepEqual([status, body.error], [403, "ad_account_not_owner"]);
-  for (const one of [w, stranger])
-    assert.deepEqual([one.kept.decisions, one.row.intent, one.row.version], [[], "on", 3]);
+  assert.deepEqual([stranger.kept.decisions, stranger.row.intent, stranger.row.version], [[], "on", 3]);
   assert.deepEqual(asked, [], "and Meta is asked nothing");
+});
+
+test("with the switch off the account's read still sends a pause on its way, and never a turning back on", async () => {
+  const log = logger({ tenant_id: T });
+  const later = () => ({ accountId: ACCOUNT, nowMs: Date.now() + 120_000 });
+  // Meta was holding the account back when the owner pressed: the pause was kept on its way.
+  const w = world({ account: { read_after: new Date(Date.now() + 300_000).toISOString() } });
+  assert.equal((await heard(await w.press("pause")))[1].outcome, "soon");
+  delete process.env.ADS_WRITES;
+  assert.equal((await tellPending(w.db, log, who(), later())).told, 1);
+  assert.deepEqual([asked, w.row.platform_state], [["set PAUSED", "standing"], "PAUSED"]);
+
+  // A turning back on kept while the switch was on waits: nothing that can spend is sent while it is off.
+  const back = world({
+    ad: { intent: "on", platform_state: "PAUSED", intent_at: new Date(Date.now() - 60_000).toISOString() },
+  });
+  delete process.env.ADS_WRITES;
+  assert.equal((await tellPending(back.db, log, who(), later())).told, 0);
+  assert.deepEqual([asked, back.row.told_at], [[], null]);
 });
 
 test("a pause is kept once, Meta is told once, and the ad says what Meta then says of it", async () => {
@@ -294,9 +333,77 @@ test("a change Meta slows stays on its way, and the account keeps when Meta may 
   assert.equal(w.kept.tellAsks, 1);
 });
 
-test("a change that got no answer is never sent again: the next read says what stands", async () => {
+/** Meta giving no answer: its 503, which says nothing of whether the change went. */
+const SILENT = [503, { error: { message: "Service temporarily unavailable", code: 2 } }];
+
+test("a pause Meta never answered that Meta holds is told, and never sent again", async () => {
   const w = world();
-  answers.set = [503, { error: { message: "Service temporarily unavailable", code: 2 } }];
+  answers.set = SILENT;
+  // Asked where the ad stands before anything is said of it: Meta holds it paused, so it took the pause.
+  assert.deepEqual(await heard(await w.press("pause")), [200, { ok: true, outcome: "told", version: 4 }]);
+  assert.deepEqual(
+    [asked, w.kept.told, w.row.platform_state],
+    [["set PAUSED", "standing"], [["paused", "told"]], "PAUSED"],
+  );
+  const log = logger({ tenant_id: T });
+  assert.equal((await tellPending(w.db, log, who(), { accountId: ACCOUNT, nowMs: Date.now() + 120_000 })).told, 0);
+  assert.deepEqual(asked, ["set PAUSED", "standing"], "one switch, whatever came of its answer");
+});
+
+test("a pause Meta never answered that Meta does not hold stays on its way, and goes again once Meta was asked", async () => {
+  const w = world();
+  answers.set = SILENT;
+  answers.standing = [200, { effective_status: "ACTIVE" }];
+  // Meta holds the ad on: it never took the pause. Nothing is claimed of it, and the owner is told it will pause.
+  assert.deepEqual(await heard(await w.press("pause")), [200, { ok: true, outcome: "soon", version: 4 }]);
+  assert.deepEqual([asked, w.kept.told, w.row.platform_state], [["set PAUSED", "standing"], [], "ACTIVE"]);
+  assert.ok(w.row.intent === "paused" && w.row.told_at === null, "the owner's pause is still on its way");
+  assert.equal(w.kept.tellAsks, 1, "and its account's read is asked for");
+  // An ad whose ad set is paused in Meta is not paused by its own switch: that is not the pause the owner asked.
+  const under = world();
+  answers.set = SILENT;
+  answers.standing = [200, { effective_status: "ADSET_PAUSED" }];
+  assert.equal((await heard(await under.press("pause")))[1].outcome, "soon");
+
+  // The read sends it again, with Meta's word for where the ad stood in hand, and this time Meta answers.
+  const again = world();
+  answers.set = SILENT;
+  answers.standing = [200, { effective_status: "ACTIVE" }];
+  await again.press("pause");
+  answers.set = [200, { success: true }];
+  answers.standing = [200, { effective_status: "PAUSED" }];
+  const log = logger({ tenant_id: T });
+  assert.equal((await tellPending(again.db, log, who(), { accountId: ACCOUNT, nowMs: Date.now() + 120_000 })).told, 1);
+  assert.deepEqual(asked, ["set PAUSED", "standing", "set PAUSED", "standing"]);
+  assert.deepEqual([again.row.platform_state, again.kept.told], ["PAUSED", [["paused", "told"]]]);
+});
+
+test("a turning back on Meta never answered is told where Meta shows it on; else it is never sent again", async () => {
+  const paused = { intent: "paused", platform_state: "PAUSED" };
+  const on = world({ ad: paused });
+  answers.set = SILENT;
+  answers.standing = [200, { effective_status: "ACTIVE" }];
+  assert.deepEqual(await heard(await on.press("resume")), [200, { ok: true, outcome: "told", version: 4 }]);
+  assert.deepEqual(
+    [asked, on.kept.told, on.row.platform_state],
+    [["set ACTIVE", "standing"], [["on", "told"]], "ACTIVE"],
+  );
+
+  // Meta still shows it paused: it may yet take it, so nothing that spends is sent twice. The read says what stands.
+  const unsure = world({ ad: paused });
+  answers.set = SILENT;
+  assert.deepEqual(await heard(await unsure.press("resume")), [200, { ok: true, outcome: "sent", version: 4 }]);
+  assert.deepEqual([unsure.kept.told, unsure.kept.readAsks], [[["on", "unknown"]], ["meta:1200000000000061"]]);
+  const log = logger({ tenant_id: T });
+  const later = { accountId: ACCOUNT, nowMs: Date.now() + 120_000 };
+  assert.equal((await tellPending(unsure.db, log, who(), later)).told, 0);
+  assert.deepEqual(asked, ["set ACTIVE", "standing"], "sent once");
+});
+
+test("a change that got no answer, where Meta does not say where the ad stands either, is never sent again: the next read says what stands", async () => {
+  const w = world();
+  answers.set = SILENT;
+  answers.standing = SILENT;
   assert.deepEqual(await heard(await w.press("pause")), [200, { ok: true, outcome: "sent", version: 4 }]);
   assert.deepEqual(w.kept.told, [["paused", "unknown"]]);
   assert.deepEqual(w.kept.readAsks, ["meta:1200000000000061"], "the account's read is asked for at once: it says");
@@ -307,7 +414,7 @@ test("a change that got no answer is never sent again: the next read says what s
     usage: null,
     revoked: false,
   });
-  assert.deepEqual(asked, ["set PAUSED"], "one call, whatever came of it");
+  assert.deepEqual(asked, ["set PAUSED", "standing"], "one switch, whatever came of it");
 });
 
 test("a pause Meta took and that was not read back says paused; one turned back on waits for Meta's own word", async () => {

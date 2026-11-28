@@ -77,6 +77,13 @@ function onWayOf(ad: AdLiveDto, currency: string): string | null {
   return CHANGE_ON_WAY.end;
 }
 
+/**
+ * Whether this member may do here what can spend: turn an ad back on, change one. Where they may stop an ad and not
+ * that, the deployment's switch is off; a read from a server before it said so says both by `can_press`.
+ */
+export const maySpend = (dto: Pick<AdsLiveDto, "can_press" | "can_spend">): boolean =>
+  dto.can_press && (dto.can_spend ?? true);
+
 /** An ad made here's sentence, where its owner may change it; null for any other ad, or one Meta has not read whole. */
 export function changeSentenceOf(ad: AdLiveDto, dto: AdsLiveDto, nowMs: number): ChangeSentenceVM | null {
   const facts = liveChangeFactsOf(ad, dto);
@@ -84,7 +91,7 @@ export function changeSentenceOf(ad: AdLiveDto, dto: AdsLiveDto, nowMs: number):
   if (facts === null || !here || ad.ends_at === null || dto.account.status !== "connected") return null;
   if (!CHANGEABLE.includes(ad.state)) return null;
   const waiting = here.change !== null || ad.pending !== null;
-  const may = dto.can_press && !waiting;
+  const may = maySpend(dto) && !waiting;
   const place = here.place;
   const amountAfter = here.amount_after !== null && Date.parse(here.amount_after) > nowMs ? here.amount_after : null;
   return {
