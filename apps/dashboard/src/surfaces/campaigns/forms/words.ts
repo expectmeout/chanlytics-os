@@ -241,15 +241,21 @@ export function formSheetSub(sheet: Pick<FormSheetDto, "state" | "published_at" 
 
 const pluralWords = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** What one place brought: its requests and the visits that followed, or nothing yet. */
-export const placeBrought = (place: { requests: number; visits: number }): string =>
+/** The people who booked, said as people: "1 person booked", "3 people booked". */
+const bookedWords = (people: number): string => `${pluralWords(people, "person", "people")} booked`;
+
+/** What one place brought: its requests and the people who booked from them, or nothing yet. */
+export const placeBrought = (place: { requests: number; booked: number }): string =>
   place.requests === 0
     ? "No requests yet"
-    : [pluralWords(place.requests, "request"), place.visits ? pluralWords(place.visits, "visit") : ""]
+    : [pluralWords(place.requests, "request"), place.booked ? bookedWords(place.booked) : ""]
         .filter(Boolean)
         .join(" · ");
 
-/** The sentence of numbers under where a form is shared: opens, requests, conversations, visits; then who they were. */
+/**
+ * The sentence of numbers under where a form is shared: opens, requests, conversations, the people who booked from it
+ * and those it helped (00732: a booking is one form's, an ad's or a post's, never counted on each); then who they were.
+ */
 export function resultsWords(results: FormSheetDto["results"]): { line: string; who: string } | null {
   const bookingOpens = results.booking_opens ?? 0;
   if (results.opens === 0 && results.requests === 0 && bookingOpens === 0) return null;
@@ -259,7 +265,9 @@ export function resultsWords(results: FormSheetDto["results"]): { line: string; 
     // The requests that asked for a time (F3), where any did.
     results.asked ? `${results.asked} asked for a time` : "",
     pluralWords(results.talked, "conversation"),
-    pluralWords(results.visits, "visit"),
+    bookedWords(results.booked),
+    // Bookings put down to something else its people touched first: said beside, never added in.
+    results.helped ? `it helped ${results.helped} more` : "",
   ]
     .filter(Boolean)
     .join(" · ");

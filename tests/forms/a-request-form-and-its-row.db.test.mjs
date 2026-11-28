@@ -488,7 +488,7 @@ test("a request's code carries it into a chat once, and never joins two people",
 });
 
 test(
-  "what the forms brought: requests, conversations, visits and opens, by the place each came through",
+  "what the forms brought: requests, conversations, the people who booked and opens, by the place each came through",
   { skip },
   async () => {
     const soon = (hours) => new Date(Date.now() + 2 * DAY_MS + hours * 3_600_000).toISOString();
@@ -513,10 +513,20 @@ test(
       "through the link: one request, whose reply failed",
     );
     assert.deepEqual(
-      [direct.requests, direct.talked, direct.visits, direct.people],
-      [4, 2, 1, 4],
-      "with no link: four people's requests, two that became a conversation, one visit",
+      [direct.requests, direct.talked, direct.booked, direct.helped, direct.people],
+      [4, 2, 1, 0, 4],
+      "with no link: four people's requests, two that became a conversation, one person who booked from it",
     );
+    assert.equal(direct.visits, direct.booked, "the key from before 00732 says the same people");
+    // The form's own totals (00732): each person once however many places they came through, and the bookings themselves.
+    const own = results.forms.find((form) => form.form_id === direct.form_id);
+    const places = results.places.filter((place) => place.form_id === direct.form_id);
+    assert.deepEqual(
+      [own.requests, own.booked, own.helped, own.appointments],
+      [places.reduce((sum, place) => sum + place.requests, 0), 1, 0, 1],
+      "the form's own line: every request, one person who booked, one booking",
+    );
+    assert.equal(results.window_days, 14, "and the window it counted by");
     assert.deepEqual(
       results.opens.map((o) => [o.link_id, Number(o.opens)]),
       [[kept.link.id, 2]],

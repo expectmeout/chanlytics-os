@@ -151,10 +151,27 @@ test("answered: booked is on the calendar, let go is no longer held, and neither
 });
 
 test("the form's numbers say how many asked for a time, and what its business's booking page can't say", () => {
-  const base = { days: 30, opens: 41, requests: 9, talked: 4, visits: 2, new_people: 7, known_people: 2 };
-  assert.equal(S.resultsWords(base).line, "Opened 41 times · 9 requests · 4 conversations · 2 visits");
+  // Booked is a count of people and says so (00732): never "visits" over a count of people.
+  const base = {
+    days: 30,
+    opens: 41,
+    requests: 9,
+    talked: 4,
+    booked: 2,
+    helped: 0,
+    appointments: 2,
+    window_days: 14,
+    new_people: 7,
+    known_people: 2,
+  };
+  assert.equal(S.resultsWords(base).line, "Opened 41 times · 9 requests · 4 conversations · 2 people booked");
   const timed = S.resultsWords({ ...base, asked: 4 });
-  assert.equal(timed.line, "Opened 41 times · 9 requests · 4 asked for a time · 4 conversations · 2 visits");
+  assert.equal(timed.line, "Opened 41 times · 9 requests · 4 asked for a time · 4 conversations · 2 people booked");
+  // A booking put down to something else its people touched first is said beside, never added in.
+  assert.equal(
+    S.resultsWords({ ...base, booked: 1, helped: 1 }).line,
+    "Opened 41 times · 9 requests · 4 conversations · 1 person booked · it helped 1 more",
+  );
   const page = S.resultsWords({
     ...base,
     opens: 12,

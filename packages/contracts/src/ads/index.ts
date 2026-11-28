@@ -46,7 +46,6 @@ export type {
   AdState,
   AdTheirs,
 } from "./ads";
-export { bookedAfterTouch } from "./booked-after-touch";
 export {
   adAmountAfter,
   adApprovedMiles,

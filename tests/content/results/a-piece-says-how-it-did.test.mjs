@@ -170,7 +170,11 @@ test("what it brought: conversations, then booked by class, new people and known
   assert.equal(said.whatItBrought.newPeople[1].line, "Wrote from the post's link · booked Sat 11:00 AM");
   assert.equal(said.whatItBrought.newPeople[2].line, "Commented “how much?”");
   assert.equal(said.whatItBrought.known[0].line, "Replied to the story · booked Sat 11:00 AM another way · it helped");
-  assert.match(said.whatItBrought.fine, /14 days before they booked another way/);
+  // What "from this post" and "it helped" count, said once with the window (00732: one booking, one main source).
+  assert.match(
+    said.whatItBrought.fine,
+    /^A booking counts when it was made in the 14 days after they answered or wrote about it\. It is from this post where the post is what they booked through, or the first thing they touched\. “It helped” where that was something else\./,
+  );
   assert.match(
     said.whatItBrought.fine,
     /Your booking link was opened 14 times: bookings made there can't be traced to a post/,

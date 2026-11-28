@@ -601,3 +601,25 @@ not know which ad. Where it is not as call 12 drew it, it is said here.
   reply. A tap whose words never arrived is still told as a tap.
 - **Not built here:** a run of the real model against an ad that carries an instruction. The tests prove what is sent
   (`tests/ads/reply/ai-is-told-the-ad-a-person-tapped.test.mjs`), and the eval door takes no note about a person yet.
+
+## Amended 28 November 2026 · Booked is the one rule's (decision 0154)
+
+From the three outside reviews of 28 November 2026 (the whole-system plan's lane 4). One migration is written and not
+applied: `00732` (`supabase/migrations/00732_a_booking_is_put_down_to_one_source.sql`). For Ruben to accept.
+
+- **Call 6 changes.** A person counted for an ad was booked from it when any visit of theirs started after their first
+  touch, however long after and from whatever source. A form counted the same booking again, and a post by a third
+  rule. Booked is now the one rule's (`booking_sources`, decision 0154): a booking of theirs, made inside fourteen
+  days of their touch of the ad, that the ad is the main source of: the booking names the ad, or the ad is the first
+  thing they touched. A visit with no moment it was made that the record can prove (a calendar's first read) is put
+  down to nothing; one that arrived from a booking page or its email counts from its arrival.
+- **Who is counted is unchanged.** An ad's people are still those whose first message came from it (call 5), the
+  page's window still chooses them by the day they first got in touch, and the page's people plus the unnamed line
+  still equal Reports' count under "An ad". Only who of them booked is read another way.
+- **`bookedAfterTouch` is gone from contracts.** No page read it: the database's count was the one a page showed, and
+  the function and its test held a second copy of the rule. The rule has one home.
+- **What an ad's bookings are worth** (00683) adds the bookings the ad is the main source of, each once: no longer every
+  later visit of its people.
+- **Not decided: a commenter's booking on the ad's own row.** A comment left on an ad is a touch of it (00719), and
+  the rule puts the commenter's booking down to the ad. The row counts its people alone, so that booking is on no ad's
+  row today. Decision 0154 lays out what each answer shows.

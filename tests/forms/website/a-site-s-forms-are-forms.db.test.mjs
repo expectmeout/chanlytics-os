@@ -325,7 +325,7 @@ test("the open count goes past the list's 200, and the results count each form's
 });
 
 test(
-  "a sign-up's confirmed: its person's yes from its email, after it came; a yes another way or before is not",
+  "a sign-up's confirmed: counted from its own event, once, for the form whose email was pressed; today's yes is apart",
   { skip },
   async () => {
     const email = `confirm-${RUN}@example.com`;
@@ -340,22 +340,182 @@ test(
     const form = ok(
       await db.from("form_entries").select("outside_form_id").eq("id", signup.entry_id).single(),
     ).outside_form_id;
-    const confirmed = async () =>
-      ok(await db.rpc("form_results", { p_tenant_id: tenantId, p_days: 30 })).outside.find(
+    const said = async () => {
+      const line = ok(await db.rpc("form_results", { p_tenant_id: tenantId, p_days: 30 })).outside.find(
         (f) => f.outside_form_id === form,
-      ).confirmed;
-    const yes = (source, at) =>
+      );
+      return [line.confirmed, line.subscribers];
+    };
+    /** Their consent as it stands, written straight on the person: no door, so no event. */
+    const stands = (answer, source) =>
       db
         .from("contacts")
-        .update({ email_marketing: "opted_in", email_marketing_source: source, email_marketing_updated_at: at })
+        .update({
+          email_marketing: answer,
+          email_marketing_source: source,
+          email_marketing_updated_at: new Date().toISOString(),
+        })
         .eq("id", signup.contact_id);
-    assert.equal(await confirmed(), 0, "signed up, not confirmed yet");
-    ok(await yes("confirmed_signup", new Date().toISOString()));
-    assert.equal(await confirmed(), 1, "confirmed from its email");
-    ok(await yes("confirmed_signup", new Date(Date.now() - 86_400_000).toISOString()));
-    assert.equal(await confirmed(), 0, "a yes from before the sign-up is not its confirmation");
-    ok(await yes("form", new Date().toISOString()));
-    assert.equal(await confirmed(), 0, "nor a yes given another way");
+    const before = ok(
+      await db.from("contacts").select("email_marketing, email_marketing_source").eq("id", signup.contact_id).single(),
+    );
+    assert.deepEqual(await said(), [0, 0], "signed up, not confirmed yet: no confirmation, and no yes today");
+    // A yes that stands on the person without their press (given another way) is no confirmation: nothing says they
+    // pressed. Before 00732 a consent that read "confirmed" today was counted, whenever and however it came to.
+    ok(await stands("opted_in", "confirmed_signup"));
+    assert.deepEqual(
+      await said(),
+      [0, 1],
+      "a consent that only reads confirmed is not a confirmation; it is a yes today",
+    );
+    ok(await stands(before.email_marketing, before.email_marketing_source));
+    // The email their sign-up sent them, as the edge writes it, and their press on its link: the yes door's own event.
+    const conversation = ok(
+      await db
+        .from("conversations")
+        .upsert({ tenant_id: tenantId, contact_id: signup.contact_id }, { onConflict: "tenant_id,contact_id" })
+        .select("id")
+        .single(),
+    ).id;
+    const asked = ok(
+      await db
+        .from("messages")
+        .insert({
+          tenant_id: tenantId,
+          conversation_id: conversation,
+          contact_id: signup.contact_id,
+          channel: "email",
+          direction: "outbound",
+          sender: "system",
+          type: "text",
+          body: "Confirm your sign-up",
+          status: "sent",
+          meta: {
+            source: "signup_confirm",
+            email: { request: { to: [email], from: '"Harbor" <harbor@mail.example.com>' } },
+            signup_confirm: { key: email, form: { form: "signup", page: null, about: null, lang: null, at: null } },
+          },
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const press = () =>
+      db.rpc("set_email_offers_yes", {
+        p_tenant_id: tenantId,
+        p_contact_id: signup.contact_id,
+        p_source: "confirmed_signup",
+        p_message_id: asked,
+        p_evidence: { via: "link" },
+      });
+    assert.equal(ok(await press()).changed, true, "their press is their yes");
+    assert.deepEqual(await said(), [1, 1], "confirmed from its email: counted from the event, and a yes today");
+    assert.equal(ok(await press()).changed, false, "the same link pressed again changes nothing");
+    assert.deepEqual(await said(), [1, 1], "and is counted once");
+    // They stop offers later. The confirming happened at its own time and is still counted; today's yes is gone.
+    ok(await stands("opted_out", "form"));
+    assert.deepEqual(await said(), [1, 0], "a stop since takes away today's yes, never the confirmation that was made");
+  },
+);
+
+test(
+  "one booking after two forms is one form's: the first is booked from, the second helped; past the window, nobody's",
+  { skip },
+  async () => {
+    const DAY = 86_400_000;
+    const formOf = async (entryId) =>
+      ok(await db.from("form_entries").select("outside_form_id").eq("id", entryId).single()).outside_form_id;
+    const lines = async () => {
+      const results = ok(await db.rpc("form_results", { p_tenant_id: tenantId, p_days: 30 }));
+      return (id) => results.outside.find((f) => f.outside_form_id === id);
+    };
+    /** A visit a member wrote down for them now, or said as made `madeInDays` from now; read from a calendar where said. */
+    const visit = (contactId, over = {}) =>
+      db
+        .from("appointments")
+        .insert({
+          tenant_id: tenantId,
+          contact_id: contactId,
+          source: "person",
+          status: "booked",
+          timezone: "UTC",
+          starts_at: new Date(Date.now() + 30 * DAY).toISOString(),
+          ends_at: new Date(Date.now() + 30 * DAY + 3_600_000).toISOString(),
+          ...over,
+        })
+        .select("id")
+        .single();
+    // Noor asks on the first form, then on the second, then books once.
+    const first = ok(await take({ n: 901, p_form_ref: "credit-first", p_form_name: "First form" }));
+    const second = ok(await take({ n: 901, p_form_ref: "credit-second", p_form_name: "Second form" }));
+    assert.equal(first.contact_id, second.contact_id, "one person, two forms");
+    const [formA, formB] = [await formOf(first.entry_id), await formOf(second.entry_id)];
+    const booked = ok(await visit(first.contact_id)).id;
+    // Omar asks on the first form and books 20 days later: past the window, so the form is not what brought it.
+    const late = ok(await take({ n: 902, p_form_ref: "credit-first" }));
+    ok(await visit(late.contact_id, { created_at: new Date(Date.now() + 20 * DAY).toISOString() }));
+    // Pia asks on the first form; her visit was read from the owner's calendar, with no moment it was made.
+    const fed = ok(await take({ n: 903, p_form_ref: "credit-first" }));
+    ok(await visit(fed.contact_id, { source: "calendar_feed" }));
+    // Quin asks on the first form and books through the booking page: its arrival is when it was made.
+    const arrived = ok(await take({ n: 904, p_form_ref: "credit-first" }));
+    ok(
+      await visit(arrived.contact_id, {
+        source: "booking_tool",
+        arrived_at: new Date(Date.now() + 1000).toISOString(),
+      }),
+    );
+
+    const line = await lines();
+    const [a, b] = [line(formA), line(formB)];
+    assert.deepEqual(
+      [a.entries, a.people, a.booked, a.helped, a.appointments],
+      [4, 4, 2, 0, 2],
+      "the first form: four people asked; Noor and Quin booked from it; Omar's and Pia's visits are nobody's",
+    );
+    assert.deepEqual(
+      [b.entries, b.people, b.booked, b.helped, b.appointments],
+      [1, 1, 0, 1, 0],
+      "the second form helped Noor's booking, and is not counted as what brought it",
+    );
+    assert.equal(a.visits, a.booked, "the key from before 00732 says the people who booked");
+    // The rule itself: Noor's one booking has one main source and one that helped, and nothing is added up twice.
+    const put = ok(
+      await db.rpc("booking_sources", {
+        p_tenant_id: tenantId,
+        p_since: new Date(Date.now() - 3_600_000).toISOString(),
+        p_people: [first.contact_id],
+      }),
+    );
+    assert.deepEqual(
+      put.map((row) => [row.appointment_id, row.subject_type, row.subject_id, row.standing]).sort(),
+      [
+        [booked, "form", formA, "main"],
+        [booked, "form", formB, "helped"],
+      ].sort(),
+      "one booking: the first form its main source, the second one that helped",
+    );
+    // As a page reads it: the same booking, its main source first.
+    const read = ok(
+      await db.rpc("bookings_with_sources", {
+        p_tenant_id: tenantId,
+        p_since: new Date(Date.now() - 3_600_000).toISOString(),
+        p_people: [first.contact_id],
+        p_of: "form",
+      }),
+    );
+    assert.equal(read.window_days, 14);
+    assert.deepEqual(
+      read.bookings.map((one) => [one.appointment_id, one.sources.map((s) => [s.id, s.standing])]),
+      [
+        [
+          booked,
+          [
+            [formA, "main"],
+            [formB, "helped"],
+          ],
+        ],
+      ],
+    );
   },
 );
 

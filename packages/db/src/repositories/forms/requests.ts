@@ -423,12 +423,29 @@ export interface FormPlaceResult {
   linkId: string | null;
   requests: number;
   talked: number;
-  visits: number;
+  /** The people who booked from it (00732): a booking the form is the main source of, inside the window. */
+  booked: number;
+  /** The people it helped: their booking is put down to something else they touched. Never in booked too. */
+  helped: number;
   /** The people who asked: one person with two requests is one. */
   people: number;
   newPeople: number;
   /** The requests that asked for a time (00691, F3). */
   asked: number;
+}
+
+/** A hosted form's own totals over a window (00732): each person once, however many places they came through. */
+export interface FormOwnResult {
+  formId: string;
+  requests: number;
+  talked: number;
+  asked: number;
+  people: number;
+  newPeople: number;
+  booked: number;
+  helped: number;
+  /** The bookings themselves, each once: the ones the form is the main source of. */
+  appointments: number;
 }
 
 /** What one form owned by the business's own website brought over a window (00709): its entries, and what followed. */
@@ -438,9 +455,18 @@ export interface OutsideFormResult {
   people: number;
   newPeople: number;
   talked: number;
-  visits: number;
-  /** A sign-up's people who confirmed from the email it sent them (00489): their yes to offers, after it came. */
+  /** The people who booked from it, and those it helped (00732), as a hosted form's. */
+  booked: number;
+  helped: number;
+  /** The bookings themselves, each once; null from a database before 00732. */
+  appointments: number | null;
+  /**
+   * A sign-up's confirmations made in the window (00489, 00732): each counted once from its own event, for the form
+   * whose email was pressed.
+   */
   confirmed: number;
+  /** Who has said yes to offers by email today, of everyone who ever signed up on it; null from a database before 00732. */
+  subscribers: number | null;
 }
 
 /**
@@ -456,11 +482,18 @@ export async function readFormResults(
   outside: OutsideFormResult[];
   opens: Map<string, number>;
   bookingOpens: Map<string, number>;
+  /** Each hosted form's own totals; null from a database before 00732, where a form's are its places added. */
+  forms: Map<string, FormOwnResult> | null;
+  /** The days a booking is counted within (credit_window_days); null from a database before 00732. */
+  windowDays: number | null;
 }> {
   const { data, error } = await db.rpc("form_results", { p_tenant_id: tenantId, p_days: days });
   if (error) throw new DbFailure(error, "form_results");
   const row = recordOrEmpty(data);
   const count = (kept: unknown) => (typeof kept === "number" && kept > 0 ? kept : 0);
+  // The people who booked: `booked` where the database says it, and `visits`, its name before 00732, from one that does not.
+  const bookedOf = (line: Record<string, unknown>) =>
+    count(typeof line.booked === "number" ? line.booked : line.visits);
   const places = (Array.isArray(row.places) ? row.places : []).flatMap((line: unknown) => {
     const place = recordOrEmpty(line);
     if (typeof place.form_id !== "string") return [];
@@ -470,7 +503,8 @@ export async function readFormResults(
         linkId: keptText(place.link_id),
         requests: count(place.requests),
         talked: count(place.talked),
-        visits: count(place.visits),
+        booked: bookedOf(place),
+        helped: count(place.helped),
         people: count(place.people),
         newPeople: count(place.new_people),
         asked: count(place.asked),
@@ -496,14 +530,43 @@ export async function readFormResults(
         people: count(form.people),
         newPeople: count(form.new_people),
         talked: count(form.talked),
-        visits: count(form.visits),
+        booked: bookedOf(form),
+        helped: count(form.helped),
+        appointments: typeof form.appointments === "number" ? count(form.appointments) : null,
         confirmed: count(form.confirmed),
+        subscribers: typeof form.subscribers === "number" ? count(form.subscribers) : null,
       },
     ];
   });
+  const forms = Array.isArray(row.forms)
+    ? new Map(
+        row.forms.flatMap((line: unknown): Array<[string, FormOwnResult]> => {
+          const form = recordOrEmpty(line);
+          if (typeof form.form_id !== "string") return [];
+          return [
+            [
+              form.form_id,
+              {
+                formId: form.form_id,
+                requests: count(form.requests),
+                talked: count(form.talked),
+                asked: count(form.asked),
+                people: count(form.people),
+                newPeople: count(form.new_people),
+                booked: count(form.booked),
+                helped: count(form.helped),
+                appointments: count(form.appointments),
+              },
+            ],
+          ];
+        }),
+      )
+    : null;
   // Each link's opens; and each form's business's own booking page, opened from it (00691).
   return {
     places,
+    forms,
+    windowDays: typeof row.window_days === "number" ? row.window_days : null,
     outside,
     opens: countsBy(row.opens, "link_id"),
     bookingOpens: countsBy(row.booking_opens, "form_id"),

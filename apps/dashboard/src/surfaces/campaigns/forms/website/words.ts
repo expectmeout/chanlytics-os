@@ -199,14 +199,22 @@ export const SITE_FORM_WORDS = {
   },
   results: {
     title: "The last 30 days",
-    line: (r: { entries: number; talked: number; visits: number; confirmed: number }, form: OutsideFormKind) =>
+    line: (
+      brought: { entries: number; talked: number; booked: number; helped: number; confirmed: number },
+      form: OutsideFormKind,
+    ) =>
       form === "signup"
-        ? `${r.entries} signed up · ${r.confirmed} confirmed.`
+        ? `${brought.entries} signed up · ${brought.confirmed} confirmed.`
         : [
-            `${r.entries} ${r.entries === 1 ? "request" : "requests"}`,
-            `${r.talked} ${r.talked === 1 ? "conversation" : "conversations"}`,
-            `${r.visits} ${r.visits === 1 ? "visit" : "visits"}`,
+            `${brought.entries} ${brought.entries === 1 ? "request" : "requests"}`,
+            `${brought.talked} ${brought.talked === 1 ? "conversation" : "conversations"}`,
+            `${brought.booked} ${brought.booked === 1 ? "person" : "people"} booked`,
+            // Bookings put down to something else its people touched first (00732): said beside, never added in.
+            ...(brought.helped ? [`it helped ${brought.helped} more`] : []),
           ].join(" · ") + ".",
+    /** Who has said yes to offers by email today, apart from the confirmations of the window; nothing where it is not read. */
+    subscribers: (today: number | null) =>
+      today === null ? "" : `${today} ${today === 1 ? "subscriber" : "subscribers"} today.`,
     who: (r: { people: number; new_people: number }) =>
       `${r.new_people} new ${r.new_people === 1 ? "person" : "people"}. ${Math.max(0, r.people - r.new_people)} already known.`,
   },

@@ -1,95 +1,90 @@
 /**
- * What the credit rule is handed (00699; the content loop PRD's 9.3, Appendix A.6, A.7): visits as creditOf reads them,
- * each with what it answered when it was asked for (appointments.through_type, through_id), and a post's one link with
- * its opens. Bounded by window and workspace; a read that fails THROWS.
+ * What a booking is put down to, as the database's one rule answers it (00732 bookings_with_sources; the content loop
+ * PRD's 9.3, Appendix A.6, A.7), and a post's one link with its opens. Bounded by span and workspace; a read that fails
+ * THROWS, but for a database from before the rule, which answers nothing and is said so.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  APPOINTMENT_SOURCES,
   APPOINTMENT_STATUSES,
   DbFailure,
   isOneOf,
   LINK_LANDS,
   recordOrEmpty,
   TOUCH_SUBJECTS,
-  type CreditVisit,
+  type BookingSource,
+  type BookingWithSources,
   type LinkLands,
   type ContactId,
   type TenantId,
+  type TouchSubjectType,
 } from "@chanlytics/contracts";
+import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
 import type { Database } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
-/** The most visits one read answers. */
-const VISITS_READ_MAX = 2000;
+const textOrNull = (value: unknown): string | null => (typeof value === "string" && value ? value : null);
 
-/** A visit as the credit rule reads it, with what a page names it by. */
-export interface VisitForCredit extends CreditVisit {
-  id: string;
-  starts_at: string;
-  service: string | null;
-}
-
-const VISIT_COLUMNS = "id, contact_id, status, source, created_at, through_type, through_id, starts_at, service";
-
-type VisitRow = Pick<
-  Database["public"]["Tables"]["appointments"]["Row"],
-  "id" | "contact_id" | "status" | "source" | "created_at" | "through_type" | "through_id" | "starts_at" | "service"
->;
-
-function creditVisitOf(row: VisitRow): VisitForCredit | null {
-  if (!isOneOf(APPOINTMENT_STATUSES, row.status) || !isOneOf(APPOINTMENT_SOURCES, row.source)) return null;
-  const through = row.through_type && isOneOf(TOUCH_SUBJECTS, row.through_type) ? row.through_type : null;
+function bookingSourceOf(value: unknown): BookingSource | null {
+  const row = recordOrEmpty(value);
+  const at = textOrNull(row.at);
+  if (!isOneOf(TOUCH_SUBJECTS, row.type) || !at) return null;
   return {
-    id: row.id,
-    contact_id: row.contact_id,
-    status: row.status,
-    source: row.source,
-    created_at: row.created_at,
-    through_type: through,
-    through_id: through ? row.through_id : null,
-    starts_at: row.starts_at,
-    service: row.service,
+    type: row.type,
+    id: textOrNull(row.id),
+    ref: textOrNull(row.ref),
+    at,
+    standing: row.standing === "main" ? "main" : "helped",
+    tied: row.tied === true,
   };
 }
 
-/** These people's visits whose row was written since a moment (what their touches may be put down to). */
-export async function listVisitsOf(
-  db: Db,
-  tenantId: TenantId,
-  of: { contactIds: readonly ContactId[]; since: string },
-): Promise<VisitForCredit[]> {
-  const contactIds = [...new Set(of.contactIds)].slice(0, 500);
-  if (contactIds.length === 0) return [];
-  const { data, error } = await tenantDb(db, tenantId)
-    .from("appointments")
-    .select(VISIT_COLUMNS)
-    .in("contact_id", contactIds)
-    .gte("created_at", of.since)
-    .order("created_at", { ascending: false })
-    .limit(VISITS_READ_MAX);
-  if (error) throw new DbFailure(error, "appointments");
-  return data.flatMap((row) => creditVisitOf(row) ?? []);
+function bookingOf(value: unknown): BookingWithSources | null {
+  const row = recordOrEmpty(value);
+  const id = textOrNull(row.appointment_id);
+  const madeAt = textOrNull(row.made_at);
+  const startsAt = textOrNull(row.starts_at);
+  if (!id || !madeAt || !startsAt || !isOneOf(APPOINTMENT_STATUSES, row.status)) return null;
+  const sources = (Array.isArray(row.sources) ? row.sources : []).flatMap((one: unknown) => bookingSourceOf(one) ?? []);
+  return {
+    appointment_id: id,
+    contact_id: textOrNull(row.contact_id),
+    made_at: madeAt,
+    starts_at: startsAt,
+    status: row.status,
+    sources,
+  };
 }
 
-/** A workspace's visits whose row was written in a window (Reports' total, each counted once). */
-export async function listVisitsMadeIn(
+/**
+ * The bookings made in a span with everything each is put down to (bookings_with_sources, on the member's own
+ * client): of anyone, or of `people` alone; `of` keeps the bookings one source of that kind touched. Null where the
+ * database is from before 00732: a page then says no booking of its own working out. `windowDays`: the days the
+ * database counted by.
+ */
+export async function readBookingsWithSources(
   db: Db,
   tenantId: TenantId,
-  window: { since: string; until: string },
-): Promise<VisitForCredit[]> {
-  const { data, error } = await tenantDb(db, tenantId)
-    .from("appointments")
-    .select(VISIT_COLUMNS)
-    .gte("created_at", window.since)
-    .lt("created_at", window.until)
-    .not("contact_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(VISITS_READ_MAX);
-  if (error) throw new DbFailure(error, "appointments");
-  return data.flatMap((row) => creditVisitOf(row) ?? []);
+  span: { since: string; until: string | null; people?: readonly ContactId[]; of?: TouchSubjectType },
+): Promise<{ windowDays: number; bookings: BookingWithSources[] } | null> {
+  if (span.people?.length === 0) return { windowDays: 0, bookings: [] };
+  const { data, error } = await db.rpc("bookings_with_sources", {
+    p_tenant_id: tenantId,
+    p_since: span.since,
+    ...(span.until ? { p_until: span.until } : {}),
+    ...(span.people ? { p_people: [...new Set(span.people)].slice(0, 500) } : {}),
+    ...(span.of ? { p_of: span.of } : {}),
+  });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new DbFailure(error, "bookings_with_sources");
+  }
+  const answer = recordOrEmpty(data);
+  return {
+    windowDays: typeof answer.window_days === "number" ? answer.window_days : 0,
+    bookings: (Array.isArray(answer.bookings) ? answer.bookings : []).flatMap((one: unknown) => bookingOf(one) ?? []),
+  };
 }
 
 /** A post's one link: its code, where it lands, whether it was stopped, and how often it was opened in all. */

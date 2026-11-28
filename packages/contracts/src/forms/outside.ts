@@ -120,8 +120,9 @@ export interface FormSiteDto {
 }
 
 /**
- * What a site's form brought over a window: its entries, the people, those new with it, talked and visits, and for a
- * sign-up, how many confirmed from the email it sent them.
+ * What a site's form brought over a window: its entries, the people, those new with it, talked, the people who booked
+ * from it and those it helped (00732) and, for a sign-up, the confirmations made in the window, each from its own event,
+ * with who has said yes today apart.
  */
 export interface OutsideFormResultsDto {
   days: number;
@@ -129,8 +130,13 @@ export interface OutsideFormResultsDto {
   people: number;
   new_people: number;
   talked: number;
-  visits: number;
+  booked: number;
+  helped: number;
+  /** The bookings themselves, each once; null from a database before 00732. */
+  appointments: number | null;
   confirmed: number;
+  /** Who has said yes to offers by email today, of everyone who ever signed up on it; null from a database before 00732. */
+  subscribers: number | null;
 }
 
 /** A site's form opened in Forms: its names, its site, what it brought, and its newest entries. */

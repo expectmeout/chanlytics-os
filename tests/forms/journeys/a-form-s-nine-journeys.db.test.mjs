@@ -20,8 +20,9 @@
  * becomes at an erasure is the registry's (packages/db erasure/registry, form_entries under form_entries_trigger), held
  * to the schema by tests/people/erasure/erasure-registry.test.mjs and seeded by erasure-completeness.db.test.mjs.
  *
- * Journey 6 reads "booked after" by today's rule (00678: a visit that follows the request). The whole-system plan's
- * lane 4 gives that rule a window; its one assertion here moves with that rule.
+ * Journey 6 reads "booked" by the one rule a form's, an ad's and a post's results are read by (00732,
+ * booking_sources: a booking made inside the window after the request, put down to one main source), which the
+ * whole-system plan's lane 4 gave it in place of 00678's "any later visit".
  *
  * Skipped without a local database; never production.
  */
@@ -29,6 +30,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { CREDIT_WINDOW_DAYS } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -331,7 +333,7 @@ test("5. a form becomes a conversation, and the request stays tied to it", { ski
 
 test("6. that conversation becomes a booking, and where it came from survives", { skip }, async () => {
   const soon = (hours) => new Date(Date.now() + hours * HOUR_MS).toISOString();
-  const visits = (await broughtBy(kept.consult)).visits;
+  const was = await broughtBy(kept.consult);
   const visit = ok(
     await db
       .from("appointments")
@@ -357,9 +359,36 @@ test("6. that conversation becomes a booking, and where it came from survives", 
     [kept.ana.contact_id, kept.consult, 1],
     "with its person, its form and the reply that answered it",
   );
-  // By today's rule (00678), a visit that follows a request is that form's: lane 4 of the plan gives the rule a window.
-  assert.equal((await broughtBy(kept.consult)).visits, visits + 1, "and her form says she booked after asking");
-  assert.equal((await broughtBy(kept.party)).visits, 0, "a form she never filled in says nothing of it");
+  // By the one rule (00732): her booking, made inside the window after her request, is put down to one main source,
+  // and her form is the only thing she touched. So her form says she booked from it: one more person, one more
+  // booking, and nobody it only helped. The key from before 00732 says the same people under its old name.
+  const now = await broughtBy(kept.consult);
+  assert.deepEqual(
+    [now.booked, now.visits, now.helped, now.appointments],
+    [was.booked + 1, was.booked + 1, was.helped, was.appointments + 1],
+    "and her form says she booked from it",
+  );
+  const party = await broughtBy(kept.party);
+  assert.deepEqual(
+    [party.booked, party.visits, party.helped],
+    [0, 0, 0],
+    "a form she never filled in says nothing of it",
+  );
+  const results = ok(await owner.rpc("form_results", { p_tenant_id: tenantId, p_days: 30 }), "results");
+  assert.equal(results.window_days, CREDIT_WINDOW_DAYS, "the window the page says is the one the database counts by");
+  // The rule itself, asked as the owner: her booking has one source, its main one, read from her request.
+  const put = ok(
+    await owner.rpc("booking_sources", {
+      p_tenant_id: tenantId,
+      p_since: new Date(Date.now() - HOUR_MS).toISOString(),
+    }),
+    "what her booking is put down to",
+  ).filter((row) => row.appointment_id === visit);
+  assert.deepEqual(
+    put.map((row) => [row.subject_type, row.subject_id, row.standing, row.tied, row.touch_home, row.contact_id]),
+    [["form", kept.consult, "main", false, "form_entries", kept.ana.contact_id]],
+    "one booking, one main source: her form",
+  );
 });
 
 test("7. the site is disconnected, and its records stay", { skip }, async () => {

@@ -68,28 +68,28 @@ function keptTouchOf(row: TouchRow): RecordedTouch | null {
 async function adTouchesOf(
   db: Db,
   tenantId: TenantId,
-  among: { since: string; until: string | null; contactIds: readonly ContactId[] | null },
+  among: { since: string; until: string },
 ): Promise<RecordedTouch[]> {
-  let entries = tenantDb(db, tenantId)
+  const { data, error } = await tenantDb(db, tenantId)
     .from("ad_entries")
     .select("id, ad_id, new_person, message_id, created_at")
     .eq("kind", "chat")
     .not("ad_id", "is", null)
-    .gte("created_at", among.since);
-  if (among.until) entries = entries.lt("created_at", among.until);
-  const { data, error } = await entries.order("created_at", { ascending: false }).limit(TOUCHES_READ_MAX);
+    .gte("created_at", among.since)
+    .lt("created_at", among.until)
+    .order("created_at", { ascending: false })
+    .limit(TOUCHES_READ_MAX);
   if (error) throw new DbFailure(error, "ad_entries");
   const withMessage = data.filter((row) => row.message_id && row.ad_id);
   if (withMessage.length === 0) return [];
-  let messages = tenantDb(db, tenantId)
+  const read = await tenantDb(db, tenantId)
     .from("messages")
     .select("id, contact_id, conversation_id")
     .in(
       "id",
       withMessage.map((row) => row.message_id ?? ""),
-    );
-  if (among.contactIds) messages = messages.in("contact_id", [...among.contactIds]);
-  const read = await messages.limit(TOUCHES_READ_MAX);
+    )
+    .limit(TOUCHES_READ_MAX);
   if (read.error) throw new DbFailure(read.error, "messages");
   const byId = new Map(read.data.map((m) => [m.id, m]));
   return withMessage.flatMap((row): RecordedTouch[] => {
@@ -120,26 +120,6 @@ function oneList(kept: readonly RecordedTouch[], fromAds: readonly RecordedTouch
   );
 }
 
-/** These people's touches since a moment, from every home (a person's page, and what their visits are put down to). */
-export async function listTouchesOf(
-  db: Db,
-  tenantId: TenantId,
-  of: { contactIds: readonly ContactId[]; since: string },
-): Promise<RecordedTouch[]> {
-  const contactIds = [...new Set(of.contactIds)].slice(0, 500);
-  if (contactIds.length === 0) return [];
-  const { data, error } = await tenantDb(db, tenantId)
-    .from("touches")
-    .select(TOUCH_COLUMNS)
-    .in("contact_id", contactIds)
-    .gte("at", of.since)
-    .order("at", { ascending: false })
-    .limit(TOUCHES_READ_MAX);
-  if (error) throw new DbFailure(error, "touches");
-  const kept = data.flatMap((row) => keptTouchOf(row) ?? []);
-  return oneList(kept, await adTouchesOf(db, tenantId, { since: of.since, until: null, contactIds }));
-}
-
 /** A workspace's touches in a window, from every home, in one read each (Reports never asks person by person). */
 export async function listTouchesIn(
   db: Db,
@@ -155,7 +135,7 @@ export async function listTouchesIn(
     .limit(TOUCHES_READ_MAX);
   if (error) throw new DbFailure(error, "touches");
   const kept = data.flatMap((row) => keptTouchOf(row) ?? []);
-  return oneList(kept, await adTouchesOf(db, tenantId, { ...window, contactIds: null }));
+  return oneList(kept, await adTouchesOf(db, tenantId, window));
 }
 
 /** The touches of these posts, newest first (the piece's What it brought). */

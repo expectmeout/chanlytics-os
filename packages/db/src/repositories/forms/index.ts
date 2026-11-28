@@ -57,6 +57,7 @@ export type {
   FormEntryLink,
   FormEntryRead,
   FormHeldWhy,
+  FormOwnResult,
   FormPlaceResult,
   FormReach,
   FormRequestTaken,

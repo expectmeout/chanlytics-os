@@ -18,7 +18,6 @@ import {
   adDaySettling,
   adStateOf,
   addDays,
-  bookedAfterTouch,
 } from "@chanlytics/contracts";
 
 const TODAY = "2026-11-18";
@@ -99,37 +98,6 @@ test("an ad account is not connected, to be chosen, connected, or needs connecti
   assert.equal(account("connected", "2026-11-18T12:00:00Z"), "lapsed", "a token that has just run out");
   assert.equal(account("connected", "2026-11-01T00:00:00Z"), "lapsed");
   assert.equal(account("revoked", "2026-12-18T12:00:00Z"), "lapsed", "the platform took its access back");
-});
-
-test("booked from an ad: a visit after first touch that is not cancelled, and is more than a request", () => {
-  const touch = "2026-11-10T15:00:00Z";
-  const visit = (status, start = "2026-11-25T10:00:00Z") => ({ status, start });
-  assert.equal(bookedAfterTouch(touch, []), false);
-  assert.equal(bookedAfterTouch(touch, [visit("booked")]), true, "a visit ahead");
-  assert.equal(bookedAfterTouch(touch, [visit("kept", "2026-11-12T10:00:00Z")]), true, "one they kept");
-  assert.equal(
-    bookedAfterTouch(touch, [visit("missed", "2026-11-12T10:00:00Z")]),
-    true,
-    "one they missed: they booked",
-  );
-  assert.equal(bookedAfterTouch(touch, [visit("booked", "2026-11-12T10:00:00Z")]), true, "past, and never marked");
-  assert.equal(bookedAfterTouch(touch, [visit("cancelled")]), false, "a cancelled visit un-books");
-  assert.equal(bookedAfterTouch(touch, [visit("proposed")]), false, "a request nobody confirmed");
-  assert.equal(bookedAfterTouch(touch, [visit("kept", "2026-11-01T10:00:00Z")]), false, "a visit before first touch");
-  assert.equal(
-    bookedAfterTouch(touch, [visit("booked", touch)]),
-    false,
-    "one that starts at the touch is not after it",
-  );
-  assert.equal(
-    bookedAfterTouch(touch, [visit("cancelled"), visit("proposed"), visit("booked")]),
-    true,
-    "any one counts",
-  );
-  // The record's ms and the wire's ISO read alike, and a moment that is not a time counts for nothing.
-  assert.equal(bookedAfterTouch(Date.parse(touch), [{ status: "booked", start: Date.parse(touch) + 1 }]), true);
-  assert.equal(bookedAfterTouch("never", [visit("booked")]), false);
-  assert.equal(bookedAfterTouch(touch, [visit("booked", "soon")]), false);
 });
 
 test("the cost for each person who booked: a dash under five, a cost from five, so far while a day still settles", () => {
