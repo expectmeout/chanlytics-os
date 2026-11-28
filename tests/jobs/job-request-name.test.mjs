@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { requestId, withRequestId } from "@chanlytics/log";
+import { requestAttempt, requestId, requestTenant, withRequestId } from "@chanlytics/log";
 import { fakeDb } from "../_fake-db.mjs";
 import { dispatchJob } from "../../packages/jobs/src/handlers/handlers.ts";
 import { scheduleJob, scheduleJobOnce } from "../../packages/jobs/src/runner/schedule.ts";
@@ -56,6 +56,7 @@ test("a job scheduled while a request is served carries its name in the payload,
 /** push_send over a phone that is asked, and the request the code answering it ran as. */
 async function ranAs(job) {
   const seen = [];
+  const told = [];
   const db = fakeDb({
     notifications: [
       {
@@ -82,6 +83,7 @@ async function ranAs(job) {
       push: {
         send: async (messages) => {
           seen.push(requestId());
+          told.push({ tenant: requestTenant(), attempt: requestAttempt() });
           return messages.map((m) => ({ to: m.to, status: "ok", id: `ticket-${m.to}` }));
         },
         receipts: async () => ({}),
@@ -89,7 +91,7 @@ async function ranAs(job) {
     },
     job,
   );
-  return { outcome, seen };
+  return { outcome, seen, told };
 }
 
 test("the runner runs a job as the request that scheduled it, and a job with no name as itself; the name ends with the job", async () => {
@@ -113,4 +115,15 @@ test("the runner runs a job as the request that scheduled it, and a job with no 
   assert.equal(requestId(), null, "and nothing outlives the job: the next one in this instance starts clean");
   const unknown = await dispatchJob({}, { id, tenant_id: T, kind: "no_such_kind", payload: {} });
   assert.equal(unknown, "unknown_kind", "a kind this build does not know runs nothing, named or not");
+});
+
+test("the runner tells the work whose it is and which try: the provider door counts its calls under the workspace, and asks each once on a later try", async () => {
+  const id = "3f8e6c2a-5d41-4b7a-9c0e-2a1b3c4d5e6f";
+  const first = await ranAs({ id, tenant_id: T, kind: "push_send", payload: { notification_id: "n1" }, attempts: 1 });
+  assert.deepEqual(first.told, [{ tenant: T, attempt: 1 }]);
+  const third = await ranAs({ id, tenant_id: T, kind: "push_send", payload: { notification_id: "n1" }, attempts: 3 });
+  assert.deepEqual(third.told, [{ tenant: T, attempt: 3 }]);
+  const unsaid = await ranAs({ id, tenant_id: T, kind: "push_send", payload: { notification_id: "n1" } });
+  assert.deepEqual(unsaid.told, [{ tenant: T, attempt: null }], "a context that does not say reads as a first try");
+  assert.equal(requestTenant(), null, "and it ends with the job");
 });

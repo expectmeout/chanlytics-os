@@ -217,7 +217,14 @@ test("a breaker opens and closes in the log, once each, naming the provider; the
     );
     assert.deepEqual(
       breakerStates(c.now()).find((b) => b.provider === "retell"),
-      { provider: "retell", open: true, failures: 5, opened: 1, open_until: new Date(c.now() + 30_000).toISOString() },
+      {
+        provider: "retell",
+        open: true,
+        failures: 5,
+        opened: 1,
+        open_until: new Date(c.now() + 30_000).toISOString(),
+        workspaces_held: 0,
+      },
     );
     // The pause ends, one call goes and is answered: closed, said once.
     c.pass(30_000);
@@ -236,7 +243,7 @@ test("a breaker opens and closes in the log, once each, naming the provider; the
   const after = breakerStates(c.now());
   assert.deepEqual(
     after.find((b) => b.provider === "retell"),
-    { provider: "retell", open: false, failures: 0, opened: 1, open_until: null },
+    { provider: "retell", open: false, failures: 0, opened: 1, open_until: null, workspaces_held: 0 },
     "closed, and the count of the outage kept",
   );
   assert.ok(
@@ -272,7 +279,11 @@ test("each call's time is said under its name in the request it serves, and a ca
   assert.deepEqual(timings, { "out.meta": { ms: 3_100, n: 2 }, "out.edge": { ms: 40, n: 1 } });
   assert.deepEqual(
     lines.map((l) => [l.event, fieldsOf(l)]),
-    [["outside_call_slow", { provider: "meta", ms: 3_000, timeout_ms: 5_000, status: 200, outcome: "ok", tries: 1 }]],
+    [
+      ["outside_call_slow", { provider: "meta", ms: 3_000, timeout_ms: 5_000, status: 200, outcome: "ok", tries: 1 }],
+      // When the work ends, its calls out are said once, our own two apps left out (packages/log logger.ts).
+      ["outside_calls", { purpose: null, attempt: null, calls: { meta: { n: 2, ms: 3_100 } } }],
+    ],
   );
 });
 

@@ -22,6 +22,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { normalizeCall, liveTurns, fetchRecording, getCall } from "@chanlytics/channels/voice";
+import { resetBreakers } from "@chanlytics/channels/shared";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
 import { fakeDb } from "../../_fake-db.mjs";
@@ -195,8 +196,14 @@ test("a call read tells the provider's answers apart — found, not found, a ref
     return answers[id](init);
   };
   const cfg = { apiKey: "retell-key-for-this-test" };
+  // Each case is its own call, met afresh: a wait one case's answer named (call_limited's thirty seconds) is the door's
+  // to honour for the calls after it, and none of them is that call's.
+  const readCall = (id, ...opts) => {
+    resetBreakers();
+    return getCall(cfg, id, ...opts);
+  };
   try {
-    assert.deepEqual(await getCall(cfg, "call_found"), { kind: "found", call: found });
+    assert.deepEqual(await readCall("call_found"), { kind: "found", call: found });
     assert.deepEqual(
       asked,
       [
@@ -208,44 +215,44 @@ test("a call read tells the provider's answers apart — found, not found, a ref
       ],
       "asked as this deployment, bounded at ten seconds unless the caller says otherwise",
     );
-    assert.deepEqual(await getCall(cfg, "call_gone"), { kind: "not_found", status: 404 });
+    assert.deepEqual(await readCall("call_gone"), { kind: "not_found", status: 404 });
     assert.deepEqual(
-      await getCall(cfg, "call_rejected"),
+      await readCall("call_rejected"),
       { kind: "not_found", status: 422 },
       "any other refusal of the request is the same answer: asking again will not change it",
     );
-    assert.deepEqual(await getCall(cfg, "call_unauthorized"), { kind: "auth", status: 401 });
-    assert.deepEqual(await getCall(cfg, "call_forbidden"), { kind: "auth", status: 403 });
-    assert.deepEqual(await getCall(cfg, "call_limited"), { kind: "unavailable", status: 429, retryAfterMs: 30_000 });
+    assert.deepEqual(await readCall("call_unauthorized"), { kind: "auth", status: 401 });
+    assert.deepEqual(await readCall("call_forbidden"), { kind: "auth", status: 403 });
+    assert.deepEqual(await readCall("call_limited"), { kind: "unavailable", status: 429, retryAfterMs: 30_000 });
     assert.deepEqual(
-      await getCall(cfg, "call_limited_past"),
+      await readCall("call_limited_past"),
       { kind: "unavailable", status: 429, retryAfterMs: null },
       "a date already past is 'retry now' (RFC 9110): no wait to hold a tick for",
     );
     assert.deepEqual(
-      await getCall(cfg, "call_limited_now"),
+      await readCall("call_limited_now"),
       { kind: "unavailable", status: 429, retryAfterMs: null },
       "and so is zero",
     );
-    const until = await getCall(cfg, "call_limited_until");
+    const until = await readCall("call_limited_until");
     assert.equal(until.kind, "unavailable");
     assert.ok(
       until.retryAfterMs > 80_000 && until.retryAfterMs <= 90_000,
       `an HTTP-date Retry-After is the wait from now: ${until.retryAfterMs}`,
     );
-    assert.deepEqual(await getCall(cfg, "call_down"), { kind: "unavailable", status: 502, retryAfterMs: null });
+    assert.deepEqual(await readCall("call_down"), { kind: "unavailable", status: 502, retryAfterMs: null });
     assert.deepEqual(
-      await getCall(cfg, "call_broken"),
+      await readCall("call_broken"),
       { kind: "unavailable", status: 200, retryAfterMs: null },
       "a 200 that is not a call is not a call: a proxy's page, not the provider's word",
     );
     assert.deepEqual(
-      await getCall(cfg, "call_no_id"),
+      await readCall("call_no_id"),
       { kind: "unavailable", status: 200, retryAfterMs: null },
       "nor is an object that carries no call id",
     );
     assert.deepEqual(
-      [await getCall(cfg, "call_timeout"), await getCall(cfg, "call_too_early")],
+      [await readCall("call_timeout"), await readCall("call_too_early")],
       [
         { kind: "unavailable", status: 408, retryAfterMs: null },
         { kind: "unavailable", status: 425, retryAfterMs: null },
@@ -253,17 +260,17 @@ test("a call read tells the provider's answers apart — found, not found, a ref
       "a 408 and a 425 say 'not now', not 'no such call': no try is spent on them",
     );
     assert.deepEqual(
-      await getCall(cfg, "call_slow_body", { timeoutMs: 50 }),
+      await readCall("call_slow_body", { timeoutMs: 50 }),
       { kind: "unavailable", status: null, retryAfterMs: null },
       "a body that stalls past the bound is no answer at all, so the tick stops asking",
     );
     assert.deepEqual(
-      await getCall(cfg, "call_unreachable"),
+      await readCall("call_unreachable"),
       { kind: "unavailable", status: null, retryAfterMs: null },
       "no answer at all is not a refusal",
     );
     assert.deepEqual(
-      await getCall(cfg, "call_stalled", { timeoutMs: 50 }),
+      await readCall("call_stalled", { timeoutMs: 50 }),
       { kind: "unavailable", status: null, retryAfterMs: null },
       "a read that never answers is given up on inside its bound, not waited for",
     );

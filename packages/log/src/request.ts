@@ -8,7 +8,7 @@
  * it. The store lives on globalThis under a registered symbol, the way AppError's brand is recognised by every copy of
  * contracts.
  *
- * A request is named by `withRequestId`, which runs the work inside the name (AsyncLocalStorage.run): the name holds
+ * A request is named by `withRequestId` (logger.ts, over `serveAs`), which runs the work inside the name (AsyncLocalStorage.run): the name holds
  * for what that work awaits and ends when it returns. Nothing here enters a name for the rest of an execution
  * (enterWith), so a request can never lend its name to the next one an instance serves.
  */
@@ -24,6 +24,19 @@ interface Serving {
   touched?: Map<string, Set<string>>;
   /** What stands for it where its identical reads share one answer (`shareReads`): it lives as long as the request does. */
   reads?: object;
+  /** What the work is for, said where it is named (`withRequestId`'s `about`): a door's path, a job's kind. */
+  purpose?: string;
+  /** Which try of its work this is (a job's attempt, 1 on its first run): an outside call asks once on a later one. */
+  attempt?: number;
+  /** Its calls to services outside our own two apps, by provider (`noteOutsideCall`): what its one line says (logger.ts). */
+  calls?: Map<string, RequestTiming>;
+}
+
+/** What a unit of work says of itself as it is named: whose it is, what it is for, and which try. */
+export interface ServingAbout {
+  tenantId?: string;
+  purpose?: string;
+  attempt?: number;
 }
 
 /** One name's share of a request's time: how long all of it took, and how many there were. */
@@ -36,10 +49,41 @@ const REQUEST_SLOT: unique symbol = Symbol.for("chanlytics.request");
 const requestHolder = globalThis as { [REQUEST_SLOT]?: AsyncLocalStorage<Serving> };
 const serving: AsyncLocalStorage<Serving> = (requestHolder[REQUEST_SLOT] ??= new AsyncLocalStorage<Serving>());
 
-/** Run `fn` as the request named `id`: every line it logs, every job it schedules and every event it writes carries the name. */
-export function withRequestId<T>(id: string, fn: () => T): T {
-  return serving.run({ id }, fn);
+/**
+ * Run `fn` as the unit of work named `id`, with what it says of itself: the store it runs in, handed to `ended` once it
+ * has (for a promise, once it settles, its answer or failure unchanged). logger.ts's `withRequestId` is the one caller.
+ */
+export function serveAs<T>(id: string, about: ServingAbout, fn: () => T, ended: (store: ServedStore) => void): T {
+  const store: Serving = {
+    id,
+    ...(about.tenantId ? { tenantId: about.tenantId } : {}),
+    ...(about.purpose ? { purpose: about.purpose } : {}),
+    ...(about.attempt !== undefined && Number.isFinite(about.attempt) ? { attempt: about.attempt } : {}),
+  };
+  // The end is said inside the name too, so its line carries the request it closes.
+  return serving.run(store, () => {
+    const out = fn();
+    if (!(out instanceof Promise)) {
+      ended(store);
+      return out;
+    }
+    const settled: unknown = out.then(
+      (value: unknown) => {
+        ended(store);
+        return value;
+      },
+      (failure: unknown) => {
+        ended(store);
+        throw failure;
+      },
+    );
+    // The same promise's answer, settled after the line: T is that promise's own type.
+    return settled as T;
+  });
 }
+
+/** What a unit of work's end reads of it: its name, whose and what for, and its outside calls. */
+export type ServedStore = Readonly<Pick<Serving, "id" | "tenantId" | "purpose" | "attempt" | "calls">>;
 
 /** The name of the request the code running now serves, or null outside one (a script, a test, a clock's own SQL). */
 export function requestId(): string | null {
@@ -58,6 +102,30 @@ export function noteTenant(tenantId: string): void {
 /** The workspace the request running now acts on, when it has said. */
 export function requestTenant(): string | null {
   return serving.getStore()?.tenantId ?? null;
+}
+
+/** Which try of its work the code running now is (a job's attempt), or null where nothing said: a first try. */
+export function requestAttempt(): number | null {
+  return serving.getStore()?.attempt ?? null;
+}
+
+/** How many providers one unit of work keeps the calls of. */
+const CALLS_HELD = 24;
+
+/**
+ * One call to a service outside our own two apps, said by the provider door (channels provider-fetch) after it: added up
+ * by provider, so the work's one line says what it spent where (`outside_calls`, logger.ts), under its workspace and
+ * purpose. Outside a named unit of work it does nothing.
+ */
+export function noteOutsideCall(provider: string, ms: number): void {
+  const store = serving.getStore();
+  if (!store || !Number.isFinite(ms) || ms < 0) return;
+  const calls = (store.calls ??= new Map<string, RequestTiming>());
+  const had = calls.get(provider);
+  if (had) {
+    had.ms += ms;
+    had.n += 1;
+  } else if (calls.size < CALLS_HELD) calls.set(provider, { ms, n: 1 });
 }
 
 /** How many names one request keeps the time of. */

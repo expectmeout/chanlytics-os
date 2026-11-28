@@ -13,7 +13,7 @@
  * EVENT NAMES DO NOT CHANGE: they are what alerting and every incident's first query grep for.
  */
 import { errText, redact } from "./redact";
-import { requestId, requestTenant } from "./request";
+import { requestId, requestTenant, serveAs, type ServedStore, type ServingAbout } from "./request";
 
 export type LogLevel = "info" | "warn" | "error";
 
@@ -116,4 +116,41 @@ export function logAndGoOn(doing: string, fallback?: unknown): (failure: unknown
     logKeptGoing(doing, failure);
     return fallback;
   };
+}
+
+/*
+ * A unit of work named as it enters, and its one line of outside calls as it ends (layer 12, lane 8 of the "prove it
+ * works" plan, 28 Nov 2026).
+ *
+ * `withRequestId` names the request a door, a route or a job serves (request.ts holds the name). What the work says of
+ * itself goes in with the name: the workspace it acts on, what it is for (a door's path, a job's kind) and which try it
+ * is. The provider door reads them back: the workspace is whose limits a call spends, and a later try asks each call
+ * once (channels provider-fetch).
+ *
+ * When the work has ended, the calls it made to services outside our own two apps are said in one line,
+ * `outside_calls`: by provider, how many and how long, under the workspace and the purpose. Before it, a call's time was
+ * said only inside a dashboard route's answer, and a job's or a webhook's calls were said nowhere, so what one workspace
+ * costs at Meta or Google could not be added up. One line per unit of work, never one per call: a sweep makes hundreds
+ * (decision 0149, point 2).
+ */
+
+/** The line a unit of work's outside calls are said in, when it made any. */
+function sayOutsideCalls(store: ServedStore): void {
+  if (!store.calls?.size) return;
+  const calls: Record<string, { n: number; ms: number }> = {};
+  for (const [provider, spent] of store.calls) calls[provider] = { n: spent.n, ms: Math.round(spent.ms) };
+  logger().info("outside_calls", {
+    ...(store.tenantId ? { tenant_id: store.tenantId } : {}),
+    purpose: store.purpose ?? null,
+    attempt: store.attempt ?? null,
+    calls,
+  });
+}
+
+/**
+ * Run `fn` as the request named `id`: every line it logs, every job it schedules and every event it writes carries the
+ * name, and its outside calls are said once it has ended. `about` is what the work says of itself as it enters.
+ */
+export function withRequestId<T>(id: string, fn: () => T, about: ServingAbout = {}): T {
+  return serveAs(id, about, fn, sayOutsideCalls);
 }

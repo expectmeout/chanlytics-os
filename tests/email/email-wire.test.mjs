@@ -449,6 +449,8 @@ test("the provider's 'not this second' is waited out once, briefly, and the same
   const again = () => {
     posted.length = 0;
     waits.length = 0;
+    // Each case meets Resend afresh: the wait an earlier case's answer named is the door's to keep, not this one's.
+    resetBreakers();
   };
   try {
     const r = buildEmailRequest(input());
