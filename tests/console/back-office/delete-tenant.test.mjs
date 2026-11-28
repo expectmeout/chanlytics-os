@@ -12,6 +12,10 @@
  * The files are the part no cascade reaches. A workspace's media folder, its
  * call recordings and its messages' media, is walked to the bottom over a bucket
  * that answers as storage does, and removed a batch at a time.
+ *
+ * Its folder beside this file holds the rest: every read whole (delete-tenant/every-read-is-whole), the work stopped
+ * before the delete (stop-then-delete), the list of what is removed outside the database (clean-up-list), and a long
+ * history deleted in slices (long-history).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -19,10 +23,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT } from "../../_source.mjs";
-import { NAME, OTHER, STRANDED, T, deleteTenant, harbor } from "./_delete-tenant-world.mjs";
+import { NAME, OTHER, STOPPED, STRANDED, T, deleteTenant, harbor } from "./_delete-tenant-world.mjs";
 import { bucket } from "./_supabase-stand-in.mjs";
 
 const run = await import(pathToFileURL(path.join(ROOT, "tooling/scripts/ops/delete-tenant.mjs")).href);
+const { keyOf } = await import(pathToFileURL(path.join(ROOT, "tooling/scripts/ops/delete-tenant/tables.mjs")).href);
 const WHO = ["--tenant", T, "--expect-name", NAME];
 
 /** Every table carrying a tenant_id, read out of the migrations. */
@@ -47,7 +52,10 @@ test("the script backs up every table that carries a tenant_id", () => {
   // A row in every one of them, run as a dry run: each comes back in the backup, and a table the script names that has
   // no tenant_id, or is gone, is a read the database refuses, which the script refuses on (below).
   const inSchema = [...tablesWithTenantId()].sort();
-  const tables = Object.fromEntries(inSchema.map((t) => [t, [{ tenant_id: T }]]));
+  // Each with the key its pages are read by, and a date, which the history's months are read by.
+  const rowOf = (t) => ({ ...Object.fromEntries(keyOf(t).map((column) => [column, "k-1"])), tenant_id: T });
+  const tables = Object.fromEntries(inSchema.map((t) => [t, [rowOf(t)]]));
+  tables.events[0].created_at = "2026-03-04T10:00:00Z";
   tables.tenants = harbor().tenants;
   const dry = deleteTenant({ tables }, ...WHO);
   assert.equal(dry.code, 0, dry.said);
@@ -125,7 +133,7 @@ test("the two tables that do not cascade are handled, not discovered afterwards"
   );
   assert.deepEqual(
     applied.log,
-    ["events delete", "tenants delete"],
+    [...STOPPED, "events delete", "tenants delete"],
     "and does so BEFORE the tenant, while the rows can still be found",
   );
 
@@ -190,7 +198,7 @@ test("the refusal comes before anything is deleted", () => {
   const stranded = deleteTenant({ tables: harbor(STRANDED) }, ...WHO, "--apply", "--orphans-ok");
   assert.equal(stranded.code, 0, "and only --orphans-ok gets past it");
   assert.match(stranded.out, /--orphans-ok: stranding 6 provider-side things on purpose/);
-  assert.deepEqual(stranded.log, ["events delete", "tenants delete"]);
+  assert.deepEqual(stranded.log, [...STOPPED, "events delete", "tenants delete"]);
 });
 
 test("a dry run reports the orphans and still finishes", () => {
@@ -292,7 +300,7 @@ test("the media is counted in the dry run and removed only after the rows are go
   const applied = deleteTenant({ tables: harbor(), buckets: { media } }, ...WHO, "--apply");
   assert.deepEqual(
     applied.log,
-    ["events delete", "tenants delete", "storage media remove 2"],
+    [...STOPPED, "events delete", "tenants delete", "storage media remove 2"],
     "after the tenant delete",
   );
   assert.deepEqual(applied.buckets.media, [`${OTHER}/calls/b.wav`], "this workspace's alone");
@@ -370,19 +378,6 @@ test("each shelved video is taken off the shelf through the relay, and one that 
   assert.ok(relay.shelf.held.has(`${T}/${SHELF_FILES[0]}/video`));
 });
 
-test("a video being put on the shelf this minute holds the delete, and one left saving long ago does not", () => {
-  const now = Date.parse("2026-11-23T03:00:00Z");
-  const at = (secondsAgo) => new Date(now - secondsAgo * 1000).toISOString();
-  const copies = [
-    { origin: "shelf", state: "saving", updated_at: at(30) },
-    { origin: "shelf", state: "saving", updated_at: at(600) },
-    { origin: "shelf", state: "checked", updated_at: at(5) },
-    { origin: "saved", state: "saving", updated_at: at(5) },
-  ];
-  assert.deepEqual(run.shelvingNow(copies, now), [copies[0]]);
-  assert.deepEqual(run.shelvingNow(undefined, now), []);
-});
-
 test("the shelf is counted in the dry run, holds an apply that would strand it, and is emptied only after the rows are gone", () => {
   const world = (over = {}) => ({
     tables: harbor({
@@ -410,7 +405,7 @@ test("the shelf is counted in the dry run, holds an apply that would strand it, 
   assert.equal(applied.code, 0, applied.said);
   assert.deepEqual(
     applied.log,
-    ["events delete", "tenants delete", "fetch DELETE relay.example"],
+    [...STOPPED, "events delete", "tenants delete", "fetch DELETE relay.example"],
     "after the tenant delete",
   );
   assert.match(applied.out, /removed 1 of 1 videos from the shelf/);

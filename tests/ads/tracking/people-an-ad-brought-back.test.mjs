@@ -18,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { adsPage } = await import(at("apps/dashboard/src/server/readers/ads-page.ts"));
 const { readerContext, readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model/sheet.ts"));
 const { lensModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/lens-model.ts"));
 
 const T = "10000000-0000-4000-8000-000000000001";

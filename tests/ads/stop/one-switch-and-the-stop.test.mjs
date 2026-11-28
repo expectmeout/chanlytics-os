@@ -29,7 +29,7 @@ for (const k of ["DIAG_KEY", "VERCEL_ENV"]) delete process.env[k];
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { readAdsShown, readAdsOffered } = await import(at("apps/dashboard/src/server/connections/ads-ready.ts"));
-const { sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model/sheet.ts"));
 const { aiStopOf } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/stop.ts"));
 const { adsPage, aiStoppedAt } = await import(at("apps/dashboard/src/server/readers/ads-page.ts"));
 const { pressAd } = await import(at("apps/dashboard/src/server/ads/presses.ts"));

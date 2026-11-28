@@ -537,6 +537,7 @@ export { REVIEWS_WAITING_SHOWN, toReviewsReportVM } from "./reports/review-repor
 export { holdOf, replyHoldDtoOf } from "./reports/speed";
 export { BOOKED_ENDED_META, bookedTileOf, compareWords, deltaOf, fmtSeconds, isThinShare, pointsDelta, REPORT_MIN_N, shareSaid, beforeWords, messagesAnsweredWords } from "./reports/tiles";
 export { ROUTE_KEYS } from "./route-keys.generated";
+export { SCHEMA_HEAD } from "./schema-head.generated";
 export { SCHEMA_SETS } from "./schema-sets.generated";
 export { BOOKED_NEEDS_A_LINK, BOOKING_TOOL_WORDS, bookingEmailsHeldWords, bookingEmailsStep, BOOKS_BY_HAND, BOOKS_WITH_CALENDAR, booksWithName, booksWithOf, booksWithOptions, CALENDAR_SETTING_ROUTE, calendarLinkNote, calendarLinkShown, calendarSourceFacts, calendarSourceOf, forwardStillAsked } from "./setup/calendar-source";
 export { CAPABILITY_KINDS, capabilityStatus } from "./setup/capabilities";

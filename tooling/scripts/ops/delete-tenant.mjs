@@ -2,10 +2,15 @@
  * Delete a workspace and everything in it (prod-script bar): dry-run DEFAULT,
  * a JSONL backup of every row before any apply, idempotent, --apply to execute.
  *
- * A tenant delete cascades through thirty-odd tables and nothing undoes it, so
+ * A tenant delete cascades through a hundred-odd tables and nothing undoes it, so
  * the guard is not a human reading a name off the screen. --expect-name has to
  * match the tenant's name exactly, the counts are printed before anything is
  * touched, and the backup is written first or the run stops.
+ *
+ * The backup holds every row, however many. PostgREST answers one read with at most 1,000 rows and says nothing when it
+ * stops there, so each table is read a page at a time by its own key until a page comes back empty, and the database's
+ * exact count is asked before and after. A read with fewer rows than were counted refuses, on a dry run too
+ * (delete-tenant/reads.mjs).
  *
  * Two tables do NOT cascade, and both are handled here rather than discovered
  * afterwards:
@@ -30,687 +35,379 @@
  * to own the product's first real phone line, answering, with two inbound texts
  * on it. A dry run is what caught that; a hand-typed DELETE would not have.
  *
+ * An apply stops the workspace's work before it deletes anything (delete-tenant/fence.mjs). It sets Stop everything
+ * through its own door, withdraws the workspace's queued jobs, and waits until none is running (--wait-minutes, ten
+ * unless said; past it the run refuses and names them). Then it reads the workspace AGAIN, and that second read, exact
+ * to the row, is the backup the delete goes by: what a job wrote while the first look was being read is in it. A run
+ * that refuses after the stop leaves Stop everything on and says so; run it again, or press Resume in the product to
+ * keep the workspace.
+ *
  * The files are outside Postgres too. The workspace's folder in `media` holds its
  * call recordings (calls/) and its messages' media (a folder per thread), and the
  * 90-day purge finds a recording through its calls row, which this delete removes:
  * a workspace deleted on 28 Oct 2026 left 24 recordings that nothing would take. So
  * the folder is read to the bottom with the counts, and emptied after the rows,
- * as the logo folder is.
+ * as the logo folder is. Its videos at Cloudflare Stream, its pictures' copies at Anthropic and its videos on Chanlytics'
+ * own shelf (the archive plan's B2: a private bucket behind the relay, a key that begins with the workspace's id) go the
+ * same way.
  *
- * Its two deletes (the events, then the tenant with its cascade) are one statement each, and the service role's
- * statements end at 30 seconds (00283). A workspace with a very long history can need longer: the events delete then
- * times out having removed nothing, or the tenant delete does after the events are gone. Both are safe to run again,
- * since the backup is already written and the script is idempotent; for a workspace too large to finish, run the same
- * two deletes from psql after `set statement_timeout = 0`.
+ * Everything removed outside the database is on a list first (delete-tenant/outside.mjs): a file beside the backup,
+ * `<backup>.clean-up.jsonl`, one line for each thing, written before any delete. A removal marks its line. The run ends
+ * non-zero while a line is not done and prints what stayed; `--resume <list>` says what is still on a list, and with
+ * `--apply` asks again for only that. It refuses while the workspace's row is still there.
  *
- * And its videos on Chanlytics' own shelf (the archive plan's B2): a private bucket behind the relay, where a video made
- * here keeps a copy by a key that begins with the workspace's id. No cascade reaches it, so they are counted with the
- * rest, named in the backup (file_archive_parts.shelf_key), and removed through the relay after the rows, under a
- * ticket for each. An apply waits where one is being put there this very minute, so nothing lands after the workspace
- * is gone.
+ * No statement takes a whole history (delete-tenant/slices.mjs): the service role's statements end at 30 seconds
+ * (00283). Past 5,000 rows the events go a month at a time, and the tables that grow with history are emptied by key
+ * before the workspace's own delete; a slice that still times out is cut in two. A run that stops between two deletes is
+ * safe to run again. Keep every backup of a workspace: a second run's backup does not hold what the first one deleted.
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY; and to empty what is outside the database, each for this run:
  *      ANTHROPIC_API_KEY, CLOUDFLARE_ACCOUNT_ID with CLOUDFLARE_STREAM_API_TOKEN, FOOTAGE_RELAY_URL with FOOTAGE_TICKET_KEY
  * Usage:
  *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"
- *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>" --apply
+ *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>" --apply [--wait-minutes <n>]
+ *   node tooling/scripts/ops/delete-tenant.mjs --resume <list> [--apply]
  */
 import { createClient } from "@supabase/supabase-js";
-import { createHmac } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { mkdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { drain, jobWords, ledgerOf, stop } from "./delete-tenant/fence.mjs";
+import {
+  cleanUp,
+  filesUnder,
+  itemWords,
+  listOf,
+  readList,
+  removeAll,
+  removeShelved,
+  shelfDeleteTicket,
+  shelvedOf,
+  writeList,
+} from "./delete-tenant/outside.mjs";
+import { snapshot } from "./delete-tenant/reads.mjs";
+import { SLICED_PAST, deleteHistory, emptyFirst } from "./delete-tenant/slices.mjs";
+import { strandedOf } from "./delete-tenant/stranded.mjs";
+import { EMPTIED_FIRST, KEPT } from "./delete-tenant/tables.mjs";
 
-/** One video's removal from the shelf: a small call to the relay. */
-const SHELF_CALL_MS = 10_000;
-/** How long a shelf ticket made here runs: one call's worth, and some. */
-const SHELF_TICKET_S = 300;
-/**
- * A put on the shelf ends within a minute of its start, stored whole or not at all (apps/relay/README.md). A copy
- * still saving and touched within twice that may be landing right now.
- */
-const SHELF_PUT_SETTLES_MS = 2 * 60_000;
+export { filesUnder, removeAll, removeShelved, shelfDeleteTicket, shelvedOf };
 
-/**
- * The shelf's ticket to take one workspace's one file off it, as the relay reads one (apps/relay/src/ticket.ts
- * `readShelfTicket`): written out here because this script runs as plain Node and imports nothing of the app's. The
- * test holds it to the relay's own reader.
- */
-export function shelfDeleteTicket(ticketKey, video, nowMs = Date.now()) {
-  const claim = {
-    for: "shelf",
-    tenant: video.tenant,
-    file: video.file,
-    use: "delete",
-    exp: Math.floor(nowMs / 1000) + SHELF_TICKET_S,
-  };
-  const body = `v2.${Buffer.from(JSON.stringify(claim), "utf8").toString("base64url")}`;
-  return `${body}.${createHmac("sha256", ticketKey).update(body).digest().toString("base64url")}`;
-}
-
-/** The videos a workspace keeps on the shelf, read off its copies' pieces: each key is `<workspace>/<file>/video`. */
-export function shelvedOf(parts) {
-  return (parts ?? [])
-    .map((part) => /^([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/video$/.exec(String(part.shelf_key ?? "")))
-    .filter(Boolean)
-    .map(([, tenant, file]) => ({ tenant, file }));
-}
-
-/** The shelf copies that may be landing this minute: still saving, and touched within the time a put settles in. */
-export function shelvingNow(copies, nowMs = Date.now()) {
-  return (copies ?? []).filter(
-    (copy) =>
-      copy.origin === "shelf" &&
-      copy.state === "saving" &&
-      nowMs - Date.parse(copy.updated_at ?? copy.created_at ?? 0) < SHELF_PUT_SETTLES_MS,
-  );
-}
-
-/** Each video taken off the shelf through the relay, under a ticket of its own. Answers how many stayed. */
-export async function removeShelved(relay, videos, ask = fetch) {
-  let stayed = 0;
-  for (const video of videos) {
-    const res = await ask(`${relay.url.replace(/\/+$/, "")}/shelf/${encodeURIComponent(video.file)}/video`, {
-      method: "DELETE",
-      headers: { authorization: `Bearer ${shelfDeleteTicket(relay.ticketKey, video)}` },
-      signal: AbortSignal.timeout(SHELF_CALL_MS),
-    }).catch(() => null);
-    // The shelf says 204 for one it let go and for one it never held.
-    if (res?.status !== 204) stayed++;
-  }
-  return stayed;
-}
-
-/** One copy's delete at Anthropic: a small call, with room for a slow answer. */
-const ANTHROPIC_CALL_MS = 10_000;
-/** One video's delete at Stream: the same. */
-const STREAM_CALL_MS = 10_000;
-
-/**
- * Every table carrying a tenant_id, derived from the migrations. Pinned here
- * BY VALUE so the backup cannot silently miss a table: a companion test reads
- * supabase/migrations and fails when this list and the schema disagree.
- *
- * google_reviews and google_listing_days are absent on purpose — they cascade
- * through google_listings, which cascades from tenants, so they are captured
- * by backing that up. They are listed in the test's expected set all the same.
- */
-const TABLES = [
-  // An owner's ad account, and each ad's days of spend (00648, decision 0049); its ads are below.
-  "ad_accounts",
-  "ad_days",
-  // The workspace's one draft of a new ad, with its words (00659).
-  "ad_drafts",
-  // What an ad said to each person who tapped it and wrote (00644, decision 0049).
-  "ad_entries",
-  // What Chanlytics made at Meta for an ad made here (00666).
-  "ad_objects",
-  "ads",
-  "ai_usage",
-  "anthropic_profiles",
-  "appointment_notices",
-  "appointments",
-  // What Ask did (00574): closed sets and ids alone.
-  "ask_actions",
-  // What Ask remembers, its journal and each member's mornings (00470, decision 0070).
-  "ask_journal_days",
-  "ask_memory_lines",
-  "ask_messages",
-  "ask_mornings",
-  "ask_notice_days",
-  "ask_threads",
-  "ask_voice_sessions",
-  "billing_accounts",
-  "billing_card_marks",
-  "billing_events",
-  "business_records",
-  "calls",
-  "capability_activations",
-  "contact_identities",
-  "contact_marks",
-  "contact_reads",
-  "contacts",
-  // When a thread's person last wrote on each wire (00484, decision 0001).
-  "conversation_channel_state",
-  // Ask's drafts written ahead for a thread waiting on a person (00475, decision 0071).
-  "conversation_drafts",
-  "conversations",
-  "deals",
-  "decisions",
-  "escalations",
-  "events",
-  // A business's files (00551): the rows here, and their bytes in the files bucket below.
-  "files",
-  "files_let_go",
-  // Where a file's copies are (00686): the folder a press saves into in the owner's Drive, each copy and its pieces.
-  "archive_folders",
-  "file_archives",
-  "file_archive_parts",
-  // A website's form entries and its keys (00675), each site it sends from and each form it sends (00709).
-  "form_entries",
-  "form_keys",
-  "form_sites",
-  "outside_forms",
-  // A business's own forms (00680): each form and its versions, what happened to an entry, and its links with their
-  // days of opens; and each form's days of its business's booking page opened from it (00691).
-  "form_days",
-  "form_entry_links",
-  "form_versions",
-  "forms",
-  "link_days",
-  "links",
-  // Where each post went, and each send of it (00611, decision 0121).
-  "posts",
-  "publish_attempts",
-  // Each video asked for (00613, decision 0122); the video itself is a file, above.
-  "pieces",
-  // A piece's versions, its shapes as sent, and what an owner approved (00681).
-  "piece_revisions",
-  "piece_renditions",
-  "approvals",
-  // A week planned (00706): what the owner claims and what posts are for, the plans and their slots, a clip's moments.
-  "owner_claims",
-  "content_goals",
-  "content_plans",
-  "plan_slots",
-  "file_moments",
-  // What a post said back (00699): its numbers by read, people's touches of a post or a link, and the public answers to
-  // comments.
-  "post_observations",
-  "touches",
-  "comment_answers",
-  "sequence_lead_words",
-  // The notes an owner's corrections suggest keeping (00448, decision 0063).
-  "fact_suggestions",
-  "google_connections",
-  "google_listing_days",
-  "google_listings",
-  "google_reviews",
-  "idempotency_keys",
-  "invitations",
-  "jobs",
-  "lead_counters",
-  "lead_judgments",
-  "lead_operations",
-  "lead_places",
-  "lead_preferences",
-  "lead_rounds",
-  "lead_runs",
-  "lead_search_members",
-  "lead_searches",
-  "lead_suggestions",
-  "lead_suppressions",
-  "leads",
-  "lines",
-  // The mailboxes a business connected to write its reach-outs from (00423, decision 0056).
-  "mailbox_connections",
-  // What the workspace said of a sender, and what its mailbox left where it was (00483).
-  "mailbox_left",
-  "mailbox_sender_reads",
-  "mailbox_senders",
-  "mailboxes",
-  // A folder the workspace has watched for its photos and videos (00639); its connection and its items are below.
-  "media_sources",
-  "memberships",
-  "messages",
-  // A receptionist's turns as the model read them, and the prompts they read (00401, decision 0039).
-  "model_prompts",
-  "model_turns",
-  "notification_reads",
-  "notifications",
-  "partner_earnings",
-  "partner_invitations",
-  "partner_tenants",
-  // The doubt queue (00344): a pair of the workspace's records the door could not tell apart.
-  "person_doubts",
-  "person_moments",
-  "person_notes",
-  "platform_metrics",
-  // The Console (00467, decision 0066): what the team did in it and why, who had it taken, what it reported, and the
-  // requests about it, the last of which outlive it.
-  "platform_acts",
-  "platform_claims",
-  "privacy_requests",
-  "support_reports",
-  // The spine (00334): an event's outbox row and its deliveries follow their workspace.
-  "event_outbox",
-  "event_deliveries",
-  // The intake ledger (00336): a provider's deliveries the door placed with the workspace.
-  "provider_events",
-  "policies",
-  "reach_out_check_spend",
-  // A conversation rehearsed or a real call reviewed (00476, decision 0069).
-  "rehearsals",
-  // What a cause started, and each action of it (00676): a yes taken back, honoured, ad by ad.
-  "remediation_actions",
-  "remediations",
-  // What was brought in, and what the profile and the website say (00477, 00479; decision 0073).
-  "imports",
-  "business_reads",
-  // A lead's own receptionist before they sign up (00497, decision 0079): the sender's row; its workspace is its own.
-  "lead_previews",
-  "reply_turns",
-  "segment_members",
-  "segments",
-  "sequence_batches",
-  "sequence_enrollments",
-  // What a sequence owes a person for an occasion (00598, decision 0119).
-  "sequence_occasions",
-  "sequence_replies",
-  "sequence_sends",
-  "sequence_steps",
-  "sequences",
-  // A workspace's setup choices, its own and not each member's (00513, decision 0091).
-  "setup_choices",
-  // The provider account a watched folder is read through, and what each folder holds (00639).
-  "source_connections",
-  "source_items",
-  "templates",
-  "tenant_channels",
-  "tenant_config",
-  // The settings as they stood at each version (00402, decision 0039).
-  "tenant_config_versions",
-  // The workspace's receptionist at Retell, made before any number (00476, decision 0069).
-  "voice_agents",
-];
-
-/** Survives the delete with a null tenant_id, deliberately. */
-// A partner's earnings (0012) are money owed or paid, and outlive the workspace they came from, as its events do. What
-// the Console's staff did there, and the request that asked for the delete, are the record of it (00467).
-const KEPT = new Set(["billing_events", "partner_earnings", "platform_acts", "privacy_requests"]);
-
-/** A page of storage's list(), its own default: a folder past it is read again from where the page ended. */
-const LIST_PAGE = 100;
-/** The paths one storage remove() carries. */
-const REMOVE_BATCH = 100;
-
-/**
- * Every file under a folder of a bucket, `{ path, bytes }`, its subfolders' included: list() names one folder's
- * children, a subfolder as an entry with no id. A folder nothing was ever written to lists as empty, which is no files,
- * not an error; a folder it could not read is the error, so nothing is taken for empty that was not seen.
- */
-export async function filesUnder(bucket, folder) {
-  const files = [];
-  const folders = [folder];
-  while (folders.length) {
-    const dir = folders.shift();
-    for (let offset = 0; ; offset += LIST_PAGE) {
-      const { data, error } = await bucket.list(dir, { limit: LIST_PAGE, offset });
-      if (error) return { files, error: `${dir}: ${error.message}` };
-      for (const entry of data ?? []) {
-        if (!entry.id) folders.push(`${dir}/${entry.name}`);
-        else files.push({ path: `${dir}/${entry.name}`, bytes: entry.metadata?.size ?? 0 });
-      }
-      if (!data || data.length < LIST_PAGE) break;
-    }
-  }
-  return { files, error: null };
-}
-
-/**
- * The paths removed a batch at a time. A batch storage refuses is kept by path and the rest still go; a path already
- * gone is the end state wanted, so it is neither removed nor failed.
- */
-export async function removeAll(bucket, paths) {
-  const removed = [];
-  const failed = [];
-  let firstError = null;
-  for (let i = 0; i < paths.length; i += REMOVE_BATCH) {
-    const batch = paths.slice(i, i + REMOVE_BATCH);
-    const { data, error } = await bucket.remove(batch);
-    if (error) {
-      failed.push(...batch);
-      firstError ??= error.message;
-    } else removed.push(...(data ?? []).map((o) => o.name));
-  }
-  return { removed, failed, error: firstError };
-}
+/** How long an apply waits for the workspace's running jobs to end, unless --wait-minutes says. */
+const WAIT_MINUTES = 10;
+const MINUTE_MS = 60_000;
+/** How many times an apply stops, reads and looks again at the ledger before it gives up on a workspace that keeps queueing. */
+const FENCE_ROUNDS = 3;
+/** The lines of what stayed that a run prints; the list holds the rest. */
+const STAYS_SAID = 20;
 
 const megabytes = (bytes) => `${(bytes / 1e6).toFixed(1)} MB`;
+const things = (n) => `${n} thing${n === 1 ? "" : "s"}`;
+const row = (name, n, note = "") => `  ${name.padEnd(22)} ${String(n).padStart(6)}${note ? `   ${note}` : ""}`;
 
-async function main() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    console.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required");
-    process.exit(2);
-  }
+/** The run ends here, saying why. */
+function refuse(message, code = 1) {
+  console.error(message);
+  process.exit(code);
+}
 
-  const arg = (name) => {
-    const i = process.argv.indexOf(name);
-    return i === -1 ? null : (process.argv[i + 1] ?? null);
+/** What the run was asked: its flags, and the values of those that take one. */
+function asked(argv) {
+  const value = (name) => {
+    const i = argv.indexOf(name);
+    return i === -1 ? null : (argv[i + 1] ?? null);
   };
-  const tenantId = arg("--tenant");
-  const expectName = arg("--expect-name");
-  const apply = process.argv.includes("--apply");
-  const orphansOk = process.argv.includes("--orphans-ok");
-  if (!tenantId || !expectName) {
-    console.error('usage: --tenant <uuid> --expect-name "<name>" [--apply]');
-    process.exit(2);
-  }
+  const wait = value("--wait-minutes");
+  return {
+    tenantId: value("--tenant"),
+    expectName: value("--expect-name"),
+    resume: value("--resume"),
+    apply: argv.includes("--apply"),
+    orphansOk: argv.includes("--orphans-ok"),
+    waitMs: (wait === null ? WAIT_MINUTES : Number(wait)) * MINUTE_MS,
+  };
+}
 
-  const db = createClient(url, key, { auth: { persistSession: false } });
-
-  // ------------------------------------------------------------------ 1. who
-  const { data: tenant, error: tErr } = await db
+/** The workspace, by id and by name: the run ends where there is none, or where the name is another's. */
+async function workspaceOf(db, tenantId, expectName) {
+  const { data: tenant, error } = await db
     .from("tenants")
-    .select("id, name, slug, created_at")
+    .select("id, name, slug, created_at, sending_stopped_at")
     .eq("id", tenantId)
     .maybeSingle();
-  if (tErr) {
-    console.error("tenant lookup failed:", tErr.message);
-    process.exit(1);
-  }
-
+  if (error) refuse(`tenant lookup failed: ${error.message}`);
   // Idempotent: a second run against an already-deleted workspace is a no-op,
   // not an error, so re-running after a half-finished attempt is safe.
   if (!tenant) {
     console.log(`No tenant ${tenantId}. Nothing to do.`);
     process.exit(0);
   }
-  if (tenant.name !== expectName) {
-    console.error(
+  if (tenant.name !== expectName)
+    refuse(
       `REFUSING: --expect-name is ${JSON.stringify(expectName)} but the tenant is named ${JSON.stringify(tenant.name)}.`,
     );
-    process.exit(1);
-  }
   console.log(
     `tenant ${tenant.id}\n  name    ${tenant.name}\n  slug    ${tenant.slug}\n  created ${tenant.created_at}\n`,
   );
+  return tenant;
+}
+
+/**
+ * What the workspace keeps outside the database, as its rows and its folders say: its logo (00407), its files (00551)
+ * and its media (00002) in storage, its pictures' copies at Anthropic, its videos at Stream (00556) and on the shelf
+ * (00695). A folder that cannot be listed is a delete that would strand what it did not see, so that refuses, as a table
+ * does; the logo's bucket alone reads as empty where this database does not have it yet.
+ */
+async function outsideOf(db, tenantId, rows, tail) {
+  const folder = async (bucket) => {
+    const read = await filesUnder(db.storage.from(bucket), tenantId);
+    if (read.error) refuse(`REFUSING: could not list ${bucket}/${tenantId}: ${read.error}${tail}`);
+    return read.files;
+  };
+  const files = rows.get("files") ?? [];
+  return {
+    logos: (await filesUnder(db.storage.from("workspace-logos"), tenantId)).files,
+    media: await folder("media"),
+    kept: await folder("files"),
+    copies: files.map((f) => f.claude_copy?.id).filter((id) => typeof id === "string"),
+    videos: files.map((f) => f.media_ref).filter((id) => typeof id === "string" && id),
+    shelved: shelvedOf(rows.get("file_archive_parts")),
+  };
+}
+
+/** What would stay at a provider because this run holds no key to remove it: named with the rest of what is stranded. */
+function unkeyedOf(outside, env) {
+  const out = [];
+  if (outside.copies.length && !env.ANTHROPIC_API_KEY)
+    out.push(
+      `${outside.copies.length} copies of its pictures at Anthropic, which last up to 90 days. Set ANTHROPIC_API_KEY for this run to delete them, or delete them there by the ids in the backup.`,
+    );
+  // Without Stream's account and token for this run its videos stay there, billed, until deleted by hand.
+  if (outside.videos.length && !(env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_STREAM_API_TOKEN))
+    out.push(
+      `${outside.videos.length} videos at Cloudflare Stream, billed by the minute until deleted. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN for this run to delete them, or delete them there by the ids in the backup (files.media_ref).`,
+    );
+  // Without the relay's address and the ticket's key they stay on the shelf, private and unreachable.
+  if (outside.shelved.length && !(env.FOOTAGE_RELAY_URL && env.FOOTAGE_TICKET_KEY))
+    out.push(
+      `${outside.shelved.length} videos on Chanlytics' own shelf. Set FOOTAGE_RELAY_URL and FOOTAGE_TICKET_KEY for this run to remove them, or remove them there by the keys in the backup (file_archive_parts.shelf_key).`,
+    );
+  return out;
+}
+
+/**
+ * The workspace read whole into the backup, with what it keeps outside the database and what the delete would strand.
+ * `still`: the delete's own snapshot, exact to the row. `tail` ends a refusal's words (what an apply has already done).
+ */
+async function read(db, tenant, backupPath, { still = false, tail = "" } = {}) {
+  const shot = await snapshot(db, tenant, backupPath, { still });
+  if (shot.refusal) refuse(`REFUSING: ${shot.refusal}${tail}`);
+  const outside = await outsideOf(db, tenant.id, shot.rows, tail);
+  return { shot, outside, orphans: [...strandedOf(shot.rows), ...unkeyedOf(outside, process.env)] };
+}
+
+/** The look, said: the backup's counts, what is outside the database, and what an apply would strand. */
+function sayLook({ shot, outside, orphans }, backupPath) {
+  console.log(`backup: ${shot.total} rows across ${shot.tally.length} tables -> ${backupPath}`);
+  if (!shot.total) console.log("  (the workspace is empty)");
+  for (const [table, n] of shot.tally) console.log(row(table, n, KEPT.has(table) ? "kept, tenant_id set to null" : ""));
+  const bytes = (files) => megabytes(files.reduce((n, f) => n + f.bytes, 0));
+  const { logos, kept, media, videos, shelved } = outside;
+  if (logos.length) console.log(row("logo files", logos.length, "removed from workspace-logos after the rows"));
+  if (kept.length) console.log(row("kept files", kept.length, `${bytes(kept)}, removed from files after the rows`));
+  if (media.length) console.log(row("media files", media.length, `${bytes(media)}, removed from media after the rows`));
+  if (videos.length) console.log(row("videos at Stream", videos.length, "deleted there after the rows"));
+  if (shelved.length) console.log(row("videos on the shelf", shelved.length, "removed there after the rows"));
+  if (shot.moved.length)
+    console.log(
+      `\nwritten to while it was read: ${shot.moved.map(([table]) => table).join(", ")}. This look is not the backup a ` +
+        `delete goes by: an apply stops the workspace's work and reads it again.`,
+    );
+  if (orphans.length) {
+    console.log(`\nWOULD BE STRANDED OUTSIDE THE DATABASE (${orphans.length}):`);
+    for (const o of orphans) console.log(`  · ${o}`);
+  }
+}
+
+/**
+ * The workspace's work stopped and its rows read again, exact: Stop everything, its queued jobs withdrawn, its running
+ * ones waited for, the snapshot the delete goes by, and one more look at the ledger. A job queued while the snapshot was
+ * read sends it round again. Answers that snapshot. Without `mayStrand` (--orphans-ok) it refuses where the workspace,
+ * read again, holds something the delete cannot reach that the first look did not show.
+ */
+async function stopAndRead(db, tenant, backupPath, { waitMs, mayStrand }) {
+  console.log("\nstopping the workspace's work before anything is deleted");
+  const stopped = await stop(db, tenant);
+  if (stopped.error) refuse(`REFUSING: could not stop the workspace's work: ${stopped.error}`);
+  console.log(
+    stopped.already ? `  Stop everything was already on (since ${stopped.already})` : "  Stop everything is on",
+  );
+  let withdrawn = 0;
+  const tail = () =>
+    `\nStop everything is on for this workspace${withdrawn ? `, and ${withdrawn} of its queued jobs are withdrawn (canceled on the ledger, where each can still be read)` : ""}. ` +
+    `Run this again to finish, or press Resume in the product to keep the workspace.`;
+  for (let round = 0; round < FENCE_ROUNDS; round++) {
+    const drained = await drain(db, tenant.id, waitMs);
+    withdrawn += drained.withdrawn;
+    if (drained.error) refuse(`REFUSING: could not read the workspace's jobs: ${drained.error}${tail()}`);
+    if (drained.withdrawn) console.log(`  withdrew ${drained.withdrawn} queued jobs`);
+    if (drained.live)
+      refuse(
+        `REFUSING: ${drained.live} of this workspace's jobs had not ended after ${waitMs / MINUTE_MS} minutes:\n` +
+          drained.jobs.map((job) => `  · ${jobWords(job)}`).join("\n") +
+          tail(),
+      );
+    const last = await read(db, tenant, backupPath, { still: true, tail: tail() });
+    if (last.orphans.length && !mayStrand)
+      refuse(
+        `REFUSING: read again with its work stopped, this workspace holds ${things(last.orphans.length)} the delete cannot reach:\n` +
+          last.orphans.map((o) => `  · ${o}`).join("\n") +
+          tail(),
+      );
+    const after = await ledgerOf(db, tenant.id);
+    if (after.error) refuse(`REFUSING: could not read the workspace's jobs: ${after.error}${tail()}`);
+    if (!after.live) {
+      console.log("  nothing of this workspace is queued or running");
+      return last;
+    }
+  }
+  return refuse(
+    `REFUSING: jobs of this workspace were queued again each of the ${FENCE_ROUNDS} times it was read. Something is still handing it work.${tail()}`,
+  );
+}
+
+/** The rows deleted: the history, the tables that grow with it, then the workspace and what cascades from it. */
+async function deleteRows(db, tenant, shot, backupPath) {
+  const counts = new Map(shot.tally);
+  const kept = `\nNothing outside the database was removed. Run this again to finish, and keep ${backupPath}: a second run's backup will not hold what this one deleted.`;
+  // events first: no foreign key, so the cascade cannot reach it and the rows
+  // would be left pointing at a tenant that no longer exists.
+  const history = await deleteHistory(db, tenant.id, shot.months, counts.get("events") ?? 0);
+  if (history.error) refuse(`events delete failed: ${history.error}${kept}`);
+  if (history.late)
+    console.log(`${history.late} events were written after the backup was read; they went with the rest.`);
+  for (const table of EMPTIED_FIRST) {
+    if ((counts.get(table) ?? 0) <= SLICED_PAST) continue;
+    const error = await emptyFirst(db, tenant.id, table, shot.ends.get(table));
+    if (error) refuse(`${table} delete failed: ${error}${kept}`);
+    console.log(`emptied ${table} first, ${counts.get(table)} rows a slice at a time`);
+  }
+  const { data: gone, error } = await db.from("tenants").delete().eq("id", tenant.id).select("id");
+  if (error) refuse(`tenant delete failed: ${error.message}${kept}`);
+  if (!gone || gone.length !== 1)
+    refuse(`REFUSING TO REPORT SUCCESS: expected 1 tenant row deleted, got ${gone?.length ?? 0}.`);
+}
+
+/**
+ * The list's undone lines asked for, and what happened said. Answers how many stayed; while any does, the run says
+ * which, why, and how to ask again.
+ */
+async function removeOutside(db, list) {
+  for (const done of await cleanUp(list, { db })) {
+    console.log(`${done.verb} ${done.gone} of ${done.asked} ${done.said} ${done.where}`);
+    if (done.why) console.error(`  ${done.asked - done.gone} ${done.said} stayed ${done.where}: ${done.why}`);
+  }
+  const stays = list.items.filter((item) => !item.done);
+  if (!stays.length) return 0;
+  console.error(`\n${things(stays.length)} still there outside the database:`);
+  for (const item of stays.slice(0, STAYS_SAID)) console.error(`  · ${itemWords(item)}`);
+  if (stays.length > STAYS_SAID)
+    console.error(`  · and ${stays.length - STAYS_SAID} more, each a line of the list with "done":false`);
+  console.error(`Ask again for what stayed: node tooling/scripts/ops/delete-tenant.mjs --resume ${list.path} --apply`);
+  if (stays.some((item) => item.what === "stream"))
+    console.error("A video's id at Stream is its row's in the backup (files.media_ref).");
+  return stays.length;
+}
+
+/** A list picked up again: what is still on it said, and with --apply asked for. */
+async function resume(db, path, apply) {
+  const list = readList(path);
+  if (list.error) refuse(list.error, 2);
+  const { head, items } = list;
+  console.log(`clean-up list of ${JSON.stringify(head.name)} (${head.tenant}), written ${head.made_at}`);
+  const stays = items.filter((item) => !item.done);
+  if (!stays.length) {
+    console.log("Nothing on this list is still there.");
+    return;
+  }
+  const { data: still, error } = await db.from("tenants").select("id").eq("id", head.tenant).maybeSingle();
+  if (error) refuse(`tenant lookup failed: ${error.message}`);
+  if (still)
+    refuse(
+      `REFUSING: the workspace ${JSON.stringify(head.name)} is still there. What it keeps outside the database goes only once its rows have: finish its delete with --apply first.`,
+    );
+  if (!apply) {
+    console.log(`${things(stays.length)} still there outside the database:`);
+    for (const item of stays.slice(0, STAYS_SAID)) console.log(`  · ${itemWords(item)}`);
+    if (stays.length > STAYS_SAID) console.log(`  · and ${stays.length - STAYS_SAID} more`);
+    console.log("\nDry run only. Re-run with --apply to ask for them again.");
+    process.exitCode = 1;
+    return;
+  }
+  if (await removeOutside(db, { path, head, items })) process.exitCode = 1;
+  else console.log("\nNothing on this list is still there.");
+}
+
+async function main() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) refuse("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required", 2);
+  const { tenantId, expectName, resume: list, apply, orphansOk, waitMs } = asked(process.argv);
+  const db = createClient(url, key, { auth: { persistSession: false } });
+  if (list) return resume(db, list, apply);
+  if (!tenantId || !expectName || !(waitMs >= 0))
+    refuse(
+      'usage: --tenant <uuid> --expect-name "<name>" [--apply] [--wait-minutes <n>], or --resume <list> [--apply]',
+      2,
+    );
+
+  // ------------------------------------------------------------------ 1. who
+  const tenant = await workspaceOf(db, tenantId, expectName);
 
   // -------------------------------------------------------- 2. read and back up
   const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
   mkdirSync(backupsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = join(backupsDir, `tenant-${tenantId}-${stamp}.jsonl`);
-
-  const lines = [];
-  const tally = [];
-  const byTable = new Map();
-  let total = 0;
-  for (const table of TABLES) {
-    const { data, error } = await db.from(table).select("*").eq("tenant_id", tenantId);
-    if (error) {
-      // A table this script cannot read is a table it cannot back up, and a
-      // backup with a hole in it is worse than none — it reads as complete.
-      console.error(`REFUSING: could not read ${table}: ${error.message}`);
-      process.exit(1);
-    }
-    const rows = data ?? [];
-    byTable.set(table, rows);
-    if (rows.length) {
-      for (const row of rows) lines.push(JSON.stringify({ table, row }));
-      tally.push([table, rows.length]);
-      total += rows.length;
-    }
-  }
-  writeFileSync(backupPath, lines.length ? lines.join("\n") + "\n" : "");
-  console.log(`backup: ${total} rows across ${tally.length} tables -> ${backupPath}`);
-  if (!total) console.log("  (the workspace is empty)");
-  for (const [table, n] of tally) {
-    console.log(
-      `  ${table.padEnd(22)} ${String(n).padStart(6)}${KEPT.has(table) ? "   kept, tenant_id set to null" : ""}`,
-    );
-  }
-
-  /**
-   * What this delete cannot reach. Each entry is something that keeps running,
-   * and in two cases keeps being billed, after every row here is gone.
-   */
-  const orphans = [];
-  for (const line of byTable.get("lines") ?? []) {
-    orphans.push(
-      `the phone line ${line.e164 ?? "(no number)"} — Twilio subaccount ${line.subaccount_sid ?? "—"}, ` +
-        `number ${line.number_sid ?? "—"}${line.trunk_sid ? `, trunk ${line.trunk_sid}` : ""}` +
-        `${line.messaging_service_sid ? `, messaging service ${line.messaging_service_sid}` : ""}` +
-        `${line.brand_sid ? `, and a registered A2P brand` : ""}` +
-        ` — plus its line-creds Vault secret. Release the number and close the subaccount first, or move the line to another workspace.` +
-        (line.voice_state === "answering" ? "\n      IT IS ANSWERING CALLS RIGHT NOW." : ""),
-    );
-  }
-  for (const b of byTable.get("billing_accounts") ?? []) {
-    if (b.stripe_subscription_id || b.stripe_customer_id) {
-      orphans.push(
-        `a Stripe ${b.status === "trialing" ? "trial" : b.status} — customer ${b.stripe_customer_id ?? "—"}` +
-          `${b.stripe_subscription_id ? `, subscription ${b.stripe_subscription_id}` : ""}. Cancel it in Stripe first.`,
-      );
-    }
-  }
-  for (const g of byTable.get("google_connections") ?? []) {
-    orphans.push(
-      `a Google Business Profile grant for ${g.google_email ?? "an account"}, and its google-creds Vault secret. Disconnect it in the product first, which hands the grant back to Google.`,
-    );
-  }
-  for (const m of byTable.get("mailbox_connections") ?? []) {
-    if (m.state !== "removed")
-      orphans.push(
-        `a connected mailbox, ${m.address}: its grant at ${m.provider === "microsoft" ? "Microsoft" : "Google"}, its watch there, and its mailbox-creds Vault secret. Remove it on Connections first, which hands the grant back and drops the secret.`,
-      );
-  }
-  // A footage source's connection (00639): its grant at Google, the push channels its watched folders opened there,
-  // and its Vault secret. One its organisation blocked was never granted and holds none of them.
-  for (const s of byTable.get("source_connections") ?? []) {
-    if (s.health !== "blocked_by_admin")
-      orphans.push(
-        `a connected footage account, ${s.email ?? "an account"}: its grant at Google, its watched folders' push channels there, and its Vault secret. Disconnect it on Connections first, which stops the channels and drops the secret.`,
-      );
-  }
-  // An owner's ad account (00648): its grant at the platform and its Vault secret, until the platform has confirmed
-  // that access is withdrawn. Ads left running there keep running, and are the owner's to stop on the platform.
-  for (const a of byTable.get("ad_accounts") ?? []) {
-    if (!a.withdrawn_at)
-      orphans.push(
-        `a connected ad account, ${a.name ?? a.external_id ?? "still to be chosen"}: its grant at its platform, and its ad-creds Vault secret. Disconnect it on Connections first, which asks the platform to withdraw access and drops the secret.`,
-      );
-  }
-  for (const c of byTable.get("tenant_channels") ?? []) {
-    if (c.status === "active")
-      orphans.push(
-        `an active channel binding ${c.external_id ?? "(no id)"} at its provider, and its channel-credentials Vault secret.`,
-      );
-  }
-  // The receptionist's agent and its LLM at Retell (00476): made by a rehearsal before any number, so a workspace with no
-  // line can still have one. Its row goes with the cascade; the agent does not.
-  for (const a of byTable.get("voice_agents") ?? []) {
-    orphans.push(`a Retell agent ${a.agent_id}${a.llm_id ? ` and its LLM ${a.llm_id}` : ""}. Delete them at Retell.`);
-  }
-
-  // The workspace's logo (00407) is a file in a public bucket, which no cascade reaches. Its folder is read here, said with
-  // the counts, and emptied after the rows are gone; a bucket this database does not have yet reads as no files.
-  const { data: logoFiles } = await db.storage.from("workspace-logos").list(tenantId);
-  const logos = (logoFiles ?? []).map((f) => `${tenantId}/${f.name}`);
-  if (logos.length)
-    console.log(
-      `  ${"logo files".padEnd(22)} ${String(logos.length).padStart(6)}   removed from workspace-logos after the rows`,
-    );
-
-  // Its media (00002) is files in a private bucket, read to the bottom here and emptied after the rows the same way. A
-  // folder it cannot read is a delete that would strand what it did not see, so that refuses, as a table does.
-  const media = await filesUnder(db.storage.from("media"), tenantId);
-  if (media.error) {
-    console.error(`REFUSING: could not list media/${tenantId}: ${media.error}`);
-    process.exit(1);
-  }
-  // Its files (00551): the same, a folder per file. Anthropic's copies of them are deleted below where this run holds the
-  // key, and otherwise named as stranded: they would last until their expiry, up to 90 days.
-  const kept = await filesUnder(db.storage.from("files"), tenantId);
-  if (kept.error) {
-    console.error(`REFUSING: could not list files/${tenantId}: ${kept.error}`);
-    process.exit(1);
-  }
-  if (kept.files.length)
-    console.log(
-      `  ${"kept files".padEnd(22)} ${String(kept.files.length).padStart(6)}   ${megabytes(kept.files.reduce((n, f) => n + f.bytes, 0))}, removed from files after the rows`,
-    );
-  const mediaBytes = media.files.reduce((n, f) => n + f.bytes, 0);
-  if (media.files.length)
-    console.log(
-      `  ${"media files".padEnd(22)} ${String(media.files.length).padStart(6)}   ${megabytes(mediaBytes)}, removed from media after the rows`,
-    );
-
-  const copies = (byTable.get("files") ?? []).map((f) => f.claude_copy?.id).filter((id) => typeof id === "string");
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (copies.length && !anthropicKey)
-    orphans.push(
-      `${copies.length} copies of its pictures at Anthropic, which last up to 90 days. Set ANTHROPIC_API_KEY for this run to delete them, or delete them there by the ids in the backup.`,
-    );
-  // Its videos (00556) are kept by Cloudflare Stream, by the ids on their rows: deleted there after the rows, which frees the
-  // account's minutes at once. Without Stream's account and token for this run they stay there, billed, until deleted by hand.
-  const videos = (byTable.get("files") ?? []).map((f) => f.media_ref).filter((id) => typeof id === "string" && id);
-  const streamAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const streamToken = process.env.CLOUDFLARE_STREAM_API_TOKEN;
-  if (videos.length)
-    console.log(
-      `  ${"videos at Stream".padEnd(22)} ${String(videos.length).padStart(6)}   deleted there after the rows`,
-    );
-  if (videos.length && !(streamAccount && streamToken))
-    orphans.push(
-      `${videos.length} videos at Cloudflare Stream, billed by the minute until deleted. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN for this run to delete them, or delete them there by the ids in the backup (files.media_ref).`,
-    );
-
-  // Its videos on Chanlytics' own shelf (00695), by the keys on their pieces: removed there after the rows. Without the
-  // relay's address and the ticket's key for this run they stay there, private and unreachable, until removed by hand.
-  const shelved = shelvedOf(byTable.get("file_archive_parts"));
-  const relay = { url: process.env.FOOTAGE_RELAY_URL, ticketKey: process.env.FOOTAGE_TICKET_KEY };
-  if (shelved.length)
-    console.log(
-      `  ${"videos on the shelf".padEnd(22)} ${String(shelved.length).padStart(6)}   removed there after the rows`,
-    );
-  if (shelved.length && !(relay.url && relay.ticketKey))
-    orphans.push(
-      `${shelved.length} videos on Chanlytics' own shelf. Set FOOTAGE_RELAY_URL and FOOTAGE_TICKET_KEY for this run to remove them, or remove them there by the keys in the backup (file_archive_parts.shelf_key).`,
-    );
-  const landing = shelvingNow(byTable.get("file_archives"));
-  if (landing.length)
-    orphans.push(
-      `${landing.length} videos are being put on the shelf this minute. Run this again in two minutes, so nothing lands there after the workspace is gone.`,
-    );
-
-  if (orphans.length) {
-    console.log(`\nWOULD BE STRANDED OUTSIDE THE DATABASE (${orphans.length}):`);
-    for (const o of orphans) console.log(`  · ${o}`);
-  }
+  const look = await read(db, tenant, backupPath);
+  sayLook(look, backupPath);
 
   if (!apply) {
     console.log(`\nDry run only. Re-run with --apply to delete ${JSON.stringify(tenant.name)} and everything above.`);
     process.exit(0);
   }
-
-  if (orphans.length && !orphansOk) {
-    console.error(
-      `\nREFUSING: this workspace still holds ${orphans.length} thing${orphans.length === 1 ? "" : "s"} ` +
+  if (look.orphans.length && !orphansOk)
+    refuse(
+      `\nREFUSING: this workspace still holds ${things(look.orphans.length)} ` +
         `the delete cannot reach, listed above. Release them first, or pass --orphans-ok to strand them deliberately.`,
     );
-    process.exit(1);
-  }
-  if (orphans.length) {
+  if (look.orphans.length)
     console.log(
-      `\n--orphans-ok: stranding ${orphans.length} provider-side thing${orphans.length === 1 ? "" : "s"} on purpose.`,
+      `\n--orphans-ok: stranding ${look.orphans.length} provider-side thing${look.orphans.length === 1 ? "" : "s"} on purpose.`,
     );
-  }
 
-  // ------------------------------------------------------------------ 3. apply
-  // events first: no foreign key, so the cascade cannot reach it and the rows
-  // would be left pointing at a tenant that no longer exists.
-  const { error: eErr } = await db.from("events").delete().eq("tenant_id", tenantId);
-  if (eErr) {
-    console.error("events delete failed:", eErr.message);
-    process.exit(1);
-  }
+  // ------------------------------------------- 3. stop its work, and read it again
+  const last = await stopAndRead(db, tenant, backupPath, { waitMs, mayStrand: orphansOk });
+  console.log(
+    `backup, read again with its work stopped: ${last.shot.total} rows across ${last.shot.tally.length} tables`,
+  );
 
-  const { data: gone, error: dErr } = await db.from("tenants").delete().eq("id", tenantId).select("id");
-  if (dErr) {
-    console.error("tenant delete failed:", dErr.message);
-    process.exit(1);
-  }
-  if (!gone || gone.length !== 1) {
-    console.error(`REFUSING TO REPORT SUCCESS: expected 1 tenant row deleted, got ${gone?.length ?? 0}.`);
-    process.exit(1);
-  }
+  // ------------------------------------------- 4. the list of what goes outside
+  const { logos, kept, media, copies, videos, shelved } = last.outside;
+  const paths = (files) => files.map((f) => f.path);
+  const items = listOf({ logos: paths(logos), files: paths(kept), copies, videos, shelved, media: paths(media) });
+  const listPath = backupPath.replace(/\.jsonl$/, ".clean-up.jsonl");
+  const head = {
+    tenant: tenant.id,
+    name: tenant.name,
+    backup: basename(backupPath),
+    made_at: new Date().toISOString(),
+  };
+  writeList(listPath, head, items);
+  console.log(`clean-up list: ${things(items.length)} to remove outside the database -> ${listPath}`);
 
-  if (logos.length) {
-    const { error: lErr } = await db.storage.from("workspace-logos").remove(logos);
-    console.log(
-      lErr
-        ? `the logo files could not be removed (${lErr.message}); remove them from workspace-logos by hand: ${logos.join(", ")}`
-        : `removed ${logos.length} logo file${logos.length === 1 ? "" : "s"} from workspace-logos`,
-    );
-  }
-
-  if (kept.files.length) {
-    const { removed, failed, error } = await removeAll(
-      db.storage.from("files"),
-      kept.files.map((f) => f.path),
-    );
-    console.log(`removed ${removed.length} of ${kept.files.length} files from files`);
-    if (failed.length) {
-      console.error(
-        `${failed.length} files could not be removed (${error}); remove what is left under files/${tenantId} by hand`,
-      );
-      process.exitCode = 1;
-    }
-  }
-
-  if (copies.length && anthropicKey) {
-    let stayed = 0;
-    for (const id of copies) {
-      const res = await fetch(`https://api.anthropic.com/v1/files/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
-        signal: AbortSignal.timeout(ANTHROPIC_CALL_MS),
-      }).catch(() => null);
-      if (!res?.ok && res?.status !== 404) stayed++;
-    }
-    console.log(`deleted ${copies.length - stayed} of ${copies.length} copies at Anthropic`);
-    if (stayed) {
-      console.error(`${stayed} copies stayed at Anthropic: delete them there by the ids in the backup.`);
-      process.exitCode = 1;
-    }
-  }
-
-  if (videos.length && streamAccount && streamToken) {
-    let stayed = 0;
-    for (const id of videos) {
-      const res = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(streamAccount)}/stream/${encodeURIComponent(id)}`,
-        {
-          method: "DELETE",
-          headers: { authorization: `Bearer ${streamToken}` },
-          signal: AbortSignal.timeout(STREAM_CALL_MS),
-        },
-      ).catch(() => null);
-      if (!res?.ok && res?.status !== 404) stayed++;
-    }
-    console.log(`deleted ${videos.length - stayed} of ${videos.length} videos at Stream`);
-    if (stayed) {
-      console.error(`${stayed} videos stayed at Stream: delete them there by the ids in the backup (files.media_ref).`);
-      process.exitCode = 1;
-    }
-  }
-
-  if (shelved.length && relay.url && relay.ticketKey) {
-    const stayed = await removeShelved(relay, shelved);
-    console.log(`removed ${shelved.length - stayed} of ${shelved.length} videos from the shelf`);
-    if (stayed) {
-      console.error(
-        `${stayed} videos stayed on the shelf: remove them there by the keys in the backup (file_archive_parts.shelf_key).`,
-      );
-      process.exitCode = 1;
-    }
-  }
-
-  if (media.files.length) {
-    const paths = media.files.map((f) => f.path);
-    const { removed, failed, error } = await removeAll(db.storage.from("media"), paths);
-    console.log(`removed ${removed.length} of ${media.files.length} media files from media`);
-    if (failed.length) {
-      // A re-run finds no tenant and stops, so what is left here is left for good unless someone takes it.
-      console.error(
-        `${failed.length} media files could not be removed (${error}); remove what is left under media/${tenantId}/ by hand`,
-      );
-      process.exitCode = 1;
-    }
-  }
+  // ------------------------------------------------------------------ 5. apply
+  await deleteRows(db, tenant, last.shot, backupPath);
+  if (await removeOutside(db, { path: listPath, head, items })) process.exitCode = 1;
 
   const { data: still } = await db.from("tenants").select("id").eq("id", tenantId).maybeSingle();
   console.log(

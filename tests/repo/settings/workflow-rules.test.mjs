@@ -207,6 +207,55 @@ test("a night says its two reds apart: production's has its own issue and pages 
   assert.ok(suites.includes("$WHOLE") && suites.includes("$SUITE") && !suites.includes("$PRODUCTION"));
 });
 
+test("the morning line runs once a day and by hand, is off until its variable is 1, holds the pager's key and no other secret, and a run is never cut off part-way", () => {
+  // What it says and when it sends is its script's (tests/ops/workflows/morning-line.test.mjs). What a script's test
+  // cannot see is here: the switch reaching the script, the token's reach, and that no service's secret rides along.
+  const y = workflow("morning-line.yml");
+  assert.match(y, /cron: "7 3 \* \* \*"/, "once a day, started hours late, in New York's morning");
+  assert.ok(y.includes("workflow_dispatch:"), "and by hand, on main or on a branch");
+  assert.ok(y.includes("permissions:\n  contents: read\n  actions: read\n  issues: write"));
+  assert.ok(
+    y.includes("group: morning-line-${{ github.event.pull_request.number || 'main' }}") &&
+      y.includes("cancel-in-progress: false"),
+    "never half a line, and a pull request's dry run never waits on the day's",
+  );
+  // A change to the line is run dry on its own pull request: seen working on a runner before it merges.
+  assert.match(y, /^ {2}pull_request:\n {4}paths:\n(?: {6}- .+\n)+/m);
+  for (const path of [".github/workflows/morning-line.yml", "tooling/scripts/ops/morning/**"])
+    assert.ok(y.includes(`      - ${path}\n`), `a pull request that changes ${path} runs the line`);
+  const line = job(y, "line");
+  assert.ok(
+    line.includes('run: node tooling/scripts/ops/morning/morning-line.mjs --summary "$GITHUB_STEP_SUMMARY"'),
+    "the line is written to the run's own page, switched on or off",
+  );
+  assert.ok(line.includes("MORNING_LINE: ${{ vars.MORNING_LINE }}"), "the switch is the script's to read");
+  assert.ok(!/\n {4}if:/.test(line), "off, it still reads and writes its summary: the switch stops the message alone");
+  assert.ok(
+    line.includes("PAGER_URL: ${{ secrets.PAGER_URL }}") && line.includes("PAGER_KEY: ${{ secrets.PAGER_KEY }}"),
+  );
+  assert.ok(line.includes("OWNER: ${{ github.repository_owner }}"), "a red issue is the owner's");
+  assert.deepEqual(
+    [...new Set([...y.matchAll(/secrets\.([A-Z_0-9]+)/g)].map((m) => m[1]))].sort(),
+    ["GITHUB_TOKEN", "PAGER_KEY", "PAGER_URL"],
+    "the token and the pager's door: no database's key, no provider's",
+  );
+  assert.ok(!line.includes("pnpm install"), "it reads with Node alone, in under a minute");
+});
+
+test("the voice canary's red issue is the owner's, opened so and made so: an issue nobody was assigned reached nobody", () => {
+  // GitHub tells an assignee of every comment. The canary's issue was opened with none, so a red call told GitHub's
+  // list and no person (the nightly's issue sat so for seventeen runs in October 2026).
+  const y = workflow("voice-canary.yml");
+  const say = y.slice(y.indexOf("name: Say so where the next person will see it"));
+  assert.ok(say.includes("OWNER: ${{ github.repository_owner }}"));
+  assert.ok(say.includes('gh issue create --title "$title" --body-file issue.md --assignee "$OWNER"'));
+  const made = say.indexOf('gh issue edit "$number" --add-assignee "$OWNER"');
+  assert.ok(
+    made > 0 && made < say.indexOf('gh issue comment "$number"'),
+    "assigned before the comment that tells them",
+  );
+});
+
 test("the nightly's node suite and its whole suite hold no live secret, and the whole suite cannot reach production", () => {
   const y = workflow("nightly-e2e.yml");
   const [suite, whole] = [job(y, "suite"), job(y, "whole")];
@@ -364,6 +413,14 @@ test("the weekly compare reads production's ledger with its names, and the produ
   assert.ok(y.includes("sleep 30") && y.includes("for attempt in 1 2 3 4 5 6 7 8 9 10"), "a host may lag");
   assert.ok(y.includes("gh issue list") && y.includes("gh issue create") && y.includes("gh issue comment"));
   assert.ok(y.includes('title="Production smoke failed ('), "one issue per deployed commit");
+  // The issue was opened assigned to nobody, so a deploy that failed its smoke told GitHub's list and no person.
+  assert.ok(y.includes("OWNER: ${{ github.repository_owner }}"));
+  assert.ok(y.includes('gh issue create --title "$title" --body-file issue.md --assignee "$OWNER"'), "the owner's");
+  assert.ok(
+    y.indexOf('gh issue edit "$number" --add-assignee "$OWNER"') < y.indexOf('gh issue comment "$number"'),
+    "one opened before it was the owner's is made so before the comment that tells them",
+  );
+  assert.ok(y.includes('gh issue edit "$number" --add-assignee "$OWNER"'));
 });
 
 test("Typecheck, the check branch protection requires, is a gate over parts that run side by side", () => {
@@ -453,10 +510,79 @@ test("the replay runs every database suite on main, and on a pull request the on
   const y = workflow("database.yml");
   assert.ok(
     y.includes(
-      "- if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request'\n        run: pnpm test:db",
+      "- if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request' && inputs.last_release == ''\n        run: pnpm test:db",
     ),
+    "every suite on main; a run by hand for the last release's leg runs that leg alone",
   );
   assert.ok(y.includes("if: steps.changed.outputs.db == 'true' && github.event_name == 'pull_request'"));
   assert.ok(y.includes("run: node tooling/scripts/checks/changed-tests.mjs --db HEAD^1 HEAD"));
   assert.ok(workflow("nightly-database.yml").includes("run: pnpm test:db"), "every night, every suite");
+});
+
+test("the replay is from nothing: a stack started fresh on the runner, with every migration from the first applied to it, on a pull request, on main and every night", () => {
+  // Confirmed on 28 Nov 2026 from a run's own log: the Database run of #2721 applied 631 migrations, 00001 to 00724,
+  // the folder's whole count. What keeps it so is here: both workflows start a stack of their own (`supabase start`
+  // on a runner that holds none applies the folder in order), neither is handed a database that already exists, and
+  // the folder still begins at its first migration, so nothing was folded into a baseline that a replay would skip.
+  for (const file of ["database.yml", "nightly-database.yml"]) {
+    const code = workflow(file)
+      .split("\n")
+      .filter((l) => !/^\s*#/.test(l))
+      .join("\n");
+    assert.ok(
+      code.includes("supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector"),
+      `${file} starts its own stack`,
+    );
+    assert.ok(
+      !/--db-url|--linked|pg_restore|supabase db (dump|pull|remote)/.test(code),
+      `${file} is handed no database that already holds a schema`,
+    );
+    assert.ok(code.includes("uses: supabase/setup-cli@"), `${file} installs the CLI that replays`);
+  }
+  const folder = fs
+    .readdirSync(path.join(ROOT, "supabase/migrations"))
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  assert.match(
+    folder[0],
+    /^00001_/,
+    "the folder begins at its first migration: no baseline stands in for the ones before",
+  );
+});
+
+test("either deploy order is held on a pull request: a function written again takes the last release's call, and the last release's suites run on the new schema", () => {
+  // A migration is applied before its merge, so the code that meets it first is main's. The first step reads the
+  // snapshot and needs no stack, so it runs on every pull request, before the question of a replay; the second needs
+  // the stack the replay started, and the description's line that argues a red the migration means.
+  const y = workflow("database.yml");
+  const steps = job(y, "replay").split("\n      - ");
+  const callers = steps.find((s) => s.includes("run: node tooling/scripts/checks/deploy-order/old-callers.mjs"));
+  assert.ok(callers, "the step that holds a re-made function to its old arguments");
+  assert.ok(callers.startsWith("if: github.event_name == 'pull_request'\n"), "every pull request, whatever it changes");
+  assert.ok(callers.includes('old-callers.mjs --base "origin/$BASE_REF"'));
+  assert.ok(steps.indexOf(callers) < steps.findIndex((s) => s.includes("supabase/setup-cli")), "before any stack");
+
+  const last = steps.find((s) => s.includes("node tooling/scripts/checks/deploy-order/last-release-suites.mjs "));
+  assert.ok(last, "the step that runs the last release's suites");
+  assert.ok(
+    last.includes(
+      "if: steps.changed.outputs.db == 'true' && (github.event_name == 'pull_request' || inputs.last_release != '')",
+    ),
+    "on a pull request that replays, or by hand with a commit named",
+  );
+  assert.ok(last.includes('last-release-suites.mjs "${LAST_RELEASE:-HEAD^1}" HEAD'), "the base the change stands on");
+  assert.ok(last.includes("PR_BODY") && y.includes("pull-requests: read"), "the description's `Last release:` line");
+  assert.ok(
+    steps.indexOf(last) > steps.findIndex((s) => s.includes("changed-tests.mjs --db HEAD^1 HEAD")),
+    "after the branch's own suites, on the stack they ran on",
+  );
+  assert.ok(
+    steps.indexOf(last) < steps.findLastIndex((s) => s.includes("run: supabase stop --no-backup")),
+    "and before the stack is stopped",
+  );
+  assert.match(
+    y,
+    /workflow_dispatch:\n {4}inputs:\n {6}last_release:/,
+    "by hand, a commit to take as the last release",
+  );
 });
