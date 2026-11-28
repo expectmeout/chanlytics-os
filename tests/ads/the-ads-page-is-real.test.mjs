@@ -10,7 +10,9 @@
  * shows what Meta spent and says its people are not counted. An ad made in Meta says so. Signed out and after a
  * disconnect, the page says what each ad was doing when last read, and never that it is running. And the drawer
  * offers Pause on any ad, turning back on only with a total, an end date and the budget to itself, as a question that
- * names the most it can cost.
+ * names the most it can cost. And every ad of the account can be found (the review of 28 Nov 2026, R2.7): one that is over
+ * with nothing to show over the page's days is under Ended, folded, while the list, the Ads tab's figure and Reports' lens
+ * read as they did.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -25,6 +27,7 @@ const { lensModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads
 const { AD_FIND_FROM, adFilterChoicesOf, adFilterOf, adGroupsOf } = await import(
   at("apps/dashboard/src/surfaces/campaigns/ads/live/ad-list.ts")
 );
+const { adsListedOf, quiet, shown } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/listed.ts"));
 const { adLeftOn, adResumeRule, adStateOfRow } = await import(at("packages/contracts/src/ads/live.ts"));
 
 const SAID = { timezone: "America/New_York", nowMs: Date.parse("2026-11-18T19:10:00Z") };
@@ -259,13 +262,118 @@ test("before anyone has written from an ad the page says how many ads there are,
   // People an ad brought are counted by Chanlytics, not read from Meta: they are said before the first read too.
   const counted = page({ account: unread(false).account, unnamed: { people: 3, booked: 1 } });
   assert.deepEqual(liveModel(counted, SAID).head, { strong: "1 of 3", rest: " new people from your ads have booked." });
-  // A run that is over stays listed only while it has numbers to show.
+  // A run that is over with nothing to show is kept, last and marked quiet: the page folds it under Ended.
   const old = page({
     ads: [ad("a"), ad("done", { state: "ended" }), ad("spent", { state: "finished", spend_minor: 100 })],
   });
   assert.deepEqual(
-    liveModel(old, SAID).rows.map((row) => row.id),
-    ["a", "spent"],
+    liveModel(old, SAID).rows.map((row) => [row.id, row.quiet]),
+    [
+      ["a", false],
+      ["spent", false],
+      ["done", true],
+    ],
+  );
+});
+
+test("an ended ad with nothing to show can still be found: under Ended, folded, with the list, the tab's figure and Reports as they were", () => {
+  const spent = (minor) => ({ spend_minor: minor });
+  const read = page({
+    ads: [
+      ad("big", { name: "Spring colour offer", ...spent(9000) }),
+      ad("old", { name: "Autumn offer", state: "ended", ends_at: "2026-11-10T22:00:00Z", ...spent(500) }),
+      // Over, and nothing in the page's days: one Meta never ran, one that ended long ago, one whose total ran out before.
+      ad("never", { name: "Never ran", state: "ended", ends_at: "2026-11-12T22:00:00Z" }),
+      ad("long-ago", { name: "Last summer", state: "ended", ends_at: "2026-07-01T22:00:00Z" }),
+      ad("ran-out", { name: "Ran out", state: "finished", ends_at: "2026-09-01T22:00:00Z" }),
+    ],
+  });
+  // Every ad of the account is in one half or the other.
+  assert.deepEqual(
+    [shown(read).map((one) => one.id), quiet(read).map((one) => one.id)],
+    [
+      ["big", "old"],
+      ["never", "long-ago", "ran-out"],
+    ],
+  );
+  const vm = liveModel(read, SAID);
+  // The rows: the list as it was, then the quiet ones, the latest ended first, each with its own line and its drawer.
+  assert.deepEqual(
+    vm.rows.map((row) => [row.id, row.group, row.quiet]),
+    [
+      ["big", "on", false],
+      ["old", "ended", false],
+      ["never", "ended", true],
+      ["ran-out", "ended", true],
+      ["long-ago", "ended", true],
+    ],
+  );
+  assert.equal(vm.rows.find((row) => row.id === "never").line, "Ended Thu 12 Nov");
+  assert.equal(sheetModel(read, "never", SAID).name, "Never ran", "its drawer opens as any ad's does");
+  // The groups: Ended holds what it held, folded under On; its quiet ones are under it, behind a fold of their own.
+  const groups = adGroupsOf(vm.rows, { filter: "all", about: null });
+  assert.deepEqual(
+    groups.map((group) => [group.key, group.rows.map((row) => row.id), group.folds, group.quiet.map((row) => row.id)]),
+    [
+      ["on", ["big"], false, []],
+      ["ended", ["old"], true, ["never", "ran-out", "long-ago"]],
+    ],
+  );
+  // What reads the same rule reads as it did: the head, the tab's figure, the filter's counts and Reports' lens.
+  assert.deepEqual(vm.head, { strong: "2 ads", rest: " are in your Meta account." });
+  assert.equal(adsListedOf(read), 2);
+  assert.deepEqual(
+    adFilterChoicesOf(vm.rows).map((choice) => [choice.value, choice.count]),
+    [
+      ["all", 2],
+      ["on", 1],
+      ["ended", 1],
+    ],
+  );
+  assert.deepEqual(
+    lensModel(read, SAID).rows.map((row) => row.id),
+    ["big", "old"],
+    "Reports lists no row of zeros",
+  );
+  // The Ended filter shows its group open, its quiet ones still behind their own fold.
+  const ended = adGroupsOf(vm.rows, { filter: "ended", about: null });
+  assert.deepEqual(
+    ended.map((group) => [group.key, group.rows.length, group.folds, group.quiet.length]),
+    [["ended", 1, false, 3]],
+  );
+
+  // An account whose every ended ad is quiet: they are the Ended group, folded, with nothing to fold them under.
+  const allQuiet = liveModel(page({ ads: [ad("big", spent(9000)), ad("never", { state: "ended" })] }), SAID).rows;
+  assert.deepEqual(
+    adGroupsOf(allQuiet, { filter: "all", about: null }).map((group) => [
+      group.key,
+      group.rows.map((row) => row.id),
+      group.folds,
+      group.quiet.length,
+    ]),
+    [
+      ["on", ["big"], false, 0],
+      ["ended", ["never"], true, 0],
+    ],
+  );
+  const onlyQuiet = liveModel(page({ ads: [ad("never", { state: "ended" })] }), SAID).rows;
+  assert.deepEqual(
+    adGroupsOf(onlyQuiet, { filter: "all", about: null }).map((group) => [group.key, group.rows.length, group.folds]),
+    [["ended", 1, true]],
+    "where nothing else is listed, the quiet ones are still there, folded",
+  );
+});
+
+test("a find shows an ad that never ran among its matches, open: by its name is how an owner looks for it", () => {
+  const many = Array.from({ length: AD_FIND_FROM - 1 }, (_, n) => ad(`a${n}`, { name: `Ad ${n}`, spend_minor: n + 1 }));
+  const never = ad("never", { name: "Mothers' Day offer", state: "ended" });
+  const { rows } = liveModel(page({ ads: [...many, never] }), SAID);
+  // Twenty ads in the account, one of them quiet: the find line is there, and counts every ad.
+  assert.equal(rows.length, AD_FIND_FROM);
+  const found = adGroupsOf(rows, { filter: "all", about: "mothers" });
+  assert.deepEqual(
+    found.map((group) => [group.key, group.rows.map((row) => row.id), group.folds, group.quiet.length]),
+    [["ended", ["never"], false, 0]],
   );
 });
 

@@ -83,6 +83,12 @@ export const LIVE = {
   find: "Find an ad",
   /** The Ended group's heading, which folds it: what it is, to a screen reader (its press says whether it is open). */
   endedFold: (n: number) => `The ${n} ended`,
+  /**
+   * Under Ended, the ads that are over with nothing to show over the page's days, folded: its line, and what its press
+   * opens, to a screen reader. One that never ran and one that ended long ago are both here.
+   */
+  quiet: (days: number) => `Nothing in the last ${days} days`,
+  quietFold: (n: number, days: number) => `The ${n} ended with nothing in the last ${days} days`,
   /** A find that matches no ad. */
   noneFound: "No ad has that in its name.",
   results: "Results",

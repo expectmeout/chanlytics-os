@@ -18,7 +18,7 @@ import { dayOfIso, timeOf } from "../model/vm-base";
 import { dayShort, dayWord, peopleWord } from "../model/words";
 import { changeSentenceOf, endsAlone, type ChangeSentenceVM } from "./change-model";
 import { FIX } from "./change-words";
-import { over, shown } from "./listed";
+import { over, quiet, shown } from "./listed";
 import { ADS_MANAGER, LIVE, SHEET } from "./words";
 import {
   aiLineOf,
@@ -86,6 +86,11 @@ export interface LiveRowVM {
   name: string;
   /** The group it stands under (adGroupOf). */
   group: AdGroup;
+  /**
+   * Over, with nothing to show over the page's days (listed.ts `quiet`): kept under Ended, folded, so the list reads as
+   * it did and the ad can still be found.
+   */
+  quiet: boolean;
   /** Its address, which opens its drawer. */
   open: string;
   line: string;
@@ -216,7 +221,13 @@ function toneOf(ad: AdLiveDto, dto: AdsLiveDto): LiveRowVM["tone"] {
   return AD_WARN_STATES.includes(ad.state) ? "warn" : ad.state === "on" ? "ok" : "plain";
 }
 
-function liveRowOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock, currency: string): LiveRowVM {
+function liveRowOf(
+  ad: AdLiveDto,
+  dto: AdsLiveDto,
+  said: LiveClock,
+  at: { currency: string; quiet: boolean },
+): LiveRowVM {
+  const { currency } = at;
   const each = ad.booked > 0 ? eachOf([ad], dto, currency) : null;
   const stopped = dto.account.status !== "connected";
   const line = lineOf(ad, dto, said, currency);
@@ -224,6 +235,7 @@ function liveRowOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock, currency: st
     id: ad.id,
     name: ad.name,
     group: adGroupOf(ad),
+    quiet: at.quiet,
     open: adRoute(ad.id),
     line,
     ...stateAndFacts(line),
@@ -366,7 +378,14 @@ export function liveModel(read: AdsLiveDto, said: LiveClock): LiveVM {
       connected && dto.account.read_failed && dto.account.read_at
         ? LIVE.couldntUpdate(timeOf(dto.account.read_at, said.timezone))
         : null,
-    rows: [...ads].sort(inListOrder).map((ad) => liveRowOf(ad, dto, said, currency)),
+    // The list as it shows without a press, then the ads that are over with nothing to show, each latest first: the
+    // page keeps those under Ended, folded (ad-list.ts).
+    rows: [
+      ...[...ads].sort(inListOrder).map((ad) => liveRowOf(ad, dto, said, { currency, quiet: false })),
+      ...quiet(dto)
+        .sort(inListOrder)
+        .map((ad) => liveRowOf(ad, dto, said, { currency, quiet: true })),
+    ],
     notes: besideOf(dto),
     again: dto.account.status === "disconnected" ? LIVE.disconnected.again : null,
     empty: connected && firstReadOf(dto.account) === null && dto.ads.length === 0 ? LIVE.noAds.rest : null,

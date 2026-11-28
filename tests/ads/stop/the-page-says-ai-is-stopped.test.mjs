@@ -16,7 +16,7 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { installStubReact, fresh, again, byTestId, textOf, press } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, textOf, press } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
 import { bridgeHolds, holdFrameParts, provided } from "../../shell/_bridge-holds.mjs";
 
@@ -368,4 +368,34 @@ test("in Settings the card says it, with the same press", async () => {
   await until(() => byTestId(again(hook).card, "ads-stop") !== null, "the card's read and the page's");
   const card = again(hook).card;
   assert.equal(textOf(byTestId(card, "ads-stop")), `${STOP.title}${STOP.on(2, true)}${STOP.press(2)}`);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The list, on the same page: every ad of the account can be found (the review of 28 Nov 2026, R2.7)
+
+test("the page keeps an ended ad with nothing to show under Ended, behind a fold of its own that a press opens", async () => {
+  const draw = await heldPage(
+    page({
+      stopped_at: null,
+      ads: [
+        ad(1, { spend_minor: 9000 }),
+        ad(2, { state: "ended", ends_at: "2026-11-10T22:00:00Z", spend_minor: 500 }),
+        // Over, and nothing in the page's thirty days: nobody came from it and it spent nothing.
+        ad(3, { name: "Never ran", state: "ended", ends_at: "2026-11-12T22:00:00Z" }),
+      ],
+    }),
+  );
+  const rowsOf = (tree) =>
+    all(tree, (node) => node.props?.["data-testid"] === "ads-live-row").map((node) => node.props["data-row-id"]);
+  // As the list was: what runs, and Ended folded under it. No ended ad is drawn before a press.
+  assert.deepEqual(rowsOf(draw()), [ID(1)]);
+  assert.equal(byTestId(draw(), "ads-quiet-fold"), null, "its fold is inside Ended's");
+  press(byTestId(draw(), "ads-ended-fold"));
+  assert.deepEqual(rowsOf(draw()), [ID(1), ID(2)], "Ended opens on what it held before");
+  // Under them, one line: how many more are over with nothing to show, and a press that shows them.
+  const fold = byTestId(draw(), "ads-quiet-fold");
+  assert.ok(fold, "the quiet ones' own fold");
+  assert.match(textOf(byTestId(draw(), "ads-group-ended")), /Nothing in the last 30 days\s*1/);
+  press(fold);
+  assert.deepEqual(rowsOf(draw()), [ID(1), ID(2), ID(3)], "and the ad that never ran is there, with its drawer's door");
 });
