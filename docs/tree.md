@@ -112,6 +112,7 @@ apps/dashboard/src/bridge/
   rehearse/
   surfaces/
   verbs/
+  workspace/
 apps/mobile/src/
   app/
   shell/
