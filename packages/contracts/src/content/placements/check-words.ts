@@ -40,6 +40,9 @@ export const CONTENT_CHECK_WORDS = {
   /** At the send: the open time it was made for filled up since (PRD 6.3, The reason). */
   filledUp: (day: string) =>
     `${day} filled up since you approved this. Leave it out, change the words, or tell AI ${day} still has openings.`,
+  /** At the send: the open time it was made for could not be read, asked more than once (00728). */
+  openingsUnread: (day: string) =>
+    `Couldn't check that ${day} still has openings, so this didn't go up. Leave it out, change the words, or tell AI ${day} still has openings.`,
   late: (day: string) => `Too late to post. ${day} has passed.`,
   afterItsDay: "This would go after its day has passed. Pick an earlier time.",
   offerEnded: (offer: string) =>
