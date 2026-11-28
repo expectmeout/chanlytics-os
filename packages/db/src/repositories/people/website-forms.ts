@@ -24,11 +24,13 @@ type Db = SupabaseClient<Database>;
 const NOT_THERE_YET = new Set(["PGRST205", "42P01"]);
 
 /**
- * What the door's one write came to: kept now, kept before (the same entry again), a test kept as one (no person), or a
- * person who asked to be forgotten. `clash`: kept now, though its form had the site's id for it with other words.
+ * What the door's one write came to: kept now, kept before (the same entry again), held for a look (past the door's
+ * limit, no person yet: 00726), a test kept as one (no person), or a person who asked to be forgotten. `clash`: kept
+ * now, though its form had the site's id for it with other words.
  */
 export type FormEntryTaken =
   | { outcome: "accepted" | "again"; entryId: string; contactId: ContactId; clash: boolean }
+  | { outcome: "held"; entryId: string; contactId: null; clash: boolean }
   | { outcome: "test"; entryId: string; contactId: null; clash: false }
   | { outcome: "forgotten"; entryId: null; contactId: null; clash: false };
 
@@ -50,9 +52,14 @@ interface FormEntryToTake {
   /** Where the visitor came from (contracts Source), kept in the same write as the entry. */
   source: Json | null;
   test: boolean;
+  /** Why the door holds it for a look (apps/edge website/form-limit.ts), or null for an entry within its limits. */
+  heldWhy: "too_many" | null;
 }
 
-/** The entry kept with its person and its event, or found again, or nothing for a person who asked to be forgotten. */
+/**
+ * The entry kept with its person and its event, or found again, or held for a look with neither, or nothing for a
+ * person who asked to be forgotten.
+ */
 export async function takeFormEntry(db: Db, entry: FormEntryToTake): Promise<FormEntryTaken> {
   const { data, error } = await db.rpc("form_entry_take", {
     p_tenant_id: entry.tenantId,
@@ -69,12 +76,16 @@ export async function takeFormEntry(db: Db, entry: FormEntryToTake): Promise<For
     p_host: entry.host ?? undefined,
     p_source: entry.source ?? undefined,
     p_test: entry.test,
+    // Named only where the door holds it: a database before 00726 takes every other call as it did.
+    ...(entry.heldWhy ? { p_held_why: entry.heldWhy } : {}),
   });
   if (error) throw new DbFailure(error, "form_entry_take");
   const row = recordOrEmpty(data);
   if (row.outcome === "forgotten") return { outcome: "forgotten", entryId: null, contactId: null, clash: false };
   if (typeof row.entry_id !== "string") throw new Error("form_entry_take answered without an entry");
   if (row.outcome === "test") return { outcome: "test", entryId: row.entry_id, contactId: null, clash: false };
+  if (row.outcome === "held")
+    return { outcome: "held", entryId: row.entry_id, contactId: null, clash: row.clash === true };
   if (row.outcome !== "accepted" && row.outcome !== "again")
     throw new Error("form_entry_take answered without an entry");
   if (typeof row.contact_id !== "string") throw new Error("form_entry_take answered without a person");
@@ -211,9 +222,10 @@ export async function listUntoldFormEntries(
   return data;
 }
 
-/** A key as the door checks it: which one, and from when it is refused. */
+/** A key as the door checks it: which one, the site it proves (null until its first use), and from when it is refused. */
 interface FormKeyKnown {
   id: string;
+  site_id: string | null;
   ends_at: string | null;
 }
 
@@ -221,7 +233,7 @@ interface FormKeyKnown {
 export async function findFormKeyByHash(db: Db, tenantId: TenantId, hash: string): Promise<FormKeyKnown | null> {
   const { data, error } = await db
     .from("form_keys")
-    .select("id, ends_at")
+    .select("id, site_id, ends_at")
     .eq("tenant_id", tenantId)
     .eq("hash", hash)
     .maybeSingle();
@@ -234,7 +246,7 @@ export async function findFormKeyByHash(db: Db, tenantId: TenantId, hash: string
 export async function findFirstFormKey(db: Db, tenantId: TenantId): Promise<FormKeyKnown | null> {
   const { data, error } = await db
     .from("form_keys")
-    .select("id, ends_at")
+    .select("id, site_id, ends_at")
     .eq("tenant_id", tenantId)
     .eq("first", true)
     .maybeSingle();

@@ -9,6 +9,7 @@
  */
 import { adLeftOn } from "@chanlytics/contracts";
 import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
+import { maySpend } from "./change-model";
 import { STOP, STOPPED_ADS } from "./words";
 
 export interface StopVM {
@@ -37,9 +38,10 @@ function afterResumeOf(dto: AdsLiveDto): StopVM | null {
   return {
     title: STOPPED_ADS.title,
     body: STOPPED_ADS.body(held.length),
-    press: dto.can_press ? STOPPED_ADS.press(held.length) : null,
+    press: maySpend(dto) ? STOPPED_ADS.press(held.length) : null,
     act: "resume",
-    ownerOnly: dto.can_press ? null : STOPPED_ADS.ownerOnly,
+    // Turning an ad back on can spend: where that is switched off here, the owner is told where it is done.
+    ownerOnly: maySpend(dto) ? null : dto.can_press ? STOPPED_ADS.inMeta : STOPPED_ADS.ownerOnly,
   };
 }
 

@@ -8,7 +8,8 @@ export const ERASURE_LEGS = {
     "erase_contact: the person's calls (and a review of one, by its key: 00476), messages, conversations and identities deleted, scheduled jobs and decision payloads scrubbed, the tombstone written (00027, 00151)",
   notes_trigger:
     "person_notes_erase_on_contact: their own notes deleted, the old notes field cleared, a note_for_you about them removed (00158)",
-  events_trigger: "contact_events_on_erase: an event that named them cut to who did it and from where (00131)",
+  events_trigger:
+    "contact_events_on_erase: an event that named them cut to who did it and from where (00131), a changed address's line with the address before and after among them (00726)",
   consent_trigger:
     "erase_marketing_consent, consent_channels_on_erase, email_marketing_on_erase: their answers and where they came from cleared (00101)",
   email_trigger: "contact_email_on_erase: the address and why it was suppressed cleared (00125)",

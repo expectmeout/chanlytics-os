@@ -6,6 +6,7 @@
  * the note on the person's page, Needs you and AI all say it as they say a hosted form's. Pure.
  */
 import { DAY_MS } from "../shared/time";
+import type { EntryHeldWhyDto } from "./limits";
 import type { FormField, FormDescription } from "./shape";
 
 /** What a site's form is: a request the business answers, or a sign-up for its offers. */
@@ -90,6 +91,8 @@ export interface OutsideFormRowDto {
   site: string;
   listed: boolean;
   last_entry_at: string | null;
+  /** How many of its entries wait in its held pile (00726). */
+  held: number;
 }
 
 /** A key of a site's, as the website connection shows it: never the key itself, which is shown once. */
@@ -150,8 +153,19 @@ export interface OutsideFormSheetDto {
     id: string;
     name: string | null;
     created_at: string;
-    /** A request: open or answered; a request from before its form's requests_from, or a sign-up: kept. */
-    standing: "open" | "answered" | "kept";
+    /**
+     * A request, where it stands (dtos.ts EntryStandingDto): open, sending, answered or aged ("Never answered"); a
+     * request from before its form's requests_from, or a sign-up: kept.
+     */
+    standing: "open" | "sending" | "answered" | "aged" | "kept";
+    phone_only: boolean;
+  }>;
+  /** Its entries held for a look (00726): past the door's limit, or set aside by a member. Each says why. */
+  held: Array<{
+    id: string;
+    name: string | null;
+    created_at: string;
+    held_why: EntryHeldWhyDto | null;
     phone_only: boolean;
   }>;
   /** Whether the reply AI drafts can go by email here. */

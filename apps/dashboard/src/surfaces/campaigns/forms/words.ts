@@ -201,7 +201,11 @@ export const FORMS_WORDS = {
   entry: {
     open: "Nobody has answered",
     phoneOnly: "Waiting for their message · phone only",
+    /** Its reply is still going: the seconds it can be taken back, then the wire (00726). */
+    sending: "Sending…",
     answered: "Answered",
+    /** Nobody answered it, and it left Needs you at its sixty days (00726): never called answered. */
+    aged: "Never answered",
     test: "A test · told nobody · goes in 7 days",
   },
   failed: "That didn't go through. Nothing changed.",
@@ -277,6 +281,8 @@ export function entryWords(entry: FormEntryRowDto): { words: string; waits: bool
     return { words: entry.held_why ? FORMS.held[entry.held_why] : "", waits: false, done: false };
   if (entry.standing === "answered")
     return { words: [FORMS.entry.answered, entry.place].filter(Boolean).join(" · "), waits: false, done: true };
+  if (entry.standing === "sending" || entry.standing === "aged")
+    return { words: [FORMS.entry[entry.standing], entry.place].filter(Boolean).join(" · "), waits: false, done: false };
   const open = entry.phone_only ? FORMS.entry.phoneOnly : FORMS.entry.open;
   return { words: [open, entry.place].filter(Boolean).join(" · "), waits: true, done: false };
 }

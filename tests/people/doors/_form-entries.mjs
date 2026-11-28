@@ -1,8 +1,9 @@
 /**
- * A website form's two SQL doors (00675, 00709) over a database in memory, as the migrations write them: form_entry_take
- * (the key's last use and its site, the form the entry is of, the once rule within that form, the person through the
- * door the suite hands it, the entry with where its visitor came from and its event, a test that keeps nothing of
- * anyone, or nothing for a person who asked to be forgotten) and form_entry_settled (an effect's outcome on its entry, the entry processed,
+ * A website form's two SQL doors (00675, 00709, 00726) over a database in memory, as the migrations write them:
+ * form_entry_take (the key's last use and its site, the form the entry is of, the once rule within that form with a
+ * clash kept under the id as sent, the person through the door the suite hands it, the entry with where its visitor
+ * came from and its event, an entry past the door's limit held with no person and no event, a test that keeps nothing
+ * of anyone, or nothing for a person who asked to be forgotten) and form_entry_settled (an effect's outcome on its entry, the entry processed,
  * when the owner was first told, and the ask's first outcome as form_entry.asked). The real SQL is proved on a database
  * by website-form-entry.db.test.mjs; this is what lets the edge's door and steps run here.
  *
@@ -69,8 +70,10 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
     form.sent_name = sent ?? form.sent_name;
     return form;
   };
-  /** An entry's row, every column the table has (00675, 00680, 00709), as the table defaults them. */
+  /** An entry's row, every column the table has (00675, 00680, 00709, 00726), as the table defaults them. */
   const entryRow = (a, keyId, contactId, ref, source, outsideFormId = null) => ({
+    // The id a site sent on an entry kept as a clash (00726): set by the door where it is one.
+    sent_ref: null,
     id: randomUUID(),
     tenant_id: a.p_tenant_id,
     contact_id: contactId,
@@ -84,7 +87,7 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
     state: "accepted",
     told_at: null,
     created_at: now(),
-    // A website's own form has no hosted form, and is never held (00680's columns).
+    // A website's own form has no hosted form; the door holds one past its limit (00726).
     form_id: null,
     version_id: null,
     link_id: null,
@@ -134,29 +137,45 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
         return { outcome: "test", entry_id: test.id, contact_id: null, clash: false };
       }
       const form = outsideFormOf(a, site);
-      // Once within its form: the site's id with the same words is the same entry, with other words a new one (clash).
+      // Once within its form: the site's id with the same words is the same entry, with other words a new one (clash),
+      // kept under the id as sent, so the same id with ITS words again is that entry, however much later (00726). An
+      // entry found again that is held has no person yet, and is answered as held.
+      const found = (e) => ({
+        outcome: e.contact_id ? "again" : "held",
+        entry_id: e.id,
+        contact_id: e.contact_id,
+        clash: false,
+      });
+      const ofForm = (e) => e.tenant_id === a.p_tenant_id && e.outside_form_id === form.id;
       let ref = (a.p_ref ?? "").trim() || null;
+      let sent = null;
       let clash = false;
       if (ref) {
-        const had = entries.find(
-          (e) => e.tenant_id === a.p_tenant_id && e.outside_form_id === form.id && e.ref === ref,
-        );
-        if (had && had.words === a.p_words)
-          return { outcome: "again", entry_id: had.id, contact_id: had.contact_id, clash };
-        if (had) [clash, ref] = [true, null];
+        const had = entries.find((e) => ofForm(e) && e.ref === ref);
+        if (had && had.words === a.p_words) return found(had);
+        if (had) [clash, sent, ref] = [true, ref, null];
       }
       if (!ref) {
-        const again = entries
-          .filter(
-            (e) =>
-              e.tenant_id === a.p_tenant_id &&
-              e.outside_form_id === form.id &&
-              e.words === a.p_words &&
-              !e.ref &&
-              Date.parse(e.created_at) > clock() - AGAIN_WITHIN_MS,
-          )
-          .at(-1);
-        if (again) return { outcome: "again", entry_id: again.id, contact_id: again.contact_id, clash: false };
+        const again =
+          (sent ? entries.find((e) => ofForm(e) && e.sent_ref === sent && e.words === a.p_words) : null) ??
+          entries
+            .filter(
+              (e) =>
+                ofForm(e) && e.words === a.p_words && !e.ref && Date.parse(e.created_at) > clock() - AGAIN_WITHIN_MS,
+            )
+            .at(-1);
+        if (again) return found(again);
+      }
+      const heldWhy = (a.p_held_why ?? "").trim() || null;
+      if (heldWhy && heldWhy !== "too_many")
+        throw Object.assign(new Error("The door holds an entry for one reason: too many."), { code: "22023" });
+      // Past the door's limit: kept for a look with who it is about as typed, no person, no event, no stamp.
+      if (heldWhy) {
+        const typed = Object.entries({ name: a.p_person.name, email: a.p_person.email, phone: a.p_person.phone });
+        const reach = Object.fromEntries(typed.flatMap(([k, v]) => ((v ?? "").trim() ? [[k, v.trim()]] : [])));
+        const held = { ...entryRow(a, keyId, null, ref, source, form.id), sent_ref: sent, state: "held", reach };
+        entries.push({ ...held, held_why: heldWhy });
+        return { outcome: "held", entry_id: held.id, contact_id: null, clash };
       }
       let person;
       try {
@@ -175,7 +194,7 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
         if (e && e.code === "PE001") return { outcome: "forgotten", entry_id: null, contact_id: null };
         throw e;
       }
-      const entry = entryRow(a, keyId, person.contact_id, ref, source, form.id);
+      const entry = { ...entryRow(a, keyId, person.contact_id, ref, source, form.id), sent_ref: sent };
       entries.push(entry);
       for (const row of [form, site]) [row.first_entry_at, row.last_entry_at] = [row.first_entry_at ?? now(), now()];
       event(a.p_tenant_id, "form_entry.accepted", entry.id, { form: a.p_form, owed: a.p_owed });

@@ -44,12 +44,14 @@ const { runAdsAccountOp } = await import(at("apps/edge/lib/ads/account-ops.ts"))
 const auth = { ok: true, via: "token", workspace: T, user: U };
 
 let setAnswer = [200, { success: true }];
+/** Where Meta says an ad stands, asked after a switch it never answered. */
+let standingAnswer = [200, { effective_status: "PAUSED" }];
 const asked = [];
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   const method = init?.method ?? "GET";
   asked.push(method === "POST" ? "set" : "standing");
-  const [status, body] = method === "POST" ? setAnswer : [200, { effective_status: "PAUSED" }];
+  const [status, body] = method === "POST" ? setAnswer : standingAnswer;
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 };
 after(() => {
@@ -84,6 +86,7 @@ function world({ owner = true, ads = [adRow(1), adRow(2, { intent: "paused", pla
   Object.assign(process.env, APP);
   asked.length = 0;
   setAnswer = [200, { success: true }];
+  standingAnswer = [200, { effective_status: "PAUSED" }];
   const tables = {
     ad_accounts: [
       {
@@ -197,9 +200,19 @@ test("signed out by Meta, a pause cannot be made: nothing is disconnected until 
   assert.equal((await heard(await w.disconnect(false)))[1].outcome, "disconnected");
 });
 
+test("a pause Meta never answered is asked about: where Meta holds the ad paused, it is, and the account is let go", async () => {
+  const w = world();
+  setAnswer = [503, { error: { message: "Service temporarily unavailable", code: 2 } }];
+  assert.deepEqual(await heard(await w.disconnect(true)), [200, { ok: true, outcome: "disconnected", names: [] }]);
+  assert.deepEqual(asked, ["set", "standing"], "the switch, then where the ad stands");
+  assert.equal(w.tables.ad_accounts[0].status, "disconnected");
+});
+
 test("where Meta does not confirm the pause nothing is disconnected, and the owner is told which ad keeps running", async () => {
   const w = world();
   setAnswer = [503, { error: { message: "Service temporarily unavailable", code: 2 } }];
+  // Asked where the ad stands, Meta still holds it on: the pause never took.
+  standingAnswer = [200, { effective_status: "ACTIVE" }];
   assert.deepEqual(await heard(await w.disconnect(true)), [
     200,
     { ok: true, outcome: "not_paused", names: ["Spring colour offer"] },

@@ -16,6 +16,9 @@ export const CHOICE_KINDS: ReadonlySet<FormFieldKind> = new Set(["service", "one
 /** How far back a form's sheet counts what it brought: a form made here and a site's alike (00680, 00709). */
 export const FORM_RESULT_DAYS = 30;
 
+/** Why an entry is held for a look, as the database keeps it: the door's doubt, or a member's word. */
+export type EntryHeldWhyDto = "hidden_field" | "too_fast" | "too_many" | "member" | "elsewhere";
+
 /** After this many days with nobody looking, a form's held entries are said on Today (the Forms plan, 3.10). */
 export const FORM_HELD_SAID_AFTER_DAYS = 3;
 

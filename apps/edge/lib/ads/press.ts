@@ -4,7 +4,11 @@
  * admin token only: the dashboard's /api/v1/ads/:id routes are the callers, for the owner. In order, and nothing
  * after a step that refuses:
  *
- *   1. This deployment's switch (`ADS_WRITES`) and its list of workspaces (the plan's 6.2 and D7).
+ *   1. This deployment's switch (`ADS_WRITES`), for what can spend: turning an ad back on, and any change but ending
+ *      it. A stop is never refused by it (a pause, pausing them all, ending one, a cancel, a check): an ad an owner can
+ *      see, they can stop. The list of workspaces (`ADS_WORKSPACES`, the plan's 6.2 and D7) takes away making a new ad
+ *      (turn-on.ts, the account's door) and nothing here: an ad still running where Ads was switched off is paused,
+ *      turned back on, changed and ended as any other.
  *   2. The owner alone: `has_permission(…, 'ads')`, asked here before anything is kept or asked of Meta.
  *   3. The press is kept by its one door (ad_set_intent), with the decision and the event: a stale press is refused,
  *      the same press twice is answered once, and turning back on is refused where the rule says no (the plan's C1).
@@ -46,10 +50,10 @@ import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js"
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
-import { NO_ADS_DOORS, adsOfferedIn, metaAdsApp, signInOf } from "./account-ops.js";
+import { NO_ADS_DOORS, metaAdsApp, signInOf } from "./account-ops.js";
 import { runAdChange, type AdsChangeBody } from "./change.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
-import { adsWrites, mayTellNow, tellAd, type AdsWrites } from "./tell.js";
+import { adsWrites, mayTellNow, stopWrites, tellAd, type AdsWrites } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -124,7 +128,8 @@ async function tellNow(
   }
   if (told.outcome === "refused") return refuse(502, "meta_refused", told.said ?? undefined);
   // `again`: pressed again while this one was on its way; that newer ask is kept, and sent when Meta will take it.
-  if (told.outcome === "again") return soon();
+  // `not_taken`: a pause Meta never answered and, asked, does not hold: still on its way, and its read sends it again.
+  if (told.outcome === "again" || told.outcome === "not_taken") return soon();
   if (told.outcome !== "unknown") return answer("told");
   // No answer came, so whether Meta took it is not known, and it is never sent again (decision 0050). What stands at
   // Meta is read, and soon: the page then says which, within minutes and not at the hour's read.
@@ -155,20 +160,22 @@ interface PressedBy {
 }
 
 /**
- * What every op asks before anything is kept or asked of Meta, in order: the database, this deployment's switch and its
- * list of workspaces (the plan's 6.2 and D7), and the owner alone (decision 0050, call 2). Then the op.
+ * What every op asks before anything is kept or asked of Meta, in order: the database, this deployment's switch where
+ * the op can spend, and the owner alone (decision 0050, call 2). Then the op. A stop is never refused by the switch,
+ * and reaches Meta as `stopWrites` says; the list of workspaces is not asked here (it takes away making a new ad).
  */
 async function admitted(
   asker: { tenantId: TenantId; userId: string },
   op: (db: Db, by: PressedBy) => Promise<Response>,
+  stop: boolean,
 ): Promise<Response> {
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const writes = adsWrites();
-  if (writes === "off" || !adsOfferedIn(asker.tenantId))
-    return refuse(409, "ads_writes_off", "Changing an ad from here is not turned on in this workspace.");
+  if (!stop && writes === "off")
+    return refuse(409, "ads_writes_off", "Turning an ad on or changing it from here is not switched on.");
   if (!(await mayRunAds(db, asker.tenantId, asker.userId))) return refuse(403, "ad_account_not_owner");
-  return op(db, { ...asker, writes });
+  return op(db, { ...asker, writes: stop ? stopWrites(writes) : writes });
 }
 
 /** One ad's press: Check asks what stands at Meta; a pause or a turning back on is kept, then told where Meta takes it. */
@@ -295,8 +302,11 @@ async function runSetPress(tenantId: string, userId: string, body: Partial<AdsPr
   const presses = pausesOf(body.ads);
   if (!isTenantId(tenantId) || !UUID.test(userId) || presses === null)
     return refuse(400, "bad_request", "tenant_id, user_id and ads (each an ad_id and its version, once) required");
-  return admitted({ tenantId, userId }, (db, by) =>
-    body.op === "resume_all" ? resumeAll(db, by, presses) : pauseAll(db, by, presses),
+  const resumes = body.op === "resume_all";
+  return admitted(
+    { tenantId, userId },
+    (db, by) => (resumes ? resumeAll(db, by, presses) : pauseAll(db, by, presses)),
+    !resumes,
   );
 }
 
@@ -304,7 +314,7 @@ async function runSetPress(tenantId: string, userId: string, body: Partial<AdsPr
 async function runCancelPress(tenantId: string, userId: string, adId: string): Promise<Response> {
   if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(adId))
     return refuse(400, "bad_request", "tenant_id, user_id and ad_id required");
-  return admitted({ tenantId, userId }, (db, by) => cancelOne(db, by, adId));
+  return admitted({ tenantId, userId }, (db, by) => cancelOne(db, by, adId), true);
 }
 
 /** The ops that name no intent: check, change and cancel on one ad, and pause_all and resume_all on a set of them. */
@@ -325,7 +335,12 @@ export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): P
   const version = typeof body.version === "number" && Number.isInteger(body.version) ? body.version : 0;
   if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(adId) || version < 1)
     return refuse(400, "bad_request", "tenant_id, user_id, ad_id and version required");
+  // Ending an ad is the one change that stops it; a pause and a check stop or ask, and spend nothing.
   if (body.op === "change")
-    return admitted({ tenantId, userId }, (db, by) => runAdChange(db, by, { adId, version, change: body.change }));
-  return admitted({ tenantId, userId }, (db, by) => pressOne(db, by, { adId, version, intent }));
+    return admitted(
+      { tenantId, userId },
+      (db, by) => runAdChange(db, by, { adId, version, change: body.change }),
+      body.change?.what === "end",
+    );
+  return admitted({ tenantId, userId }, (db, by) => pressOne(db, by, { adId, version, intent }), intent !== "on");
 }

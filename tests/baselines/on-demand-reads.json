@@ -545,6 +545,11 @@
     "fresh": "Read as a request opens in the Inbox, after each press on it, and again whenever Needs you moves (a teammate's answer, a reply that bounced, the person's own message with its code).",
     "why": "A request is answered where it is open, and whether it is still open is Needs you's own count, which Today's read holds and the feed moves (form_entries, form_entry_links, messages): the page follows that."
   },
+  "apps/dashboard/src/bridge/verbs/forms.ts GET forms/requests/more": {
+    "kind": "on-open",
+    "fresh": "Read when the owner presses Show more under Needs you in the Inbox. What it read is dropped whenever Today's list or its count moves (a request answered, a new one), and read again on the next press; nothing of it is kept once the page goes.",
+    "why": "The requests past the 200 Today's read lists are counted by the one count and were never drawn (00726). They are older requests nobody has answered, read on to only when asked for, and each opens its own page, which reads it again."
+  },
   "apps/dashboard/src/surfaces/reports/lenses/forms-line.tsx GET reports/forms": {
     "kind": "on-open",
     "fresh": "Read as Reports' Campaigns lens is drawn, and again each time the lens is come back to; nothing of it is kept once the lens goes.",
@@ -579,5 +584,10 @@
     "kind": "on-open",
     "fresh": "Read once Today has drawn, as its weekly card is asked for; kept in the tab by workspace (read-cache.ts `tab`), so a return draws it at once and reads it again behind it.",
     "why": "The weekly card says what the last seven days' posts brought once a week, until Got it: a number a minute old is the week's all the same, and a read that fails says AI's week instead of guessing."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/source.ts GET files/[id]/copy": {
+    "kind": "on-open",
+    "fresh": "Read every ten seconds while New ad shows a video whose copy is on its way back (or waits for room), and only while the tab is in view; the moment it answers that the copy is here, the line under the ad goes.",
+    "why": "It reads one row's two words and asks for nothing, so waiting never spends a return: the draft's own route asked for the copy once, at the pick. The files surface hears the same change through the feed, which New ad does not draw from; this is the open draft's own wait."
   }
 }
