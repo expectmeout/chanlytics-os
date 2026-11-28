@@ -41,17 +41,24 @@ export const setPersonEmail = async (db: Db, contactId: ContactId, email: string
 
 /**
  * A living person's name and the address on their page, or null for someone this workspace does not hold: erased, or
- * a record combined into another. What a reply is addressed by, and when their record was made, read on the member's
- * own session.
+ * a record combined into another. What a reply is addressed by, when their record was made, and whether they said yes
+ * to offers by email (a yes the address gave, which a changed address ends: set_person_email, 00726), read on the
+ * member's own session.
  */
 export async function findPersonAddress(
   db: Db,
   tenantId: TenantId,
   contactId: ContactId,
-): Promise<{ id: ContactId; name: string | null; email: string | null; createdAt: string } | null> {
+): Promise<{
+  id: ContactId;
+  name: string | null;
+  email: string | null;
+  createdAt: string;
+  emailOffers: boolean;
+} | null> {
   const { data, error } = await db
     .from("contacts")
-    .select("id, display_name, wa_profile_name, email, created_at")
+    .select("id, display_name, wa_profile_name, email, created_at, email_marketing")
     .eq("tenant_id", tenantId)
     .eq("id", contactId)
     .is("erased_at", null)
@@ -64,5 +71,6 @@ export async function findPersonAddress(
     name: data.display_name ?? data.wa_profile_name,
     email: data.email,
     createdAt: data.created_at,
+    emailOffers: data.email_marketing === "opted_in",
   };
 }

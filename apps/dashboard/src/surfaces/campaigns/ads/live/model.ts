@@ -16,7 +16,7 @@ import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
 import { dayShort, dayWord, peopleWord } from "../model/words";
-import { changeSentenceOf, endsAlone, type ChangeSentenceVM } from "./change-model";
+import { changeSentenceOf, endsAlone, maySpend, type ChangeSentenceVM } from "./change-model";
 import { FIX } from "./change-words";
 import { over, quiet, shown } from "./listed";
 import { ADS_MANAGER, LIVE, SHEET } from "./words";
@@ -163,18 +163,28 @@ export function eachOf(
 }
 
 /**
+ * Whether an ad may be on with nobody here able to say: made here, its last switch sent and Meta's word for it never
+ * read (the page follows it as setting up, then says it couldn't confirm it). Where its account is still read, a read
+ * settles it; where the account was let go first, it stays so, and is said as that.
+ */
+const mayBeOnOf = (ad: AdLiveDto): boolean =>
+  ad.state === "unconfirmed" || (ad.state === "setting-up" && ad.launch?.sending === false);
+
+/**
  * A row's line where the account is no longer read (signed out by Meta, or let go): what the ad was doing when it last
- * was. An ad Meta was still checking was neither on nor paused, and is said as what it was.
+ * was. An ad Meta was still checking was neither on nor paused, and is said as what it was; one whose last switch Meta
+ * had not answered may be on, and is never said to have been paused.
  */
 function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock): string {
   const checking = ad.state === "review";
+  const unsure = mayBeOnOf(ad);
   if (dto.account.status === "disconnected") {
     const day = adDayOf(dto.account.disconnected_at, said) ?? "";
-    const phrase = ad.state === "on" ? LIVE.leftWasOn(day).trim() : LIVE.leftWasPaused;
+    const phrase = ad.state === "on" ? LIVE.leftWasOn(day).trim() : unsure ? LIVE.leftMayBeOn : LIVE.leftWasPaused;
     return `${LIVE.leftInMeta} · ${checking ? LIVE.wasChecking : phrase}`;
   }
   const updated = adDayOf(dto.account.read_at, said);
-  const phrase = ad.state === "on" ? LIVE.wasOn : LIVE.wasPaused;
+  const phrase = ad.state === "on" ? LIVE.wasOn : unsure ? LIVE.mayBeOn : LIVE.wasPaused;
   return [checking ? LIVE.wasChecking : phrase, updated ? LIVE.updated(updated) : null].filter(Boolean).join(" · ");
 }
 
@@ -271,11 +281,14 @@ function liveNoticeOf(dto: AdsLiveDto, said: LiveClock): LiveNoticeVM | null {
   if (dto.account.status === "revoked") {
     const day = adDayOf(dto.account.revoked_at, said) ?? "";
     const names = namesOf(on);
+    const unsure = dto.ads.filter(mayBeOnOf);
     return {
       title: LIVE.signedOut.title(day),
       body:
         on.length === 0
-          ? LIVE.signedOut.none
+          ? unsure.length > 0
+            ? LIVE.signedOut.mayBeOn(namesOf(unsure))
+            : LIVE.signedOut.none
           : on.length === 1
             ? LIVE.signedOut.wasOn(names)
             : LIVE.signedOut.wereOn(names),
@@ -291,10 +304,15 @@ function leftOnNotice(dto: AdsLiveDto, said: LiveClock): LiveNoticeVM | null {
   const on = dto.ads.filter((ad) => ad.state === "on");
   const checking = dto.ads.filter((ad) => ad.state === "review");
   const left = [...on, ...checking];
-  if (left.length === 0) return null;
   const day = adDayOf(dto.account.disconnected_at, said) ?? "";
   const door = LIVE.disconnected.openMeta;
   const words = LIVE.disconnected;
+  if (left.length === 0) {
+    // None known to be on. One whose last switch Meta had not answered may be: said, with Meta as where to look.
+    const unsure = dto.ads.filter(mayBeOnOf);
+    if (unsure.length === 0) return null;
+    return { title: words.unsureTitle(namesOf(unsure)), body: words.unsureBody(day, unsure.length > 1), door };
+  }
   if (checking.length === 0)
     return { title: words.title(namesOf(on), on.length > 1), body: words.body(day, on.length > 1), door };
   if (on.length === 0)
@@ -528,6 +546,8 @@ function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: LiveClock, currency: strin
   if (!ad.resume.ok) return { kind: "in-meta", ...SHEET.cant[ad.resume.why] };
   // While AI is stopped no ad is turned on from here (the Ads plan's G17).
   if (dto.stopped_at) return { kind: "none", line: SHEET.stopped };
+  // What can spend is switched off here: an ad is paused and ended from here, and turned back on in Meta.
+  if (!maySpend(dto)) return { kind: "meta", line: SHEET.spendOff };
   const left = moneyOf(ad.resume.left_minor, currency);
   const day = adDayOf(ad.resume.ends_at, said) ?? "";
   return {

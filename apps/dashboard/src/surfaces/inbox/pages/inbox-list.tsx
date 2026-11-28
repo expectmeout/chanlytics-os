@@ -98,6 +98,8 @@ interface InboxListProps {
   fromLine?: ReactNode;
   /** Needs you's line that opens the comments on the business's posts, while any has AI's answer ready (comment/list.tsx). */
   commentsDoor?: ReactNode;
+  /** Needs you's line that reads on past the requests it lists, where the count holds more (request/more.tsx). */
+  requestsMore?: ReactNode;
   /** Needs you's To send open under its row (`inbox/to-send`, inbox-runs.tsx). */
   toSendOpen?: boolean;
   /** The page's toast: what an Approve on a run's row says, with its Stop (inbox-runs.tsx). */
@@ -135,6 +137,7 @@ function listProps({
   sendingIn = () => null,
   fromLine = null,
   commentsDoor = null,
+  requestsMore = null,
   toSendOpen = false,
   flash = () => undefined,
   needsYou = null,
@@ -166,6 +169,7 @@ function listProps({
     sendingIn,
     fromLine,
     commentsDoor,
+    requestsMore,
     toSendOpen,
     flash,
   };
@@ -406,6 +410,7 @@ function threadsBody(
           {people.map((r) => doorRow(r, (to) => appNavigate(to)))}
         </div>
       )}
+      {besides && list.requestsMore}
       {besides && list.commentsDoor}
       {!list.fromLine && unreadEscalated()}
       {empty && !list.fromLine && !(besides && others) && emptyThreads(list)}

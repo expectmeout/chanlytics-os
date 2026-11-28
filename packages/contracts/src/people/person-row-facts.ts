@@ -163,6 +163,9 @@ function offersSub(person: PersonRowDto, marketing: PersonConsent["marketing"], 
   return `${how ? `${how} · ` : ""}${date} · ${channelsWords(coveredChannels(person.marketing_channels))}`;
 }
 
+/** The source a yes to offers by email is set back to "not asked" with, where the address that gave it left (00726). */
+const ADDRESS_CHANGED_SOURCE = "address_changed";
+
 /** How an answer about email offers was given, in a person's page's words. */
 const EMAIL_OFFERS_SOURCES: Record<string, string> = {
   customer_message: "Their own message",
@@ -196,6 +199,14 @@ function emailOffersOf(
     return { emailMarketing, emailMarketingSource: source, emailOffersLabel: "Yes", emailOffersSub: dated };
   if (emailMarketing === "opted_out")
     return { emailMarketing, emailMarketingSource: source, emailOffersLabel: "Unsubscribed", emailOffersSub: dated };
+  // A yes their address gave ended when their page took another (set_person_email, 00726): not "never asked".
+  if (emailMarketing === "unknown" && source === ADDRESS_CHANGED_SOURCE)
+    return {
+      emailMarketing,
+      emailMarketingSource: source,
+      emailOffersLabel: "Not asked",
+      emailOffersSub: "their yes ended when their email address changed",
+    };
   return {
     emailMarketing,
     emailMarketingSource: source,

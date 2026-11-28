@@ -155,6 +155,9 @@ export const LIVE = {
   leftInMeta: "Left in Meta",
   leftWasOn: (day: string) => `was on ${day}`,
   leftWasPaused: "was paused",
+  /** Its last switch went unanswered and its account was let go before Meta said: nobody here can say whether it runs. */
+  mayBeOn: "May be on",
+  leftMayBeOn: "may be on",
   bookedCell: (n: number) => `${n} booked`,
   eachCell: (cost: string) => `${cost} each`,
   /** Under what an ad that opens no chat spent: who commented on it, the people it can name (00719). */
@@ -176,6 +179,9 @@ export const LIVE = {
     wereOn: (names: string) =>
       `${names} were on then, and Meta charges while they run. Chanlytics can't read or pause them until you connect again.`,
     none: "Chanlytics can't read or pause your ads until you connect again.",
+    /** None known to be on, and one whose last switch Meta had not answered. */
+    mayBeOn: (names: string) =>
+      `${names} may be on, and Meta charges while it runs. Check it in Meta, or connect again.`,
   },
   /** After a disconnect (the plan's 4.9, point 3). */
   disconnected: {
@@ -190,6 +196,10 @@ export const LIVE = {
     bothTitle: (names: string) => `${names} were left on when you disconnected`,
     bothBody: (day: string) =>
       `That was ${day}: Meta charges while they run, and one in review starts once approved. They can only be paused in Meta now.`,
+    /** None known to be on, and one whose last switch Meta had not answered when the account was let go. */
+    unsureTitle: (names: string) => `${names} may be on in Meta`,
+    unsureBody: (day: string, many: boolean) =>
+      `Meta hadn't answered when you disconnected, ${day}. Check ${many ? "them" : "it"} in Meta: ${many ? "they" : "it"} can only be paused there now.`,
     openMeta: "Open Meta",
     again: "Connect to read and pause them here again.",
   },
@@ -244,6 +254,8 @@ export const SHEET = {
     off: "Pausing and turning ads back on from Chanlytics isn't switched on yet. Do it in Meta.",
     meta: "Meta hasn't let Chanlytics pause or turn on ads yet. Do it in Meta.",
   },
+  /** Paused, where an ad is paused and ended from here and what can spend is switched off: where it is turned back on. */
+  spendOff: "Turning an ad back on from Chanlytics isn't switched on yet. Do it in Meta.",
   metasReason: "Meta's reason",
   neverRan: "It never ran, so Meta charged nothing for it.",
   fixInMeta: "Fix it in Meta",
@@ -431,6 +443,8 @@ export const STOPPED_ADS = {
       : `${n} ads were paused when AI was stopped, and stay paused until you turn them back on.`,
   press: (n: number) => (n === 1 ? "Turn it back on" : `Turn ${n} ads back on`),
   ownerOnly: "Only the owner can turn them back on.",
+  /** The owner's, where what can spend is switched off here. */
+  inMeta: "Turning ads back on from Chanlytics isn't switched on yet. Do it in Meta.",
   /** What the press came to. */
   resumed: (n: number) =>
     n === 1

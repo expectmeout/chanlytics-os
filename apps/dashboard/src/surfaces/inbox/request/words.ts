@@ -54,6 +54,21 @@ export const REQUEST_WORDS = {
     held: (form: string) => `Not a real request · in ${form}'s held pile for 30 days`,
     undo: "Undo",
   },
+  /** Its reply is still going (00726): the seconds it can be taken back, then the wire. Answered once it has gone. */
+  sending: {
+    title: "Sending…",
+    body: "Your reply is on its way. If it doesn't reach them, this request comes back to Needs you.",
+  },
+  /** Nobody answered it and its sixty days in Needs you passed (00726): a quiet line over a request still answerable. */
+  aged: "Never answered · left Needs you after 60 days",
+  /** Needs you's line that reads on past the requests it lists (the list holds 200; the count has no cap). */
+  more: {
+    title: (n: number) => `${n} more ${n === 1 ? "request" : "requests"} from your forms`,
+    body: "Older ones, waiting too.",
+    act: "Show more",
+    unread: "Couldn't load them",
+    again: "Try again",
+  },
   answered: {
     reply: "Answered by a reply sent from here",
     conversation: "Answered when they wrote with its code",
@@ -96,12 +111,17 @@ export const REQUEST_WORDS = {
     title: "The reply didn't reach them",
     body: "It left and came back, so they have no answer yet. Send another to an address that works, or call.",
     sendTo: (address: string) => `Send to ${address}`,
+    /** What the press does beside sending: said before it, since it changes their page. */
+    takes: (address: string) => `Their page takes ${address}.`,
   },
   otherEmail: {
     title: "They typed a different email this time",
     body: (page: string) => `Their page says ${page}. Where should the reply go?`,
     typed: "The one on this request. Their page takes it.",
     page: "The one on their page",
+    /** They said yes to offers by email from the address on their page: a yes that address gave, which ends with it. */
+    offersEnd:
+      "Their yes to offers by email was given from the one on their page, and ends if their page takes another.",
   },
   failed: "That didn't go through. Nothing was sent.",
   /**
