@@ -5,7 +5,8 @@
  * event and the account's job asked for at once, and the draft gone. The same press twice is one ad; a draft changed
  * since the press judged it is refused; one ad of an account is set up at a time; the owner alone; nothing while AI is
  * stopped. The launch's door keeps what was made step by step, ends a launch once, and keeps a part made after a stop
- * as left. A disconnect stops a launch on its way, what it made left at Meta. A tap on any version of an ad made here
+ * as left. A disconnect stops a launch on its way, what it made left at Meta; but one whose last switch, its campaign's,
+ * is out or done may be running, and is kept as the ad it is, Meta's word owed (00725). A tap on any version of an ad made here
  * names the one ad, and the bell's "nobody wrote" hears it. Runs against the database `supabase start` builds on this
  * machine, never production.
  */
@@ -332,3 +333,94 @@ test("a disconnect stops a launch on its way, and what it made is left at Meta",
     ["disconnected"],
   );
 });
+
+test(
+  "a disconnect that finds a launch's last switch out or done keeps the ad as made, Meta's word owed, never as left paused (00725)",
+  { skip },
+  async () => {
+    const made = (n) => [
+      { kind: "campaign", version: 0, name: "c [cl:x]", state: "made", platform_id: `2385000000000${n}01` },
+      { kind: "set", version: 0, name: "s [cl:x]", state: "made", platform_id: `2385000000000${n}02` },
+      { kind: "ad", version: 1, name: "a1 [cl:x]", state: "made", platform_id: `2385000000000${n}11` },
+      { kind: "ad", version: 2, name: "a2 [cl:x]", state: "made", platform_id: `2385000000000${n}12` },
+    ];
+    for (const [tag, n, launch, why, letGo] of [
+      // Kept as going before Meta was asked, and the account let go before its answer was kept.
+      [
+        "late-out",
+        71,
+        { step: "switch", switched: ["ad:1", "ad:2", "set"], switching: "campaign" },
+        "disconnected",
+        "owner",
+      ],
+      // Answered and kept as done, the launch not yet ended.
+      [
+        "late-done",
+        72,
+        { step: "switch", switched: ["ad:1", "ad:2", "set", "campaign"], switching: null },
+        "signed_out",
+        "meta",
+      ],
+    ]) {
+      const ws = await workspace(tag);
+      const { ad_id: adId } = await turnOn(ws);
+      await keepStep(ws, adId, { objects: made(n), launch });
+      if (letGo === "owner")
+        ok(
+          await db.rpc("ad_account_disconnect", {
+            p_tenant_id: ws.tenant,
+            p_actor: ws.owner,
+            p_account_id: ws.account,
+          }),
+        );
+      else ok(await db.rpc("ad_account_revoked", { p_tenant_id: ws.tenant, p_account_id: ws.account, p_how: "read" }));
+      const ad = await adOf(adId);
+      assert.deepEqual(
+        [ad.status, ad.platform_campaign_id, ad.platform_set_id, ad.platform_ad_id, ad.platform_state],
+        ["made", `2385000000000${n}01`, `2385000000000${n}02`, `2385000000000${n}11`, null],
+        tag,
+      );
+      assert.ok(typeof ad.launch.unknown_at === "string" && Number.isFinite(Date.parse(ad.launch.unknown_at)), tag);
+      assert.deepEqual(
+        [ad.launch.step, "switching" in ad.launch, ad.launch.stopped ?? null],
+        ["done", false, null],
+        tag,
+      );
+      const parts = ok(await db.from("ad_objects").select("state").eq("ad_id", adId));
+      assert.ok(
+        parts.every((row) => row.state === "made"),
+        `${tag}: no part is said to be left there paused`,
+      );
+      const events = ok(
+        await db.from("events").select("kind, data").eq("subject_id", adId).neq("kind", "ad.turned_on"),
+      );
+      assert.deepEqual(
+        events.map((row) => [row.kind, row.data.unconfirmed ?? null, row.data.why ?? null]),
+        [["ad.made", true, why]],
+        tag,
+      );
+    }
+
+    // A launch whose campaign was never switched stops as before, though an earlier switch of its is out.
+    const early = await workspace("late-not");
+    const { ad_id: earlyId } = await turnOn(early);
+    await keepStep(early, earlyId, {
+      objects: made(73),
+      launch: { step: "switch", switched: ["ad:1"], switching: "ad:2" },
+    });
+    ok(
+      await db.rpc("ad_account_disconnect", {
+        p_tenant_id: early.tenant,
+        p_actor: early.owner,
+        p_account_id: early.account,
+      }),
+    );
+    const stopped = await adOf(earlyId);
+    assert.deepEqual(
+      [stopped.status, stopped.launch.stopped, stopped.platform_ad_id],
+      ["failed", "disconnected", null],
+    );
+    const left = ok(await db.from("ad_objects").select("state").eq("ad_id", earlyId));
+    assert.ok(left.every((row) => row.state === "left"));
+  },
+);

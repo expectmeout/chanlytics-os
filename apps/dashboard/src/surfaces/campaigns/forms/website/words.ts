@@ -6,6 +6,7 @@
  */
 import {
   websiteKeyWorks,
+  type EntryHeldWhyDto,
   type FormSiteDto,
   type FormSiteKeyDto,
   type FormSiteStanding,
@@ -210,7 +211,21 @@ export const SITE_FORM_WORDS = {
       `${r.new_people} new ${r.new_people === 1 ? "person" : "people"}. ${Math.max(0, r.people - r.new_people)} already known.`,
   },
   entries: "Its newest entries",
-  standing: { open: "Waiting", answered: "Answered", kept: "Kept" },
+  standing: { open: "Waiting", sending: "Sending…", answered: "Answered", aged: "Never answered", kept: "Kept" },
+  /** Its entries held for a look (00726): past what the site may send at once, or set aside by a member. */
+  held: {
+    title: (n: number) => `Held · ${n}`,
+    letThrough: "Let it through",
+    left: "A held entry told nobody. It goes by itself after 30 days.",
+    why: {
+      hidden_field: "A part people cannot see was filled in",
+      too_fast: "Filled in faster than a person can",
+      too_many: "More came from the site at once than people send",
+      member: "Someone said it wasn't a real request",
+      elsewhere: "Sent straight to the form, not from its page",
+    } satisfies Record<EntryHeldWhyDto, string>,
+  },
+  heldCount: (n: number) => `${n} held`,
   rename: {
     title: "Rename the form",
     label: "Its name here",

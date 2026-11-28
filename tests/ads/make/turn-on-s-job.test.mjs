@@ -9,7 +9,9 @@
  * make is found by its tagged name, or past a few minutes unfound the launch stops; a switch is followed, and the ad
  * says it couldn't confirm it's on. A disconnect stops a launch where it is, and sends nothing more. While AI is
  * stopped, nothing is switched on. A cancel (00676) stops it at its next step, is read fresh before every switch, and
- * leaves nothing running; and a way in that closed since the press (call 11) switches nothing on.
+ * leaves nothing running; and a way in that closed since the press (call 11) switches nothing on. A switch is kept as
+ * going before Meta is asked for it: a run that dies with one out asks Meta what it holds before it sends anything, and
+ * a stop that finds the last switch out never says the ad couldn't finish while it may be running.
  */
 import { createHash } from "node:crypto";
 import { test, after } from "node:test";
@@ -96,6 +98,9 @@ const asked = [];
 let refuseAt = null;
 let silentAt = null;
 let onAsk = null;
+/** A step after which the run dies: Meta took it, and nothing after it is kept (the job's door throws from then on). */
+let diesAfter = null;
+let died = false;
 
 function freshMeta() {
   return { campaign: null, set: null, ads: [], made: [], found: new Map(), heldOver: null };
@@ -216,6 +221,7 @@ globalThis.fetch = async (url, init) => {
     if (name === "switch_campaign") meta.campaign.status = to;
     else if (name === "switch_set") meta.set.status = to;
     else meta.ads[Number(name.slice(-1)) - 1].status = to;
+    if (diesAfter === name) died = true;
     return reply(200, { success: true });
   }
   if (name === "read_back") return reply(200, heldJson());
@@ -240,6 +246,7 @@ after(() => {
 /** The job's door, as 00666's ad_launch_keep keeps a step: what it made, sent or left, and where it ends, once. */
 function launchKeep(tables) {
   return ({ p_tenant_id, p_ad_id, p_kept }) => {
+    if (died) throw new Error("the run died here");
     const ad = tables.ads.find((row) => row.id === p_ad_id && row.tenant_id === p_tenant_id);
     if (!ad || ad.origin !== "chanlytics") return { status: "not_found" };
     for (const part of p_kept.objects ?? []) {
@@ -304,6 +311,8 @@ function world({ ad = {}, approved = APPROVED, stopped = null, standing = "AVAIL
   refuseAt = null;
   silentAt = null;
   onAsk = null;
+  diesAfter = null;
+  died = false;
   const tables = {
     tenants: [{ id: T, name: "Harbor Studio", status: "active", sending_stopped_at: stopped }],
     // The number the ad opens a chat with, as Settings keeps what Meta last said of it: AI can answer it.
@@ -686,6 +695,101 @@ test("while AI is stopped no ad is switched on: the launch stops before its firs
   await w.run();
   assert.deepEqual(switches(), []);
   assert.deepEqual([w.ad().status, w.ad().launch.stopped, names().at(-1)], ["failed", "ai_stopped", "remove"]);
+});
+
+/* ------------------------------------------------------------------------ a run that dies with a switch out -- */
+
+/** A run that dies just after Meta took a step: the step reached Meta, and nothing after it was kept. */
+async function runThatDiesAfter(w, step) {
+  diesAfter = step;
+  await assert.rejects(w.run(), /the run died here/);
+  diesAfter = null;
+  died = false;
+  asked.length = 0;
+}
+
+test("a switch is kept as going before Meta is asked for it, each in its turn", async () => {
+  const w = world();
+  const going = [];
+  onAsk = (name) => {
+    if (name.startsWith("switch_")) going.push([name, w.ad().launch.step, w.ad().launch.switching]);
+  };
+  await w.run();
+  assert.deepEqual(going, [
+    ["switch_ad_1", "switch", "ad:1"],
+    ["switch_ad_2", "switch", "ad:2"],
+    ["switch_ad_3", "switch", "ad:3"],
+    ["switch_set", "switch", "set"],
+    ["switch_campaign", "switch", "campaign"],
+  ]);
+  assert.equal(w.ad().launch.switching, null, "none is out once the ad is made");
+});
+
+test("a run that died after Meta took a switch asks Meta what it holds first, and never sends that switch again", async () => {
+  for (const [step, rest] of [
+    ["switch_ad_1", ["switch_ad_2", "switch_ad_3", "switch_set", "switch_campaign"]],
+    ["switch_set", ["switch_campaign"]],
+    ["switch_campaign", []],
+  ]) {
+    const w = world();
+    await runThatDiesAfter(w, step);
+    assert.equal(w.ad().status, "sending", `${step}: still on its way`);
+    await w.run();
+    // Meta's word first; then only the switches Meta does not hold yet; then the read back that ends every launch.
+    assert.deepEqual(names(), ["read_back", ...rest, "read_back"], step);
+    assert.deepEqual([w.ad().status, w.ad().launch.step, w.ad().launch.switching], ["made", "done", null], step);
+    assert.equal(w.ad().platform_state, "PENDING_REVIEW", `${step}: and the page says what Meta says`);
+  }
+});
+
+test("a switch kept as going that never reached Meta is sent once Meta says it holds it paused", async () => {
+  const w = world();
+  await runThatDiesAfter(w, "switch_ad_3");
+  // The run before this one kept the ad set's switch as going, and died before Meta was asked.
+  Object.assign(w.ad().launch, { step: "switch", switched: ["ad:1", "ad:2", "ad:3"], switching: "set" });
+  await w.run();
+  assert.deepEqual(names(), ["read_back", "switch_set", "switch_campaign", "read_back"]);
+  assert.deepEqual([w.ad().status, meta.set.status, meta.campaign.status], ["made", "ACTIVE", "ACTIVE"]);
+});
+
+test("a cancel that finds the last switch out, where the removal does not land: the ad is made and paused at once", async () => {
+  const w = world();
+  await runThatDiesAfter(w, "switch_campaign");
+  cancel(w);
+  refuseAt = "remove";
+  await w.run();
+  assert.equal(meta.campaign.status, "ACTIVE", "Meta holds it on, and would not remove it");
+  assert.deepEqual(switches(), [], "nothing is switched by a stop");
+  // Never one that couldn't finish with its parts left paused: it may be running, so it is the ad, and its pause follows.
+  assert.deepEqual([w.ad().status, w.ad().intent, w.ad().paused_by], ["made", "paused", "owner"]);
+  assert.deepEqual(
+    [w.ad().platform_campaign_id, w.ad().platform_set_id, w.ad().platform_ad_id],
+    [CAMPAIGN, SET, AD_IDS[0]],
+    "with Meta's ids, so its account's read says what it does and its pause reaches its campaign",
+  );
+  assert.ok(w.ad().launch.unknown_at, "and Meta's word for it is still owed");
+  assert.ok(
+    w.tables.ad_objects.every((part) => part.state === "made"),
+    "no part is said to be left there paused",
+  );
+
+  // Where the removal lands, nothing is left to run: it couldn't finish, as its owner asked.
+  const gone = world();
+  await runThatDiesAfter(gone, "switch_campaign");
+  cancel(gone);
+  await gone.run();
+  assert.deepEqual([gone.ad().status, gone.ad().launch.stopped, names().at(-1)], ["failed", "cancelled", "remove"]);
+});
+
+test("switched off with the last switch out: nothing more is sent, and the ad is kept as the ad it is, to be confirmed", async () => {
+  const w = world();
+  await runThatDiesAfter(w, "switch_campaign");
+  await w.run({ writes: "off" });
+  assert.deepEqual(names(), [], "this deployment sends nothing");
+  const ad = w.ad();
+  assert.deepEqual([ad.status, ad.platform_campaign_id, ad.launch.stopped ?? null], ["made", CAMPAIGN, null]);
+  const at = (minutes) => ({ nowMs: Date.parse(ad.launch.unknown_at) + minutes * 60_000, timezone: "UTC" });
+  assert.equal(adStateOfRow(ad, at(6)), "unconfirmed", "the page says it couldn't confirm it's on, with Check");
 });
 
 /* ------------------------------------------------------------------------------- a cancel, and the way in -- */

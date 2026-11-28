@@ -172,14 +172,16 @@ export const PEOPLE_TABLES: Readonly<Record<string, Readonly<Record<string, Eras
     ...all(NOT_PERSONAL, "notice_id", "tool", "from_address"),
   },
   // A website's entries, and a hosted form's requests (00680), go with their person: what they answered, who it was
-  // about as typed (reach), where it came from (source: a link's code, a page, a campaign's labels, never a click id)
-  // and the code its thank-you carried into a chat. One held for a look has no person yet, so the same leg finds it by
-  // the address or the number typed, and it goes at 30 days whoever it was (form_entries_purge). A key is the
-  // business's own (00675).
+  // about as typed (reach), where it came from (source: a link's code, a page, a campaign's labels, never a click id),
+  // the site's own id for the entry (ref, and sent_ref where its form had that id with other words: 00726) and the code
+  // its thank-you carried into a chat. One held for a look has no person yet (a hosted form's doubt, or a site's entry
+  // past the website door's limit: 00726), so the same leg finds it by the address or the number typed, and it goes at
+  // 30 days whoever it was (form_entries_purge). A key is the business's own (00675).
   form_entries: all(
     withPerson("form_entries_trigger"),
     "answers",
     "ref",
+    "sent_ref",
     "words",
     "effects",
     "owed",
