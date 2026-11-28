@@ -133,15 +133,24 @@ export interface VideoPieceRow {
   revision: number;
   file_id: string | null;
   intent: PieceIntent | null;
+  /** The plan it stands at: what a version being made is held against, to say whether it says something else. */
+  plan: Json;
 }
 
-const ROOT_COLUMNS = "id, revises, revision, file_id, intent";
+const ROOT_COLUMNS = "id, revises, revision, file_id, intent, plan";
 
-const videoPieceOf = (row: { id: string; revision: number; file_id: string | null; intent: Json }): VideoPieceRow => ({
+const videoPieceOf = (row: {
+  id: string;
+  revision: number;
+  file_id: string | null;
+  intent: Json;
+  plan: Json;
+}): VideoPieceRow => ({
   id: row.id,
   revision: row.revision,
   file_id: row.file_id,
   intent: pieceIntentOf(row.intent),
+  plan: row.plan,
 });
 
 /** The piece a made video's file is, under the member's RLS: its own, a version's root, or the one it was a version of. */
@@ -282,15 +291,18 @@ export async function findPostWaitingOnVersion(
   return null;
 }
 
-/** The newest version of this piece being drawn, or that could not be: its drawing row's id, its stage, whether it failed. */
+/**
+ * The newest version of this piece being drawn, or that could not be: its drawing row's id, its stage, whether it failed,
+ * and when it was begun (a card tried again begins anew: piece_begin).
+ */
 export async function findVersionDrawing(
   db: Db,
   tenantId: TenantId,
   pieceId: string,
-): Promise<{ id: string; stage: string; failed: boolean; plan: Json; card_key: string } | null> {
+): Promise<{ id: string; stage: string; failed: boolean; plan: Json; card_key: string; begun_at: string } | null> {
   const { data, error } = await db
     .from("pieces")
-    .select("id, stage, status, plan, card_key")
+    .select("id, stage, status, plan, card_key, created_at")
     .eq("tenant_id", tenantId)
     .eq("revises", pieceId)
     .order("created_at", { ascending: false })
@@ -298,5 +310,12 @@ export async function findVersionDrawing(
     .maybeSingle();
   if (error) throw new DbFailure(error, "piece version drawing");
   if (!data || data.status === "made") return null;
-  return { id: data.id, stage: data.stage, failed: data.status === "failed", plan: data.plan, card_key: data.card_key };
+  return {
+    id: data.id,
+    stage: data.stage,
+    failed: data.status === "failed",
+    plan: data.plan,
+    card_key: data.card_key,
+    begun_at: data.created_at,
+  };
 }

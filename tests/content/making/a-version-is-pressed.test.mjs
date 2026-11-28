@@ -42,6 +42,7 @@ after(() => {
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/files/[id]/version/route.ts"));
+const record = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 after(() => setServiceClient(null));
@@ -122,7 +123,15 @@ const reasonFor = (day) => ({
 });
 
 /** A workspace with a piece at version 2 (its file V2), version 1's file, posts at version 1, and a photo. */
-function world({ role = "owner", posts = [{}], drawing = null, intent = null, moved = false } = {}) {
+function world({
+  role = "owner",
+  posts = [{}],
+  drawing = null,
+  intent = null,
+  moved = false,
+  // What the version being made is to draw: the same as what stands, unless a test says other.
+  drawingPlan = { blocks: [] },
+} = {}) {
   seq += 1;
   const tenant = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`;
   const replaced = [];
@@ -156,7 +165,7 @@ function world({ role = "owner", posts = [{}], drawing = null, intent = null, mo
             file_id: null,
             revision: 1,
             shape: "blocks",
-            plan: { blocks: [] },
+            plan: drawingPlan,
             look: {},
             status: drawing,
             stage: "drawing",
@@ -346,4 +355,21 @@ test("Try again is refused where the newest version was made, none was asked, or
   const making = world({ drawing: "making" });
   await assert.rejects(press(making, "again"), (e) => e.message.startsWith("Its new version is being made now."));
   assert.equal(making.begun.length, 0);
+});
+
+test("the piece's record says whether the version being made, or that could not be, says something else", async () => {
+  const read = async (shape) => {
+    const w = world(shape);
+    const said = await record.GET.run(new Request(`http://localhost/api/v1/x?workspace=${w.tenant}`), w.ctx);
+    return said.version;
+  };
+  // Other words on it: the posts of the one that stands will wait for their owner if it is late or is not made.
+  const other = await read({ drawing: "failed", drawingPlan: { blocks: [], lines: ["Half price this week"] } });
+  assert.deepEqual([other.failed, other.says_other], [true, true]);
+  const making = await read({ drawing: "making", drawingPlan: { blocks: [], caption: "New words under it." } });
+  assert.deepEqual([making.drawing, making.says_other], ["drawing", true]);
+  // A new look alone, and no new version at all, say nothing else.
+  const look = await read({ drawing: "failed", drawingPlan: { blocks: [], words_at: "top" } });
+  assert.deepEqual([look.failed, look.says_other], [true, false]);
+  assert.equal((await read({})).says_other, false);
 });

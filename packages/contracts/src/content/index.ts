@@ -29,7 +29,7 @@ export { HOUSE_LOUDNESS, renditionRefusalOf } from "./making/renditions";
 export type { MediaMeasured, RenditionRefusal, RenditionRule, RenditionWhy } from "./making/renditions";
 export { PLACE_SAFE_AREAS, unsafeBoxOf, wordBoxesOf } from "./making/safe-areas";
 export type { SafeArea, WordBox } from "./making/safe-areas";
-export { revisionChangesOf, shapesReachedOf } from "./making/versions";
+export { revisionChangesOf, shapesReachedOf, versionSaysOther } from "./making/versions";
 export { CONTENT_TODAY_DOWN, CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS, contentDownOf } from "./note";
 export type { ContentDownDto, ContentTodayDto } from "./note";
 export {

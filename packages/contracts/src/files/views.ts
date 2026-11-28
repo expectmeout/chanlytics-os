@@ -235,6 +235,12 @@ export interface PieceVersionsDto {
   drawing: string | null;
   /** The newest new version could not be made; the one before still stands as approved. */
   failed: boolean;
+  /**
+   * The version being made, or that could not be, says something other than the one that stands (its words, not its
+   * look: contracts versionSaysOther). Then a post of the one that stands does not go up in its place when it is late
+   * or could not be made: it waits for its owner. Absent on a record read before this was said.
+   */
+  says_other?: boolean;
   /** Each version drawn (its own file), newest first: one is no list. */
   list: PieceVersionDto[];
   /** Posts still set to go at an older version: each waits for this version's approval (the version board, cells 2 and 4). */

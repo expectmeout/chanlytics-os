@@ -87,6 +87,29 @@ export function revisionChangesOf(before: PiecePlan, after: PiecePlan): Revision
   return changed;
 }
 
+/** Every word a plan says, in one order: under it, its language, its end line, its opening lines, each block's own. */
+const wordsSaidOf = (plan: PiecePlan): string[] => [
+  plan.caption ?? "",
+  plan.language,
+  plan.end_line ?? "",
+  ...plan.lines,
+  ...plan.blocks
+    .map(blockWordsSaidOf)
+    .filter((words) => words !== "")
+    .sort((first, second) => first.localeCompare(second)),
+];
+
+/**
+ * Whether a new version says something other than the one before it: the words under the post, the words drawn on it
+ * (its opening lines, its end line, a block's own words) or their language. Where the same words sit and how long
+ * they stay, which clips play, in what order and for how long, and its sound are its look: they say nothing new. What
+ * a send reads where a new version is late or could not be made (the outside review of 28 Nov 2026, R3.8): an owner
+ * who asked for other words no longer wants the old ones up.
+ */
+export function versionSaysOther(before: PiecePlan, after: PiecePlan): boolean {
+  return !sameStrings(wordsSaidOf(before), wordsSaidOf(after));
+}
+
 /** What a change draws: the words under it draw nothing; anything else draws each shape its placements send. */
 const DRAWS: Readonly<Record<RevisionChange, boolean>> = {
   caption: false,

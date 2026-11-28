@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { revisionChangesOf, piecePlanOf } from "@chanlytics/contracts";
+import { revisionChangesOf, piecePlanOf, versionSaysOther } from "@chanlytics/contracts";
 import {
   VERSION_WORDS,
   versionStandingOf,
@@ -126,6 +126,73 @@ test("version 2 that could not be made leaves version 1 going as approved, with 
   assert.equal(failed.under, `Version 1 still goes up ${when(reel.scheduled_for)}, as you approved it.`);
   assert.deepEqual(failed.lead, { words: "Try again", is: "again" });
   assert.equal(failed.pill, null);
+});
+
+test("version 2 that could not be made and says something else leaves version 1 waiting for its owner, never going up in its place", () => {
+  const reel = post({ scheduled_for: ahead(HOUR) });
+  const failed = versionStandingOf(versions({ failed: true, says_other: true }), [reel], "file-v1", when);
+  assert.equal(failed.ver, "Version 2 couldn't be made this time");
+  assert.equal(
+    failed.under,
+    `Version 1 says something else, so it waits for you before it goes up ${when(reel.scheduled_for)}.`,
+  );
+  assert.deepEqual(failed.lead, { words: "Try again", is: "again" });
+  // One that only looked different says what it always said.
+  const look = versionStandingOf(versions({ failed: true, says_other: false }), [reel], "file-v1", when);
+  assert.equal(look.under, `Version 1 still goes up ${when(reel.scheduled_for)}, as you approved it.`);
+});
+
+test("a version says something else by its words, never by its look", () => {
+  const plan = (over = {}) =>
+    piecePlanOf({
+      blocks: [
+        { is: "clip", file_id: "c1", from: 0, to: 4, label: "Before" },
+        { is: "clip", file_id: "c2", from: 1, to: 5 },
+      ],
+      lines: ["The finish"],
+      end_line: "Book yours",
+      caption: "Forty-five minutes, one round brush.",
+      ...over,
+    });
+  const stands = plan();
+  // Its look: a new cut, a new order, where the words sit and how long they stay.
+  const cut = plan({
+    blocks: [
+      { is: "clip", file_id: "c1", from: 1, to: 3, label: "Before" },
+      { is: "clip", file_id: "c2", from: 1, to: 5 },
+    ],
+  });
+  const reordered = plan({
+    blocks: [
+      { is: "clip", file_id: "c2", from: 1, to: 5 },
+      { is: "clip", file_id: "c1", from: 0, to: 4, label: "Before" },
+    ],
+  });
+  for (const [name, other] of [
+    ["the same plan", plan()],
+    ["a new cut", cut],
+    ["a new order", reordered],
+    ["where the words sit", plan({ words_at: "top" })],
+    ["how long they stay", plan({ words_hold: "all" })],
+  ])
+    assert.equal(versionSaysOther(stands, other), false, name);
+  // Its words: under it, on it, its end line, a block's own, their language.
+  for (const [name, other] of [
+    ["the words under it", plan({ caption: "Half price this week." })],
+    ["its opening words", plan({ lines: ["Half price"] })],
+    ["its end line", plan({ end_line: "Call today" })],
+    [
+      "a block's own words",
+      plan({
+        blocks: [
+          { is: "clip", file_id: "c1", from: 0, to: 4, label: "After" },
+          { is: "clip", file_id: "c2", from: 1, to: 5 },
+        ],
+      }),
+    ],
+    ["its language", plan({ language: "es" })],
+  ])
+    assert.equal(versionSaysOther(stands, other), true, name);
 });
 
 test("what moved between two versions is what its line says", () => {

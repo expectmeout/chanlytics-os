@@ -2,11 +2,15 @@
  * A post on the business's own Google profile (decision 0099, step 3), and off it again. Only on a person's press: the dashboard's
  * route holds who may, and nothing here runs by itself. It goes as the owner, with the token the connection holds, and the ledger keeps
  * Google's name for it, which is how a sheet says it is up and how it comes down.
+ *
+ * An ask Google refused (a 4xx) made nothing. Any other failure, or no answer at all, may have put the post up: it is said
+ * as `unanswered`, and the profile is asked what it holds (listSentOnProfile) before anything is sent again (post-later.ts).
  */
 import {
   PlacesError,
   createLocalPost,
   deleteLocalPost,
+  listLocalPosts,
   readLocalPost,
   reviewParent,
   type GbpPostAsked,
@@ -35,13 +39,41 @@ const googleSaid = (e: unknown) => (e instanceof Error ? e.message : String(e));
  */
 const BUSY_STATUSES: readonly number[] = [429, 503];
 
+/** Google answered and said no (a 4xx): it made nothing. Anything else is not known to have made nothing. */
+const saidNo = (failure: unknown): boolean =>
+  failure instanceof PlacesError && failure.status >= 400 && failure.status < 500;
+
+/**
+ * The ask never left: the wire to Google is resting after its failures (channels provider-fetch, `breaker_open`, which
+ * the Google wire raises by that word). Nothing was made, as when Google says it is too busy.
+ */
+const wireRested = (failure: unknown): boolean => failure instanceof Error && failure.message.endsWith("breaker_open");
+
+/**
+ * An ask to post that failed, as its callers read it: too busy to take it (nothing made, asked once more), a plain no
+ * (nothing made), or neither, where Google may hold the post: said `unanswered`, and never read as a refusal that made
+ * nothing.
+ */
+function postRefusedOf(failure: unknown): EdgeRefusal & { busy?: true; unanswered?: true } {
+  const busy = wireRested(failure) || (failure instanceof PlacesError && BUSY_STATUSES.includes(failure.status));
+  const unanswered = !busy && !saidNo(failure);
+  return {
+    ok: false,
+    error: "google_refused",
+    detail: googleSaid(failure),
+    ...(busy ? { busy: true as const } : {}),
+    ...(unanswered ? { unanswered: true as const } : {}),
+  };
+}
+
 export async function postOnProfile(
   db: Db,
   tenantId: TenantId,
   input: { fileId: string; by: string | null; post: GbpPostAsked },
   now = new Date(),
 ): Promise<
-  { ok: true; name: string; search_url: string | null; state: string | null } | (EdgeRefusal & { busy?: true })
+  | { ok: true; name: string; search_url: string | null; state: string | null }
+  | (EdgeRefusal & { busy?: true; unanswered?: true })
 > {
   const owner = await asTheOwner(db, tenantId, now);
   if (!owner.ok) return owner;
@@ -49,8 +81,7 @@ export async function postOnProfile(
   try {
     created = await createLocalPost(http, owner.token, owner.parent, input.post);
   } catch (e) {
-    const busy = e instanceof PlacesError && BUSY_STATUSES.includes(e.status);
-    return { ok: false, error: "google_refused", detail: googleSaid(e), ...(busy ? { busy: true as const } : {}) };
+    return postRefusedOf(e);
   }
   await emitEvent(db, tenantId, "file.posted", "workspace", tenantId, {
     file_id: input.fileId,
@@ -86,6 +117,51 @@ export async function unpostOnProfile(
 
 /** Google's word for a post it took off the profile itself ("rejected due to content policy violation"). */
 export const GOOGLE_POST_REJECTED = "REJECTED";
+
+/** The most pages of the profile's posts one ask reads: at a hundred a page, its newest thousand. */
+const SENT_PAGES_MAX = 10;
+
+/** A post the profile holds that was made since a time: Google's name for it, where it shows and where it stands. */
+export interface SentOnProfile {
+  name: string;
+  search_url: string | null;
+  rejected: boolean;
+  atMs: number;
+}
+
+/**
+ * The posts the profile holds that were made since a time, oldest first (a send that got no answer asks this before
+ * anything is sent again, post-later.ts). The whole list is read: Google states no order for it, and "none" is said
+ * only of a list read to its end. Null where the connection cannot be asked now, or the list runs past what one ask
+ * reads; a page Google refuses throws, named. Either says nothing of any post, and is never read as "none".
+ */
+export async function listSentOnProfile(
+  db: Db,
+  tenantId: TenantId,
+  since: Date,
+  now = new Date(),
+): Promise<SentOnProfile[] | null> {
+  const owner = await asTheOwner(db, tenantId, now);
+  if (!owner.ok) return null;
+  const sent: SentOnProfile[] = [];
+  let pageToken: string | null = null;
+  for (let page = 0; page < SENT_PAGES_MAX; page += 1) {
+    const listed = await listLocalPosts(http, owner.token, owner.parent, pageToken);
+    for (const post of listed.posts) {
+      const atMs = post.created_at ? Date.parse(post.created_at) : Number.NaN;
+      if (atMs >= since.getTime())
+        sent.push({
+          name: post.name,
+          search_url: post.search_url,
+          rejected: post.state === GOOGLE_POST_REJECTED,
+          atMs,
+        });
+    }
+    if (!listed.next_page_token) return sent.sort((first, second) => first.atMs - second.atMs);
+    pageToken = listed.next_page_token;
+  }
+  return null;
+}
 
 /**
  * Whether the profile still holds a post, asked by Google's own name for it (the daily read's question, content/posts-read.ts).

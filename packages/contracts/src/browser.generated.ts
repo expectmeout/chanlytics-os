@@ -272,7 +272,7 @@ export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./c
 export { pieceCuesOf } from "./content/making/cues";
 export { HOUSE_LOUDNESS, renditionRefusalOf } from "./content/making/renditions";
 export { PLACE_SAFE_AREAS, unsafeBoxOf, wordBoxesOf } from "./content/making/safe-areas";
-export { revisionChangesOf, shapesReachedOf } from "./content/making/versions";
+export { revisionChangesOf, shapesReachedOf, versionSaysOther } from "./content/making/versions";
 export { CONTENT_TODAY_DOWN, CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS, contentDownOf } from "./content/note";
 export { CONTENT_FAILED_DAYS, CONTENT_LINES_PAGE, CONTENT_MAKING_MAX, CONTENT_MAX, CONTENT_PAGE, CONTENT_STOPPED_MAX, CONTENT_WORDS, contentHeadOf, contentMakingSaid, contentViewCountOf, contentViewDrawsLines, contentWakesAt, stopSuperseded } from "./content/page";
 export { pieceStandsOf, pieceStillMoving, pieceWantsStills } from "./content/piece-card";
