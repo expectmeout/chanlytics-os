@@ -5,7 +5,8 @@ name: Voice canary
 # within Retell's budget, an analysis, a line in the thread, the owner's notice told in full, the audio stored, the
 # hold let go, and Retell's signature on the inbound door and the webhook (apps/edge/lib/voice/watch/voice-canary.ts). It
 # runs here, outside the database's failure domain, as pg_cron does not. A failure pages the platform from the edge and
-# opens one issue here, or comments on the one open.
+# opens one issue here, or comments on the one open. The issue is the repository owner's: GitHub tells an assignee of
+# every comment, and one nobody was assigned reached nobody (the nightly's sat red for seventeen runs so, October 2026).
 #
 # Off until VOICE_CANARY_KEY is set as a secret here and on the edge, with the edge's three other VOICE_CANARY_*
 # settings (apps/edge/.env.example): without it the run says so and places nothing. Each run costs two short calls at
@@ -74,6 +75,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           {
             echo "The daily canary call did not leave everything behind. What the edge answered:"
@@ -89,7 +91,9 @@ jobs:
           title="Voice canary failed"
           number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
           if [ -n "$number" ]; then
+            # One opened before it was the owner's is made so, then commented on: the comment is what GitHub sends.
+            gh issue edit "$number" --add-assignee "$OWNER" --repo "$GITHUB_REPOSITORY"
             gh issue comment "$number" --body-file issue.md --repo "$GITHUB_REPOSITORY"
           else
-            gh issue create --title "$title" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+            gh issue create --title "$title" --body-file issue.md --assignee "$OWNER" --repo "$GITHUB_REPOSITORY"
           fi
