@@ -69,7 +69,25 @@ Settings › Connections, apart from Forms, where Forms › Share told the owner
     sent them (`form_results`' `confirmed`: its person's yes to offers, source `confirmed_signup`, given after the
     sign-up came; a yes given another way, or before, is not its confirmation).
 
-## Naming
+## Amended 28 November 2026 (00726; the whole-system plan's lane 3)
+
+Three outside reviews of the model found it right and a handful of edges open. They are closed without a new record:
+
+- **Point 4, repeats.** An entry whose id its form had with other words is still a new entry, said as a clash, never
+  merged. It now keeps the id as sent in a column of its own (`form_entries.sent_ref`, not unique), and the same form,
+  that id and the same words again are that entry with no time limit: its retry after ten minutes was a third entry.
+- **The website door has a limit, and holds what passes it.** A key's entries in a minute and a site's in an hour are
+  counted by the house's limiter (`take_rate`; `apps/edge/lib/website/form-limit.ts`). Past either, the entry is kept held
+  for a look (`form_entry_take`'s `p_held_why`): who it is about as typed, no person, no event, nothing owed started,
+  and the site answered ok. A member lets it through from its form's held pile (`form_entry_let_through`), and a
+  member's "Not a real request" holds a site's request as it holds a hosted form's (`form_entry_hold`, which named
+  hosted forms alone). Nothing is dropped and no visitor is refused. A test from the site is not counted.
+- **Point 6, the open count.** The list still holds 200, and reads on from where it ended (`form_requests_open`'s
+  `p_before`, `p_before_id`; `GET forms/requests/more`), so every request the count counts can be reached.
+- **Where an entry stands is read, never kept** (`form_entries_standing`; `packages/contracts/src/forms/standing.ts`
+  says each word): answered and how, sending (its only answer is a reply still waiting to go), open, or never answered past
+  its sixty days. A form's own list, a site's and the request's page read it, where each called every entry outside
+  the open list answered.
 
 The plan called the record `form_sources` and the column `source_id`. An entry's `source` already means where the
 visitor came from (the Ads tracking plan's T4), so one word would have meant two things: the record is `outside_forms`.

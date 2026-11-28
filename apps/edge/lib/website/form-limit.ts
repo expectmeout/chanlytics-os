@@ -9,7 +9,7 @@
  * A count that cannot be read holds nobody: the entry is kept as any other, and the failure is logged. A test from the
  * site (a developer's own tries) is not counted.
  */
-import { HOUR_MS, MIN_MS, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, HOUR_MS, MIN_MS, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 import { takeRateBucket } from "@chanlytics/db/workspace";
 import { errField, type Logger } from "../shared/log.js";
 import type { pg } from "../shared/pg.js";
@@ -40,7 +40,7 @@ async function pastLimit(db: Db, rule: (typeof WEBSITE_FORM_LIMITS)["key" | "sit
     p_limit: rule.limit,
     p_window_ms: rule.windowMs,
   });
-  if (error) throw error;
+  if (error) throw new DbFailure(error, "take_rate");
   return recordOrEmpty(data).allowed === false;
 }
 

@@ -1,5 +1,3 @@
-import "server-only";
-
 /**
  * Where an entry stands for its owner, as every screen of a form says it (00726): a form's own list, a site's, and the
  * request's page read this one rule. Nothing is kept apart from the record:
@@ -13,15 +11,19 @@ import "server-only";
  *
  * The last four are form_entries_standing's (packages/db readFormEntryStandings), which reads an entry's links and their
  * messages by the rule the open requests and their count read (form_requests_open). An entry with no standing read (it
- * went between two reads) is open: nothing is called answered that nobody answered.
+ * went between two reads) is open: nothing is called answered that nobody answered. Pure.
  */
-import type { EntryStandingDto } from "@chanlytics/contracts";
-import type { FormEntryStanding } from "@chanlytics/db/forms";
+import type { EntryStandingDto } from "./dtos";
+
+/** What was read of where an entry stands: one of the rule's four words. */
+interface StandingRead {
+  standing: "answered" | "sending" | "open" | "aged";
+}
 
 /** An entry's standing, from its own marks and what form_entries_standing read of it. */
 export function entryStandingOf(
   entry: { test: boolean; held: boolean },
-  stands: FormEntryStanding | undefined,
+  stands: StandingRead | undefined,
 ): EntryStandingDto {
   if (entry.test) return "test";
   if (entry.held) return "held";

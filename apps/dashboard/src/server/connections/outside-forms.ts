@@ -10,6 +10,7 @@ import "server-only";
 import {
   AppError,
   type EntryHeldWhyDto,
+  entryStandingOf,
   FORM_RESULT_DAYS,
   formSiteNameOf,
   outsideFormNameOf,
@@ -39,7 +40,6 @@ import {
 import { listFormKeys } from "@chanlytics/db/people";
 import { logAndGoOn } from "@chanlytics/log";
 import { findEmailReady } from "./email-readiness";
-import { entryStandingOf } from "../forms/standing";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 
 type Db = ReaderContext["ctx"]["supabase"];
@@ -120,7 +120,7 @@ async function emailReadyOf(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promis
 
 /**
  * Where one entry of a site's form stands on its sheet: kept (a sign-up, or a request from before its form's
- * requests_from), or a request's own standing by the one rule (server/forms/standing.ts): open, sending, answered or
+ * requests_from), or a request's own standing by the one rule (contracts forms/standing.ts): open, sending, answered or
  * aged. A held one is listed apart, in the form's held pile.
  */
 function siteEntryStanding(

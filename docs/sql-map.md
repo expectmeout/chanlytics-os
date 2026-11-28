@@ -35,7 +35,6 @@ being read is dropped by a migration.
 | `ai_shadow_agreement` | read by hand to judge the second model against the first (decision 0023, the shadow port), as the service role |
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `erasure_digest_legacy` | the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs |
-| `form_entries_standing` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
@@ -316,7 +315,7 @@ being read is dropped by a migration.
 | `form_entries_follow_merge` | trigger | the server | trigger `contacts_merge_moves_form_entries on contacts` | When two records of one person are combined, the form entries of the one merged away go to the one kept (00680, decision 0028): |
 | `form_entries_held_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_held_form_entries on contacts` | When a person is erased, the held form entries typed with their address or their number go too (00680, decision 0036): |
 | `form_entries_purge` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry nobody let through goes after 30 days, and a test after 7 (00680; |
-| `form_entries_standing` | reader | a signed-in person, the server | nothing at run time | Where the named entries of a workspace's forms stand (00726), read under the member's own row rules from each entry's links and their messages, by form_requests_open's rule: |
+| `form_entries_standing` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/standings.ts` | Where the named entries of a workspace's forms stand (00726), read under the member's own row rules from each entry's links and their messages, by form_requests_open's rule: |
 | `form_entry_hold` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A request a member says is not a real one, held (00680; |
 | `form_entry_let_through` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry let through (00680; |
 | `form_entry_settled` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | One effect of a website form entry settled (00675): |

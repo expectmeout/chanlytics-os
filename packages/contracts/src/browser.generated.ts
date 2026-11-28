@@ -382,6 +382,7 @@ export { emailTypoFix } from "./forms/email-typo";
 export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS, FORM_PRESS_WAIT_MS, FORM_RESULT_DAYS } from "./forms/limits";
 export { formSiteNameOf, outsideFormNameOf, SITE_FORM_FIELDS, SITE_QUIET_DAYS, siteFormOf, siteReachOf, siteStandingOf } from "./forms/outside";
 export { requestLines, throughPlace } from "./forms/request-words";
+export { entryStandingOf } from "./forms/standing";
 export { formSlotWords, formTimeHolds, formTimesOf, formTimeStatusOf, formTimeWayOf, isFormSlot } from "./forms/times";
 export { FORM_SITES_MAX, formFramePath, frameAncestorsOf, isOnSite, websiteLinesOf } from "./forms/website";
 export { googleAudienceWords } from "./google/audience";

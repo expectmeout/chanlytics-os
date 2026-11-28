@@ -4,14 +4,15 @@ import "server-only";
  * A business's forms as its own screens read them (00680, 00709; the Forms plan, 3.6): the list in Campaigns › Forms,
  * the forms made here and the ones the business's own website owns (server/connections/outside-forms.ts), one form's sheet, and one
  * request as Inbox answers it, a site's read as the same request shape. Each is read on the member's own session, under its row rules.
- * Nothing here is kept apart from the record: where an entry stands is read from its links (server/forms/standing.ts
- * says each word and where it is read; the requests nobody has answered are form_requests_open's), and what a place
- * brought is form_results'.
+ * Nothing here is kept apart from the record: where an entry stands is read from its links (contracts
+ * forms/standing.ts says each word and where it is read; the requests nobody has answered are form_requests_open's),
+ * and what a place brought is form_results'.
  */
 import {
   AppError,
   FORM_RESULT_DAYS,
   DAY_MS,
+  entryStandingOf,
   FORM_HELD_SAID_AFTER_DAYS,
   formRequestNote,
   formTimeHolds,
@@ -68,7 +69,6 @@ import { findPersonAddress } from "@chanlytics/db/people";
 import { logAndGoOn } from "@chanlytics/log";
 import { findEmailReady } from "../../connections/email-readiness";
 import { readOutsideRows, readSiteRequestShapes, type SiteRequestShape } from "../../connections/outside-forms";
-import { entryStandingOf } from "../../forms/standing";
 import { readerStamp, stableJson, type Reader, type ReaderContext } from "../../shared/reader";
 
 /** The most entries a sheet lists: the newest; the rest are in Inbox as they were answered. */
@@ -536,7 +536,7 @@ export const formRequest: Reader<{ id: string }, FormRequestDto> = {
     if (!readAs) throw new AppError("not_found", "That request's form can't be read any more.", 404);
     const { described, reach } = readAs;
     const answers = recordOrEmpty(entry.answers);
-    // Where it stands, by the one rule (server/forms/standing.ts): read for this entry, whatever its age.
+    // Where it stands, by the one rule (contracts forms/standing.ts): read for this entry, whatever its age.
     const stands = standings.get(entry.id);
     const standing = entryStandingOf({ test: entry.test, held: entry.state === "held" }, stands);
     const source = Source.safeParse(entry.source);
