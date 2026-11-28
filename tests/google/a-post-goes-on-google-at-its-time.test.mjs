@@ -20,6 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { CONTENT_CHECK_WORDS, FILE_WORDS, ON_INSTAGRAM, STANDING_WORDS } from "@chanlytics/contracts";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
+import { atEveryStep, claimDue, ledgerWorld, throughDispatch } from "../jobs/once/_kill-at.mjs";
 
 process.env.GOOGLE_PLACES_API_KEY = "places-key-for-this-file";
 process.env.GOOGLE_OAUTH_CLIENT_ID = "oauth-client-for-this-file";
@@ -31,6 +32,8 @@ for (const k of ["ANTHROPIC_API_KEY", "DIAG_KEY", "SUPABASE_URL", "SUPABASE_SERV
 
 /** Google, answering each ask by what `google` says; every ask is kept. */
 let google = null;
+/** Where a test runs the ledger: each ask of Google as a step of the run that makes it (_kill-at.mjs `outside`). */
+let onWire = null;
 const calls = [];
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init = {}) => {
@@ -39,10 +42,13 @@ globalThis.fetch = async (url, init = {}) => {
     method: init.method ?? "GET",
     body: typeof init.body === "string" ? init.body : null,
   };
-  calls.push(req);
-  if (!google) throw new Error(`nothing on the wire answers ${req.method} ${req.url}`);
-  const [status, body] = google(req);
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const answer = async () => {
+    calls.push(req);
+    if (!google) throw new Error(`nothing on the wire answers ${req.method} ${req.url}`);
+    const [status, body] = google(req);
+    return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  };
+  return onWire ? onWire(req.method === "POST" ? "google.post" : "google.read", answer)() : answer();
 };
 after(() => {
   globalThis.fetch = realFetch;
@@ -180,6 +186,8 @@ function world({
       expires_at: Date.now() + HOUR,
       scope: "openid email",
     }),
+    // The ledger's claim, for the cases that run the tick over this world (tests/jobs/once/_kill-at.mjs).
+    claim_due_jobs: (args) => claimDue(tables.jobs, args),
     has_permission: () => may,
     // A post approved before approvals were kept (00681) is read as before; a test hands its own approval.
     post_as_approved: () => asApproved,
@@ -576,4 +584,78 @@ test("the owner's own word needs no read, and a post that promises no open time 
   asking();
   await sendGooglePost(plain.db, fired(plain));
   assert.equal(plain.post().status, "published");
+});
+
+/* --------------------------------------------- the send, killed at a step, with the ledger carrying on (lane 7) -- */
+
+/**
+ * The post's send on the ledger, run by the real tick with the edge's own handlers: Google takes the post when it is
+ * asked, and from then on the profile's list holds it. A run may be killed after any step (_kill-at.mjs).
+ */
+async function onTheLedger() {
+  const w = world();
+  const ledger = ledgerWorld(w.db, {
+    dispatch: throughDispatch((db) => ({
+      posts: {
+        google: (claimed) => sendGooglePost(db, claimed),
+        reconcile: (claimed) => postJobs(db, { reconcileAt: { google: reconcileGooglePost } }).reconcile(claimed),
+      },
+    })),
+  });
+  // What the edge reaches through its own client is the run's too, and dies with it.
+  setPg(ledger.db);
+  onWire = ledger.outside;
+  // Google as it is: the profile holds the post only once Google was asked to make it.
+  calls.length = 0;
+  google = (req) => (req.method === "POST" ? [200, made(NAME)] : postAsks() > 0 ? holding(made(NAME)) : holding());
+  await ledger.put({
+    tenantId: T,
+    kind: "post_google",
+    dueAt: new Date(Date.now() - 1000),
+    payload: { post_id: POST, attempt: "1" },
+  });
+  return Object.assign(ledger, { w });
+}
+after(() => {
+  onWire = null;
+});
+
+test("killed after Google took the post: it is Checking, its profile is asked, and it is up; Google is asked to post once", async () => {
+  const ledger = await onTheLedger();
+  const first = await ledger.run({ killAfter: "out:google.post" });
+  assert.equal(first.died, true);
+  assert.equal(ledger.w.post().status, "publishing", "the run died before it could write what Google said");
+  await ledger.untilQuiet();
+  assert.equal(postAsks(), 1, "never asked to post again");
+  assert.equal(ledger.w.post().status, "published", "found on the profile, under Google's name");
+  assert.equal(ledger.w.post().external_id, NAME);
+  assert.deepEqual(
+    ledger.told.map((t) => t.subject),
+    [],
+    "no 'Couldn't post to Google' on the way: the profile's answer is what the owner hears",
+  );
+  assert.equal(ledger.w.tables.notifications.filter((n) => n.kind === "post_up").length, 1);
+  onWire = null;
+});
+
+test("whichever step the send dies after, Google is asked to post at most once, and the post ends up or says it did not go", async () => {
+  const steps = await atEveryStep(onTheLedger, async (ledger, { killedAfter, n }) => {
+    const at = `killed after step ${n} (${killedAfter})`;
+    assert.ok(postAsks() <= 1, `${at}: Google was asked to post ${postAsks()} times`);
+    const post = ledger.w.post();
+    assert.ok(
+      ["published", "failed"].includes(post.status),
+      `${at}: the post is left ${post.status}, with nothing coming to settle it`,
+    );
+    // Up where Google took it; not gone, in those words, where the run died before it asked.
+    if (postAsks() === 1) assert.equal(post.status, "published", `${at}: Google took it, and it does not say so`);
+    else assert.equal(post.error?.words, FILE_WORDS.google.notSent, `${at}: nothing left, and it does not say so`);
+    const jobs = await ledger.jobs();
+    assert.ok(
+      jobs.every((j) => ["done", "failed"].includes(j.state)),
+      `${at}: a job is left ${jobs.map((j) => `${j.kind} ${j.state}`).join(", ")}`,
+    );
+  });
+  assert.ok(steps.includes("out:google.post") && steps.at(-1) === "complete");
+  onWire = null;
 });
