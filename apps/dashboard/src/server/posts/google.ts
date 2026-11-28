@@ -5,6 +5,8 @@
  *
  * The press keeps its placement as Instagram's does (00611, decision 0121, D16): one record of where each post went, written before
  * the edge is asked, its one send kept as an attempt, and settled by the answer: up, with Google's name for it, or refused in words.
+ * An ask that got no answer (none from the edge, or Google's own that neither took nor refused it) may have put the post up: it
+ * is Checking, and the edge asks the profile what it holds two minutes on, before anyone posts it again.
  */
 import "server-only";
 import {
@@ -14,6 +16,7 @@ import {
   ON_INSTAGRAM,
   POST_SOON_MS,
   SECOND_MS,
+  STANDING_WORDS,
   intentOfAbout,
   type OwnersFact,
   type PostAbout,
@@ -22,6 +25,7 @@ import {
 import {
   closePostAttempt,
   findPlacementByName,
+  markPostUnanswered,
   movePost,
   openPostAttempt,
   type FileMemberRow,
@@ -84,6 +88,15 @@ async function pictureForGoogle(ctx: RouteContext, member: Member, fileId: strin
   }
   return signed.data.signedUrl;
 }
+
+/**
+ * Whether the ask may have put the post up: no answer from the edge at all, a failure of the edge's own that names no
+ * reason, or Google's answer that neither took the post nor refused it (the edge says `unanswered`).
+ */
+const answerLost = (answer: { status: number; body?: Record<string, unknown> | null }): boolean =>
+  answer.status === 0 ||
+  answer.body?.unanswered === true ||
+  (answer.status >= 500 && typeof answer.body?.error !== "string");
 
 /** What the edge said, in a person's words. */
 function refusedBy(args: { status: number; body?: Record<string, unknown> | null }): AppError {
@@ -162,6 +175,17 @@ export async function postFileToGoogle(
     },
     GOOGLE_ASKED_MS,
   );
+  if (answerLost(answer)) {
+    // It may be up: Checking, with the ask of the profile two minutes on, written together. Nothing says it did not go.
+    await closePostAttempt(db, {
+      attemptId: send.id,
+      outcome: "no_answer",
+      httpStatus: answer.status || null,
+      answer: null,
+    });
+    await markPostUnanswered(db, postId, 1);
+    throw new AppError("upstream_provider", STANDING_WORDS.checking.note("google"));
+  }
   if (answer.status !== 200 || answer.body?.ok !== true) {
     const refused = refusedBy(answer);
     await closePostAttempt(db, {
