@@ -80,17 +80,19 @@ export function readRelayTicket(signingKey: string, ticket: string | null, nowMs
 /* ------------------------------------------------------------------------------------------ the shelf's ticket -- */
 
 const SHELF_TICKET_VERSION = "v2";
-const SHELF_USES = ["read", "put", "delete"] as const;
+const SHELF_USES = ["read", "put", "delete", "list"] as const;
 /** A SHA-256 as the shelf and its ticket write one: 64 lower-case hex characters. */
 export const SHA_256_HEX = /^[0-9a-f]{64}$/;
 
 /**
  * What a shelf ticket says (the archive plan's B2): whose workspace and which file, what may be done, and when it
  * ends (unix seconds). A put names the very bytes it may put, their size and their SHA-256, and no other use names any.
+ * A list names its workspace and no file: it says what that workspace's shelf holds, and reads no bytes.
  */
 interface ShelfTicketClaim {
   tenant: string;
-  file: string;
+  /** The file, for every use but a list, which names none. */
+  file?: string;
   use: (typeof SHELF_USES)[number];
   expiresAt: number;
   bytes?: number;
@@ -101,15 +103,17 @@ interface ShelfTicketClaim {
  * A ticket for the shelf, where a video Chanlytics made keeps a copy of its own: a ticket apart from a clip's, so
  * neither opens what the other does. `v2.<claim>.<signature>`, the claim
  * `{"for":"shelf","tenant":"…","file":"…","use":"…","exp":<unix seconds>}` with `"bytes"` and `"sha256"` after them on
- * a put, in base64url, signed as a clip's is under the same key. The relay reads it (apps/relay/src/ticket.ts
- * `readShelfTicket`), and tests/files/shelf holds the two sides to each other. Throws on a claim that says too little
- * or too much, so no such ticket is ever signed.
+ * a put, in base64url, signed as a clip's is under the same key; a list's claim has no `"file"`. The relay reads it
+ * (apps/relay/src/ticket.ts `readShelfTicket`), and tests/files/shelf holds the two sides to each other. Throws on a
+ * claim that says too little or too much, so no such ticket is ever signed.
  */
 export function signShelfTicket(signingKey: string, claim: ShelfTicketClaim): string {
   if (!signingKey) throw new Error("a shelf ticket is signed with the ticket's key");
-  if (!RELAY_ITEM.test(claim.tenant) || !RELAY_ITEM.test(claim.file))
+  if (!SHELF_USES.some((use) => use === claim.use)) throw new Error("a shelf ticket reads, puts, deletes or lists");
+  const forList = claim.use === "list";
+  if (forList && claim.file !== undefined) throw new Error("a list names a workspace and no file");
+  if (!RELAY_ITEM.test(claim.tenant) || (!forList && !RELAY_ITEM.test(claim.file ?? "")))
     throw new Error("a shelf ticket names a workspace and a file, each by its id");
-  if (!SHELF_USES.some((use) => use === claim.use)) throw new Error("a shelf ticket reads, puts or deletes");
   const names = claim.bytes !== undefined || claim.sha256 !== undefined;
   if (claim.use !== "put" && names) throw new Error("only a put names bytes");
   const whole =
@@ -122,7 +126,7 @@ export function signShelfTicket(signingKey: string, claim: ShelfTicketClaim): st
   const claimJson = JSON.stringify({
     for: "shelf",
     tenant: claim.tenant,
-    file: claim.file,
+    ...(forList ? {} : { file: claim.file }),
     use: claim.use,
     exp: Math.floor(claim.expiresAt),
     ...(claim.use === "put" ? { bytes: claim.bytes, sha256: claim.sha256 } : {}),
