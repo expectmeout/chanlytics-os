@@ -324,13 +324,13 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     never: [],
   },
   // An Instagram account's posts and reels (00626): a step asked again finds the run it started (its payload), and a read
-  // kept twice keeps nothing twice (file_fetch's fingerprints). Nothing waits on it but the Library's card, which the ledger
-  // tells, so the owner is told there.
+  // kept twice keeps nothing twice (file_fetch's fingerprints). Nothing waits on it but the Library's card: a read that
+  // ends for good says so on its line (settle.ts), so the owner is told there.
   instagram_read: {
     speaks: false,
     retryWaitsMs: TWICE,
     told: "elsewhere",
-    settles: "nothing",
+    settles: "ledger",
     wires: false,
     longestCallMs: 30 * SECOND_MS,
     ids: ["handle", "step", "try"],
@@ -455,8 +455,8 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["post_id", "attempt"],
     never: [],
   },
-  // A post on its way to Google at its time (00616): once, after the recheck, as Instagram's send is. Google keeps no
-  // container to ask after, so one with no answer is said so, never sent again blind (settle-post.ts).
+  // A post on its way to Google at its time (00616): once, after the recheck, as Instagram's send is. One with no
+  // answer, or whose run died, is Checking, and its profile is asked what it holds (00728, settle-post.ts).
   post_google: {
     speaks: true,
     retryWaitsMs: NO_FIELDS,

@@ -356,7 +356,10 @@ function uniqueViolation(indexes, table, candidates, others, changed = null) {
         return {
           code: "23505",
           message: `duplicate key value violates unique constraint "${ix.name}"`,
-          details: "Key already exists.",
+          // Postgres names the key it refused; a key on expressions is not spelled here.
+          details: ix.columns
+            ? `Key (${ix.columns.join(", ")})=(${ix.columns.map((c) => row[c] ?? null).join(", ")}) already exists.`
+            : "Key already exists.",
           hint: null,
         };
       held.add(k);

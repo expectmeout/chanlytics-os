@@ -204,7 +204,7 @@ interface FailedQueuedSend {
 export async function failQueuedSend(
   db: Db,
   params: { tenantId: TenantId; messageId: string; error: Json },
-): Promise<{ row: FailedQueuedSend | null; error: string | null }> {
+): Promise<{ row: FailedQueuedSend | null; error: string | null; moved: boolean }> {
   const { data, error } = await db
     .from("messages")
     .update({ status: "failed", error: params.error })
@@ -212,9 +212,13 @@ export async function failQueuedSend(
     .eq("tenant_id", params.tenantId)
     .eq("status", "queued")
     .select("conversation_id, sender, channel, meta");
-  if (error) return { row: null, error: error.message };
-  const row = data[0];
-  if (!row) return { row: null, error: null };
+  if (error) return { row: null, error: error.message, moved: false };
+  const moved = data.length > 0;
+  // None still queued. One failed already for this same reason is this settle's own earlier write: the run that made it
+  // died before it finished concluding, and the ledger concludes the job again. Answered as that write, so what
+  // follows it (the thread's flag) is made this time; `moved` says this call wrote nothing.
+  const row = data[0] ?? (await findSendFailedAs(db, params));
+  if (!row) return { row: null, error: null, moved };
   const meta = row.meta !== null && typeof row.meta === "object" && !Array.isArray(row.meta) ? row.meta : null;
   const email = meta?.email;
   const request = email !== null && typeof email === "object" && !Array.isArray(email) ? email.request : undefined;
@@ -226,7 +230,26 @@ export async function failQueuedSend(
       meta: request === undefined ? null : { email: { request } },
     },
     error: null,
+    moved,
   };
+}
+
+/** The message a settle already failed for this reason (its `error.reason`), or null: a read that fails is none. */
+async function findSendFailedAs(db: Db, params: { tenantId: TenantId; messageId: string; error: Json }) {
+  const reason =
+    params.error !== null && typeof params.error === "object" && !Array.isArray(params.error)
+      ? params.error.reason
+      : null;
+  if (typeof reason !== "string") return null;
+  const { data } = await db
+    .from("messages")
+    .select("conversation_id, sender, channel, meta")
+    .eq("id", params.messageId)
+    .eq("tenant_id", params.tenantId)
+    .eq("status", "failed")
+    .eq("error->>reason", reason)
+    .limit(1);
+  return data?.[0] ?? null;
 }
 
 /**

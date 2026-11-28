@@ -63,6 +63,27 @@ export const countLiveBroadcastJobs = async (
     .in("state", ["scheduled", "fired"])
     .neq("id", params.besides);
 
+/**
+ * The jobs that hold a once-only key now (scheduled or running), each with whether its key is kept past its end: who a
+ * refused insert was refused for.
+ */
+export const listLiveJobsKeyed = async (db: Db, dedupeKey: string) =>
+  db.from("jobs").select("id, dedupe_kept").eq("dedupe_key", dedupeKey).in("state", ["scheduled", "fired"]);
+
+/** How many jobs of one kind naming a post are scheduled or running, the asking job aside: a send's own next ask. */
+export const countLivePostJobs = async (
+  db: Db,
+  params: { tenantId: TenantId; kind: SchemaSet<"jobs.kind">; postId: string; besides: string },
+) =>
+  db
+    .from("jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", params.tenantId)
+    .eq("kind", params.kind)
+    .eq("payload->>post_id", params.postId)
+    .in("state", ["scheduled", "fired"])
+    .neq("id", params.besides);
+
 /** The live jobs of `kind` (scheduled or fired) naming any of these messages, with `dueSince` only those due after it. */
 export const listLiveJobsNaming = async (
   db: Db,

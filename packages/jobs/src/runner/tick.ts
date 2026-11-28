@@ -56,6 +56,12 @@ export interface TickPorts {
   dispatch(job: LedgerRow, deadline: number): Promise<DispatchOutcome>;
   complete(job: LedgerRow): Promise<boolean>;
   fail(job: LedgerRow, reason: string): Promise<boolean>;
+  /**
+   * The claim renewed (ledger keepJob): true while this run still holds the row. Where a runtime binds it, a job the
+   * tick is giving up on is settled while the row is still held and failed after, so a run killed between the two
+   * comes back and concludes again; where it is absent the row is failed first, as it always was.
+   */
+  keep?(job: LedgerRow): Promise<boolean>;
   /** Keep a job that threw, to be claimed again once `untilIso` passes (ledger deferJob). False when this run no longer holds it. */
   defer(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
   /** Keep a job of a kind this runner does not know, its claim given back (ledger deferUnknownJob). False when this run no longer holds it. */
@@ -311,7 +317,30 @@ const keptFields = (job: LedgerRow, until: string, reason: string): TickFields =
 });
 
 /**
- * Fail the row, settle what it left behind, tell the owner what became of it.
+ * Whether this run moved the row (failed it, or renewed its claim): false, and said, where another run holds it now or
+ * the write could not be made. Either way the claim's own lease brings the row back.
+ */
+async function movedRow(ports: TickPorts, job: LedgerRow, move: () => Promise<boolean>): Promise<boolean> {
+  try {
+    if (await move()) return true;
+    // Another run concluded this row first, or holds it now. Nothing to settle, nothing new to say.
+    ports.log.warn("job_fail_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+  } catch (e) {
+    ports.log.error("job_fail_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
+  }
+  return false;
+}
+
+/**
+ * Settle what the job left behind, fail the row, tell the owner what became of it.
+ *
+ * THE ROW FAILS LAST where the runtime can renew a claim (`keep`). A failed row is final: nothing claims it again. Failed
+ * first and settled after, a run killed between the two left a message saying "Sending" beside a row that would never
+ * come back for it. So the claim is renewed (this run holds the row, or does nothing), what the job left is settled
+ * while it is held, and only then does the row fail. A run killed anywhere on the way leaves the row claimed: its lease
+ * runs out, it is claimed again, judged again (a send is given up on again, never run) and concluded again, and every
+ * settle is conditional on what is still in flight, so the second conclusion writes only what the first did not.
+ *
  * Each step is best effort relative to the one before, because a recorded
  * failure must never turn into an unrecorded one: a settlement that could not
  * be written is said in the alert, and an alert that could not be sent is logged.
@@ -332,18 +361,10 @@ async function conclude(
   end: JobEnd,
   reasonWords?: string,
 ): Promise<void> {
-  let failed: boolean;
-  try {
-    failed = await ports.fail(job, reason);
-  } catch (e) {
-    ports.log.error("job_fail_write_failed", { job_id: job.id, kind: job.kind, error: errText(e) });
-    return;
-  }
-  if (!failed) {
-    // Another run concluded this row first. Nothing to settle, nothing new to say.
-    ports.log.warn("job_fail_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
-    return;
-  }
+  const failRow = () => movedRow(ports, job, () => ports.fail(job, reason));
+  const renewClaim = ports.keep ? () => movedRow(ports, job, async () => (await ports.keep?.(job)) ?? false) : null;
+  // Held, then settled, then failed; or, where no claim can be renewed, failed first.
+  if (!(await (renewClaim ?? failRow)())) return;
 
   let wreckage: string | null;
   // Whether the ledger handed what the job left to a fresh run (or one is already coming): the news is worded from it, so a
@@ -367,6 +388,9 @@ async function conclude(
     wreckage =
       "What it was in the middle of couldn't be checked, so a message or a campaign send may still show as sending.";
   }
+  // Settled while the row was held: now it fails. Lost here (its lease ran out during a slow settle), the run that
+  // holds it concludes it, and says so.
+  if (renewClaim && !(await failRow())) return;
   ports.log.info("job_failed", {
     job_id: job.id,
     tenant_id: job.tenant_id,

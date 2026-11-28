@@ -96,6 +96,7 @@ export interface Settled {
   /**
    * The broadcast carries on. `changed` says whether THIS settlement is what
    * handed it on: false means a run was already coming and nothing needed doing.
+   * A post too: Checking, with its place asked, or left to its own next ask.
    */
   resumed?: boolean;
   /**
@@ -230,7 +231,7 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, failReason
   // its way is touched.
   // A run that died mid-send may have sent: its outcome is unknown, which is what lets an email's receipt still
   // settle it (00177's messages_guard) and what counts it toward its mailbox's day (mailbox_capacity).
-  const { row, error } = await failQueuedSend(db, {
+  const { row, error, moved } = await failQueuedSend(db, {
     tenantId: job.tenant_id,
     messageId,
     error: { reason, note: noteOf(certain, failReason), ...(certain ? {} : { outcome: "unknown" }) },
@@ -249,10 +250,12 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, failReason
           `${row.sender === "ai" ? "AI's reply" : "A reply"} never left: ${noteOf(certain, failReason)}.`,
         )
       : null;
+  // `row` without `moved`: an earlier conclusion of this job failed the message and died before it flagged the thread
+  // (tick.ts concludes a job again when a run died concluding it). The flag is made now; nothing else is written twice.
   return [
     {
       what: "message",
-      changed: !!row,
+      changed: moved,
       ...(flagged ? { flagged } : {}),
       ...(error ? { error } : {}),
     },
@@ -377,6 +380,25 @@ async function settleImport(db: Db, job: TerminalJob): Promise<Settled[]> {
     connectionId: PER_MAILBOX_SOURCES.includes(source as ImportSource) ? connection : null,
     run: run || "1",
     state: "failed",
+    error: IMPORT_STOPPED_WORDS.failed,
+    add: true,
+  });
+  return [{ what: "import", changed: true }];
+}
+
+/**
+ * An Instagram account's read that will not finish (00626): its line says it stopped, in the words every stopped import
+ * says, with what came kept, so the Content page never goes on saying it is reading an account nothing is reading. Its
+ * provider down for every try used to leave the line as it stood until the page gave up on it by itself.
+ */
+async function settleInstagramRead(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const handle = idFrom(job.payload, "handle");
+  if (!handle) return [{ what: "import", changed: false, error: "no account on the job" }];
+  await noteImport(db, {
+    tenantId: job.tenant_id,
+    source: "instagram",
+    state: "failed",
+    via: handle,
     error: IMPORT_STOPPED_WORDS.failed,
     add: true,
   });
@@ -553,10 +575,17 @@ async function settleLapse(db: Db, job: TerminalJob): Promise<Settled[]> {
 
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
-/** A post on its way to Instagram (00611): settle-post.ts says where it ends. */
-const settlePost: Settler = async (db, job, certain, reason) => [
-  { what: "post", changed: await settlePostJob(db, job, certain, reason) },
-];
+/**
+ * A post on its way to its place (00611): settle-post.ts says where it ends. One left Checking, or left to its own next
+ * ask, carries on by itself (`resumed`): its place's answer tells the owner, so the ledger's bell does not.
+ */
+const settlePost: Settler = async (db, job, certain, reason) => {
+  const ended = await settlePostJob(db, job, certain, reason);
+  const carriesOn = ended === "checking" || ended === "waiting";
+  return [
+    { what: "post", changed: ended === "failed" || ended === "checking", ...(carriesOn ? { resumed: true } : {}) },
+  ];
+};
 
 const settleCommentReply: Settler = async (db, job, certain, reason) => [
   { what: "comment_answer", changed: await settleCommentReplyJob(db, job, certain, reason) },
@@ -593,7 +622,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   post_observe: null,
   comment_reply: settleCommentReply,
   file_fetch: null,
-  instagram_read: null,
+  instagram_read: settleInstagramRead,
   file_purge: null,
   line_provision: null,
   lead_round_start: null,
@@ -626,6 +655,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   email_ingest: "email",
   preview_build: "preview",
   history_import: "import",
+  instagram_read: "import",
   booking_read: "notice",
   event_deliver: "delivery",
   reply_draft: "draft",
@@ -658,6 +688,23 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean, reas
 }
 
 /**
+ * What this sentence says nothing of. A preview marked not made, a delivery marked failed, a draft, a file: the
+ * platform's leavings, said nowhere an owner reads. A post, a comment's answer and a time asked for each say what
+ * became of them on their own page, in their own words (the placement's line, the answer, the conversation's card):
+ * the sentences below are a campaign send's and a message's, and said "The campaign send is marked as stopped" in the
+ * notice of a post that did not go.
+ */
+const SAID_ELSEWHERE: ReadonlySet<Settled["what"]> = new Set([
+  "preview",
+  "delivery",
+  "draft",
+  "file",
+  "post",
+  "comment_answer",
+  "request",
+]);
+
+/**
  * The sentence an owner reads about the wreckage, or null when there is none.
  * Built from what the writes actually returned, which is the only version an
  * owner can act on.
@@ -679,13 +726,8 @@ export function saySettled(results: Settled[]): string | null {
       lines.push("Its source says it stopped, with Try again.");
     } else if (result.changed && result.what === "notice") {
       lines.push("The booking email is held for a person in Settings › Business, with Read again.");
-    } else if (
-      result.what === "preview" ||
-      result.what === "delivery" ||
-      result.what === "draft" ||
-      result.what === "file"
-    ) {
-      // A preview marked not made, a delivery marked failed: the platform's leavings, said nowhere an owner reads.
+    } else if (SAID_ELSEWHERE.has(result.what)) {
+      // Nothing here: see SAID_ELSEWHERE.
     } else if (result.resumed) {
       // Whether this settlement handed it on or found a run already coming, the
       // owner's picture is the same: it is still going. What it does NOT say is

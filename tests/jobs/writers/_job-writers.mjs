@@ -102,14 +102,15 @@ export const JOB_WRITERS = {
       "the take-down that got no answer runs again and schedules the same next ask; its action stays pending, which the piece says",
   },
   "apps/edge/lib/google/post-later.ts|post_google": {
-    ledger: "Google's second and last ask, from inside the first, written before the post moves back to waiting",
+    ledger:
+      "three asks, each from inside a job of the post's own: the second and last after Google was too busy, written before the post moves back to waiting; the ask-again a minute on while its opening cannot be read (00728, counted in its key as `unread`); and the second after a reconcile found nothing on the profile. Lost, the send or the reconcile that would have written it is claimed again and judged by the ledger: a send that died before it began did not go, and one that died with its next ask written is left to that ask (settle-post.ts)",
   },
   "apps/edge/lib/instagram/post-ready.ts|post_publish": {
     ledger: "the prepare that made the post ready runs again, asks after the same container, and schedules the send",
   },
   "apps/edge/lib/instagram/post-send.ts|post_publish": {
     ledger:
-      "the send that waits a minute for a version being made (00708), written from inside its own job: lost, the claimed send runs again and finds the version still being made",
+      "the send's own next ask, written from inside its job and counted in its key (00728): a minute on while a version is being made (`wait`, 00708), and a minute on while its opening cannot be read (`unread`). A send speaks, so it is never run again: one that died before its next ask was written did not go and says so, and one that died after it is left to that ask (settle-post.ts). Its second attempt after a reconcile is post_again's, in the database",
   },
   "apps/edge/lib/leads/apify-delivery.ts|lead_collect": {
     provider: "answers 503, and the leads clock collects a run whose webhook was lost",
