@@ -142,7 +142,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **A job kind arrives with its handler, its caller, its `job_kinds` row and its `KIND_POLICY`**, in one change
   (decision 0089; `tests/jobs/job-kinds.test.mjs` holds the two sides equal).
 - **Migrations are forward-only.** Named for the schema change, re-runnable statements, never
-  edited or renamed once applied. Two files on one number fail the build.
+  edited or renamed once applied. Two files on one number fail the build. One that starts writing an event from SQL
+  says whether the kind is new or its writer moved, and which side stops first (`docs/runbook.md`, "Apply a migration").
 - **Tests execute the code they prove.** A source-text assertion is the last resort, and the
   `source-scan` measure may only fall.
 - **What is measured may only fall.** `docs/debt.md` names every number the build holds, by the key

@@ -28,6 +28,7 @@ import {
   readSchemaHead,
   schemaHeadProblems,
 } from "../../tooling/scripts/checks/migration-ledger.mjs";
+import { emittedKinds } from "../_measures.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DIR = path.join(ROOT, "supabase", "migrations");
@@ -327,4 +328,98 @@ test("the transaction rules read a migration as the CLI sends it: a body in doll
   assert.ok(SESSION_TIMEOUT.test("set lock_timeout = '3s'"));
   assert.ok(SESSION_TIMEOUT.test("set session lock_timeout to '3s'"));
   assert.ok(!SESSION_TIMEOUT.test("set local lock_timeout = '3s'"));
+});
+
+/* ---------------------------------------------------- a moved writer says which side stops first (lane 7, 28 Nov 2026) -- */
+
+/**
+ * The first migration held to the rule below. 00722 moved twenty of the dashboard's events into SQL doors: applied
+ * before its code was live, each of those acts wrote two events for the minutes between the two deploys, the door's
+ * and the old code's. Nothing asked the migration to say so.
+ */
+const WRITER_RULE_FROM = 732;
+
+/**
+ * What a migration says of each kind it is the first to write from SQL, in a comment line of its own:
+ *
+ *   -- New kind: post.held
+ *   -- Writer moved: line.forwarded. The dashboard stops first: the door writes only when asked (p_tell).
+ *   -- Writer shared: message.sent. The send door writes it from TypeScript for a send; this door for a row it queues.
+ *
+ * `moved` must say who stops first. Answers kind -> "new" | "moved" | "shared", and "unsaid" for a `moved` line that
+ * names no side that stops first.
+ */
+function writerNotesOf(sql) {
+  const notes = new Map();
+  for (const line of sql.split(/\r?\n/)) {
+    const said = /^\s*--\s*(New kind|Writer moved|Writer shared):\s*([a-z_]+\.[a-z_]+)\b(.*)$/.exec(line);
+    if (!said) continue;
+    const [, form, kind, rest] = said;
+    if (form === "New kind") notes.set(kind, "new");
+    else if (form === "Writer shared") notes.set(kind, rest.trim().length > 1 ? "shared" : "unsaid");
+    else notes.set(kind, /\bstops first\b/.test(rest) ? "moved" : "unsaid");
+  }
+  return notes;
+}
+
+/**
+ * What a migration owes the rule: for each kind it is the first SQL writer of, the line it lacks, or the line that
+ * calls a kind new while TypeScript writes it too (then the writer is moved or shared, and the line says which).
+ */
+function writerProblems(sql, firstWritten, writtenInCode) {
+  const notes = writerNotesOf(sql);
+  const problems = [];
+  for (const kind of firstWritten) {
+    const note = notes.get(kind);
+    if (!note) problems.push(`${kind}: no line says whether it is a new kind or a moved writer`);
+    else if (note === "unsaid")
+      problems.push(`${kind}: its line does not say which side stops first, or why both write`);
+    else if (note === "new" && writtenInCode.has(kind))
+      problems.push(`${kind}: called a new kind, and TypeScript writes it too: say Writer moved or Writer shared`);
+  }
+  return problems;
+}
+
+test("a migration that is the first to write a kind from SQL says whether the kind is new or its writer moved, and which side stops first", () => {
+  const by = emittedKinds();
+  const SQL = "supabase/migrations/";
+  for (const f of files) {
+    if (Number(f.slice(0, 5)) < WRITER_RULE_FROM) continue;
+    const firstWritten = [];
+    const writtenInCode = new Set();
+    for (const [kind, writers] of by) {
+      const fromSql = [...writers].filter((w) => w.startsWith(SQL)).sort();
+      if (fromSql[0] === `${SQL}${f}`) firstWritten.push(kind);
+      if ([...writers].some((w) => !w.startsWith(SQL))) writtenInCode.add(kind);
+    }
+    assert.deepEqual(
+      writerProblems(fs.readFileSync(path.join(DIR, f), "utf8"), firstWritten, writtenInCode),
+      [],
+      `${f}: an event's writer that starts in a migration is said in it (docs/runbook.md, "Apply a migration")`,
+    );
+  }
+});
+
+test("the writer rule reads a migration as written: a new kind, a moved writer with who stops first, a shared one, and each line it lacks", () => {
+  const code = new Set(["line.forwarded", "message.sent"]);
+  const said = `
+    -- New kind: post.held
+    -- Writer moved: line.forwarded. The dashboard stops first: the door writes only when asked (p_tell).
+    -- Writer shared: message.sent. The send door writes it for a send; this door for a row it queues.
+    create function public.x() returns void language sql as $$ select 1 $$;`;
+  assert.deepEqual(writerProblems(said, ["post.held", "line.forwarded", "message.sent"], code), []);
+  // A kind it does not start writing owes nothing, whatever it says or does not.
+  assert.deepEqual(writerProblems("select 1;", [], code), []);
+  assert.deepEqual(writerProblems("select 1;", ["post.held"], code), [
+    "post.held: no line says whether it is a new kind or a moved writer",
+  ]);
+  assert.deepEqual(writerProblems("-- Writer moved: line.forwarded. Both for a while.", ["line.forwarded"], code), [
+    "line.forwarded: its line does not say which side stops first, or why both write",
+  ]);
+  assert.deepEqual(writerProblems("-- New kind: line.forwarded", ["line.forwarded"], code), [
+    "line.forwarded: called a new kind, and TypeScript writes it too: say Writer moved or Writer shared",
+  ]);
+  assert.deepEqual(writerProblems("-- Writer shared: message.sent.", ["message.sent"], code), [
+    "message.sent: its line does not say which side stops first, or why both write",
+  ]);
 });
