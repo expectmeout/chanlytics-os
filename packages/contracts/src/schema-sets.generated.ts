@@ -276,7 +276,7 @@ export const SCHEMA_SETS = {
   "pieces.status": ["making", "made", "failed"],
   "plan_slots.blocked_why": [
     "approver", "disconnected", "line_off", "removed", "stopped", "changed", "rights", "claim", "place",
-    "money", "reason_passed", "late", "unmade",
+    "money", "reason_passed", "late", "unmade", "reason_unread",
   ],
   "plan_slots.kind": ["picture", "story", "reel"],
   "plan_slots.place": ["instagram", "google"],
@@ -302,7 +302,7 @@ export const SCHEMA_SETS = {
   "post_observations.step": ["1h", "1d", "3d", "7d", "28d", "last"],
   "posts.held_why": [
     "approver", "disconnected", "line_off", "removed", "stopped", "changed", "rights", "claim", "place",
-    "money", "reason_passed", "late",
+    "money", "reason_passed", "late", "reason_unread",
   ],
   "posts.kind": ["picture", "story", "reel"],
   "posts.place": ["instagram", "google", "facebook", "hand"],

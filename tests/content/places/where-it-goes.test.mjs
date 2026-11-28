@@ -6,7 +6,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ON_INSTAGRAM, TAKE_DOWN_WORDS, postComingDownOf, takeDownWillOf } from "@chanlytics/contracts";
+import {
+  CONTENT_CHECK_WORDS,
+  ON_INSTAGRAM,
+  TAKE_DOWN_WORDS,
+  postComingDownOf,
+  takeDownWillOf,
+} from "@chanlytics/contracts";
 import {
   GOES_WORDS,
   goesLinesOf,
@@ -107,6 +113,14 @@ test("held since it was approved, for its reason, or by its place: each with its
     ["Leave it out", "Change the words", "Tell AI it still stands"],
   );
   assert.deepEqual(passed.acts[2], { is: "say_ai", hint: "Tell AI it still stands", begin: "It still stands: " });
+  // Held because the open time it promises could not be read when it was to go (00728): its own words, the same ways on.
+  const unreadWords = CONTENT_CHECK_WORDS.openingsUnread("Thursday");
+  const unread = one(post({ status: "held", held_why: "reason_unread", held_reason: unreadWords }));
+  assert.equal(unread.said, unreadWords);
+  assert.deepEqual(
+    unread.acts.map((a) => a.says ?? a.hint),
+    ["Leave it out", "Change the words", "Tell AI it still stands"],
+  );
   const lost = one(post({ status: "held", held_why: "disconnected", held_reason: ON_INSTAGRAM.held.disconnected }));
   assert.equal(lost.said, "Instagram needs connecting again");
   assert.deepEqual(acts(lost), ["connect"]);
