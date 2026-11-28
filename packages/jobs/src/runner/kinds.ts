@@ -455,8 +455,8 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["post_id", "attempt"],
     never: [],
   },
-  // A post on its way to Google at its time (00616): once, after the recheck, as Instagram's send is. Google keeps no
-  // container to ask after, so one with no answer is said so, never sent again blind (settle-post.ts).
+  // A post on its way to Google at its time (00616): once, after the recheck, as Instagram's send is. One with no
+  // answer, or whose run died, is Checking, and its profile is asked what it holds (00728, settle-post.ts).
   post_google: {
     speaks: true,
     retryWaitsMs: NO_FIELDS,

@@ -13,7 +13,7 @@
  * minutes on the profile is asked what it holds (reconcileGooglePost): a post made there since the send, which no other
  * placement keeps, is this one, and it is up under Google's name for it. None, with the profile read whole: the send
  * never landed, and one more ask begins, never a third. A profile that cannot be read is asked again, and past its
- * last try the post says to look. A run that died after speaking is still said so by the settle (jobs settle-post.ts).
+ * last try the post says to look. A run that died after speaking is Checking too, by the settle (jobs settle-post.ts).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DAY_MS, FILE_WORDS, MIN_MS, SECOND_MS, fileFolderOf, postPlanOf, recordOrEmpty } from "@chanlytics/contracts";

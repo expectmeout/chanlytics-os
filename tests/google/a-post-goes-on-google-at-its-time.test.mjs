@@ -372,11 +372,16 @@ test("a post no longer waiting is left where it stands, and Google is asked noth
   }
 });
 
-test("a run that died after speaking is said so, never sent again blind; one certainly not taken is failed in its words", async () => {
+test("a run that died after speaking is Checking, with its profile asked, never sent again blind; one certainly not taken is failed in its words", async () => {
+  // It used to fail as "look on your profile": since the profile can be asked (00728), a run that died is asked after
+  // as a send with no answer is (packages/jobs settle-post.ts; tests/jobs/once holds every ending).
   const died = world({ status: "publishing" });
   await settleJob(died.db, job(), false);
-  assert.equal(died.post().status, "failed");
-  assert.equal(died.post().error.words, FILE_WORDS.google.unknown);
+  assert.equal(died.post().status, "checking");
+  assert.deepEqual(
+    died.tables.jobs.map((j) => [j.kind, j.payload.attempt]),
+    [["post_reconcile", "1"]],
+  );
   const before = world();
   await settleJob(before.db, job(), true, "Google did not take the post.");
   assert.equal(before.post().status, "failed", "one that never left its queue is failed too, not left waiting");
