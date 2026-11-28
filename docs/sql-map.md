@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 241 | 241 |
-| reader | 98 | 0 |
+| reader | 99 | 0 |
 | the server's | 480 | 410 |
 | computed column | 3 | 0 |
 | trigger | 128 | 94 |
-| all | 950 | 745 |
+| all | 951 | 745 |
 
 ## Called by nothing
 
@@ -315,16 +315,17 @@ being read is dropped by a migration.
 | `form_entries_follow_merge` | trigger | the server | trigger `contacts_merge_moves_form_entries on contacts` | When two records of one person are combined, the form entries of the one merged away go to the one kept (00680, decision 0028): |
 | `form_entries_held_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_held_form_entries on contacts` | When a person is erased, the held form entries typed with their address or their number go too (00680, decision 0036): |
 | `form_entries_purge` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry nobody let through goes after 30 days, and a test after 7 (00680; |
-| `form_entry_hold` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A request a member says is not a real one, held (00680): |
-| `form_entry_let_through` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry let through (00680): |
+| `form_entries_standing` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/standings.ts` | Where the named entries of a workspace's forms stand (00726), read under the member's own row rules from each entry's links and their messages, by form_requests_open's rule: |
+| `form_entry_hold` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A request a member says is not a real one, held (00680; |
+| `form_entry_let_through` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry let through (00680; |
 | `form_entry_settled` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | One effect of a website form entry settled (00675): |
-| `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00675, 00709): |
+| `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00675, 00709, 00726): |
 | `form_key_change` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675, 00709): |
 | `form_key_end` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
 | `form_key_make` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675, 00709; |
 | `form_publish` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
 | `form_request_take` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts`; SQL `form_time_request_take` | The hosted form door's one write (00680; |
-| `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's forms nobody has answered (00680, 00691, 00709; |
+| `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's forms nobody has answered (00680, 00691, 00709, 00726; |
 | `form_requests_open_count` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/outside.ts` | How many of a workspace's requests nobody has answered (00709): |
 | `form_results` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | What a workspace's forms brought over the last p_days (30; |
 | `form_time_request_take` | the server's | the server | code `packages/db/src/repositories/forms/times.ts` | The hosted form's one write with a time asked for (00691, 00704; |
@@ -802,7 +803,7 @@ being read is dropped by a migration.
 | `schedule_canary` | the server's | the server | the clock, `jobs-canary` | Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00526). |
 | `scrub_ask_for_contact` | door | a signed-in person, the server | code `packages/db/src/repositories/erasure/legs.ts` | An owner's, or the service role's finishing what an owner began (the erasure_finish job, 00501), and only for a person being erased: |
 | `scrub_call_raw` | reader | a signed-in person, the server | SQL `ingest_call` |  |
-| `scrub_contact_events` | the server's | the server | SQL `contact_events_on_erase` | Rewrite the contact.named and contact.added events of one erased person to keep only `by`, `source` and a scrubbed_at stamp. |
+| `scrub_contact_events` | the server's | the server | SQL `contact_events_on_erase` | Rewrite the contact.named, contact.added and contact.email_set events of one erased person to keep only `by`, `source` and a scrubbed_at stamp. |
 | `search_ask` | reader | a signed-in person, the server | code `packages/db/src/repositories/ask/memory.ts` | Recall (decision 0070): |
 | `search_fold` | reader | a signed-in person, the server | SQL `files_found` | A text as a search reads it (00612): |
 | `search_messages` | reader | a signed-in person, the server | code `packages/db/src/repositories/conversations/thread/messages.ts`; SQL `search_ask` | One workspace's messages and call transcripts that hold the words (websearch_to_tsquery, the 'simple' configuration), since p_since, newest first, at most least(greatest(p_limit, 1), 50) rows: |

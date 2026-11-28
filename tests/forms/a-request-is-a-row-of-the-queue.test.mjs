@@ -26,6 +26,7 @@ import {
   requestIdOf,
   namesAPerson,
   formsRouteOf,
+  formRequestRowOf,
   NEED_YOU_WORDS,
 } from "@chanlytics/contracts";
 import { NOW, metrics, waiting, escalation } from "../today/record/_world.mjs";
@@ -168,4 +169,32 @@ test("a form's held pile nobody has looked at in three days is one quiet row, in
     false,
     "no pile, no row",
   );
+});
+
+test("the queue says what is beyond its list: how many, and the request to read on from (00726)", () => {
+  const listed = [request("r1", 1), request("r2", 2), request("r3", 3)];
+  const beyond = toTodayVM(metrics(), [], [], [], NOW, null, {
+    formRequests: listed,
+    formRequestsCount: 10,
+    formHeld: [],
+  });
+  assert.deepEqual(
+    beyond.queue.requests_beyond,
+    { count: 7, after: "r3" },
+    "REGRESSION: seven were counted and nothing said where to read on from",
+  );
+  assert.equal(beyond.queue.more_people >= 7, true, "they are in the count of people past the rows, as before");
+  const whole = toTodayVM(metrics(), [], [], [], NOW, null, {
+    formRequests: listed,
+    formRequestsCount: 3,
+    formHeld: [],
+  });
+  assert.equal(whole.queue.requests_beyond, null, "a list that holds them all says none is beyond");
+  assert.equal(day([]).queue.requests_beyond, null, "and a day with none says none");
+});
+
+test("a request read on to is the row Needs you gives every request", () => {
+  const one = request("r9", 5, { unreached: true });
+  const vm = day([one]);
+  assert.deepEqual(formRequestRowOf(one, NOW), rowOf(vm, "r9"), "the same words, the same door, the same warning");
 });

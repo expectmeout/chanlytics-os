@@ -1950,6 +1950,7 @@ One entry of a website's form (00675; the Forms plan, F0), written with its pers
 | `code` | text | yes |  | The short code the thank-you carries into a chat: six characters, the workspace's own, good once (code_used_at) and for 30 days. |
 | `code_used_at` | timestamp with time zone | yes |  |  |
 | `outside_form_id` | uuid | yes |  | The form owned elsewhere this entry is of (00709): a website's. An entry names a form made here (form_id) or one of these, never both; a test names neither. |
+| `sent_ref` | text | yes |  | The id a site sent on an entry kept as a clash (00726): its form already had that id with other words, so the id itself (ref) stays with the first. The same form, this id and the same words again are this entry, with no time limit. Not unique. |
 
 Foreign keys:
 
