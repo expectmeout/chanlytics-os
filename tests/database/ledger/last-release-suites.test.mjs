@@ -1,6 +1,6 @@
 /**
  * Which of the last release's database suites run against a pull request's new schema
- * (checks/last-release-suites.mjs): the ones that say what its added migrations write, the catalog walkers left to
+ * (checks/deploy-order/last-release-suites.mjs): the ones that say what its added migrations write, the catalog walkers left to
  * the branch's own copy, and a red argued in the description. The run itself needs a stack, and is the Database
  * workflow's; the choosing is held here, over migrations and suites made up for it and over this checkout.
  */
@@ -9,9 +9,9 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { ROOT } from "../../_source.mjs";
-import { lastReleaseSuites, reasonIn } from "../../../tooling/scripts/checks/last-release-suites.mjs";
+import { lastReleaseSuites, reasonIn } from "../../../tooling/scripts/checks/deploy-order/last-release-suites.mjs";
 
-const CLI = path.join(ROOT, "tooling/scripts/checks/last-release-suites.mjs");
+const CLI = path.join(ROOT, "tooling/scripts/checks/deploy-order/last-release-suites.mjs");
 
 const MIGRATION = "supabase/migrations/00900_a_visit_is_kept_whole.sql";
 const TEXTS = {

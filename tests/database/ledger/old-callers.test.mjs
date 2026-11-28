@@ -1,5 +1,5 @@
 /**
- * Either deploy order, held for a function a migration writes again (checks/old-callers.mjs), each break planted and
+ * Either deploy order, held for a function a migration writes again (checks/deploy-order/old-callers.mjs), each break planted and
  * caught: a migration is applied before its merge, so the code main runs meets it first, and a function re-made with
  * an argument renamed, retyped, taken away or added with no default refuses that code's call. The snapshots here are
  * written the way supabase/schema.sql writes a function; the real one is read too, whole, and the script is run
@@ -19,9 +19,9 @@ import {
   refusedCalls,
   signatureOf,
   whyRefused,
-} from "../../../tooling/scripts/checks/old-callers.mjs";
+} from "../../../tooling/scripts/checks/deploy-order/old-callers.mjs";
 
-const CLI = path.join(ROOT, "tooling/scripts/checks/old-callers.mjs");
+const CLI = path.join(ROOT, "tooling/scripts/checks/deploy-order/old-callers.mjs");
 
 /** A function as the snapshot writes it. */
 const fn = (head, answers = "jsonb") => `

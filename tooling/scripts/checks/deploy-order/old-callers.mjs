@@ -21,17 +21,17 @@
  *
  *   -- Deploy order: after the deploys. <why>
  *
- *   node tooling/scripts/checks/old-callers.mjs --base origin/main    # database.yml, on a pull request
+ *   node tooling/scripts/checks/deploy-order/old-callers.mjs --base origin/main    # database.yml, on a pull request
  *
  * It exits 0 when every function the base's code calls still takes its call, 1 naming each that does not, and 2 when
- * the base cannot be read. tests/database/old-callers.test.mjs plants each break and reads the real snapshot.
+ * the base cannot be read. tests/database/ledger/old-callers.test.mjs plants each break and reads the real snapshot.
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { closing, isPunct, isWord, qualifiedName, splitTopLevel, statementsOf } from "../gen/schema-snapshot.mjs";
-import { LEDGER, MIGRATIONS } from "./migration-ledger.mjs";
+import { closing, isPunct, isWord, qualifiedName, splitTopLevel, statementsOf } from "../../gen/schema-snapshot.mjs";
+import { LEDGER, MIGRATIONS } from "../migration-ledger.mjs";
 
 export const SNAPSHOT = "supabase/schema.sql";
 
@@ -198,11 +198,11 @@ export function arguedAfterTheDeploys(migrationTexts) {
 }
 
 function main() {
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
   const args = process.argv.slice(2);
   const ref = args[args.indexOf("--base") + 1];
   if (!args.includes("--base") || !ref) {
-    console.error("usage: node tooling/scripts/checks/old-callers.mjs --base <ref>");
+    console.error("usage: node tooling/scripts/checks/deploy-order/old-callers.mjs --base <ref>");
     process.exit(2);
   }
   const git = (...a) =>

@@ -19,8 +19,8 @@
  * description says so in a line `Last release: <why>`, as `Debt:` and `Bundle:` argue theirs, and the step passes
  * with the reason in its log.
  *
- *   node tooling/scripts/checks/last-release-suites.mjs <base> <head>          run them (database.yml: HEAD^1 HEAD)
- *   node tooling/scripts/checks/last-release-suites.mjs --list <base> <head>   say which would run
+ *   node tooling/scripts/checks/deploy-order/last-release-suites.mjs <base> <head>          run them (database.yml: HEAD^1 HEAD)
+ *   node tooling/scripts/checks/deploy-order/last-release-suites.mjs --list <base> <head>   say which would run
  *
  * It needs the stack the workflow started (SUPABASE_URL and its keys in the environment) and the store the branch's
  * install filled. Exit 0 when the branch adds no migration, when no suite of the base reads what it writes, when
@@ -32,9 +32,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { isDatabaseSuite, migrationReaders } from "./changed-tests.mjs";
+import { isDatabaseSuite, migrationReaders } from "../changed-tests.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const MIGRATION = /^supabase\/migrations\/[^/]+\.sql$/;
 /** Why changed-tests leaves a catalog walker in: here it is why one is left out. */
 const WALKS = "walks the catalog";
@@ -93,7 +93,7 @@ function main() {
   const list = args.includes("--list");
   const [base, head] = args.filter((a) => !a.startsWith("--"));
   if (!base || !head) {
-    console.error("usage: node tooling/scripts/checks/last-release-suites.mjs [--list] <base> <head>");
+    console.error("usage: node tooling/scripts/checks/deploy-order/last-release-suites.mjs [--list] <base> <head>");
     process.exit(2);
   }
   const added = lines(git("diff", "--name-only", "--no-renames", "--diff-filter=A", base, head)).filter((f) =>

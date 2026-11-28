@@ -48,7 +48,7 @@ test("every clock healthy and nothing waiting is 200", async () => {
     jobs_backlog: 0,
     checked_at: "2026-09-11T12:00:00.000Z",
     video_machine: true,
-    migration_head: "00724",
+    applied_migration: "00724",
   });
 });
 
@@ -60,15 +60,15 @@ test("the newest migration the database has applied is said beside the clocks, a
   const a = await judgeHealth(db(clocks, 0, null, null, IMAGE, unread), NOW);
   assert.equal(a.status, 200, "the pinger's judgement is the clocks' and the backlog's alone");
   assert.equal(a.body.ok, true);
-  assert.equal(a.body.migration_head, null);
+  assert.equal(a.body.applied_migration, null);
   assert.ok(!JSON.stringify(a.body).includes("secret-ish"));
   // A database with no migration on record says none: null, as unread, and the smoke asks again.
   const none = await judgeHealth(db(clocks, 0, null, null, IMAGE, { data: [], error: null }), NOW);
-  assert.equal(none.body.migration_head, null);
+  assert.equal(none.body.applied_migration, null);
   // And an unhealthy answer still carries it: a deploy is judged on a red day too.
   const ill = await judgeHealth(db([row("jobs", false)], 0), NOW);
   assert.equal(ill.status, 503);
-  assert.equal(ill.body.migration_head, "00724");
+  assert.equal(ill.body.applied_migration, "00724");
 });
 
 test("a video template with no machine image on record is said, and pages nobody: it is no clock", async () => {
@@ -114,7 +114,7 @@ test("REGRESSION: a registry that came back with no clock at all is 503 no_clock
     jobs_backlog: 0,
     checked_at: "2026-09-11T12:00:00.000Z",
     video_machine: true,
-    migration_head: "00724",
+    applied_migration: "00724",
     reason: "no_clocks",
   });
   // An answer that is no list at all is no clock either.
@@ -169,7 +169,7 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
     assert.equal(body.ok, false);
     assert.ok(!JSON.stringify(body).includes("secret-ish"));
     assert.equal(body.video_machine, true);
-    assert.equal(body.migration_head, "00724");
+    assert.equal(body.applied_migration, "00724");
     assert.deepEqual(calls.map((u) => u.slice(u.lastIndexOf("/") + 1).split("?")[0]).sort(), [
       "jobs_backlog",
       "migration_head",

@@ -432,7 +432,7 @@ test("a head the database could not say leaves the question open, which is not a
 test("each app is held to the database apart: the dashboard a migration ahead fails, though the edge is level and both name the commit", async () => {
   // The two projects deploy apart, and either can carry a migration the other's build does not need yet.
   const edge = await host({
-    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT, migration_head: "00724" }],
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT, applied_migration: "00724" }],
     "/api/version": [200, { sha: "de16cc2e14f", migration: "00724" }],
   });
   const dashboard = await host({
@@ -463,7 +463,7 @@ test("each app is held to the database apart: the dashboard a migration ahead fa
 
 test("both builds level with the database, or behind it, pass; a database that could not say its head fails both", async () => {
   const doors = (head, built) => ({
-    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT, migration_head: head }],
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT, applied_migration: head }],
     "/api/version": [200, { sha: "abc1234", migration: built }],
   });
   const warm = {
@@ -481,7 +481,7 @@ test("both builds level with the database, or behind it, pass; a database that c
 
 test("an edge a build behind says nothing of its database's head, and no build is judged against a head nobody gave", async () => {
   // Either deploy order: the dashboard may answer `migration` minutes before the edge's health door learns to answer
-  // `migration_head`. The edge's stale sha is what fails that smoke, not a comparison with nothing.
+  // `applied_migration`. The edge's stale sha is what fails that smoke, not a comparison with nothing.
   const edge = await host({
     "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT }],
     "/api/version": [200, { sha: "abc1234" }],

@@ -453,10 +453,48 @@ test("the replay runs every database suite on main, and on a pull request the on
   const y = workflow("database.yml");
   assert.ok(
     y.includes(
-      "- if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request'\n        run: pnpm test:db",
+      "- if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request' && inputs.last_release == ''\n        run: pnpm test:db",
     ),
+    "every suite on main; a run by hand for the last release's leg runs that leg alone",
   );
   assert.ok(y.includes("if: steps.changed.outputs.db == 'true' && github.event_name == 'pull_request'"));
   assert.ok(y.includes("run: node tooling/scripts/checks/changed-tests.mjs --db HEAD^1 HEAD"));
   assert.ok(workflow("nightly-database.yml").includes("run: pnpm test:db"), "every night, every suite");
+});
+
+test("either deploy order is held on a pull request: a function written again takes the last release's call, and the last release's suites run on the new schema", () => {
+  // A migration is applied before its merge, so the code that meets it first is main's. The first step reads the
+  // snapshot and needs no stack, so it runs on every pull request, before the question of a replay; the second needs
+  // the stack the replay started, and the description's line that argues a red the migration means.
+  const y = workflow("database.yml");
+  const steps = job(y, "replay").split("\n      - ");
+  const callers = steps.find((s) => s.includes("run: node tooling/scripts/checks/deploy-order/old-callers.mjs"));
+  assert.ok(callers, "the step that holds a re-made function to its old arguments");
+  assert.ok(callers.startsWith("if: github.event_name == 'pull_request'\n"), "every pull request, whatever it changes");
+  assert.ok(callers.includes('old-callers.mjs --base "origin/$BASE_REF"'));
+  assert.ok(steps.indexOf(callers) < steps.findIndex((s) => s.includes("supabase/setup-cli")), "before any stack");
+
+  const last = steps.find((s) => s.includes("node tooling/scripts/checks/deploy-order/last-release-suites.mjs "));
+  assert.ok(last, "the step that runs the last release's suites");
+  assert.ok(
+    last.includes(
+      "if: steps.changed.outputs.db == 'true' && (github.event_name == 'pull_request' || inputs.last_release != '')",
+    ),
+    "on a pull request that replays, or by hand with a commit named",
+  );
+  assert.ok(last.includes('last-release-suites.mjs "${LAST_RELEASE:-HEAD^1}" HEAD'), "the base the change stands on");
+  assert.ok(last.includes("PR_BODY") && y.includes("pull-requests: read"), "the description's `Last release:` line");
+  assert.ok(
+    steps.indexOf(last) > steps.findIndex((s) => s.includes("changed-tests.mjs --db HEAD^1 HEAD")),
+    "after the branch's own suites, on the stack they ran on",
+  );
+  assert.ok(
+    steps.indexOf(last) < steps.findLastIndex((s) => s.includes("run: supabase stop --no-backup")),
+    "and before the stack is stopped",
+  );
+  assert.match(
+    y,
+    /workflow_dispatch:\n {4}inputs:\n {6}last_release:/,
+    "by hand, a commit to take as the last release",
+  );
 });

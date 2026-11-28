@@ -14,7 +14,7 @@
  *   GET <dashboard>/api/version  200 { sha }: the build the deployment runs (apps/dashboard/app/api/version/route.ts);
  *                                --sha names the one each version door must name.
  *   The database each build needs: each version door also says `migration`, the newest migration its build was written
- *                                against, and the health door `migration_head`, the newest production has applied. The
+ *                                against, and the health door `applied_migration`, the newest production has applied. The
  *                                two apps deploy apart, so each is held to it: a build ahead of its database fails the
  *                                smoke under the door "database", since it calls doors and reads columns that are not
  *                                there yet (a merge whose migration was not applied first, 28 Nov 2026). A database
@@ -85,7 +85,7 @@ export function judgeVersion(status, body, { sha = null } = {}) {
 
 /**
  * A build's migration against the database's, judged: null when the database has what the build was written against,
- * else why not. `built` is the version door's `migration`, `head` the health door's `migration_head`, each the five
+ * else why not. `built` is the version door's `migration`, `head` the health door's `applied_migration`, each the five
  * digits a migration's file starts with. A head that could not be read (null) leaves the question unanswered, which is
  * not a pass, except where an unhealthy answer is taken (a preview with no database).
  */
@@ -176,7 +176,7 @@ export async function smoke(args, env = process.env) {
     const url = `${args.edge}/api/health`;
     const a = await ask(url, headers);
     out.push({ door: "health", url, problem: a.failed ?? judgeHealth(a.status, a.body, args) });
-    if (a.body && typeof a.body === "object" && "migration_head" in a.body) head = a.body.migration_head;
+    if (a.body && typeof a.body === "object" && "applied_migration" in a.body) head = a.body.applied_migration;
     await version(args.edge);
   }
   // One host serving both is asked once.
