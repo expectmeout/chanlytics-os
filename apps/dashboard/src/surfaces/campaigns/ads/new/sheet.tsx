@@ -157,13 +157,15 @@ interface DraftProps {
   onConnect: () => void;
   /** Meta's own preview of a version, where the source asks for one. */
   preview: AdSource["preview"];
+  /** Where the draft's video's copy stands, where the source asks after it. */
+  copy: AdSource["copy"];
 }
 
 /**
  * The draft's body: the post its picture went up as, where it did (pass 6), the sentence, the word being changed, why that
  * amount, the one line, the line to tell AI what to change, and the ad as it will look.
  */
-function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps) {
+function DraftBody({ stand, vm, acts, telling, onConnect, preview, copy }: DraftProps) {
   const [editing, setEditing] = useState<AdEditing>(null);
   const act = (line: LineAct) => {
     if (line.kind === "rewrite") return acts.write();
@@ -196,7 +198,7 @@ function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps)
       <NewWhy lines={vm.why} />
       {vm.line ? <NewAdLine line={vm.line} onAct={act} onConnect={onConnect} /> : null}
       <Tell tell={vm.tell} onTell={acts.tell} />
-      <AdShown shown={vm.shown} onNext={acts.nextVersion} preview={preview} />
+      <AdShown shown={vm.shown} onNext={acts.nextVersion} preview={preview} copy={copy} />
     </div>
   );
 }
@@ -262,6 +264,7 @@ function newAdParts(
           telling={here.telling}
           onConnect={props.onConnect}
           preview={props.source.preview}
+          copy={props.source.copy}
         />
       ),
       foot: <Foot vm={vm} onTurnOn={acts.turnOn} />,

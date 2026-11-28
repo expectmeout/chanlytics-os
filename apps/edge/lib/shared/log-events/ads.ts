@@ -19,6 +19,7 @@ export const ADS_EVENTS = [
   "ads_meta_refused",
   "ads_notice",
   "ads_page_read",
+  "ads_picture_copy",
   "ads_pressed",
   "ads_previewed",
   "ads_read",
