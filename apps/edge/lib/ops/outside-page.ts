@@ -46,8 +46,8 @@ const isCondition = (v: unknown): v is OutsideCondition =>
 
 /** The morning line's subject: its name and the day's count, one line of the workflow's, cut to a subject's length. */
 function morningSubject(headline: unknown): string {
-  const said = typeof headline === "string" ? headline.replace(/\s+/g, " ").trim().slice(0, HEADLINE_MAX) : "";
-  return said ? `${OUTSIDE_CONDITIONS.morning_line}: ${said}` : OUTSIDE_CONDITIONS.morning_line;
+  const count = typeof headline === "string" ? headline.replace(/\s+/g, " ").trim().slice(0, HEADLINE_MAX) : "";
+  return count ? `${OUTSIDE_CONDITIONS.morning_line}: ${count}` : OUTSIDE_CONDITIONS.morning_line;
 }
 
 export async function readPageFromOutside(auth: Admitted, request: Request): Promise<Response> {
