@@ -115,3 +115,16 @@ test("a stop that is already on is left as it was, and one that cannot be set st
   assert.match(refused.err, /REFUSING: could not stop the workspace's work: permission denied for table tenants/);
   assert.deepEqual(refused.log, ["rpc workspace_sending_stop"], "no job is withdrawn and nothing is deleted");
 });
+
+test("something the delete cannot reach that turns up after the first look stops it, with the workspace left stopped", () => {
+  // A member connects Google between the look and the read the delete goes by (after the table's first read).
+  const arrivals = [{ table: "google_connections", read: 1, row: { tenant_id: T, google_email: "owner@example.com" } }];
+  const refused = deleteTenant({ tables: harbor({ google_connections: [] }), arrivals }, ...APPLY);
+  assert.equal(refused.code, 1);
+  assert.match(
+    refused.err,
+    /REFUSING: read again with its work stopped, this workspace holds 1 thing the delete cannot reach:\n\s+· a Google Business Profile grant for owner@example\.com/,
+  );
+  assert.match(refused.err, /Stop everything is on for this workspace/);
+  assert.deepEqual(deletes(refused), [], "the read the delete goes by is the one that decides");
+});

@@ -231,9 +231,10 @@ function sayLook({ shot, outside, orphans }, backupPath) {
 /**
  * The workspace's work stopped and its rows read again, exact: Stop everything, its queued jobs withdrawn, its running
  * ones waited for, the snapshot the delete goes by, and one more look at the ledger. A job queued while the snapshot was
- * read sends it round again. Answers that snapshot.
+ * read sends it round again. Answers that snapshot. Without `mayStrand` (--orphans-ok) it refuses where the workspace,
+ * read again, holds something the delete cannot reach that the first look did not show.
  */
-async function stopAndRead(db, tenant, backupPath, waitMs) {
+async function stopAndRead(db, tenant, backupPath, { waitMs, mayStrand }) {
   console.log("\nstopping the workspace's work before anything is deleted");
   const stopped = await stop(db, tenant);
   if (stopped.error) refuse(`REFUSING: could not stop the workspace's work: ${stopped.error}`);
@@ -242,7 +243,7 @@ async function stopAndRead(db, tenant, backupPath, waitMs) {
   );
   let withdrawn = 0;
   const tail = () =>
-    `\nStop everything is on for this workspace${withdrawn ? `, and ${withdrawn} of its queued jobs are withdrawn (each is in the backup as it was)` : ""}. ` +
+    `\nStop everything is on for this workspace${withdrawn ? `, and ${withdrawn} of its queued jobs are withdrawn (canceled on the ledger, where each can still be read)` : ""}. ` +
     `Run this again to finish, or press Resume in the product to keep the workspace.`;
   for (let round = 0; round < FENCE_ROUNDS; round++) {
     const drained = await drain(db, tenant.id, waitMs);
@@ -256,6 +257,12 @@ async function stopAndRead(db, tenant, backupPath, waitMs) {
           tail(),
       );
     const last = await read(db, tenant, backupPath, { still: true, tail: tail() });
+    if (last.orphans.length && !mayStrand)
+      refuse(
+        `REFUSING: read again with its work stopped, this workspace holds ${things(last.orphans.length)} the delete cannot reach:\n` +
+          last.orphans.map((o) => `  · ${o}`).join("\n") +
+          tail(),
+      );
     const after = await ledgerOf(db, tenant.id);
     if (after.error) refuse(`REFUSING: could not read the workspace's jobs: ${after.error}${tail()}`);
     if (!after.live) {
@@ -305,10 +312,9 @@ async function removeOutside(db, list) {
   for (const item of stays.slice(0, STAYS_SAID)) console.error(`  · ${itemWords(item)}`);
   if (stays.length > STAYS_SAID)
     console.error(`  · and ${stays.length - STAYS_SAID} more, each a line of the list with "done":false`);
-  console.error(
-    `Ask again for what stayed: node tooling/scripts/ops/delete-tenant.mjs --resume ${list.path} --apply\n` +
-      `A video's id at Stream is its row's in the backup (files.media_ref).`,
-  );
+  console.error(`Ask again for what stayed: node tooling/scripts/ops/delete-tenant.mjs --resume ${list.path} --apply`);
+  if (stays.some((item) => item.what === "stream"))
+    console.error("A video's id at Stream is its row's in the backup (files.media_ref).");
   return stays.length;
 }
 
@@ -369,29 +375,21 @@ async function main() {
     console.log(`\nDry run only. Re-run with --apply to delete ${JSON.stringify(tenant.name)} and everything above.`);
     process.exit(0);
   }
-  const strands = (orphans) => {
-    if (orphans.length && !orphansOk)
-      refuse(
-        `\nREFUSING: this workspace still holds ${things(orphans.length)} ` +
-          `the delete cannot reach, listed above. Release them first, or pass --orphans-ok to strand them deliberately.`,
-      );
-  };
-  strands(look.orphans);
+  if (look.orphans.length && !orphansOk)
+    refuse(
+      `\nREFUSING: this workspace still holds ${things(look.orphans.length)} ` +
+        `the delete cannot reach, listed above. Release them first, or pass --orphans-ok to strand them deliberately.`,
+    );
   if (look.orphans.length)
     console.log(
       `\n--orphans-ok: stranding ${look.orphans.length} provider-side thing${look.orphans.length === 1 ? "" : "s"} on purpose.`,
     );
 
   // ------------------------------------------- 3. stop its work, and read it again
-  const last = await stopAndRead(db, tenant, backupPath, waitMs);
+  const last = await stopAndRead(db, tenant, backupPath, { waitMs, mayStrand: orphansOk });
   console.log(
     `backup, read again with its work stopped: ${last.shot.total} rows across ${last.shot.tally.length} tables`,
   );
-  if (last.orphans.length > look.orphans.length) {
-    console.log(`\nWOULD BE STRANDED OUTSIDE THE DATABASE (${last.orphans.length}):`);
-    for (const o of last.orphans) console.log(`  · ${o}`);
-    strands(last.orphans);
-  }
 
   // ------------------------------------------- 4. the list of what goes outside
   const { logos, kept, media, copies, videos, shelved } = last.outside;
