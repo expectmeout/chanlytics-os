@@ -64,6 +64,15 @@ export function shelfBucket() {
       calls.push(["delete", key]);
       held.delete(key);
     },
+    // As R2 lists: the keys under a prefix in their order, a page at a time, with a cursor only while more remain.
+    async list({ prefix, cursor, limit = 1000 }) {
+      calls.push(["list", prefix, cursor ?? null]);
+      const keys = [...held.keys()].filter((key) => key.startsWith(prefix)).sort();
+      const from = cursor ? keys.findIndex((key) => key > cursor) : 0;
+      const page = from < 0 ? [] : keys.slice(from, from + limit);
+      const truncated = from >= 0 && from + limit < keys.length;
+      return { objects: page.map((key) => ({ key })), truncated, ...(truncated ? { cursor: page.at(-1) } : {}) };
+    },
   };
 }
 

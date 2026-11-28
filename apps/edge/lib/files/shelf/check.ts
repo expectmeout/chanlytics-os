@@ -14,7 +14,7 @@ import { findShelfPart, putShelfCopyBack } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Logger } from "../../shared/log.js";
-import { shelfOf } from "./shelve.js";
+import { SHELF_SECONDS_MAX, shelfOf } from "./shelve.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -38,7 +38,8 @@ export async function askShelf(db: Db, video: { tenantId: TenantId; fileId: stri
   if (part.state === "failed") {
     // The shelf would not take it once, and its own file is still there to put it from: asked for again.
     if (part.why !== "refused") return "none";
-    return (await putShelfCopyBack(db, video.tenantId, video.fileId)) ? "put_back" : "unsure";
+    // Within the shelf's room: a failed copy holds none, so it comes back only where it fits (00729).
+    return (await putShelfCopyBack(db, { ...video, secondsMax: SHELF_SECONDS_MAX })) ? "put_back" : "unsure";
   }
   if (part.state !== "checked") return "none";
   const shelf = shelfOf();
@@ -46,7 +47,7 @@ export async function askShelf(db: Db, video: { tenantId: TenantId; fileId: stri
   const held = await readShelfRecord(shelf, video);
   if (!held.ok) return "unsure";
   if (held.record && held.record.bytes === part.bytes && held.record.sha256 === part.sha256) return "holds";
-  const again = await putShelfCopyBack(db, video.tenantId, video.fileId);
+  const again = await putShelfCopyBack(db, { ...video, secondsMax: SHELF_SECONDS_MAX });
   log.error("shelf_copy_lost", {
     file: video.fileId,
     found: held.record ? "other_bytes" : "nothing",

@@ -51,6 +51,8 @@ const SOURCE_LINK_S = (10 * MIN_MS) / SECOND_MS;
 /** What a run keeps for a second sending of a copy that did not match: one pull, and a little. */
 const SECOND_PULL_NEEDS_MS = 36 * SECOND_MS;
 const SECONDS_IN_A_MINUTE = MIN_MS / SECOND_MS;
+/** The shelf's room for one workspace, in seconds: the limit every door that judges the room is handed (00729). */
+export const SHELF_SECONDS_MAX = FILE_SHELF_MINUTES_MAX * SECONDS_IN_A_MINUTE;
 
 /** What became of a shelving, in a word for its job's line; or why it was not one to run. */
 type ShelveEnd = { shelved: string } | { skipped: string };
@@ -77,7 +79,7 @@ export async function beginShelving(
   if (!shelfOf()) return;
   const { config } = await findWorkspaceNameAndConfig(db, video.tenantId);
   if (!videoShelfOf(config)) return;
-  const fate = await beginShelfCopy(db, { ...video, secondsMax: FILE_SHELF_MINUTES_MAX * SECONDS_IN_A_MINUTE });
+  const fate = await beginShelfCopy(db, { ...video, secondsMax: SHELF_SECONDS_MAX });
   if (fate === "full")
     logger({ tenant_id: video.tenantId }).warn("file_shelve_failed", { file: video.fileId, why: "shelf_full" });
 }
@@ -109,8 +111,8 @@ async function leaveNothing(shelving: Shelving): Promise<ShelveEnd> {
   return { skipped: "the file was removed" };
 }
 
-/** A link's refusal that says the file is not there, as Storage says it: nothing to put the copy from. */
-const saysNotThere = (error: { message?: string; statusCode?: unknown; status?: unknown }): boolean =>
+/** A link's or a read's refusal that says the file is not there, as Storage says it: nothing to put the copy from. */
+export const saysNotThere = (error: { message?: string; statusCode?: unknown; status?: unknown }): boolean =>
   [error.statusCode, error.status].some((code) => code === 404 || code === "404") ||
   /not[ _]found/i.test(error.message ?? "");
 
