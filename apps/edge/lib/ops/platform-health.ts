@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PIECE_TEMPLATE } from "@chanlytics/contracts";
+import { getMigrationHead } from "@chanlytics/db/console";
 import { findPieceImage } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { readJobsBacklog, readSweepHealth } from "@chanlytics/db/ops";
@@ -26,7 +27,23 @@ function readVideoMachine(db: HealthDb): Promise<boolean | null> {
   );
 }
 
-/** Each clock's health and the job ledger's backlog, and whether the videos' machine image is on record, read side by side. */
+/**
+ * The newest migration this database has applied, as the five digits its file starts with (migration_head(), 00269).
+ * The smoke after a deploy holds each app's build to it: a build written against a migration the database has not
+ * applied calls doors and reads columns that are not there yet (tooling/scripts/checks/smoke.mjs). Null where it could
+ * not be read, or where no migration is on record: unknown is not behind.
+ */
+function readMigrationHead(db: HealthDb): Promise<string | null> {
+  return getMigrationHead(db).then(
+    (applied) => applied.head,
+    logAndGoOn("reading the newest migration the database has applied", null),
+  );
+}
+
+/**
+ * Each clock's health and the job ledger's backlog, whether the videos' machine image is on record, and the newest
+ * migration the database has applied, read side by side.
+ */
 export function readPlatformHealth(db: HealthDb) {
-  return Promise.all([readSweepHealth(db), readJobsBacklog(db), readVideoMachine(db)]);
+  return Promise.all([readSweepHealth(db), readJobsBacklog(db), readVideoMachine(db), readMigrationHead(db)]);
 }
