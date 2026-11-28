@@ -12007,7 +12007,7 @@ export type Database = {
         Returns: string
       }
       file_shelf_again: {
-        Args: { p_file_id: string; p_tenant_id: string }
+        Args: { p_file_id: string; p_seconds_max?: number; p_tenant_id: string }
         Returns: boolean
       }
       file_shelf_begin: {
@@ -12033,9 +12033,23 @@ export type Database = {
         Args: { p_file_id: string; p_tenant_id: string; p_why: string }
         Returns: boolean
       }
+      file_shelf_owed: {
+        Args: {
+          p_bytes_max: number
+          p_limit: number
+          p_seconds_max: number
+          p_stale_seconds: number
+        }
+        Returns: Json
+      }
       file_shelf_requeue: {
         Args: { p_limit: number; p_stale_seconds: number }
         Returns: number
+      }
+      file_shelf_seconds: { Args: { p_tenant_id: string }; Returns: number }
+      file_shelf_unkept: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       file_sound_keep: {
         Args: {

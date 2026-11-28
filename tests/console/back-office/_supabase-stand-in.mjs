@@ -8,6 +8,17 @@
  * whatever exit: the tables as they were left, every write and storage call in the order it was made, and the calls
  * that left for a provider.
  *
+ * The database in memory already answers a read with at most 1,000 rows, as PostgREST does. What this adds, each asked
+ * for by the world:
+ *   - the workspace's delete takes its rows with it, as the cascade does, and sets the kept tables' key to null;
+ *   - `timeoutPast`: a delete that would take more rows than this answers as a statement past its time, and takes none;
+ *   - `ledger`: what happens to the workspace's jobs between two of the script's looks at them (a run ends, a job is
+ *     handed out late);
+ *   - `arrivals`: a row written to a table while the script is reading it, after its nth read of the table's rows,
+ *     or after every one (`every`); `shortBy`: a table whose reads each answer that many rows fewer than there are,
+ *     while its count counts them all;
+ *   - `fetchFails` and `removeFails`: a provider's host, or a bucket, that refuses its first calls.
+ *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 import fs from "node:fs";
@@ -61,44 +72,161 @@ export function bucket(objects, faults = {}, log = null, name = "bucket") {
   };
 }
 
+/** What Postgres answers a statement the service role's 30 seconds ended (00283). */
+const PAST_ITS_TIME = { message: "canceling statement due to statement timeout", code: "57014" };
+
+/** The tables whose rows outlive their workspace, their key set to null (the migrations' ON DELETE SET NULL). */
+const SET_NULL = ["anthropic_profiles", "billing_events", "partner_earnings", "platform_acts", "privacy_requests"];
+
+/** How many times the first `n` calls of a kind are refused: `fails(key)` answers whether this one is. */
+function refusals(counts = {}) {
+  const left = { ...counts };
+  return (key) => (left[key] ?? 0) > 0 && left[key]-- > 0;
+}
+
+/** The workspace's delete as the cascade leaves the tables: its rows gone, the history aside, and the kept ones' key null. */
+function cascade(tables, tenantId) {
+  for (const [table, rows] of Object.entries(tables)) {
+    if (table === "tenants" || table === "events") continue;
+    if (SET_NULL.includes(table))
+      for (const row of rows) row.tenant_id = row.tenant_id === tenantId ? null : row.tenant_id;
+    else tables[table] = rows.filter((row) => row.tenant_id !== tenantId);
+  }
+}
+
+/** A row of the jobs table as the world's ledger script moves it. */
+function moveLedger(tables, step) {
+  const jobs = (tables.jobs ??= []);
+  if (step.add) jobs.push({ ...step.add });
+  for (const [state, id] of [
+    ["done", step.done],
+    ["fired", step.fire],
+    ["scheduled", step.back],
+  ]) {
+    const job = id ? jobs.find((j) => j.id === id) : null;
+    if (job) job.state = state;
+  }
+}
+
 /** The client the script makes: the world's database, its storage, and every write said in order. */
 export function createClient() {
   const world = JSON.parse(fs.readFileSync(process.env.DELETE_TENANT_WORLD, "utf8"));
   const log = [];
+  const fetched = [];
   const db = fakeDb(world.tables, world.faults ?? {});
+  const removeRefused = refusals(world.removeFails);
+  const fetchRefused = refusals(world.fetchFails);
   const buckets = Object.fromEntries(
     Object.entries(world.buckets ?? {}).map(([name, objects]) => [
       name,
-      bucket(objects, { list: world.bucketFaults?.[name] ?? {} }, log, name),
+      bucket(objects, { list: world.bucketFaults?.[name] ?? {}, remove: () => removeRefused(name) }, log, name),
     ]),
   );
-  // A call to a provider (the relay, Stream, Anthropic): said, and answered as one that took it.
+  // A call to a provider (the relay, Stream, Anthropic): said, and answered as one that took it, unless the world has
+  // its host refuse this one.
   globalThis.fetch = async (url, init = {}) => {
-    log.push(`fetch ${init.method ?? "GET"} ${new URL(String(url)).host}`);
-    return new Response(null, { status: 204 });
+    const { host, pathname } = new URL(String(url));
+    log.push(`fetch ${init.method ?? "GET"} ${host}`);
+    fetched.push({ method: init.method ?? "GET", host, path: pathname });
+    return new Response(null, { status: fetchRefused(host) ? 500 : 204 });
   };
   process.on("exit", () => {
     const left = Object.fromEntries(Object.entries(buckets).map(([name, b]) => [name, [...b.store.keys()]]));
-    fs.writeFileSync(process.env.DELETE_TENANT_SEEN, JSON.stringify({ tables: world.tables, log, buckets: left }));
+    fs.writeFileSync(
+      process.env.DELETE_TENANT_SEEN,
+      JSON.stringify({ tables: world.tables, log, fetched, buckets: left }),
+    );
   });
+
+  /** How many rows a delete would take: what its filters match, and for the workspace's own, what its cascade reaches. */
+  const reach = async (table, filters) => {
+    if (table === "tenants") {
+      const id = filters.find(([op, col]) => op === "eq" && col === "id")?.[2];
+      return Object.entries(world.tables)
+        .filter(([name]) => name !== "tenants" && name !== "events" && !SET_NULL.includes(name))
+        .reduce((n, [, rows]) => n + rows.filter((row) => row.tenant_id === id).length, 1);
+    }
+    let probe = db.from(table).select("*", { count: "exact", head: true });
+    for (const [op, col, val] of filters) probe = op === "or" ? probe.or(val) : probe[op](col, val);
+    return (await probe).count ?? 0;
+  };
+
+  let looks = 0;
+  const reads = {};
+  /** What the world says of a read of a table's rows: a row that arrives after it, and rows it answers short of. */
+  const told = (table, answer) => {
+    reads[table] = (reads[table] ?? 0) + 1;
+    for (const arrival of world.arrivals ?? []) {
+      if (arrival.table !== table || !(arrival.every || arrival.read === reads[table])) continue;
+      const row = arrival.every ? { ...arrival.row, id: `${arrival.row.id}-${reads[table]}` } : { ...arrival.row };
+      (world.tables[table] ??= []).push(row);
+    }
+    const short = world.shortBy?.[table] ?? 0;
+    return short ? { ...answer, data: answer.data.slice(0, Math.max(answer.data.length - short, 0)) } : answer;
+  };
   const from = (table) => {
     const q = db.from(table);
-    return new Proxy(q, {
+    const filters = [];
+    let deleting = false;
+    let rowsAsked = false;
+    /** A read of rows (not a count, not a write's answer), as the world tells it. */
+    const read = async () => {
+      const answer = await new Promise((resolve, reject) => q.then(resolve, reject));
+      return rowsAsked && Array.isArray(answer.data) ? told(table, answer) : answer;
+    };
+    /** A delete, judged against the statement's time before it runs, and the cascade run after the workspace's. */
+    const judged = async () => {
+      if (world.timeoutPast != null && (await reach(table, filters)) > world.timeoutPast)
+        return { data: null, error: PAST_ITS_TIME, count: null };
+      const answer = await new Promise((resolve, reject) => q.then(resolve, reject));
+      if (table === "tenants" && !answer.error)
+        cascade(world.tables, filters.find(([op, col]) => op === "eq" && col === "id")?.[2]);
+      return answer;
+    };
+    const proxy = new Proxy(q, {
       get(target, key) {
+        // The script's look at the ledger, its jobs by state: what the world says happened since the look before.
+        if (key === "in" && table === "jobs")
+          return (col, values) => {
+            if (col === "state") {
+              looks += 1;
+              for (const step of world.ledger ?? []) if (step.look === looks) moveLedger(world.tables, step);
+            }
+            target.in(col, values);
+            return proxy;
+          };
         if (key === "delete")
           return (...args) => {
             log.push(`${table} delete`);
+            deleting = true;
             if (table === "tenants" && world.tenantDeleteAnswersNone)
               return { eq: () => ({ select: async () => ({ data: [], error: null }) }) };
-            return target.delete(...args);
+            target.delete(...args);
+            return proxy;
           };
+        if (key === "then") return (...args) => (deleting ? judged() : read()).then(...args);
         const v = Reflect.get(target, key);
-        return typeof v === "function" ? v.bind(target) : v;
+        if (typeof v !== "function") return v;
+        return (...args) => {
+          if (key === "update") log.push(`${table} update`);
+          if (key === "select") rowsAsked = args[1]?.head !== true;
+          if (key === "update" || key === "insert" || key === "upsert") rowsAsked = false;
+          if (["eq", "gt", "gte", "lt", "lte", "or"].includes(key))
+            filters.push(key === "or" ? ["or", null, args[0]] : [key, args[0], args[1]]);
+          const out = v.apply(target, args);
+          // A builder's own step answers the builder; one that asks for a row (maybeSingle) answers its promise.
+          return out === q ? proxy : out;
+        };
       },
     });
+    return proxy;
   };
   return {
     from,
+    rpc: (name, args) => {
+      log.push(`rpc ${name}`);
+      return db.rpc(name, args);
+    },
     storage: {
       from: (name) => buckets[name] ?? bucket({}, {}, log, name),
     },
