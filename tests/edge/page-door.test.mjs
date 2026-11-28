@@ -5,7 +5,8 @@
  * disagreeing with main's; before this door neither reached anyone outside GitHub (the scorecard's defect 15). What is
  * proven: only the platform's key opens it, a workspace's token does not; only the closed set pages; a page goes to
  * the platform's addresses under the pager's own rules (remembered, once per six hours); and every refusal comes before
- * the database or the wire is touched.
+ * the database or the wire is touched. And the morning line, the one knock that is no alarm: a message every day with
+ * the day's count in its subject, kept in no memory and never held back.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -202,4 +203,102 @@ test("every condition a workflow pages for is one the door accepts, so a typo ca
   } finally {
     net.restore();
   }
+});
+
+/* ---- The morning line: a report, not an alarm ---- */
+
+const LINE = {
+  condition: "morning_line",
+  headline: "2 red, 4 not running, 9 green",
+  detail:
+    "Sat 28 Nov, 11:00 UTC. Main is at 10a175d15.\n\nRED, 2\nOn production:\n- The weekly AI test: red 3 runs in a row, since 8 Nov.",
+};
+
+test("the morning line goes to the platform's addresses with the day's count in its subject, every time it is sent, and leaves no row for Health to read as an alarm", async () => {
+  const tables = { operator_pages: [] };
+  const db = fakeDb(tables);
+  setPg(db);
+  const net = wire();
+  try {
+    assert.deepEqual(await answer(await knock(LINE)), [200, { ok: true, condition: "morning_line", outcome: "sent" }]);
+    // The next day's line, or a second one by hand the same morning: sent, never held back inside a window.
+    assert.deepEqual(await answer(await knock(LINE)), [200, { ok: true, condition: "morning_line", outcome: "sent" }]);
+  } finally {
+    net.restore();
+  }
+  const mail = net.mail();
+  assert.equal(mail.length, 2);
+  assert.deepEqual(mail[0].to, ["ops@platform.test"]);
+  assert.equal(mail[0].subject, "[Chanlytics] Morning line: 2 red, 4 not running, 9 green");
+  assert.equal(mail[0].text, LINE.detail, "the words are the workflow's, whole");
+  assert.deepEqual(tables.operator_pages, [], "what paged us stays the alarms: a daily line would never clear");
+  assert.equal(db.seen.length, 0, "it reads no memory");
+});
+
+test("the morning line needs no database, and its headline is one line cut to a subject's length", async () => {
+  setPg(null);
+  const net = wire();
+  try {
+    assert.equal(
+      (await answer(await knock(LINE)))[1].outcome,
+      "sent",
+      "a morning the database is down is one to hear of",
+    );
+    assert.equal((await answer(await knock({ ...LINE, headline: undefined })))[1].outcome, "sent");
+    await knock({ ...LINE, headline: `nothing red,\n nothing skipped ${"x".repeat(300)}` });
+    assert.equal(
+      (await answer(await knock({ ...LINE, detail: " " })))[0],
+      400,
+      "a line with no words is refused, as a page is",
+    );
+  } finally {
+    net.restore();
+  }
+  const subjects = net.mail().map((m) => m.subject);
+  assert.equal(subjects[0], "[Chanlytics] Morning line: 2 red, 4 not running, 9 green");
+  assert.equal(subjects[1], "[Chanlytics] Morning line", "no headline, the name alone");
+  assert.ok(subjects[2].startsWith("[Chanlytics] Morning line: nothing red, nothing skipped xxx"));
+  assert.ok(!subjects[2].includes("\n") && subjects[2].length <= "[Chanlytics] Morning line: ".length + 120);
+  assert.equal(subjects.length, 3);
+});
+
+test("a morning line that did not go out is a 503 that says which, so the workflow that sent it goes red", async () => {
+  setPg(fakeDb({ operator_pages: [] }));
+  const refusing = wire(401);
+  try {
+    const [status, said] = await answer(await knock(LINE));
+    assert.equal(status, 503, JSON.stringify(said));
+    assert.deepEqual([said.error, said.condition, said.outcome], ["unavailable", "morning_line", "failed"]);
+  } finally {
+    refusing.restore();
+  }
+  const to = process.env.LEAD_TO;
+  process.env.LEAD_TO = "";
+  const net = wire();
+  try {
+    const [status, said] = await answer(await knock(LINE));
+    assert.equal(status, 503, JSON.stringify(said));
+    assert.deepEqual([said.error, said.outcome], ["no_platform_mailbox", "unaddressed"]);
+    assert.equal(net.seen.length, 0, "nobody to send it to, nothing sent");
+  } finally {
+    process.env.LEAD_TO = to;
+    net.restore();
+  }
+});
+
+test("the morning line is the platform's key's alone, as every page is: a workspace's token is refused", async () => {
+  setPg(fakeDb({ operator_pages: [] }));
+  const net = wire();
+  try {
+    assert.deepEqual(await answer(await knock(LINE, {})), [403, { ok: false }]);
+    const token = signEdgeToken(process.env.EDGE_CALL_SECRET, AUD, {
+      workspace: null,
+      user: "u1",
+      body: JSON.stringify(LINE),
+    });
+    assert.equal((await answer(await knock(LINE, { "x-edge-token": token })))[1].error, "platform_only");
+  } finally {
+    net.restore();
+  }
+  assert.equal(net.seen.length, 0);
 });
