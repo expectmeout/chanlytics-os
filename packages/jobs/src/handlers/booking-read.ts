@@ -30,6 +30,7 @@ import {
   findAppointmentByClientStart,
   findAppointmentByKey,
   findAppointmentNotice,
+  findLastWordOnVisit,
   insertAppointment,
   keepAppointmentNotice,
   updateAppointment,
@@ -215,6 +216,7 @@ export async function runBookingRead(ctx: JobContext, job: ClaimedJob): Promise<
         return r ? stored(r) : null;
       },
       byClientStart: byClientStartOf(db, notice.tool),
+      lastWordOf: (tenantId, id) => findLastWordOnVisit(db, tenantId, id),
       insert: (a) => insertAppointment(db, appointmentRowOf(a)),
       update: (tenantId, id, patch) => updateAppointment(db, tenantId, id, patchOf(patch)),
       personFor: bookings.personFor,

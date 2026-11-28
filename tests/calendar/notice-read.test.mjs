@@ -55,6 +55,7 @@ function world(over = {}) {
     keepNotice: undefined,
     byKey: null,
     byClientStart: null,
+    lastWordOf: null,
     insert: { id: "a1" },
     update: "updated",
     personFor: "p1",
@@ -174,11 +175,27 @@ test("a change moves the live row the old time named to the new time under its n
   assert.equal(w.calls("keepNotice")[0][1].outcome, "changed");
 });
 
-test("a change with no row to move is a booking at the new time, said so", async () => {
+test("a change with no row to move is a booking at the new time, said so, and its old time kept withdrawn", async () => {
   const w = world({ ask: answer({ kind: "changed", previous_starts_at: "2026-10-07T11:00" }) });
   assert.equal(await run(w), "changed_unknown");
-  assert.equal(w.calls("insert").length, 1);
-  assert.equal(w.calls("insert")[0][1].status, "booked");
+  const [first, second] = w.calls("insert").map((c) => c[1]);
+  assert.equal(w.calls("insert").length, 2);
+  assert.deepEqual([first.status, first.startsAt], ["booked", THU_3PM]);
+  // Wednesday 11 AM in New York, the old time, kept as a cancelled row under its own key (28 Nov 2026, lane 15).
+  assert.deepEqual(
+    [second.status, second.startsAt, second.endsAt, second.externalId],
+    [
+      "cancelled",
+      "2026-10-07T15:00:00.000Z",
+      "2026-10-07T17:00:00.000Z",
+      `booksy:+13055550144:${Date.parse("2026-10-07T15:00:00.000Z")}`,
+    ],
+  );
+  assert.equal(w.calls("keepNotice")[0][1].appointmentId, "a1", "the notice is the new time's");
+  // An old time already past is not written: nothing late can book it again.
+  const past = world({ ask: answer({ kind: "changed", previous_starts_at: "2026-10-05T11:00" }) });
+  assert.equal(await run(past), "changed_unknown");
+  assert.equal(past.calls("insert").length, 1);
   // No old time stated at all: nothing is looked for by time.
   const none = world({ ask: answer({ kind: "changed" }) });
   assert.equal(await run(none), "changed_unknown");
@@ -269,7 +286,17 @@ test("REGRESSION: a time that was withdrawn and is booked again is a visit again
   const ended = { id: "a1", status: "cancelled", starts_at: THU_3PM, ends_at: THU_5PM, external_id: KEY };
   const w = world({ byKey: ended, insert: { id: "a2" } });
   assert.equal(await run(w), "booked");
-  assert.deepEqual(w.ops(), ["noticeOf", "mayRead", "ask", "personFor", "byKey", "update", "insert", "keepNotice"]);
+  assert.deepEqual(w.ops(), [
+    "noticeOf",
+    "mayRead",
+    "ask",
+    "personFor",
+    "byKey",
+    "lastWordOf",
+    "update",
+    "insert",
+    "keepNotice",
+  ]);
   assert.deepEqual(w.calls("update")[0].slice(1), [T, "a1", { externalId: `${KEY}|ended:a1` }]);
   const [, row] = w.calls("insert")[0];
   assert.equal(row.externalId, KEY);
@@ -316,4 +343,85 @@ test("a failed call is the ledger's to try again: nothing is kept for it", async
   });
   await assert.rejects(run(w), /529/);
   assert.equal(w.calls("keepNotice").length, 0);
+});
+
+/* ------------------------------------------------------------ a word that arrives late (28 Nov 2026, lane 15) */
+
+test("a booking email read after its own cancellation is the older word: the visit stays cancelled", async () => {
+  // Booked at 15:58 on 6 October, cancelled at 17:10; the booking was held (no model) and read again at 18:00.
+  const ended = {
+    id: "a1",
+    status: "cancelled",
+    starts_at: THU_3PM,
+    ends_at: THU_5PM,
+    external_id: KEY,
+    contact_id: "p1",
+  };
+  const w = world({ byKey: ended, lastWordOf: "2026-10-06T17:10:00Z" });
+  assert.equal(await run(w), "older_word");
+  assert.equal(w.calls("insert").length, 0, "no visit is written");
+  assert.equal(w.calls("update").length, 0, "and the ended row keeps its key");
+  assert.deepEqual(w.calls("lastWordOf")[0].slice(1), [T, "a1"]);
+  const [, kept] = w.calls("keepNotice")[0];
+  assert.deepEqual([kept.outcome, kept.holdReason, kept.appointmentId], ["dismissed", "not_a_booking", "a1"]);
+  // Sent after the cancellation, the same time is booked again, as it always was.
+  const again = world({ byKey: ended, lastWordOf: "2026-10-06T15:00:00Z", insert: { id: "a2" } });
+  assert.equal(await run(again), "booked");
+  assert.equal(again.calls("insert")[0][1].status, "booked");
+});
+
+test("a change read before the booking it moves: the late booking of the old time writes no second visit", async () => {
+  // The change (Wednesday 11 AM to Thursday 3 PM) is read first and finds nothing to move.
+  const change = world({
+    ask: answer({ kind: "changed", previous_starts_at: "2026-10-07T11:00" }),
+    insert: { id: "a2" },
+  });
+  assert.equal(await run(change, { id: "rcv_change", receivedAt: "2026-10-06T15:30:00Z" }), "changed_unknown");
+  const withdrawn = change.calls("insert")[1][1];
+  assert.equal(withdrawn.status, "cancelled");
+  // The booking of Wednesday 11 AM, sent at 15:00 and read after it, meets that ended row, which changed at 15:31.
+  const ended = {
+    id: "a3",
+    status: "cancelled",
+    starts_at: withdrawn.startsAt,
+    ends_at: withdrawn.endsAt,
+    external_id: withdrawn.externalId,
+    contact_id: "p1",
+  };
+  const late = world({
+    ask: answer({ starts_at: "2026-10-07T11:00", ends_at: "2026-10-07T13:00" }),
+    byKey: ended,
+    lastWordOf: "2026-10-06T15:31:00Z",
+  });
+  assert.equal(await run(late, { id: "rcv_booking", receivedAt: "2026-10-06T15:00:00Z" }), "older_word");
+  assert.equal(late.calls("insert").length, 0, "Wednesday is not booked a second time");
+});
+
+test("a move the visit's guard refuses changed nothing, and the ledger does not say it moved", async () => {
+  // Read as live, then a member said what became of it before the write: the guard refuses the move.
+  const live = {
+    id: "a1",
+    status: "booked",
+    starts_at: "2026-10-07T19:00:00.000Z",
+    ends_at: "2026-10-07T21:00:00.000Z",
+  };
+  const w = world({
+    ask: answer({ kind: "changed", previous_starts_at: "2026-10-07T15:00" }),
+    byClientStart: live,
+    update: "refused",
+  });
+  assert.equal(await run(w), "change_refused");
+  const [, kept] = w.calls("keepNotice")[0];
+  assert.deepEqual([kept.outcome, kept.holdReason, kept.appointmentId], ["dismissed", "not_a_booking", "a1"]);
+});
+
+test("a word said twice is said once: the same delivery pays nothing, and a second copy restates the visit", async () => {
+  const seen = world({ noticeOf: { outcome: "booked", holdReason: null, appointmentId: "a1" } });
+  assert.equal(await run(seen), "already");
+  assert.equal(seen.calls("ask").length, 0);
+  const live = { id: "a1", status: "booked", starts_at: THU_3PM, ends_at: THU_5PM, external_id: KEY, contact_id: "p1" };
+  const copy = world({ byKey: live });
+  assert.equal(await run(copy, { id: "rcv_10" }), "booked_again");
+  assert.equal(copy.calls("insert").length, 0, "one visit");
+  assert.equal(copy.calls("lastWordOf").length, 0, "a live visit is not asked its last word");
 });
