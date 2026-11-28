@@ -31,7 +31,7 @@ const isSend = (kind: string): kind is keyof typeof BEFORE_THE_SEND => kind in B
  * What became of the placement: `failed` (it did not go, and says so), `checking` (it may be up: its place is asked),
  * `waiting` (its own next ask is on the ledger and sends it), or `left` (it had moved on by itself).
  */
-export type PostSettled = "failed" | "checking" | "waiting" | "left";
+type PostSettled = "failed" | "checking" | "waiting" | "left";
 
 export async function settlePostJob(
   db: Db,
@@ -43,14 +43,14 @@ export async function settlePostJob(
   const postId = typeof payload.post_id === "string" ? payload.post_id : null;
   if (!postId) return "left";
   const attempt = payload.attempt === "2" ? 2 : 1;
-  const fail = async (from: readonly PostStatus[], words: string): Promise<PostSettled> =>
+  const failPost = async (from: readonly PostStatus[], words: string): Promise<PostSettled> =>
     (await movePost(db, { postId, from, to: "failed", patch: failure(words) })) ? "failed" : "left";
-  if (job.kind === "post_prepare") return fail(["queued", "preparing"], reason ?? ON_INSTAGRAM.notSent);
-  if (job.kind === "post_reconcile") return fail(["checking"], ON_INSTAGRAM.refused.unknown);
+  if (job.kind === "post_prepare") return failPost(["queued", "preparing"], reason ?? ON_INSTAGRAM.notSent);
+  if (job.kind === "post_reconcile") return failPost(["checking"], ON_INSTAGRAM.refused.unknown);
   if (!isSend(job.kind)) return "left";
   const before = BEFORE_THE_SEND[job.kind];
   const notSent = job.kind === "post_google" ? GOOGLE_SAYS.notSent : ON_INSTAGRAM.notSent;
-  if (certain) return fail([before, "publishing"], reason ?? notSent);
+  if (certain) return failPost([before, "publishing"], reason ?? notSent);
   // Checking, with the reconcile that asks its place, written together (00611 post_unanswered).
   if (await markPostUnanswered(db, postId, attempt)) return "checking";
   // Not being sent. Its own next ask, where the send wrote one before it died, sends it: a read that cannot say is
@@ -58,5 +58,5 @@ export async function settlePostJob(
   const next = await countLivePostJobs(db, { tenantId: job.tenant_id, kind: job.kind, postId, besides: job.id });
   if (next.error) throw new DbFailure(next.error, "a post's next ask");
   if ((next.count ?? 0) > 0) return "waiting";
-  return fail([before], notSent);
+  return failPost([before], notSent);
 }

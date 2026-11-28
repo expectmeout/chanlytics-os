@@ -6,7 +6,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /** What the ledger needs of the job that is running: which row it is, its kind, and what it was asked to do. */
-export interface RunningJob {
+interface RunningJob {
   id: string;
   kind: string;
   payload: Record<string, unknown>;

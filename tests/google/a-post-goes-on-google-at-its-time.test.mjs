@@ -659,3 +659,15 @@ test("whichever step the send dies after, Google is asked to post at most once, 
   assert.ok(steps.includes("out:google.post") && steps.at(-1) === "complete");
   onWire = null;
 });
+
+test("everything stopped while the post waited on the ledger: at its time it is held in words, and Google is asked nothing", async () => {
+  const ledger = await onTheLedger();
+  // Stop everything, pressed after the post was queued and before its job ran.
+  ledger.w.tables.tenants[0].sending_stopped_at = new Date().toISOString();
+  const run = await ledger.run();
+  assert.equal(postAsks(), 0, "what was true when it was queued is asked again when it runs");
+  assert.equal(ledger.w.post().status, "held");
+  assert.equal(ledger.w.post().held_reason, ON_INSTAGRAM.held.stopped);
+  assert.equal(run.steps.at(-1), "complete", "the job is done: there was nothing to send");
+  onWire = null;
+});
