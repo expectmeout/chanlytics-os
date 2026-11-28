@@ -250,6 +250,22 @@ test("only what is this workspace's and understood is touched: another's objects
   );
 });
 
+test("the step has a time: once it has come, no workspace is begun and nothing on the shelf is touched", async () => {
+  const file = madeVideo();
+  theWeb();
+  const w = theWorld({ files: [file] });
+  await shelveNow(w, file, videoBytes(1));
+  const orphan = randomUUID();
+  strand(w, orphan);
+  // A pass that began long ago: this step's time is spent before its first workspace.
+  assert.equal(await keepShelfTrue(w.db, Date.now() - 60_000), 0);
+  assert.deepEqual(listsAsked(w), [], "the shelf is not even asked");
+  assert.ok(w.onShelf(orphan));
+  // In its time, the same shelf is mended.
+  assert.equal(await keepShelfTrue(w.db, Date.now()), 1);
+  assert.equal(w.onShelf(orphan), undefined);
+});
+
 test("a few workspaces a pass, and every workspace in its turn; one whose switch is off is never asked about", async () => {
   theWeb();
   const w = theWorld({ files: [] });

@@ -19,7 +19,8 @@
  * Nothing is judged by half an answer: a list that could not be had whole (no answer, a relay older than the list)
  * leaves the workspace as it is and ends the step for this pass, and rows past what one read holds are a refusal, not
  * a part. A key under the workspace's name that is no file's is said and never touched. Bounded by count and by time:
- * it runs inside the health sweep.
+ * it runs inside the health sweep, so once its time has come no workspace is begun, no page of a list asked for and
+ * no mend started; what is left waits for its next turn.
  */
 import { listShelf, removeFromShelf, type Shelf } from "@chanlytics/channels/files";
 import { MIN_MS, SECOND_MS, type TenantId } from "@chanlytics/contracts";
@@ -36,7 +37,7 @@ type Db = SupabaseClient<Database>;
 const SHELF_COMPARE = {
   /** The workspaces one pass compares. */
   aSweep: 10,
-  /** No workspace is begun once the step has run this long. */
+  /** Nothing is begun once the step has run this long: no workspace, no page of a list, no mend. */
   mostMs: 5 * SECOND_MS,
   /** The most objects taken off, and the most copies asked after, in one workspace a pass: the rest wait their turn. */
   mendsAWorkspace: 20,
@@ -86,21 +87,29 @@ async function askAfterBare(db: Db, video: { tenantId: TenantId; fileId: string 
   return (await askShelf(db, video, log)) === "put_back";
 }
 
-/** One workspace's shelf compared with its rows and mended; null where the shelf's list could not be had whole. */
-async function compare(db: Db, shelf: Shelf, tenantId: TenantId): Promise<Mended | null> {
+/**
+ * One workspace's shelf compared with its rows and mended, while the step has time (`until`); null where the shelf's
+ * list could not be had whole.
+ */
+async function compare(db: Db, shelf: Shelf, at: { tenantId: TenantId; until: number }): Promise<Mended | null> {
+  const { tenantId, until } = at;
   const log = logger({ tenant_id: tenantId });
   // The rows first, the list second: see the head of this file.
   const rows = await listShelfCopies(db, tenantId);
-  const listed = await listShelf(shelf, tenantId);
+  const listed = await listShelf(shelf, tenantId, {}, until);
   if (!listed.ok) return null;
   const named = new Set(rows.map((row) => row.fileId));
   const onShelf = new Set(listed.files);
   const mended: Mended = { removed: 0, putBack: 0 };
-  for (const fileId of listed.files.filter((id) => !named.has(id)).slice(0, SHELF_COMPARE.mendsAWorkspace))
+  for (const fileId of listed.files.filter((id) => !named.has(id)).slice(0, SHELF_COMPARE.mendsAWorkspace)) {
+    if (Date.now() >= until) return mended;
     if (await takeOff(db, shelf, { tenantId, fileId }, log)) mended.removed += 1;
+  }
   const bare = rows.filter((row) => row.state === "checked" && !onShelf.has(row.fileId));
-  for (const row of bare.slice(0, SHELF_COMPARE.mendsAWorkspace))
+  for (const row of bare.slice(0, SHELF_COMPARE.mendsAWorkspace)) {
+    if (Date.now() >= until) return mended;
     if (await askAfterBare(db, { tenantId, fileId: row.fileId }, log)) mended.putBack += 1;
+  }
   if (listed.other > 0) log.warn("file_shelve_failed", { why: "unknown_keys", keys: listed.other });
   return mended;
 }
@@ -117,7 +126,7 @@ export async function keepShelfTrue(db: Db, nowMs = Date.now()): Promise<number>
   for (const tenantId of await workspacesOf(db, nowMs)) {
     if (Date.now() >= until) break;
     try {
-      const mended = await compare(db, shelf, tenantId);
+      const mended = await compare(db, shelf, { tenantId, until });
       if (!mended) break;
       mends += mended.removed + mended.putBack;
     } catch (failure) {

@@ -237,4 +237,13 @@ test("half a list is no list: no answer, an older relay, no shelf, or a page tha
   );
   assert.deepEqual(await listShelf(SHELF, TENANT, cut), { ok: false });
   assert.equal(asked, 2);
+  // And a caller whose time has come before a page is asked for: no page is asked, and nothing is answered.
+  let late = 0;
+  const never = answering(() => {
+    late += 1;
+    return page({ files: [FILE], other: 0, more: false, cursor: null });
+  });
+  assert.deepEqual(await listShelf(SHELF, TENANT, never, Date.now() - 1), { ok: false });
+  assert.equal(late, 0);
+  assert.deepEqual(await listShelf(SHELF, TENANT, never, Date.now() + 60_000), { ok: true, files: [FILE], other: 0 });
 });

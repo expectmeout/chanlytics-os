@@ -192,12 +192,14 @@ function listPageOf(reply: ProviderReply): { files: string[]; other: number; nex
  * What one workspace's shelf holds: the ids of the files with an object there, every page of them, and how many keys
  * under its name are no file's. `ok: false` where the whole list could not be had (no answer, a relay with no shelf or
  * older than the list, a page that is not one, more pages than a shelf holds): half a list is never answered, since
- * what is missing from it would read as missing from the shelf.
+ * what is missing from it would read as missing from the shelf. No page is asked for once `untilMs` has come, where
+ * the caller has a time to keep: a list cut short by the clock is no answer either.
  */
 export async function listShelf(
   shelf: Shelf,
   tenantId: string,
   deps: ModelDeps = {},
+  untilMs: number | null = null,
 ): Promise<{ ok: true; files: string[]; other: number } | { ok: false }> {
   const base = new URL(shelf.relayUrl);
   if (base.protocol !== "https:") throw new Error("the relay is reached over https");
@@ -210,6 +212,7 @@ export async function listShelf(
   let other = 0;
   let cursor: string | null = null;
   for (let page = 0; page < LIST_PAGES_MAX; page += 1) {
+    if (untilMs !== null && nowOf(deps) >= untilMs) return { ok: false };
     const address = new URL("/shelf/list", base);
     if (cursor) address.searchParams.set("cursor", cursor);
     const reply = await fetchFromProvider(
