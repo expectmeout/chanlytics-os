@@ -530,3 +530,88 @@ no Missed, no Past (`visitLineOf`'s `someone`). A match is said where it is a gu
 booking linked to its person by its own row says so (`record`, "linked on the booking"), never "matched by email". The
 panel became the kit's sheet on a phone and a peek on a desk, at its own address (`calendar/<view>:<day>:a-<id>`), with
 one act by how the visit stands and the rest under More (contracts `visitSheetOf`).
+
+## An appointment's whole life, read against this decision (28 Nov 2026)
+
+Lane 15 of the whole-system plan (R3.21, the appointment rows of R2.24) read every step of a visit's life on main at
+`c2cc86a33f` and held each to a test. For each step: the door that writes it, the event it says, what the reminders do,
+what the customer is told and what the owner sees. The tests are named under each step; every one runs the code.
+
+**Proposed** (asked for, never confirmed).
+
+- Doors: `booking_request_open` (a text the receptionist answers, 00443/00679), `form_time_request_take` (a form,
+  00691/00704). From 00730 both refuse a time another live visit holds (`appointments_time_taken`, one lock per
+  workspace): of two people who pick the last time at once, one is given it.
+- Event: `appointment.changed` added, by the service.
+- Reminders: none. A request joins no pool and no reminder is drawn for it.
+- The customer: the reply says the team will confirm. A request nobody answers runs out after 23 hours (never past an
+  hour before it) and AI tells them once (00679). A time taken a moment before by another booking leaves the owner a
+  reply to write, its line saying so.
+- The owner: Requested, with Booked it and Can't, on Today, the Inbox and the Calendar; a nudge two hours before it runs
+  out.
+- Tests: `tests/calendar/booking-requests/` (`the-last-slot-is-given-once.db.test.mjs` for the races).
+
+**Booked**.
+
+- Doors: `booking_request_answer` (Booked it, a member's), the booking tool's email (`booking_read`, the service's),
+  the calendar feed (`appointments_feed_sync`).
+- Event: `appointment.changed` added or confirmed; the booking's arrival stamped on its visit (0141).
+- Reminders: the day before (`visit_tomorrow`, by the calendar's day), two hours before (`visit_soon`, 0119), and a
+  booking that lands after the day's look reminded on its own (0118: 8 PM the evening before, or the morning of).
+- The customer: Booked it writes their confirmation into the box for the owner to send; the reminders above.
+- The owner: the bell for a customer's booking, Today's booked figure, the Calendar's block.
+- Tests: `tests/calendar/booking-requests/`, `tests/campaigns/late-reminders/`, `tests/time/a-week-the-clocks-change.test.mjs`.
+
+**Moved**.
+
+- Doors: the booking tool's change email, the calendar feed. A member has no door to move a visit: it is changed with
+  the customer in their conversation, and the tool or the calendar says the new time.
+- Event: `appointment.changed` moved, with the time it left (`was_at`), which the freed-time offer reads (0082).
+- Reminders: one drawn for the old time is held at the send (`appointmentHolds`); the new time is reminded by the next
+  day's look, or by 0118 when it lands after it.
+- The customer: told nothing by Chanlytics; the tool or the business told them.
+- The owner: the block at its new time.
+- A word that arrives late (lane 15, 28 Nov 2026): a change read before the booking it moves keeps its old time
+  withdrawn, so the late booking of the old time writes no second visit; a move the visit's guard refuses is not
+  written to the ledger as a move.
+- Tests: `tests/calendar/notice-read.test.mjs`, `tests/calendar/appointments/a-queued-reminder-asks-its-visit-again.test.mjs`.
+
+**Cancelled**.
+
+- Doors: `mark_visit` cancelled (a member, until the visit ends), Can't (`booking_request_answer`), the booking tool's
+  cancellation email, a newer request by the same person. The calendar feed never cancels: a visit it stops naming is
+  vanished. A request that ran out says lapsed, never cancelled.
+- Event: `appointment.changed` cancelled (or lapsed), with whose word it was.
+- Reminders: every one already queued is held at the send.
+- The customer: Can't leaves a reply owed, which the Inbox drafts as an offer of the next open times; a member's cancel
+  on the board tells the customer nothing by itself.
+- The owner: the block struck through; the time offered to people who asked this month (0082), for a cancellation by
+  the service.
+- A word that arrives late: a booking email sent before its own cancellation, read after it, leaves the visit
+  cancelled (it booked it again until 28 Nov 2026).
+- Tests: `tests/calendar/notice-read.test.mjs`, `tests/calendar/appointments/a-member-says-what-became-of-a-visit.db.test.mjs`.
+
+**Not come** (missed) and **done** (kept).
+
+- Door: `mark_visit`, a member's, once the visit has begun; kept and missed may be corrected one into the other. The
+  sweep never stores kept (answer 3).
+- Event: `appointment.changed` kept or missed.
+- Reminders: the thank-you the day after waits for kept (0123); a missed visit holds every reminder and may enrol its
+  person in a win-back the owner runs (0119), asked or vetoed by default.
+- The customer: nothing by itself; only through a moment the owner runs.
+- The owner: Kept or Missed on the visit line; an ended visit nobody marked reads Past, and Today asks "Did they come?".
+- Tests: `tests/calendar/appointments/a-member-says-what-became-of-a-visit.db.test.mjs`, `tests/campaigns/late-reminders/a-late-kept-is-thanked.test.mjs`.
+
+**Not built, and named for Ruben.**
+
+1. **A member's own visit (source `person`).** This decision settles the source ("somebody typing one in through a
+   `route()`-declared write") and the table allows it, but no door, route or page writes one: a member books a visit in
+   their calendar or their tool. The question: build Add a visit on the Calendar now, drawn first for your look?
+2. **Arrived.** The brief's life has a step between booked and done: the customer is here. This decision has none (kept
+   is "it happened"), and nothing marks a visit in progress. The question: is a check-in worth a step of its own (a
+   word on the board when they walk in, which kept then follows), or is kept enough?
+3. **A taken time told by AI.** A customer whose time another booking took a moment before was told the team will
+   confirm; the owner is asked to reply with another time. The question: should AI tell them itself, at once, with
+   the next open time, as it tells a request that ran out?
+4. **A member's cancel told to the customer.** Cancelling on the board writes nothing to the customer. The question:
+   should the board's Cancel draft them a message, as Can't does?
