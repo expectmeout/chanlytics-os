@@ -109,7 +109,7 @@ async function beginLate(db: Db, video: { tenantId: TenantId; fileId: string }):
 }
 
 /** What is owed, begun: each through its own door, one at a time, while the step has time. */
-async function begin(db: Db, owed: ShelfOwed, until: number): Promise<CaughtUp> {
+async function beginWhatIsOwed(db: Db, owed: ShelfOwed, until: number): Promise<CaughtUp> {
   const done: CaughtUp = { begun: 0, again: 0, unkept: 0 };
   const said = (video: { tenantId: TenantId; fileId: string }) => (failure: unknown) => {
     logger({ tenant_id: video.tenantId }).error("files_sweep_failed", {
@@ -145,7 +145,7 @@ export async function keepShelfCaughtUp(db: Db, nowMs = Date.now()): Promise<num
   });
   if (!owed) return 0;
   const log = logger({});
-  const done = await begin(db, owed, nowMs + SHELF_CATCH_UP.mostMs);
+  const done = await beginWhatIsOwed(db, owed, nowMs + SHELF_CATCH_UP.mostMs);
   // One that needed the floor is a line: a made video's copy should be begun as it is made.
   if (done.begun + done.again + done.unkept > 0) log.warn("file_shelve_failed", { why: "never_begun", ...done });
   // A full shelf, said every pass it holds a video back: the limit is the platform's own, and nobody else is told.
