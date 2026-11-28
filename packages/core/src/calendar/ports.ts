@@ -115,6 +115,12 @@ export interface BookingNoticePorts {
     startMs: number,
     withinMs: number,
   ): Promise<StoredAppointment | null>;
+  /**
+   * When the newest word about a visit was sent (ISO): the latest booking, change or cancellation the ledger keeps for it,
+   * by when its email was received; else when the row last changed (a member's word, or an old time a change withdrew);
+   * null for no row. A notice sent before it is the older word, and leaves the visit as it stands.
+   */
+  lastWordOf(tenantId: TenantId, appointmentId: string): Promise<string | null>;
   insert(row: NewAppointment): Promise<{ id: string }>;
   /** "refused" when the row's guard would not take the move (a finished appointment cancelled): nothing changed. */
   update(tenantId: TenantId, id: string, patch: AppointmentPatch): Promise<"updated" | "refused">;

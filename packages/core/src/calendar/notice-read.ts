@@ -20,6 +20,13 @@
  * cancels Thursday at three and books Thursday at three again states the key of a row that has ended, and a row that
  * has ended does not come back (the table's guard). The ended row leaves the key (asideKey) and the visit is written
  * anew under it, for a time still ahead: left as it was, the time would be offered to someone else.
+ *
+ * A word that arrives late (28 Nov 2026, lane 15). Emails are not always delivered, or read, in the order they were
+ * sent: a booking held for a person and read again after its own cancellation, or a change read before the booking it
+ * moves. A notice is judged by when it was sent against the newest word kept for the visit (lastWordOf): a booking sent
+ * before the cancellation that ended its row is the older word, and the visit stays cancelled, where it was booked
+ * again. And a change that finds nothing to move keeps its old time as withdrawn, so the booking of that time, read
+ * after it, meets an ended row and an older word rather than an empty key it would book a second visit under.
  */
 import {
   appointmentKey,
@@ -59,6 +66,10 @@ export type ReadBookingNoticeOutcome =
   | "cancelled"
   | "cancelled_unknown"
   | "cancel_refused"
+  // A booking or change sent before the newest word kept for its ended visit: the visit stays as that word left it.
+  | "older_word"
+  // A move the visit's guard refused: a member said what became of it in the moment between the read and the write.
+  | "change_refused"
   // A tool's email about no booking: on the ledger, and nobody's to look at.
   | "set_aside"
   | `held:${NoticeHold}`;
@@ -144,7 +155,27 @@ export async function readBookingNotice(
     return outcome;
   };
 
-  const visit: Visit = { tenantId, key, r: reading, fresh, stated, ahead: reading.start > nowMs };
+  // The old time a change names, as the cancelled row that keeps it withdrawn: only one still ahead.
+  const previous = reading.previousStart;
+  const oldTime =
+    reading.kind === "changed" && previous !== null && previous > nowMs
+      ? {
+          ...fresh("cancelled"),
+          externalId: appointmentKey(tool, reading.client, previous),
+          startsAt: new Date(previous).toISOString(),
+          endsAt: new Date(previous + (reading.end - reading.start)).toISOString(),
+        }
+      : null;
+  const visit: Visit = {
+    tenantId,
+    key,
+    r: reading,
+    fresh,
+    stated,
+    ahead: reading.start > nowMs,
+    sentMs: Date.parse(receivedAt) || nowMs,
+    oldTime,
+  };
   if (reading.kind === "booked") return keep(...(await booked(ports, visit)));
   if (reading.kind === "changed") return keep(...(await changed(ports, visit)));
   return keep(...(await cancelled(ports, visit)));
@@ -170,6 +201,10 @@ type Visit = {
   fresh: (s: NewAppointment["status"]) => NewAppointment;
   stated: Stated;
   ahead: boolean;
+  /** When the notice was sent, as its email was received (epoch ms): what a late word is told apart by. */
+  sentMs: number;
+  /** For a change with an old time still ahead, that time as a cancelled row of its own; else null. */
+  oldTime: NewAppointment | null;
 };
 
 /**
@@ -179,7 +214,8 @@ type Visit = {
  * reason (appointment_notices_check), so it carries the one the read sets aside with.
  */
 function ledgerOutcomeOf(outcome: Written[0]): { outcome: NoticeOutcome; holdReason: NoticeHold | null } {
-  if (outcome === "cancel_refused") return { outcome: "dismissed", holdReason: "not_a_booking" };
+  if (outcome === "cancel_refused" || outcome === "change_refused" || outcome === "older_word")
+    return { outcome: "dismissed", holdReason: "not_a_booking" };
   const sentence = outcome.startsWith("booked") ? "booked" : outcome.startsWith("changed") ? "changed" : "cancelled";
   return { outcome: sentence, holdReason: null };
 }
@@ -197,11 +233,26 @@ async function bookedAgainOver(
   return (await ports.insert(fresh("booked"))).id;
 }
 
-/** A booking: the row under its key restated, else written; a time that was withdrawn and is ahead, booked anew. */
+/**
+ * Whether this notice was sent before the newest word kept for a visit that has ended (lastWordOf): then it is the older
+ * word, and the visit stays as the newer one left it. A visit no word is kept for is no newer word.
+ */
+async function hasNewerWord(ports: BookingNoticePorts, visit: Visit, ended: StoredAppointment): Promise<boolean> {
+  const last = await ports.lastWordOf(visit.tenantId, ended.id);
+  return last !== null && visit.sentMs <= Date.parse(last);
+}
+
+/**
+ * A booking: the row under its key restated, else written; a time that was withdrawn and is ahead, booked anew, unless
+ * the withdrawal was the later word.
+ */
 async function booked(ports: BookingNoticePorts, visit: Visit): Promise<Written> {
   const { tenantId, key, r, fresh, stated } = visit;
   const have = await ports.byKey(tenantId, key);
-  if (have && have.status === "cancelled" && visit.ahead) return ["booked", await bookedAgainOver(ports, visit, have)];
+  if (have && have.status === "cancelled" && visit.ahead) {
+    if (await hasNewerWord(ports, visit, have)) return ["older_word", have.id];
+    return ["booked", await bookedAgainOver(ports, visit, have)];
+  }
   if (have) {
     // The same visit said again (a repeat, a forward beside the tool's own copy): what it restates, restated; a hold
     // the tool now confirms, booked. A row past its visit is left as it ended.
@@ -237,22 +288,39 @@ async function changed(ports: BookingNoticePorts, visit: Visit): Promise<Written
       }
       await ports.update(tenantId, already.id, { externalId: asideKey(key, already) });
     }
-    await ports.update(tenantId, moved.id, { ...stated, ...at, externalId: key, status: "booked" });
-    return ["changed", moved.id];
+    const done = await ports.update(tenantId, moved.id, { ...stated, ...at, externalId: key, status: "booked" });
+    return [done === "refused" ? "change_refused" : "changed", moved.id];
   }
   const have = await ports.byKey(tenantId, key);
-  if (have && have.status === "cancelled" && visit.ahead)
-    return ["changed_unknown", await bookedAgainOver(ports, visit, have)];
+  if (have && have.status === "cancelled" && visit.ahead) {
+    if (await hasNewerWord(ports, visit, have)) return ["older_word", have.id];
+    const again = await bookedAgainOver(ports, visit, have);
+    await keepOldTimeWithdrawn(ports, visit);
+    return ["changed_unknown", again];
+  }
   if (have) {
     await ports.update(tenantId, have.id, {
       ...stated,
       ...at,
       ...(have.status === "proposed" ? { status: "booked" as const } : {}),
     });
+    await keepOldTimeWithdrawn(ports, visit);
     return ["changed_unknown", have.id];
   }
   const created = await ports.insert(fresh("booked"));
+  await keepOldTimeWithdrawn(ports, visit);
   return ["changed_unknown", created.id];
+}
+
+/**
+ * A change that found nothing to move still says its old time was withdrawn: kept as a cancelled row under that time's
+ * key, so a booking of the old time that arrives after it (sent before, delivered or read late) meets an ended row and
+ * an older word, and is not written as a second visit. Only an old time still ahead, and only where no row has its key.
+ */
+async function keepOldTimeWithdrawn(ports: BookingNoticePorts, visit: Visit): Promise<void> {
+  const old = visit.oldTime;
+  if (!old || (await ports.byKey(visit.tenantId, old.externalId))) return;
+  await ports.insert(old);
 }
 
 /** A cancellation: the row the time names ends; with none, the fact is kept as a cancelled row, so it is not lost. */

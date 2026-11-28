@@ -58,6 +58,7 @@ export {
   findAppointmentNoticeById,
   findAppointmentNotices,
   findHeldNoticeKeys,
+  findLastWordOnVisit,
   hasMemberAddress,
   holdNoticeIfUnkept,
   keepAppointmentNotice,

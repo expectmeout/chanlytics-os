@@ -44,6 +44,34 @@ export async function keepAppointmentNotice(db: Db, row: AppointmentNoticeInsert
 }
 
 /**
+ * When the newest word about a visit was sent: the latest booking, change or cancellation the ledger keeps for it, by
+ * when its email was received; else when the visit's row last changed (a member's word, or an old time a change kept
+ * withdrawn); null where there is no such row. How the booking_read job tells a late email from a newer word (core
+ * readBookingNotice, lastWordOf). A failed read throws, so the job's retry meets it.
+ */
+export async function findLastWordOnVisit(db: Db, tenantId: TenantId, appointmentId: string): Promise<string | null> {
+  const notice = await db
+    .from("appointment_notices")
+    .select("received_at")
+    .eq("tenant_id", tenantId)
+    .eq("appointment_id", appointmentId)
+    .in("outcome", ["booked", "changed", "cancelled"])
+    .order("received_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (notice.error) throw new DbFailure(notice.error, "appointment_notice_last_word");
+  if (notice.data) return notice.data.received_at;
+  const row = await db
+    .from("appointments")
+    .select("updated_at")
+    .eq("tenant_id", tenantId)
+    .eq("id", appointmentId)
+    .maybeSingle();
+  if (row.error) throw new DbFailure(row.error, "appointment_last_change");
+  return row.data?.updated_at ?? null;
+}
+
+/**
  * A notice held for a person unless the ledger already keeps one for it (a read that ended, or a hold its own last try
  * wrote): what the job ledger leaves when a booking_read run died on its last claim (packages/jobs settle.ts), so the
  * delivery is never only a failed job. It never overwrites what a read wrote. True when it kept the hold.
