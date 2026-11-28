@@ -15,6 +15,8 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     tenant_id: DOOR_ID.optional(),
     user_id: DOOR_ID.optional(),
     code: z.string().optional(),
+    /** `copy`: the video a draft came to show, whose copy at the video platform is asked back. */
+    file_id: DOOR_ID.optional(),
     /** `choose`: the platform's id of the account the owner meant. */
     external_id: z.string().optional(),
     /** `disconnect`: whether the ads that are running are paused first. */
@@ -34,6 +36,9 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     writes: z.string(),
     /** `disconnect`: the ads left running, or the ones a pause could not be confirmed for (`not_paused`). */
     names: z.array(z.string()),
+    /** `copy`: where the video's copy stands once asked for (contracts files/copy.ts), and why where it can't come back. */
+    copy: z.string(),
+    why: z.string().nullable(),
     /** `place`: Meta's places by that name, best first, each with its key and where it is. */
     places: z.array(
       z.object({
