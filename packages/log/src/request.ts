@@ -8,7 +8,7 @@
  * it. The store lives on globalThis under a registered symbol, the way AppError's brand is recognised by every copy of
  * contracts.
  *
- * A request is named by `withRequestId` (logger.ts, over `serveAs`), which runs the work inside the name (AsyncLocalStorage.run): the name holds
+ * A request is named by `withRequestId` (logger.ts, over `runNamed`), which runs the work inside the name (AsyncLocalStorage.run): the name holds
  * for what that work awaits and ends when it returns. Nothing here enters a name for the rest of an execution
  * (enterWith), so a request can never lend its name to the next one an instance serves.
  */
@@ -28,7 +28,7 @@ interface Serving {
   purpose?: string;
   /** Which try of its work this is (a job's attempt, 1 on its first run): an outside call asks once on a later one. */
   attempt?: number;
-  /** Its calls to services outside our own two apps, by provider (`noteOutsideCall`): what its one line says (logger.ts). */
+  /** Its calls to services outside our own two apps, by provider (`noteTiming`'s `outside`): what its one line says (logger.ts). */
   calls?: Map<string, RequestTiming>;
 }
 
@@ -53,7 +53,7 @@ const serving: AsyncLocalStorage<Serving> = (requestHolder[REQUEST_SLOT] ??= new
  * Run `fn` as the unit of work named `id`, with what it says of itself: the store it runs in, handed to `ended` once
  * the work has settled, its answer or failure unchanged. logger.ts's `withRequestId` is the one caller.
  */
-export async function serveAs<T>(
+export async function runNamed<T>(
   id: string,
   about: ServingAbout,
   fn: () => Promise<T>,
@@ -104,6 +104,8 @@ export function requestAttempt(): number | null {
 
 /** How many providers one unit of work keeps the calls of. */
 const CALLS_HELD = 24;
+/** How many names one request keeps the time of. */
+const TIMINGS_HELD = 32;
 
 /** One more share under a name, added up and counted; past `held` names a new one is not kept. */
 function addShare(shares: Map<string, RequestTiming>, name: string, ms: number, held: number): void {
@@ -115,28 +117,17 @@ function addShare(shares: Map<string, RequestTiming>, name: string, ms: number, 
 }
 
 /**
- * One call to a service outside our own two apps, said by the provider door (channels provider-fetch) after it: added up
- * by provider, so the work's one line says what it spent where (`outside_calls`, logger.ts), under its workspace and
- * purpose. Outside a named unit of work it does nothing.
+ * A share of the request's time, said where it was spent: the database client after each call, a reader after each read,
+ * the provider door after each call out. Durations add up under one name and are counted, so `db` is every call and how
+ * many. A call to a service outside our own two apps names its provider too (`outside`): the work's one line adds them
+ * up by provider, under its workspace and purpose (`outside_calls`, logger.ts). Outside a request it does nothing, and it
+ * never holds more than a few dozen names: past that a new name is not kept.
  */
-export function noteOutsideCall(provider: string, ms: number): void {
-  const store = serving.getStore();
-  if (!store || !Number.isFinite(ms) || ms < 0) return;
-  addShare((store.calls ??= new Map<string, RequestTiming>()), provider, ms, CALLS_HELD);
-}
-
-/** How many names one request keeps the time of. */
-const TIMINGS_HELD = 32;
-
-/**
- * A share of the request's time, said where it was spent: the database client after each call, a reader after each read.
- * Durations add up under one name and are counted, so `db` is every call and how many. Outside a request it does
- * nothing, and it never holds more than a few dozen names: past that a new name is not kept.
- */
-export function noteTiming(name: string, ms: number): void {
+export function noteTiming(name: string, ms: number, outside?: string): void {
   const store = serving.getStore();
   if (!store || !Number.isFinite(ms) || ms < 0) return;
   addShare((store.timings ??= new Map<string, RequestTiming>()), name, ms, TIMINGS_HELD);
+  if (outside) addShare((store.calls ??= new Map<string, RequestTiming>()), outside, ms, CALLS_HELD);
 }
 
 /** Where the request running now has spent its time so far, by name; none outside a request. */
