@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
+import { until } from "../../shared/_until.mjs";
 import { bridgeHolds, provided, surfaceValue } from "../_bridge-holds.mjs";
 import { GLOW, HARBOR, aMorningInHarbor, tabWorld } from "./_tab-world.mjs";
 
@@ -26,8 +27,8 @@ test("a sign-out leaves nothing of the workspace or of the person's words in the
 
   installShell(world.win);
   provided("shell").signOut();
-  // The form is posted on a later turn where the phone app has something to forget first; here it goes at once or next.
-  await new Promise((posted) => setImmediate(posted));
+  // The form is posted once the phone app has forgotten the phone, where there is one: at once here, or a turn on.
+  await until(() => world.posted.length > 0, "the sign-out's form posted");
   assert.deepEqual(world.posted, ["/auth/signout"], "the session is ended by the form");
 
   // A read lands before the page unloads, and the hide writes what waits.
