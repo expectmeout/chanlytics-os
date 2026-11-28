@@ -7,23 +7,66 @@
  * its own, they are said from the reads Ads opens on, where a load of Content read them beside its own
  * (bridge/surfaces/ads-first-reads.ts): so the Ads tab says its figure with Made's and the Library's at the first draw, where
  * it came 2.7 s after them (Ruben, 26 Nov 2026). None before either; an ad paused on purpose has no need, and is never
- * counted. It is this workspace's: another is opened by loading its page (bridge/surface-data.ts switchWorkspace), which
- * starts this again, so the strip's chrome may read it without the bridge (no import circle through the routes: the first
- * reads are a leaf).
+ * counted.
+ *
+ * Whose they are (the review of 28 Nov 2026, R2.10): one workspace's, kept with the workspace the address named as they were
+ * noted, and said only while the address still names it. A switch of workspace loads the page again today
+ * (bridge/surface-data.ts switchWorkspace), which starts this again; were one ever not to, another workspace's counts are
+ * not this one's, and nothing is said until its own are read. The strip's chrome may read this without the bridge (no
+ * import circle through the routes: the first reads are a leaf), so the workspace is read off the address here.
  */
 import { useSyncExternalStore } from "react";
 import type { AdsLiveDto } from "@chanlytics/contracts";
-import { adsFirstPage, adsFirstReadIn } from "@/bridge/surfaces/ads-first-reads";
+import { adsFirstAnswer } from "@/bridge/surfaces/ads-first-reads";
 import { adsListedOf } from "./live/listed";
 
-/** The count as the Ads page last read it on this page; null before it has. */
-let noted: number | null = null;
-/** How many ads its list holds, as the Ads page last read them, for the Ads tab's figure; null before it has. */
-let adsListed: number | null = null;
-/** Whether the reads made ahead of the Ads tab's press came back with no figure to say (warm.ts noteAdsUnlisted). */
-let adsUnlisted = false;
+/**
+ * The workspace the address names (`/w/<slug>`), as the bridge reads it (bridge/workspace.ts pathWorkspace, which this tree's
+ * chrome can't import: the routes it reads import this): whose counts, filter and find line these are. Null off a workspace
+ * page, or outside a browser.
+ */
+export function adsWorkspaceNow(): string | null {
+  if (typeof window === "undefined" || !window.location) return null;
+  const named = /^\/w\/([^/?#]+)/.exec(window.location.pathname ?? "")?.[1];
+  if (!named) return null;
+  try {
+    return decodeURIComponent(named) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** One workspace's counts, as the Ads page last read them on this page: each null before it has. */
+interface AdsNoted {
+  workspace: string | null;
+  /** How many things in Ads needed the owner. */
+  needing: number | null;
+  /** How many ads its list holds, for the Ads tab's figure. */
+  listed: number | null;
+  /** Whether the reads made ahead of the Ads tab's press came back with no figure to say (warm.ts noteAdsUnlisted). */
+  unlisted: boolean;
+}
+
+let noted: AdsNoted = { workspace: null, needing: null, listed: null, unlisted: false };
 /** Who hears the counts change: the strip, and the Ads tab. */
 const hearers = new Set<() => void>();
+
+/** The counts noted for the workspace on screen; none of another's. */
+function notedHere(): AdsNoted {
+  const workspace = adsWorkspaceNow();
+  return noted.workspace === workspace ? noted : { workspace, needing: null, listed: null, unlisted: false };
+}
+
+/** One count noted for the workspace on screen, and each that hears them told of a change. */
+function keepCount(part: "needing" | "listed", count: number): void {
+  const mine = notedHere();
+  if (mine[part] === count) return;
+  noted = { ...mine, [part]: count };
+  for (const tell of [...hearers]) tell();
+}
+
+/** The ads the first reads hold for the workspace on screen, before its page has noted its own; none of another's. */
+const firstPageHere = (): AdsLiveDto | null => adsFirstAnswer(adsWorkspaceNow())?.page ?? null;
 
 /** What needs the owner in an Ads read: the account Meta signed out, once, else each ad with a need of its own. */
 export const adsNeedingOf = (dto: AdsLiveDto): number =>
@@ -31,29 +74,30 @@ export const adsNeedingOf = (dto: AdsLiveDto): number =>
 
 /** How many things in Ads needed the owner as the Ads page last read them, else as Ads' first reads hold them; 0 before. */
 export const adsNeedingNow = (): number => {
-  if (noted !== null) return noted;
-  const first = adsFirstPage();
+  const mine = notedHere().needing;
+  if (mine !== null) return mine;
+  const first = firstPageHere();
   return first ? adsNeedingOf(first) : 0;
 };
 
 /**
- * How many ads the Ads tab says: as the Ads page last read them, else as Ads' first reads hold them. Before either, `null`:
- * the figure is on its way, and the tab keeps its room (the kit's SubTab `count: null`), so the strip does not move as it
- * lands a moment after a press from another of Campaigns' views (Ruben, 28 Nov 2026). And none at all (`undefined`) where the
- * reads answered with no page, no account ever connected, or could not be made: the tab then keeps no room for one.
+ * How many ads the Ads tab says: as the Ads page last read them, else as Ads' first reads hold them, for the workspace on
+ * screen. Before either, `null`: the figure is on its way, and the tab keeps its room (the kit's SubTab `count: null`), so
+ * the strip does not move as it lands a moment after a press from another of Campaigns' views (Ruben, 28 Nov 2026). And
+ * none at all (`undefined`) where the reads answered with no page, no account ever connected, or could not be made: the
+ * tab then keeps no room for one.
  */
 const adsListedNow = (): number | null | undefined => {
-  if (adsListed !== null) return adsListed;
-  const first = adsFirstPage();
-  if (first) return adsListedOf(first);
-  return adsUnlisted || adsFirstReadIn() ? undefined : null;
+  const mine = notedHere();
+  if (mine.listed !== null) return mine.listed;
+  const first = adsFirstAnswer(adsWorkspaceNow());
+  if (first?.page) return adsListedOf(first.page);
+  return mine.unlisted || first ? undefined : null;
 };
 
 /** Kept as the Ads page reads its ads, for the strip and Made's views to say; each that hears it is told of a change. */
 export function noteAdsNeeding(count: number): void {
-  if (noted === count) return;
-  noted = count;
-  for (const tell of [...hearers]) tell();
+  keepCount("needing", count);
 }
 
 /** Hear the count change (the strip draws Content's tab again by it); answers the stop. */
@@ -67,15 +111,14 @@ export const useAdsNeeding = (): number => useSyncExternalStore(hearAdsNeeding, 
 
 /** Kept as the Ads page reads its ads: how many its list holds, which the Ads tab says beside its name on every list. */
 export function noteAdsListed(count: number): void {
-  if (adsListed === count) return;
-  adsListed = count;
-  for (const tell of [...hearers]) tell();
+  keepCount("listed", count);
 }
 
 /** Told as the reads made ahead of the Ads tab's press say no figure (warm.ts): the tab stops keeping room for one. */
 export function noteAdsUnlisted(): void {
-  if (adsUnlisted) return;
-  adsUnlisted = true;
+  const mine = notedHere();
+  if (mine.unlisted) return;
+  noted = { ...mine, unlisted: true };
   for (const tell of [...hearers]) tell();
 }
 

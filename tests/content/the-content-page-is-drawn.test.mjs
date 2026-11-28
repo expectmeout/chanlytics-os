@@ -390,30 +390,26 @@ test("the Content address wears Campaigns' crumbs and picks its tab in any works
 
 test("Content's count on Campaigns' strip is on its way until Content is read, where a frame reads ahead, and never once that read failed", () => {
   settingsWith({});
-  const tab = () => S.campaignsChrome({ param: null }).views.tabs.find((t) => t.id === "content");
-  const had = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-  const onALine = (connection) =>
-    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { connection } });
+  const tab = (param = null) => S.campaignsChrome({ param }).views.tabs.find((t) => t.id === "content");
   try {
     // Read: the count is said, or none, and nothing is on its way.
     S.setSurfaceValue("content", { dto: page({ tally: { needs: 2 } }), fetchedAt: 1 });
     assert.equal(tab().badge(), 2);
-    assert.equal(tab().coming(), false);
-    // Not read yet, on a frame that reads the other views ahead once it is idle (home/route.tsx): on its way, so the strip
-    // keeps the tab the room of the figure it last said.
+    assert.equal(tab().coming({ readsAhead: true }), false);
+    // Not read yet, from another view, on a frame that reads the other views ahead once it is idle (home/route.tsx): on
+    // its way, so the strip keeps the tab the room of the figure it last said.
     S.setSurfaceValue("content", undefined);
-    onALine(undefined);
     assert.equal(tab().badge(), null);
-    assert.equal(tab().coming(), true);
-    // Where a person asked to save data nothing is read ahead: no figure is coming until Content is opened.
-    onALine({ saveData: true });
-    assert.equal(tab().coming(), false);
-    // And a read that failed says none, ever.
-    onALine(undefined);
+    assert.equal(tab().coming({ readsAhead: true }), true);
+    // Where a frame reads nothing ahead (a person asked to save data) no figure is coming until Content is opened.
+    assert.equal(tab().coming({ readsAhead: false }), false);
+    // On Content itself its own read brings the count, whatever the frame reads ahead.
+    assert.equal(tab("content").coming({ readsAhead: false }), true);
+    // And a read that failed says none, ever, from either.
     S.setStatus("content", "seeded");
-    assert.equal(tab().coming(), false);
+    assert.equal(tab().coming({ readsAhead: true }), false);
+    assert.equal(tab("content").coming({ readsAhead: true }), false);
   } finally {
-    if (had) Object.defineProperty(globalThis, "navigator", had);
     S.setStatus("content", "live");
     S.setSurfaceValue("content", undefined);
   }

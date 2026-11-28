@@ -25,9 +25,7 @@ installStubReact({});
 const S = "../../../apps/dashboard/src";
 holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);
-const { adsFirstPage, adsFirstReadIn, readAdsAhead, readAdsOpening } = await import(
-  `${S}/bridge/surfaces/ads-first-reads.ts`
-);
+const { adsFirstAnswer, readAdsAhead, readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
 const { warmAds } = await import(`${S}/surfaces/campaigns/ads/warm.ts`);
 const { hearAdsNeeding, useAdsListed } = await import(`${S}/surfaces/campaigns/ads/needs-you.ts`);
 const { read } = await import(`${S}/bridge/api.ts`);
@@ -135,7 +133,7 @@ const pageAsked = () => route.asked.filter((path) => ASKED_BY_THE_PAGE.includes(
 test("the Ads tab's figure is on its way until Ads is read, and none where its reads could not be made", async () => {
   // Nothing read on this visit: the figure is on its way, and the tab keeps its room (the kit's SubTab `count: null`).
   fresh();
-  assert.equal(adsFirstReadIn(), false);
+  assert.equal(adsFirstAnswer(getActiveWorkspace()), null);
   assert.equal(useAdsListed(), null);
   // The reads made ahead of the tab's press could not be made: the tab is told, once, and keeps no room for a figure.
   api().forget();
@@ -147,7 +145,7 @@ test("the Ads tab's figure is on its way until Ads is read, and none where its r
   stop();
   assert.equal(told, 1, "told once, however often they fail");
   assert.equal(useAdsListed(), undefined);
-  assert.equal(adsFirstReadIn(), false, "a read that failed holds no answer");
+  assert.equal(adsFirstAnswer(getActiveWorkspace()), null, "a read that failed holds no answer");
 });
 
 test("until it is known whether an account is held, nothing stands under the head, and People's report is not read", async () => {
@@ -173,8 +171,7 @@ test("the Ads tab says no figure where no account was ever connected, and how ma
   // Read with no account ever connected, there is no page, and so no figure to wait for.
   await firstReads(NOTHING_HELD);
   fresh();
-  assert.equal(adsFirstReadIn(), true);
-  assert.equal(adsFirstPage(), null);
+  assert.equal(adsFirstAnswer(getActiveWorkspace())?.page, null, "answered, with no page");
   assert.equal(useAdsListed(), undefined);
   // Read with its ads, it says how many its list holds.
   await firstReads(CARD);

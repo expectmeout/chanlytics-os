@@ -62,9 +62,11 @@ export interface SurfaceViews {
     badge?: () => number | null;
     /**
      * Whether that count is not read yet and its read is on its way: the strip then keeps the tab the room of the figure
-     * it last said on this device (the kit's ViewTab `coming`), so the tabs after it hold still as it lands.
+     * it last said on this device (the kit's ViewTab `coming`), so the tabs after it hold still as it lands. The frame
+     * says whether it may read with nobody reaching (`readsAhead`, bridge/workspace.ts warmsOnItsOwn: a page's chrome
+     * cannot ask the bridge that itself, whose address module reads these routes).
      */
-    coming?: () => boolean;
+    coming?: (frame: { readsAhead: boolean }) => boolean;
     tone?: "warn";
   }[];
   /**

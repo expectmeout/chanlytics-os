@@ -18,8 +18,19 @@ import { CHANLY } from "./constants";
 import { useNeedsYou } from "../needs-you";
 import { provided } from "@/bridge/provided";
 import { isSurfaceFailed, onSurfaceMoved } from "@/bridge/surface-status";
-import { getActiveWorkspace } from "@/bridge/workspace";
+import { getActiveWorkspace, warmsOnItsOwn } from "@/bridge/workspace";
 import { viewPager } from "../kit/view-tabs/pager";
+
+/**
+ * What the strip knows as it asks whether a tab's count is on its way: `needs`, null while the day is unread; whether the
+ * day's read failed, after which no count of it is ever coming; and whether this frame reads with nobody reaching
+ * (bridge/workspace.ts warmsOnItsOwn), which a view read ahead of its press depends on.
+ */
+interface CountAt {
+  needs: number | null;
+  dayFailed: boolean;
+  readsAhead: boolean;
+}
 
 interface StTab {
   id: string;
@@ -29,11 +40,8 @@ interface StTab {
   tone?: string;
   testid?: string;
   badge?: (needs: number | null) => number | null;
-  /**
-   * Whether its count is not read yet and its read is on its way, as the strip is handed it: `needs` null while the day
-   * is unread, and whether the day's read failed, after which no count is ever coming.
-   */
-  coming?: (needs: number | null, dayFailed: boolean) => boolean;
+  /** Whether its count is not read yet and its read is on its way, by what the strip knows as it is drawn. */
+  coming?: (frame: CountAt) => boolean;
   pulse?: () => boolean;
 }
 
@@ -72,7 +80,7 @@ const ST_GROUPS: Readonly<Record<string, { match: readonly string[]; tabs: reado
         to: "inbox",
         tone: "warn",
         badge: (needs) => needs || null,
-        coming: (needs, dayFailed) => needs === null && !dayFailed,
+        coming: ({ needs, dayFailed }) => needs === null && !dayFailed,
       },
       { id: "conversations", label: "Conversations", to: "conversations" },
       // With the bridge running the pulse is the real thing: a call in progress under the heartbeat rule, so the tab does
@@ -209,7 +217,7 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
         label: t.label,
         href: stHref(t.to),
         count: t.badge ? t.badge(needs) : null,
-        coming: !!t.coming && t.coming(needs, dayFailed),
+        coming: !!t.coming && t.coming({ needs, dayFailed, readsAhead: warmsOnItsOwn() }),
         tone: t.tone === "warn" ? "warn" : undefined,
         live: t.pulse ? !!t.pulse() : false,
         tip: t.tip,

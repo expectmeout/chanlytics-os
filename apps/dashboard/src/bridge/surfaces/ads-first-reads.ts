@@ -119,12 +119,6 @@ export function readAdsBesideContent(io: AdsOpeningIo): Promise<void> | null {
 export const adsFirstPage = (): AdsLiveDto | null => adsOpenedOn?.page ?? null;
 
 /**
- * Whether the first reads have answered. Answered with no page (adsFirstPage), no account was ever connected, and the Ads
- * tab has no figure to wait for; not answered, its figure is on its way (surfaces/campaigns/ads/needs-you.ts).
- */
-export const adsFirstReadIn = (): boolean => adsOpenedOn !== null;
-
-/**
  * The first answer as a hook starts from it; none in a workspace other than the one it was read in (a switch loads the page
  * again today, and this holds if one ever does not). Whether it stands with no read behind it is asked as the hook reads
  * (firstAnswerStands): a view drawn hidden ahead of its press starts from it then, and is shown later.
