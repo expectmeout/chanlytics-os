@@ -9,8 +9,8 @@
  * A STEP is something a run does that the world can see after the process is gone: a write (`posts.update`,
  * `jobs.insert`), a function called (`rpc:post_unanswered`), a file written (`storage:upload`), a call that left for a
  * provider (`out:<name>`, where the test wraps it with `outside`), and the ledger's own moves, named for what they are
- * (`claim`, `complete`, `fail`, `defer`, `alert`, `page`). A read is not a step: dying before or after one leaves the
- * same world.
+ * (`claim`, `complete`, `keep`, `fail`, `defer`, `alert`, `page`). A read is not a step: dying before or after one
+ * leaves the same world.
  *
  * KILLED AFTER a step means the step landed and the process never saw its answer: the write is in the database, the
  * provider took the request, and nothing after it happens. Every later write, call and read of that run throws
@@ -33,12 +33,14 @@ import {
   deferJob,
   dispatchJob,
   failJob,
+  keepJob,
   LEASE_SECONDS,
   runTick,
   scheduleJob,
   scheduleJobOnce,
   settleJob,
 } from "@chanlytics/jobs";
+import { resetBreakers } from "@chanlytics/channels/shared";
 
 /** What a killed run throws from everything it touches after the step it died on. */
 export class Killed extends Error {
@@ -210,6 +212,9 @@ export function ledgerWorld(raw, opts) {
   const steps = stepsOver(raw);
   const { db, state } = steps;
   const history = [];
+  // A world meets its providers afresh, and so does the run after a death: a breaker lives in the process, and a new
+  // process has none open. A kill inside a provider call reads to the door as that provider failing.
+  resetBreakers();
   const world = {
     /** The wrapped client: what the handler, the settle and the tick's own moves write through. */
     db,
@@ -248,6 +253,7 @@ export function ledgerWorld(raw, opts) {
      * `{ step, nth }`), its number in the run from 1, or `(step, n, steps) => boolean`.
      */
     async run({ killAfter = null } = {}) {
+      if (history.at(-1)?.died) resetBreakers();
       Object.assign(state, { dead: false, killedAfter: null, steps: [], kill: killAfter, name: null });
       const lines = [];
       const say = (level) => (event, fields) => {
@@ -278,6 +284,7 @@ export function ledgerWorld(raw, opts) {
         dispatch,
         complete: (job) => steps.as("complete", () => completeJob(db, job)),
         fail: (job, reason) => steps.as("fail", () => failJob(db, job, reason)),
+        keep: (job) => steps.as("keep", () => keepJob(db, job)),
         defer: (job, untilIso, reason) => steps.as("defer", () => deferJob(db, job, untilIso, reason)),
         deferUnknown: (job, untilIso, reason) => steps.as("defer", () => deferJob(db, job, untilIso, reason, true)),
         settle: async (job, certain, why) => {

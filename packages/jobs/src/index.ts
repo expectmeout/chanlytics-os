@@ -22,6 +22,7 @@ export {
   deferJob,
   failJob,
   FUNCTION_CEILING_MS,
+  keepJob,
   LEAD_YIELD_AT_MS,
   LEASE_SECONDS,
   markSpoke,

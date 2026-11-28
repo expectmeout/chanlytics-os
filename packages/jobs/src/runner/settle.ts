@@ -231,7 +231,7 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, failReason
   // its way is touched.
   // A run that died mid-send may have sent: its outcome is unknown, which is what lets an email's receipt still
   // settle it (00177's messages_guard) and what counts it toward its mailbox's day (mailbox_capacity).
-  const { row, error } = await failQueuedSend(db, {
+  const { row, error, moved } = await failQueuedSend(db, {
     tenantId: job.tenant_id,
     messageId,
     error: { reason, note: noteOf(certain, failReason), ...(certain ? {} : { outcome: "unknown" }) },
@@ -250,10 +250,12 @@ async function settleSend(db: Db, job: TerminalJob, certain: boolean, failReason
           `${row.sender === "ai" ? "AI's reply" : "A reply"} never left: ${noteOf(certain, failReason)}.`,
         )
       : null;
+  // `row` without `moved`: an earlier conclusion of this job failed the message and died before it flagged the thread
+  // (tick.ts concludes a job again when a run died concluding it). The flag is made now; nothing else is written twice.
   return [
     {
       what: "message",
-      changed: !!row,
+      changed: moved,
       ...(flagged ? { flagged } : {}),
       ...(error ? { error } : {}),
     },

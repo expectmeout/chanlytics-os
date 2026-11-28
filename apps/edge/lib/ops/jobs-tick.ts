@@ -78,6 +78,7 @@ import {
   claimNext,
   completeJob,
   failJob,
+  keepJob,
   deferJob,
   settleJob,
   dispatchJob,
@@ -423,6 +424,8 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
         },
         complete: (job) => completeJob(db, job),
         fail: (job, reason) => failJob(db, job, reason),
+        // A job given up on is settled while its row is still held, and failed after (packages/jobs tick.ts conclude).
+        keep: (job) => keepJob(db, job),
         defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
         // Nothing ran, so the claim is given back: the next runner to claim it finds a first claim.
         deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),

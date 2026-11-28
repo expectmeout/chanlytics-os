@@ -169,7 +169,11 @@ test("a post left Checking rings no bell from the ledger: it is told when its pl
     },
   });
   const run = await ledger.run();
-  assert.deepEqual(run.steps, ["claim", "fail", "rpc:post_unanswered"], "given up, then settled; nobody is told");
+  assert.deepEqual(
+    run.steps,
+    ["claim", "keep", "rpc:post_unanswered", "fail"],
+    "given up: held, settled, then failed; nobody is told",
+  );
   assert.equal(w.post().status, "checking");
   assert.deepEqual(ledger.told, [], "no 'Couldn't post to Google' about a post that is being checked");
   assert.ok(run.lines.some((l) => l.event === "job_resumed_untold"));
