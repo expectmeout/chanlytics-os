@@ -361,10 +361,10 @@ async function conclude(
   end: JobEnd,
   reasonWords?: string,
 ): Promise<void> {
-  const keep = ports.keep;
   const failRow = () => movedRow(ports, job, () => ports.fail(job, reason));
+  const keepRow = ports.keep ? () => movedRow(ports, job, async () => (await ports.keep?.(job)) ?? false) : null;
   // Held, then settled, then failed; or, where no claim can be renewed, failed first.
-  if (!(await (keep ? movedRow(ports, job, () => keep(job)) : failRow()))) return;
+  if (!(await (keepRow ?? failRow)())) return;
 
   let wreckage: string | null;
   // Whether the ledger handed what the job left to a fresh run (or one is already coming): the news is worded from it, so a
@@ -390,7 +390,7 @@ async function conclude(
   }
   // Settled while the row was held: now it fails. Lost here (its lease ran out during a slow settle), the run that
   // holds it concludes it, and says so.
-  if (keep && !(await failRow())) return;
+  if (keepRow && !(await failRow())) return;
   ports.log.info("job_failed", {
     job_id: job.id,
     tenant_id: job.tenant_id,

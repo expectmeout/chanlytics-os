@@ -95,6 +95,7 @@ import {
   RELAY_LIMIT,
   type ClaimedJob,
   type TickCounts,
+  type TickPorts,
 } from "@chanlytics/jobs";
 import { wireUnavailable, type Sender, type WireUnavailable } from "@chanlytics/core";
 import { relayEvents } from "@chanlytics/db/events";
@@ -310,6 +311,19 @@ async function pageWhatTheCustomersWaited(
     await pageOperator({ db }, "jobs_mass_failure", `${failed} jobs failed in one heartbeat`, massFailureBody(tally));
 }
 
+/** The ledger's own moves on a claimed row, as the tick asks them: each this run's only while it still holds the row. */
+const ledgerMoves = (db: SweepTick["db"]) =>
+  ({
+    complete: (job) => completeJob(db, job),
+    fail: (job, reason) => failJob(db, job, reason),
+    // A job given up on is settled while its row is still held, and failed after (packages/jobs tick.ts conclude).
+    keep: (job) => keepJob(db, job),
+    defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
+    // Nothing ran, so the claim is given back: the next runner to claim it finds a first claim.
+    deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
+    settle: (job, certain, reason) => settleJob(db, job, certain, reason),
+  }) satisfies Partial<TickPorts>;
+
 export async function tickJobs({ db, L, started }: SweepTick): Promise<Response> {
   try {
     // The relay first (decision 0032, 00334): the outbox's events become deliveries and jobs, which this same tick then
@@ -422,14 +436,7 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
             if (claimed.spoke_at) job.spoke_at = claimed.spoke_at;
           });
         },
-        complete: (job) => completeJob(db, job),
-        fail: (job, reason) => failJob(db, job, reason),
-        // A job given up on is settled while its row is still held, and failed after (packages/jobs tick.ts conclude).
-        keep: (job) => keepJob(db, job),
-        defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
-        // Nothing ran, so the claim is given back: the next runner to claim it finds a first claim.
-        deferUnknown: (job, untilIso, reason) => deferJob(db, job, untilIso, reason, true),
-        settle: (job, certain, reason) => settleJob(db, job, certain, reason),
+        ...ledgerMoves(db),
         alert: (job, news) => alertFor(db, job)(news),
         page: pagerOf(db),
         log: L,
