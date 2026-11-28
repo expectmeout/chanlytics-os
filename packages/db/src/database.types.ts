@@ -3945,6 +3945,7 @@ export type Database = {
           owed: string[]
           reach: Json | null
           ref: string | null
+          sent_ref: string | null
           source: Json | null
           state: string
           tenant_id: string
@@ -3970,6 +3971,7 @@ export type Database = {
           owed: string[]
           reach?: Json | null
           ref?: string | null
+          sent_ref?: string | null
           source?: Json | null
           state?: string
           tenant_id: string
@@ -3995,6 +3997,7 @@ export type Database = {
           owed?: string[]
           reach?: Json | null
           ref?: string | null
+          sent_ref?: string | null
           source?: Json | null
           state?: string
           tenant_id?: string
@@ -12004,7 +12007,7 @@ export type Database = {
         Returns: string
       }
       file_shelf_again: {
-        Args: { p_file_id: string; p_tenant_id: string }
+        Args: { p_file_id: string; p_seconds_max?: number; p_tenant_id: string }
         Returns: boolean
       }
       file_shelf_begin: {
@@ -12030,9 +12033,23 @@ export type Database = {
         Args: { p_file_id: string; p_tenant_id: string; p_why: string }
         Returns: boolean
       }
+      file_shelf_owed: {
+        Args: {
+          p_bytes_max: number
+          p_limit: number
+          p_seconds_max: number
+          p_stale_seconds: number
+        }
+        Returns: Json
+      }
       file_shelf_requeue: {
         Args: { p_limit: number; p_stale_seconds: number }
         Returns: number
+      }
+      file_shelf_seconds: { Args: { p_tenant_id: string }; Returns: number }
+      file_shelf_unkept: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       file_sound_keep: {
         Args: {
@@ -12208,6 +12225,10 @@ export type Database = {
         Returns: boolean
       }
       form_entries_purge: { Args: never; Returns: number }
+      form_entries_standing: {
+        Args: { p_entry_ids: string[]; p_tenant_id: string }
+        Returns: Json
+      }
       form_entry_hold: {
         Args: { p_entry_id: string; p_tenant_id: string }
         Returns: boolean
@@ -12231,6 +12252,7 @@ export type Database = {
           p_form: string
           p_form_name?: string
           p_form_ref?: string
+          p_held_why?: string
           p_host?: string
           p_key_id?: string
           p_owed: string[]
@@ -12280,7 +12302,10 @@ export type Database = {
         }
         Returns: Json
       }
-      form_requests_open: { Args: { p_tenant_id: string }; Returns: Json }
+      form_requests_open: {
+        Args: { p_before?: string; p_before_id?: string; p_tenant_id: string }
+        Returns: Json
+      }
       form_requests_open_count: {
         Args: { p_tenant_id: string }
         Returns: number

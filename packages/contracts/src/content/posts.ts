@@ -84,6 +84,8 @@ export const POST_HELD_WHYS = [
   "place",
   "money",
   "reason_passed",
+  // The open time it promises could not be read when it was to go: asked again, then held (00728).
+  "reason_unread",
   "late",
 ] as const;
 export type PostHeldWhy = (typeof POST_HELD_WHYS)[number];

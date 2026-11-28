@@ -726,6 +726,11 @@
     "00721_the_edge_s_changes_write_their_own_events.sql": "e265d02468efedfb40ed0c318365556d28431c0a133e755e6513062fd1a83720",
     "00722_the_dashboard_s_acts_write_their_own_events.sql": "7cd595a59a762d5ed3c4514d82954298e964fc800ea1e1e44cae896ec7be3980",
     "00723_a_fact_door_writes_its_event.sql": "4fe05f78c626ad3d0bffe98f7fa940c0e9c096f9224de4e5387136ab19bdfdf2",
-    "00724_a_member_s_own_fields_and_reads_ask_who_is_calling.sql": "a9bcc8758531df5c1fe2b699de2fd7628d967060281ffd760a009376ab982c21"
+    "00724_a_member_s_own_fields_and_reads_ask_who_is_calling.sql": "a9bcc8758531df5c1fe2b699de2fd7628d967060281ffd760a009376ab982c21",
+    "00725_a_launch_never_ends_unrecorded.sql": "fedc182f70e762cd7fd50e3d1cc3f3820d2133aaa7d7d24c6ad04fbf7cc05bc3",
+    "00726_a_site_s_entry_is_the_same_entry_for_good.sql": "80b1c17bfa0f23e2ff5f76222b1dd8f5f25519a77a6764b2fd5e00f9f59ed750",
+    "00727_ai_s_approval_is_one_write.sql": "5120b7c29fd7d1e666bb05e19d6f7a5ad891618dd98f1f33881d77b87b410ae0",
+    "00728_a_post_waits_when_its_opening_cannot_be_read.sql": "4891fbdb90001ab023d34917c7b93b91a772cd23b2508794d3d409293153f908",
+    "00729_a_made_video_is_always_shelved.sql": "a308f061089a35436b4e011d6f6c9c04727753f5c97b701f103aaa56e9e834d6"
   }
 }

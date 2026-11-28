@@ -532,12 +532,17 @@ and to the looks `e2e/kit/kit.spec.ts` runs.
 | `database.yml`, Migrations replay          | every pull request, push to main and merge queue's commit                                                                                                                                                                         | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack: on a pull request the ones that lie where its changes name and, for a migration, the ones that read what it changes: each suite that walks the catalog, and each that says a function it writes or a table whose rows it adds or removes (`changed-tests.mjs --db`); on main and every night all of them. It replays only when database paths changed: on a pull request, in its diff; on main, since main's last replay that passed, so a cancelled or failed one is made up by the next push (`tooling/scripts/checks/replay-range.mjs`). On a pull request it also holds the migration ledger to main's, every entry main recorded, unchanged; and either deploy order: a function written again still takes the call main's code makes (`deploy-order/old-callers.mjs`), and where it adds a migration the base's own database suites that read what it writes pass against the new schema (`deploy-order/last-release-suites.mjs`; a red the migration means is argued with a line `Last release: <why>`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `nightly-e2e.yml`                          | 23:17 UTC, which GitHub starts hours late (the workflow says how late); by hand, the credential-free specs alone (against an address that needs no bypass too), or a few named specs on the copy (`-f specs="e2e/leads.spec.ts"`) | The node suite, with no database (four parts at once, each with a 45-minute cap, their coverage judged together against the floors; `nightly-database.yml` runs the suites that need one); then, whatever it said, every spec on a copy of the commit, a local stack and its own build, holding no secret with production out of reach; then the one job that holds production's key, a short walk, the speed budgets, the doors only production answers, and Ask's day against its lines. Two rolling issues, each closed by the first green run: the suites' never pages, and production's pages at its first red (decision 0106)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `nightly-kit.yml`                          | 08:17 UTC, and by hand, on main or on a branch                                                                                                                                                                                    | Both kit specs whole on the harness (`e2e/kit/kit.spec.ts`, `e2e/kit/kit-behaves.spec.ts`), with no deployment and no service's secret. One rolling issue, "The kit's specs are red", the owner's, closed by the first green run; a run on a branch files nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `morning-line.yml`                         | 03:07 UTC, which GitHub starts six to ten hours late, and by hand                                                                                                                                                                 | Once a day, what is red on main and on production and what did not run, read from each watched check's last runs (`tooling/scripts/ops/morning/watched.mjs`), the edge's keyless health door and, with the pager's key, the last day's alarms; written to the run's summary. Off until the variable `MORNING_LINE` is `1`: then one message through the edge's pager door, and one rolling issue for a check red twice running whose workflow opens none ("The morning line", below)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `nightly-database.yml`                     | 06:40 UTC, which GitHub starts hours late, and by hand                                                                                                                                                                            | Every migration replayed from nothing on a fresh stack, then every database suite, whatever the day's pull requests touched: the check for what moves under a database by itself (the CLI's and the images' new versions, an extension, a Postgres minor). Red is red on the run; the morning line says it, and keeps the issue `The nightly database suites are red` from the second red night                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `register.yml`                             | 10:37 UTC, started late likewise, and by hand                                                                                                                                                                                     | Every number the build holds, read on main (decision 0074): the night's table is the run's summary, its record an artifact kept 35 days, and on Mondays a measure that grew over the week keeps one issue open with the week's merges                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `leads-weekly.yml`                         | Sundays 02:23 UTC unless the variable `LEADS_WEEKLY` is `off`, and by hand                                                                                                                                                        | One real search against production, end to end, in the nightly's workspace: six bike shops by phone, from AI's card to the search's end, then removed, at about $0.60 a run. A red run keeps one issue open, the owner's                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `voice-canary.yml`                         | 14:17 UTC, and by hand; off until the secret `VOICE_CANARY_KEY` is set here and on the edge                                                                                                                                       | A real call to a workspace of ours and, ten minutes on, what it left behind (decision 0092). A failure pages from the edge and keeps one issue open, the owner's. With no key the run ends green having placed no call, which the morning line says each day                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `nightly-evals.yml`                        | Mondays 10:00 UTC once the variable `NIGHTLY_EVALS` is `1`, and by hand                                                                                                                                                           | The receptionist's regression cases, asked of a sandbox model key (`ANTHROPIC_EVAL_KEY`, never the platform's) and judged against the pass line. Off, the night's run is skipped in grey and no runner starts; on or by hand with no key, it fails and says so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `opening-check-eval.yml`                   | Mondays 11:00 UTC once the variable `OPENING_EVAL` is `1`, and by hand                                                                                                                                                            | The cold email opening's check over made-up businesses, every opening graded against its record by a larger model and held to its lines (`tooling/scripts/evals/opening-check.mjs`), on the same sandbox key. Off, the week's run is skipped in grey; on or by hand with no key, it fails and says so; a missed line keeps one issue open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `ask-weekly.yml`                           | Sundays 01:23 UTC unless the variable `ASK_WEEKLY` is `off`, and by hand                                                                                                                                                          | Real Ask turns against production, in the nightly's workspace: `e2e/ask.spec.ts` with `E2E_PAID_MODEL=1`, then every must-never case once (`MUST_NEVER=1`). About 35 turns on the key the receptionist answers with, so never beside the nightly; a miss, or a run refused or unable to start, keeps one issue open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `release.yml`                              | every push to main                                                                                                                                                                                                                | A tag `vYYYY.MM.DD-<sha>` and a release whose note lists the pull requests merged since the tag before it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `bundle-week.yml`                          | Mondays, and by hand                                                                                                                                                                                                              | What a workspace loads, main beside main a week before, from the records every push to main keeps; a sum grown past its week's line keeps one issue open, naming the merges                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                                                                                                                                                   | Production has applied every migration main carries, nothing main does not, and each under the name main's file has (a version both hold under different names is two migrations on one number); a day's disagreement keeps an issue open and pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `migration-ledger.yml`                     | Mondays, and by hand; off until `SUPABASE_PROD_READ_URL` is set                                                                                                                                                                   | Production has applied every migration main carries, nothing main does not, and each under the name main's file has (a version both hold under different names is two migrations on one number); a day's disagreement keeps an issue open and pages. Disabled on GitHub since 5 Oct 2026 (read 28 Nov 2026), so it starts on no Monday until it is enabled there, and the morning line says so each day                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `migrate.yml`                              | by hand alone (Actions, Run workflow), from main; the press is the approval                                                                                                                                                       | Main's migrations reach production once main's own CI and Database runs passed on the commit and both apps serve it or a later one: the dry run lists exactly what main carries and production lacks (`tooling/scripts/checks/migration-push.mjs`: no version under two names, nothing production holds that main does not, nothing below production's head), then `supabase db push`, then the compare; the job summary says what was applied. Off until the `production` Environment's three secrets are set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `production-smoke.yml`                     | either project's production deployment finished; it smokes on the one that finished last                                                                                                                                          | Both hosts answer with the deployed commit (`tooling/scripts/checks/smoke.mjs`), once both projects have deployed it, asked up to ten times over five minutes, and neither app is ahead of its database (each build's `migration` against the health door's `applied_migration`); a commit main has moved past is left to the newer one; a failure opens, or comments on, `Production smoke failed (<sha>)`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `preview-smoke.yml`                        | a dashboard preview ready; off until the variable `PREVIEW_SMOKE` is `1`                                                                                                                                                          | The credential-free specs against the pull request's preview                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -600,7 +605,11 @@ each off until set:
   the ledger compare page the platform through `POST /api/admin/page`. Unset,
   their issues are the only word. Set, a page that did not go out fails its step: the door answers 503 for one
   whose mail did not leave (`outcome: failed`) or that had nobody on file to go to (`unaddressed`, the edge's
-  `LEAD_TO` and `LEAD_FROM`), and the script judges the outcome, not only the status.
+  `LEAD_TO` and `LEAD_FROM`), and the script judges the outcome, not only the status. `PAGER_URL` has been set
+  since 6 Oct 2026 and `PAGER_KEY` never (read 28 Nov 2026), so until it is, no workflow can page and the morning
+  line cannot be sent.
+- The variable `MORNING_LINE=1`, once `PAGER_KEY` is set: the morning line's message ("The morning line", below).
+  Off, each day's run still writes the line to its own summary and sends nothing.
 - `SUPABASE_PROD_READ_URL`: a connection string for a role that reads the
   migration ledger and nothing else ("Apply a migration", below). A GitHub-hosted
   runner has no IPv6 and Supabase's direct database host is IPv6 only, so it is
@@ -626,6 +635,52 @@ each off until set:
 leaves its branch on the remote.
 `git fetch --prune origin && node tooling/scripts/ops/stale-branches.mjs --days 7`
 lists them; deleting one is Ruben's call.
+
+### The morning line
+
+Checks exist for almost everything, and for weeks a red one woke nobody: on 28 Nov 2026 the weekly AI test and the
+lead finder's weekly search had been red for three Sundays, the two AI evals had been skipped at every run since their
+switch was made, the voice canary had ended green every day having placed no call (no `VOICE_CANARY_KEY`), and the
+weekly compare of production's migrations had been disabled on GitHub since 5 October. Each workflow told GitHub.
+`.github/workflows/morning-line.yml` tells a person, once a day.
+
+**What it reads**, holding no customer's data: the last ten runs on main of each check in
+`tooling/scripts/ops/morning/watched.mjs`, with the workflow's own token; the edge's keyless `GET /api/health` (the
+clocks, the jobs due and unclaimed, the videos' machine image, and production's newest migration held to main's); and,
+when it holds the pager's key, keyed `GET /api/diag` for the alarms the platform was paged for in the last day, the
+text canary's among them.
+
+**What it says.** Three lists, each check under where it runs, main or production:
+
+- **Red**: with how many runs in a row and since when, and the newest run's address. A job its cap cancelled is red.
+- **Not running**: skipped by its switch (and whose switch); ended green with the step that is the check skipped; on
+  a clock and not run in twice its interval; disabled on GitHub; never run; or unreadable. Unknown is never green.
+- **Green**: by name.
+
+A morning with nothing red and nothing skipped is still one short line, "Nothing is red and nothing was skipped: all N
+checks are green." So **a morning with no message means the line itself broke**: open Actions, Morning line, and read
+its last run. Its run fails when it was switched on and the message did not go out.
+
+**Where it goes.** To the platform's addresses, the edge's `LEAD_TO` (one address or several, comma-separated), from
+`LEAD_FROM`, by the same door and mail provider the edge's own pages use: `POST /api/admin/page`, condition
+`morning_line`, subject `[Chanlytics] Morning line: 2 red, 4 not running, 9 green`. It is a report and not an alarm:
+it keeps no row in `operator_pages`, so Health's "what paged us" stays the alarms, and it is never held back inside
+the pager's six hours. The run's own summary carries the same line with no alarm's key in it, since the repository is
+public and a key can name a workspace.
+
+**Red twice running opens an issue** where the check's own workflow opens none: `CI is red on main`,
+`The migrations' replay is red on main`, `The nightly database suites are red`, `The register could not be read`.
+Each is one rolling issue assigned to the repository's owner, commented on each red morning and closed by the first
+green one. The nightly, the kit, the two weeklies, the canary, the smoke and the evals keep their own.
+
+**To switch it on** (Ruben's, and the first message is his yes): set the secret `PAGER_KEY` to the edge's `DIAG_KEY`
+(Settings, Secrets and variables, Actions), then the variable `MORNING_LINE` to `1`. To read a line before that, or
+at any time: Actions, Morning line, Run workflow; the summary is the line, and a run on a branch never sends. A pull request that changes the line gets one such run among its checks. To stop
+it: delete the variable.
+
+**A new check on a clock** is added to `watched.mjs` in the change that adds its workflow:
+`tests/ops/workflows/morning-line.test.mjs` fails a scheduled workflow the line neither watches nor argues, and one
+whose named job or step is no longer in its file.
 
 ## Deploy
 
@@ -1444,6 +1499,47 @@ inserted_at > now() - interval '10 minutes' order by inserted_at desc;`. None fo
 5. **Realtime itself.** Supabase's dashboard, Realtime: the project's connections and messages against the plan, and
    "Allow public access" off (the production smoke asks that an anonymous join is refused).
 
+## Who is told when something fails
+
+Read on 28 Nov 2026 from the code, each row a path that runs. A failure can show in five places, and they are not
+equal. **A page** is mail to the platform's addresses (the edge's `LEAD_TO`), `[Chanlytics] …`, once per condition
+per six hours, remembered in `operator_pages`. **The bell** is a workspace's owner, in the app and by its notice
+email. **An issue** on GitHub tells its assignee by GitHub's own mail, and one assigned to nobody tells nobody.
+**Health** (the Console) is read when somebody opens it. **The morning line** is one message a day ("The morning
+line", above). A log line by itself reaches nobody: nothing ships the logs anywhere and nothing alerts on one ("Where
+the logs go", below).
+
+| What fails                                                             | Where it shows                                                                                                                                                                                                                                                                                                                                            | Who acts                                                     |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| A provider refuses our credentials (a send answered 401 or 403)        | A page, `provider_auth:<channel>`; Health, what paged us; the bell, for the send that failed for good                                                                                                                                                                                                                                                     | The platform: the key                                        |
+| A provider cannot be reached, or answers errors                        | Its breaker opens (`breaker_open` in the log; keyed `/api/diag`, `breakers`, one instance's view). A page for a broadcast that could not reach it (`unreachable:<channel>`) and for a workspace's model calls failing (`model_failures:<workspace>`). Health, each part's numbers. The bell, for each job that failed for good                            | The platform: wait, or pause the kind ("The incident lever") |
+| A quota spent                                                          | A page: `provider_quota:email` (the mail plan's day or month), `model_credit`, `lead_platform_day:<day>`, `site_reader_credits`, `stream_storage`, `voice_concurrency`                                                                                                                                                                                    | Ruben: the plan                                              |
+| The pager's own mail cannot leave                                      | The page is kept and marked untold on keyed `/api/diag` (`pages.untold`). The morning line counts it when it holds the key, and its own run fails when its message cannot leave, which GitHub mails                                                                                                                                                       | Ruben                                                        |
+| A workspace's sign-in gone stale                                       | The bell and its email, to the owner: a mailbox (`<address> needs reconnecting`), Instagram (`needs to be connected again`), the calendar, the Google profile, the ad account, a Drive folder; WhatsApp's own word for a number restricted or removed. To the platform, `wire_unavailable:<channel>` when a workspace's credentials cannot be read at all | The owner, in Settings                                       |
+| A webhook refused (a delivery whose signature does not verify)         | Voice: a row in `events` (`webhook.auth`), which Health counts. Texts, email, Stripe, the lead source, a mailbox's push, the video maker: one log line each. **WhatsApp and Instagram: nothing, not a log line.** Seen late and sideways only: `whatsapp_no_receipt` after six hours of sends with no receipt, and the canaries when they are on          | **Nobody today** (below)                                     |
+| A job that keeps failing                                               | After its tries: the bell (`job_failed`) for work an owner started; a page for the platform's (`event_deliver_failed:<subscriber>`, `lead_collect_failed:<workspace>`, `<kind>_failed`); ten in one heartbeat page `jobs_mass_failure`. Health lists them                                                                                                 | The owner or the platform ("Read the jobs ledger")           |
+| A clock that stopped                                                   | The health sweep mails "A background sweep is not running: …", and `/api/health` answers 503 with its name. Health, the clocks                                                                                                                                                                                                                            | The platform                                                 |
+| The health sweep itself stopped, pg_cron stopped, or the edge is down  | `/api/health`, asked from outside. Only the morning line asks, once a day: no pinger is set up                                                                                                                                                                                                                                                            | Ruben: an outside pinger is his to switch on                 |
+| A deploy half done (an app still on the commit before)                 | The smoke after the deploy: the issue `Production smoke failed (<sha>)`. The morning line, the next morning                                                                                                                                                                                                                                               | The merger ("Deploy", "Roll back")                           |
+| Production's migrations apart from main's                              | The weekly compare, which is disabled on GitHub and holds no secret to read with. The morning line holds main's newest migration to what the health door says production has applied, once the door says it                                                                                                                                               | Ruben: the workflow and its secret                           |
+| A check red, on main or on production                                  | Its own issue, assigned to the owner. The morning line                                                                                                                                                                                                                                                                                                    | The lane that broke it, or Ruben                             |
+| A check that does not run (its switch off, its secret unset, disabled) | The morning line, and nothing else                                                                                                                                                                                                                                                                                                                        | Ruben's switches                                             |
+| A customer waiting in a workspace with nobody on file to tell          | A page, `deadman_unaddressable:<workspace>`                                                                                                                                                                                                                                                                                                               | The platform                                                 |
+| An error a member's page hit                                           | Health, the errors pages hit. Nobody is told                                                                                                                                                                                                                                                                                                              | Whoever opens Health                                         |
+
+**What shows nowhere**, 28 Nov 2026, each with whose it is:
+
+- **A refused WhatsApp or Instagram delivery.** `receiveWhatsappEvent` and the Instagram receiver answer 401 for a
+  signature that does not verify and write nothing. An app secret that no longer matches (rotated at Meta, or changed on
+  the edge) would refuse every customer's message, Meta would retry and then stop, and no page, bell, issue or log line
+  would say so. The other doors log a line nobody is sent. The mend is one count in the edge's door wrapper, paged when
+  a door refuses several signed knocks in a row and lets none in; the wrapper and the doors are another lane's files,
+  so it is named for that lane, with its design, in this lane's hand-over.
+- **The edge down, or pg_cron stopped, between two mornings.** The health door was made keyless so a monitor outside
+  the failure domain could page, and none was ever pointed at it. The morning line is that monitor at one read a day.
+  A pinger a minute apart is a vendor's, and Ruben's to choose.
+- **An error on a member's page.** It is kept and counted, and tells nobody.
+
 ## Read the logs
 
 ### Find a failure
@@ -1884,56 +1980,183 @@ Rehearsed: never yet (29 Sep 2026). The first rehearsal is Ruben's, with a deplo
 
 ## Restore the database
 
-Written on 8 October 2026 from the architecture review, which found no backup or restore page anywhere in `docs/`.
-**Rehearsed: never yet.** Until it has been, every step below is a plan and every time a guess.
+Written on 8 October 2026 from the architecture review, which found no backup or restore page anywhere in `docs/`,
+and made ready to rehearse on 28 November 2026. **Rehearsed: never yet.** The rehearsal below is an hour of steps a
+person follows; it runs on Ruben's go. Until it has, every time here is a guess.
 
 **What a restore brings back, and what it does not.** The database is the system of record: every workspace, person,
-message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the
-clocks (`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings
-and other files (Storage is kept apart from the database's backups), anything a provider holds (a WhatsApp template's
-review, a Twilio line, a Resend domain), or the two apps' environment (Vercel's, listed in each `.env.example`).
+message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the clocks
+(`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings and other
+files (Storage is kept apart from the database's backups: by Supabase's own account a backup holds the rows that
+describe each file and never the file), anything a provider holds (a WhatsApp template's review, a Twilio line, a
+Resend domain), or the two apps' environment (Vercel's, listed in each `.env.example`). A restore **to a new project**
+also leaves behind, in Supabase's own list: the Auth settings and the API keys (the copy has new keys), Realtime's
+settings, the database's settings, integrations, Edge Functions, and project settings such as add-ons. It carries the
+schema, the data, the roles, the sign-in accounts and the Vault's root key, so the copy can read its secrets.
 
 **Which backups there are** is a fact of the project's plan. Read on 9 October 2026 with
 `supabase backups list --project-ref <ref> --experimental` (the project's Database, Backups page says the same), and
-to be read again whenever the plan changes:
+to be read again before the rehearsal and whenever the plan changes:
 
 - Daily backups: one physical backup a night, at about 04:05 UTC, the last seven kept (the nights of 2 to 8 October
   were there, each complete). Everything since the newest is lost by a restore from it: up to a day.
 - Point-in-time recovery: **off**. So the loss in a bad hour is up to a day of messages and bookings; on, it is
-  minutes. It is the add-on that buys the difference, and the review recommends it for a product whose customers'
-  conversations are its only memory. Turning it on is Ruben's: it is billed.
+  two minutes at worst (the vendor's stated recovery point). It is the add-on that buys the difference, and the review
+  recommends it for a product whose customers' conversations are its only memory. Turning it on is Ruben's: it is
+  billed by the hour, about $100 a month for seven days kept, $200 for fourteen and $400 for twenty-eight, on any
+  compute size, and once it is on Supabase takes no daily backups: the recovery window is the backup (read on
+  28 Nov 2026 at supabase.com/docs/guides/platform/backups).
 - The project is in `us-east-1`.
+
+**The read that says which exist today** holds no customer's data and needs a personal access token of the Supabase
+account (Account, Access Tokens):
+
+```bash
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/backups"
+```
+
+It answers `region`, `pitr_enabled`, `walg_enabled`, `backups` (each with `inserted_at`, `status` and
+`is_physical_backup`) and `physical_backup_data` (the earliest and the latest moment a restore can reach). Seven
+entries, each `COMPLETED` and physical, the newest from last night, is what 9 October read. A restore to a new
+project needs a paid plan and physical backups.
 
 **When to restore, and when not.** A bad migration is undone by a migration (Roll back, above), and a bad write by a
 script with its backup (Scripts that touch production, below): neither is a restore, and a restore to undo either
 takes every workspace back with it. A restore is for a database that is gone, or wrong in a way nothing narrower
 reaches: a dropped table, a mass update with no backup file, the project lost.
 
+**Know this first: a copy's clocks call production.** Every clock is a `cron.job` row that calls `request_sweep()`,
+which reads the edge's address and its key from the database's own Vault (`edge_base_url`, `cron_sweep_key`) and posts
+to it. A restore to a new project carries the jobs, the Vault and the Vault's root key, and Supabase's page on
+restoring to a new project warns that such a copy's jobs "start running as soon as the restore completes", and that
+nothing leaves them out or holds them back on the way in (supabase.com/docs/guides/platform/clone-project, read 28 Nov
+2026). So from the minute a copy is up, its pg_cron asks **production's edge** for every sweep, with production's own
+key, beside production's clocks. Jobs are claimed under a lock and run once whoever asks; a sweep that sends by itself
+(the text canary at 14:00 UTC) could send twice. The first act on any copy, before anything is looked at, is this, in
+the **copy's** SQL editor (read the project's name in the editor's header before running it):
+
+```sql
+-- On the COPY only. It takes the edge's address out of the copy's Vault and stops the copy's clocks.
+delete from vault.secrets where name = 'edge_base_url';
+select cron.alter_job(jobid, active := false) from cron.job;
+-- Both must answer 0:
+select (select count(*) from vault.decrypted_secrets where name = 'edge_base_url') as edge_address,
+       (select count(*) from cron.job where active) as clocks_running;
+```
+
+Without its address a sweep records "missing cron_sweep_key or edge_base_url in Vault" and sends nothing, which is how
+every replayed database is kept quiet (`supabase/seed.sql`). A copy that is to become production gets the address
+back in step 4 below, once nothing else holds it.
+
 **How.** Prefer a copy to an overwrite, so the damaged database is still there to read and to compare with:
 
 1. **Stop the writers**, so nothing more is written to a database that is about to be left behind, and write down
-   the minute. How is settled at the first rehearsal and written here; it has not been tried. The candidates: pausing
-   each Vercel project from its settings, if the plan offers it (a provider whose webhook is refused sends it again
-   for hours, so a paused edge loses no message that arrives after the restore point); failing that, removing the
-   edge's production domain for the length of the restore.
-2. **Restore to a new project** from the Backups page (a daily backup, or the minute just before the damage with
-   point-in-time recovery), if the plan offers it. In place is the fallback: it overwrites the project, and everything
-   written since the chosen moment is gone the moment it starts.
-3. **Check the copy before anything points at it**: `supabase migration list` against it ends at main's head
-   (`migration-ledger.mjs --compare`); the newest `messages.created_at` and `events.created_at` are the moment
-   chosen; `select count(*) from tenants` is what it was; `cron.job` holds the sweeps and
-   `vault.decrypted_secrets` names the edge's key and base URL.
+   the minute. The writers are four: the database's own clocks (`select cron.alter_job(jobid, active := false) from
+cron.job;` on the damaged database stops every sweep and the jobs' heartbeat, and is ours for certain); the
+   providers' webhooks and the members' pages, which stop when each Vercel project stops answering (its pause, if the
+   plan offers it: a provider whose webhook is refused sends it again for hours, so a paused edge loses no message
+   that arrives after the restore point; failing that, removing the edge's production domain for the length of the
+   restore); and a person with a script. The Vercel half is read, not pressed, at the rehearsal (step 7 there), and
+   what it found is written here.
+2. **Restore to a new project** from the Backups page, the tab "Restore to a New Project" (a daily backup, or the
+   minute just before the damage with point-in-time recovery). In place is the fallback: it overwrites the project,
+   the project is unreachable while it runs, and everything written since the chosen moment is gone the moment it
+   starts. **The moment the copy is up, stop its clocks** (the statement above).
+3. **Check the copy before anything points at it**: the rehearsal's steps 3 to 5.
 4. **Point the apps at it**: both Vercel projects' `SUPABASE_URL` and keys (a new project has new ones), the
    Supabase Auth settings the old project held (site URL, redirect URLs, the Google provider, the SMTP sender), and
-   the base URL the clocks call (`vault`, 00018: a copy keeps the original's, which is right only when the edge's
-   address did not change). Redeploy both, the edge first.
-5. **Bring the writers back** the way they were stopped, then read `/api/cron/health`, the jobs ledger (Read the
+   the base URL the clocks call: put `edge_base_url` back in the copy's Vault (00018 says how) and start its clocks,
+   `select cron.alter_job(jobid, active := true) from cron.job;`, only now, with the damaged database's clocks
+   stopped. Redeploy both apps, the edge first.
+5. **Bring the writers back** the way they were stopped, then read `/api/health`, the jobs ledger (Read the
    jobs ledger, above) for what was due while it was down, and the Inbox of one real workspace.
 6. **Tell the workspaces** what window was lost, in their own words: a message a customer sent in it is gone from
    the Inbox though the customer still has it on their phone.
 
-**Rehearse it** before it is needed, on a copy that nothing points at: step 2 and step 3 alone, timed. Write the
-date, how long the restore took and what step 3 found here.
+### Rehearse it: one hour, on a copy nothing points at
+
+It runs on Ruben's go, and he is the one at Supabase's dashboard. It restores last night's backup to a new project,
+proves the copy is whole, and deletes it. It changes nothing on production, and stops none of production's writers.
+**It costs** a second project at production's compute size for the hours it exists: Supabase bills the copy as a
+project of its own, sized like its source, and shows the amount before it starts. Not across 14:00 to 14:20 UTC, when
+the text canary sends and checks. Write each minute down as it passes.
+
+1. **Before, 5 minutes: what production holds now.** One read-only statement on production (the SQL editor, or the
+   coordinator's read), kept beside the rehearsal's notes:
+
+   ```sql
+   select
+     (select max(version) from supabase_migrations.schema_migrations) as migration_head,
+     (select count(*) from supabase_migrations.schema_migrations) as migrations,
+     (select count(*) from public.tenants) as workspaces,
+     (select count(*) from public.memberships) as memberships,
+     (select count(*) from public.contacts) as people,
+     (select count(*) from public.conversations) as conversations,
+     (select count(*) from public.messages) as messages,
+     (select max(created_at) from public.messages) as newest_message,
+     (select count(*) from public.appointments) as appointments,
+     (select count(*) from public.jobs) as jobs,
+     (select count(*) from public.files) as files,
+     (select count(*) from auth.users) as sign_ins,
+     (select count(*) from storage.objects) as stored_files,
+     (select count(*) from cron.job) as clocks,
+     (select count(*) from vault.secrets) as vault_secrets,
+     now() as read_at;
+   ```
+
+   And the backups' read above: the newest backup's `inserted_at` is the moment the copy will stand at.
+
+2. **Minute 0: start the restore.** Supabase's dashboard, production's project, Database, Backups, the tab "Restore to
+   a New Project". Pick the newest daily backup, read the cost it shows, name the project
+   `chanlytics-restore-rehearsal`, start it. Supabase gives no figure for how long it takes, only that it grows with
+   the data: the minute it reports ready is the first number this rehearsal is for.
+
+3. **The minute it is ready: stop the copy's clocks.** The statement under "Know this first", in the copy's SQL
+   editor. Both counts 0 before anything else is done.
+
+4. **Compare, 10 minutes.** The statement of step 1 on the copy. What must hold:
+   - `migration_head` and `migrations` are production's as they stood at the backup's moment: the same as step 1
+     unless a migration was applied since last night. `node tooling/scripts/checks/migration-ledger.mjs --compare -`
+     with the copy's ledger piped in ("Apply a migration", step 6) says whether it has what main carries.
+   - `workspaces`, `memberships`, `sign_ins`, `clocks` and `vault_secrets` (less the one deleted in step 3)
+     are step 1's, or differ by what a person can name from the hours between.
+   - `people`, `conversations`, `messages`, `appointments`, `jobs` and `files` are at or under step 1's, and
+     `newest_message` is no later than the backup's `inserted_at`. The gap between it and step 1's is what a real
+     restore from this backup would lose: the second number this rehearsal is for.
+
+5. **One sign-in and one conversation read, 10 minutes.** As the nightly's test owner, whose workspace holds only
+   made-up people. The copy's address and its two new keys are on its API settings page. Sign-in here is an emailed
+   code and the copy has no mail sender, so the session is minted the way the browser tests mint theirs
+   (`e2e/session.ts`), which sends nothing:
+
+   ```bash
+   # COPY is the copy's URL, SERVICE and ANON its own keys. Never production's.
+   HASH=$(curl -s -X POST "$COPY/auth/v1/admin/generate_link" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+     -H "content-type: application/json" -d '{"type":"magiclink","email":"e2e-owner@example.com"}' | jq -r '.hashed_token // .properties.hashed_token')
+   TOKEN=$(curl -s -X POST "$COPY/auth/v1/verify" -H "apikey: $ANON" -H "content-type: application/json" \
+     -d "{\"type\":\"magiclink\",\"token_hash\":\"$HASH\"}" | jq -r .access_token)
+   curl -s "$COPY/rest/v1/conversations?select=id,updated_at&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN"
+   ```
+
+   A token, then one conversation's row, is a restored account signing in and reading its own workspace through the
+   row rules. An empty list with a 200 is the rules standing with nothing to show: read `memberships` for that user.
+
+6. **What the copy lacks, 5 minutes.** `stored_files` matches production's, since the rows came across, and a
+   download of any one of them from the copy fails: the files themselves are not in a database backup. Write down the
+   count: it is what a lost project would lose with no restore to bring it back (the shelf's and the recordings'
+   lanes hold what keeps a second copy).
+
+7. **The writers, read and not pressed, 10 minutes.** On each Vercel project's settings, find where the project is
+   paused and what the page says a paused project answers; on production's database, read
+   `select jobname, schedule, active from cron.job order by jobname;`, the list step 1 of "How" would stop. Press
+   nothing. Write here which lever exists on the plan.
+
+8. **Delete the copy, and write it down.** The copy's Settings, General, Delete project: its name is
+   `chanlytics-restore-rehearsal`, read twice. Then the line below, filled in.
+
+**Rehearsed:** never yet. To write here: the date; minutes from start to ready; the copy's `newest_message` beside
+production's; what step 4 found different; whether step 5 signed in and read; what step 7 found; what it cost.
 
 **A workspace, not the platform.** The levers in `docs/system-prd.md` S-23:
 silence one receptionist (`tenant_channels.status = 'disabled'`), hold one
@@ -1954,3 +2177,63 @@ refuses. Their statements go through PostgREST as the service role, which ends
 a statement at 30 seconds (00283): a script that must run one longer, a
 workspace's whole history deleted at once, says so in its header and is run from
 psql after `set statement_timeout = 0`.
+
+### Delete a workspace
+
+`tooling/scripts/ops/delete-tenant.mjs` deletes one workspace and everything of its own, in the database and outside
+it. Nothing undoes it. Running it on a real workspace is Ruben's word, each time.
+
+```bash
+node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"            # the dry run
+node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>" --apply    # the delete
+node tooling/scripts/ops/delete-tenant.mjs --resume <list>                                   # what is still on a list
+node tooling/scripts/ops/delete-tenant.mjs --resume <list> --apply                           # ask for it again
+```
+
+It needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, and to empty what is outside the database, each for the run:
+`ANTHROPIC_API_KEY`, `CLOUDFLARE_ACCOUNT_ID` with `CLOUDFLARE_STREAM_API_TOKEN`, `FOOTAGE_RELAY_URL` with
+`FOOTAGE_TICKET_KEY`.
+
+**The dry run** reads every table of the workspace a page at a time by the table's own key, asks the database's exact
+count before and after each, and writes the backup to `tooling/backups/tenant-<id>-<time>.jsonl`. It prints the count
+of each table, the files in storage, the videos at Stream and on the shelf, and everything the delete cannot reach (a
+phone line, a subscription, a connection at Google, a mailbox, an ad account, a Retell agent). It refuses, on a dry
+run too, when a read came back with fewer rows than the database counted. A table that was written to while it was
+read is named: that look is not the backup a delete goes by.
+
+**An apply** does these in order, and stops at the first that fails:
+
+1. The dry run's read, and a refusal while the workspace holds anything the delete cannot reach. Release each first.
+   `--orphans-ok` strands them on purpose.
+2. Stop everything is set for the workspace, through its own door. Its queued jobs are withdrawn. The run waits until
+   none of its jobs is running: ten minutes, or `--wait-minutes <n>`. Past that it refuses and names them.
+3. The workspace is read again. This read must agree with its counts to the row, and it replaces the backup file: it
+   is the backup the delete goes by. The ledger is looked at once more, and a job queued meanwhile sends it round
+   again, three times at most.
+4. The clean-up list is written beside the backup, `tenant-<id>-<time>.clean-up.jsonl`: one line for each file in
+   storage, each copy at Anthropic, each video at Stream and each video on the shelf.
+5. The rows go. A history past 5,000 events goes a month at a time. The tables that grow with history (jobs, the
+   event spine, the intake ledger, model turns, AI usage, sends, touches, messages) are emptied by key past 5,000
+   rows. Then the workspace's own row, and what cascades from it. A slice that ends at the statement's 30 seconds is
+   cut in two and tried again, so a long history needs no psql.
+6. Everything on the list is removed, and each removal marks its line.
+
+**When it stops part-way.**
+
+- A refusal after step 2 leaves Stop everything on, and says so. Run it again to finish. To keep the workspace
+  instead, press Resume in the product. The jobs it withdrew stay canceled on the ledger.
+- A job that will not end: read its kind in the refusal. A job whose run died is taken back by the ledger once its
+  hold is past, unless its kind is paused on Health: resume the kind, or wait.
+- A delete that failed in step 5 removed nothing outside the database. Run it again. Keep the first backup: the
+  second run's backup does not hold the rows the first run already deleted.
+- A run that ends non-zero after the rows are gone printed what is still there outside the database. Its lines on the
+  list say `"done":false`. Run `--resume <list> --apply` with the missing key set, or once the provider answers. It
+  refuses while the workspace's row still exists.
+
+**What it does not close.** Stop everything holds sending, posts and ads. The withdrawal holds queued jobs. A job
+handed out and claimed in the seconds between the last look at the ledger and the delete would still run, and a
+sweep that works on a workspace with no job is not seen at all. Closing that takes a refusal at the ledger's claim,
+which is a migration and is not built (decision 0152 names it).
+
+The backup and the list are files on the laptop that ran it, outside the repository, and hold the workspace's whole
+record. Remove them once the request's thirty days are past.

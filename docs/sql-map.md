@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 241 | 241 |
-| reader | 98 | 0 |
-| the server's | 480 | 410 |
+| reader | 99 | 0 |
+| the server's | 483 | 412 |
 | computed column | 3 | 0 |
 | trigger | 128 | 94 |
-| all | 950 | 745 |
+| all | 954 | 747 |
 
 ## Called by nothing
 
@@ -52,7 +52,7 @@ being read is dropped by a migration.
 | `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653, 00658; |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, 00653; |
 | `ad_accounts_close_ad_bell` | trigger | the server | trigger `ad_accounts_close_ad_bell on ad_accounts` | A trigger on ad_accounts (00658): |
-| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00666, 00676): |
+| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00666, 00676, 00725): |
 | `ad_bell_cause` | the server's | the server | SQL `ad_bell_causes`, `ad_bell_ring` | The key one of the bell's five ad causes is known by, read off one of its ads (00658): |
 | `ad_bell_causes` | the server's | the server | SQL `ad_bell_ring`, `ads_read_keep` | Every ad of one ad account under each of the bell's ad causes at a moment, with the cause's key (00658, 00666, 00676): |
 | `ad_bell_hearers` | the server's | the server | SQL `ad_bell_paused`, `ad_bell_ring` and 1 more | Who hears the bell's five ad notices (00658): |
@@ -285,7 +285,10 @@ being read is dropped by a migration.
 | `file_shelf_begin` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video's copy on the shelf begun (00695, the archive plan's B2). |
 | `file_shelf_checked` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf holds of a video compared with what was sent (00695): |
 | `file_shelf_failed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A shelf copy that could not be put (00695): |
+| `file_shelf_owed` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | What the shelf is owed, for every workspace in one statement (00729), in workspaces whose switch is on (features.video_shelf true) and for files still there. |
 | `file_shelf_requeue` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | Shelf copies left saving for p_stale_seconds get their file_shelve job written again (00695), p_limit at most, for every workspace in one statement: |
+| `file_shelf_seconds` | the server's | the server | SQL `file_shelf_again`, `file_shelf_begin` and 1 more | The seconds of video a workspace's shelf holds room for now (00729): |
+| `file_shelf_unkept` | the server's | the server | code `packages/db/src/repositories/files/shelf.ts` | A made video whose own kept file is gone can be given no shelf copy, and its row says so (00729): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
 | `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |
@@ -315,16 +318,17 @@ being read is dropped by a migration.
 | `form_entries_follow_merge` | trigger | the server | trigger `contacts_merge_moves_form_entries on contacts` | When two records of one person are combined, the form entries of the one merged away go to the one kept (00680, decision 0028): |
 | `form_entries_held_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_held_form_entries on contacts` | When a person is erased, the held form entries typed with their address or their number go too (00680, decision 0036): |
 | `form_entries_purge` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry nobody let through goes after 30 days, and a test after 7 (00680; |
-| `form_entry_hold` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A request a member says is not a real one, held (00680): |
-| `form_entry_let_through` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry let through (00680): |
+| `form_entries_standing` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/standings.ts` | Where the named entries of a workspace's forms stand (00726), read under the member's own row rules from each entry's links and their messages, by form_requests_open's rule: |
+| `form_entry_hold` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A request a member says is not a real one, held (00680; |
+| `form_entry_let_through` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry let through (00680; |
 | `form_entry_settled` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | One effect of a website form entry settled (00675): |
-| `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00675, 00709): |
+| `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00675, 00709, 00726): |
 | `form_key_change` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675, 00709): |
 | `form_key_end` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
 | `form_key_make` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675, 00709; |
 | `form_publish` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
 | `form_request_take` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts`; SQL `form_time_request_take` | The hosted form door's one write (00680; |
-| `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's forms nobody has answered (00680, 00691, 00709; |
+| `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's forms nobody has answered (00680, 00691, 00709, 00726; |
 | `form_requests_open_count` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/outside.ts` | How many of a workspace's requests nobody has answered (00709): |
 | `form_results` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | What a workspace's forms brought over the last p_days (30; |
 | `form_time_request_take` | the server's | the server | code `packages/db/src/repositories/forms/times.ts` | The hosted form's one write with a time asked for (00691, 00704; |
@@ -629,7 +633,7 @@ being read is dropped by a migration.
 | `piece_version_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/versions.ts` | A member's press, with the settings permission (00708): |
 | `piece_version_kept` | the server's | the server | code `apps/edge/lib/files/piece-make.ts`, `apps/edge/lib/shared/log-events/content.ts` and 1 more | When a new version's drawn bytes are kept (00708; |
 | `piece_version_ready` | the server's | the server | code `packages/db/src/repositories/files/versions.ts` | When a new version's file plays (00708; |
-| `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts`; SQL `post_approve_whole` | A member's door, with the settings permission (00681; |
+| `piece_words_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/files/approvals.ts`; SQL `plan_slot_place`, `post_approve_whole` | A member's door, with the settings permission (00681; |
 | `plan_slot_made` | door | a signed-in person, the server | code `packages/db/src/repositories/files/plans.ts` | What an approved slot was made into (00706; |
 | `plan_slot_place` | the server's | the server | code `packages/db/src/repositories/files/plans.ts`; SQL `content_week_approve` | A slot of a week AI approved placed (00714), by the service: |
 | `plan_slot_prepared` | the server's | the server | code `packages/db/src/repositories/files/plans.ts` | A slot of a held week prepared ahead (00714), by the service: |
@@ -802,7 +806,7 @@ being read is dropped by a migration.
 | `schedule_canary` | the server's | the server | the clock, `jobs-canary` | Puts one canary on the ledger, in our first workspace, unless one is already waiting or running (00526). |
 | `scrub_ask_for_contact` | door | a signed-in person, the server | code `packages/db/src/repositories/erasure/legs.ts` | An owner's, or the service role's finishing what an owner began (the erasure_finish job, 00501), and only for a person being erased: |
 | `scrub_call_raw` | reader | a signed-in person, the server | SQL `ingest_call` |  |
-| `scrub_contact_events` | the server's | the server | SQL `contact_events_on_erase` | Rewrite the contact.named and contact.added events of one erased person to keep only `by`, `source` and a scrubbed_at stamp. |
+| `scrub_contact_events` | the server's | the server | SQL `contact_events_on_erase` | Rewrite the contact.named, contact.added and contact.email_set events of one erased person to keep only `by`, `source` and a scrubbed_at stamp. |
 | `search_ask` | reader | a signed-in person, the server | code `packages/db/src/repositories/ask/memory.ts` | Recall (decision 0070): |
 | `search_fold` | reader | a signed-in person, the server | SQL `files_found` | A text as a search reads it (00612): |
 | `search_messages` | reader | a signed-in person, the server | code `packages/db/src/repositories/conversations/thread/messages.ts`; SQL `search_ask` | One workspace's messages and call transcripts that hold the words (websearch_to_tsquery, the 'simple' configuration), since p_since, newest first, at most least(greatest(p_limit, 1), 50) rows: |
@@ -992,7 +996,7 @@ being read is dropped by a migration.
 | `workspace_notices_since` | reader | a signed-in person, the server | code `packages/db/src/realtime.ts` | Decision 0019 step 4 (00508): |
 | `workspace_own_fields_write` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/team.ts` | The workspace's own fields, its name, its zone and its word for a booking (p_set names those it sets), as a member who may change its settings (caller_has_permission 'settings'), with settings.changed |
 | `workspace_partner` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The owner's view of the workspace's partner (0018): |
-| `workspace_sending_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/rows.ts` | Stop everything on the workspace's own row (tenants.sending_stopped_at: |
+| `workspace_sending_stop` | door | a signed-in person, the server | code `packages/db/src/repositories/workspace/rows.ts`; script `tooling/scripts/ops/delete-tenant/fence.mjs` | Stop everything on the workspace's own row (tenants.sending_stopped_at: |
 | `workspace_tell_at_commit` | trigger | the server | trigger `workspace_notices_told_at_commit on workspace_notices_pending` | Decision 0019 (00507): |
 | `workspace_tell_changes` | trigger | the server | trigger `workspace_tell_delete on ad_accounts`, `workspace_tell_delete on ads` and 107 more | Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column it |
 | `workspace_tell_row_change` | trigger | the server | trigger `workspace_tell_update on ad_accounts`, `workspace_tell_update on ads` and 12 more | Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): |
