@@ -231,7 +231,8 @@ export function ledgerWorld(raw, opts) {
       if (opts.tenantId) q = q.eq("tenant_id", opts.tenantId);
       const { data, error } = await q;
       if (error) throw new Error(`ledgerWorld: the jobs could not be read: ${error.message}`);
-      return data;
+      // The database in memory keeps no default: a row never claimed is scheduled, as the real one writes it.
+      return data.map((row) => ({ ...row, state: row.state ?? "scheduled", attempts: row.attempts ?? 0 }));
     },
     /** The clock brought forward: a dead run's lease has run out, and a retry's wait is over. */
     async forward() {
