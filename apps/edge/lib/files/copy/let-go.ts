@@ -15,8 +15,12 @@
  * then said away, with its id emptied. A shelf that does not hold it, or gives no answer, keeps the video here and
  * nothing is deleted. A delete that does not land leaves it going, and the half-hourly sweep finishes it (sweep.ts),
  * asking the shelf as this does. There is no lease and no lock table: the mark is the claim.
+ *
+ * The sweep's is a second try, and the first may have deleted the copy and died before it could say so. So a second
+ * try asks the video platform first (`finishCopyGoing`): a copy that is gone there is away, whatever the shelf says
+ * by then, and only one the platform is seen to hold is ever said here again. A row never names a copy that is gone.
  */
-import { deleteStreamVideo, type StreamAccount } from "@chanlytics/channels/files";
+import { deleteStreamVideo, readStreamVideo, type StreamAccount } from "@chanlytics/channels/files";
 import type { TenantId } from "@chanlytics/contracts";
 import { keepCopyHere, markCopiesGoing, markCopyGone, type CopyGoing } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
@@ -35,20 +39,25 @@ interface CopyWent {
   shelf: boolean;
 }
 
+/** A copy marked going, as the door answered it or as the sweep found it. */
+interface CopyMarked {
+  tenantId: TenantId;
+  id: string;
+  mediaRef: string | null;
+}
+
 /**
  * One copy marked going: the shelf asked where it is what would give the video back, then the copy deleted at the
  * video platform and said away. A shelf that does not hold the video's bytes now, or gives no answer, keeps the
- * video here: the mark is undone and nothing is deleted.
+ * video here: the mark is undone and nothing is deleted. `atPlatform` is whether the video platform is known to hold
+ * the copy at this moment, which a first try knows (it marked a copy that plays) and a second must ask: only such a
+ * copy is said here again, and one nobody could vouch for stays marked for the next pass.
  */
-async function finishOne(
-  db: Db,
-  account: StreamAccount,
-  copy: { tenantId: TenantId; id: string; mediaRef: string | null },
-): Promise<CopyWent> {
+async function finishOne(db: Db, account: StreamAccount, copy: CopyMarked, atPlatform = true): Promise<CopyWent> {
   const says = await askShelf(db, { tenantId: copy.tenantId, fileId: copy.id }, logger({ tenant_id: copy.tenantId }));
   const shelf = says === "holds";
   if (says === "put_back" || says === "unsure") {
-    await keepCopyHere(db, copy.tenantId, copy.id);
+    if (atPlatform) await keepCopyHere(db, copy.tenantId, copy.id);
     return { went: false, shelf };
   }
   // One the platform no longer has (a 404) is gone already. One with no id has nothing there to delete.
@@ -56,13 +65,23 @@ async function finishOne(
   return { went: await markCopyGone(db, copy.tenantId, copy.id), shelf };
 }
 
-/** One copy marked going, finished: asked of the shelf, deleted at the video platform and said away. Answers whether it went. */
-export async function finishCopyGoing(
-  db: Db,
-  account: StreamAccount,
-  copy: { tenantId: TenantId; id: string; mediaRef: string | null },
-): Promise<boolean> {
-  return (await finishOne(db, account, copy)).went;
+/**
+ * A copy the sweep found still marked going, finished: a second try. The first may have deleted the copy at the video
+ * platform and ended before it said so (its delete gave no answer, or the run died between the two), so the platform
+ * is asked before anything else. Gone there: the delete landed, and the file is away whatever the shelf says by now,
+ * since saying it here would name a copy nobody holds. Still there: the shelf is asked and the copy deleted, as a
+ * first try does. No answer from the platform: it may go where the shelf holds it, and is never said here.
+ * Answers whether it went.
+ */
+export async function finishCopyGoing(db: Db, account: StreamAccount, copy: CopyMarked): Promise<boolean> {
+  if (!copy.mediaRef) return (await finishOne(db, account, copy)).went;
+  const read = await readStreamVideo(account, copy.mediaRef);
+  if (!read.ok && read.gone) {
+    const went = await markCopyGone(db, copy.tenantId, copy.id);
+    logger({ tenant_id: copy.tenantId }).warn("copy_let_go", { by: "second_try", file: copy.id, found: "gone", went });
+    return went;
+  }
+  return (await finishOne(db, account, copy, read.ok)).went;
 }
 
 /** Copies marked going, each finished in turn while the job has time. Answers how many went, and how many of those the shelf holds. */
