@@ -38,6 +38,17 @@ import type { Flash } from "../shell";
 import { replyWayOf } from "./reply-way";
 import { REQUEST_WORDS as W, requestWho } from "./words";
 
+/**
+ * Whether nobody has answered a request: it waits in Needs you, or its sixty days there passed with no answer (`aged`,
+ * 00726). Either can still be answered from its page, so the reply, its draft and its presses are offered for both.
+ */
+export const requestUnanswered = (dto: Pick<FormRequestDto, "standing"> | null | undefined): boolean =>
+  dto?.standing === "open" || dto?.standing === "aged";
+
+/** How often a request whose reply is still going is read again, and how many times: it goes within seconds (00726). */
+const SENDING_READ_MS = 5 * SECOND_MS;
+const SENDING_READS = 8;
+
 /** Where the request's read stands. */
 export type RequestRead =
   { state: "reading" } | { state: "gone" } | { state: "failed" } | { state: "read"; dto: FormRequestDto };
@@ -82,6 +93,22 @@ function useRequestRead(id: string): [RequestRead, () => Promise<void>] {
       stop();
     };
   }, [again]);
+  // A reply still going says "Sending…": read again until it has gone (answered) or has not (back in Needs you). Needs
+  // you does not move when a queued reply leaves, so nothing else would tell the page.
+  const sending = read.state === "read" && read.dto.standing === "sending";
+  const reads = useRef(0);
+  useEffect(() => {
+    if (!sending) {
+      reads.current = 0;
+      return undefined;
+    }
+    if (reads.current >= SENDING_READS) return undefined;
+    const timer = setTimeout(() => {
+      reads.current += 1;
+      void again();
+    }, SENDING_READ_MS);
+    return () => clearTimeout(timer);
+  }, [sending, read, again]);
   return [read, again];
 }
 
@@ -322,6 +349,8 @@ function replyDraftOf(dto: FormRequestDto | null, wire: WriteWay["wire"] | null,
     wire,
     about: timeReply.about ? `${W.draft.about} ${timeReply.about}` : W.draft.about,
     asked: dto?.note ?? "",
+    // AI drafts by itself only for a request still waiting in Needs you. One past its sixty days is answered by hand,
+    // or drafted on the member's own ask: opening an old request spends nothing.
     alone: dto?.standing === "open" && dto.drafts && !!wire && !dto.unreached && timeReply.ready,
   };
 }
@@ -333,7 +362,7 @@ function useTimeWordsReady(
   draft: RequestDraft,
   setDraft: (next: RequestDraft) => void,
 ) {
-  const ready = dto?.standing === "open" && !dto.drafts && draft.state === "none" && !draft.text;
+  const ready = requestUnanswered(dto) && !dto?.drafts && draft.state === "none" && !draft.text;
   useEffect(() => {
     if (ready && words) setDraft({ state: "none", text: words, subject: "", changed: false });
   }, [ready, words, setDraft]);
@@ -343,7 +372,7 @@ function useTimeWordsReady(
 export function useRequestPage(id: string, flash: (f: Flash) => void, close: () => void): RequestPage {
   const [read, again] = useRequestRead(id);
   const dto = read.state === "read" ? read.dto : null;
-  const open = dto?.standing === "open";
+  const open = requestUnanswered(dto);
   const [reach, checkAgain] = useReach(open ? (dto?.person?.id ?? null) : null);
   const { way, why, unchecked } = replyWayOf(reach && reach !== "failed" ? reach : null);
   const [emailTo, setEmailTo] = useState<string | null>(null);

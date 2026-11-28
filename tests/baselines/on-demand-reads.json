@@ -545,6 +545,11 @@
     "fresh": "Read as a request opens in the Inbox, after each press on it, and again whenever Needs you moves (a teammate's answer, a reply that bounced, the person's own message with its code).",
     "why": "A request is answered where it is open, and whether it is still open is Needs you's own count, which Today's read holds and the feed moves (form_entries, form_entry_links, messages): the page follows that."
   },
+  "apps/dashboard/src/bridge/verbs/forms.ts GET forms/requests/more": {
+    "kind": "on-open",
+    "fresh": "Read when the owner presses Show more under Needs you in the Inbox. What it read is dropped whenever Today's list or its count moves (a request answered, a new one), and read again on the next press; nothing of it is kept once the page goes.",
+    "why": "The requests past the 200 Today's read lists are counted by the one count and were never drawn (00726). They are older requests nobody has answered, read on to only when asked for, and each opens its own page, which reads it again."
+  },
   "apps/dashboard/src/surfaces/reports/lenses/forms-line.tsx GET reports/forms": {
     "kind": "on-open",
     "fresh": "Read as Reports' Campaigns lens is drawn, and again each time the lens is come back to; nothing of it is kept once the lens goes.",

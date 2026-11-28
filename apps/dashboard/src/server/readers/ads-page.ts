@@ -50,7 +50,7 @@ import {
 import { listAdPeopleWaitingOnYou, type AdPersonWaitingRow } from "@chanlytics/db/people";
 import { listFilesByIds } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
-import { readAdsPressesOn } from "../connections/ads-ready";
+import { readAdsReadiness } from "../connections/ads-ready";
 import { isGoing } from "../people/going";
 import { getStoredConfig } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
@@ -255,19 +255,22 @@ const commentersOf = (
 
 /**
  * Why an ad can't be paused or turned on from here, where it can't, so its drawer says the true reason (Ruben, 25 Nov 2026: an
- * owner was told only an owner could): this member may not run ads; turning ads on from here is not switched on for the
- * workspace yet; or Meta has not let Chanlytics change them. Null where it can, and on an account that is not connected.
+ * owner was told only an owner could): this member may not run ads; this deployment holds no sign-in for ads, so nothing
+ * of an ad goes from here; Meta has not let Chanlytics change them; or what can spend is switched off here, where an ad
+ * is still paused and ended (can_spend). Null where it can, and on an account that is not connected.
  */
 function pressOffOf(at: {
   status: AdsLiveDto["account"]["status"];
   role: boolean;
+  stops: boolean;
   presses: boolean;
   config: Parameters<typeof metaAdConfigOf>[0];
 }): AdsLiveDto["press_off"] {
   if (at.status !== "connected") return null;
   if (!at.role) return "role";
-  if (!at.presses) return "off";
-  return metaAdConfigOf(at.config).scopes.includes("ads_management") ? null : "meta";
+  if (!at.stops) return "off";
+  if (!metaAdConfigOf(at.config).scopes.includes("ads_management")) return "meta";
+  return at.presses ? null : "off";
 }
 
 /**
@@ -453,10 +456,10 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     if (!account || status === null) return { data: null, rows: [], stamp: readerStamp() };
     // The request's own moment: every state, day and wait on the page is said by one clock.
     const nowMs = rc.now.getTime();
-    const [listed, counts, presses, settings, waiting, beside] = await Promise.all([
+    const [listed, counts, ready, settings, waiting, beside] = await Promise.all([
       listAdsOfAccount(supabase, rc.tenantId, account.id),
       readAdsPageCounts(supabase, rc.tenantId, AD_PAGE_DAYS),
-      status === "connected" && ROLE_PERMS[rc.role].ads ? readAdsPressesOn(rc.tenantId) : false,
+      status === "connected" && ROLE_PERMS[rc.role].ads ? readAdsReadiness(rc.tenantId) : null,
       getStoredConfig(supabase, rc.tenantId),
       readNeedsYou(rc, nowMs),
       readBeside(rc),
@@ -481,6 +484,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
         logAndGoOn("who commented on the ads", null),
       ),
     ]);
+    const mayChange = metaAdConfigOf(account.config).scopes.includes("ads_management");
     const data: AdsLiveDto = {
       account: {
         status,
@@ -513,8 +517,16 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       unnamed: counts?.unnamed ?? { people: 0, booked: 0 },
       elsewhere,
       ...(beside.back ? { back: beside.back.all } : {}),
-      can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),
-      press_off: pressOffOf({ status, role: ROLE_PERMS[rc.role].ads, presses, config: account.config }),
+      // Stopping an ad is never the list's or the switch's to take away; what can spend is the switch's.
+      can_press: mayChange && ready?.stops === true,
+      can_spend: mayChange && ready?.presses === true,
+      press_off: pressOffOf({
+        status,
+        role: ROLE_PERMS[rc.role].ads,
+        stops: ready?.stops === true,
+        presses: ready?.presses === true,
+        config: account.config,
+      }),
       stopped_at: aiStoppedAt(settings),
       needs_you: needsYouOf(waiting, nowMs),
     };

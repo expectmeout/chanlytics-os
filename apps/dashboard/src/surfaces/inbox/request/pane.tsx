@@ -24,7 +24,7 @@ import { AskLooking } from "../../files/looking";
 import { appNavigate, gate, type Flash } from "../shell";
 import { IxWho, threadBack } from "../thread/who";
 import { TimeAsked } from "./time";
-import { useRequestPage, type RequestPage } from "./use-request";
+import { requestUnanswered, useRequestPage, type RequestPage } from "./use-request";
 import { REQUEST_WORDS as W, requestCameWords, requestSubline, requestWho } from "./words";
 
 /** The initials a face draws for a name: its first two words' first letters. */
@@ -192,8 +192,18 @@ function OpenRequest({ page, dto }: { page: RequestPage; dto: FormRequestDto }) 
   if (dto.time?.status === "proposed" && dto.time.holds) return <Quiet page={page} />;
   const phone = dto.reach.phone;
   const mended = dto.unreached && dto.reach.email ? emailTypoFix(dto.reach.email) : null;
+  const offered = mended && page.emailTo !== mended ? mended : null;
+  // The press puts the mended address on their page, and ends a yes to offers the old one gave: said before it.
+  const mendedSays = offered
+    ? [W.unreached.takes(offered), dto.person?.offers ? W.otherEmail.offersEnd : ""].filter(Boolean).join(" ")
+    : "";
   const bounced = dto.unreached ? (
-    <Waits glyph="alert" title={W.unreached.title} body={W.unreached.body} testid="ix-rq-unreached">
+    <Waits
+      glyph="alert"
+      title={W.unreached.title}
+      body={[W.unreached.body, mendedSays].filter(Boolean).join(" ")}
+      testid="ix-rq-unreached"
+    >
       {mended && page.emailTo !== mended ? (
         <Button size="sm" variant="primary" onClick={() => page.pickEmail(mended)} data-testid="ix-rq-mended">
           {W.unreached.sendTo(mended)}
@@ -231,7 +241,9 @@ function OpenRequest({ page, dto }: { page: RequestPage; dto: FormRequestDto }) 
         <Waits
           glyph="mail"
           title={W.otherEmail.title}
-          body={W.otherEmail.body(dto.person.email)}
+          body={[W.otherEmail.body(dto.person.email), dto.person.offers ? W.otherEmail.offersEnd : ""]
+            .filter(Boolean)
+            .join(" ")}
           testid="ix-rq-other-email"
         >
           <Button
@@ -313,8 +325,10 @@ function OpenRequest({ page, dto }: { page: RequestPage; dto: FormRequestDto }) 
   );
 }
 
-/** A request that is no longer open: answered and by what, held and why, or a test. */
+/** A request that is no longer open: its reply still going, answered and by what, held and why, or a test. */
 function Settled({ page, dto }: { page: RequestPage; dto: FormRequestDto }) {
+  if (dto.standing === "sending")
+    return <Waits glyph="clock" title={W.sending.title} body={W.sending.body} testid="ix-rq-sending" />;
   if (dto.standing === "held")
     return (
       <Waits
@@ -406,7 +420,8 @@ export function RequestPane({ id, flash, onBack }: { id: string; flash: (f: Flas
       <div className="ix-rq-body">
         {dto.time ? <TimeAsked page={page} time={dto.time} nowMs={now} /> : null}
         <Answers dto={dto} />
-        {dto.standing === "open" ? <OpenRequest page={page} dto={dto} /> : <Settled page={page} dto={dto} />}
+        {dto.standing === "aged" ? <EmptyState kind="line" glyph="clock" title={W.aged} testid="ix-rq-aged" /> : null}
+        {requestUnanswered(dto) ? <OpenRequest page={page} dto={dto} /> : <Settled page={page} dto={dto} />}
       </div>
     </section>
   );

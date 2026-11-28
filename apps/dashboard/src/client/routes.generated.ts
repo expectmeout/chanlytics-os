@@ -92,6 +92,7 @@ export const ROUTES = {
   "GET files/video/[id]": { method: "GET", path: "/api/v1/files/video/[id]" },
   "GET forms": { method: "GET", path: "/api/v1/forms" },
   "GET forms/requests": { method: "GET", path: "/api/v1/forms/requests" },
+  "GET forms/requests/more": { method: "GET", path: "/api/v1/forms/requests/more" },
   "GET forms/sheet": { method: "GET", path: "/api/v1/forms/sheet" },
   "GET forms/site-sheet": { method: "GET", path: "/api/v1/forms/site-sheet" },
   "GET google": { method: "GET", path: "/api/v1/google" },
@@ -571,6 +572,7 @@ export type Routes = {
   "GET files/video/[id]": typeof import("../../app/api/v1/files/video/[id]/route").GET;
   "GET forms": typeof import("../../app/api/v1/forms/route").GET;
   "GET forms/requests": typeof import("../../app/api/v1/forms/requests/route").GET;
+  "GET forms/requests/more": typeof import("../../app/api/v1/forms/requests/more/route").GET;
   "GET forms/sheet": typeof import("../../app/api/v1/forms/sheet/route").GET;
   "GET forms/site-sheet": typeof import("../../app/api/v1/forms/site-sheet/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
