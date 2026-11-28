@@ -25,8 +25,9 @@ installStubReact({});
 const S = "../../../apps/dashboard/src";
 holdFrameParts();
 const { api } = await import(`${S}/bridge/api.ts`);
-const { readAdsAhead, readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
+const { adsFirstAnswer, readAdsAhead, readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
 const { warmAds } = await import(`${S}/surfaces/campaigns/ads/warm.ts`);
+const { hearAdsNeeding, useAdsListed } = await import(`${S}/surfaces/campaigns/ads/needs-you.ts`);
 const { read } = await import(`${S}/bridge/api.ts`);
 const { getActiveWorkspace } = await import(`${S}/bridge/workspace.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
@@ -129,6 +130,24 @@ async function firstReads(account) {
 const ASKED_BY_THE_PAGE = ["/api/v1/ads/account", "/api/v1/ads/page", "/api/v1/reports/people"];
 const pageAsked = () => route.asked.filter((path) => ASKED_BY_THE_PAGE.includes(path));
 
+test("the Ads tab's figure is on its way until Ads is read, and none where its reads could not be made", async () => {
+  // Nothing read on this visit: the figure is on its way, and the tab keeps its room (the kit's SubTab `count: null`).
+  fresh();
+  assert.equal(adsFirstAnswer(getActiveWorkspace()), null);
+  assert.equal(useAdsListed(), null);
+  // The reads made ahead of the tab's press could not be made: the tab is told, once, and keeps no room for a figure.
+  api().forget();
+  Object.assign(route, { account: CARD, accountFails: true, accountHangs: false, pageHangs: false, asked: [] });
+  let told = 0;
+  const stop = hearAdsNeeding(() => (told += 1));
+  assert.equal(await warmAds(), false, "nothing held");
+  assert.equal(await warmAds(), false);
+  stop();
+  assert.equal(told, 1, "told once, however often they fail");
+  assert.equal(useAdsListed(), undefined);
+  assert.equal(adsFirstAnswer(getActiveWorkspace()), null, "a read that failed holds no answer");
+});
+
 test("until it is known whether an account is held, nothing stands under the head, and People's report is not read", async () => {
   const draw = opening({ hangs: true });
   const first = draw();
@@ -146,6 +165,17 @@ test("a read of the account that failed says so, with the way to ask again, and 
   assert.equal(textOf(byTestId(tree, "ads-account-failed")), `${LIVE.loadFailed} Try again`);
   assert.equal(byTestId(tree, "ads-window"), null);
   assert.ok(!pageAsked().includes("/api/v1/reports/people"));
+});
+
+test("the Ads tab says no figure where no account was ever connected, and how many its list holds once Ads is read", async () => {
+  // Read with no account ever connected, there is no page, and so no figure to wait for.
+  await firstReads(NOTHING_HELD);
+  fresh();
+  assert.equal(adsFirstAnswer(getActiveWorkspace())?.page, null, "answered, with no page");
+  assert.equal(useAdsListed(), undefined);
+  // Read with its ads, it says how many its list holds.
+  await firstReads(CARD);
+  assert.equal(useAdsListed(), 0);
 });
 
 test("with the first reads in, the connected page is drawn at its first draw, and nothing is asked again", async () => {

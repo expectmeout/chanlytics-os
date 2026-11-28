@@ -120,10 +120,16 @@ token it reads moves what it feeds.
 A new primitive takes the same steps under a short name in the house's style that no stylesheet uses yet, as a family
 of its own in the gallery, with its component and type test in a folder of its own beside the others (`kit/button/`),
 which the index names it from. The kit's root holds only what its families share: the index, the stylesheet, the
-registry (`classes.json`), `variants.ts` with its type test, `press.tsx`, and three small things more than one family calls:
-`chosen.ts` (the one chosen state), `download.ts` (a file the browser saves) and `says-when.ts` (the mark on an element that says
-a time, which a phone's first-paint copy hides once it has aged: decision 0101), so no folder of it comes near the 20 modules a folder may hold (the tree-shape
+registry (`classes.json`), `variants.ts` with its type test, `press.tsx`, and four small things more than one family calls:
+`chosen.ts` (the one chosen state), `download.ts` (a file the browser saves), `says-when.ts` (the mark on an element that says
+a time, which a phone's first-paint copy hides once it has aged: decision 0101) and `kept-room.ts` (the room a figure on its
+way keeps, as wide as the figure its part last said on this device: the sub-tabs' and the strip of views'), so no folder of it comes near the 20 modules a folder may hold (the tree-shape
 measure).
+
+A part whose figure is read after it is drawn keeps the figure's room (a sub-tab's `count: null`, a view's `coming`; kit.css
+`[data-coming]`), so nothing beside it moves as the figure lands: say it only while the read that brings the figure is out,
+and give the strip a name (`kept`) so the room is the size the figure last was. The gallery draws each such part waiting
+beside itself landed (an entry's `lands`), and `e2e/kit/kit.spec.ts` holds the pair box for box.
 
 ## Add a value
 

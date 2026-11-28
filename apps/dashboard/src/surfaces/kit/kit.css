@@ -4921,6 +4921,15 @@ a.list-row {
   font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
 }
+/* A figure on its way (SubTab `count: null`) keeps its room: noughts drawn unseen in the figure's own type, so the tab is
+   as wide and as tall as it stands once the figure lands, and no tab after it moves. The Ads tab said its 1 a moment
+   after its word, and grew by it (Ruben, 28 Nov 2026). The noughts are the part's to say (`data-coming`): one, or as many
+   as the figure its tab last said on this device (kept-room.ts), so a 41 lands in the room of two and only a figure that
+   has grown a digit since grows its tab. A view's count on the strip of views keeps its room the same way (below). */
+.subtab-count[data-coming]::before {
+  content: attr(data-coming);
+  visibility: hidden;
+}
 /* Something new there to the reader (a person's History): a small dot after the words, in the accent, no figure. */
 .subtab-dot {
   flex: none;
@@ -5477,6 +5486,14 @@ a.list-row {
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   color: var(--ink-dim);
+}
+/* A view's count not read yet, where the tab said one when this device last drew it (ViewTab `coming`, kept-room.ts):
+   its room, noughts drawn unseen as a sub-tab's are, so the tabs after it stand where they will once it lands. A view
+   says no figure for a zero, so a tab that said none keeps no room: one kept for a figure that may not come would stand
+   empty on every quiet day. */
+.stabs-tab .tally[data-coming]::before {
+  content: attr(data-coming);
+  visibility: hidden;
 }
 @media (hover: hover) {
   .stabs-tab:hover {

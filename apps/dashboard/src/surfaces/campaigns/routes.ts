@@ -33,6 +33,7 @@ import { adsShown } from "./ads/shown";
 import { adsNeedingNow, hearAdsNeeding } from "./ads/needs-you";
 import { contentTabRoute } from "./home/left-at";
 import { onSurfaceValue, surfaceValue } from "../surface-values";
+import { isSurfaceFailed } from "@/bridge/surface-status";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
 import { adNameOf } from "./ads/crumb-names";
@@ -56,6 +57,23 @@ const contentNeedsNow = (): number | null => {
   const count = (surfaceValue("content")?.dto?.tally.needs ?? 0) + adsNeedingNow();
   return count > 0 ? count : null;
 };
+
+/** Whether Content's page is not read yet, and its read has not failed. */
+const contentUnread = (): boolean => surfaceValue("content") === undefined && !isSurfaceFailed("content");
+
+/**
+ * Whether Content's count is on its way, seen from Content itself: its page not read yet, whose read is the view's own.
+ * The strip then keeps the tab the room of the figure it last said (the kit's kept-room.ts). What needs the owner in Ads
+ * is read later still, once Content is shown and idle, and is not waited for here.
+ */
+const contentComingHere = (): boolean => contentUnread();
+
+/**
+ * And seen from another of Campaigns' views: Content is read ahead of its press once the frame is idle (home/route.tsx),
+ * only where a frame may read with nobody reaching (`readsAhead`, the frame's to say). Read a moment after Campaigns was
+ * drawn, the figure came beside Content and pushed Forms along (Ruben, 28 Nov 2026).
+ */
+const contentComingAhead = ({ readsAhead }: { readsAhead: boolean }): boolean => readsAhead && contentUnread();
 
 /** What moves Content's count: Content's read published, and what needs the owner in Ads noted (the strip hears both). */
 const hearContentNeeds = (redraw: () => void): (() => void) => {
@@ -85,6 +103,7 @@ function campaignsViews(picked: "sequences" | "content" | "forms"): SurfaceViews
         to: picked === "content" ? CONTENT_ROUTE : contentTabRoute(adsShown()),
         testid: "campaigns-view-content",
         badge: contentNeedsNow,
+        coming: picked === "content" ? contentComingHere : contentComingAhead,
         tone: "warn",
       },
       // Forms, the last of Campaigns' views (00680): what a business asks people for, with no website.

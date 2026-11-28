@@ -12,15 +12,19 @@ import { read } from "@/bridge/api";
 import { readAdsAhead } from "@/bridge/surfaces/ads-first-reads";
 import { getActiveWorkspace } from "@/bridge/workspace";
 import { adsListedOf } from "./live/listed";
-import { adsNeedingOf, noteAdsListed, noteAdsNeeding } from "./needs-you";
+import { adsNeedingOf, noteAdsListed, noteAdsNeeding, noteAdsUnlisted } from "./needs-you";
 
-/** Ads' first reads, made ahead of its press: whether they are held, so the route draws the page from them. */
+/**
+ * Ads' first reads, made ahead of its press: whether they are held, so the route draws the page from them. Where they say
+ * no figure (they could not be made, or no account was ever connected) the tab is told, and keeps no room for one.
+ */
 export async function warmAds(): Promise<boolean> {
   const held = await readAdsAhead({ read, workspace: getActiveWorkspace() });
-  if (!held) return false;
-  if (held.page) {
-    noteAdsListed(adsListedOf(held.page));
-    noteAdsNeeding(adsNeedingOf(held.page));
+  if (!held?.page) {
+    noteAdsUnlisted();
+    return !!held;
   }
+  noteAdsListed(adsListedOf(held.page));
+  noteAdsNeeding(adsNeedingOf(held.page));
   return true;
 }

@@ -38,7 +38,7 @@ const out = await build({
       'export { campaignsChrome } from "../../apps/dashboard/src/surfaces/campaigns/routes.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
       'export { contentOverride, readMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
-      'export { onSurfaceMoved } from "../../apps/dashboard/src/bridge/surface-status.ts";\n' +
+      'export { onSurfaceMoved, setStatus } from "../../apps/dashboard/src/bridge/surface-status.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
     resolveDir: path.join(ROOT, "tests/content"),
@@ -388,6 +388,33 @@ test("the Content address wears Campaigns' crumbs and picks its tab in any works
   assert.equal(at.crumbs.at(-1), "Content");
 });
 
+test("Content's count on Campaigns' strip is on its way until Content is read, where a frame reads ahead, and never once that read failed", () => {
+  settingsWith({});
+  const tab = (param = null) => S.campaignsChrome({ param }).views.tabs.find((t) => t.id === "content");
+  try {
+    // Read: the count is said, or none, and nothing is on its way.
+    S.setSurfaceValue("content", { dto: page({ tally: { needs: 2 } }), fetchedAt: 1 });
+    assert.equal(tab().badge(), 2);
+    assert.equal(tab().coming({ readsAhead: true }), false);
+    // Not read yet, from another view, on a frame that reads the other views ahead once it is idle (home/route.tsx): on
+    // its way, so the strip keeps the tab the room of the figure it last said.
+    S.setSurfaceValue("content", undefined);
+    assert.equal(tab().badge(), null);
+    assert.equal(tab().coming({ readsAhead: true }), true);
+    // Where a frame reads nothing ahead (a person asked to save data) no figure is coming until Content is opened.
+    assert.equal(tab().coming({ readsAhead: false }), false);
+    // On Content itself its own read brings the count, whatever the frame reads ahead.
+    assert.equal(tab("content").coming({ readsAhead: false }), true);
+    // And a read that failed says none, ever, from either.
+    S.setStatus("content", "seeded");
+    assert.equal(tab().coming({ readsAhead: true }), false);
+    assert.equal(tab("content").coming({ readsAhead: true }), false);
+  } finally {
+    S.setStatus("content", "live");
+    S.setSurfaceValue("content", undefined);
+  }
+});
+
 const line = (n, place, status, over = {}) => ({
   post: { ...post(place, status), id: `line-${n}`, ...over },
   file: fileOf(n),
@@ -458,6 +485,23 @@ test("where the workspace runs ads, Ads is the third list: how many it holds, am
   const on = lists({ ads: ads({ on: true }) });
   assert.match(on, /aria-selected="true"[^>]*data-testid="cnv-list-ads"/);
   assert.doesNotMatch(on, /aria-selected="true"[^>]*data-testid="cnv-list-made"/);
-  // Before the Ads page has been read on this visit, it says no figure.
-  assert.doesNotMatch(lists({ ads: ads({ count: null }) }).slice(at("ads")), />12</);
+  // Before the Ads page has been read on this visit, it says no figure, and keeps the room of one: the tab stands as it
+  // will once the figure lands, so the strip does not move (the kit's SubTab `count: null`).
+  const coming = /<span class="subtab-count" data-coming="0"><\/span>/g;
+  const unread = lists({ ads: ads({ count: null }) });
+  assert.doesNotMatch(unread.slice(at("ads")), />12</);
+  assert.equal(unread.slice(at("ads")).match(coming)?.length, 1, "the Ads tab keeps its figure's room");
+  assert.equal(unread.slice(0, at("ads")).match(coming), null, "Made and the Library say theirs");
+  // Where there is none to say (no account was ever connected, or its read could not be made), no room is kept.
+  assert.equal(lists({ ads: ads({ count: undefined }) }).match(coming), null);
+  assert.equal(html.match(coming), null, "a figure said keeps no second room");
+  // Made's and the Library's are on their way only while Content's own read is out (`reading`): each keeps its room until
+  // the tally is in.
+  assert.equal(lists({ tally: null, reading: true, ads: ads() }).match(coming)?.length, 2);
+  // On a page that does not read the tally (the Library or Ads opened first, the Week), none is coming: the tabs say no
+  // figure, as they did, and keep no room, which would stand empty for as long as the page did.
+  assert.equal(lists({ tally: null, ads: ads() }).match(coming), null);
+  assert.equal(lists({ tally: null, reading: false, ads: ads({ count: null }) }).match(coming)?.length, 1, "Ads' own");
+  // Read, the tally's figures are said whether or not a read is out behind them.
+  assert.equal(lists({ reading: true, ads: ads() }).match(coming), null);
 });

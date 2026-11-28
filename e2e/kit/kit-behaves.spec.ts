@@ -207,6 +207,11 @@ const STATES: { entry: string; bring: (page: Page) => Promise<void>; ready: stri
     ready: '[data-entry="subtabs-standing"] .subtab-dot[data-look]',
   },
   { entry: "subtabs-glyph", bring: async () => undefined, ready: '[data-entry="subtabs-glyph"] .subtabs' },
+  {
+    entry: "subtabs-coming",
+    bring: async () => undefined,
+    ready: '[data-entry="subtabs-coming"] .subtab-count[data-coming]',
+  },
   { entry: "subtabs-capsule", bring: async () => undefined, ready: '[data-entry="subtabs-capsule"] .rec-seg' },
   { entry: "subtabs-chips", bring: async () => undefined, ready: '[data-entry="subtabs-chips"] .subtab-chips' },
   { entry: "field-kit", bring: async () => undefined, ready: ".rec-input-group" },
@@ -833,6 +838,94 @@ const subTabsKeys: Check = async (page) => {
   return out;
 };
 
+/** Where a device keeps the rooms of the figures its strips last said (surfaces/kit/kept-room.ts). */
+const ROOMS_SLOT = "chanlytics.kept-rooms.v1";
+
+/**
+ * A tab whose figure is on its way keeps its room, and the strip holds still as the figure lands. On a device that never
+ * drew the strip the room is one figure's; on one that has, it is the figure's own (the Library's 41 in the room of two),
+ * which is the case held here: the entry's figures are landed once (its last tab's press lands them, and picks nothing),
+ * which leaves what each tab said on the device, and the page is loaded again. Then, as they land again, the strip is as
+ * large as it was and each tab stands where it stood in it and as large, to a hundredth of a pixel. Each is measured from
+ * the strip's own corner, so the window scrolling to the press moves none. `fault` plants one: the device made to forget
+ * before that second load, or a rule planted on the page once it is loaded.
+ */
+async function subTabsRoomHeld(
+  page: Page,
+  run: Run,
+  fault: { forget?: boolean; plant?: () => Promise<unknown> } = {},
+): Promise<string[]> {
+  const here = '[data-entry="subtabs-coming"]';
+  const boxes = () =>
+    page.evaluate((sel) => {
+      const strip = document.querySelector(`${sel} [role="tablist"]`)?.getBoundingClientRect();
+      if (!strip) return [];
+      const spelled = (said: string, sizes: number[]) =>
+        `${said} ${sizes.map((n) => Math.round(n * 100) / 100).join(" ")}`;
+      return [
+        spelled("the strip", [strip.width, strip.height]),
+        ...Array.from(document.querySelectorAll(`${sel} [role="tab"]`)).map((el) => {
+          const box = el.getBoundingClientRect();
+          return spelled((el.textContent ?? "").replace(/\d+$/, ""), [
+            box.x - strip.x,
+            box.y - strip.y,
+            box.width,
+            box.height,
+          ]);
+        }),
+      ];
+    }, here);
+  const waiting = () => page.locator(`${here} .subtab-count[data-coming]`).count();
+  /** The last tab pressed, and both figures landed with what they said left on the device. */
+  const land = async () => {
+    await page.locator(`${here} [role="tab"]`).last().click();
+    return met(
+      page,
+      ({ sel, slot }) =>
+        !document.querySelector(`${sel} .subtab-count[data-coming]`) &&
+        document.querySelector(`${sel} [role="tab"]:last-of-type .subtab-count`)?.textContent === "1" &&
+        (localStorage.getItem(slot) ?? "").includes("subtabs-coming/library"),
+      { sel: here, slot: ROOMS_SLOT },
+    );
+  };
+  if ((await waiting()) !== 2) return ["the sub-tabs: the entry draws no figures on their way"];
+  if (!(await land())) return ["the sub-tabs: the figures on their way never landed"];
+  if (fault.forget) await page.evaluate((slot) => localStorage.removeItem(slot), ROOMS_SLOT);
+  await show(page, run.theme, run.look);
+  await fault.plant?.();
+  if ((await waiting()) !== 2) return ["the sub-tabs: loaded again, the entry draws no figures on their way"];
+  const before = await boxes();
+  if (!(await land())) return ["the sub-tabs: loaded again, the figures on their way never landed"];
+  const after = await boxes();
+  const moved = before.flatMap((box, at) => (box === after[at] ? [] : [`${box} became ${after[at]}`]));
+  return moved.length === 0 ? [] : [`the sub-tabs: a figure landing moved the strip: ${moved.join("; ")}`];
+}
+const subTabsKeepRoom: Check = (page, run) => subTabsRoomHeld(page, run);
+
+/**
+ * The bar under the picked sub-tab is as wide as its tab and stands under it, in every strip the page draws, once the
+ * page's fonts are in: the bar is Base UI's measure of the tab, and one taken before the web font landed stood short of
+ * the words (2.5px on this page) until the strip was next drawn.
+ */
+const subTabsBarFits: Check = async (page) =>
+  page.evaluate(() => {
+    const out: string[] = [];
+    for (const strip of Array.from(document.querySelectorAll(".subtabs"))) {
+      const tab = strip.querySelector('[role="tab"][aria-selected="true"]');
+      const bar = strip.querySelector(".subtab-bar");
+      if (!tab || !bar) continue;
+      const of = tab.getBoundingClientRect();
+      const under = bar.getBoundingClientRect();
+      const entry = strip.closest("[data-entry]")?.getAttribute("data-entry") ?? "a strip";
+      if (Math.abs(of.width - under.width) > 0.5 || Math.abs(of.x - under.x) > 0.5)
+        out.push(
+          `the sub-tabs: ${entry}: the bar is ${under.width.toFixed(2)}px at ${under.x.toFixed(2)}, ` +
+            `its tab ${of.width.toFixed(2)}px at ${of.x.toFixed(2)}`,
+        );
+    }
+    return out;
+  });
+
 /**
  * The combobox narrows its list as you type, draws none where nothing matches, walks it with the arrows and chooses
  * with Enter; and a search after a choice replaces the words chosen, since focus selects them.
@@ -1004,6 +1097,8 @@ const CHECKS: [string, Check][] = [
   ["a switch answers Space", switchSpace],
   ["the segmented control answers the arrows", segmentedArrows],
   ["the sub-tabs answer the arrows and Enter, and the bar follows the pick", subTabsKeys],
+  ["a sub-tab keeps the room of a figure on its way, and the strip holds still as it lands", subTabsKeepRoom],
+  ["the bar under the picked sub-tab is as wide as its tab once the fonts are in", subTabsBarFits],
   ["the combobox narrows and chooses by the keys", comboboxKeys],
   ["the tooltip shows on hover and on focus, and hides on Escape", tooltipShows],
   ["a toast is heard and goes on a press beside it", toastArrives],
@@ -1392,6 +1487,26 @@ test("the other checks name each fault planted: the menu's keys and acts, the po
     await show(page);
     await swallow("ArrowRight");
     expect((await subTabsKeys(page, run))[0]).toMatch(/^the sub-tabs: ArrowRight left focus on /);
+
+    // The room of a figure on its way taken away: each tab grows as its figure lands.
+    await show(page);
+    const unroomed = () => page.addStyleTag({ content: ".subtab-count[data-coming]::before { content: none; }" });
+    expect((await subTabsRoomHeld(page, run, { plant: unroomed }))[0]).toMatch(
+      /^the sub-tabs: a figure landing moved the strip: .*Library .*Ads /,
+    );
+    // A device that kept nothing of the strip: the Library's 41 lands in the room of one, and its tab grows by a figure,
+    // while Ads' 1 lands in its room and only follows the Library along.
+    await show(page);
+    const [forgot] = await subTabsRoomHeld(page, run, { forget: true });
+    expect(forgot).toMatch(/^the sub-tabs: a figure landing moved the strip: the strip .*Library /);
+    // And with what it kept, it holds.
+    await show(page);
+    expect(await subTabsRoomHeld(page, run)).toEqual([]);
+
+    // The bar measured short of its tab: it is named with its strip.
+    await show(page);
+    await page.addStyleTag({ content: '[data-entry="subtabs"] .subtab-bar { width: 30px !important; }' });
+    expect((await subTabsBarFits(page, run))[0]).toMatch(/^the sub-tabs: subtabs: the bar is 30\.00px at /);
 
     // The toast's live region taken off: nothing a screen reader hears.
     await show(page);

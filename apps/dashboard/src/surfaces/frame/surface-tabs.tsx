@@ -7,7 +7,7 @@
  * views a route's group has, what each counts, their addresses warmed, and where a route stands on its strip. The
  * frame imports it.
  */
-import { useEffect, useLayoutEffect, useReducer } from "react";
+import { useEffect, useLayoutEffect, useReducer, useSyncExternalStore } from "react";
 import { stripShown, useHeadUnder, type StripAt } from "../kit/head/standing";
 import { holdMoves, touchSwipe } from "../kit/motion/swipe";
 import { ViewTabs as KitViewTabs } from "../kit/view-tabs/view-tabs";
@@ -17,7 +17,20 @@ import { frameChrome } from "./frame-window";
 import { CHANLY } from "./constants";
 import { useNeedsYou } from "../needs-you";
 import { provided } from "@/bridge/provided";
+import { isSurfaceFailed, onSurfaceMoved } from "@/bridge/surface-status";
+import { getActiveWorkspace, warmsOnItsOwn } from "@/bridge/workspace";
 import { viewPager } from "../kit/view-tabs/pager";
+
+/**
+ * What the strip knows as it asks whether a tab's count is on its way: `needs`, null while the day is unread; whether the
+ * day's read failed, after which no count of it is ever coming; and whether this frame reads with nobody reaching
+ * (bridge/workspace.ts warmsOnItsOwn), which a view read ahead of its press depends on.
+ */
+interface CountAt {
+  needs: number | null;
+  dayFailed: boolean;
+  readsAhead: boolean;
+}
 
 interface StTab {
   id: string;
@@ -27,6 +40,8 @@ interface StTab {
   tone?: string;
   testid?: string;
   badge?: (needs: number | null) => number | null;
+  /** Whether its count is not read yet and its read is on its way, by what the strip knows as it is drawn. */
+  coming?: (frame: CountAt) => boolean;
   pulse?: () => boolean;
 }
 
@@ -57,7 +72,16 @@ const ST_GROUPS: Readonly<Record<string, { match: readonly string[]; tabs: reado
       // (surfaces/needs-you.ts, read through its hook), handed in by the strip, never a second reading of it.
       // It counts what needs you, so it is amber, as the Needs you pill is (tone.ts warn). None of the three says a tip.
       // Named for the page: the list under it opens on its own Needs you, and the two stood one over the other.
-      { id: "inbox", label: "Inbox", to: "inbox", tone: "warn", badge: (needs) => needs || null },
+      // Not read before Today has been (needs-you.ts), which every page reads: until then its figure is on its way, and the
+      // tab keeps the room of the one it last said, so Conversations and Live hold still as it lands (Ruben, 28 Nov 2026).
+      {
+        id: "inbox",
+        label: "Inbox",
+        to: "inbox",
+        tone: "warn",
+        badge: (needs) => needs || null,
+        coming: ({ needs, dayFailed }) => needs === null && !dayFailed,
+      },
       { id: "conversations", label: "Conversations", to: "conversations" },
       // With the bridge running the pulse is the real thing: a call in progress under the heartbeat rule, so the tab does
       // not pulse for a phantom the page has already dropped.
@@ -119,6 +143,11 @@ function useLiveRedraws() {
   }, []);
 }
 
+/** Hear the day's read move, its status with it: a read that failed leaves the count unread, which says nothing new. */
+const hearDay = (fn: () => void): (() => void) => onSurfaceMoved(["today"], fn);
+/** Whether the day's read failed with none ever in (bridge/surface-status.ts). */
+const dayFailedNow = (): boolean => isSurfaceFailed("today");
+
 /** A page's own counts on its tabs (SurfaceViews heard): the strip drawn again as what they count moves. */
 function useViewsHeard(views: SurfaceViews | null) {
   const heard = views?.heard;
@@ -152,6 +181,8 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
   // What needs you, drawn again when the number changes and by nothing else (surfaces/needs-you.ts). Not read before the
   // Inbox has been.
   const needs = useNeedsYou();
+  // Whether the day's read failed: no count is on its way then, and the Inbox's tab keeps no room for one.
+  const dayFailed = useSyncExternalStore(hearDay, dayFailedNow, dayFailedNow);
   const [groupKey, tabs] = at ? stTabsOf(at.page, own) : [null, []];
   // None stood over the list a carried page goes back to, or this is a person's profile.
   const none = !at || stOnAPerson(at.page, at.param, own);
@@ -179,11 +210,14 @@ export function SurfaceTabs({ page, param, views, onNavigate }: SurfaceTabsProps
       label={own ? own.label : "Section views"}
       testid={own ? own.testid : undefined}
       picked={own ? own.picked : at.page}
+      // The figures a strip's tabs last said, remembered for the workspace the address names (the kit's kept-room.ts).
+      kept={`${getActiveWorkspace() ?? ""}/${groupKey || ""}`}
       tabs={tabs.map((t: StTab) => ({
         id: t.id,
         label: t.label,
         href: stHref(t.to),
         count: t.badge ? t.badge(needs) : null,
+        coming: !!t.coming && t.coming({ needs, dayFailed, readsAhead: warmsOnItsOwn() }),
         tone: t.tone === "warn" ? "warn" : undefined,
         live: t.pulse ? !!t.pulse() : false,
         tip: t.tip,

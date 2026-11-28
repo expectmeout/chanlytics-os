@@ -26,7 +26,9 @@
  *   except  the longhands a twin does not compare: the spec compares every longhand of every element and pseudo-element
  *           of the pair, so what a primitive draws differently on purpose is named here, each argued where the twin
  *           is written;
- *   boxes   the twin also compares each element's box, relative to its stage.
+ *   boxes   the twin also compares each element's box, relative to its stage;
+ *   lands   the id of the entry this one becomes once its figure lands: a part whose figure is on its way, which the
+ *           spec holds to that entry box for box, so nothing of it moves as the figure comes (the kept places).
  * Every class in classes.json is drawn by a kit entry, with every state its rules name as a class or an attribute (a
  * press, :hover or :focus, the spec forces): styles/kit-gallery.test.mjs holds the classes in CI, and the spec holds
  * every selector of kit.css in a browser. The words are made up, as every fixture's are.
@@ -1398,12 +1400,20 @@ const kitSwitches = () =>
 
 /**
  * One sub-tab of the kit's, as Base UI's Tabs draws it: its word holding the room of its bold form, its figure after, and
- * its dot: needs you, new, or where its own thing stands (`standing`: ready, not written yet, never sent that way).
+ * its dot: needs you, new, or where its own thing stands (`standing`: ready, not written yet, never sent that way). A
+ * figure on its way (`count: null`) is its room alone: the noughts it draws unseen, one, or as many as the figure the tab
+ * last said (`{ room: 2 }`, the kit's kept-room.ts).
  */
+const kitSubtabFigure = (count) =>
+  count === undefined
+    ? ""
+    : count === null || typeof count === "object"
+      ? `<span class="subtab-count" data-coming="${"0".repeat(count?.room ?? 1)}"></span>`
+      : `<span class="subtab-count">${count}</span>`;
 const kitSubtab = (label, { on = false, count, tone, glyph = "", fresh, need, standing } = {}) =>
   `<button type="button" role="tab" aria-selected="${on}" aria-disabled="false" tabindex="${on ? 0 : -1}" class="subtab"` +
   `${tone ? ` data-tone="${tone}"` : ""}>${glyph}<span class="subtab-label" data-text="${label}">${label}</span>` +
-  `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}` +
+  `${kitSubtabFigure(count)}` +
   `${need ? `<span class="subtab-dot is-warn" role="img" aria-label="${need}"></span>` : ""}` +
   `${fresh && !need ? `<span class="subtab-dot" role="img" aria-label="${fresh}"></span>` : ""}` +
   `${standing && !need && !fresh ? `<span class="subtab-dot" data-look="${standing.look}" role="img" aria-label="${standing.said}"></span>` : ""}</button>`;
@@ -1433,8 +1443,7 @@ const kitSubtabsChips = (name, tabs, on = 0) =>
     .map(
       ([label, count], at) =>
         `<button type="button" role="tab" aria-selected="${at === on}" aria-disabled="false" ` +
-        `tabindex="${at === on ? 0 : -1}" class="subtab-chip">${label}` +
-        `${count === undefined ? "" : `<span class="subtab-count">${count}</span>`}</button>`,
+        `tabindex="${at === on ? 0 : -1}" class="subtab-chip">${label}${kitSubtabFigure(count)}</button>`,
     )
     .join("") +
   "</div></div>";
@@ -2074,13 +2083,24 @@ export const FAMILIES = [
   {
     family: "Tab strip",
     about:
-      "A page's views, ViewTabs (surfaces/kit/view-tabs/view-tabs.tsx): links on one capsule, the picked one the lozenge in ink, a count beside a word that has one, the dot on a view with something on now, and a second strip wearing its own name. The highlight a change of view carries is in each, unseen at rest.",
+      "A page's views, ViewTabs (surfaces/kit/view-tabs/view-tabs.tsx): links on one capsule, the picked one the lozenge in ink, a count beside a word that has one, the room of a count on its way where the tab said one before, the dot on a view with something on now, and a second strip wearing its own name. The highlight a change of view carries is in each, unseen at rest.",
     entries: [
       {
         id: "stabs",
         html:
           `<nav class="stabs stabs-inbox" aria-label="Section views"><span class="stabs-pill" aria-hidden="true"></span>` +
           `<a class="stabs-tab active" href="#" aria-current="page">Needs you <span class="stabs-badge tally tally-warn" data-tone="warn">3</span></a>` +
+          `<a class="stabs-tab" href="#">Conversations</a>` +
+          `<a class="stabs-tab" href="#">Live <span class="live-dot"></span></a></nav>`,
+      },
+      {
+        // A view's count not read yet, on a tab that said one when this device last drew it (ViewTab `coming`): its room
+        // alone, so the tab stands as it does in the entry above, and the tabs after it where they stand there.
+        id: "stabs-coming",
+        lands: "stabs",
+        html:
+          `<nav class="stabs stabs-inbox" aria-label="Section views"><span class="stabs-pill" aria-hidden="true"></span>` +
+          `<a class="stabs-tab active" href="#" aria-current="page">Needs you <span class="stabs-badge tally tally-warn" data-tone="warn" data-coming="0"></span></a>` +
           `<a class="stabs-tab" href="#">Conversations</a>` +
           `<a class="stabs-tab" href="#">Live <span class="live-dot"></span></a></nav>`,
       },
@@ -2149,7 +2169,7 @@ export const FAMILIES = [
   {
     family: "Sub-tabs, on Base UI",
     about:
-      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; a glyph before the words; a pane's few tabs as the segmented capsule (look=\"capsule\": a lead sheet's), still tabs to a screen reader, sharing the row; and a list's few cuts as chips (look=\"chips\": Today's Need you), the picked one filled in the ink.",
+      "A page's own sub-menu, SubTabs (surfaces/kit/sub-tabs/sub-tabs.tsx): Base UI's tabs as small text tabs on a line under the strip of views, the picked one in ink with a bar that is the Tabs' indicator, a plain figure beside a word that has one; a strip that is quiet on a phone, which keeps only the warn tab's figure; a dense one for a desk pane with more tabs than room; a dot after the words where something there is new to the reader; a glyph before the words; a figure on its way, whose room the tab keeps so the strip holds still as it lands; a pane's few tabs as the segmented capsule (look=\"capsule\": a lead sheet's), still tabs to a screen reader, sharing the row; and a list's few cuts as chips (look=\"chips\": Today's Need you), the picked one filled in the ink.",
     entries: [
       {
         id: "subtabs",
@@ -2234,6 +2254,20 @@ export const FAMILIES = [
           { left: "18px", width: "74px", direction: "right" },
         ),
       },
+      {
+        // Figures on their way (SubTab `count: null`): each of the last two tabs keeps its room, and stands as it will once
+        // its figure lands (the pairs under Kept places hold the sizes).
+        id: "subtabs-coming",
+        html: kitSubtabs(
+          "What was made, and what it is made from",
+          [
+            kitSubtab("Made", { on: true, count: 8 }),
+            kitSubtab("Library", { count: null }),
+            kitSubtab("Ads", { count: null }),
+          ],
+          { width: "48px" },
+        ),
+      },
       { id: "subtabs-capsule", html: kitSubtabsCapsule("About this lead", ["Why", "Contact", "Sequence"]) },
       {
         id: "subtabs-chips",
@@ -2242,6 +2276,57 @@ export const FAMILIES = [
           ["Reply", 3],
           ["Call", 1],
           ["Approve", 1],
+        ]),
+      },
+    ],
+  },
+  {
+    family: "Kept places",
+    about:
+      "A part whose figure is on its way, beside the same part once the figure has landed (kit.css [data-coming]; surfaces/kit/kept-room.ts): waiting, it draws its room alone, noughts unseen in the figure's own type, one or as many as the figure it last said on this device, so every part of it stands where it does landed and as large. The spec holds each pair to that, box for box. The strip of views' own pair is in its family (stabs-coming).",
+    entries: [
+      {
+        // A line of sub-tabs: the Library's 41 lands in the room of two it last said, Ads' 1 in the room of one.
+        id: "kept-subtabs",
+        lands: "kept-subtabs-landed",
+        html: kitSubtabs(
+          "What was made, and what it is made from",
+          [
+            kitSubtab("Made", { on: true, count: 8 }),
+            kitSubtab("Library", { count: { room: 2 } }),
+            kitSubtab("Ads", { count: null }),
+          ],
+          { width: "48px" },
+        ),
+      },
+      {
+        id: "kept-subtabs-landed",
+        html: kitSubtabs(
+          "What was made, and what it is made from",
+          [
+            kitSubtab("Made", { on: true, count: 8 }),
+            kitSubtab("Library", { count: 41 }),
+            kitSubtab("Ads", { count: 1 }),
+          ],
+          { width: "48px" },
+        ),
+      },
+      {
+        // A list's cuts as chips: a chip's figure keeps its room the same way.
+        id: "kept-chips",
+        lands: "kept-chips-landed",
+        html: kitSubtabsChips("Need you, by what it asks of you", [
+          ["All", 14],
+          ["Reply", null],
+          ["Call", { room: 2 }],
+        ]),
+      },
+      {
+        id: "kept-chips-landed",
+        html: kitSubtabsChips("Need you, by what it asks of you", [
+          ["All", 14],
+          ["Reply", 3],
+          ["Call", 11],
         ]),
       },
     ],
@@ -3570,6 +3655,7 @@ const captionOf = (e) =>
   [
     e.id,
     e.twin && `twin of ${e.twin}`,
+    e.lands && `lands as ${e.lands}`,
     e.source && `source: ${e.source}`,
     e.width && `at a ${e.width}'s width`,
     e.except && `except ${e.except.join(", ")}`,
@@ -3578,7 +3664,7 @@ const captionOf = (e) =>
     .join(" · ");
 
 const entryHtml = (e) =>
-  `<figure class="gx-entry"${attr("data-entry", e.id)}${attr("data-twin", e.twin)}${attr("data-source", e.source)}` +
+  `<figure class="gx-entry"${attr("data-entry", e.id)}${attr("data-twin", e.twin)}${attr("data-lands", e.lands)}${attr("data-source", e.source)}` +
   `${attr("data-width", e.width)}${attr("data-except", e.except && e.except.join(" "))}${e.boxes ? ' data-boxes="true"' : ""}>` +
   `<div class="gx-stage"${attr("data-stage", e.stage)}>${e.html}</div>` +
   `<figcaption class="gx-caption">${captionOf(e)}</figcaption></figure>`;

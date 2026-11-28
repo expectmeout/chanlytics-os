@@ -34,6 +34,9 @@
  * Motion (animation, transition and the caret) is read with the spec's still stylesheet off, since it stops them with
  * !important; everything else with it on, so a transition never shows a value on its way.
  *
+ * `keptPlacesHold` is a function of its own too: it asks, of each entry that says what it lands as, whether every element
+ * of it stands where that entry's does and as large (the kept places: a figure on its way keeps its room).
+ *
  * `toastsOverFeet` is a function of its own, for the same reason: it asks, of each kit entry that draws an open sheet
  * and a toast, whether the toast stands on the sheet's foot, where its Save is. So are `focusRings`, which focuses each
  * control an entry draws as a key does and asks whether a ring is drawn, and `placeEntry` with `groundsUnder`, which
@@ -788,6 +791,61 @@ export function toastsOverFeet(): { pairs: number; over: string[] } {
       if (meet(t, f))
         found.over.push(`${figure.dataset.entry}: a toast (${edges(t)}) on the sheet's foot (${edges(f)})`);
     }
+  }
+  return found;
+}
+
+/**
+ * Whether a part whose figure is on its way stands as it does once the figure has landed: each entry that says what it
+ * lands as (`data-lands`: a tab's count, a chip's, a view's, drawn as its room alone) against that entry, element for
+ * element in the order they are drawn. Each element's box is read from its own stage's corner, and one that stands
+ * a tenth of a pixel elsewhere or at another size is a sentence naming the entry, the element and both boxes (left, top,
+ * width, height); a part the page draws in neither (a count a phone hides) is the same in both. So nothing of the part
+ * moves as the figure comes: the tabs after it, the strip, the figure's own box. How many pairs were compared is answered
+ * too, since a gallery with none proves nothing.
+ */
+export function keptPlacesHold(): { pairs: number; moved: string[] } {
+  const found = { pairs: 0, moved: [] as string[] };
+  /** How far two boxes may stand apart and be one: two cells of the gallery's grid differ by a hundredth of a pixel. */
+  const SAME = 0.1;
+  const name = (el: Element) => `${el.localName}${Array.from(el.classList, (c) => `.${c}`).join("")}`;
+  const spelled = (box: number[] | null) =>
+    box ? `at ${box.map((v) => Math.round(v * 100) / 100).join(" ")}` : "not drawn";
+  /** Each element of an entry's stage with its box from the stage's corner: none for one the page does not draw. */
+  const boxesOf = (figure: HTMLElement): { el: string; box: number[] | null }[] => {
+    const stage = figure.querySelector(":scope > .gx-stage");
+    if (!stage) return [];
+    const from = stage.getBoundingClientRect();
+    return Array.from(stage.querySelectorAll("*"), (el) => {
+      const r = el.getBoundingClientRect();
+      const undrawn = el.getClientRects().length === 0;
+      return { el: name(el), box: undrawn ? null : [r.left - from.left, r.top - from.top, r.width, r.height] };
+    });
+  };
+  /** Whether two boxes stand apart: one drawn and the other not, or any side further off than a grid's rounding. */
+  const apart = (a: number[] | null, b: number[] | null) =>
+    a === null || b === null ? a !== b : a.some((v, side) => Math.abs(v - (b[side] ?? 0)) > SAME);
+  for (const waiting of Array.from(document.querySelectorAll<HTMLElement>("[data-entry][data-lands]"))) {
+    const id = waiting.dataset.entry;
+    const landed = document.querySelector<HTMLElement>(`[data-entry="${waiting.dataset.lands}"]`);
+    if (!landed) {
+      found.moved.push(`${id}: no entry ${waiting.dataset.lands} to land as`);
+      continue;
+    }
+    found.pairs += 1;
+    const [mine, theirs] = [boxesOf(waiting), boxesOf(landed)];
+    if (mine.length !== theirs.length) {
+      found.moved.push(`${id}: ${mine.length} elements against ${theirs.length} in ${waiting.dataset.lands}`);
+      continue;
+    }
+    mine.forEach((part, at) => {
+      const other = theirs[at];
+      if (!other) return;
+      if (part.el !== other.el || apart(part.box, other.box))
+        found.moved.push(
+          `${id}: ${part.el} ${spelled(part.box)} against ${other.el} ${spelled(other.box)} in ${landed.dataset.entry}`,
+        );
+    });
   }
   return found;
 }

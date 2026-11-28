@@ -20,10 +20,13 @@ function _subTabsTake(glyph: ReactElement): void {
   type _Its = [
     Holds<Exactly<ComponentProps<typeof SubTabs>, SubTabsProps>>,
     Holds<Exactly<SubTab["tone"], "warn" | undefined>>,
-    Holds<Exactly<SubTab["count"], number | undefined>>,
+    // A figure, none, or one on its way (`null`), whose room the tab keeps.
+    Holds<Exactly<SubTab["count"], number | null | undefined>>,
     Holds<Exactly<SubTabsProps["quietCounts"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["dense"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["look"], "capsule" | "chips" | undefined>>,
+    // The name a strip remembers its figures under: a figure on its way keeps the room of the one last said.
+    Holds<Exactly<SubTabsProps["kept"], string | undefined>>,
     Holds<Exactly<SubTabsProps["value"], string | null>>,
   ];
   SubTabs({

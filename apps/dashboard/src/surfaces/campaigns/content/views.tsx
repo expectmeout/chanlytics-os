@@ -17,6 +17,7 @@ import {
   type ContentTally,
   type ContentView,
 } from "@chanlytics/contracts";
+import { getActiveWorkspace } from "@/bridge/workspace";
 import { canDo } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -281,12 +282,13 @@ const listsOf = (planned: boolean): readonly ContentList[] =>
 
 /**
  * Ads, the third list where the workspace runs ads (Ruben, 25 Nov 2026: beside Made and the Library, where it stands still
- * on every list): lit on Ads, how many ads its list holds as the Ads page last read them (none before), amber while one
- * needs the owner. Ads is a page of its own at its own address (`campaigns/ads`), so its press goes there.
+ * on every list): lit on Ads, how many ads its list holds as the Ads page last read them, amber while one needs the owner.
+ * Its figure is `null` while the read that says it is on its way, and the tab keeps its room; none where there is none to say
+ * (ads/needs-you.ts). Ads is a page of its own at its own address (`campaigns/ads`), so its press goes there.
  */
 export interface AdsTab {
   on: boolean;
-  count: number | null;
+  count: number | null | undefined;
   owed: boolean;
   onPress: () => void;
 }
@@ -299,10 +301,24 @@ export interface AdsTab {
  */
 const LIST_SAYS = CONTENT_WORDS.lists;
 
-/** How many a list holds, as it was last read: the Week's own count, else Content's tally; none before either. */
-function listCountOf(each: ContentList, tally: ContentTally | null, week: { count: number | null } | null) {
+/** What a list's figure is read from: Content's tally, whether its read is out, and the Week's own count. */
+interface ListCounts {
+  tally: ContentTally | null;
+  /** Whether the read that says the tally is on its way now: Made's own, on Made. */
+  reading: boolean;
+  week: { count: number | null } | null;
+}
+
+/**
+ * How many a list holds, as it was last read: the Week's own count, else Content's tally. Before the tally is read, Made's
+ * and the Library's are on their way where the page's own read brings them (`reading`: `null`, and the tab keeps the
+ * figure's room). Where no read of it is out (the Library or Ads opened first, the Week: each reads its own and not Made's)
+ * the tab says none and keeps no room, as it did: a room kept there stood empty for as long as the page was open. The
+ * Week's is said only once its own read was made, which Made and the Library do not make, so before it the tab says none.
+ */
+function listCountOf(each: ContentList, { tally, reading, week }: ListCounts) {
   if (each === "week") return week?.count ?? undefined;
-  if (!tally) return undefined;
+  if (!tally) return reading ? null : undefined;
   return each === "made" ? tally.made : tally.library;
 }
 
@@ -317,11 +333,11 @@ function listNeedOf(each: ContentList, tally: ContentTally | null): string | und
   return tally.waiting > 0 && canDo("settings") ? LIST_SAYS.libraryWaits : undefined;
 }
 
-/** Ads' own tab, after the lists: how many it holds, and amber while one needs the owner. */
+/** Ads' own tab, after the lists: how many it holds (its room while that is on its way), and amber while one needs the owner. */
 const adsTabOf = (ads: AdsTab) => ({
   id: "ads",
   label: ADS_WORDS.adsTab,
-  count: ads.count ?? undefined,
+  count: ads.count,
   need: ads.owed ? LIST_SAYS.adsNeeds : undefined,
   testid: "cnv-list-ads",
 });
@@ -332,12 +348,18 @@ const listOfTab = (id: string): ContentList => (id === "library" ? "library" : i
 export function ContentLists({
   list,
   tally,
+  reading = false,
   onList,
   week = null,
   ads = null,
 }: {
   list: ContentList;
   tally: ContentTally | null;
+  /**
+   * Whether the read that says the tally is out now, so Made's and the Library's figures are on their way: Content's own
+   * read, while Made is the list shown. Not on a page that reads something else (the Library, the Week, Ads).
+   */
+  reading?: boolean;
   onList: (list: ContentList) => void;
   /** Where the workspace plans its weeks: how many the Week holds, once read (null before). */
   week?: { count: number | null } | null;
@@ -347,7 +369,7 @@ export function ContentLists({
   const lists = listsOf(!!week).map((each) => ({
     id: each,
     label: LIST_SAYS[each],
-    count: listCountOf(each, tally, week),
+    count: listCountOf(each, { tally, reading, week }),
     need: listNeedOf(each, tally),
     testid: `cnv-list-${each}`,
   }));
@@ -355,6 +377,8 @@ export function ContentLists({
     <SubTabs
       label={LIST_SAYS.label}
       className="cnv-lists"
+      // The figures the lists last said, remembered for this workspace: one on its way keeps that room (kept-room.ts).
+      kept={`${getActiveWorkspace() ?? ""}/content-lists`}
       value={ads?.on ? "ads" : list}
       onSelect={(id) => (id === "ads" ? ads?.onPress() : onList(listOfTab(id)))}
       tabs={ads ? [...lists, adsTabOf(ads)] : lists}

@@ -48,6 +48,7 @@ import { useTableState } from "../../apps/dashboard/src/surfaces/kit/table/state
 import { useDataTable } from "../../apps/dashboard/src/surfaces/kit/table/use-data-table.ts";
 import { cx } from "../../apps/dashboard/src/surfaces/kit/variants.ts";
 import { HELD, drawn, drawnSkeleton, keysOf, markupSkeleton, parting, settle, spell } from "./kit/_skeleton.mjs";
+import { inboxStrip, onADeviceThatKept } from "./kit/_kept-device.mjs";
 import { bridgeHolds } from "../shell/_bridge-holds.mjs";
 
 installStubReact();
@@ -1171,6 +1172,8 @@ const VIEW_TABS = {
         { id: "live", label: "Live", href: "#kit", live: true },
       ],
     }),
+  // The count not read yet, on a device whose strip last said one figure there: the tab draws its room alone.
+  "stabs-coming": () => onADeviceThatKept({ "kit/inbox/needs you": 1 }, () => inboxStrip(h, { coming: true })).drew,
   "stabs-campaigns": () =>
     h(ViewTabs, {
       name: "campaigns",

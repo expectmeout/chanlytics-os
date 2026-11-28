@@ -22,6 +22,9 @@ function _viewTabsTake(): void {
     Holds<Exactly<ViewTab["tone"], "warn" | undefined>>,
     Holds<Exactly<ViewTab["count"], number | null | undefined>>,
     Holds<Exactly<ViewTab["live"], boolean | undefined>>,
+    // A count on its way, and the name a strip remembers its figures under, whose room the tab then keeps.
+    Holds<Exactly<ViewTab["coming"], boolean | undefined>>,
+    Holds<Exactly<ViewTabsProps["kept"], string | undefined>>,
     Holds<Exactly<ViewTabsProps["mayLeave"], (() => boolean) | undefined>>,
   ];
   ViewTabs({

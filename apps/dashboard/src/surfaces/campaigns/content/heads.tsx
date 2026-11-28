@@ -26,7 +26,7 @@ import { ListFind } from "../../kit/head/list-find";
 import { UnderRow } from "../../kit/head/under-row";
 import { FindWords } from "../../files/library-views";
 import { showFiles, type FilesView } from "../../files/surface";
-import { useSurface } from "../../use-surface";
+import { useSurface, useSurfaceFailed } from "../../use-surface";
 import { useAdsListed, useAdsNeeding } from "../ads/needs-you";
 import { useAdsShown } from "../ads/shown";
 import { askContentFind } from "./surface";
@@ -194,6 +194,10 @@ function ContentBar(props: {
   const onView = (v: ContentView) => navigate(contentRouteOf({ list: "made", view: v, open: null }));
   const ads = useAdsTab(false);
   const libraryHolds = useLibraryHolds();
+  // Made's read is this page's own while Made is the list shown: until it lands (or fails) the tally is on its way. The
+  // Library and the Week read their own, and nothing of Made's is coming there.
+  const madeFailed = useSurfaceFailed("content");
+  const tallyComing = !library && !week && !madeFailed;
   // A list that holds nothing has nothing to look through: no Squares or List, no views (its first day says what to do). The
   // Library's Squares or List waits for its first file, as its coral Add does (heads.tsx WhileLibraryHolds).
   const bare = week || (!library && place.view === "all" && madeHoldsNothing(tally));
@@ -205,6 +209,7 @@ function ContentBar(props: {
         <ContentLists
           list={place.list}
           tally={tally}
+          reading={tallyComing}
           onList={(l) => navigate(contentRouteOf({ list: l, view: "all", open: null }))}
           // How many the Week holds, as it was last read: the tab reads no week of its own on Made or the Library.
           week={props.planned ? { count: weekCountOf() } : null}
