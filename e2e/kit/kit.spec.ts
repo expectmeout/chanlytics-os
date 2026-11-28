@@ -8,6 +8,7 @@ import {
   PRESSES,
   focusRings,
   groundsUnder,
+  keptPlacesHold,
   kitChecks,
   placeEntry,
   toastsOverFeet,
@@ -379,6 +380,20 @@ test("a toast raised over an open sheet stands clear of its foot, where its Save
   }
 });
 
+/** How many parts the gallery draws waiting beside themselves landed: a line of sub-tabs, chips, the strip of views. */
+const KEPT_PLACES = 3;
+
+test("a part whose figure is on its way stands as it does once the figure lands, at both widths and in both themes", async ({
+  browser,
+  baseURL,
+}) => {
+  await eachRun(browser, baseURL, GLASS, async (page, run) => {
+    const found = await page.evaluate(keptPlacesHold);
+    expect(found.pairs, `${label(run)}: parts compared waiting and landed`).toBe(KEPT_PLACES);
+    expect(found.moved, `${label(run)}: a part that moves as its figure lands`).toEqual([]);
+  });
+});
+
 test("every control an entry draws shows the house's ring when a key focuses it, but the designed ringless: Glass, both widths and themes", async ({
   browser,
   baseURL,
@@ -714,6 +729,42 @@ test("check 5 names a toast over a sheet's foot: on a phone as the bell's list l
     } finally {
       await context.close();
     }
+  }
+});
+
+test("the kept places' check names each part whose room is taken away, a room a figure short, and a pair with no entry to land as", async ({
+  browser,
+  baseURL,
+}) => {
+  const { context, page } = await open(browser, baseURL, "desk");
+  /** Which entries the check names, each once. */
+  const named = async () => [...new Set((await page.evaluate(keptPlacesHold)).moved.map((m) => m.split(":")[0]))];
+  try {
+    await show(page);
+    expect(await named()).toEqual([]);
+    // A sub-tab's room taken away: the line's and the chips', which draw the one figure.
+    const subtab = await page.addStyleTag({ content: ".subtab-count[data-coming]::before { content: none; }" });
+    expect(await named()).toEqual(["kept-subtabs", "kept-chips"]);
+    await subtab.evaluate((el) => (el as Element).remove());
+    // A view's count's room taken away: the strip of views' tab, and the tabs after it.
+    const view = await page.addStyleTag({ content: ".stabs-tab .tally[data-coming]::before { content: none; }" });
+    expect(await named()).toEqual(["stabs-coming"]);
+    await view.evaluate((el) => (el as Element).remove());
+    expect(await named()).toEqual([]);
+    // A room one figure short of the figure that lands (a 41 in the room of one): its tab is named, and what follows it.
+    await page.evaluate(() =>
+      document.querySelector('[data-entry="kept-subtabs"] [data-coming="00"]')?.setAttribute("data-coming", "0"),
+    );
+    const short = (await page.evaluate(keptPlacesHold)).moved;
+    expect(short.every((m) => m.startsWith("kept-subtabs: "))).toBe(true);
+    expect(short.some((m) => m.includes("span.subtab-count"))).toBe(true);
+    // An entry that names none to land as is said, and not counted as held.
+    await page.evaluate(() =>
+      document.querySelector('[data-entry="kept-chips"]')?.setAttribute("data-lands", "nowhere"),
+    );
+    expect((await page.evaluate(keptPlacesHold)).moved).toContain("kept-chips: no entry nowhere to land as");
+  } finally {
+    await context.close();
   }
 });
 

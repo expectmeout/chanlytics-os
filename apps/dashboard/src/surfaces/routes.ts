@@ -60,6 +60,11 @@ export interface SurfaceViews {
     testid?: string;
     /** How many things under the tab need the owner, said on it amber (`tone` "warn"), as the Inbox's tab says its own. */
     badge?: () => number | null;
+    /**
+     * Whether that count is not read yet and its read is on its way: the strip then keeps the tab the room of the figure
+     * it last said on this device (the kit's ViewTab `coming`), so the tabs after it hold still as it lands.
+     */
+    coming?: () => boolean;
     tone?: "warn";
   }[];
   /**

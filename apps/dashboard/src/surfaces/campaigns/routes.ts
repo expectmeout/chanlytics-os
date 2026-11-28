@@ -33,6 +33,8 @@ import { adsShown } from "./ads/shown";
 import { adsNeedingNow, hearAdsNeeding } from "./ads/needs-you";
 import { contentTabRoute } from "./home/left-at";
 import { onSurfaceValue, surfaceValue } from "../surface-values";
+import { isSurfaceFailed } from "@/bridge/surface-status";
+import { warmsOnItsOwn } from "@/bridge/workspace";
 import type { SurfaceViews } from "../routes";
 // MOCKUP: the crumb names an ad the page has read (the store remembers them) until the wiring lane's surface holds real ones.
 import { adNameOf } from "./ads/crumb-names";
@@ -56,6 +58,16 @@ const contentNeedsNow = (): number | null => {
   const count = (surfaceValue("content")?.dto?.tally.needs ?? 0) + adsNeedingNow();
   return count > 0 ? count : null;
 };
+
+/**
+ * Whether Content's count is on its way: its page not read yet, where its read is being made (Content's own as the view is
+ * shown; ahead of its press from another view once the frame is idle, home/route.tsx, where a frame may read with nobody
+ * reaching) and has not failed. The strip then keeps the tab the room of the figure it last said (the kit's kept-room.ts):
+ * read a moment after Campaigns was drawn, the figure came beside Content and pushed Forms along (Ruben, 28 Nov 2026).
+ * What needs the owner in Ads is read later still, once Content is shown and idle, and is not waited for here.
+ */
+const contentNeedsComing = (): boolean =>
+  surfaceValue("content") === undefined && !isSurfaceFailed("content") && warmsOnItsOwn();
 
 /** What moves Content's count: Content's read published, and what needs the owner in Ads noted (the strip hears both). */
 const hearContentNeeds = (redraw: () => void): (() => void) => {
@@ -85,6 +97,7 @@ function campaignsViews(picked: "sequences" | "content" | "forms"): SurfaceViews
         to: picked === "content" ? CONTENT_ROUTE : contentTabRoute(adsShown()),
         testid: "campaigns-view-content",
         badge: contentNeedsNow,
+        coming: contentNeedsComing,
         tone: "warn",
       },
       // Forms, the last of Campaigns' views (00680): what a business asks people for, with no website.

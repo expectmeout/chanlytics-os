@@ -338,3 +338,43 @@ test("the route gate asks with the pane it is about to draw, and a demo page is 
     assert.equal(gate(page).demoGated, true, `${page}: the registry says demo, so the frame draws it nowhere`);
   for (const page of ["clients", "inbox", "playbooks"]) assert.equal(gate(page).demoGated, false, `${page} is real`);
 });
+
+test("the Inbox's tab says its count is on its way until the day is read, under the workspace's own name, and never once that read failed", () => {
+  // The strip is drawn with the frame, before any read: its Inbox tab's count, made of the day's read, landed after it
+  // and pushed Conversations and Live along (Ruben, 28 Nov 2026). While the day is unread the tab is told its figure is
+  // coming, and the kit keeps it the room of the figure it last said on this device (kit/kept-room.ts).
+  const { SurfaceTabs } = fromDashboard("surfaces/frame/surface-tabs.tsx");
+  const { setStatus } = fromDashboard("bridge/surface-status.ts");
+  const { setSurfaceValue, surfaceValue } = fromDashboard("surfaces/surface-values.ts");
+  cells.length = 0;
+  const drawStrip = () => {
+    at = 0;
+    effects = [];
+    const strip = SurfaceTabs({ page: "conversations", param: null, views: null, onNavigate() {} });
+    return { strip, tab: strip.props.tabs.find((t) => t.id === "inbox") };
+  };
+  assert.equal(surfaceValue("today"), undefined, "the day is unread as this begins");
+  const unread = drawStrip();
+  assert.equal(unread.tab.count, null, "no figure before the day is read");
+  assert.equal(unread.tab.coming, true, "and one on its way");
+  assert.equal(
+    unread.strip.props.kept,
+    "harbor/inbox",
+    "remembered for the workspace the address names, and the strip",
+  );
+  assert.deepEqual(
+    unread.strip.props.tabs.filter((t) => t.id !== "inbox").map((t) => t.coming),
+    [false, false],
+    "Conversations and Live say no count, and wait for none",
+  );
+  // The day's read failed: no count will come, and the tab keeps no room for one.
+  setStatus("today", "seeded");
+  assert.equal(drawStrip().tab.coming, false);
+  // Read, with nobody waiting: none is said, and none is coming.
+  setSurfaceValue("today", { queue: { rows: [] } });
+  setStatus("today", "live");
+  const read = drawStrip();
+  assert.equal(read.tab.count, null);
+  assert.equal(read.tab.coming, false);
+  setSurfaceValue("today", undefined);
+});

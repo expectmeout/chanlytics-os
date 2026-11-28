@@ -3,7 +3,8 @@
  * sub-menu, the few ways to cut the list it shows (the Inbox's buckets, Conversations' channels), as small text tabs on
  * a line: the picked one in ink with a bar under it, the others dim, a figure beside each where it has something to say,
  * and the room of one kept where a figure is on its way and not read yet (a tab's `count: null`), so the strip does not
- * move as it lands.
+ * move as it lands. A strip given a name (`kept`) keeps the room of the figure each tab last said on this device, two
+ * figures wide for a 41 (../kept-room.ts).
  * It is not the strip of views a page sits in (`.stabs`, the shell's SurfaceTabs): that strip is the page, this one is
  * what is on it, so the two are drawn apart (the frame's capsule over a line of words).
  *
@@ -34,6 +35,7 @@
  */
 import { Tabs } from "@base-ui/react/tabs";
 import type { MouseEvent, ReactElement } from "react";
+import { roomFigure, roomKept, useRoomsKept, type PlaceSaid } from "../kept-room";
 import { cx } from "../variants";
 
 /** A tab: the value the page keeps, its words, and what it may say beside them. */
@@ -43,8 +45,9 @@ export type SubTab = {
   /**
    * The figure beside its words, where there is one to say (a zero is the page's to say or not). `null` where there is
    * one and it is not read yet: the tab keeps the room of one figure, so it stands as wide and as tall as it does once
-   * the figure lands and no tab after it moves (kit.css). Only where the read that says it is on its way: a tab that may
-   * never say one leaves it out, or the room stands empty.
+   * the figure lands and no tab after it moves (kit.css); in a strip with a name (`kept`), the room of the figure it last
+   * said. Only where the read that says it is on its way: a tab that may never say one leaves it out, or the room stands
+   * empty.
    */
   count?: number | null;
   /** The tab whose figure matters: someone is waiting there. It is the one a phone keeps (`quietCounts`). */
@@ -95,6 +98,12 @@ export type SubTabsProps = {
   dense?: boolean;
   /** The segmented capsule in place of the line (a pane's few tabs, sharing its row), or chips (a list's few cuts). */
   look?: "capsule" | "chips";
+  /**
+   * The name this strip's figures are remembered under on this device (../kept-room.ts), the workspace's in it where
+   * the figures are a workspace's: a figure on its way then keeps the room of the figure its tab last said, so a 41
+   * lands in two figures' room. Left out, a figure on its way keeps the room of one.
+   */
+  kept?: string;
   className?: string;
 };
 
@@ -114,15 +123,26 @@ function linkTab(href: string) {
   };
 }
 
-/** A tab's figure: the number, the room of one where it is not read yet (`null`), and nothing where the tab says none. */
-function tabFigure(count: number | null | undefined) {
-  if (count === undefined) return null;
-  return count === null ? (
-    <span className="subtab-count" data-coming="" />
-  ) : (
-    <span className="subtab-count">{count}</span>
-  );
+/** Where a strip's tab keeps its room, in a strip with a name: the strip's name, then the tab. */
+const placeOf = (kept: string, tab: SubTab): string => `${kept}/${tab.id}`;
+
+/**
+ * A tab's figure: the number; where it is not read yet (`null`), its room, drawn as noughts unseen (kit.css reads them
+ * off `data-coming`), as many as the figure the tab last said in a strip with a name, else one; and nothing where the tab
+ * says none.
+ */
+function tabFigure(tab: SubTab, kept: string | undefined) {
+  if (tab.count === undefined) return null;
+  if (tab.count !== null) return <span className="subtab-count">{tab.count}</span>;
+  const last = kept === undefined ? undefined : roomKept(placeOf(kept, tab));
+  return <span className="subtab-count" data-coming={roomFigure(last ?? 1)} />;
 }
+
+/** What each tab whose figure is read says now, for the room it keeps the next time it waits: none in a strip with no name. */
+const saidBy = (tabs: readonly SubTab[], kept: string | undefined): PlaceSaid[] =>
+  kept === undefined
+    ? []
+    : tabs.flatMap((tab): PlaceSaid[] => (typeof tab.count === "number" ? [[placeOf(kept, tab), tab.count]] : []));
 
 /** A pane's few tabs as the segmented capsule: each its words alone, the picked one the lozenge. */
 function capsuleOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
@@ -151,7 +171,7 @@ function capsuleOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
 }
 
 /** A list's few cuts as chips: each its words and its figure, the picked one filled in the ink. */
-function chipsOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
+function chipsOf({ label, value, tabs, onSelect, kept, className }: SubTabsProps) {
   return (
     <Tabs.Root
       value={value}
@@ -170,7 +190,7 @@ function chipsOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
             aria-controls={tab.controls}
           >
             {tab.label}
-            {tabFigure(tab.count)}
+            {tabFigure(tab, kept)}
           </Tabs.Tab>
         ))}
       </Tabs.List>
@@ -180,9 +200,10 @@ function chipsOf({ label, value, tabs, onSelect, className }: SubTabsProps) {
 
 /** A line of sub-tabs, one picked; or a pane's few, as the capsule; or a list's few cuts, as chips. */
 export function SubTabs(props: SubTabsProps) {
+  useRoomsKept(saidBy(props.tabs, props.look === "capsule" ? undefined : props.kept));
   if (props.look === "capsule") return capsuleOf(props);
   if (props.look === "chips") return chipsOf(props);
-  const { label, value, tabs, onSelect, quietCounts, dense, className } = props;
+  const { label, value, tabs, onSelect, quietCounts, dense, kept, className } = props;
   return (
     <Tabs.Root
       value={value}
@@ -210,7 +231,7 @@ export function SubTabs(props: SubTabsProps) {
             <span className="subtab-label" data-text={tab.label}>
               {tab.label}
             </span>
-            {tabFigure(tab.count)}
+            {tabFigure(tab, kept)}
             {tab.need ? (
               <span className="subtab-dot is-warn" role="img" aria-label={tab.need} />
             ) : tab.fresh ? (

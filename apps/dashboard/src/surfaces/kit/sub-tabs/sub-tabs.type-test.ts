@@ -25,6 +25,8 @@ function _subTabsTake(glyph: ReactElement): void {
     Holds<Exactly<SubTabsProps["quietCounts"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["dense"], boolean | undefined>>,
     Holds<Exactly<SubTabsProps["look"], "capsule" | "chips" | undefined>>,
+    // The name a strip remembers its figures under: a figure on its way keeps the room of the one last said.
+    Holds<Exactly<SubTabsProps["kept"], string | undefined>>,
     Holds<Exactly<SubTabsProps["value"], string | null>>,
   ];
   SubTabs({

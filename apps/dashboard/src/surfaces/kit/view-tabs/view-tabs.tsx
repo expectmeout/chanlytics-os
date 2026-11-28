@@ -13,11 +13,18 @@
  * painted, and the tab lit only with the page (5 Oct 2026). A page that may not be left yet says so (`mayLeave`), and
  * then nothing moves but the page's own question.
  *
+ * A view's figure may land after its strip is drawn (the frame draws the strip before any read: a load with nothing kept,
+ * a view read once the page is idle), and a tab that gains one grows and moves the tabs after it. A view says no figure
+ * for a zero, so before its read nobody knows whether one is coming; but the tab that said one the last time this device
+ * drew it most likely says one again. So a strip with a name to remember under (`kept`) keeps that tab the room of the
+ * figure it last said while its read is out (`coming`), and a tab that last said none keeps none (../kept-room.ts).
+ *
  * It draws what the shell's SurfaceTabs drew, which is now the frame's adapter over this (legacy/components/
  * frame/surface-tabs.tsx), with one element more: the highlight a change of view carries (./glide.ts). `className` is for
  * the page's layout, and comes last.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { roomFigure, roomKept, useRoomsKept, type PlaceSaid } from "../kept-room";
 import { viewDeck } from "../motion/view-deck";
 import { cx } from "../variants";
 import { afterPaint } from "./after-paint";
@@ -34,6 +41,11 @@ export type ViewTab = {
   href: string;
   /** A figure beside its words, where it has one to say; none is said for a zero. */
   count?: number | null;
+  /**
+   * Its figure is not read yet. In a strip with a name (`kept`) the tab keeps the room of the figure it said when this
+   * device last drew it, and none where it said none or was never drawn: said only while the read that will say it is out.
+   */
+  coming?: boolean;
   /** The figure counts people who need you. */
   tone?: "warn";
   /** Something is happening there now: a call on the line. */
@@ -64,16 +76,62 @@ export type ViewTabsProps = {
    * control layer's rim and blur at every width, since the page moves behind it.
    */
   fill?: boolean;
+  /**
+   * The name this strip's figures are remembered under on this device (../kept-room.ts), the workspace's in it: a tab
+   * whose figure is on its way (`coming`) keeps the room of the figure it last said. Left out, nothing is remembered.
+   */
+  kept?: string;
   testid?: string;
   className?: string;
 };
+
+/** Where a strip's tab keeps its room: the strip's name, then the tab. */
+const placeOf = (kept: string, tab: ViewTab): string => `${kept}/${tab.id}`;
+
+/**
+ * What each tab whose figure is read says now, for its room the next time it waits: its figure, or none where it said one
+ * before and says none now. A tab that never said one is not remembered at all.
+ */
+function saidBy(tabs: readonly ViewTab[], kept: string | undefined): PlaceSaid[] {
+  if (kept === undefined) return [];
+  return tabs.flatMap((tab): PlaceSaid[] => {
+    if (tab.coming) return [];
+    const place = placeOf(kept, tab);
+    if (tab.count) return [[place, tab.count]];
+    return roomKept(place) ? [[place, null]] : [];
+  });
+}
+
+/** A tab's figure: the number above none; while it is on its way, the room of the figure it last said, where it said one. */
+function tabFigure(tab: ViewTab, kept: string | undefined) {
+  const tally = cx("stabs-badge tally", tab.tone === "warn" && "tally-warn");
+  if (tab.count)
+    return (
+      <span className={tally} data-tone={tab.tone ?? "plain"}>
+        {tab.count}
+      </span>
+    );
+  const room = tab.coming && kept !== undefined ? (roomKept(placeOf(kept, tab)) ?? 0) : 0;
+  return room > 0 ? <span className={tally} data-tone={tab.tone ?? "plain"} data-coming={roomFigure(room)} /> : null;
+}
 
 /** A plain press of the main button: one with a key held, or another button, is the browser's own. */
 const ownPress = (e: MouseEvent) =>
   !(e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
 
 /** A strip of views, one picked. A strip of one view draws nothing. */
-export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, fill, testid, className }: ViewTabsProps) {
+export function ViewTabs({
+  name,
+  label,
+  picked,
+  tabs,
+  onPick,
+  mayLeave,
+  fill,
+  kept,
+  testid,
+  className,
+}: ViewTabsProps) {
   // The tab pressed, lit until the address says it is the page's own.
   const [pending, setPending] = useState<string | null>(null);
   const strip = useRef<HTMLElement>(null);
@@ -86,6 +144,7 @@ export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, fill, te
     return () => clearTimeout(t);
   }, [pending]);
   const lit = pending ?? picked;
+  useRoomsKept(saidBy(tabs, kept));
   const shown = tabs.map((tab) => tab.id).join(" ");
   // Before the strip is painted, so it never shows at its start and then jumps; and again when its views change.
   useLayoutEffect(() => {
@@ -147,14 +206,7 @@ export function ViewTabs({ name, label, picked, tabs, onPick, mayLeave, fill, te
         >
           {tab.label}
           {tab.live ? <span className="live-dot" /> : null}
-          {tab.count ? (
-            <span
-              className={cx("stabs-badge tally", tab.tone === "warn" && "tally-warn")}
-              data-tone={tab.tone ?? "plain"}
-            >
-              {tab.count}
-            </span>
-          ) : null}
+          {tabFigure(tab, kept)}
           {tab.need ? <span className="subtab-dot is-warn" role="img" aria-label={tab.need} /> : null}
         </a>
       ))}

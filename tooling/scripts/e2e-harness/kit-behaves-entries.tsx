@@ -1182,20 +1182,23 @@ function SubTabsKitGlyph() {
 }
 
 /**
- * A strip whose last tab's figure is on its way: the tab keeps the room of one. Its press lands the figure, as a read
- * landing does, and picks nothing (Ads is a page of its own), so the spec can hold the strip still across it.
+ * A strip whose last two tabs' figures are on their way: each keeps its room, of one figure on a device that never drew
+ * the strip, and of the figure it last said on one that has (`kept`: the Library's 41 in the room of two). The last tab's
+ * press lands both, as a read landing does, and picks nothing (Ads is a page of its own), so the spec can hold the strip
+ * still across it.
  */
 function SubTabsKitComing() {
   const [landed, setLanded] = useState(false);
   return (
-    <Figure id="subtabs-coming" about="the kit's SubTabs, a figure on its way keeping its room">
+    <Figure id="subtabs-coming" about="the kit's SubTabs, figures on their way keeping their room">
       <SubTabs
         label="What was made, and what it is made from"
         value="made"
+        kept="kit/subtabs-coming"
         onSelect={(id) => setLanded((was) => was || id === "ads")}
         tabs={[
           { id: "made", label: "Made", count: 8 },
-          { id: "library", label: "Library", count: 41 },
+          { id: "library", label: "Library", count: landed ? 41 : null },
           { id: "ads", label: "Ads", count: landed ? 1 : null },
         ]}
       />

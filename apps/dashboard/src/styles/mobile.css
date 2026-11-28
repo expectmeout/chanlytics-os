@@ -459,8 +459,11 @@
      screen under the page is the one it goes back to, drawn as the list had it, so nothing comes in as the Back lands. */
   :root:not([data-carrying]) .main:has([data-takeover]) .pg-views:not([data-takeover] *) { display: none; }
   /* Needs you is the tab AND the bucket under it. The count belongs to the bucket, which is
-     the thing that filters by it. */
-  .main:has(.inbox) .stabs-badge { display: none; }
+     the thing that filters by it. Said by the strip itself, whose Inbox tab is the page's (`aria-current`, from the
+     frame's first draw), and not by the page being drawn under it: named by the page (`.main:has(.inbox)`), the count,
+     or the room kept for one on its way, stood on the tab while the page was read and went as it was drawn, and
+     Conversations and Live stepped back by it (28 Nov 2026). */
+  .stabs-inbox .stabs-tab[aria-current="page"] .stabs-badge { display: none; }
   /* The band is where a phone decides what to do with the thread, so it keeps its words, at a
      phone's padding. (What they asked has been off a narrow pane since #550's container query.) */
   .ix-thread-pane .ix-take { padding: 10px 12px; column-gap: 9px; row-gap: 8px; }
