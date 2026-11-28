@@ -285,6 +285,13 @@ function placementDoors(posts, attempts) {
         if (p_to === "published") p.published_at = "2026-11-10T10:00:00.000Z";
         return true;
       },
+      // 00611's door: Checking, and the ask of its place two minutes on, together.
+      post_unanswered: ({ p_post_id }) => {
+        const p = find(p_post_id);
+        if (!p || p.status !== "publishing") return false;
+        p.status = "checking";
+        return true;
+      },
     },
   };
 }
@@ -431,6 +438,35 @@ test("a refusal leaves the placement not posted, in the person's words, and a se
   assert.match(refused.posts[0].error.words, /did not take the post/);
   const busy = world({ posts: [placementRow({ status: "publishing" })] });
   await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), busy.ctx), /already on its way to Google/);
+});
+
+test("an ask that got no answer is Checking, never 'did not take the post': Google may hold it, and its profile is asked before anyone posts again", async () => {
+  // Google neither took it nor refused it, as the edge says it.
+  const lost = world();
+  edge.answer = () => ({
+    status: 502,
+    body: { ok: false, error: "google_refused", detail: "INTERNAL: Internal error encountered.", unanswered: true },
+  });
+  await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), lost.ctx), (e) => {
+    assert.match(e.message, /Chanlytics is asking Google what it has\. It won't post twice\./);
+    return true;
+  });
+  assert.equal(lost.posts[0].status, "checking");
+  assert.equal(lost.posts[0].error ?? null, null, "nothing says it did not go");
+  assert.deepEqual(
+    lost.attempts.map((a) => [a.step, a.outcome]),
+    [["publish", "no_answer"]],
+  );
+  // The edge itself failed with nothing to say: the same.
+  const down = world();
+  edge.answer = () => ({ status: 500, body: {} });
+  await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), down.ctx), /It won't post twice/);
+  assert.equal(down.posts[0].status, "checking");
+  // A plain no from Google is still a post that did not go.
+  const refused = world();
+  edge.answer = () => ({ status: 502, body: { ok: false, error: "google_refused", detail: "Photo too small" } });
+  await assert.rejects(route.POST.run(send("POST", { summary: WORDS }), refused.ctx), /did not take the post/);
+  assert.equal(refused.posts[0].status, "failed");
 });
 
 test("what a person pressed is what goes: its number by the plan, and a post with none asks for no Call button", async () => {

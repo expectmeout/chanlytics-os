@@ -66,5 +66,7 @@ export type {
   OpenFormRequestTime,
   OutsideFormResult,
 } from "./requests";
+export { readFormEntryStandings } from "./standings";
+export type { FormEntryStanding } from "./standings";
 export { countFormBookingOpen, listFormEntriesOfVisits, takeFormTimeRequest } from "./times";
 export type { FormTimeAsked, FormTimeHeld } from "./times";

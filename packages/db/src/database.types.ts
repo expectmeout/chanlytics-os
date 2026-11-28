@@ -3945,6 +3945,7 @@ export type Database = {
           owed: string[]
           reach: Json | null
           ref: string | null
+          sent_ref: string | null
           source: Json | null
           state: string
           tenant_id: string
@@ -3970,6 +3971,7 @@ export type Database = {
           owed: string[]
           reach?: Json | null
           ref?: string | null
+          sent_ref?: string | null
           source?: Json | null
           state?: string
           tenant_id: string
@@ -3995,6 +3997,7 @@ export type Database = {
           owed?: string[]
           reach?: Json | null
           ref?: string | null
+          sent_ref?: string | null
           source?: Json | null
           state?: string
           tenant_id?: string
@@ -12222,6 +12225,10 @@ export type Database = {
         Returns: boolean
       }
       form_entries_purge: { Args: never; Returns: number }
+      form_entries_standing: {
+        Args: { p_entry_ids: string[]; p_tenant_id: string }
+        Returns: Json
+      }
       form_entry_hold: {
         Args: { p_entry_id: string; p_tenant_id: string }
         Returns: boolean
@@ -12245,6 +12252,7 @@ export type Database = {
           p_form: string
           p_form_name?: string
           p_form_ref?: string
+          p_held_why?: string
           p_host?: string
           p_key_id?: string
           p_owed: string[]
@@ -12294,7 +12302,10 @@ export type Database = {
         }
         Returns: Json
       }
-      form_requests_open: { Args: { p_tenant_id: string }; Returns: Json }
+      form_requests_open: {
+        Args: { p_before?: string; p_before_id?: string; p_tenant_id: string }
+        Returns: Json
+      }
       form_requests_open_count: {
         Args: { p_tenant_id: string }
         Returns: number

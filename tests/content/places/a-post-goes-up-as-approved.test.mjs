@@ -3,6 +3,8 @@
  * handed the exact bytes the approval names, and a reel its made video; a caption changed after approval holds the post
  * ("Changed since you approved it"); a post whose day passed is let go and never sent late, by any road; one whose offer
  * ended is held with the three ways on; what was sent keeps the account it went to and when Instagram was seen holding it.
+ * A post that promises open time is never sent on a guess (00728): where the book cannot be read at the send it asks
+ * again a minute on, three times, then is held with a why of its own; every other post goes as before.
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -77,6 +79,7 @@ function world({
   goodUntil = null,
   asApproved,
   profile = {},
+  faults = {},
 } = {}) {
   const now = new Date().toISOString();
   const tables = {
@@ -128,13 +131,17 @@ function world({
       },
     ],
     publish_attempts: [],
-    // The run that holds the job: the send says it is about to speak on it (ledger markSpoke).
+    // What the book's reasons are read from, besides the calendar (lib/opportunities/book.ts): none here.
+    google_reviews: [],
+    // The run that holds the job: the send says it is about to speak on it (ledger markSpoke). While it runs it holds
+    // its once-only key (jobs_dedupe_live), so a next ask it writes for itself must carry a key of its own (00728).
     jobs: [
       {
         id: "job-1",
         tenant_id: T,
         kind: "post_publish",
         payload: { post_id: POST, attempt: "1" },
+        dedupe_key: `post_publish:${POST}:1`,
         state: "fired",
         attempts: 1,
         due_at: now,
@@ -143,70 +150,66 @@ function world({
     ],
   };
   const post = () => tables.posts[0];
-  const db = fakeDb(
-    tables,
-    {},
-    {
-      get_channel_credentials: () => ({ access_token: "bisu-token", account_id: ACCOUNT, login: "meta" }),
-      has_permission: () => true,
-      post_as_approved: () => asApproved,
-      post_attempt_open: ({ p_post_id, p_attempt_no, p_step, p_request }) => {
-        const row = {
-          id: `att-${tables.publish_attempts.length + 1}`,
-          tenant_id: T,
-          post_id: p_post_id,
-          attempt_no: p_attempt_no,
-          step: p_step,
-          request: p_request,
-          started_at: new Date().toISOString(),
-          finished_at: null,
-          outcome: null,
-          container_id: null,
-          external_id: null,
-          answer: null,
-          http_status: null,
-          error: null,
-        };
-        tables.publish_attempts.push(row);
-        return { fate: "open", id: row.id, finished: false, outcome: null, container_id: null, external_id: null };
-      },
-      post_attempt_close: (a) => {
-        const row = tables.publish_attempts.find((r) => r.id === a.p_attempt_id);
-        Object.assign(row, {
-          finished_at: new Date().toISOString(),
-          outcome: a.p_outcome,
-          container_id: a.p_container_id ?? null,
-        });
-        if (a.p_container_id) post().container_id = a.p_container_id;
-        return true;
-      },
-      post_moved: ({ p_post_id, p_from, p_to, p_patch }) => {
-        const p = tables.posts.find((r) => r.id === p_post_id);
-        if (!p || !p_from.includes(p.status)) return false;
-        const late = p_to === "pulled" && p_patch.held_why === "late";
-        Object.assign(p, {
-          status: p_to,
-          held_reason: p_to === "held" || late ? p_patch.held_reason : null,
-          held_why: p_to === "held" || late ? p_patch.held_why : null,
-        });
-        for (const k of ["permalink", "external_id", "account_id", "verified_at"]) if (p_patch[k]) p[k] = p_patch[k];
-        if ("error" in p_patch) p.error = p_patch.error;
-        // As the door does (00681): up on Instagram unseen, its job that asks the account for it is written with the move.
-        if (p_to === "published" && p.place === "instagram" && !p.verified_at && p.external_id)
-          tables.jobs.push({
-            id: `job-seen-${tables.jobs.length + 1}`,
-            tenant_id: p.tenant_id,
-            kind: "post_reconcile",
-            payload: { post_id: p.id, attempt: "seen", seen: "ask" },
-            state: "scheduled",
-            attempts: 0,
-            due_at: new Date(Date.now() + 120_000).toISOString(),
-            spoke_at: null,
-          });
-        return true;
-      },
+  const db = fakeDb(tables, faults, {
+    get_channel_credentials: () => ({ access_token: "bisu-token", account_id: ACCOUNT, login: "meta" }),
+    has_permission: () => true,
+    post_as_approved: () => asApproved,
+    post_attempt_open: ({ p_post_id, p_attempt_no, p_step, p_request }) => {
+      const row = {
+        id: `att-${tables.publish_attempts.length + 1}`,
+        tenant_id: T,
+        post_id: p_post_id,
+        attempt_no: p_attempt_no,
+        step: p_step,
+        request: p_request,
+        started_at: new Date().toISOString(),
+        finished_at: null,
+        outcome: null,
+        container_id: null,
+        external_id: null,
+        answer: null,
+        http_status: null,
+        error: null,
+      };
+      tables.publish_attempts.push(row);
+      return { fate: "open", id: row.id, finished: false, outcome: null, container_id: null, external_id: null };
     },
-  );
+    post_attempt_close: (a) => {
+      const row = tables.publish_attempts.find((r) => r.id === a.p_attempt_id);
+      Object.assign(row, {
+        finished_at: new Date().toISOString(),
+        outcome: a.p_outcome,
+        container_id: a.p_container_id ?? null,
+      });
+      if (a.p_container_id) post().container_id = a.p_container_id;
+      return true;
+    },
+    post_moved: ({ p_post_id, p_from, p_to, p_patch }) => {
+      const p = tables.posts.find((r) => r.id === p_post_id);
+      if (!p || !p_from.includes(p.status)) return false;
+      const late = p_to === "pulled" && p_patch.held_why === "late";
+      Object.assign(p, {
+        status: p_to,
+        held_reason: p_to === "held" || late ? p_patch.held_reason : null,
+        held_why: p_to === "held" || late ? p_patch.held_why : null,
+      });
+      for (const k of ["permalink", "external_id", "account_id", "verified_at"]) if (p_patch[k]) p[k] = p_patch[k];
+      if ("error" in p_patch) p.error = p_patch.error;
+      // As the door does (00681): up on Instagram unseen, its job that asks the account for it is written with the move.
+      if (p_to === "published" && p.place === "instagram" && !p.verified_at && p.external_id)
+        tables.jobs.push({
+          id: `job-seen-${tables.jobs.length + 1}`,
+          tenant_id: p.tenant_id,
+          kind: "post_reconcile",
+          payload: { post_id: p.id, attempt: "seen", seen: "ask" },
+          state: "scheduled",
+          attempts: 0,
+          due_at: new Date(Date.now() + 120_000).toISOString(),
+          spoke_at: null,
+        });
+      return true;
+    },
+  });
   db.storage = {
     from: () => ({
       createSignedUrl: async (p) => ({
@@ -373,4 +376,96 @@ test("a post that went up unseen is still posting, never on Instagram, and Insta
   assert.equal(gone.post().verified_at, null);
   assert.equal(placementStandingOf({ ...gone.post(), error: gone.post().error.words }, null, Date.now()).is, "stopped");
   assert.equal(calls.filter((c) => c.route === `POST /${ACCOUNT}/media_publish`).length, 2, "one send a world, ever");
+});
+
+/* ------------------------------------------------------------------- an opening that cannot be read (00728) -- */
+
+/** A piece made for Thursday's open time: its words promise it. */
+const opening = {
+  goal: null,
+  opportunity_id: "open_capacity:2026-11-26",
+  call_to_action: null,
+  day: "2026-11-26",
+  offer: null,
+  service: null,
+};
+/** The book cannot be read: its reasons' read fails. */
+const unreadable = () => ({ "google_reviews.select": { message: "statement timeout" } });
+/** The send's job as it comes back, having asked `n` times already. */
+const asked = (n) => ({ ...job("post_publish"), payload: { post_id: POST, attempt: "1", unread: String(n) } });
+
+test("a post that promises open time is not sent while the book cannot be read: asked again a minute on, then held with why", async () => {
+  const w = world({
+    status: "preparing",
+    asApproved: stands(`${T}/${FILE}/original.jpg`, opening),
+    faults: unreadable(),
+  });
+  const before = Date.now();
+  assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "opening" });
+  assert.equal(w.post().status, "preparing", "neither sent nor held: it asks again");
+  const again = w.tables.jobs.find((j) => j.payload.unread === "1");
+  assert.equal(again?.kind, "post_publish", "its own send, written for a minute on, beside the one still running");
+  assert.ok(Date.parse(again.due_at) - before >= 59_000, "a minute on");
+  assert.deepEqual(again.payload, { post_id: POST, attempt: "1", wait: "0", unread: "1" });
+  assert.equal(again.dedupe_key, `post_publish:${POST}:1:0:1`, "under a key of its own, which the ledger takes");
+  // Asked again, and again: still not sent on a guess.
+  assert.deepEqual(await postJobs(w.db, quick).publish(asked(1)), { skipped: "opening" });
+  assert.deepEqual(await postJobs(w.db, quick).publish(asked(2)), { skipped: "opening" });
+  assert.equal(w.post().status, "preparing");
+  // Asked three times: held, with a why of its own and the owner's words.
+  assert.deepEqual(await postJobs(w.db, quick).publish(asked(3)), { skipped: "held" });
+  assert.equal(w.post().status, "held");
+  assert.equal(w.post().held_why, "reason_unread");
+  assert.equal(w.post().held_reason, CONTENT_CHECK_WORDS.openingsUnread("Thursday"));
+  assert.equal(calls.length, 0, "nothing ever reached Instagram");
+});
+
+test("the owner's own word that the day still has openings needs no read: the post goes", async () => {
+  const w = world({
+    status: "preparing",
+    asApproved: stands(`${T}/${FILE}/original.jpg`, opening, [
+      { says: "Thursday still has openings", until: "2999-01-01" },
+    ]),
+    faults: unreadable(),
+  });
+  await postJobs(w.db, quick).publish(job("post_publish"));
+  assert.equal(w.post().status, "published");
+});
+
+test("every other post is as before: one that promises no open time is asked nothing of the book", async () => {
+  const dated = { ...opening, opportunity_id: null };
+  const w = world({
+    status: "preparing",
+    asApproved: stands(`${T}/${FILE}/original.jpg`, dated),
+    faults: unreadable(),
+  });
+  await postJobs(w.db, quick).publish(job("post_publish"));
+  assert.equal(w.post().status, "published");
+  assert.equal(
+    w.tables.jobs.some((j) => "unread" in j.payload),
+    false,
+  );
+});
+
+test("the book read and the day full is a reason that passed, not one that could not be read", async () => {
+  const w = world({ status: "preparing", asApproved: stands(`${T}/${FILE}/original.jpg`, opening) });
+  assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "held" });
+  assert.equal(w.post().held_why, "reason_passed");
+  assert.equal(w.post().held_reason, CONTENT_CHECK_WORDS.filledUp("Thursday"));
+});
+
+test("making it ready is not held by a book that cannot be read: the send asks, and its last moment still lets it go as late", async () => {
+  const ready = world({ asApproved: stands(`${T}/${FILE}/original.jpg`, opening), faults: unreadable() });
+  await postJobs(ready.db, quick).prepare(job("post_prepare"), SOON());
+  assert.equal(ready.post().status, "preparing", "made ready, as before");
+  assert.ok(madeContainer(), "Instagram was asked for its draft");
+  const late = world({
+    status: "preparing",
+    goodUntil: new Date(Date.now() - 60_000).toISOString(),
+    asApproved: stands(`${T}/${FILE}/original.jpg`, opening),
+    faults: unreadable(),
+  });
+  assert.deepEqual(await postJobs(late.db, quick).publish(asked(1)), { skipped: "late" });
+  assert.equal(late.post().status, "pulled");
+  assert.equal(late.post().held_why, "late");
 });

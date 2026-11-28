@@ -74,6 +74,13 @@ type Db = SupabaseClient<Database>;
 export interface PostDeps extends InstagramPlaceDeps {
   pause?: (ms: number) => Promise<void>;
   postingAt?: Partial<Record<PostPlace, PostingFinder>>;
+  /**
+   * A place that settles a send with no answer its own way (Google has no draft to ask after: it asks its profile),
+   * handed the post and the job.
+   */
+  reconcileAt?: Partial<
+    Record<PostPlace, (db: Db, post: PostRow, job: ClaimedJob) => Promise<void | { skipped: string }>>
+  >;
 }
 
 /** How long Instagram has to fetch the media: a day, as long as a container lives. */
