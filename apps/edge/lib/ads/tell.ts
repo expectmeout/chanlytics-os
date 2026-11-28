@@ -88,7 +88,7 @@ interface Telling {
 type AdTold = Pick<AdPendingRow, "id" | "platform_ad_id" | "intent"> & { switch_id?: string | null };
 
 /** What a telling came to, as its door answered it (ad_told), with Meta's pace and words beside it. */
-const toldOf = (outcome: string, usage: MetaUsage | null, words: string | null): Told => ({
+const adTold = (outcome: string, usage: MetaUsage | null, words: string | null): Told => ({
   outcome:
     outcome === "refused" || outcome === "unknown" || outcome === "again" || outcome === "kept" || outcome === "told"
       ? outcome
@@ -123,12 +123,12 @@ async function tellUnanswered(
   const usage = stands.usage ?? press.usage;
   const word = stands.ok ? stands.value : null;
   const pausing = ad.intent === "paused";
-  if (word === null) return toldOf(await mark("unknown", null), usage, null);
+  if (word === null) return adTold(await mark("unknown", null), usage, null);
   const held = (word === SWITCH.paused) === pausing;
   if (!held)
-    return pausing ? { outcome: "not_taken", usage, said: null } : toldOf(await mark("unknown", null), usage, null);
+    return pausing ? { outcome: "not_taken", usage, said: null } : adTold(await mark("unknown", null), usage, null);
   const ownWord = part === ad.platform_ad_id ? word : null;
-  return toldOf(await mark("told", pausing ? SWITCH.paused : ownWord), usage, null);
+  return adTold(await mark("told", pausing ? SWITCH.paused : ownWord), usage, null);
 }
 
 /** One press told to Meta, and what came of it kept (ad_told). Sent once. */
@@ -139,7 +139,7 @@ export async function tellAd(db: Db, log: Log, who: Telling, ad: AdTold): Promis
   // A pause is a stop: this deployment's switch never holds it. What turns an ad on is held while the switch is off.
   const writes = ad.intent === "paused" ? stopWrites(who.writes) : who.writes;
   if (writes === "off") return { outcome: "slowed", usage: null, said: null };
-  if (writes !== "live") return toldOf(await kept("told", SWITCH[ad.intent], null), null, null);
+  if (writes !== "live") return adTold(await kept("told", SWITCH[ad.intent], null), null, null);
 
   // An ad made here is switched at its own campaign, which holds its versions and nothing else (00666).
   const part = ad.switch_id ?? ad.platform_ad_id;
@@ -151,7 +151,7 @@ export async function tellAd(db: Db, log: Log, who: Telling, ad: AdTold): Promis
   // No answer: Meta is asked where the part stands before anything is said of it, or sent again.
   if (sent.fault === "silent") return tellUnanswered(db, log, who, { ad, part, usage: sent.usage });
   if (sent.fault !== null || !metaConfirmed(sent.json))
-    return toldOf(await kept("refused", null, sent.said), sent.usage, sent.said);
+    return adTold(await kept("refused", null, sent.said), sent.usage, sent.said);
   // Taken. What Meta now says of the ad, where its allowance leaves room to ask: else the next read says.
   const room = who.readBack !== false && (sent.usage === null || sent.usage.pct < ADS_USAGE_HOLD_PCT);
   const standing = room
@@ -167,7 +167,7 @@ export async function tellAd(db: Db, log: Log, who: Telling, ad: AdTold): Promis
   // (the next read says which of Meta's words it is). What an ad turned back on stands at is Meta's to say: it may be
   // checking it again.
   const stands = standing?.ok ? standing.value : ad.intent === "paused" ? SWITCH.paused : null;
-  return toldOf(await kept("told", stands, null), usage, null);
+  return adTold(await kept("told", stands, null), usage, null);
 }
 
 /** The most presses one read sends before it reads: each is a change, three of the account's allowance. */
