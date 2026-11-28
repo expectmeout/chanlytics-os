@@ -632,13 +632,13 @@ const PERSON_CALLS = [
   [
     "a note that does not say who reads it: no default (D8)",
     { action: "note", contact_id: ROSA, body: "Prefers mornings." },
-    { error: 'propose_person: for Invalid option: expected one of "receptionist"|"team"' },
+    { error: 'propose_person: for Invalid option: expected one of "ai"|"team"' },
     [],
   ],
   [
     "a note for someone the note cannot be for",
     { action: "note", contact_id: ROSA, body: "Prefers mornings.", for: "everyone" },
-    { error: 'propose_person: for Invalid option: expected one of "receptionist"|"team"' },
+    { error: 'propose_person: for Invalid option: expected one of "ai"|"team"' },
     [],
   ],
   [
@@ -649,7 +649,7 @@ const PERSON_CALLS = [
   ],
   [
     "a note AI reads, trimmed",
-    { action: "note", contact_id: ROSA, body: "  Prefers mornings.  ", for: "receptionist" },
+    { action: "note", contact_id: ROSA, body: "  Prefers mornings.  ", for: "ai" },
     {
       kind: "note",
       needs: "operator",
@@ -1061,7 +1061,7 @@ test("a note card, walked end to end: the model's call makes it, Approve writes 
     action: "note",
     contact_id: ROSA,
     body: "Prefers mornings.",
-    for: "receptionist",
+    for: "ai",
   });
   assert.equal(built.isError, false, built.result);
   const card = built.proposal;

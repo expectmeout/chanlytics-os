@@ -1,7 +1,7 @@
 /**
  * What AI is asked where an owner says, in a line, a message to keep (the Messages redesign's step 4, New message): it
  * writes the message for every channel its kind may go by, names it, checks it against WhatsApp's rules and what the
- * business has said, and files every version with one press on its card (propose_sequence's action message, the door
+ * business has said, and files every version with one press on its card (propose_campaign's action message, the door
  * POST templates/message). Said from New's line where what was said is a message to keep (Campaigns, one tab, call C12),
  * and from the Inbox's new conversation where no approved message can start a chat yet (call C10). One sentence, so
  * the card is the same card wherever it is asked for.

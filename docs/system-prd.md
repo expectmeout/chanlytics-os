@@ -1066,7 +1066,7 @@ chain end with a call or a note for the team.
   where the reader cannot back it, Haiku writes it (the writer, then the reader, over the business's record,
   `reach_out_record`); each is read by code (contracts `checkOpening`, `openingVerdict`), a written one asks one rewrite,
   then holds. Preview as a real lead draws the listing's sentence the same way, in the browser. The drafter (New, Ask's
-  `propose_sequence`) writes the words in the owner's voice: it reads the business's description, services and tone, Ask's
+  `propose_campaign`) writes the words in the owner's voice: it reads the business's description, services and tone, Ask's
   memory (a line learned from an email the owner pasted is `learned`, 00493) and the first emails of the last three started
   sequences to leads (`server/drafts/sequence.ts`, `server/campaigns/sequences/voice.ts`), each with what Ask drafted for it (kept
   as `as_drafted` in its `make_sequence` decision: New and Leads' "A draft by Ask" send it), its search and its first

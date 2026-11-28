@@ -236,7 +236,7 @@ test("a draft its question did not name is found by the round that begins one: i
 test("a read before the draft keeps its round: the draft's call after it is set aside, and the round asked again after the read's results", async () => {
   const s = sentAs([
     CALLED("sequences", { action: "moments" }),
-    CALLED("propose_sequence", { action: "message", name: "winback" }),
+    CALLED("propose_campaign", { action: "message", name: "winback" }),
     ANSWERED("A message to review."),
   ]);
   const r = await runAskTurn(turn({ text: "the ones gone quiet since summer" }).input, ports(s.round));

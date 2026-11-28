@@ -21,7 +21,9 @@ export const TOOL_NAMES = JSON.parse(readFileSync(new URL("./tool-names.json", i
  * The actions added since the rename (Ask Rewired, PRs 4.3, 4.5, 4.6 and 4.7, the Phase 4 plan's D1, and since), each by
  * the name a turn records today: no old tool was any of them, so the table has no row for them, and a case may name them
  * as they are. The operator (15 Oct 2026) renamed the campaigns tools to sequences and added the reads and cards that
- * give Ask every page's verbs; the table carries each name it renamed.
+ * give Ask every page's verbs; the table carries each name it renamed. On 26 Nov 2026 (Ruben's yes to lane 10's
+ * proposal) the tools said the screens' words again: campaigns and propose_campaign, inbox's conversation, send for a
+ * batch, propose_conversation; the table maps each name a turn recorded before that, and every row says today's name.
  */
 export const ADDED_SINCE = [
   "calendar.room",
@@ -79,22 +81,6 @@ export const ADDED_SINCE = [
   "propose_publish",
   "propose_reply.booking",
   "propose_review.reply",
-  "propose_sequence.cold_email",
-  "propose_sequence.decide",
-  "propose_sequence.discard",
-  "propose_sequence.end",
-  "propose_sequence.leave",
-  "propose_sequence.make",
-  "propose_sequence.message_away",
-  "propose_sequence.message_delete",
-  "propose_sequence.message_rename",
-  "propose_sequence.message_words",
-  "propose_sequence.run_now",
-  "propose_sequence.sent_by_hand",
-  "propose_sequence.start",
-  "propose_sequence.step",
-  "propose_sequence.step_remove",
-  "propose_sequence.words",
   "propose_settings.answer_style",
   "propose_settings.answers",
   "propose_settings.goal",
@@ -108,8 +94,6 @@ export const ADDED_SINCE = [
   "propose_week.withdraw",
   "recall",
   "remember",
-  "sequences.cold_emails",
-  "sequences.edited",
   "signals",
   "workspace.activity",
   "workspace.connections",

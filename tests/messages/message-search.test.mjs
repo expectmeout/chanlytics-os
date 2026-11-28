@@ -9,7 +9,7 @@
  * names, the messages' sender, status and kind, the calls' lines; a message named as the pages name its person, a call
  * as every call surface names it (callerName), a hit whose row the second read no longer answers left out; a message
  * cited as its thread and a call as the call, each opening where its page opens it; a read that fails failing. Then the
- * tool: who wrote a message and what became of it, as inbox.thread says them (a held, a canceled and a failed reply each
+ * tool: who wrote a message and what became of it, as inbox.conversation says them (a held, a canceled and a failed reply each
  * say so), a call's note as the call's note; more_available exact, and only the shown rows citable; and what an empty
  * answer says. That the function itself answers so on a real database is text-search.db.test.mjs.
  */
@@ -341,10 +341,10 @@ test("a read that fails fails: a search the database refused, or names, senders 
 const tool = (ctx, role = "viewer") => newToolContext(ctx, A, role, TZ, NOW);
 const inbox = async (t, input) => JSON.parse((await runTool(t, { name: "inbox", input })).result);
 
-test("inbox.search says who wrote a message and what became of it as inbox.thread says them: a held, a canceled and a failed reply each say so, never as what the customer was told; a call's note is the call's note", async () => {
+test("inbox.search says who wrote a message and what became of it as inbox.conversation says them: a held, a canceled and a failed reply each say so, never as what the customer was told; a call's note is the call's note", async () => {
   const { supabase, ctx } = world({
     contacts: [person(ROSA, { display_name: "Rosa" })],
-    // The thread as loadConversation reads it (server/shared/verbs.ts), so inbox.thread can say the same messages.
+    // The thread as loadConversation reads it (server/shared/verbs.ts), so inbox.conversation can say the same messages.
     conversations: [
       {
         id: C1,
@@ -405,7 +405,7 @@ test("inbox.search says who wrote a message and what became of it as inbox.threa
   );
   // One spelling: the thread says each of them as the search does -- all but the call's note, which the thread files
   // as the customer's because it is recorded as inbound.
-  const thread = await inbox(t, { action: "thread", conversation_id: C1 });
+  const thread = await inbox(t, { action: "conversation", conversation_id: C1 });
   for (const h of found.hits.filter((x) => x.from !== "call note")) {
     const m = thread.messages.find((x) => x.text === h.snippet);
     assert.deepEqual([h.from, h.status], [m.from, m.status], h.snippet);

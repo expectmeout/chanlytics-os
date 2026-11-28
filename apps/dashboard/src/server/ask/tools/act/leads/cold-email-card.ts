@@ -1,5 +1,5 @@
 /**
- * What a cold email's card says (propose_sequence's action cold_email, act/sequence/sequence.ts proposeColdEmail), from one set of
+ * What a cold email's card says (propose_campaign's action cold_email, act/sequence/sequence.ts proposeColdEmail), from one set of
  * pieces: its summary, the words a turn stored before the sheet draws, Copy takes and the model reads; and its sheet
  * (contracts AskCardSheet, decision 0088), what holds it first, then a row a fact in the order an owner checks them. Who
  * sends is said once on the card. The workspace's connected mailboxes are a row.

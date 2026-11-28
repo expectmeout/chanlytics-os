@@ -59,7 +59,7 @@ export function proposalChannelsWords(
 }
 
 /**
- * Why a new campaign's card is not made (propose_sequence's action moment), said to the model with what to do about
+ * Why a new campaign's card is not made (propose_campaign's action moment), said to the model with what to do about
  * it. `from` is the call that names what the workspace holds, its messages and its lists, as the tool calls it.
  *
  * screen-word: said to the model, never shown on a page.
@@ -146,7 +146,7 @@ export const fixSpec: ProposalSpec = {
 export const twinRunsWords = (name: string): string =>
   `“${name}” already runs on this moment with this message, so nothing was started.`;
 
-/** What a new campaign's card says beside its moment, its reach and its class's mode (propose_sequence.moment). */
+/** What a new campaign's card says beside its moment, its reach and its class's mode (propose_campaign.moment). */
 export const PLAYBOOK_CARD_WORDS = {
   /**
    * Every new sequence's first batch, and its first after new words, waits for the owner's OK whatever its mode (decision
@@ -568,7 +568,7 @@ const versionsWords = (own: readonly OwnVersionChannel[]): string =>
   `${own.map(versionWord).join(" and ")} version${own.length === 1 ? "" : "s"}`;
 
 /**
- * What Ask's message card says (propose_sequence's action message). Why one is not made, to the model: each opens with the
+ * What Ask's message card says (propose_campaign's action message). Why one is not made, to the model: each opens with the
  * sentence POST templates/message says where the door has one (its checks are the card's), then says what to do. And the
  * card's own words, to the person: its title, when each version can go, what the door filed, and what its undo does.
  */

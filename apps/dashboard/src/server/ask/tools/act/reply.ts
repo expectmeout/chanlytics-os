@@ -78,7 +78,7 @@ async function draftReply(
 ): Promise<ProposalOutcome> {
   const id = str(input.conversation_id, 40);
   const text = str(input.text, 1000);
-  const voice = input.voice === "receptionist" ? "receptionist" : "you";
+  const voice = input.voice === "ai" ? "receptionist" : "you";
   if (!UUID.test(id)) return refuse("conversation_id must be an id a read returned");
   if (!text) return refuse("text is required");
   const thread = await threadOnCard(toolContext, id);
@@ -203,15 +203,14 @@ export const propose_reply = defineActions({
       input: z.object({
         conversation_id: z.string(),
         text: z.string(),
-        voice: z.enum(["you", "receptionist"]),
+        voice: z.enum(["you", "ai"]),
       }),
       examples: [
         { conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", text: "Yes, Saturday at ten works.", voice: "you" },
       ],
       label: "Drafting a reply",
       words:
-        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-        "Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for its voice, and proposes a new reply on the conversation's own wire.",
+        "Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or ai for its voice, and proposes a new reply on the conversation's own wire.",
       build: draftReply,
     }),
     steer: actAction({

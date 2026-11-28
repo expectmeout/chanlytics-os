@@ -1,5 +1,5 @@
 /**
- * Ask's cards of a campaign's head (decision 0060; the parity review's lane 1; decision 0072): propose_sequence's actions
+ * Ask's cards of a campaign's head (decision 0060; the parity review's lane 1; decision 0072): propose_campaign's actions
  * start, run_now, discard and end, each the page's own act as a card, offered where the page's judge offers it
  * (contracts sequenceActsOf). Each call the model makes runs through the registry over the database in memory, the
  * sequence read as its record reads it (00442 sequence_overview, sequence_steps_of; its batches for whether it ran): the
@@ -126,13 +126,13 @@ async function call(action, input) {
     { missing: true },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-  const out = await buildProposal(t, "propose_sequence", { action, ...input });
+  const out = await buildProposal(t, "propose_campaign", { action, ...input });
   const p = out.proposal;
   return p ? { kind: p.kind, title: p.title, payload: p.payload } : JSON.parse(out.result);
 }
 
 test("Run now is a card of the page's own verb, for a sequence that runs today with no batch waiting", async () => {
-  const card = await call("run_now", { sequence_id: ON });
+  const card = await call("run_now", { campaign_id: ON });
   assert.deepEqual(card, {
     kind: "playbook_run",
     title: "Run Win-back now",
@@ -144,30 +144,30 @@ test("Run now is a card of the page's own verb, for a sequence that runs today w
 
 test("where the page offers no such act, the model hears why in the judge's words, and what to do instead", async () => {
   assert.equal(
-    (await call("run_now", { sequence_id: WAITS })).error,
-    `Reminder: ${SEQUENCE_ACT_WHY.batch_waiting} (approve or skip that send with action batch)`,
+    (await call("run_now", { campaign_id: WAITS })).error,
+    `Reminder: ${SEQUENCE_ACT_WHY.batch_waiting} (approve or skip that send with action send)`,
   );
-  assert.equal((await call("run_now", { sequence_id: PAUSED })).error, `Old offer: ${SEQUENCE_ACT_WHY.not_today}`);
+  assert.equal((await call("run_now", { campaign_id: PAUSED })).error, `Old offer: ${SEQUENCE_ACT_WHY.not_today}`);
   assert.equal(
-    (await call("start", { sequence_id: PAUSED })).error,
+    (await call("start", { campaign_id: PAUSED })).error,
     `Old offer: ${SEQUENCE_ACT_WHY.not_a_draft} (turn it on with action change (state running))`,
   );
   assert.equal(
-    (await call("discard", { sequence_id: ON })).error,
+    (await call("discard", { campaign_id: ON })).error,
     `Win-back: ${SEQUENCE_ACT_WHY.ran} (end it with action end)`,
   );
   assert.equal(
-    (await call("end", { sequence_id: DRAFT })).error,
+    (await call("end", { campaign_id: DRAFT })).error,
     `Welcome: ${SEQUENCE_ACT_WHY.never_ran} (let it go with action discard)`,
   );
   assert.equal(
-    (await call("end", { sequence_id: FRESH })).error,
+    (await call("end", { campaign_id: FRESH })).error,
     `New clients: ${SEQUENCE_ACT_WHY.never_ran} (let it go with action discard)`,
   );
 });
 
 test("Start and Discard are the page's draft acts as cards, and Discard lets go of one just turned on that never ran", async () => {
-  assert.deepEqual(await call("start", { sequence_id: DRAFT }), {
+  assert.deepEqual(await call("start", { campaign_id: DRAFT }), {
     kind: "sequence_start",
     title: "Start Welcome",
     payload: { sequence_id: DRAFT, name: "Welcome" },
@@ -176,7 +176,7 @@ test("Start and Discard are the page's draft acts as cards, and Discard lets go 
     [DRAFT, "Welcome"],
     [FRESH, "New clients"],
   ]) {
-    const card = await call("discard", { sequence_id: id });
+    const card = await call("discard", { campaign_id: id });
     assert.deepEqual(card, { kind: "sequence_discard", title: `Let go of ${name}`, payload: { sequence_id: id } });
     const commit = PROPOSAL_SPECS.sequence_discard.commit({ id: "", kind: "sequence_discard", payload: card.payload });
     assert.deepEqual(commit, { route: "DELETE sequences/[id]", params: { id } });
@@ -184,7 +184,7 @@ test("Start and Discard are the page's draft acts as cards, and Discard lets go 
 });
 
 test("End it is a card for a sequence that ran: the page's End, nothing undoes it", async () => {
-  const card = await call("end", { sequence_id: PAUSED });
+  const card = await call("end", { campaign_id: PAUSED });
   assert.deepEqual(card, {
     kind: "sequence_end",
     title: "End Old offer",

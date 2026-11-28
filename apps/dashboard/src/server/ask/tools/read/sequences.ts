@@ -30,7 +30,7 @@ import { listSequenceMakes, type SequenceMake } from "@chanlytics/db/campaigns";
 import { load, type ReaderContext, type RowRef } from "../../../shared/reader";
 import { reachOutChains } from "../../../readers/playbooks";
 import { sequence, sequenceHistory, sequencePeople, sequences } from "../../../readers/sequences";
-import { notePerson, str, readUnlessNotFound } from "../context/tool-reads";
+import { CAMPAIGN_ID_REFUSAL, notePerson, str, readUnlessNotFound } from "../context/tool-reads";
 import type { ToolContext } from "../context/tool-defs";
 
 /**
@@ -55,7 +55,7 @@ function sequenceLine(row: SequenceRowDto, word: AppointmentWord, tz: string, no
   const line = sequenceRowLine(row, { tz, nowMs, word, twin: null });
   const needsYou = needs > 0 ? needsWords(row, { tz, nowMs }) : group === "needs" ? line : null;
   return {
-    sequence_id: row.id,
+    campaign_id: row.id,
     name: row.name,
     group,
     starts: sequenceStartWords(row, word),
@@ -81,7 +81,7 @@ export async function readSequences(toolContext: ToolContext): Promise<unknown> 
   return {
     route: SEQUENCES_ROUTE,
     needs_you: rows.filter((r) => r.group === "needs").length,
-    sequences: rows,
+    campaigns: rows,
   };
 }
 
@@ -90,10 +90,9 @@ export async function readSequences(toolContext: ToolContext): Promise<unknown> 
  * stops it, its steps in their places with each one's wait, channels and message, the one notice it shows, who is in it
  * by where they stand, and its last batches.
  */
-export async function readSequence(toolContext: ToolContext, input: { sequence_id: string }): Promise<unknown> {
-  const id = str(input.sequence_id, 40);
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!UUID.test(id)) return { error: "sequence_id must be an id sequences with action list returned" };
+export async function readSequence(toolContext: ToolContext, input: { campaign_id: string }): Promise<unknown> {
+  const id = str(input.campaign_id, 40);
+  if (!UUID.test(id)) return { error: CAMPAIGN_ID_REFUSAL };
   const record = await readUnlessNotFound(load(toolContext.rc, sequence, { id }));
   if (!record) return { error: "no such campaign in this workspace" };
   const [people, history] = await Promise.all([
@@ -135,7 +134,7 @@ export async function readSequence(toolContext: ToolContext, input: { sequence_i
         people.counts[g],
       ]),
     ),
-    // Who waits on the owner, by id (the operator, 15 Oct 2026): an email the check held (propose_sequence action
+    // Who waits on the owner, by id (the operator, 15 Oct 2026): an email the check held (propose_campaign action
     // decide) or one handed to them to send (action sent_by_hand); and who is in it, for action leave.
     waiting_on_you: people.rows
       .filter((r) => (r.group === "held" || r.group === "to_send") && r.send_id)
@@ -207,7 +206,7 @@ const EDITED_MAKES = 20;
 
 /** One cold email the member made whose first email is theirs, as `edited` says it. */
 interface EditedEmail {
-  sequence_id: string;
+  campaign_id: string;
   name: string;
   /** What it was for: the search it writes to. */
   for: string | null;
@@ -232,14 +231,14 @@ export function editedOf(makes: readonly SequenceMake[], chains: readonly ReachO
     const sent = { subject: first.subject, body: first.body };
     const drafted = m.as_drafted?.steps[0] ?? null;
     if (drafted && sentAsDrafted(drafted, sent)) return [];
-    return [{ sequence_id: c.root_id, name: c.name, for: c.search?.name ?? null, state: c.state, drafted, sent }];
+    return [{ campaign_id: c.root_id, name: c.name, for: c.search?.name ?? null, state: c.state, drafted, sent }];
   });
 }
 
 /**
  * A member's own cold emails made since a moment whose first email is theirs (decision 0078 step 2), newest first, with
  * the rows an answer may cite: the ledger read first, and the chains only where it holds a make of theirs, so a member
- * who made none costs one small read. The sequences tool's `edited` reads it, and the morning asks about edits only
+ * who made none costs one small read. The campaigns tool's `edited` reads it, and the morning asks about edits only
  * where it finds one (companion/morning.ts).
  */
 export async function getEditedSince(
@@ -256,7 +255,7 @@ export async function getEditedSince(
   if (makes.length === 0) return { edited: [], rows: [] };
   const chains = await load(rc, reachOutChains, undefined);
   const edited = editedOf(makes, chains.data.chains).slice(0, EDITED_CAP);
-  return { edited, rows: chains.rows.filter((r) => edited.some((e) => e.sequence_id === r.id)) };
+  return { edited, rows: chains.rows.filter((r) => edited.some((e) => e.campaign_id === r.id)) };
 }
 
 /**

@@ -429,7 +429,7 @@ async function proposeReachOutAdd(
   });
 }
 
-/** Leads added to a reach-out fed by a list: an action of propose_sequence (the cap is twenty tools a role). */
+/** Leads added to a reach-out fed by a list: an action of propose_campaign (the cap is twenty tools a role). */
 export const reachOutAddAction = actAction({
   kind: "reach_out_add",
   input: z.object({ root_id: z.string(), lead_ids: z.array(z.string()).min(1).max(LEAD_LIST_MAX) }),

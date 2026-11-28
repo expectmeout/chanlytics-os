@@ -8,12 +8,12 @@
  * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
  * beside its mode, an operator's two beside an owner's one; PR 4.5 gave inbox its search; PR 4.7 added propose_list,
  * an operator's (twenty for an owner), gave propose_campaign a waiting run's approval (run), and made
- * propose_thread_verb's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), 10 Oct
+ * propose_conversation's words true for every role; 9 Oct 2026 gave propose_campaign a change in place (change), 10 Oct
  * 2026 a new message written for the Library (message) and 11 Oct 2026 an offer or a whole setup made into its cards
  * (plan), and 11 Oct 2026 gave a list's rule a missed visit (missed_visit, decision 0002); 13 Oct 2026 the connections action
  * names the mailboxes a business connected in place of its sending domains (decision 0056), and propose_lead_search
  * proposes named people at companies too (the people card, 00430). The operator (15 Oct 2026, decision 0062) gave Ask
- * every page's verbs: campaigns and propose_campaign became sequences and propose_sequence, the plan propose_plan,
+ * every page's verbs: campaigns and propose_campaign became sequences and propose_campaign, the plan propose_plan,
  * propose_autonomy and propose_whisper actions of propose_settings and propose_call, the invitation the Team page's
  * alone, and the reads (guide, signals) and cards (propose_people, propose_leads, propose_review, propose_follow_up) a
  * member needs to run the business from Ask, found by the API's tool search past the core. What the model is sent is
@@ -32,6 +32,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import { taughtToday } from "./tools/_taught-words.mjs";
+import { schemaToday, toolsToday } from "./tools/_screens-names.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -159,9 +160,15 @@ const STARTER = {
 /** A frozen fixture, read in the words AI is taught since 16 Nov 2026 (tools/_taught-words.mjs): the one change to its bytes. */
 const fixture = (name) => taughtToday(JSON.parse(fs.readFileSync(path.join(ROOT, "tests/fixtures", name), "utf8")));
 /** What the model is sent, per role, frozen from the finished registry (the operator, 15 Oct 2026). */
-const FROZEN = fixture("ask-tools-operator.json");
+/**
+ * A frozen role-by-role list of tools, read in the screens' names (tools/_screens-names.mjs, 26 Nov 2026): each tool, its
+ * actions, fields and words as the registry sends them since, sorted by name again as the registry sorts them.
+ */
+const byRoleToday = (frozen) =>
+  Object.fromEntries(Object.entries(frozen).map(([role, tools]) => [role, toolsToday(tools)]));
+const FROZEN = byRoleToday(fixture("ask-tools-operator.json"));
 /** What PR 4.3 sent, per role: inbox reads the same less the search PR 4.5 gave it. */
-const PR_4_3 = fixture("ask-tools-4-3.json");
+const PR_4_3 = byRoleToday(fixture("ask-tools-4-3.json"));
 /**
  * 14 Oct 2026 (the wiring's second audit, R13 X5-2): inbox's needs_you is what waits on you as the Inbox counts it, a hold
  * nobody has taken or a reply counting down that can still be stopped, where it said a thread handed to a person. The one
@@ -202,7 +209,7 @@ const withFromAds = (tool) => {
   return out;
 };
 /**
- * The one place an operator's tool names a role: propose_thread_verb says whose a person's treatment is to set -- an
+ * The one place an operator's tool names a role: propose_conversation says whose a person's treatment is to set -- an
  * owner's, as person_mode's spec needs -- so a role not offered propose_person's mode can say who can (PR 4.7).
  */
 const THREAD_POINTER = "how AI treats one person is an owner's to set (propose_person with action mode)";
@@ -256,6 +263,7 @@ const contextFor = (role = "operator") => {
 const READS = [
   "calendar",
   "calls",
+  "campaigns",
   "files",
   "guide",
   "inbox",
@@ -263,7 +271,6 @@ const READS = [
   "people",
   "recall",
   "report",
-  "sequences",
   "signals",
   "today",
   "workspace",
@@ -288,9 +295,9 @@ const OPERATOR_ACTS = [
   "propose_plan",
   "propose_reply",
   "propose_review",
-  "propose_sequence",
+  "propose_campaign",
   "propose_settings",
-  "propose_thread_verb",
+  "propose_conversation",
   // What the person tells Ask to keep (decision 0070): an operator's, as approving a card is.
   "remember",
 ];
@@ -407,16 +414,16 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
 
 /**
  * The tools the operator lane (15 Oct 2026, decision 0062) left as PR 4.7 froze them. Every other tool moved on purpose:
- * campaigns and propose_campaign became sequences and propose_sequence (the Sequences page's words and its verbs), the
+ * campaigns and propose_campaign became sequences and propose_campaign (the Sequences page's words and its verbs), the
  * plan its own tool (propose_plan), propose_autonomy and propose_whisper actions of propose_settings and propose_call,
  * the invitation the Team page's alone; leads, people, report, today, propose_person, propose_list, propose_settings,
  * propose_lead_search and propose_reply (a booking the receptionist asked for, answered) gained the actions and the words
  * that let Ask do what their pages do.
  */
-const UNMOVED = ["calendar", "calls", "inbox", "propose_deal", "propose_thread_verb", "workspace"];
-const PR_4_7 = fixture("ask-tools-4-7.json");
+const UNMOVED = ["calendar", "calls", "inbox", "propose_deal", "propose_conversation", "workspace"];
+const PR_4_7 = byRoleToday(fixture("ask-tools-4-7.json"));
 
-test("the invariant (the operator): calendar, calls, inbox, propose_deal, propose_thread_verb and workspace read to every role byte for byte as PR 4.7 froze them, with their examples and without, less the deferral that the tool search adds outside the core; and every tool PR 4.7 offered a role is offered it still, under its name or the one the rename gave it", () => {
+test("the invariant (the operator): calendar, calls, inbox, propose_deal, propose_conversation and workspace read to every role byte for byte as PR 4.7 froze them, with their examples and without, less the deferral that the tool search adds outside the core; and every tool PR 4.7 offered a role is offered it still, under its name or the one the rename gave it", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   const undeferred = ({ defer_loading: _, ...t }) => t;
   for (const role of ROLES) {
@@ -456,11 +463,11 @@ test("PR 4.5 gave inbox one action, search, and moved nothing else it says: less
     );
     const { words, days, ...rest } = t.input_schema.properties;
     assert.deepEqual([words, days], [{ type: "string" }, { type: "number" }], `${role}: words and days, and no other`);
-    assert.deepEqual(rest.action.enum, ["list", "thread", "search"], `${role}: search last`);
+    assert.deepEqual(rest.action.enum, ["list", "conversation", "search"], `${role}: search last`);
     assert.equal(
       JSON.stringify({
         ...t.input_schema,
-        properties: { ...rest, action: { type: "string", enum: ["list", "thread"] } },
+        properties: { ...rest, action: { type: "string", enum: ["list", "conversation"] } },
       }),
       JSON.stringify(was.input_schema),
       `${role}: every other field PR 4.3's, in its order`,
@@ -476,7 +483,7 @@ test("PR 4.5 gave inbox one action, search, and moved nothing else it says: less
 test("the rename is a bijection: every old tool is one tool and action of the registry, every action but those added since one old tool's or a name Phase 4 gave that the operator renamed, and each action takes exactly the fields its old tool took", () => {
   const OLD_NAMES = new Set(OLD.map((t) => t.name));
   // The 3.1 tools' rows, and the rows of the names a later lane renamed (the operator, 15 Oct 2026: campaigns and
-  // propose_campaign to sequences and propose_sequence, propose_autonomy and propose_whisper into actions).
+  // propose_campaign to sequences and propose_campaign, propose_autonomy and propose_whisper into actions).
   const firsts = Object.entries(NAMES).flatMap(([old, to]) => (OLD_NAMES.has(old) ? [to] : []));
   const since = Object.entries(NAMES).flatMap(([old, to]) => (OLD_NAMES.has(old) ? [] : [to]));
   const registry = [...DEFS.keys()].flatMap((name) =>
@@ -506,8 +513,10 @@ test("the rename is a bijection: every old tool is one tool and action of the re
     if (!OLD_NAMES.has(old)) continue;
     const [name, action = ""] = to.split(".");
     const def = DEFS.get(name).actions[action];
-    const was = OLD.find((t) => t.name === old);
-    assert.ok(was, `${old} is in the 3.1 fixture`);
+    const frozen = OLD.find((t) => t.name === old);
+    assert.ok(frozen, `${old} is in the 3.1 fixture`);
+    // Its fields and values as the tool takes them today (tools/_screens-names.mjs, 26 Nov 2026).
+    const was = { ...frozen, input_schema: schemaToday(name, frozen.input_schema) };
     // The operator (15 Oct 2026): report reads any window the Reports page reads -- a period by name, days picked or
     // the control's shortcuts -- and the lenses asked, where it took 7, 30 or 90 days.
     if (old === "get_report") {
@@ -637,9 +646,9 @@ test("every description is at least three sentences, says what each of its actio
   for (const role of ["operator", "partner", "owner"])
     assert.ok(
       toApiTools(role, true)
-        .find((x) => x.name === "propose_thread_verb")
+        .find((x) => x.name === "propose_conversation")
         .description.includes(`, and ${THREAD_POINTER}.`),
-      `${role}: propose_thread_verb says whose a person's treatment is`,
+      `${role}: propose_conversation says whose a person's treatment is`,
     );
   assert.equal(PROPOSAL_SPECS.person_mode.needs, "owner", "the pointer says an owner's, as the mode's spec needs");
 });
@@ -649,7 +658,7 @@ test("every description is at least three sentences, says what each of its actio
  * autonomy, the settings, the list and the lead search actions of tools with actions, whose examples ride as theirs, and
  * gave report a window of days picked and the control's shortcuts.
  */
-const SHAPED = ["propose_deal", "propose_thread_verb", "report"];
+const SHAPED = ["propose_deal", "propose_conversation", "report"];
 
 test("input_examples ride on every action of a tool with actions and on the shaped tools, the action first; every one parses with its tool's zod unchanged, as the registry parses an input; a settings example makes its card, and a lead plan plans", async () => {
   const { ProposeLeadSearchSchema, planLeadSearch } = await import("@chanlytics/contracts");
@@ -729,18 +738,18 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
     assert.equal(out.isError, true, `${name} ${JSON.stringify(input)}`);
     return JSON.parse(out.result).error;
   };
-  assert.deepEqual(await runTool(t, { name: "inbox", input: { action: "thread" } }), {
+  assert.deepEqual(await runTool(t, { name: "inbox", input: { action: "conversation" } }), {
     result: JSON.stringify({ error: "inbox: conversation_id Invalid input: expected string, received undefined" }),
     isError: true,
     label: "Reading the conversation",
   });
   assert.equal(
     await words("inbox", { action: "delete" }),
-    "inbox: action Invalid discriminator value. Expected 'list' | 'thread' | 'search'",
+    "inbox: action Invalid discriminator value. Expected 'list' | 'conversation' | 'search'",
   );
   assert.equal(
     await words("inbox", { filter: "held" }),
-    "inbox: action Invalid discriminator value. Expected 'list' | 'thread' | 'search'",
+    "inbox: action Invalid discriminator value. Expected 'list' | 'conversation' | 'search'",
     "an action is required, even where the fields name one",
   );
   assert.equal(
@@ -748,15 +757,15 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
     `report: period Invalid option: expected one of ${REPORT_PERIOD_IDS.map((p) => `"${p}"`).join("|")}`,
   );
   assert.equal(
-    await words("propose_thread_verb", { conversation_id: C1, verb: "delete" }),
-    'propose_thread_verb: verb Invalid option: expected one of "take_over"|"hand_back"|"snooze"|"wake"|"archive"|"resolve"',
+    await words("propose_conversation", { conversation_id: C1, verb: "delete" }),
+    'propose_conversation: verb Invalid option: expected one of "take_over"|"hand_back"|"snooze"|"wake"|"archive"|"resolve"',
   );
   assert.equal(
-    await words("propose_sequence", { action: "moment", trigger: "never" }),
+    await words("propose_campaign", { action: "moment", trigger: "never" }),
     // 2 Oct 2026: the moments a new playbook may start from; welcome and save our number are no longer among them. 11
     // Oct 2026 (D2): the reminder the day before and the check after an appointment are, where a calendar is connected.
     // 22 Nov 2026: and a deal marked won, with or without one.
-    'propose_sequence: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"|"slot_opened"|"visit_soon"|"visit_missed"|"asked_no_booking"|"deal_won"',
+    'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"everyone_monthly"|"visit_tomorrow"|"visited"|"lapsed"|"saved_list"|"proposal_waiting"|"slot_opened"|"visit_soon"|"visit_missed"|"asked_no_booking"|"deal_won"',
   );
   // An owner's action, asked by an owner: past the role (D2), to the zod.
   const merge = await buildProposal(contextFor("owner").t, "propose_person", { action: "merge", contact_id: C1 });
@@ -837,13 +846,13 @@ test("an action the caller's role may not use is refused in words, under the too
 test("a null on an optional key is absent, in an action's fields too; a null on a required key is refused; an unknown key is stripped, not refused; a field only another action takes is refused, so a card never quietly becomes another", async () => {
   const { supabase, t } = contextFor("owner");
   // audience_id: null passes the parse as no audience_id: the handler runs, and refuses the template id itself.
-  const nul = await buildProposal(t, "propose_sequence", {
+  const nul = await buildProposal(t, "propose_campaign", {
     action: "once",
     template_id: "nope",
     audience_kind: "everyone",
     audience_id: null,
   });
-  assert.equal(JSON.parse(nul.result).error, "template_id must be an id sequences with action lists returned");
+  assert.equal(JSON.parse(nul.result).error, "template_id must be an id campaigns with action lists returned");
   // Nested too: a null inside the change is dropped, and the change becomes a card.
   const nested = await buildProposal(t, "propose_settings", {
     action: "change",
@@ -852,7 +861,7 @@ test("a null on an optional key is absent, in an action's fields too; a null on 
   assert.equal(nested.isError, false, nested.result);
   assert.deepEqual(nested.proposal.payload.change, { op: "add_closure", date: "2026-12-25" });
   // A required key given null stays null, and the zod refuses it by name.
-  const required = await runTool(t, { name: "inbox", input: { action: "thread", conversation_id: null } });
+  const required = await runTool(t, { name: "inbox", input: { action: "conversation", conversation_id: null } });
   assert.deepEqual(
     [required.isError, JSON.parse(required.result).error],
     [true, "inbox: conversation_id Invalid input: expected string, received null"],
@@ -868,7 +877,7 @@ test("a null on an optional key is absent, in an action's fields too; a null on 
   assert.deepEqual(extra.proposal.payload, { email: "ada@example.com", name: "Ada" });
   // A field only the tool's other action takes is refused by name, before the handler runs: stripped, the broadcast
   // below would have gone out now, and to everyone, where a playbook's run_hour and list were asked for.
-  const other = await buildProposal(t, "propose_sequence", {
+  const other = await buildProposal(t, "propose_campaign", {
     action: "once",
     template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
     audience_kind: "everyone",
@@ -878,7 +887,7 @@ test("a null on an optional key is absent, in an action's fields too; a null on 
   });
   assert.deepEqual(
     [other.proposal, other.isError, JSON.parse(other.result).error],
-    [null, true, "propose_sequence: list, run_hour not taken by action once"],
+    [null, true, "propose_campaign: list, run_hour not taken by action once"],
   );
   const read = await runTool(t, { name: "inbox", input: { action: "list", filter: "held", conversation_id: C1 } });
   assert.deepEqual(
@@ -886,14 +895,14 @@ test("a null on an optional key is absent, in an action's fields too; a null on 
     [true, "inbox: conversation_id not taken by action list", "Reading the Inbox"],
   );
   // A field both actions take is the one named; a null on another action's field is absent, as any null is.
-  const nullOther = await buildProposal(t, "propose_sequence", {
+  const nullOther = await buildProposal(t, "propose_campaign", {
     action: "once",
     template_id: "nope",
     audience_kind: "everyone",
     trigger: null,
     name: "October",
   });
-  assert.equal(JSON.parse(nullOther.result).error, "template_id must be an id sequences with action lists returned");
+  assert.equal(JSON.parse(nullOther.result).error, "template_id must be an id campaigns with action lists returned");
   assert.deepEqual(supabase.seen, [], "none of these reached the database");
 });
 
@@ -960,10 +969,10 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
     assert.equal(toolLabel(name, action ? { action } : {}), LABELS[old], `${old} -> ${to}`);
   }
   // Before a call names its action, or with one the tool does not have: the tool's first action's line.
-  assert.equal(toolLabel("sequences"), "Reading the campaigns");
-  assert.equal(toolLabel("sequences", { action: "teleport" }), "Reading the campaigns");
+  assert.equal(toolLabel("campaigns"), "Reading the campaigns");
+  assert.equal(toolLabel("campaigns", { action: "teleport" }), "Reading the campaigns");
   assert.equal(
-    toolLabel("sequences", { action: "sent" }),
+    toolLabel("campaigns", { action: "sent" }),
     "Reading what went out",
     "PR 4.3's own, in the page's words",
   );
@@ -977,7 +986,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
       calledName("inbox", null),
       calledName("inbox", { action: 3 }),
       calledName("today", { action: "list" }),
-      calledName("propose_sequence", { action: "moment" }),
+      calledName("propose_campaign", { action: "moment" }),
       calledName("propose_deal", { stage: "won" }),
       calledName("teleport", { action: "x" }),
     ],
@@ -988,7 +997,7 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
       "inbox",
       "inbox",
       "today",
-      "propose_sequence.moment",
+      "propose_campaign.moment",
       "propose_deal",
       "teleport",
     ],

@@ -339,7 +339,7 @@ test("the proposal follow-up in AI (0006): listed in every workspace and counted
     tables({ tenants: [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "meeting" }], deals, ...over });
   const context = (t) => newToolContext(ctxFor(t, { ...RPCS, people_list: () => [luis] }), A, "owner", TZ, NOW);
   const listed = async (t) =>
-    JSON.parse((await runTool(context(t), { name: "sequences", input: { action: "moments" } })).result);
+    JSON.parse((await runTool(context(t), { name: "campaigns", input: { action: "moments" } })).result);
   const counts = (read) => {
     const x = read.triggers.find((y) => y.trigger === "proposal_waiting");
     return x && [x.said_yes_now, x.can_be_sent_now];
@@ -383,7 +383,7 @@ test("the proposal follow-up in AI (0006): listed in every workspace and counted
     hidden_at: null,
   };
   const propose = (t) =>
-    buildProposal(context(t), "propose_sequence", { action: "moment", trigger: "proposal_waiting" });
+    buildProposal(context(t), "propose_campaign", { action: "moment", trigger: "proposal_waiting" });
   // Every workspace may make one (0008, amended 18 Oct 2026), whatever the retired answer said: with no message of its
   // own yet, the card adds the follow-up's starter first.
   const started = await propose(tables({ deals }));
@@ -441,17 +441,17 @@ test("everyone in People is read once a turn, through the readers: a turn that l
     ctx.supabase.seen.filter((q) => q.columns === "subject_type, subject_id, mode" || /reply_modes/.test(q.rpc)).length;
   // The prefetch's pair for "start a win-back playbook for the quiet clients", then the two cards.
   for (const action of ["moments", "lists"]) {
-    const out = await runTool(tc, { name: "sequences", input: { action } });
+    const out = await runTool(tc, { name: "campaigns", input: { action } });
     assert.equal(out.isError, false, out.result);
   }
-  const playbook = await buildProposal(tc, "propose_sequence", {
+  const playbook = await buildProposal(tc, "propose_campaign", {
     action: "moment",
     trigger: "quiet_30",
     template_id: TPL,
     params: [],
   });
   assert.equal(playbook.isError, false, playbook.result);
-  const card = await buildProposal(tc, "propose_sequence", {
+  const card = await buildProposal(tc, "propose_campaign", {
     action: "once",
     template_id: TPL,
     audience_kind: "everyone",
@@ -516,7 +516,7 @@ test("the assistant counts with the calendar too: a visit tomorrow on the owner'
   try {
     forgetFeeds();
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
-    const out = await runTool(tc, { name: "sequences", input: { action: "moments" } });
+    const out = await runTool(tc, { name: "campaigns", input: { action: "moments" } });
     assert.equal(out.isError, false, out.result);
     const read = JSON.parse(out.result);
     const reminder = read.triggers.find((x) => x.trigger === "visit_tomorrow");
@@ -577,7 +577,7 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
   };
   const toolContext = (t) => newToolContext(ctxFor(t), A, "owner", TZ, NOW);
   const listed = async (t) => {
-    const out = await runTool(toolContext(t), { name: "sequences", input: { action: "moments" } });
+    const out = await runTool(toolContext(t), { name: "campaigns", input: { action: "moments" } });
     assert.equal(out.isError, false, out.result);
     return JSON.parse(out.result);
   };
@@ -648,13 +648,13 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     // A proposal asks the same question of the same fact, with the turn's own read of the settings.
     const win = { action: "moment", template_id: TPL, params: [] };
     const refused = async (t, trigger) => {
-      const out = await buildProposal(toolContext(t), "propose_sequence", { ...win, trigger });
+      const out = await buildProposal(toolContext(t), "propose_campaign", { ...win, trigger });
       assert.equal(out.isError, true, out.result);
       return JSON.parse(out.result).error;
     };
     assert.equal(await refused(connected({ templates: [OFFER] }), "quiet_30"), WIN_BACK_WORDS.quiet_30);
     assert.equal(await refused(tables({ templates: [OFFER] }), "lapsed"), WIN_BACK_WORDS.lapsed);
-    const made = await buildProposal(toolContext(tables({ templates: [OFFER] })), "propose_sequence", {
+    const made = await buildProposal(toolContext(tables({ templates: [OFFER] })), "propose_campaign", {
       ...win,
       trigger: "quiet_30",
     });
@@ -803,7 +803,7 @@ test("campaigns.audiences offers the templates the composer offers (ledger #9): 
     ],
   });
   const out = await runTool(newToolContext(ctxFor(t), A, "owner", TZ, NOW), {
-    name: "sequences",
+    name: "campaigns",
     input: { action: "lists" },
   });
   assert.equal(out.isError, false, out.result);
@@ -893,7 +893,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
   });
   const doors = { ...RPCS, people_list: () => threeAnswers() };
   const out = await runTool(newToolContext(ctxFor(t, doors), A, "owner", TZ, NOW), {
-    name: "sequences",
+    name: "campaigns",
     input: { action: "moments" },
   });
   assert.equal(out.isError, false, out.result);
@@ -963,7 +963,7 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
         TZ,
         NOW,
       ),
-      { name: "sequences", input: { action: "moments" } },
+      { name: "campaigns", input: { action: "moments" } },
     ),
   );
   assert.equal(blindOut.isError, false, blindOut.result);
@@ -997,11 +997,11 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   const s = scripted([
     ROUND([
       tool("workspace", { action: "settings" }),
-      tool("sequences", { action: "lists" }),
+      tool("campaigns", { action: "lists" }),
       tool("leads", { action: "searches" }),
     ]),
     ROUND([
-      tool("sequences", { action: "lists" }, "t-audiences-again"),
+      tool("campaigns", { action: "lists" }, "t-audiences-again"),
       tool("leads", { action: "searches" }, "t-searches-again"),
     ]),
     ROUND([answer("Your WhatsApp number is fine and one search is waiting on you.")]),
@@ -1041,11 +1041,11 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   // The page's own builder, over what the page reads of the number: Meta's quality and limit from the row's config.
   const health = numberHealth({ quality: "YELLOW", event: null, limit: "TIER_1K" });
   assert.deepEqual(
-    out["t-sequences.lists"].number,
+    out["t-campaigns.lists"].number,
     { present: true, health: health.label, can_send: health.canSend, limit_per_day: 1000 },
     "the number the Broadcasts page picks, and its health from the quality Meta assigned it",
   );
-  assert.deepEqual(out["t-audiences-again"], out["t-sequences.lists"], "the same answer from the turn's reads");
+  assert.deepEqual(out["t-audiences-again"], out["t-campaigns.lists"], "the same answer from the turn's reads");
   const searches = out["t-leads.searches"];
   assert.deepEqual(searches.counts, COUNTS, "the rail's six counts, as the Leads page shows them");
   assert.deepEqual(

@@ -176,6 +176,8 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "press_card",
     "propose_ad",
     "propose_call",
+    "propose_campaign",
+    "propose_conversation",
     "propose_deal",
     "propose_follow_up",
     "propose_form",
@@ -186,9 +188,7 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
     "propose_plan",
     "propose_reply",
     "propose_review",
-    "propose_sequence",
     "propose_settings",
-    "propose_thread_verb",
     // A fact the person tells Ask to keep (decision 0070).
     "remember",
   ]);
@@ -462,7 +462,7 @@ test("a message card alone asks next for the business's other languages, in the 
     payload: { language },
   });
   const asked = async (cards, { language = "en", languages = ["English", "Spanish"] } = {}) => {
-    const s = scripted([ROUND(cards.map((_, i) => tool("propose_sequence", { action: "message" }, `t-message-${i}`)))]);
+    const s = scripted([ROUND(cards.map((_, i) => tool("propose_campaign", { action: "message" }, `t-message-${i}`)))]);
     const queue = [...cards];
     const propose = async () => ({ proposal: queue.shift(), result: "{}", isError: false });
     // Words that ask for a draft, so its round is asked at the draft's effort and never set aside (#1627 DRAFT_CALLS).

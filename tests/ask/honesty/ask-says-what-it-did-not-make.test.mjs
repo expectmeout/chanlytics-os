@@ -222,10 +222,10 @@ test("cards alone are still the answer where nothing is owed: every card made in
 test("REGRESSION (the stress run's Win-back, 3 of 3): a card that leaves out a part already so goes back to be said, the model told on the card's result and after it; an answer written beside it, before it knew, is set aside", async () => {
   const text = "pause the Win-back sequence and also make it send twice as often";
   const model = modelSays([
-    roundOf([calling("propose_sequence", { action: "change", playbook_id: PB, state: "paused", gap_days: 15 })]),
+    roundOf([calling("propose_campaign", { action: "change", playbook_id: PB, state: "paused", gap_days: 15 })]),
     roundOf([saying("Win-back is already paused; one card halves its wait, from 30 days to 15.")]),
   ]);
-  const r = await runAskTurn(turnFor({ text }).input, portsFor(model, { "propose_sequence.change": GAP }));
+  const r = await runAskTurn(turnFor({ text }).input, portsFor(model, { "propose_campaign.change": GAP }));
   assert.deepEqual(
     [r.rounds, r.text, r.proposals.length],
     [2, "Win-back is already paused; one card halves its wait, from 30 days to 15.", 1],
@@ -241,13 +241,13 @@ test("REGRESSION (the stress run's Win-back, 3 of 3): a card that leaves out a p
       onText(claimed.text);
       return roundOf([
         claimed,
-        calling("propose_sequence", { action: "change", playbook_id: PB, state: "paused", gap_days: 15 }),
+        calling("propose_campaign", { action: "change", playbook_id: PB, state: "paused", gap_days: 15 }),
       ]);
     },
     roundOf([saying("Win-back is already paused; one card halves its wait.")]),
   ]);
   const t = turnFor({ text });
-  const r2 = await runAskTurn(t.input, portsFor(beside, { "propose_sequence.change": GAP }));
+  const r2 = await runAskTurn(t.input, portsFor(beside, { "propose_campaign.change": GAP }));
   assert.deepEqual([r2.rounds, r2.text], [2, "Win-back is already paused; one card halves its wait."]);
   assert.deepEqual(
     t.events.filter((e) => e.t === "say").map((e) => e.headline),
@@ -269,7 +269,7 @@ test("what a turn owes, kept: a refusal until the same call makes its card, a pa
   assert.equal(u.alone(cards), "owed", "another call's card settles nothing");
   u.heard("propose_list.make", { isError: false, result: "" });
   assert.equal(u.alone(cards), "answer", "the same call, made good");
-  u.heard("propose_sequence.change", { isError: false, noted: ALREADY, result: "" });
+  u.heard("propose_campaign.change", { isError: false, noted: ALREADY, result: "" });
   assert.equal(u.alone(cards), "owed");
   assert.equal(
     u.words(),

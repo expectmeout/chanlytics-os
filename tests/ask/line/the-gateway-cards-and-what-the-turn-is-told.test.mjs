@@ -258,22 +258,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_ad", []],
       ["propose_bring_in", []],
       ["propose_call", ["whisper", "hand_over"]],
-      ["propose_deal", []],
-      ["propose_follow_up", ["keep", "clear"]],
-      ["propose_form", []],
-      ["propose_lead_search", ["find", "more"]],
-      ["propose_leads", ["stage", "mark", "later", "bulk", "check", "addressee", "list", "said"]],
-      ["propose_list", ["make", "change", "delete"]],
-      ["propose_people", ["answer", "mode", "note", "list"]],
-      ["propose_person", ["mode", "note", "step", "details", "answer", "add", "merge", "message"]],
-      ["propose_piece", []],
-      ["propose_plan", ["offer", "steps"]],
-      ["propose_post", []],
-      ["propose_publish", []],
-      ["propose_reply", ["draft", "steer", "booking"]],
-      ["propose_review", ["reply"]],
       [
-        "propose_sequence",
+        "propose_campaign",
         [
           "once",
           "moment",
@@ -285,7 +271,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "run_now",
           "change",
           "channels",
-          "batch",
+          "send",
           "leave",
           "decide",
           "sent_by_hand",
@@ -300,9 +286,23 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
           "leads",
         ],
       ],
+      ["propose_conversation", []],
+      ["propose_deal", []],
+      ["propose_follow_up", ["keep", "clear"]],
+      ["propose_form", []],
+      ["propose_lead_search", ["find", "more"]],
+      ["propose_leads", ["stage", "mark", "later", "bulk", "check", "addressee", "list", "said"]],
+      ["propose_list", ["make", "change", "delete"]],
+      ["propose_people", ["answer", "mode", "note", "list"]],
+      ["propose_person", ["mode", "note", "step", "details", "answer", "add", "merge", "message"]],
+      ["propose_piece", []],
+      ["propose_plan", ["offer", "steps"]],
+      ["propose_post", []],
+      ["propose_publish", []],
+      ["propose_reply", ["draft", "steer", "booking"]],
+      ["propose_review", ["reply"]],
       ["propose_settings", ["change", "answers", "worth", "autonomy", "goal", "answer_style"]],
       ["propose_take_down", []],
-      ["propose_thread_verb", []],
       // A week of posts, and what a post may say (00706).
       ["propose_week", ["plan", "approve", "slot", "aims", "claim", "withdraw"]],
       // A fact the person tells Ask to keep (decision 0070).
@@ -725,11 +725,11 @@ test("the cross-page reads: what a question names plainly of another page is rea
   assert.deepEqual(names("what's open saturday afternoon?"), [
     'calendar {"action":"openings","day":"sat","service":""}',
   ]);
-  assert.deepEqual(names("what playbooks are running right now?"), ['sequences {"action":"moments"}']);
-  assert.deepEqual(names("how many people can I send offers to?"), ['sequences {"action":"lists"}']);
+  assert.deepEqual(names("what playbooks are running right now?"), ['campaigns {"action":"moments"}']);
+  assert.deepEqual(names("how many people can I send offers to?"), ['campaigns {"action":"lists"}']);
   assert.deepEqual(names("start a win-back playbook for the quiet clients"), [
-    'sequences {"action":"moments"}',
-    'sequences {"action":"lists"}',
+    'campaigns {"action":"moments"}',
+    'campaigns {"action":"lists"}',
   ]);
   assert.deepEqual(names("open the transcript of the most recent call"), ['calls {"action":"list","filter":"recent"}']);
   assert.deepEqual(names("any missed calls today?"), ['calls {"action":"list","filter":"missed"}']);
@@ -757,11 +757,11 @@ test("the cross-page reads: what a question names plainly of another page is rea
     "how do I set up my campaigns?",
     "who set up our campaigns?",
   ])
-    assert.deepEqual(names(q), ['sequences {"action":"lists"}'], q);
+    assert.deepEqual(names(q), ['campaigns {"action":"lists"}'], q);
   // A setup (the moment spec, A4), asked for: what runs, the moments offered with their starters, the lists and the
   // messages, read before round 1 on any page -- on Campaigns too, whose rows are the playbooks and hold neither the
   // moments nor a message. Asked as a request: a sentence's start, or after a please, a "can you", a "help me".
-  const setupReads = ['sequences {"action":"moments"}', 'sequences {"action":"lists"}'];
+  const setupReads = ['campaigns {"action":"moments"}', 'campaigns {"action":"lists"}'];
   assert.deepEqual(names("Set up my campaigns", "campaigns"), setupReads);
   assert.deepEqual(names("set up my campaigns"), setupReads);
   assert.deepEqual(names("Prepara mis campañas", "campaigns"), setupReads);
@@ -821,12 +821,12 @@ test("the cross-page reads: what a question names plainly of another page is rea
   for (const q of ["Will you start the follow-ups tomorrow?", "Can you start the reminders again?"])
     assert.deepEqual(names(q, "campaigns"), [], q);
   // The audiences are no page's rows: asked of offers on Campaigns, they are read.
-  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['sequences {"action":"lists"}']);
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"lists"}']);
   // On Campaigns a campaign or an offer named is a row the page holds; only who a send can reach -- an audience, who said
   // yes, a send to someone, a template -- is read there. Off Campaigns every one of those words still reads the audiences.
   for (const q of ["which campaign did best?", "pause the monthly offer", "rename the follow-up campaign"]) {
     assert.deepEqual(names(q, "campaigns"), [], q);
-    assert.deepEqual(names(q), ['sequences {"action":"lists"}'], `${q} (people)`);
+    assert.deepEqual(names(q), ['campaigns {"action":"lists"}'], `${q} (people)`);
   }
   for (const q of [
     "who said yes to offers?",
@@ -834,7 +834,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
     "send the October offer to the quiet list",
     "what audiences do I have?",
   ])
-    assert.deepEqual(names(q, "campaigns"), ['sequences {"action":"lists"}'], q);
+    assert.deepEqual(names(q, "campaigns"), ['campaigns {"action":"lists"}'], q);
   for (const surface of ["conversations", "live"]) assert.deepEqual(names("any missed calls today?", surface), []);
   // Today counts the day's calls and lists none of them: a question about them reads the list there too. On Today the
   // day's own read follows what the question named, where the cap leaves room (the speed plan, A1, 15 Oct 2026: 26
@@ -1093,8 +1093,8 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   const head = "Setting up campaigns is a few cards";
   assert.ok(setup.startsWith(head));
   assert.ok(turnWords({ ...facts, surface: "campaigns" }).includes(`as the rule "${head}" says`));
-  // The two actions the rules name are propose_plan's and propose_sequence's, as the API is told them.
-  const campaign = ACT_TOOLS.find((t) => t.name === "propose_sequence");
+  // The two actions the rules name are propose_plan's and propose_campaign's, as the API is told them.
+  const campaign = ACT_TOOLS.find((t) => t.name === "propose_campaign");
   assert.ok(ACT_TOOLS.find((t) => t.name === "propose_plan").description.includes("Action offer "), "the plan");
   assert.ok(campaign.description.includes("Action message "), "the message");
   // 11 Oct 2026 (Task 19's review): the tools' words the model reads beside the rules agree with them. propose_campaign's
@@ -1102,7 +1102,7 @@ test("the rules know the plan and the message (the marketing manager's §5.7): a
   // the journey read says what it reports and that a whole setup or an offer is the plan's, never assembled from it.
   const tail = "For an offer, a promotion or a whole setup, call propose_plan with action offer instead.";
   assert.ok(campaign.description.includes(tail), campaign.description);
-  const journey = READ_TOOLS.find((t) => t.name === "sequences").description;
+  const journey = READ_TOOLS.find((t) => t.name === "campaigns").description;
   assert.ok(
     journey.includes(
       "An offer or a whole setup is one call of propose_plan with action offer, which reads the journey itself and makes the steps, never a campaign proposed stage by stage from this read",
@@ -1135,7 +1135,7 @@ test("on Leads the searches ride in with every question, after what it names and
 test("an offer asked for reads its journey and its Library before round 1, as a setup reads its two (the marketing manager's §5.7): on any page, Campaigns included, in either language; offer alone stays the audiences' word and deal the pipeline's; a question about how one did is none; within the cap a setup keeps its own two, and an offer's go before any other read", async () => {
   const mod = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/ask/cross-page.ts")).href);
   const names = (q, surface) => mod.crossPagePlan(q, surface).map((r) => `${r.name} ${JSON.stringify(r.input)}`);
-  const planReads = ['sequences {"action":"journey"}', 'sequences {"action":"messages"}'];
+  const planReads = ['campaigns {"action":"journey"}', 'campaigns {"action":"messages"}'];
   for (const q of [
     "10% off colour all November",
     // The eval's offer_november_colour, and its must-never offer_no_offers_channel.
@@ -1176,7 +1176,7 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
   }
   // An offer said of a campaign that runs (the month's offer) is a change to it, read as the campaigns are read.
   for (const q of ["Can you make the month's offer 15% off?", "Make the month's offer 15% off"]) {
-    assert.deepEqual(names(q, "today"), ['sequences {"action":"moments"}', 'sequences {"action":"lists"}'], q);
+    assert.deepEqual(names(q, "today"), ['campaigns {"action":"moments"}', 'campaigns {"action":"lists"}'], q);
     assert.deepEqual(names(q, "campaigns"), [], q);
   }
   // Where the deals stand is the pipeline's, never an offer's.
@@ -1188,9 +1188,9 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
   ])
     assert.deepEqual(names(q, "today"), ['people {"action":"pipeline"}', "today {}"], q);
   // Offer alone is who can be sent one (the audiences) or the month's offer (a campaign the page holds).
-  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['sequences {"action":"lists"}']);
-  assert.deepEqual(names("send an offer to the quiet clients", "today"), ['sequences {"action":"lists"}', "today {}"]);
-  assert.deepEqual(names("¿a quién puedo enviar ofertas?", "campaigns"), ['sequences {"action":"lists"}']);
+  assert.deepEqual(names("how many people can I send offers to?", "campaigns"), ['campaigns {"action":"lists"}']);
+  assert.deepEqual(names("send an offer to the quiet clients", "today"), ['campaigns {"action":"lists"}', "today {}"]);
+  assert.deepEqual(names("¿a quién puedo enviar ofertas?", "campaigns"), ['campaigns {"action":"lists"}']);
   assert.deepEqual(names("pause the monthly offer", "campaigns"), []);
   // How one did, a customer's ask, Spanish's "sale" (goes out) and the business's sales are no offer to make.
   for (const q of [
@@ -1207,8 +1207,8 @@ test("an offer asked for reads its journey and its Library before round 1, as a 
   // rest, so the week asked beside an offer is the model's own read.
   assert.equal(mod.CROSS_PAGE_MAX, 2);
   assert.deepEqual(names("Set up my campaigns and run 10% off colour in November", "campaigns"), [
-    'sequences {"action":"moments"}',
-    'sequences {"action":"lists"}',
+    'campaigns {"action":"moments"}',
+    'campaigns {"action":"lists"}',
   ]);
   assert.deepEqual(names("10% off colour all November. How did last month go?", "today"), planReads);
 });

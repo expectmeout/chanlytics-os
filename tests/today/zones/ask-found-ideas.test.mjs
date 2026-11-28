@@ -185,7 +185,7 @@ test("Not today rests an idea for the member and keeps 'dismissed' on its turn, 
 });
 
 /**
- * A new campaign's card, as the propose_sequence act makes it (act/playbook/playbook.ts): its one line, and its sheet, what holds
+ * A new campaign's card, as the propose_campaign act makes it (act/playbook/playbook.ts): its one line, and its sheet, what holds
  * it first and then a row a fact. On production Today drew its summary, one run-on paragraph of every rule.
  */
 const CAMPAIGN = card("p-c", "Campaign: Meeting reminder", {

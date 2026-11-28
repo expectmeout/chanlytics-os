@@ -21,14 +21,14 @@ const TOOL_WORDS: Record<string, string> = {
   "people.search": "Finding people",
   search_people: "Finding people",
   "people.pipeline": "The pipeline",
-  "inbox.thread": "A conversation",
+  "inbox.conversation": "A conversation",
   "inbox.search": "Searching the inbox",
   "calendar.week": "The week's calendar",
   signals: "What needs you",
   report: "Reports",
   guide: "How the app works",
   "propose_reply.draft": "Drafting a reply",
-  "propose_sequence.batch": "Drafting a sequence",
+  "propose_campaign.send": "Drafting a sequence",
 };
 
 function toolWords(name: string): string {

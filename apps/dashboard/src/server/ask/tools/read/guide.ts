@@ -23,9 +23,9 @@ import { propose_person } from "../act/person";
 import { rememberAct } from "../act/remember";
 import { propose_reply } from "../act/reply";
 import { propose_review } from "../act/review";
-import { propose_sequence } from "../act/sequence/sequence";
+import { propose_campaign } from "../act/sequence/sequence";
 import { propose_settings } from "../act/settings";
-import { propose_thread_verb } from "../act/thread-verb";
+import { propose_conversation } from "../act/thread-verb";
 
 /**
  * The product as Ask tells it (the operator, 15 Oct 2026): each page, what it is for, what Ask can do there for this
@@ -37,7 +37,7 @@ import { propose_thread_verb } from "../act/thread-verb";
 /** The act tools a guide names: the page verbs Ask proposes, each by "tool with action". */
 const ACT_TOOLS: readonly ActTool[] = [
   propose_reply,
-  propose_thread_verb,
+  propose_conversation,
   propose_call,
   propose_person,
   propose_people,
@@ -46,7 +46,7 @@ const ACT_TOOLS: readonly ActTool[] = [
   propose_settings,
   propose_lead_search,
   propose_leads,
-  propose_sequence,
+  propose_campaign,
   propose_review,
   propose_follow_up,
   rememberAct,
@@ -105,8 +105,7 @@ async function readGuide(toolContext: ToolContext, input: { skill?: string | und
       );
     if (!setup.templates.approved)
       missing.push(
-        // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-        "No approved WhatsApp message: nothing but a reply can go on WhatsApp (sequences with action messages).",
+        "No approved WhatsApp message: nothing but a reply can go on WhatsApp (campaigns with action messages).",
       );
   }
   return {

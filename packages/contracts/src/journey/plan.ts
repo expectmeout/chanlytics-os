@@ -45,7 +45,7 @@ export const JOURNEY_PLAN_WORDS = {
 
 /**
  * A setup's steps, numbered as they are added: each a campaign started, or one paused on its moment resumed (a change,
- * as propose_sequence action change makes it), a card of its own with nothing silent before it, so none waits for
+ * as propose_campaign action change makes it), a card of its own with nothing silent before it, so none waits for
  * another (planOf's offer numbers its silent steps first).
  */
 function setupSteps() {
@@ -270,7 +270,7 @@ export function journeyPlan(
     }
     if (stage.covered || !stage.moment) continue;
     // A campaign paused on the moment is resumed by a card of its own, never doubled: the setup said to resume it "from
-    // its drawer", where propose_sequence action change makes that card (the operator stress run, 15 Oct 2026).
+    // its drawer", where propose_campaign action change makes that card (the operator stress run, 15 Oct 2026).
     const held = world.playbooks.find((p) => p.state === "paused" && journeyStageOf(p.trigger) === id);
     if (held) {
       resume(held.id, JOURNEY_PLAN_WORDS.whyResume(held.name));

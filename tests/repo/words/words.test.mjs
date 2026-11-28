@@ -351,9 +351,10 @@ test("the ratchets say what they hold and read the tree", () => {
   // reaches a screen on 25 Nov 2026, what AI is taught its last the same day (what is left are the tools' own names,
   // each marked), and the server's refusals theirs on 26 Nov 2026 (what is left is staff's and operators', each marked).
   // The markup's last browser tooltip became the house's tip the same day (what is left are three frames' titles, each
-  // its frame's name).
+  // its frame's name), and the pages' last mark of a system's voice became the Setup row's own words (capabilities.ts).
   const EARNED_ZERO = {
     "customer-words.json": () => filesReadBy("customer").length,
+    "screen-voice.json": () => filesReadBy("owner").length,
     "screen-words.json": () => filesReadBy("owner").length,
     "server-words.json": () => filesReadBy("server").length,
     "taught-words.json": () => filesReadBy("taught").length,

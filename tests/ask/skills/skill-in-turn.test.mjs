@@ -154,12 +154,12 @@ test("a question that asks for a video carries the video maker's guide, in Engli
   assert.equal(said("Write a message telling clients about our new video"), `words\n\n${GUIDE}\n\n${video}`);
 });
 
-/** A round that calls propose_sequence's action message: what a card's tool is handed is captured. */
+/** A round that calls propose_campaign's action message: what a card's tool is handed is captured. */
 const MESSAGE_CALL = ROUND([
   {
     type: "tool_use",
     id: "t-1",
-    name: "propose_sequence",
+    name: "propose_campaign",
     text: "",
     json: JSON.stringify({ action: "message", name: "winback", language: "en", category: "marketing", versions: {} }),
   },

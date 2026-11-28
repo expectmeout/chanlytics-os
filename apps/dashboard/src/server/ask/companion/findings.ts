@@ -56,7 +56,7 @@ async function steadyCard(
   askFinding: Extract<AskFinding, { kind: "steady" }>,
 ): Promise<AskMorningCard | null> {
   const toolContext = newToolContext(ctx, member.tenantId, member.role, at.timezone, new Date(at.nowMs));
-  const out = await buildProposal(toolContext, "propose_sequence", {
+  const out = await buildProposal(toolContext, "propose_campaign", {
     action: "change",
     playbook_id: askFinding.stepId,
     mode: "veto",

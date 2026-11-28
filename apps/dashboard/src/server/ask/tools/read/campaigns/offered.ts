@@ -131,17 +131,17 @@ export async function listAudiences(toolContext: ToolContext): Promise<unknown> 
     // The composers' read of the templates (readers/templates.ts), once a turn: approved and not hidden by the
     // workspace (ledger #9), each with why this product cannot send it. A read that fails is its own state, as the
     // Broadcasts page keeps it, never "no template yet"; the audiences still answer.
-    load(toolContext.rc, templatesReader, { all: false }).catch(unread(toolContext, "sequences.lists", "templates")),
+    load(toolContext.rc, templatesReader, { all: false }).catch(unread(toolContext, "campaigns.lists", "templates")),
     // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: workspace.settings reads the
     // same. A read that fails is no number known, as the page takes it -- said as such, never as no number.
     load(toolContext.rc, channelsReader, undefined).then(
       (r) => r.data.channels,
-      unread(toolContext, "sequences.lists", "channels"),
+      unread(toolContext, "campaigns.lists", "channels"),
     ),
     // Who hears from a campaign or a broadcast within a week either side of now, a message sent or one due, the breath's
     // one read (context.ts findTouchesThisWeek, the cards' own): a broadcast leaves them out, so the count said here is the
     // card's. Null where it could not be read, which is said in the log there and to the model below.
-    findTouchesThisWeek(toolContext, "sequences.lists"),
+    findTouchesThisWeek(toolContext, "campaigns.lists"),
     // Every channel the workspace can send on now, as People's rows were judged (readers/facts.ts): offers_go_by below.
     load(toolContext.rc, readers.channelsReady, undefined).then((r) => r.data),
   ]);
@@ -188,7 +188,7 @@ export async function listAudiences(toolContext: ToolContext): Promise<unknown> 
     };
   };
   // Every list the pool can offer (contracts listsFor): People's lists this workspace can count, then its own. Each
-  // with its token (people.search's list) and its kind and id (propose_sequence.once's audience). The three
+  // with its token (people.search's list) and its kind and id (propose_campaign.once's audience). The three
   // consent lists are never audiences: each restates the yes every audience is already crossed with. A list of the workspace's own
   // that can't be counted here is listed with why, and no counts.
   const offered = listsFor(pool.listCtx, lists).filter(
@@ -271,7 +271,7 @@ const MODE_WORDS = {
 };
 
 /**
- * What a moment's row says in place of counts where it has none of its own: a list's (sequences.lists has each list's),
+ * What a moment's row says in place of counts where it has none of its own: a list's (campaigns.lists has each list's),
  * or an occasion's (decision 0119), which names nobody ahead of time. Null where the page's pools count it.
  */
 const markInPlaceOfCounts = (kind: string): { counted_per_list: true } | { each_at_their_own_time: true } | null =>
@@ -295,7 +295,7 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
     // read as every class asking first (the wiring's second audit, R13 X5-8).
     load(toolContext.rc, readers.policies, undefined).then(
       (r) => r.data,
-      unread(toolContext, "sequences.moments", "autonomy"),
+      unread(toolContext, "campaigns.moments", "autonomy"),
     ),
     // The last 30 days by playbook (campaign_series' sources, Reports' Campaigns lens): what the ledger's row says. Null
     // where it could not be read, never all-time totals in its place (D35).
@@ -370,14 +370,14 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
       trigger: p.trigger,
       trigger_label: said(p.trigger)?.label ?? p.trigger,
       template: p.template_name,
-      // The channels it goes by (WhatsApp alone for one made before channels): what propose_sequence with action
+      // The channels it goes by (WhatsApp alone for one made before channels): what propose_campaign with action
       // channels is asked to change, and must be told whole.
       channels: campaignChannelsOf(p.channels),
       // Its state as the home says it (lifecycleStateOf): "Ended Oct 1", "Paused", "On · Daily 10:00 AM", a run waiting
       // first. It said the stored "running" of a campaign past its last day (the wiring's second audit, R13 X5-7).
       state: lifecycleStateOf({ ...p, ended: c.ended, off: c.off }).words,
       policy_class: p.policy_class,
-      // Its sequence's own mode (decision 0064), what propose_sequence's change sets as `mode`, and whether its next batch
+      // Its sequence's own mode (decision 0064), what propose_campaign's change sets as `mode`, and whether its next batch
       // waits for an OK first because its words are new to the owner (contracts batchModeOf, core run-playbook's own).
       mode: p.mode ?? "ask",
       next_batch_asks_first: !p.words_ok_at,
@@ -411,7 +411,7 @@ export async function listPlaybooksTool(toolContext: ToolContext): Promise<unkno
         label: triggerWords(x, shape.word).label,
         when: triggerWords(x, shape.word).hint,
         policy_class: x.cls,
-        // On a list, the counts are the list's: sequences.lists has each list's. An occasion's moment has none to give.
+        // On a list, the counts are the list's: campaigns.lists has each list's. An occasion's moment has none to give.
         ...(markInPlaceOfCounts(x.kind) ?? counted(x.id)),
         starter_template: starterForTrigger(x.id)?.title ?? null,
       })),

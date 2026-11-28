@@ -199,7 +199,7 @@ test("a call's words changed are its id and its words alone, through the step's 
 
 /* ---- Ask's cards over the same steps ---- */
 
-/** One call the model makes to propose_sequence, over the workspace in memory: the card, or the refusal it hears. */
+/** One call the model makes to propose_campaign, over the workspace in memory: the card, or the refusal it hears. */
 async function ask(steps, input) {
   const supabase = fakeDb(
     {
@@ -216,7 +216,7 @@ async function ask(steps, input) {
     },
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-  const out = await buildProposal(t, "propose_sequence", input);
+  const out = await buildProposal(t, "propose_campaign", input);
   const p = out.proposal;
   return p ? { kind: p.kind, title: p.title, summary: p.summary, payload: p.payload } : JSON.parse(out.result);
 }
@@ -224,21 +224,21 @@ async function ask(steps, input) {
 const CALL_LAST = [step(1, SEQ), step(2, STEP2), handStep(3, STEP3, "call")];
 
 test("Ask proposes no step after a call, no params on one and no words for one, and says why", async () => {
-  const after = await ask(CALL_LAST, { action: "step", sequence_id: SEQ, after_days: 4, template_id: MSG });
+  const after = await ask(CALL_LAST, { action: "step", campaign_id: SEQ, after_days: 4, template_id: MSG });
   assert.match(after.error, /last step is a call or a note, and nothing goes after one/);
-  const params = await ask(CALL_LAST, { action: "step", sequence_id: SEQ, step_id: STEP3, params: ["Ana"] });
+  const params = await ask(CALL_LAST, { action: "step", campaign_id: SEQ, step_id: STEP3, params: ["Ana"] });
   assert.match(params.error, /a call or a note has no message, so no params/);
-  const channels = await ask(CALL_LAST, { action: "step", sequence_id: SEQ, step_id: STEP3, channels: ["email"] });
+  const channels = await ask(CALL_LAST, { action: "step", campaign_id: SEQ, step_id: STEP3, channels: ["email"] });
   assert.match(channels.error, /lands on Today and goes by no channel/);
-  const words = await ask(CALL_LAST, { action: "words", sequence_id: SEQ, step_id: STEP3, template_id: MSG });
+  const words = await ask(CALL_LAST, { action: "words", campaign_id: SEQ, step_id: STEP3, template_id: MSG });
   assert.match(words.error, /that step is a call or a note: it sends no message/);
   // Its wait still changes, as the page's editor changes it.
-  const wait = await ask(CALL_LAST, { action: "step", sequence_id: SEQ, step_id: STEP3, after_days: 5 });
+  const wait = await ask(CALL_LAST, { action: "step", campaign_id: SEQ, step_id: STEP3, after_days: 5 });
   assert.deepEqual([wait.kind, wait.payload.step_id, wait.payload.after_days], ["sequence_step", STEP3, 5]);
 });
 
 test("a call taken away is named by its kind on Ask's card, never as a message it does not send", async () => {
-  const card = await ask(CALL_LAST, { action: "step_remove", sequence_id: SEQ, step_id: STEP3 });
+  const card = await ask(CALL_LAST, { action: "step_remove", campaign_id: SEQ, step_id: STEP3 });
   assert.equal(card.kind, "sequence_step_remove");
   assert.deepEqual(card.payload, { sequence_id: SEQ, step_id: STEP3 });
   assert.ok(card.summary.startsWith(`Step 3 (${handTitleOf("call")}) go;`), card.summary);
@@ -247,11 +247,11 @@ test("a call taken away is named by its kind on Ask's card, never as a message i
   // A note, by its own title; a message step before it, by its message, with the call after it going too.
   const note = await ask([step(1, SEQ), step(2, STEP2), handStep(3, STEP3, "note")], {
     action: "step_remove",
-    sequence_id: SEQ,
+    campaign_id: SEQ,
     step_id: STEP3,
   });
   assert.ok(note.summary.startsWith(`Step 3 (${NEW_WORDS.hand.noteTitle}) go;`), note.summary);
-  const message = await ask(CALL_LAST, { action: "step_remove", sequence_id: SEQ, step_id: STEP2 });
+  const message = await ask(CALL_LAST, { action: "step_remove", campaign_id: SEQ, step_id: STEP2 });
   assert.ok(message.summary.startsWith("Step 2 (come_back) and the 1 step after it go;"), message.summary);
 });
 
@@ -271,7 +271,7 @@ test("Ask's cold email with no mailbox is no card: it says what to connect, in t
     {},
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator");
-  const out = await buildProposal(t, "propose_sequence", {
+  const out = await buildProposal(t, "propose_campaign", {
     action: "cold_email",
     name: "Plumbers",
     search_id: SEARCH,
@@ -307,7 +307,7 @@ test("Ask's cold email starts at the pace every new sequence starts at, one emai
       {},
     );
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-    const out = await buildProposal(t, "propose_sequence", {
+    const out = await buildProposal(t, "propose_campaign", {
       action: "cold_email",
       name: "Plumbers in Queens",
       search_id: SEARCH,
@@ -352,7 +352,7 @@ test("Ask's cold email is signed as New signs it, by the member's first name, un
       {},
     );
     const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
-    const out = await buildProposal(t, "propose_sequence", {
+    const out = await buildProposal(t, "propose_campaign", {
       action: "cold_email",
       name: "Plumbers in Queens",
       search_id: SEARCH,

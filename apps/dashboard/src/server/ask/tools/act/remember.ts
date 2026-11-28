@@ -26,7 +26,7 @@ import { propose, refuse } from "../context/context";
  * morning's) holds no member's words of its question.
  *
  * One read hands a turn words that are the member's own (decision 0078 step 2): the cold emails they wrote, from the
- * sequences tool's `edited` (ToolContext.theirs). A line about how they write a cold email may quote those, in any turn
+ * campaigns tool's `edited` (ToolContext.theirs). A line about how they write a cold email may quote those, in any turn
  * and in the morning's: it starts "In cold emails:" (contracts VOICE_LINE_LEAD), as every line learned from how they
  * write does; it is learned (`source` learned, as a pasted email's lines are); and it always waits on its card for their
  * press, since what they wrote is evidence of a habit, never their word that it is one. What a line may not hold at all
@@ -89,8 +89,7 @@ function rememberOutcome(toolContext: ToolContext, input: { text: string; quote:
   const fromTheirs = long && !fromQuestion && (toolContext.theirs ?? []).some((w) => comparable(w).includes(quote));
   if (morning && !fromTheirs)
     return refuse(
-      // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-      "nothing is kept from the morning's turn but a line about how they write, quoting the words of their own cold emails that sequences with action edited returned",
+      "nothing is kept from the morning's turn but a line about how they write, quoting the words of their own cold emails that campaigns with action edited returned",
     );
   if (fromTheirs && !text.toLowerCase().startsWith(VOICE_LINE_LEAD.toLowerCase()))
     return refuse(`a line about how they write starts "${VOICE_LINE_LEAD}", then says the habit in a few words`);
@@ -137,7 +136,7 @@ export const rememberAct = defineAct({
     quote: z
       .string()
       .describe(
-        "Their own words in this question that state it, copied exactly; for a line about how they write a cold email, words of their own emails from sequences with action edited.",
+        "Their own words in this question that state it, copied exactly; for a line about how they write a cold email, words of their own emails from campaigns with action edited.",
       ),
   }),
   label: "Remembering",

@@ -102,7 +102,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 2 Oct 2026: a moment no longer offered for a new playbook (contracts MOMENTS_RETIRED) is not one of the tool's
     // triggers: the schema refuses it, naming the ones that are, before anything is read (the check refuses it in the
     // moment's own words if it gets that far, which broadcasts/core-campaigns/ runs).
-    if (call.name === "propose_sequence" && String(call.input.trigger) in MOMENTS_RETIRED) {
+    if (call.name === "propose_campaign" && String(call.input.trigger) in MOMENTS_RETIRED) {
       assert.equal(got.isError, true, `${old}: a retired moment is refused`);
       assert.match(got.result, /expected one of/, `${old}: by the schema, naming the moments there are`);
       assert.deepEqual(got.reads, [], `${old}: before anything is read`);
@@ -135,22 +135,22 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // today draws it, before the searches that wait: nothing in this world.
     if (old === "get_today") result = result.replace('"searches_waiting":', '"going_today":[],"searches_waiting":');
     if (old === "get_settings") result = withHowItAnswers(result);
-    if (NAMES[old] === "sequences.moments") result = withEachSequencesMode(result);
+    if (NAMES[old] === "campaigns.moments") result = withEachSequencesMode(result);
     // 10 Nov 2026 (decision 0119; Ruben: Ask proposes the three moments an occasion starts): the moments' note says what
     // their mark means, a moment with no count because it names nobody ahead of time. This world has no calendar, so it
     // is offered none of the three: the note is the one change to its bytes.
-    if (NAMES[old] === "sequences.moments") result = withOccasionsNote(result);
+    if (NAMES[old] === "campaigns.moments") result = withOccasionsNote(result);
     if (old === "list_threads" || old === "get_thread") result = withNoHeldDraft(result);
     if (NAMES[old] === "calls.list" || NAMES[old] === "calls.get") result = withCallDirection(result);
-    if (NAMES[old] === "sequences.lists")
+    if (NAMES[old] === "campaigns.lists")
       result = withoutDealLists(withTheYesItself(withHeldListWord(withChannels(result))));
-    if (NAMES[old].startsWith("propose_sequence.")) result = withTheVerbsWords(result);
+    if (NAMES[old].startsWith("propose_campaign.")) result = withTheVerbsWords(result);
     // 8 Oct 2026: a playbook's hour by the product's clock (withTheClocksHour): the campaigns' own answers and cards,
     // in their result and in the card they propose.
-    const campaignsOwn = NAMES[old].startsWith("sequences.") || NAMES[old].startsWith("propose_sequence.");
+    const campaignsOwn = NAMES[old].startsWith("sequences.") || NAMES[old].startsWith("propose_campaign.");
     if (campaignsOwn) result = withTheClocksHour(result);
     // 9 Oct 2026: and a playbook card's title says "Campaign" (withCampaignWord), in its result and in the card.
-    const playbookCard = NAMES[old] === "propose_sequence.moment";
+    const playbookCard = NAMES[old] === "propose_campaign.moment";
     if (playbookCard) result = withNobodyNamed(withTheSequencesStart(withCampaignWord(result)));
     // 11 Oct 2026: a plan's sentence and its kind (withThePlansWords), in the result and in the card.
     const leadPlan = NAMES[old] === "propose_lead_search.find";
@@ -183,23 +183,23 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // listMessageVersionRows: the version, then every row of its message), where it read the one WhatsApp row: one `templates`
     // read more for a template this workspace holds. A template it does not hold answers at the version, one read as before.
     const readsRows =
-      NAMES[old].startsWith("propose_sequence.") && input.template_id === TPL && reads00.includes("templates.select");
+      NAMES[old].startsWith("propose_campaign.") && input.template_id === TPL && reads00.includes("templates.select");
     const reads0 = readsRows ? [...reads00, "templates.select"] : reads00;
     // 3 Oct 2026 (One message, every channel, step 3): the playbooks reader asks whether the workspace can send on each
     // channel (server/campaigns/channels-ready.ts): the WhatsApp number and the texting line, after the turn's tenants
     // reads (the mailbox only where the deployment sends email, which this one does not). The one change to its reads.
     // A campaign proposed (a broadcast, a playbook) asks the same of WhatsApp alone, the one channel Ask names: whether
     // its number can send. One read more, in any order; a call refused before, at its template, never gets that far.
-    const proposes = String(NAMES[old]).startsWith("propose_sequence.") && !want.isError;
+    const proposes = String(NAMES[old]).startsWith("propose_campaign.") && !want.isError;
     // 7 Oct 2026 (lane 1, T5): a playbook's check reads the message the template's id names (db listMessageVersionRows: the
     // version, then every row of it, on any channel), where it read the one WhatsApp row: a playbook proposed on a
     // template, which reached the check after Ask's own read of the row, makes one `templates` read more.
     const readsMessage =
       proposes &&
-      NAMES[old] === "propose_sequence.moment" &&
+      NAMES[old] === "propose_campaign.moment" &&
       reads00.filter((r) => r === "templates.select").length >= 2;
     const counted =
-      NAMES[old] === "sequences.moments"
+      NAMES[old] === "campaigns.moments"
         ? withChannelReads(reads0)
         : proposes
           ? [...reads0, "tenant_channels.select", ...(readsMessage ? ["templates.select"] : [])]
@@ -273,13 +273,13 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // playbook's runs earned (00374 playbook_totals, db getPlaybookTotals: one call) and reads the playbooks' rows alone,
     // where it read every run's row beside them to sum it in TypeScript: one `broadcasts` read fewer and one call to the
     // function more. Its bytes are unchanged (GET playbooks answers the same bytes, playbooks/totals/playbook-totals.test.mjs).
-    const countsInTheDatabase = NAMES[old] === "sequences.moments" && withOurWire.includes("sequence_batches.select");
+    const countsInTheDatabase = NAMES[old] === "campaigns.moments" && withOurWire.includes("sequence_batches.select");
     const withTotals = countsInTheDatabase
       ? [...withOurWire.toSpliced(withOurWire.indexOf("sequence_batches.select"), 1), "rpc:playbook_totals"]
       : withOurWire;
     // 9 Oct 2026 (the moment spec, D9): a playbook proposed is held to the running ones on its moment, list and message
     // (packages/db listRunningTwins): one `playbooks` read more for a call that reaches its card.
-    const readsTwins = NAMES[old] === "propose_sequence.moment" && !want.isError;
+    const readsTwins = NAMES[old] === "propose_campaign.moment" && !want.isError;
     const withTwins = readsTwins ? [...withTotals, "sequence_steps.select"] : withTotals;
     // 10 Oct 2026 (a moment holds many campaigns: the month's allowance, one rule): a playbook proposed is counted against
     // the week's touches as the page's pools are (server/campaigns/playbooks.ts getRecentTouches, db listTouchesSince: the week's
@@ -291,7 +291,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // composer counts them and the route skips them (db getRecentTouches over listTouchesSince): the same two reads more for a
     // call that reaches its card, and for the audiences listing, which counts as the card does. Their bytes are unchanged:
     // nobody here heard from a campaign this week.
-    const readsBreath = (NAMES[old] === "propose_sequence.once" && !want.isError) || NAMES[old] === "sequences.lists";
+    const readsBreath = (NAMES[old] === "propose_campaign.once" && !want.isError) || NAMES[old] === "campaigns.lists";
     const withBreath = readsBreath ? [...withWeek, "sequence_batches.select", "tenants.select"] : withWeek;
     // 10 Oct 2026 (Reports, the Receptionist lens, C2 T13): and the Receptionist lens's own: one rpc more (withReceptionistReads).
     // 10 Oct 2026 (Reports, the People lens, C3 T13): and the People lens's: its series and the channels the book is judged against.
@@ -345,7 +345,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const drop = (r, x) => (r.includes(x) ? r.toSpliced(r.indexOf(x), 1) : r);
     const withoutBuys =
       pool || NAMES[old] === "report" || NAMES[old] === "workspace.settings" ? drop(dealt, "tenants.select") : dealt;
-    const withOneDealRead = NAMES[old] === "sequences.moments" ? drop(withoutBuys, "deals.select") : withoutBuys;
+    const withOneDealRead = NAMES[old] === "campaigns.moments" ? drop(withoutBuys, "deals.select") : withoutBuys;
     // 0076: Today reads what was booked (bookings.ts); 00512: a lead plan, the month's allowance. Bytes unchanged.
     // 14 Nov 2026 (decision 0132): and the number's row, for what WhatsApp holds against it (metrics.ts whatsappHeld): one
     // `tenant_channels` read more. Its bytes are unchanged: this world's number is held by nothing.
@@ -366,7 +366,7 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         : [...withOneDealRead, ...booked, ...allowance];
     const [gotResult, wantResult] = withoutStoredWords(
       old,
-      ...(NAMES[old] === "sequences.moments"
+      ...(NAMES[old] === "campaigns.moments"
         ? againstOffered(got.result, withTheHomes(withLastThirtyDays(result)))
         : [
             withoutVisitIds(old, got.result),
@@ -415,7 +415,7 @@ test("the report finds the people its booking link went to only where the link w
   assert.equal(peopleReads(sent.reads), 1, "a link sent to Rosa: People is read whole once, then filtered to her");
   // This workspace keeps no calendar link: the calendar cannot say who booked, and the line says why, never a count.
   assert.equal(
-    JSON.parse(sent.result).receptionist.link,
+    JSON.parse(sent.result).ai.link,
     "1 person was sent the booking link. Add a calendar link under Settings › Hours & booking to see who booked.",
   );
 });

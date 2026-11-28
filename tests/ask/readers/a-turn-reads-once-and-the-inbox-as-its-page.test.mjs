@@ -843,7 +843,7 @@ test("what a message cost to send is never Ask's to read: the thread reader, the
   );
 
   const tc = newToolContext(dayCtx(tbls), B, "operator", "America/New_York", new Date());
-  const said = (await runTool(tc, { name: "inbox", input: { action: "thread", conversation_id: C1 } })).result;
+  const said = (await runTool(tc, { name: "inbox", input: { action: "conversation", conversation_id: C1 } })).result;
   assert.ok(JSON.parse(said).messages.length > 0, "the tool read the conversation");
   for (const [name, out] of [
     ["thread reader", one],

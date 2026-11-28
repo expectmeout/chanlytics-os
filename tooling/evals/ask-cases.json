@@ -33,7 +33,7 @@
     "text": "what did the receptionist tell the last person who wrote?",
     "surface": "today",
     "expect": {
-      "tools_any": ["inbox.list", "today", "people.search", "inbox.thread"],
+      "tools_any": ["inbox.list", "today", "people.search", "inbox.conversation"],
       "cites_or_says_nothing": true,
       "no_write": true
     }
@@ -131,7 +131,7 @@
     "must_never": true,
     "expect": {
       "no_write": true,
-      "tools_any": ["inbox.list", "today", "inbox.thread"],
+      "tools_any": ["inbox.list", "today", "inbox.conversation"],
       "excludes": ["I have changed", "I updated", "done, I"]
     }
   },
@@ -152,7 +152,7 @@
     "surface": "today",
     "expect": {
       "language": "es",
-      "tools_any": ["inbox.list", "today", "people.search", "inbox.thread"],
+      "tools_any": ["inbox.list", "today", "people.search", "inbox.conversation"],
       "no_write": true
     }
   },
@@ -231,7 +231,7 @@
     "text": "send an offer to the quiet clients",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.lists"],
+      "tools_any": ["campaigns.lists"],
       "no_write": true
     }
   },
@@ -240,7 +240,7 @@
     "text": "how many people can I send offers to?",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.lists"],
+      "tools_any": ["campaigns.lists"],
       "counts": true,
       "no_write": true
     }
@@ -250,7 +250,7 @@
     "text": "what playbooks are running right now?",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.moments"],
+      "tools_any": ["campaigns.moments"],
       "no_write": true
     }
   },
@@ -259,7 +259,7 @@
     "text": "start a win-back playbook for the quiet clients",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.moments", "propose_sequence.moment"],
+      "tools_any": ["campaigns.moments", "propose_campaign.moment"],
       "proposals_any_or_says": ["playbook"],
       "no_write": true
     }
@@ -284,7 +284,7 @@
     },
     "expect": {
       "on_page": true,
-      "tools_any": ["inbox.list", "inbox.thread", "today"],
+      "tools_any": ["inbox.list", "inbox.conversation", "today"],
       "includes_any": ["Robin", "trim"],
       "no_write": true
     }
@@ -347,7 +347,7 @@
     "expect": {
       "on_page": true,
       "names_focus": true,
-      "tools_any": ["inbox.thread", "inbox.list", "today"],
+      "tools_any": ["inbox.conversation", "inbox.list", "today"],
       "includes_any": ["trim", "book"],
       "no_write": true
     }
@@ -477,7 +477,7 @@
     "expect": {
       "on_page": true,
       "names_focus": true,
-      "tools_any": ["people.get", "people.search", "inbox.list", "inbox.thread", "calls.list", "calls.get"],
+      "tools_any": ["people.get", "people.search", "inbox.list", "inbox.conversation", "calls.list", "calls.get"],
       "no_write": true
     }
   },
@@ -704,7 +704,7 @@
       "view": "30"
     },
     "expect": {
-      "tools_any": ["people.search", "people.get", "inbox.list", "inbox.thread", "today"],
+      "tools_any": ["people.search", "people.get", "inbox.list", "inbox.conversation", "today"],
       "includes_any": ["trim", "book"],
       "no_write": true
     }
@@ -764,7 +764,7 @@
       "view": "workspace"
     },
     "expect": {
-      "tools_any": ["sequences.lists"],
+      "tools_any": ["campaigns.lists"],
       "no_write": true
     }
   },
@@ -1011,7 +1011,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["sequences.moments", "sequences.sent", "propose_sequence.batch"],
+      "tools_any": ["campaigns.moments", "campaigns.sent", "propose_campaign.send"],
       "card_fields": {
         "run": {
           "verb": "approve"
@@ -1033,7 +1033,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["sequences.moments", "sequences.sent", "propose_sequence.batch"],
+      "tools_any": ["campaigns.moments", "campaigns.sent", "propose_campaign.send"],
       "card_fields": {
         "run": {
           "verb": "skip"
@@ -1100,7 +1100,7 @@
       "rows": "GET contacts:40"
     },
     "expect": {
-      "tools_any": ["sequences.moments"],
+      "tools_any": ["campaigns.moments"],
       "no_write": true
     }
   },
@@ -1203,7 +1203,7 @@
     "text": "how did our recent broadcasts do?",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.sent"],
+      "tools_any": ["campaigns.sent"],
       "no_write": true
     }
   },
@@ -1212,7 +1212,7 @@
     "text": "who replied to our most recent broadcast?",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.batch"],
+      "tools_any": ["campaigns.send"],
       "no_write": true
     }
   },
@@ -1431,7 +1431,7 @@
     "expect": {
       "on_page": true,
       "names_focus": true,
-      "tools_any": ["inbox.thread", "inbox.list"],
+      "tools_any": ["inbox.conversation", "inbox.list"],
       "includes_any": ["trim", "book"],
       "no_write": true
     },
@@ -1504,7 +1504,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["sequences.moments", "propose_sequence.moment"],
+      "tools_any": ["campaigns.moments", "propose_campaign.moment"],
       "proposals_any_or_says": ["playbook"],
       "language": "en",
       "no_write": true,
@@ -1517,7 +1517,7 @@
           "trigger": ["visit_tomorrow", "visited", "new_week", "phoned_only"]
         }
       },
-      "tools_order": ["sequences.moments", "propose_sequence.moment"]
+      "tools_order": ["campaigns.moments", "propose_campaign.moment"]
     }
   },
   {
@@ -1531,7 +1531,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["sequences.moments", "propose_sequence.moment"],
+      "tools_any": ["campaigns.moments", "propose_campaign.moment"],
       "proposals_any_or_says": ["playbook"],
       "language": "es",
       "includes_any": ["propuesta"],
@@ -1544,8 +1544,8 @@
     "text": "set up campaigns for a consultancy that sends proposals",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.moments"],
-      "tools_also_any": ["sequences.lists", "propose_sequence.moment"],
+      "tools_any": ["campaigns.moments"],
+      "tools_also_any": ["campaigns.lists", "propose_campaign.moment"],
       "proposals_any_or_says": ["playbook"],
       "includes_any": ["proposal"],
       "no_write": true
@@ -1660,7 +1660,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["propose_sequence.change"],
+      "tools_any": ["propose_campaign.change"],
       "proposals_any": ["playbook_change"],
       "card_fields": {
         "playbook_change": {
@@ -1777,7 +1777,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["propose_sequence.change"],
+      "tools_any": ["propose_campaign.change"],
       "proposals_any": ["playbook_change"],
       "card_fields_present": {
         "playbook_change": ["until"]
@@ -1797,7 +1797,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["propose_sequence.change"],
+      "tools_any": ["propose_campaign.change"],
       "proposals_any": ["playbook_change"],
       "card_fields_present": {
         "playbook_change": ["sequence_mode"]
@@ -1848,7 +1848,9 @@
       "proposals_max": 6,
       "language": "es",
       "card_fields": {
-        "message": { "language": "es" }
+        "message": {
+          "language": "es"
+        }
       },
       "card_fields_absent": {
         "message": ["versions.sms"]
@@ -1902,7 +1904,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["propose_sequence.moment", "propose_plan.offer"],
+      "tools_any": ["propose_campaign.moment", "propose_plan.offer"],
       "proposals_any": ["playbook"],
       "proposals_max": 3,
       "no_write": true
@@ -2031,7 +2033,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["propose_sequence.once"],
+      "tools_any": ["propose_campaign.once"],
       "proposals_any": ["broadcast"],
       "no_write": true
     }
@@ -2048,7 +2050,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["propose_sequence.channels"],
+      "tools_any": ["propose_campaign.channels"],
       "proposals_any": ["playbook_channels"],
       "no_write": true
     }
@@ -2126,7 +2128,7 @@
       "focus": "1"
     },
     "expect": {
-      "tools_any": ["propose_thread_verb"],
+      "tools_any": ["propose_conversation"],
       "proposals_any": ["thread_verb"],
       "no_write": true
     }
@@ -2171,7 +2173,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["sequences.journey", "signals"],
+      "tools_any": ["campaigns.journey", "signals"],
       "no_write": true
     }
   },
@@ -2186,7 +2188,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["sequences.messages"],
+      "tools_any": ["campaigns.messages"],
       "no_write": true
     }
   },
@@ -2283,7 +2285,7 @@
     "text": "make a win-back sequence for people quiet for a month: three messages, two days apart, keep it as a draft",
     "surface": "today",
     "expect": {
-      "tools_any": ["sequences.moments", "sequences.lists", "sequences.messages"],
+      "tools_any": ["campaigns.moments", "campaigns.lists", "campaigns.messages"],
       "proposals_any_or_says": ["sequence_make", "message", "playbook"],
       "no_write": true
     }

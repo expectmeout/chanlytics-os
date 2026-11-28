@@ -130,7 +130,7 @@ test("edited says the member's own cold emails whose first email is theirs: chan
   ];
   assert.deepEqual(editedOf(makes, chains), [
     {
-      sequence_id: Q(1),
+      campaign_id: Q(1),
       name: "Sequence 1",
       for: "Auto shops in Brooklyn",
       state: "running",
@@ -138,7 +138,7 @@ test("edited says the member's own cold emails whose first email is theirs: chan
       sent: MINE,
     },
     {
-      sequence_id: Q(3),
+      campaign_id: Q(3),
       name: "Sequence 3",
       for: null,
       state: "running",
@@ -158,7 +158,7 @@ test("Ask's edited read marks what the member sent as theirs on the turn, and on
   const out = await readEdited(t, {});
   assert.equal(out.days, 1);
   assert.deepEqual(
-    out.edited.map((e) => [e.sequence_id, e.drafted?.subject ?? null, e.sent.subject]),
+    out.edited.map((e) => [e.campaign_id, e.drafted?.subject ?? null, e.sent.subject]),
     [[Q(1), ASKS.subject, MINE.subject]],
   );
   assert.deepEqual(t.theirs, [MINE.subject, MINE.body], "the member's words, never Ask's draft or a teammate's");

@@ -26,7 +26,14 @@ import {
 } from "@chanlytics/contracts";
 import { load } from "../../../../shared/reader";
 import { sequence as sequenceReader, sequencePeople } from "../../../../readers/sequences";
-import { getAskedMessage, noteRow, stepNamed, str, readUnlessNotFound } from "../../context/tool-reads";
+import {
+  CAMPAIGN_ID_REFUSAL,
+  getAskedMessage,
+  noteRow,
+  stepNamed,
+  str,
+  readUnlessNotFound,
+} from "../../context/tool-reads";
 import { propose, refuse } from "../../context/context";
 import type { ProposalOutcome, ToolContext } from "../../context/tool-defs";
 import { playbookAction } from "../playbook/playbook";
@@ -50,8 +57,7 @@ export async function sequenceOnCard(
   sequenceId: string,
 ): Promise<SequenceRecordDto | { refusal: string }> {
   const id = str(sequenceId, 40);
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!UUID.test(id)) return { refusal: "sequence_id must be an id sequences with action list returned" };
+  if (!UUID.test(id)) return { refusal: CAMPAIGN_ID_REFUSAL };
   const read = await readUnlessNotFound(load(t.rc, sequenceReader, { id }));
   if (!read) return { refusal: "no such campaign in this workspace" };
   noteRow(t, "playbook", id, read.data.sequence.name, sequenceRoute(id));
@@ -70,15 +76,13 @@ const INSTEAD: Record<SequenceAct, string> = {
   discard: "let it go with action discard",
   run_now: "run it with action run_now",
   rename: "rename it with action change (name)",
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  cancel_send: "cancel it with action batch (verb skip)",
+  cancel_send: "cancel it with action send (verb skip)",
   send_again: "send it again with action once",
 };
 
 /** What the model is told to do where a refusal offers no act in its place. */
 const NEXT: Partial<Record<SequenceActReason, string>> = {
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  batch_waiting: "approve or skip that send with action batch",
+  batch_waiting: "approve or skip that send with action send",
   email_to_write: "its email is written on its page first: say so, and open it",
   unread: "say so, and ask again in a moment",
 };
@@ -97,8 +101,7 @@ export function refusedAct(rec: SequenceRecordDto, act: SequenceAct, now: Date):
 /** A step after the first, by its id, in a sequence's record; or the refusal. The first step is the campaign's own. */
 function laterStep(rec: SequenceRecordDto, stepId: string) {
   const step = rec.steps.find((s) => s.id === str(stepId, 40));
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!step) return { refusal: "step_id must be a step of this campaign (sequences with action sequence lists them)" };
+  if (!step) return { refusal: "step_id must be a step of this campaign (campaigns with action campaign lists them)" };
   if (step.place <= 1)
     return {
       refusal:
@@ -115,8 +118,7 @@ async function stepMessage(
   const id = str(templateId, 40);
   const token = stepNamed(toolContext, id);
   if (token !== null) return { id, name: `the message step ${token} writes` };
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!UUID.test(id)) return { refusal: "template_id must be a message's id from sequences with action messages" };
+  if (!UUID.test(id)) return { refusal: "template_id must be a message's id from campaigns with action messages" };
   const otherAskedMessage = await getAskedMessage(toolContext, id);
   if ("refusal" in otherAskedMessage) return otherAskedMessage;
   return { id: otherAskedMessage.message.anchor.id, name: otherAskedMessage.message.name };
@@ -188,7 +190,7 @@ export async function proposeMake(
 export async function proposeStep(
   toolContext: ToolContext,
   input: {
-    sequence_id: string;
+    campaign_id: string;
     step_id?: string;
     template_id?: string;
     after_days?: number;
@@ -198,7 +200,7 @@ export async function proposeStep(
     params?: string[];
   },
 ): Promise<ProposalOutcome> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const fields = {
     ...(input.after_days !== undefined ? { after_days: input.after_days } : {}),
@@ -241,9 +243,9 @@ export async function proposeStep(
 
 export async function proposeStepRemove(
   toolContext: ToolContext,
-  input: { sequence_id: string; step_id: string },
+  input: { campaign_id: string; step_id: string },
 ): Promise<ProposalOutcome> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const step = laterStep(rec, input.step_id);
   if (isRefusal(step)) return refuse(step.refusal);
@@ -258,13 +260,12 @@ export async function proposeStepRemove(
 
 export async function proposeWords(
   toolContext: ToolContext,
-  input: { sequence_id: string; step_id: string; template_id: string; params?: string[] },
+  input: { campaign_id: string; step_id: string; template_id: string; params?: string[] },
 ): Promise<ProposalOutcome> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const step = rec.steps.find((s) => s.id === str(input.step_id, 40));
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!step) return refuse("step_id must be a step of this campaign (sequences with action sequence lists them)");
+  if (!step) return refuse("step_id must be a step of this campaign (campaigns with action campaign lists them)");
   if (step.hand) return refuse("that step is a call or a note: it sends no message");
   const msg = await stepMessage(toolContext, input.template_id);
   if (isRefusal(msg)) return refuse(msg.refusal);
@@ -281,8 +282,8 @@ export async function proposeWords(
   });
 }
 
-export async function proposeStart(toolContext: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
-  const id = str(input.sequence_id, 40);
+export async function proposeStart(toolContext: ToolContext, input: { campaign_id: string }): Promise<ProposalOutcome> {
+  const id = str(input.campaign_id, 40);
   const token = stepNamed(toolContext, id);
   if (token !== null)
     return propose({
@@ -305,9 +306,9 @@ export async function proposeStart(toolContext: ToolContext, input: { sequence_i
 
 export async function proposeLeave(
   toolContext: ToolContext,
-  input: { sequence_id: string; contact_ids?: ContactId[]; lead_ids?: string[] },
+  input: { campaign_id: string; contact_ids?: ContactId[]; lead_ids?: string[] },
 ): Promise<ProposalOutcome> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const seen = new Set([...(input.contact_ids ?? []), ...(input.lead_ids ?? [])].map((x) => str(x, 40)));
   if (!seen.size) return refuse("name who leaves by contact_ids (people) or lead_ids (leads)");
@@ -334,14 +335,13 @@ export async function proposeLeave(
  */
 async function sendOnCard(
   toolContext: ToolContext,
-  input: { sequence_id: string; send_id: string },
+  input: { campaign_id: string; send_id: string },
   group: "held" | "to_send",
 ): Promise<{ rec: SequenceRecordDto; name: string; send_id: string } | { refusal: string }> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return rec;
   const id = str(input.send_id, 40);
-  // screen-word: the tools' own names, actions and values, which AI calls them by (tests/ask/tools/_taught-words.mjs)
-  if (!UUID.test(id)) return { refusal: "send_id must be an id sequences with action sequence returned" };
+  if (!UUID.test(id)) return { refusal: "send_id must be an id campaigns with action campaign returned" };
   const people = (await load(toolContext.rc, sequencePeople, { id: rec.sequence.id, limit: 500 })).data;
   const row = people.rows.find((r) => r.send_id === id);
   if (!row) return { refusal: `no send of ${rec.sequence.name} has that id now` };
@@ -357,7 +357,7 @@ async function sendOnCard(
 
 export async function proposeSendDecide(
   toolContext: ToolContext,
-  input: { sequence_id: string; send_id: string; decision: (typeof REACH_OUT_DECISIONS)[number]; change?: string },
+  input: { campaign_id: string; send_id: string; decision: (typeof REACH_OUT_DECISIONS)[number]; change?: string },
 ): Promise<ProposalOutcome> {
   const on = await sendOnCard(toolContext, input, "held");
   if (isRefusal(on)) return refuse(on.refusal);
@@ -372,7 +372,7 @@ export async function proposeSendDecide(
 
 export async function proposeSendSaid(
   toolContext: ToolContext,
-  input: { sequence_id: string; send_id: string; outcome: (typeof REACH_OUT_SAID_OUTCOMES)[number] },
+  input: { campaign_id: string; send_id: string; outcome: (typeof REACH_OUT_SAID_OUTCOMES)[number] },
 ): Promise<ProposalOutcome> {
   const on = await sendOnCard(toolContext, input, "to_send");
   if (isRefusal(on)) return refuse(on.refusal);
@@ -390,13 +390,13 @@ export async function proposeSendSaid(
 /**
  * A sequence run now, at the member's request (the page's Run now, POST playbooks/:id/run): its first step's run, the
  * hourly sweep's own, which waits for an OK where its class asks. Only where its page offers Run now (the judge: it runs
- * on the business's day and no batch waits for an OK); a batch that waits is action batch's.
+ * on the business's day and no batch waits for an OK); a batch that waits is action send's.
  */
 export async function proposeRunNow(
   toolContext: ToolContext,
-  input: { sequence_id: string },
+  input: { campaign_id: string },
 ): Promise<ProposalOutcome> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const refused = refusedAct(rec, "run_now", toolContext.now);
   if (refused) return refuse(refused);
@@ -416,9 +416,9 @@ export async function proposeRunNow(
  */
 export async function proposeDiscard(
   toolContext: ToolContext,
-  input: { sequence_id: string },
+  input: { campaign_id: string },
 ): Promise<ProposalOutcome> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const refused = refusedAct(rec, "discard", toolContext.now);
   if (refused) return refuse(refused);

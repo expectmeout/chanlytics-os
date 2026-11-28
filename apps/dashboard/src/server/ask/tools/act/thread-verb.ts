@@ -98,8 +98,8 @@ async function proposeThreadVerb(
   });
 }
 
-export const propose_thread_verb = defineAct({
-  name: "propose_thread_verb",
+export const propose_conversation = defineAct({
+  name: "propose_conversation",
   // How the receptionist treats one person is not a thread's: whose it is to set is said to every role from its card's
   // spec (an owner's, WHOSE), so a role not offered propose_person's mode can still say who can.
   description: `Propose an Inbox action on a conversation: take_over (a person answers from here), hand_back (AI resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the conversation stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a conversation; a reply is propose_reply with action draft, and how AI treats one person is ${WHOSE[PROPOSAL_SPECS.person_mode.needs]} to set (propose_person with action mode). It refuses in words when the action does not fit the conversation's state: nothing to resolve, not snoozed, or nobody to hand back from.`,

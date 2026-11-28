@@ -32,7 +32,7 @@ export const ASK_MORNING_QUESTION = `${MORNING_HEAD} ${MORNING_TAIL}`;
 
 /**
  * The morning's question on a day after the member edited cold emails (decision 0078 step 2; the server asks it only
- * then, companion/morning.ts): it names the sequences tool's `edited` so the tool search finds it, and where what they
+ * then, companion/morning.ts): it names the campaigns tool's `edited` so the tool search finds it, and where what they
  * changed in Ask's drafts shows a lasting habit Ask does not already remember, in any words, one card may be a line about
  * how they write, which waits for their press (act/remember.ts). A morning with nothing edited asks nothing of it.
  */

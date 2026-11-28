@@ -98,7 +98,7 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
     });
   // A People list the listing offers here, by the id it gives it (audience_id): a name, never a uuid.
   const offered = JSON.parse(
-    (await runTool(newToolContext(world(), A, "owner", TZ, NOW), { name: "sequences", input: { action: "lists" } }))
+    (await runTool(newToolContext(world(), A, "owner", TZ, NOW), { name: "campaigns", input: { action: "lists" } }))
       .result,
   ).audiences.find((a) => a.kind === "list");
   assert.ok(offered && !/^[0-9a-f-]{36}$/.test(offered.audience_id), JSON.stringify(offered));
@@ -106,8 +106,8 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
   const s = scripted([
     ROUND([
       tool("leads", { action: "searches" }),
-      tool("sequences", { action: "lists" }),
-      tool("sequences", { action: "moments" }),
+      tool("campaigns", { action: "lists" }),
+      tool("campaigns", { action: "moments" }),
     ]),
     ROUND([
       answer("One search waits on you, and the win-back runs on its own.", {
@@ -158,7 +158,7 @@ test("campaigns.audiences offers what the composer offers (ledger #14): a templa
   };
   const t = tables({ templates: [OFFER, bookNow] });
   const out = await runTool(newToolContext(ctxFor(t), A, "owner", TZ, NOW), {
-    name: "sequences",
+    name: "campaigns",
     input: { action: "lists" },
   });
   assert.equal(out.isError, false, out.result);
@@ -188,7 +188,7 @@ test("campaigns.audiences offers what the composer offers (ledger #14): a templa
   const clear = JSON.parse(
     (
       await runTool(newToolContext(ctxFor(tables({ templates: [OFFER] })), A, "owner", TZ, NOW), {
-        name: "sequences",
+        name: "campaigns",
         input: { action: "lists" },
       })
     ).result,
@@ -208,13 +208,13 @@ test("a list of the workspace's own is read once a turn: campaigns.audiences rea
   });
   const ctx = ctxFor(t, { ...RPCS, people_list: () => threeAnswers() });
   const tc = newToolContext(ctx, A, "owner", TZ, NOW);
-  const listed = await runTool(tc, { name: "sequences", input: { action: "lists" } });
+  const listed = await runTool(tc, { name: "campaigns", input: { action: "lists" } });
   assert.equal(listed.isError, false, listed.result);
   const search = JSON.parse(
     (await runTool(tc, { name: "people", input: { action: "search", query: "", list: `list:${S_REG}` } })).result,
   );
   assert.deepEqual(search.people.map((p) => p.name).sort(), ["Luis Mora", "Rosa Diaz"]);
-  const card = await buildProposal(tc, "propose_sequence", {
+  const card = await buildProposal(tc, "propose_campaign", {
     action: "once",
     template_id: TPL,
     audience_kind: "saved",
@@ -247,15 +247,15 @@ test("a read the page tolerates, AI tolerates as the page does and says so: a fa
   };
   const parsed = (o) => JSON.parse(o.result);
   const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
-  const healthy = await answers({}, ["workspace.settings", "sequences.lists"]);
+  const healthy = await answers({}, ["workspace.settings", "campaigns.lists"]);
   const settings = parsed(healthy.out["workspace.settings"]);
-  const listing = parsed(healthy.out["sequences.lists"]);
+  const listing = parsed(healthy.out["campaigns.lists"]);
   assert.equal("could_not_read" in settings || "could_not_read" in listing, false, "nothing to say when all was read");
 
   // The channels: workspace.settings, then campaigns.audiences, in one turn.
   const noChannels = await answers({ "tenant_channels.select": { message: "channels down" } }, [
     "workspace.settings",
-    "sequences.lists",
+    "campaigns.lists",
   ]);
   const s = parsed(noChannels.out["workspace.settings"]);
   assert.equal(noChannels.out["workspace.settings"].isError, false, noChannels.out["workspace.settings"].result);
@@ -265,8 +265,8 @@ test("a read the page tolerates, AI tolerates as the page does and says so: a fa
     "never [] -- no channels read is not no channels",
   );
   assert.deepEqual(without(s, "channels", "could_not_read"), without(settings, "channels"), "the rest still answers");
-  const a = parsed(noChannels.out["sequences.lists"]);
-  assert.equal(noChannels.out["sequences.lists"].isError, false, noChannels.out["sequences.lists"].result);
+  const a = parsed(noChannels.out["campaigns.lists"]);
+  assert.equal(noChannels.out["campaigns.lists"].isError, false, noChannels.out["campaigns.lists"].result);
   // Which channels carry offers is said of the channels too (offers_go_by): unread, it is not said, never guessed.
   assert.ok(typeof listing.offers_go_by === "string", listing.offers_go_by);
   assert.deepEqual(
@@ -289,14 +289,14 @@ test("a read the page tolerates, AI tolerates as the page does and says so: a fa
     noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read, x.tenant_id]),
     [
       ["workspace.settings", "channels", A],
-      ["sequences.lists", "channels", A],
+      ["campaigns.lists", "channels", A],
     ],
   );
 
   // The templates.
-  const noTemplates = await answers({ "templates.select": { message: "templates down" } }, ["sequences.lists"]);
-  const t = parsed(noTemplates.out["sequences.lists"]);
-  assert.equal(noTemplates.out["sequences.lists"].isError, false, noTemplates.out["sequences.lists"].result);
+  const noTemplates = await answers({ "templates.select": { message: "templates down" } }, ["campaigns.lists"]);
+  const t = parsed(noTemplates.out["campaigns.lists"]);
+  assert.equal(noTemplates.out["campaigns.lists"].isError, false, noTemplates.out["campaigns.lists"].result);
   assert.deepEqual(
     [t.templates, t.cannot_send, t.could_not_read],
     [null, null, ["The messages could not be read just now: say so, and propose no send until they can."]],
@@ -323,7 +323,7 @@ test("the row the scope names rides in whole, read by its own tool and action: a
   for (const kind of ["thread", "conversation"])
     assert.deepEqual(scopedRead({ kind, id: X, label: "Rosa" }), {
       name: "inbox",
-      input: { action: "thread", conversation_id: X, more: false },
+      input: { action: "conversation", conversation_id: X, more: false },
     });
   assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }), {
     name: "leads",
@@ -344,8 +344,8 @@ test("the row the scope names rides in whole, read by its own tool and action: a
     input: { action: "search", search_id: X },
   });
   assert.deepEqual(scopedRead({ kind: "run", id: X, label: "Monday offer" }), {
-    name: "sequences",
-    input: { action: "batch", broadcast_id: X },
+    name: "campaigns",
+    input: { action: "send", broadcast_id: X },
   });
   assert.equal(scopedRead({ kind: "page", id: "reports", label: "Reports" }), null, "a page");
   assert.equal(scopedRead(null), null);
@@ -380,7 +380,7 @@ test("a run the person is looking at is the Broadcasts row the page drew: the an
   const scope = { kind: "run", id: RUN, label: "Monday offer" };
   assert.deepEqual(
     scopedRead(scope),
-    { name: "sequences", input: { action: "batch", broadcast_id: RUN } },
+    { name: "campaigns", input: { action: "send", broadcast_id: RUN } },
     "a run is read by its id, as the broadcast it is",
   );
   const r = await runAskTurn(
@@ -653,8 +653,8 @@ test("a rule that described one tool is that tool's description now, and out of 
       "propose_reply",
       "a rewrite in words",
     ],
-    ["Read list_audiences before any broadcast", "sequences", "read before any send"],
-    ["never propose a broadcast to nobody", "propose_sequence", "never propose a send to nobody"],
+    ["Read list_audiences before any broadcast", "campaigns", "read before any send"],
+    ["never propose a broadcast to nobody", "propose_campaign", "never propose a send to nobody"],
     [
       "read list_lead_searches, then propose_lead_search: one plan, never a search",
       "propose_lead_search",
@@ -670,7 +670,7 @@ test("a rule that described one tool is that tool's description now, and out of 
       "propose_lead_search",
       "never say a search has started until the card is approved",
     ],
-    ["(read list_audiences)", "propose_sequence", "action lists for who can be sent"],
+    ["(read list_audiences)", "propose_campaign", "action lists for who can be sent"],
   ];
   for (const [gone, name, landed] of moved) {
     assert.ok(!rules.includes(gone), `out of the rules: ${gone}`);
@@ -726,11 +726,11 @@ test("the row the scope names rides in whole, read by its own tool, as data besi
     data.map((b) => [b.source, !!b.cache_control]),
     [
       ["page://today", false],
-      ["read://inbox.thread", true],
+      ["read://inbox.conversation", true],
     ],
     "the page, then the scope's row, the breakpoint on the last",
   );
-  assert.ok(fromRecord(data[1].content[0].text).messages, "the thread, as inbox.thread reads it");
+  assert.ok(fromRecord(data[1].content[0].text).messages, "the thread, as inbox.conversation reads it");
   assert.deepEqual(r.tools, [], "the model called nothing");
 });
 

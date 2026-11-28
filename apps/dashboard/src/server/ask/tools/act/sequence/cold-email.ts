@@ -33,8 +33,8 @@ import { after, isRefusal, refusedAct, sequenceOnCard } from "./steps";
  * A customer's sequence that ran, ended for good (its page's End it, asked first: decision 0072): it sends nothing more
  * and nobody is added to it; its History stays. One that never ran is let go of, a sequence to leads paused.
  */
-export async function proposeEnd(toolContext: ToolContext, input: { sequence_id: string }): Promise<ProposalOutcome> {
-  const rec = await sequenceOnCard(toolContext, input.sequence_id);
+export async function proposeEnd(toolContext: ToolContext, input: { campaign_id: string }): Promise<ProposalOutcome> {
+  const rec = await sequenceOnCard(toolContext, input.campaign_id);
   if (isRefusal(rec)) return refuse(rec.refusal);
   const refused = refusedAct(rec, "end", toolContext.now);
   if (refused) return refuse(refused);

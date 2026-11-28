@@ -169,14 +169,14 @@ test("a class's autonomy: all of it already set is refused; a part already set i
 
 test("a thread: taking over one the member already has, or archiving one archived, is refused in words; a take-over from nobody is the card it was", async () => {
   assert.equal(
-    refusalOf(await heldCall("propose_thread_verb", { conversation_id: C_ROSA, verb: "take_over" })),
+    refusalOf(await heldCall("propose_conversation", { conversation_id: C_ROSA, verb: "take_over" })),
     "Rosa's conversation is already taken over by the person asking: say so, and change nothing",
   );
   assert.equal(
-    refusalOf(await heldCall("propose_thread_verb", { conversation_id: C_QUINN, verb: "archive" })),
+    refusalOf(await heldCall("propose_conversation", { conversation_id: C_QUINN, verb: "archive" })),
     "Quinn's conversation is already archived: say so, and change nothing",
   );
-  const take = await heldCall("propose_thread_verb", { conversation_id: C_QUINN, verb: "take_over" });
+  const take = await heldCall("propose_conversation", { conversation_id: C_QUINN, verb: "take_over" });
   assert.equal(take.isError, false, take.result);
   // Someone else's: taking it over is a change.
   const supabase = fakeDb(
@@ -185,7 +185,7 @@ test("a thread: taking over one the member already has, or archiving one archive
     HELD_RPCS,
   );
   const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "owner", TZ, NOW);
-  const fromTeammate = await buildProposal(t, "propose_thread_verb", { conversation_id: C_ROSA, verb: "take_over" });
+  const fromTeammate = await buildProposal(t, "propose_conversation", { conversation_id: C_ROSA, verb: "take_over" });
   assert.equal(fromTeammate.isError, false, fromTeammate.result);
 });
 

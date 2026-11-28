@@ -31,6 +31,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { inputToday } from "../tools/_screens-names.mjs";
 import { QUIET } from "../../reports/people/_people-world.mjs";
 import { QUIET as CAMPAIGNS_QUIET } from "../../reports/campaigns/_campaign-world.mjs";
 
@@ -618,7 +619,8 @@ export async function answer(name, input, role = "owner", rpcs = RPCS) {
 /**
  * The new call for an old one: the tool the mapping names, with its action first when it has one. The operator (15 Oct
  * 2026) reshaped two inputs: report takes a period by name where it took days, and autonomy's dial alone leaves the mode
- * out where it was empty.
+ * out where it was empty. Since 26 Nov 2026 a field or a value that named a sequence or the receptionist says campaign
+ * or ai (tools/_screens-names.mjs inputToday).
  */
 export function renamed(old, input) {
   const [name, action] = NAMES[old].split(".");
@@ -628,7 +630,7 @@ export function renamed(old, input) {
     const { mode: _, ...rest } = input;
     own = rest;
   }
-  return { name, input: action ? { action, ...own } : own };
+  return { name, input: inputToday(name, action ? { action, ...own } : own) };
 }
 
 /** Whose an action is, in the registry's refusal (tools/context/context.ts WHOSE). */
@@ -799,7 +801,8 @@ export const QUIET_RECEPTIONIST_SAID = {
 
 export function withReceptionist(result) {
   const said = JSON.parse(result);
-  return said.error ? result : JSON.stringify({ ...said, receptionist: QUIET_RECEPTIONIST_SAID });
+  // The lens is the report's ai since 26 Nov 2026 (tools/_screens-names.mjs): it was receptionist.
+  return said.error ? result : JSON.stringify({ ...said, ai: QUIET_RECEPTIONIST_SAID });
 }
 
 export const withReceptionistReads = (reads) => [...reads, "rpc:receptionist_series", "events.select"];

@@ -25,7 +25,7 @@ import { approvalWords, propose, refuse } from "../../context/context";
  * Leads, worked by card (the operator, 15 Oct 2026): every act the Leads page's workbench and its bulk bar press, and
  * what a business wrote back to an email its owner sent -- each through the page's own door (contracts leads/work.ts),
  * so a card and a press make the same call, say the door's own sentence and offer its undo. Nothing is sent to a lead
- * here: a cold email sequence is propose_sequence's, and finding leads propose_lead_search's.
+ * here: a cold email sequence is propose_campaign's, and finding leads propose_lead_search's.
  */
 
 /** How many leads one card names by id: the bulk door's own part. */
@@ -315,7 +315,7 @@ export const propose_leads = defineActions({
   name: "propose_leads",
   description:
     "Propose work on leads, as a card the person approves, by action: a lead's stage or a call's outcome, keep or set aside a search's leads, Later, many leads at once, the address checked again, who a company's email goes to, leads kept as a list to write to, or what a business wrote back.",
-  tail: "Read leads first for the ids. Nothing here writes to a lead: a cold email over a search or a list is propose_sequence with action cold_email, and finding leads propose_lead_search.",
+  tail: "Read leads first for the ids. Nothing here writes to a lead: a cold email over a search or a list is propose_campaign with action cold_email, and finding leads propose_lead_search.",
   actions: {
     stage: actAction({
       kind: "lead_stage",

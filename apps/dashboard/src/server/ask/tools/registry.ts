@@ -33,7 +33,7 @@ import { sequencesTool } from "./read/campaigns/campaigns";
 import { leadsTool } from "./read/leads";
 import { recallTool } from "./read/recall";
 import { propose_reply } from "./act/reply";
-import { propose_thread_verb } from "./act/thread-verb";
+import { propose_conversation } from "./act/thread-verb";
 import { propose_call } from "./act/call";
 import { propose_person } from "./act/person";
 import { propose_people } from "./act/people/people";
@@ -42,7 +42,7 @@ import { propose_deal } from "./act/deal";
 import { propose_settings } from "./act/settings";
 import { propose_lead_search } from "./act/leads/search";
 import { propose_leads } from "./act/leads/leads";
-import { propose_sequence } from "./act/sequence/sequence";
+import { propose_campaign } from "./act/sequence/sequence";
 import { propose_review } from "./act/review";
 import { propose_plan } from "./act/plan";
 import { propose_follow_up } from "./act/follow-up";
@@ -106,7 +106,7 @@ export const READ_DEFS: readonly ReadTool[] = [
  */
 export const ACT_DEFS: readonly ActTool[] = [
   propose_reply,
-  propose_thread_verb,
+  propose_conversation,
   propose_call,
   propose_person,
   propose_people,
@@ -115,7 +115,7 @@ export const ACT_DEFS: readonly ActTool[] = [
   propose_settings,
   propose_lead_search,
   propose_leads,
-  propose_sequence,
+  propose_campaign,
   propose_review,
   propose_plan,
   propose_follow_up,

@@ -68,7 +68,7 @@ async function ownModes(db: ReaderContext["ctx"]["supabase"], tenantId: TenantId
  * GET policies, as the route answers it: the workspace autonomy matrix (E3) and the member's role. Every workspace has
  * deals (0008, amended 18 Oct 2026), so the pane draws the follow-ups' row for each. The route's body, moved here
  * whole: its read of the policies is through its reader (readers/facts.ts), so a turn that holds it
- * (workspace.settings, sequences.moments) reads it no more, and a request reads it fresh. Named for the pane, Autonomy.
+ * (workspace.settings, campaigns.moments) reads it no more, and a request reads it fresh. Named for the pane, Autonomy.
  * Not a row a citation names.
  *
  * Beside them, what the learning loop shows (decision 0063): how often the owner changed what the receptionist wrote, and

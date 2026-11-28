@@ -227,14 +227,14 @@ const running = {
 const OFFERS_BY_EMAIL = PEOPLE.map((p) => ({ ...p, email_marketing: "opted_in" }));
 /**
  * A call as propose_campaign took it, to the tool and action that take it since the operator (15 Oct 2026): the plan is
- * propose_plan's offer; a broadcast, a playbook and a run are propose_sequence's once, moment and batch; the rest keep
- * their names under propose_sequence.
+ * propose_plan's offer; a broadcast, a playbook and a run are propose_campaign's once, moment and batch; the rest keep
+ * their names under propose_campaign.
  */
 const SEQUENCE_ACTIONS = { broadcast: "once", playbook: "moment", run: "batch" };
 const asSequence = (input) =>
   input?.action === "plan"
     ? ["propose_plan", { ...input, action: "offer" }]
-    : ["propose_sequence", { ...input, action: SEQUENCE_ACTIONS[input?.action] ?? input?.action }];
+    : ["propose_campaign", { ...input, action: SEQUENCE_ACTIONS[input?.action] ?? input?.action }];
 /** `monthSent`: the month's count per channel, or a function of the call's arguments (its p_channel and p_at). */
 const propose = (input, db = {}, monthSent = { email: 0, sms: 0 }, people = PEOPLE, now = NOW) => {
   const rows = tables(db);

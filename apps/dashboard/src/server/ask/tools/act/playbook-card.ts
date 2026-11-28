@@ -1,5 +1,5 @@
 /**
- * What a new campaign's card says beside its moment (propose_sequence's action moment, act/playbook/playbook.ts): who a run of
+ * What a new campaign's card says beside its moment (propose_campaign's action moment, act/playbook/playbook.ts): who a run of
  * it reaches now and on which channels, the month's allowance, the mode it starts with (decision 0064), and its moment in the
  * workspace's word. One module for the three ways a card is made: on a message the workspace holds, on a starter its
  * Approve adds, and on the message an earlier step of Ask's plan writes. Moved whole from act/playbook/playbook.ts (11 Oct 2026,
@@ -205,7 +205,7 @@ export async function readReachNow(
       : Promise.resolve(noFollowUps()),
     // Who hears from you within a week either side, sent or due, by a campaign or a member (the week's breath), the
     // page's own read of it; one that fails is said in the log (context.ts findTouchesThisWeek) before the card is refused below.
-    findTouchesThisWeek(toolContext, "propose_sequence.moment"),
+    findTouchesThisWeek(toolContext, "propose_campaign.moment"),
   ]);
   if (!followUps) return { refusal: PLAYBOOK_CARD_REFUSALS.followUpsUnread };
   if (!touched) return { refusal: PLAYBOOK_CARD_REFUSALS.weekUnread };
