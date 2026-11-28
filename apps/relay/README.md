@@ -47,6 +47,7 @@ bucket has no public address; its bytes leave only here, under a ticket.
 | `GET` the same (`.<ext>`)  | the same                          | 200 whole, 206 for one range, 416 for a range past the end or a list of ranges: what the video platform fetches by            |
 | `POST /shelf/<file>/video` | `authorization: Bearer`, a put    | `{ "from": "<address>" }`: the file is pulled in and held to the ticket's bytes; 201 `{ bytes, sha256 }` from what was stored |
 | `DELETE` the same          | `authorization: Bearer`, a delete | 204, also where it held none                                                                                                  |
+| `GET /shelf/list`          | `authorization: Bearer`, a list   | 200 `{ files, other, more, cursor }`: the ids of the files one workspace's shelf holds, a thousand a page (`?cursor=`)        |
 
 - **Its ticket is its own** (`v2`, `src/ticket.ts` `readShelfTicket`): it says it is the shelf's, whose workspace and
   which file, what may be done, when it ends, and for a put the very bytes (their size and SHA-256). A clip's ticket
@@ -60,6 +61,13 @@ bucket has no public address; its bytes leave only here, under a ticket.
 - **A pull's pipe is cut a minute after it began**, so a put has ended by then, stored whole or not at all, and
   nothing can arrive later. The app leans on that: it removes nothing within two minutes of a put's start.
 - A Worker bound to no bucket answers 503 `off` to a ticket that holds, and 403 to one that does not.
+- **The list is of one workspace, by its ticket** (28 November 2026). A list's ticket names a workspace and no file,
+  and the bucket is asked for the keys under that workspace's name alone, so it says nothing of another's. `more` is
+  the bucket's own word that another page follows, and only then is there a `cursor`: the bucket may hand over fewer
+  keys than a page holds. A key under the name that is no file's is counted in `other` and never named. The app's
+  half-hourly pass compares the list with its rows (`apps/edge/lib/files/shelf/holds.ts`): what no row names is taken
+  off, and a row that says checked with nothing behind it is put back. A relay deployed before the list answers its
+  path 404, which the app reads as no answer and changes nothing for: deploy the relay again for the compare to run.
 
 Rehearsed in Cloudflare's own runtime on a laptop on 23 November 2026 (`wrangler dev`, its local bucket, one public
 file of the dashboard's own as the source): a pull stored the bytes in 148 ms and said their SHA-256; a pull under
@@ -154,7 +162,7 @@ ahead of it only finds no shelf, and a made video then keeps its place at the vi
 - `node tooling/scripts/checks/test.mjs tests/files/takes/a-clip-arrives-through-the-relay.test.mjs`: the relay's
   handler with the app's real key door behind it and a Drive in memory, a clip arriving whole after a forced break.
 - `node tooling/scripts/checks/test.mjs tests/files/relay/the-shelf-keeps-and-gives.test.mjs`: the shelf's handler
-  over a bucket in memory that holds a put to its SHA-256, and `tests/files/shelf/the-shelf-s-ticket-is-one-format.test.mjs`:
+  over a bucket in memory that holds a put to its SHA-256 and lists as R2 does, and `tests/files/shelf/the-shelf-s-ticket-is-one-format.test.mjs`:
   the app's signer and the relay's reader held to one format, and a clip's ticket and the shelf's held apart.
 - `npx wrangler@4.164.0 deploy --dry-run --env=""` (and `--env proof`, and `--config proof/wrangler.toml`): Wrangler
   bundles a Worker and checks its settings without uploading it.

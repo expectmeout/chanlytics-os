@@ -24,6 +24,8 @@ const NOW = Date.parse("2026-11-23T03:00:00Z");
 const HOUR_S = 60 * 60;
 const inHours = (hours) => NOW / 1000 + hours * HOUR_S;
 const base = (use, more = {}) => ({ tenant: TENANT, file: FILE, use, expiresAt: inHours(1), ...more });
+/** A list's claim: a workspace, and no file. */
+const LIST = { tenant: TENANT, use: "list", expiresAt: inHours(1) };
 
 /** A ticket of any claim at all, signed with the key as the app signs one: what only a holder of the key could make. */
 function signed(claim, version = "v2", key = KEY) {
@@ -47,6 +49,12 @@ test("a ticket the app signs for the shelf is read by the relay, for each thing 
     ok: true,
     ...base("put", { bytes: 31_457_280, sha256: SHA }),
   });
+  // A list names its workspace and no file: the relay reads it so, and says so.
+  assert.deepEqual(await relay.readShelfTicket(KEY, signShelfTicket(KEY, LIST), NOW), {
+    ok: true,
+    ...LIST,
+    file: null,
+  });
 });
 
 test("its text says it is the shelf's, whose and which, what it may do and when it ends, and a put the very bytes", () => {
@@ -56,6 +64,10 @@ test("its text says it is the shelf's, whose and which, what it may do and when 
   assert.equal(
     claimOf(signShelfTicket(KEY, base("put", { bytes: 42, sha256: SHA }))),
     `{"for":"shelf","tenant":"${TENANT}","file":"${FILE}","use":"put","exp":${inHours(1)},"bytes":42,"sha256":"${SHA}"}`,
+  );
+  assert.equal(
+    claimOf(signShelfTicket(KEY, LIST)),
+    `{"for":"shelf","tenant":"${TENANT}","use":"list","exp":${inHours(1)}}`,
   );
   // The same claim under the same key is the same ticket: nothing random rides in one.
   assert.equal(read, signShelfTicket(KEY, base("read")));
@@ -99,6 +111,10 @@ test("a signed claim that says too little, too much or something else is no shel
     ["a delete that names a checksum", { ...whole, use: "delete", sha256: SHA }],
     ["an end that is no number", { ...whole, exp: "soon" }],
     ["a clip's claim under the shelf's version", { item: FILE, exp: inHours(1) }],
+    ["a read that names no file", { for: "shelf", tenant: TENANT, use: "read", exp: inHours(1) }],
+    ["a list that names a file", { ...whole, use: "list" }],
+    ["a list that names bytes", { for: "shelf", tenant: TENANT, use: "list", exp: inHours(1), bytes: 42 }],
+    ["a list of no workspace", { for: "shelf", use: "list", exp: inHours(1) }],
   ];
   for (const [what, claim] of cases)
     assert.deepEqual(await relay.readShelfTicket(KEY, signed(claim), NOW), { ok: false, reason: "malformed" }, what);
@@ -108,9 +124,9 @@ test("a signed claim that says too little, too much or something else is no shel
 
 test("a clip's ticket opens nothing of the shelf's, and the shelf's nothing of a clip's", async () => {
   assert.deepEqual(await relay.readShelfTicket(KEY, CLIP_TICKET, CLIP_TICKET_AT), { ok: false, reason: "malformed" });
-  for (const use of ["read", "put", "delete"]) {
+  for (const use of ["read", "put", "delete", "list"]) {
     const more = use === "put" ? { bytes: 42, sha256: SHA } : {};
-    const ticket = signShelfTicket(KEY, base(use, more));
+    const ticket = signShelfTicket(KEY, use === "list" ? LIST : base(use, more));
     assert.deepEqual(await relay.readTicket(KEY, ticket, NOW), { ok: false, reason: "malformed" }, `the relay: ${use}`);
     assert.deepEqual(readRelayTicket(KEY, ticket, NOW), { ok: false, reason: "malformed" }, `the app: ${use}`);
   }
@@ -121,7 +137,11 @@ test("the app never signs a shelf ticket that says too little or too much", () =
     [() => signShelfTicket("", base("read")), /ticket's key/],
     [() => signShelfTicket(KEY, { ...base("read"), tenant: "../another" }), /by its id/],
     [() => signShelfTicket(KEY, { ...base("read"), file: "Saturday colour.MOV" }), /by its id/],
-    [() => signShelfTicket(KEY, base("write")), /reads, puts or deletes/],
+    [() => signShelfTicket(KEY, base("write")), /reads, puts, deletes or lists/],
+    [() => signShelfTicket(KEY, base("list")), /a list names a workspace and no file/],
+    [() => signShelfTicket(KEY, { ...LIST, tenant: "../another" }), /by its id/],
+    [() => signShelfTicket(KEY, { ...LIST, bytes: 42, sha256: SHA }), /only a put names bytes/],
+    [() => signShelfTicket(KEY, { tenant: TENANT, use: "read", expiresAt: inHours(1) }), /by its id/],
     [() => signShelfTicket(KEY, base("put")), /the bytes it may put/],
     [() => signShelfTicket(KEY, base("put", { bytes: 42 })), /the bytes it may put/],
     [() => signShelfTicket(KEY, base("put", { bytes: 0, sha256: SHA })), /the bytes it may put/],

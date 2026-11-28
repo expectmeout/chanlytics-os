@@ -102,17 +102,21 @@ export async function readTicket(signingKey: string, ticket: string | null, nowM
  * `v2.<claim>.<signature>`: the claim is `{"for":"shelf","tenant":"…","file":"…","use":"…","exp":<unix seconds>}`, with
  * `"bytes"` and `"sha256"` after them on a put and only there, in base64url; the signature an HMAC-SHA256 of
  * `v2.<claim>` under the same ticket's key. The app signs it (packages/channels/src/files/relay-ticket.ts).
+ *
+ * One use names no file: `list`, which says what one workspace's shelf holds (the "Prove it works" plan, lane 1). Its
+ * claim is `{"for":"shelf","tenant":"…","use":"list","exp":…}`, and a list that names a file is no ticket: it reads no
+ * bytes, and a file's ticket lists nothing.
  */
 const SHELF_TICKET_VERSION = "v2";
-const SHELF_USES = ["read", "put", "delete"] as const;
-/** What a shelf ticket may do: read a file's bytes or its record, put its bytes there, or take them off. */
+const SHELF_USES = ["read", "put", "delete", "list"] as const;
+/** What a shelf ticket may do: read a file's bytes or its record, put its bytes there, take them off, or list a workspace's. */
 export type ShelfUse = (typeof SHELF_USES)[number];
 const SHA_256_HEX = /^[0-9a-f]{64}$/;
 
-/** What a shelf ticket says. `bytes` and `sha256` are a put's, and no other use names them. */
+/** What a shelf ticket says. `file` is null for a list alone. `bytes` and `sha256` are a put's, and no other use names them. */
 export interface ShelfClaim {
   tenant: string;
-  file: string;
+  file: string | null;
   use: ShelfUse;
   expiresAt: number;
   bytes?: number;
@@ -137,8 +141,14 @@ function shelfClaimOf(text: string): ShelfClaim | null {
   const claim: Record<string, unknown> = { ...parsed };
   const { tenant, file, use, exp, bytes: size, sha256 } = claim;
   if (claim.for !== "shelf" || !isShelfUse(use)) return null;
-  if (typeof tenant !== "string" || !ITEM.test(tenant) || typeof file !== "string" || !ITEM.test(file)) return null;
+  if (typeof tenant !== "string" || !ITEM.test(tenant)) return null;
   if (typeof exp !== "number" || !Number.isFinite(exp)) return null;
+  // A list names its workspace and nothing else: no file, and no bytes.
+  if (use === "list")
+    return file === undefined && size === undefined && sha256 === undefined
+      ? { tenant, file: null, use, expiresAt: exp }
+      : null;
+  if (typeof file !== "string" || !ITEM.test(file)) return null;
   // A put names the very bytes it may put, and nothing else names any.
   if (use !== "put") return size === undefined && sha256 === undefined ? { tenant, file, use, expiresAt: exp } : null;
   if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 1) return null;
