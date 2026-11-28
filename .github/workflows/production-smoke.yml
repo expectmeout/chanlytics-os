@@ -6,6 +6,12 @@ name: Production smoke
 # production after a deploy before this (October 2026): the runbook's Deploy
 # step 4 was a command a person ran, or did not.
 #
+# And whether the database has what the code needs (28 Nov 2026): each version
+# door says the newest migration its build was written against, the edge's
+# health door the newest production has applied, and the smoke fails an app
+# that is ahead of its database. Each app is judged apart, since they deploy
+# apart. Before this a merge whose migration was never applied smoked green.
+#
 # Vercel deploys each commit to two projects, the edge (chanlytics-messaging)
 # and the dashboard (chanlytics-os), and posts a deployment_status for each.
 # Neither waits for the other, and neither is reliably first: the edge's came
@@ -126,6 +132,8 @@ jobs:
           SHA: ${{ github.event.deployment.sha }}
           ENVIRONMENT: ${{ github.event.deployment.environment }}
           TURN: ${{ steps.turn.outputs.why }}
+          # The issue is the owner's: GitHub tells an assignee, and one nobody was assigned reached nobody.
+          OWNER: ${{ github.repository_owner }}
         run: |
           {
             echo "After the deployment of $SHA ($ENVIRONMENT), the smoke failed ten times over five minutes. $TURN The last answer:"
@@ -134,15 +142,16 @@ jobs:
             cat smoke.txt
             echo '```'
             echo
-            echo "docs/runbook.md, Deploy, says what each door must answer, and Roll back how to promote the previous deployment."
+            echo "docs/runbook.md, Deploy, says what each door must answer, and Roll back how to promote the previous deployment. A line that says a build is ahead of its database: Apply a migration says how production gets the migration it lacks."
             echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           } > issue.md
           title="Production smoke failed (${SHA:0:9})"
           # A re-run, or a later deployment of the same commit, finds the commit's issue open and adds to it.
           number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
           if [ -n "$number" ]; then
+            gh issue edit "$number" --add-assignee "$OWNER" --repo "$GITHUB_REPOSITORY"
             gh issue comment "$number" --body-file issue.md --repo "$GITHUB_REPOSITORY"
           else
-            gh issue create --title "$title" --body-file issue.md --repo "$GITHUB_REPOSITORY"
+            gh issue create --title "$title" --body-file issue.md --assignee "$OWNER" --repo "$GITHUB_REPOSITORY"
           fi
           exit 1

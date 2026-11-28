@@ -34,6 +34,12 @@ export interface HealthAnswer {
    */
   video_machine: boolean | null;
   /**
+   * The newest migration the database has applied, as the five digits its file starts with; null when it could not be
+   * read. Not a clock either, and no part of `ok`: the smoke after a deploy reads it beside each app's
+   * `/api/version`, and is red when a build was written against a newer one. A migration's number is no secret.
+   */
+  applied_migration: string | null;
+  /**
    * Why it is not healthy, where the clocks and the backlog do not say: the health read failed, there is no database,
    * the judgement threw, or the registry came back with no clock at all (`no_clocks`: nothing is watched, which is
    * not all clear).
@@ -44,7 +50,7 @@ export interface HealthAnswer {
 /** The judgement, apart from the transport. */
 export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ status: number; body: HealthAnswer }> {
   const checkedAt = now.toISOString();
-  const [health, backlog, videoMachine] = await readPlatformHealth(db);
+  const [health, backlog, videoMachine, migrationHead] = await readPlatformHealth(db);
   if (health.error) {
     return {
       status: 503,
@@ -54,6 +60,7 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
         jobs_backlog: null,
         checked_at: checkedAt,
         video_machine: videoMachine,
+        applied_migration: migrationHead,
         reason: "health_unreadable",
       },
     };
@@ -77,6 +84,7 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
       jobs_backlog: jobsBacklog,
       checked_at: checkedAt,
       video_machine: videoMachine,
+      applied_migration: migrationHead,
       ...(judged.clocks === 0 ? { reason: "no_clocks" as const } : {}),
     },
   };
@@ -111,6 +119,7 @@ export const GET = door(async function GET(): Promise<Response> {
         jobs_backlog: null,
         checked_at: checkedAt,
         video_machine: null,
+        applied_migration: null,
         reason: "no_database",
       } satisfies HealthAnswer),
     );
@@ -128,6 +137,7 @@ export const GET = door(async function GET(): Promise<Response> {
         jobs_backlog: null,
         checked_at: checkedAt,
         video_machine: null,
+        applied_migration: null,
         reason: "error",
       },
     };
