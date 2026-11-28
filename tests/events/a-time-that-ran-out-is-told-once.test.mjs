@@ -89,6 +89,8 @@ function ports(over = {}) {
     told,
     ports: {
       eventTold: async () => over.eventTold ?? false,
+      // No other event of the same act told it (tests/events/two-events-for-one-act-have-one-outcome.test.mjs).
+      sameNewsTold: async () => false,
       lapsedRequest: async () => ("said" in over ? over.said : SAID),
       tell: async (news) => {
         told.push(news);

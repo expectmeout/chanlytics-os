@@ -1850,6 +1850,27 @@ ledger with each version's name, whoever pushes and from wherever.
    before it, so it is its file's only statement; and a `begin` or `commit` of the file's own, after which the CLI
    sends each statement by itself.
 
+   **A migration that starts writing an event says whether the kind is new or its writer moved, and which side stops
+   first.** The database is applied before its code merges, and the two apps deploy apart, so for some minutes the old
+   writer and the new one both run. 00722 moved twenty of the dashboard's events into SQL doors: for the minutes
+   between its apply and the deploy, each of those acts wrote two events, the door's and the old code's. From 00734
+   on, a file that is the first to write a kind from SQL names it in a comment line of its own, and
+   `database/migrations.test.mjs` fails one that does not:
+
+   ```sql
+   -- New kind: post.held
+   -- Writer moved: line.forwarded. The dashboard stops first: the door writes only when asked (p_tell).
+   -- Writer shared: message.sent. The send door writes it for a send; this door for a row it queues.
+   ```
+
+   A moved writer says who stops first and how one change stays one event while the two are apart. Two ways hold. The
+   door writes its event only when its caller asks, by an argument with a default that the new code passes: the old
+   code goes on writing its own until it is replaced, and never both. Or the old writer is taken out in a deploy of
+   its own before the migration, where a gap in that kind for those minutes is acceptable, and the line says so. What
+   reacts to an event is once by the act itself (`packages/core/src/events/subscribers.ts`), so two rows ring one bell;
+   what counts events, and Activity, which shows them, are not, which is why the line is asked for. A kind called new
+   that TypeScript also writes fails the test: its writer is moved or shared, and the line says which.
+
    **An index on a table that is always being written** (`messages`, `events`, `calls`, `contacts`,
    `sequence_sends`, `jobs`, `conversations`) is built `CONCURRENTLY`, in a file that holds that one statement and nothing else,
    not even a `lock_timeout`: a plain build holds every write to the table for as long as it takes, and an index made

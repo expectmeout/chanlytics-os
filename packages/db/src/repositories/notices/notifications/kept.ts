@@ -416,6 +416,54 @@ export async function wasEventTold(db: Db, params: { tenantId: TenantId; eventId
   return answered.data.length > 0;
 }
 
+/** How many notices of one telling are read to find the same words among them: a minute's news about one thing. */
+const SAME_NEWS_READ = 10;
+
+/**
+ * Whether the workspace was already told this same news for ANOTHER event (core events/subscribers.ts): a notice of the
+ * same kind, about the same thing, under the same title and opening on the same line (what the bell shows), kept since
+ * a minute before this event and answering a different one. One act that wrote two events (a writer moved between two
+ * deploys wrote from both sides for the minutes between, 00722; a door retried) is one telling; news that says
+ * something else (a hold's new reason, a booking moved to another time) is not found here, and is told as its own.
+ * Asked beside the event's own notice (wasEventTold, holdTold), never in place of it. A read that fails throws: "could
+ * not check" is not "never told".
+ */
+export async function wasSameNewsTold(
+  db: Db,
+  params: {
+    tenantId: TenantId;
+    eventId: string;
+    at: string;
+    news: {
+      kind: SchemaSet<"notifications.kind">;
+      subject: string;
+      body: string;
+      about?: { type: string; id: string } | null;
+    };
+  },
+): Promise<boolean> {
+  const { news } = params;
+  const since = new Date(Date.parse(params.at) - MIN_MS).toISOString();
+  const said = db
+    .from("notifications")
+    .select("body")
+    .eq("tenant_id", params.tenantId)
+    .eq("kind", news.kind)
+    .eq("title", news.subject.slice(0, 200))
+    .neq("source_event", params.eventId)
+    .gte("created_at", since);
+  const about = news.about
+    ? said.eq("subject_type", news.about.type).eq("subject_id", news.about.id)
+    : said.is("subject_id", null);
+  const { data, error } = await about.limit(SAME_NEWS_READ);
+  if (error) throw new DbFailure(error, "cannot read what the workspace was told");
+  const opening = firstLineOf(news.body);
+  return data.some((told) => firstLineOf(told.body) === opening);
+}
+
+/** The line a notice opens on: what the bell shows under its title. */
+const firstLineOf = (body: string | null): string => (body ?? "").split("\n")[0]?.trim() ?? "";
+
 /** A notice put on the workspace's bell, its id back. */
 export const insertNotification = async (db: Db, row: Database["public"]["Tables"]["notifications"]["Insert"]) =>
   db.from("notifications").insert(row).select("id").single();

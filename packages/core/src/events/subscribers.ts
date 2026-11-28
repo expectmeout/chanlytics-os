@@ -7,6 +7,26 @@
  * relay of a late commit are all second runs, and the ledger's rule below the commit line is at least once
  * (0031, invariant 3). The harness in tests/events runs each subscriber twice on one delivery.
  *
+ * AND ONE ACT HAS ONE OUTCOME, though it wrote two events (a writer moved between two deploys wrote from both sides for
+ * the minutes between, 00722; a door retried). What makes each once-only, by the act itself and not by its event's id:
+ *
+ *   reach_out_booked    the door stamps a lead booked once
+ *   owner_notice        its event's notice; an inline handoff of the thread; the same news told for another event
+ *   consent_notice      its event's notice; another notice of the same person's no within the minute
+ *   visit_notice        its event's notice; the visit's other sighting; the same news told for another event
+ *   team_notice         a joining: the invitation's own notice; a leaving: the same news told for another event
+ *   freed_time_offer    one batch per freed appointment (sequence_batches_offered_once)
+ *   reply_draft         the draft row's claim
+ *   visit_reminder      the door asks whether the visit was reminded, or thanked, before it sends
+ *   occasion_enrol      one row per sequence, person and occasion
+ *   visit_arrival       the later moment wins on the visit's own row
+ *   form_entry_*        each step is settled on the entry, and one done is never run again
+ *
+ * "The same news told for another event" (tellOnce, packages/db wasSameNewsTold) is for the four that told by their
+ * event alone: the same kind, about the same thing, in the words the bell shows, since a minute before this event.
+ * News that says something else (a hold's new reason, a booking moved to another time) is told as its own.
+ * tests/events/two-events-for-one-act-have-one-outcome.test.mjs holds it, and events out of order with it.
+ *
  *   reach_out_booked  an appointment added, confirmed or moved on the record (appointment.changed, 00389) is handed
  *                     to the booking door, so the lead a reach-out wrote to is booked however the booking arrived: a
  *                     booking tool's notice by email never reached it. The feed's own changes (00348) are passed: the
@@ -131,6 +151,15 @@ export interface SubscriberPorts {
    * twin to look for but its own earlier delivery).
    */
   eventTold(tenantId: TenantId, eventId: string): Promise<boolean>;
+  /**
+   * Whether the workspace was already told this same news for another event: the same kind, about the same thing, in
+   * the words the bell shows, since a minute before this event (packages/db wasSameNewsTold). One act that wrote two
+   * events is one telling.
+   */
+  sameNewsTold(
+    tenantId: TenantId,
+    p: { eventId: string; at: string; news: Omit<JobNews, "sourceEvent"> },
+  ): Promise<boolean>;
   /**
    * The visits of the record that are booked and still ahead among these, as the record says them now, with who booked
    * (packages/db listBookedVisits). A visit cancelled, vanished from the feed, past, or a member's own entry is not among them;
@@ -340,6 +369,21 @@ async function offerForNews(
 }
 
 /**
+ * Tell the workspace an event's news, unless the same news was told for another event of the same act (sameNewsTold).
+ * For the news a subscriber tells by its event alone: the notice keeps the event it answers, which holds one event to
+ * one telling, and this holds one act to one telling where the act wrote two events. News that is once by a record of
+ * its own (a person's no, an invitation accepted, a visit's other sighting) asks that record instead.
+ */
+async function tellOnce(
+  event: DeliveredEvent,
+  ports: SubscriberPorts,
+  news: Omit<JobNews, "sourceEvent">,
+): Promise<void> {
+  if (await ports.sameNewsTold(event.tenant_id, { eventId: event.id, at: event.created_at, news })) return;
+  await ports.tell({ ...news, sourceEvent: event.id });
+}
+
+/**
  * A time asked for that ran out with no answer (decision 0061, as amended 22 Nov 2026): where AI's message to the
  * customer was queued, the owner's one note, told once by its own event. One the customer was not told of is the
  * conversation's hold's to tell. True when the event was a request running out, whatever was told of it.
@@ -349,7 +393,7 @@ async function lapseNoted(event: DeliveredEvent, ports: SubscriberPorts): Promis
   if (!lapsed) return false;
   if (!lapsed.told || (await ports.eventTold(event.tenant_id, event.id))) return true;
   const request = await ports.lapsedRequest(event.tenant_id, lapsed.appointmentId);
-  if (request) await ports.tell({ ...requestLapsedNews(request), sourceEvent: event.id });
+  if (request) await tellOnce(event, ports, requestLapsedNews(request));
   return true;
 }
 
@@ -385,7 +429,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
       at: event.created_at,
     });
     if (notice) return;
-    await ports.tell({ ...holdNotice(facts), sourceEvent: event.id });
+    await tellOnce(event, ports, holdNotice(facts));
   },
   consent_notice: async (event, ports) => {
     if (event.kind !== "contact.consent_changed" || event.subject_type !== "contact" || !event.subject_id) return;
@@ -417,7 +461,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
       const visit = (await ports.bookedVisits(event.tenant_id, [changed.appointmentId], nowMs, status)).at(0);
       if (!visit) return;
       const offer = changed.change === "cancelled" ? await offerForNews(event, ports, nowMs) : null;
-      await ports.tell({ ...visitChangeNews(visit, changed.change, nowMs, offer), sourceEvent: event.id });
+      await tellOnce(event, ports, visitChangeNews(visit, changed.change, nowMs, offer));
       return;
     }
     const arriving = bookingArriving(event);
@@ -444,7 +488,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     const nowMs = Date.now();
     const visits = await ports.bookedVisits(event.tenant_id, ids, nowMs);
     if (visits.length === 0) return;
-    await ports.tell({ ...visitNews(visits, nowMs), sourceEvent: event.id });
+    await tellOnce(event, ports, visitNews(visits, nowMs));
   },
   visit_arrival: async (event, ports) => {
     // The one rule, asked of the event as visit_notice asks it; the moment is the ledger's, so a late delivery says the same.
@@ -457,7 +501,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     if (left) {
       if (await ports.eventTold(event.tenant_id, event.id)) return;
       const email = left.how === "left" ? await ports.memberEmail(left.by) : null;
-      await ports.tell({ ...memberLeftNotice({ email, how: left.how, hadRole: left.hadRole }), sourceEvent: event.id });
+      await tellOnce(event, ports, memberLeftNotice({ email, how: left.how, hadRole: left.hadRole }));
       return;
     }
     const invitationId = memberJoinedBy(event);
