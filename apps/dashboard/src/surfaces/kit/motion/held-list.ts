@@ -190,7 +190,7 @@ const UNDER_PLACE = "#pg-under";
 const UNDER_ROWS = ":scope > .under-row";
 /** The place now; null with none, or where the document cannot be asked for one. */
 const underPlace = (): HTMLElement | null =>
-  typeof document.querySelector === "function" ? document.querySelector<HTMLElement>(UNDER_PLACE) : null;
+  "querySelector" in document ? document.querySelector<HTMLElement>(UNDER_PLACE) : null;
 
 /**
  * Still copies of a list's own rows as they stand in the frame's top (kit/head/under-row.tsx: the Inbox's Needs you,
@@ -205,11 +205,12 @@ function underRowsNow(): HTMLElement[] {
   if (!place || place.getClientRects().length === 0) return [];
   return Array.from(place.querySelectorAll<HTMLElement>(UNDER_ROWS))
     .filter((row) => row.getClientRects().length > 0)
-    .map((row) => {
-      const copy = stillCopyOf(row) as HTMLElement;
+    .flatMap((row) => {
+      const copy = stillCopyOf(row);
+      if (!(copy instanceof HTMLElement)) return [];
       copy.setAttribute("aria-hidden", "true");
       copy.setAttribute("inert", "");
-      return copy;
+      return [copy];
     });
 }
 
