@@ -4,7 +4,9 @@
  * from a copy in a folder of its own, so the backup it writes lands there and nowhere in the repository.
  *
  * `deleteTenant(world, ...args)` answers what a person would see and what was left: the exit code, what it printed,
- * the backup's rows, the tables after, every write and storage call in order (`log`), and each bucket's paths after.
+ * the backup's rows, the clean-up list it wrote, the tables after, every write and storage call in order (`log`), each
+ * call that left for a provider (`fetched`), and each bucket's paths after. `runsIn()` is the same over one folder kept
+ * between runs, for a run that picks up what the one before it left.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -17,6 +19,8 @@ import { ROOT } from "../../_source.mjs";
 
 const STAND_IN = pathToFileURL(path.join(ROOT, "tests/console/back-office/_supabase-stand-in.mjs")).href;
 const SCRIPT = path.join(ROOT, "tooling/scripts/ops/delete-tenant.mjs");
+/** The script's own modules, beside it. */
+const PARTS = path.join(ROOT, "tooling/scripts/ops/delete-tenant");
 
 /** The workspace these runs delete, and one beside it whose rows no run may touch. */
 export const T = "00000000-0000-4000-8000-0000000000a1";
@@ -32,21 +36,34 @@ const UNSET = {
   FOOTAGE_TICKET_KEY: "",
 };
 
+const linesOf = (file) =>
+  fs
+    .readFileSync(file, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+
 /**
- * One run. `world`: `tables`, `faults` (fakeDb's, `"<table>.select"`), `buckets` ({ name: { path: bytes } }),
- * `bucketFaults` ({ name: { dir: message } }), `tenantDeleteAnswersNone`, and `env` for the run.
+ * A folder the script runs from, kept until `close()`: `run(world, ...args)` is one run there. `world`: `tables`,
+ * `faults` (fakeDb's, `"<table>.select"`), `buckets` ({ name: { path: bytes } }), `bucketFaults` ({ name: { dir:
+ * message } }), `tenantDeleteAnswersNone`, the stand-in's `timeoutPast`, `ledger`, `fetchFails` and `removeFails`, and
+ * `env` for the run.
  */
-export function deleteTenant(world, ...args) {
+export function runsIn() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "delete-tenant-"));
-  try {
-    const script = path.join(dir, "scripts", "ops", "delete-tenant.mjs");
-    fs.mkdirSync(path.dirname(script), { recursive: true });
-    fs.copyFileSync(SCRIPT, script);
+  const script = path.join(dir, "scripts", "ops", "delete-tenant.mjs");
+  fs.mkdirSync(path.dirname(script), { recursive: true });
+  fs.copyFileSync(SCRIPT, script);
+  if (fs.existsSync(PARTS)) fs.cpSync(PARTS, path.join(path.dirname(script), "delete-tenant"), { recursive: true });
+  const backups = path.join(dir, "backups");
+  const run = (world, ...args) => {
     const worldFile = path.join(dir, "world.json");
     const seenFile = path.join(dir, "seen.json");
+    fs.rmSync(seenFile, { force: true });
+    const before = fs.existsSync(backups) ? fs.readdirSync(backups) : [];
     const { env = {}, ...rest } = world;
     fs.writeFileSync(worldFile, JSON.stringify(rest));
-    const run = spawnSync(process.execPath, ["--import", STAND_IN, script, ...args], {
+    const ran = spawnSync(process.execPath, ["--import", STAND_IN, script, ...args], {
       cwd: ROOT,
       encoding: "utf8",
       env: {
@@ -60,43 +77,56 @@ export function deleteTenant(world, ...args) {
       },
     });
     const seen = fs.existsSync(seenFile) ? JSON.parse(fs.readFileSync(seenFile, "utf8")) : null;
-    const backups = path.join(dir, "backups");
-    const written = fs.existsSync(backups) ? fs.readdirSync(backups) : [];
-    const backup = written.length
-      ? fs
-          .readFileSync(path.join(backups, written[0]), "utf8")
-          .split("\n")
-          .filter(Boolean)
-          .map((line) => JSON.parse(line))
-      : null;
+    // What this run wrote: its backup, and the list of what it removes outside the database.
+    const written = (fs.existsSync(backups) ? fs.readdirSync(backups) : []).filter((f) => !before.includes(f));
+    const backupFile = written.find((f) => f.endsWith(".jsonl") && !f.endsWith(".clean-up.jsonl"));
+    const listName = written.find((f) => f.endsWith(".clean-up.jsonl"));
     return {
-      code: run.status,
-      out: run.stdout,
-      err: run.stderr,
-      said: `${run.stdout}\n${run.stderr}`,
-      backup,
+      code: ran.status,
+      out: ran.stdout,
+      err: ran.stderr,
+      said: `${ran.stdout}\n${ran.stderr}`,
+      backup: backupFile ? linesOf(path.join(backups, backupFile)) : null,
+      listFile: listName ? path.join(backups, listName) : null,
+      list: listName ? linesOf(path.join(backups, listName)) : null,
       tables: seen?.tables ?? null,
       log: seen?.log ?? [],
+      fetched: seen?.fetched ?? [],
       buckets: seen?.buckets ?? {},
     };
+  };
+  return { run, readList: (file) => linesOf(file), close: () => fs.rmSync(dir, { recursive: true, force: true }) };
+}
+
+/**
+ * How every apply begins, in the order of its writes: Stop everything through its door, then the workspace's queued
+ * jobs withdrawn. Nothing is deleted before both.
+ */
+export const STOPPED = ["rpc workspace_sending_stop", "jobs update"];
+
+/** One run, in a folder of its own that goes when it ends. */
+export function deleteTenant(world, ...args) {
+  const place = runsIn();
+  try {
+    return place.run(world, ...args);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    place.close();
   }
 }
 
 /** The workspace, a row of its own, its history, and a workspace beside it. */
 export const harbor = (over = {}) => ({
   tenants: [
-    { id: T, name: NAME, slug: "harbor-nails", created_at: "2026-01-02T00:00:00Z" },
-    { id: OTHER, name: "Bayside", slug: "bayside", created_at: "2026-01-02T00:00:00Z" },
+    { id: T, name: NAME, slug: "harbor-nails", created_at: "2026-01-02T00:00:00Z", sending_stopped_at: null },
+    { id: OTHER, name: "Bayside", slug: "bayside", created_at: "2026-01-02T00:00:00Z", sending_stopped_at: null },
   ],
   contacts: [
     { id: "c-1", tenant_id: T, display_name: "Ana" },
     { id: "c-2", tenant_id: OTHER, display_name: "Bruno" },
   ],
   events: [
-    { id: 1, tenant_id: T, kind: "contact.created" },
-    { id: 2, tenant_id: OTHER, kind: "contact.created" },
+    { id: "e-1", tenant_id: T, kind: "contact.created", created_at: "2026-03-04T10:00:00Z" },
+    { id: "e-2", tenant_id: OTHER, kind: "contact.created", created_at: "2026-03-04T10:00:00Z" },
   ],
   ...over,
 });

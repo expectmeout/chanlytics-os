@@ -1934,3 +1934,63 @@ refuses. Their statements go through PostgREST as the service role, which ends
 a statement at 30 seconds (00283): a script that must run one longer, a
 workspace's whole history deleted at once, says so in its header and is run from
 psql after `set statement_timeout = 0`.
+
+### Delete a workspace
+
+`tooling/scripts/ops/delete-tenant.mjs` deletes one workspace and everything of its own, in the database and outside
+it. Nothing undoes it. Running it on a real workspace is Ruben's word, each time.
+
+```bash
+node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"            # the dry run
+node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>" --apply    # the delete
+node tooling/scripts/ops/delete-tenant.mjs --resume <list>                                   # what is still on a list
+node tooling/scripts/ops/delete-tenant.mjs --resume <list> --apply                           # ask for it again
+```
+
+It needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, and to empty what is outside the database, each for the run:
+`ANTHROPIC_API_KEY`, `CLOUDFLARE_ACCOUNT_ID` with `CLOUDFLARE_STREAM_API_TOKEN`, `FOOTAGE_RELAY_URL` with
+`FOOTAGE_TICKET_KEY`.
+
+**The dry run** reads every table of the workspace a page at a time by the table's own key, asks the database's exact
+count before and after each, and writes the backup to `tooling/backups/tenant-<id>-<time>.jsonl`. It prints the count
+of each table, the files in storage, the videos at Stream and on the shelf, and everything the delete cannot reach (a
+phone line, a subscription, a connection at Google, a mailbox, an ad account, a Retell agent). It refuses, on a dry
+run too, when a read came back with fewer rows than the database counted. A table that was written to while it was
+read is named: that look is not the backup a delete goes by.
+
+**An apply** does these in order, and stops at the first that fails:
+
+1. The dry run's read, and a refusal while the workspace holds anything the delete cannot reach. Release each first.
+   `--orphans-ok` strands them on purpose.
+2. Stop everything is set for the workspace, through its own door. Its queued jobs are withdrawn. The run waits until
+   none of its jobs is running: ten minutes, or `--wait-minutes <n>`. Past that it refuses and names them.
+3. The workspace is read again. This read must agree with its counts to the row, and it replaces the backup file: it
+   is the backup the delete goes by. The ledger is looked at once more, and a job queued meanwhile sends it round
+   again, three times at most.
+4. The clean-up list is written beside the backup, `tenant-<id>-<time>.clean-up.jsonl`: one line for each file in
+   storage, each copy at Anthropic, each video at Stream and each video on the shelf.
+5. The rows go. A history past 5,000 events goes a month at a time. The tables that grow with history (jobs, the
+   event spine, the intake ledger, model turns, AI usage, sends, touches, messages) are emptied by key past 5,000
+   rows. Then the workspace's own row, and what cascades from it. A slice that ends at the statement's 30 seconds is
+   cut in two and tried again, so a long history needs no psql.
+6. Everything on the list is removed, and each removal marks its line.
+
+**When it stops part-way.**
+
+- A refusal after step 2 leaves Stop everything on, and says so. Run it again to finish. To keep the workspace
+  instead, press Resume in the product. The jobs it withdrew stay canceled on the ledger.
+- A job that will not end: read its kind in the refusal. A job whose run died is taken back by the ledger once its
+  hold is past, unless its kind is paused on Health: resume the kind, or wait.
+- A delete that failed in step 5 removed nothing outside the database. Run it again. Keep the first backup: the
+  second run's backup does not hold the rows the first run already deleted.
+- A run that ends non-zero after the rows are gone printed what is still there outside the database. Its lines on the
+  list say `"done":false`. Run `--resume <list> --apply` with the missing key set, or once the provider answers. It
+  refuses while the workspace's row still exists.
+
+**What it does not close.** Stop everything holds sending, posts and ads. The withdrawal holds queued jobs. A job
+handed out and claimed in the seconds between the last look at the ledger and the delete would still run, and a
+sweep that works on a workspace with no job is not seen at all. Closing that takes a refusal at the ledger's claim,
+which is a migration and is not built (decision 0152 names it).
+
+The backup and the list are files on the laptop that ran it, outside the repository, and hold the workspace's whole
+record. Remove them once the request's thirty days are past.
