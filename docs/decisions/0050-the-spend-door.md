@@ -621,3 +621,37 @@ Ruben, 21 November 2026: "everything you recommend". The Ads plan's section 12 s
   owner and pauses nothing by itself. Of the telling, AI's stop is built (the page says how many ads are still on, with
   one press to pause them all); the sweep's check of each running ad's way in (WhatsApp disconnected or blocked, the
   line off, billing paused) with its badge, bell row and Today line is not built yet.
+
+## As built, 28 November 2026 · An ad can always be stopped, and Turn on never ends unrecorded
+
+From the three outside reviews of 28 November 2026 (the whole-system plan's lane 6). Built with nothing sent to Meta:
+Meta is faked in every proof. One migration is written and not applied: `00725`
+(`supabase/migrations/00725_a_launch_never_ends_unrecorded.sql`).
+
+- **Amended here · a stop is never held by a switch.** "As built, 19 November 2026" says of `ADS_WRITES` that anything
+  but `live` and `sandbox` is off, "where a press is refused before it is kept", and the press door asked the list of
+  workspaces too. So a workspace taken off the list with an ad still running at Meta could see it and not pause it, and
+  Stop everything's one press was refused. Now the list (`ADS_WORKSPACES`) takes away making a new ad (Connect, a
+  draft, Turn on) and nothing of an ad that is there. The switch takes away what can spend: turning an ad back on, and
+  any change but ending one. A pause, pausing them all, ending one, a cancel and a check are never refused by either,
+  and reach Meta while the switch is off (`stopWrites` in the edge's `lib/ads/tell.ts`; `sandbox` still calls nobody).
+  The account's read sends a pause or an end still on its way while the switch is off, and nothing else. The page's read
+  says the two apart (`can_press`: this owner may stop an ad here; `can_spend`: and do what can spend), so an ad's
+  drawer offers Pause and End wherever its owner can see it.
+- **Call 5 · each switch is kept before Meta is asked for it** (`launch.switching`, then `launch.switched`), as each
+  make already was. A run that dies with a switch out asks Meta what it holds before it sends anything: on there, the
+  switch went and is never sent again; paused there, Meta never took it, and it goes as any switch does.
+- **Call 6 · a launch is never said to have stopped while it may be running.** Once its campaign's switch, the one
+  that lets the ad start, is out or done, a stop (a cancel, the switch off, the account let go) that Meta does not
+  confirm by removing the campaign keeps the ad as the ad it is: made, with Meta's ids, Meta's word for it owed. Its
+  account's read then says what stands, the page says it couldn't confirm it's on with Check, its Pause reaches its
+  campaign, and one its owner cancelled is paused at once. Where the account was let go first (00725 re-makes
+  `ad_accounts_stop_launches`), nothing can be read again, so the page says the ad may be on in Meta, never that it
+  was paused. Before this such a launch was kept as "Couldn't finish", its parts "left in Meta, paused", and a failed
+  launch's parts are never read again.
+- **Call 6 · a stop whose answer never came.** A pause Meta never answered is asked about at once (where the part
+  stands). Held, it is told. Not held, it stays on its way and goes again when Meta will take it, never blind. An end
+  Meta never answered is settled by the campaign read back, as any change is; one Meta did not take goes again with
+  Meta's word in hand, and is followed until Meta holds it. A turning back on, a new total, a last day and the miles
+  stay as they were: never sent again, settled from what Meta holds, and let go with the owner told where Meta did not
+  take them. Nothing that can spend is sent twice.

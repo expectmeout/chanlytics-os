@@ -52,7 +52,7 @@ being read is dropped by a migration.
 | `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653, 00658; |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, 00653; |
 | `ad_accounts_close_ad_bell` | trigger | the server | trigger `ad_accounts_close_ad_bell on ad_accounts` | A trigger on ad_accounts (00658): |
-| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00666, 00676): |
+| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00666, 00676, 00725): |
 | `ad_bell_cause` | the server's | the server | SQL `ad_bell_causes`, `ad_bell_ring` | The key one of the bell's five ad causes is known by, read off one of its ads (00658): |
 | `ad_bell_causes` | the server's | the server | SQL `ad_bell_ring`, `ads_read_keep` | Every ad of one ad account under each of the bell's ad causes at a moment, with the cause's key (00658, 00666, 00676): |
 | `ad_bell_hearers` | the server's | the server | SQL `ad_bell_paused`, `ad_bell_ring` and 1 more | Who hears the bell's five ad notices (00658): |
