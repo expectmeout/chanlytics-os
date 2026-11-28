@@ -50,13 +50,13 @@ Proposed. Each point is Ruben's to take, change or refuse.
    copy, sent"). It is today's export file, with one change for an owner who is leaving: their own photos and videos
    are in it as links that open for the seven days, where today that kind is left out.
 5. **What it waits on, said to the owner.** The delete does not start while the workspace holds something that would
-   keep running or keep being billed. Each has a line on the card with the one thing to do:
+   keep running or keep being billed. What has a door of its own the job uses. What has none waits for a person on
+   staff, and the Console shows it. Each has a line on the card with the one thing to do:
    - a phone number still held: "Give the number back" (its line's own door), or it is released at the delete;
    - a subscription: cancelled as the delete begins, with no further charge;
    - an ad still running: stopped by Stop everything, which the delete sets first;
    - Google, a mailbox, a footage account, an ad account: disconnected through the door each already has;
    - the receptionist's agent at Retell: deleted by the job.
-     What has a door of its own the job uses. What has none waits for a person on staff, and the Console shows it.
 6. **It runs the script's steps as a job.** One kind, `workspace_delete`, with its handler, policy and row (decision
    0089). Each run does one step and is safe to run again: read and back up; stop and drain; read again; write the
    list; delete in slices; work through the list; tell the owner. The code is the script's own modules, moved into the

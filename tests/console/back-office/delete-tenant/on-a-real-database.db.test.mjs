@@ -51,7 +51,8 @@ async function workspace(label) {
   const [tenant] = ok(
     await db
       .from("tenants")
-      .insert({ slug: `leaves-${label}-${RUN}`, name: `Leaves ${label} ${RUN}` })
+      // Begun in January, so the months of its history below are months of its own life, each read and deleted alone.
+      .insert({ slug: `leaves-${label}-${RUN}`, name: `Leaves ${label} ${RUN}`, created_at: "2026-01-02T00:00:00Z" })
       .select("id, name"),
     "tenants",
   );
