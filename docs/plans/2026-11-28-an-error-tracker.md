@@ -16,9 +16,9 @@ before any yes.
 - **Where those lines go.** Vercel keeps them for the plan's retention, which is short. Nothing ships a line anywhere
   else and nothing alerts on one. So an exception in a door is a 500 its provider tries again, and a line nobody is
   sent.
-- **What pages.** About sixty conditions (counted on this day) page the platform by mail, once each per six hours, and Health shows them:
-  a provider refusing our key, a quota spent, jobs failing for good, a clock stopped. These are failures the code
-  expected and named. An exception is the kind it did not.
+- **What pages.** About sixty conditions (counted on this day) page the platform by mail, once each per six hours, and
+  Health shows them: a provider refusing our key, a quota spent, jobs failing for good, a clock stopped. These are
+  failures the code expected and named. An exception is the kind it did not.
 - **A member's page.** An error a page hit is sent to `POST /api/v1/client-errors` and kept for Health to group
   (`client_errors`, decision 0068): its fingerprint, its page, its first line, the build, the device and a short hash
   of who. Never the person, the workspace or the stack. Nobody is told.
@@ -49,14 +49,14 @@ before any yes.
 
 This is the cost that matters, and it is not the price.
 
-Sentry's own page for the Next.js SDK says of its defaults: "By default the SDK collects rich debugging context
-(including user identity, request/response bodies, and generative AI content)". Beside those: cookie names, header
-names, query parameters, and the local variables of each frame of the stack
+Sentry's own page for the Next.js SDK says that by default it collects rich debugging context, and names what that
+holds: who the user is, the bodies of requests and responses, and "generative AI content". Beside those: cookie names,
+header names, query parameters, and the local variables of each frame of the stack
 (docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options). In this product a request's body is a
 customer's message, a phone number or a booking; the generative content is what a customer wrote to AI and what AI
-answered; a frame's variables can hold any of them. Out of the box, a tracker would keep customers' conversations at
-a third party. The logger's rule, and `client_errors`' "never the person, the workspace or the stack", exist to
-prevent exactly that.
+answered; a frame's variables can hold any of them. Out of the box, a tracker would keep customers' conversations at a
+third party. The logger's rule, and `client_errors`' "never the person, the workspace or the stack", exist to prevent
+exactly that.
 
 What it would take to be acceptable, all of it, before the first event leaves:
 
@@ -67,8 +67,8 @@ What it would take to be acceptable, all of it, before the first event leaves:
   address, the request's name and the workspace's id, and drops everything else.
 - The vendor's own scrubbing left on (it is on by default, and removes values that look like card numbers and keys
   named like passwords and tokens), and its storing of IP addresses switched off.
-- The region chosen once, at the start: Iowa or Frankfurt, and "your data storage location can't be changed"
-  (docs.sentry.io/organization/data-storage-location). The database is in `us-east-1`.
+- The region chosen once, at the start: Iowa or Frankfurt, and it cannot be moved afterwards short of a new
+  organisation (docs.sentry.io/organization/data-storage-location). The database is in `us-east-1`.
 - A test that holds it: an event made from a request carrying a phone number, a message and a token comes out of
   that function carrying none of them. As the logger's redaction is held.
 - The vendor named where the product names who else handles customers' data. That part is Ruben's, not code's.

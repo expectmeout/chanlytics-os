@@ -1869,15 +1869,14 @@ and made ready to rehearse on 28 November 2026. **Rehearsed: never yet.** The re
 person follows; it runs on Ruben's go. Until it has, every time here is a guess.
 
 **What a restore brings back, and what it does not.** The database is the system of record: every workspace, person,
-message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the
-clocks (`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings
-and other files (Storage is kept apart from the database's backups: "Database backups do not include objects you store
-via the Storage API, as the database only includes metadata about these objects"), anything a provider holds (a
-WhatsApp template's review, a Twilio line, a Resend domain), or the two apps' environment (Vercel's, listed in each
-`.env.example`). A restore **to a new project** also leaves behind, in Supabase's own list: the Auth settings and the
-API keys (the copy has new keys), Realtime's settings, the database's settings, integrations, Edge Functions, and
-project settings such as add-ons. It carries the schema, the data, the roles, the sign-in accounts and the Vault's
-root key, so the copy can read its secrets.
+message, decision, job and event, the sign-in accounts (`auth`), the secrets the sweeps read (`vault`), and the clocks
+(`cron.job`). A restore brings all of those back together, to one moment. It does not bring back: recordings and other
+files (Storage is kept apart from the database's backups: by Supabase's own account a backup holds the rows that
+describe each file and never the file), anything a provider holds (a WhatsApp template's review, a Twilio line, a
+Resend domain), or the two apps' environment (Vercel's, listed in each `.env.example`). A restore **to a new project**
+also leaves behind, in Supabase's own list: the Auth settings and the API keys (the copy has new keys), Realtime's
+settings, the database's settings, integrations, Edge Functions, and project settings such as add-ons. It carries the
+schema, the data, the roles, the sign-in accounts and the Vault's root key, so the copy can read its secrets.
 
 **Which backups there are** is a fact of the project's plan. Read on 9 October 2026 with
 `supabase backups list --project-ref <ref> --experimental` (the project's Database, Backups page says the same), and
@@ -1912,13 +1911,14 @@ takes every workspace back with it. A restore is for a database that is gone, or
 reaches: a dropped table, a mass update with no backup file, the project lost.
 
 **Know this first: a copy's clocks call production.** Every clock is a `cron.job` row that calls `request_sweep()`,
-which reads the edge's address and its key from the database's own Vault (`edge_base_url`, `cron_sweep_key`) and
-posts to it. A restore to a new project carries the jobs, the Vault and the Vault's root key, and Supabase says of such
-a copy that its jobs "start running as soon as the restore completes. There's no way to exclude or pause them going
-into the restore." So from the minute a copy is up, its pg_cron asks **production's edge** for every sweep, with
-production's own key, beside production's clocks. Jobs are claimed under a lock and run once whoever asks; a sweep
-that sends by itself (the text canary at 14:00 UTC) could send twice. The first act on any copy, before anything is
-looked at, is this, in the **copy's** SQL editor (read the project's name in the editor's header before running it):
+which reads the edge's address and its key from the database's own Vault (`edge_base_url`, `cron_sweep_key`) and posts
+to it. A restore to a new project carries the jobs, the Vault and the Vault's root key, and Supabase's page on
+restoring to a new project warns that such a copy's jobs "start running as soon as the restore completes", and that
+nothing leaves them out or holds them back on the way in (supabase.com/docs/guides/platform/clone-project, read 28 Nov
+2026). So from the minute a copy is up, its pg_cron asks **production's edge** for every sweep, with production's own
+key, beside production's clocks. Jobs are claimed under a lock and run once whoever asks; a sweep that sends by itself
+(the text canary at 14:00 UTC) could send twice. The first act on any copy, before anything is looked at, is this, in
+the **copy's** SQL editor (read the project's name in the editor's header before running it):
 
 ```sql
 -- On the COPY only. It takes the edge's address out of the copy's Vault and stops the copy's clocks.
@@ -1962,9 +1962,9 @@ cron.job;` on the damaged database stops every sweep and the jobs' heartbeat, an
 
 It runs on Ruben's go, and he is the one at Supabase's dashboard. It restores last night's backup to a new project,
 proves the copy is whole, and deletes it. It changes nothing on production, and stops none of production's writers.
-**It costs** a second project at production's compute size for the hours it exists: Supabase shows the amount before
-it starts ("The new project will incur additional monthly expenses based on the mirrored resources from the source
-project"). Not across 14:00 to 14:20 UTC, when the text canary sends and checks. Write each minute down as it passes.
+**It costs** a second project at production's compute size for the hours it exists: Supabase bills the copy as a
+project of its own, sized like its source, and shows the amount before it starts. Not across 14:00 to 14:20 UTC, when
+the text canary sends and checks. Write each minute down as it passes.
 
 1. **Before, 5 minutes: what production holds now.** One read-only statement on production (the SQL editor, or the
    coordinator's read), kept beside the rehearsal's notes:
@@ -1991,10 +1991,10 @@ project"). Not across 14:00 to 14:20 UTC, when the text canary sends and checks.
 
    And the backups' read above: the newest backup's `inserted_at` is the moment the copy will stand at.
 
-2. **Minute 0: start the restore.** Supabase's dashboard, production's project, Database, Backups, the tab
-   "Restore to a New Project". Pick the newest daily backup, read the cost it shows, name the project
-   `chanlytics-restore-rehearsal`, start it. Supabase gives no figure for how long it takes ("can vary depending
-   largely on the volume of data involved"): the minute it reports ready is the first number this rehearsal is for.
+2. **Minute 0: start the restore.** Supabase's dashboard, production's project, Database, Backups, the tab "Restore to
+   a New Project". Pick the newest daily backup, read the cost it shows, name the project
+   `chanlytics-restore-rehearsal`, start it. Supabase gives no figure for how long it takes, only that it grows with
+   the data: the minute it reports ready is the first number this rehearsal is for.
 
 3. **The minute it is ready: stop the copy's clocks.** The statement under "Know this first", in the copy's SQL
    editor. Both counts 0 before anything else is done.
