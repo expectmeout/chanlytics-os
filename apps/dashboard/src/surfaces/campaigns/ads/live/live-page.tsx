@@ -12,7 +12,7 @@
  */
 import "./live.css";
 import { useState, type ReactNode } from "react";
-import { newAdRoute } from "@chanlytics/contracts";
+import { AD_PAGE_DAYS, newAdRoute } from "@chanlytics/contracts";
 import { EmptyState } from "../../../kit/empty/empty";
 import { GroupHead } from "../../../kit/head/group-head";
 import { Icon } from "../../../kit/icon/icon";
@@ -90,11 +90,13 @@ function Row({ row, onOpen }: { row: LiveRowVM; onOpen: (route: string) => void 
 /**
  * The ads under their headings, as the filter and the find line in the bar leave them (ad-list.ts): rows flush with the
  * list's edges and a hairline between two, as Made's, People's and the Inbox's rows stand. Ended, folded while another group
- * stands over it, opens and closes by its heading.
+ * stands over it, opens and closes by its heading. Under its rows, folded by a line of their own, the ads that are over with
+ * nothing to show over the page's days: every ad of the account can be found, and the list reads as it did.
  */
 function AdGroups({ rows, onOpen }: { rows: readonly LiveRowVM[]; onOpen: (route: string) => void }) {
   const looked = useAdsLooked();
   const [endedOpen, setEndedOpen] = useState(false);
+  const [quietOpen, setQuietOpen] = useState(false);
   const groups = adGroupsOf(rows, looked);
   if (groups.length === 0)
     return (
@@ -122,6 +124,21 @@ function AdGroups({ rows, onOpen }: { rows: readonly LiveRowVM[]; onOpen: (route
             }
           />
           {group.folds && !endedOpen ? null : group.rows.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />)}
+          {group.quiet.length > 0 && !(group.folds && !endedOpen) ? (
+            <>
+              <GroupHead
+                label={LIVE.quiet(AD_PAGE_DAYS)}
+                count={group.quiet.length}
+                fold={{
+                  open: quietOpen,
+                  onFold: () => setQuietOpen((open) => !open),
+                  label: LIVE.quietFold(group.quiet.length, AD_PAGE_DAYS),
+                  testid: "ads-quiet-fold",
+                }}
+              />
+              {quietOpen ? group.quiet.map((row) => <Row key={row.id} row={row} onOpen={onOpen} />) : null}
+            </>
+          ) : null}
         </section>
       ))}
     </div>

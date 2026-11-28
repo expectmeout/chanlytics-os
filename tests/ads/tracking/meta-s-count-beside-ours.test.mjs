@@ -16,7 +16,7 @@ import { at, withEnv } from "../../_cron-doors-world.mjs";
 
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 const { adChatsKeptRule } = await import(at("packages/contracts/src/reports/ad-cost.ts"));
-const { sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model/sheet.ts"));
 const { pageChatsParted } = await import(at("apps/edge/lib/ads/chat/kept.ts"));
 
 const T = "10000000-0000-4000-8000-000000000001";
