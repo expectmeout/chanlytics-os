@@ -79,7 +79,7 @@ async function takeOff(db: Db, shelf: Shelf, video: { tenantId: TenantId; fileId
 }
 
 /** One copy whose row says checked and whose object the list did not name: the shelf itself asked. Answers whether it was put back. */
-async function askAfter(db: Db, video: { tenantId: TenantId; fileId: string }, log: Logger): Promise<boolean> {
+async function askAfterBare(db: Db, video: { tenantId: TenantId; fileId: string }, log: Logger): Promise<boolean> {
   const file = await findFileForWork(db, video.tenantId, video.fileId);
   // Purged, or on its way out: its purge takes the object and then the row.
   if (!file || file.removed_at) return false;
@@ -100,7 +100,7 @@ async function compare(db: Db, shelf: Shelf, tenantId: TenantId): Promise<Mended
     if (await takeOff(db, shelf, { tenantId, fileId }, log)) mended.removed += 1;
   const bare = rows.filter((row) => row.state === "checked" && !onShelf.has(row.fileId));
   for (const row of bare.slice(0, SHELF_COMPARE.mendsAWorkspace))
-    if (await askAfter(db, { tenantId, fileId: row.fileId }, log)) mended.putBack += 1;
+    if (await askAfterBare(db, { tenantId, fileId: row.fileId }, log)) mended.putBack += 1;
   if (listed.other > 0) log.warn("file_shelve_failed", { why: "unknown_keys", keys: listed.other });
   return mended;
 }
