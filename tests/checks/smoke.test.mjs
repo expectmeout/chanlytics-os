@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import {
   argsOf,
   finishOf,
+  judgeDatabase,
   judgeHealth,
   judgeVersion,
   judgeWarm,
@@ -406,4 +407,91 @@ test("one host given for both doors is asked for no warm-up: it may be the edge'
     one.seen.map((s) => s.url),
     ["/api/health", "/api/version"],
   );
+});
+
+/* ---- The database each build needs ---- */
+
+test("a build written against a migration production has not applied fails the smoke; a database ahead of a build passes", () => {
+  assert.equal(judgeDatabase("00724", "00724"), null);
+  // The ordinary state before a merge: the migration is applied first, then the code that needs it lands.
+  assert.equal(judgeDatabase("00724", "00726"), null);
+  const ahead = judgeDatabase("00726", "00724");
+  assert.match(ahead, /built with migration 00726 and production's newest is 00724: the code is ahead of its database/);
+  assert.match(ahead, /Apply a migration/);
+  assert.match(ahead, /Roll back/);
+  // Numbers, not text: 01000 is above 00999.
+  assert.match(judgeDatabase("01000", "00999"), /ahead of its database/);
+  assert.equal(judgeDatabase("00999", "01000"), null);
+});
+
+test("a head the database could not say leaves the question open, which is not a pass, but for a preview with no database", () => {
+  assert.match(judgeDatabase("00724", null), /could not be read, so whether its database has what it needs is unknown/);
+  assert.equal(judgeDatabase("00724", null, { allowUnhealthy: true }), null);
+});
+
+test("each app is held to the database apart: the dashboard a migration ahead fails, though the edge is level and both name the commit", async () => {
+  // The two projects deploy apart, and either can carry a migration the other's build does not need yet.
+  const edge = await host({
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT, migration_head: "00724" }],
+    "/api/version": [200, { sha: "de16cc2e14f", migration: "00724" }],
+  });
+  const dashboard = await host({
+    "/api/version": [200, { sha: "de16cc2e14f", migration: "00725" }],
+    "/api/warm": [200, { ok: true, routes: ["open"] }],
+    "/api/warm/long": [200, { ok: true, routes: ["playbooks"] }],
+  });
+  const args = ["--edge", edge.base, "--dashboard", dashboard.base, "--sha", "de16cc2e1"];
+  const results = await smoke(argsOf(args), {});
+  assert.deepEqual(
+    results
+      .filter((r) => r.door === "database")
+      .map((r) => [r.url.startsWith(edge.base) ? "edge" : "dashboard", r.problem === null]),
+    [
+      ["edge", true],
+      ["dashboard", false],
+    ],
+  );
+  assert.ok(
+    results.filter((r) => r.door !== "database").every((r) => r.problem === null),
+    "every door answered well",
+  );
+  const failed = await run(args);
+  assert.equal(failed.code, 1);
+  assert.match(failed.out, /FAIL .*\/api\/version: was built with migration 00725 and production's newest is 00724/);
+  assert.equal(failed.out.match(/FAIL/g).length, 1, "the edge, level with its database, is not failed with it");
+});
+
+test("both builds level with the database, or behind it, pass; a database that could not say its head fails both", async () => {
+  const doors = (head, built) => ({
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT, migration_head: head }],
+    "/api/version": [200, { sha: "abc1234", migration: built }],
+  });
+  const warm = {
+    "/api/warm": [200, { ok: true, routes: ["open"] }],
+    "/api/warm/long": [200, { ok: true, routes: ["playbooks"] }],
+  };
+  const level = [await host(doors("00726", "00724")), await host({ ...doors(null, "00726"), ...warm })];
+  assert.equal((await run(["--edge", level[0].base, "--dashboard", level[1].base])).code, 0);
+  const unread = [await host(doors(null, "00724")), await host({ ...doors(null, "00724"), ...warm })];
+  const failed = await run(["--edge", unread[0].base, "--dashboard", unread[1].base]);
+  assert.equal(failed.code, 1);
+  assert.equal(failed.out.match(/could not be read/g).length, 2);
+  assert.equal((await run(["--edge", unread[0].base, "--dashboard", unread[1].base, "--allow-unhealthy"])).code, 0);
+});
+
+test("an edge a build behind says nothing of its database's head, and no build is judged against a head nobody gave", async () => {
+  // Either deploy order: the dashboard may answer `migration` minutes before the edge's health door learns to answer
+  // `migration_head`. The edge's stale sha is what fails that smoke, not a comparison with nothing.
+  const edge = await host({
+    "/api/health": [200, { ok: true, unhealthy: [], jobs_backlog: 0, checked_at: AT }],
+    "/api/version": [200, { sha: "abc1234" }],
+  });
+  const dashboard = await host({
+    "/api/version": [200, { sha: "abc1234", migration: "00999" }],
+    "/api/warm": [200, { ok: true, routes: ["open"] }],
+    "/api/warm/long": [200, { ok: true, routes: ["playbooks"] }],
+  });
+  const results = await smoke(argsOf(["--edge", edge.base, "--dashboard", dashboard.base]), {});
+  assert.ok(!results.some((r) => r.door === "database"));
+  assert.ok(results.every((r) => r.problem === null));
 });

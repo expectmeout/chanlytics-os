@@ -14,9 +14,15 @@ const { judgeHealth, GET } = await import(pathToFileURL(path.join(ROOT, "apps/ed
 
 /** The machine image on record for the video template this build draws with, as the database answers for it. */
 const IMAGE = { data: { snapshot_id: "snap_1", hash: "4e3e426db96a" }, error: null };
-const db = (rows, backlog, healthError = null, backlogError = null, image = IMAGE) => ({
+/** The newest migration the database has applied, as migration_head() answers it. */
+const HEAD = { data: [{ head: "00724", applied: 631 }], error: null };
+const db = (rows, backlog, healthError = null, backlogError = null, image = IMAGE, head = HEAD) => ({
   rpc: async (name) =>
-    name === "sweep_health" ? { data: rows, error: healthError } : { data: backlog, error: backlogError },
+    name === "sweep_health"
+      ? { data: rows, error: healthError }
+      : name === "migration_head"
+        ? head
+        : { data: backlog, error: backlogError },
   from: (table) => {
     assert.equal(table, "piece_images");
     return { select: () => ({ eq: () => ({ maybeSingle: async () => image }) }) };
@@ -42,7 +48,27 @@ test("every clock healthy and nothing waiting is 200", async () => {
     jobs_backlog: 0,
     checked_at: "2026-09-11T12:00:00.000Z",
     video_machine: true,
+    migration_head: "00724",
   });
+});
+
+test("the newest migration the database has applied is said beside the clocks, and moves neither ok nor the status", async () => {
+  // What the smoke after a deploy holds each app's build to (tooling/scripts/checks/smoke.mjs). Unread is unknown,
+  // never "none", and none of the database's words leave.
+  const clocks = [row("jobs", true)];
+  const unread = { data: null, error: { message: "permission denied for function migration_head (secret-ish)" } };
+  const a = await judgeHealth(db(clocks, 0, null, null, IMAGE, unread), NOW);
+  assert.equal(a.status, 200, "the pinger's judgement is the clocks' and the backlog's alone");
+  assert.equal(a.body.ok, true);
+  assert.equal(a.body.migration_head, null);
+  assert.ok(!JSON.stringify(a.body).includes("secret-ish"));
+  // A database with no migration on record says none: null, as unread, and the smoke asks again.
+  const none = await judgeHealth(db(clocks, 0, null, null, IMAGE, { data: [], error: null }), NOW);
+  assert.equal(none.body.migration_head, null);
+  // And an unhealthy answer still carries it: a deploy is judged on a red day too.
+  const ill = await judgeHealth(db([row("jobs", false)], 0), NOW);
+  assert.equal(ill.status, 503);
+  assert.equal(ill.body.migration_head, "00724");
 });
 
 test("a video template with no machine image on record is said, and pages nobody: it is no clock", async () => {
@@ -88,6 +114,7 @@ test("REGRESSION: a registry that came back with no clock at all is 503 no_clock
     jobs_backlog: 0,
     checked_at: "2026-09-11T12:00:00.000Z",
     video_machine: true,
+    migration_head: "00724",
     reason: "no_clocks",
   });
   // An answer that is no list at all is no clock either.
@@ -126,6 +153,7 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
     if (u.endsWith("/rest/v1/rpc/sweep_health")) return json([row("jobs", true), row("partitions", false)]);
     if (u.endsWith("/rest/v1/rpc/jobs_backlog")) return json(0);
     if (u.includes("/rest/v1/piece_images?")) return json([{ snapshot_id: "snap_1", hash: "4e3e426db96a" }]);
+    if (u.endsWith("/rest/v1/rpc/migration_head")) return json([{ head: "00724", applied: 631 }]);
     throw new Error(`the health door asked the database something it never did before: ${u}`);
   };
   process.env.SUPABASE_URL = "http://127.0.0.1:1";
@@ -141,8 +169,10 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
     assert.equal(body.ok, false);
     assert.ok(!JSON.stringify(body).includes("secret-ish"));
     assert.equal(body.video_machine, true);
+    assert.equal(body.migration_head, "00724");
     assert.deepEqual(calls.map((u) => u.slice(u.lastIndexOf("/") + 1).split("?")[0]).sort(), [
       "jobs_backlog",
+      "migration_head",
       "piece_images",
       "sweep_health",
     ]);
@@ -150,7 +180,7 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
     const again = await GET();
     assert.equal(again.status, 503);
     assert.deepEqual(await again.json(), body);
-    assert.equal(calls.length, 3, "cached: a noisy pinger is not a load on the database");
+    assert.equal(calls.length, 4, "cached: a noisy pinger is not a load on the database");
   } finally {
     globalThis.fetch = realFetch;
     delete process.env.SUPABASE_URL;

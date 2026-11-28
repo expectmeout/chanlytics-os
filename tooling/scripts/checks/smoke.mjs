@@ -13,6 +13,12 @@
  *                                passed while the edge still served the old build (6 Oct 2026).
  *   GET <dashboard>/api/version  200 { sha }: the build the deployment runs (apps/dashboard/app/api/version/route.ts);
  *                                --sha names the one each version door must name.
+ *   The database each build needs: each version door also says `migration`, the newest migration its build was written
+ *                                against, and the health door `migration_head`, the newest production has applied. The
+ *                                two apps deploy apart, so each is held to it: a build ahead of its database fails the
+ *                                smoke under the door "database", since it calls doors and reads columns that are not
+ *                                there yet (a merge whose migration was not applied first, 28 Nov 2026). A database
+ *                                ahead of a build is the ordinary state before a merge, and passes.
  *   GET <dashboard>/api/warm       200 { ok: true, routes: [...] }: the routes every page opens on, loaded by the ask
  *   GET <dashboard>/api/warm/long  (apps/dashboard/app/api/warm/route.ts). The platform's clock asks for them every five
  *                                minutes; asked here as the deploy finishes, the first visitor after it does not wait
@@ -74,6 +80,22 @@ export function judgeVersion(status, body, { sha = null } = {}) {
   if (status !== 200) return `answered ${status}`;
   if (!body || typeof body.sha !== "string" || !body.sha) return "answered 200 without a sha";
   if (sha && body.sha !== sha && !body.sha.startsWith(sha)) return `runs ${body.sha}, not ${sha}`;
+  return null;
+}
+
+/**
+ * A build's migration against the database's, judged: null when the database has what the build was written against,
+ * else why not. `built` is the version door's `migration`, `head` the health door's `migration_head`, each the five
+ * digits a migration's file starts with. A head that could not be read (null) leaves the question unanswered, which is
+ * not a pass, except where an unhealthy answer is taken (a preview with no database).
+ */
+export function judgeDatabase(built, head, { allowUnhealthy = false } = {}) {
+  if (head === null)
+    return allowUnhealthy
+      ? null
+      : `was built with migration ${built}, and the newest production has applied could not be read, so whether its database has what it needs is unknown`;
+  if (Number(built) > Number(head))
+    return `was built with migration ${built} and production's newest is ${head}: the code is ahead of its database. Apply main's migrations (docs/runbook.md, Apply a migration), or promote the deployment before it (Roll back)`;
   return null;
 }
 
@@ -140,15 +162,21 @@ export async function smoke(args, env = process.env) {
   const bypass = env.VERCEL_AUTOMATION_BYPASS_SECRET;
   const headers = { accept: "application/json", ...(bypass ? { "x-vercel-protection-bypass": bypass } : {}) };
   const out = [];
+  // What each build says it was written against, and what the database says it has applied: judged once every door
+  // has answered. An app or an edge a build behind says neither, and its version door's sha is what fails it.
+  const builds = [];
+  let head;
   const version = async (host) => {
     const url = `${host}/api/version`;
     const a = await ask(url, headers);
     out.push({ door: "version", url, problem: a.failed ?? judgeVersion(a.status, a.body, args) });
+    if (typeof a.body?.migration === "string") builds.push({ url, migration: a.body.migration });
   };
   if (args.edge) {
     const url = `${args.edge}/api/health`;
     const a = await ask(url, headers);
     out.push({ door: "health", url, problem: a.failed ?? judgeHealth(a.status, a.body, args) });
+    if (a.body && typeof a.body === "object" && "migration_head" in a.body) head = a.body.migration_head;
     await version(args.edge);
   }
   // One host serving both is asked once.
@@ -160,6 +188,8 @@ export async function smoke(args, env = process.env) {
       out.push({ door, url, problem: a.failed ?? judgeWarm(a.status, a.body) });
     }
   }
+  if (head !== undefined)
+    for (const b of builds) out.push({ door: "database", url: b.url, problem: judgeDatabase(b.migration, head, args) });
   return out;
 }
 

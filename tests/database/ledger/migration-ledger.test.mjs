@@ -26,6 +26,8 @@ import {
   parseProductionLedger,
   readFolder,
   record,
+  schemaHeadProblems,
+  schemaHeadText,
 } from "../../../tooling/scripts/checks/migration-ledger.mjs";
 
 /** A folder as readFolder returns it, from [file, text] pairs. */
@@ -429,4 +431,25 @@ test("the same table drawn with box characters is read as well as one drawn with
     "   00002 " + String.fromCharCode(0x2502) + "       " + String.fromCharCode(0x2502) + " 00002",
   ].join("\n");
   assert.deepEqual([...parseProductionLedger(boxed).keys()], ["00001"], "the Remote column");
+});
+
+test("the head a build records is the ledger's: a copy a new migration moved past is refused, with the command that writes it", () => {
+  const one = folderOf(A);
+  const before = ledgerOf(one);
+  const text = schemaHeadText(before);
+  assert.match(text, /^export const SCHEMA_HEAD = "00001";$/m);
+  assert.deepEqual(schemaHeadProblems(before, text), []);
+  // A Windows checkout's line endings are not a stale copy.
+  assert.deepEqual(schemaHeadProblems(before, text.replace(/\n/g, "\r\n")), []);
+  // The next migration is recorded, and the build's copy was left as it was.
+  const two = folderOf(A, ["00002_a_second.sql", "create table b ();\n"]);
+  const after = record(before, two).ledger;
+  assert.equal(headOf(after), 2);
+  const stale = schemaHeadProblems(after, text);
+  assert.equal(stale.length, 1);
+  assert.match(stale[0], /does not name the ledger's head, 00002/);
+  assert.match(stale[0], /migration-ledger\.mjs --record/);
+  assert.deepEqual(schemaHeadProblems(after, schemaHeadText(after)), []);
+  // No copy at all is refused the same way.
+  assert.match(schemaHeadProblems(after, null)[0], /is missing, 00002/);
 });
