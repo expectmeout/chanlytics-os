@@ -29,7 +29,7 @@ import {
 } from "@chanlytics/log";
 import { noteAnswerAtCap, noteDoorRefusing } from "@chanlytics/db/ops";
 import { observeDb } from "@chanlytics/db/shared";
-import { DbFailure, textOrEmpty, valueAt } from "@chanlytics/contracts";
+import { DbFailure, MIN_MS, textOrEmpty, valueAt } from "@chanlytics/contracts";
 import { env } from "./env.js";
 import { pg } from "./pg.js";
 import { refuse } from "./http.js";
@@ -123,10 +123,12 @@ async function answerCaught(request: Request | undefined, answer: () => Promise<
  * secret stopped matching (rotated at Meta, or changed here), every customer's message would be refused, Meta would
  * retry and then stop delivering, and nothing anywhere would say so. Now each door's refusals of knocks that carried a
  * credential are counted in this instance, in a row; an answer that lets one in sets its count back to nothing; at
- * three, the door is noted in the pager's memory (packages/db noteDoorRefusing), which Health shows and the health sweep
- * pages once a window (ops/cap-watch.ts). The logger cannot page itself: the pager logs through it. A stranger's knock
- * with no credential is never counted, so a scanner cannot trip it, and a door's answer about the act itself (an ad
- * account that is not the owner's, a paused AI) is not a refused credential.
+ * three, spread over five minutes or more, the door is noted in the pager's memory (packages/db noteDoorRefusing), once
+ * for the run of refusals, which Health shows and the health sweep pages once a window (ops/cap-watch.ts). The logger
+ * cannot page itself: the pager logs through it. A stranger's knock with no credential is never counted, and a burst of
+ * forged ones (anyone can send the header) notes nothing: a secret that stopped matching refuses the provider's
+ * deliveries and its retries for as long as it is wrong, a burst does not last. A door's answer about the act itself (an
+ * ad account that is not the owner's, a paused AI) is not a refused credential.
  */
 const CREDENTIAL_HEADERS = [
   "x-hub-signature-256",
@@ -146,9 +148,16 @@ const CREDENTIAL_REFUSALS: ReadonlySet<string> = new Set([
   "token_malformed",
   "token_expired",
 ]);
-/** Refused signed knocks in a row, with none let in, that note a door for the pager. */
+/** Refused signed knocks in a row, with none let in, that note a door for the pager, over at least REFUSING_SPAN_MS. */
 const REFUSALS_NOTED = 3;
-const refusedInARow = new Map<string, number>();
+const REFUSING_SPAN_MS = 5 * MIN_MS;
+/** A door's run of refused signed knocks in this instance: how many, since when, and whether it was noted. */
+interface Refusing {
+  refused: number;
+  since: number;
+  noted: boolean;
+}
+const refusing = new Map<string, Refusing>();
 
 /** A refusal's code where its answer is the edge's own JSON (`refuse`); null for any other body (TwiML, none). */
 async function readRefusalCode(res: Response): Promise<string | null> {
@@ -169,18 +178,26 @@ async function hasRefusedTheCredential(res: Response): Promise<boolean> {
   return code === null || CREDENTIAL_REFUSALS.has(code);
 }
 
-/** One knock's answer, counted for its door when it carried a credential; the third refusal in a row is noted. */
+/** One knock's answer, counted for its door when it carried a credential; a run of refusals that lasts is noted once. */
 async function heardKnock(request: Request | undefined, res: Response): Promise<void> {
   if (!request?.headers || !CREDENTIAL_HEADERS.some((header) => request.headers.has(header))) return;
   const path = URL.canParse(request.url) ? new URL(request.url).pathname : "";
   if (!(await hasRefusedTheCredential(res))) {
-    refusedInARow.delete(path);
+    refusing.delete(path);
     return;
   }
-  const refused = (refusedInARow.get(path) ?? 0) + 1;
-  refusedInARow.set(path, refused);
-  if (refused !== REFUSALS_NOTED) return;
-  oneLogger<LogEvent>().error("door_refuses_signed_knocks", { door: path, refused, status: res.status });
+  const now = Date.now();
+  const run = refusing.get(path) ?? { refused: 0, since: now, noted: false };
+  run.refused += 1;
+  refusing.set(path, run);
+  if (run.noted || run.refused < REFUSALS_NOTED || now - run.since < REFUSING_SPAN_MS) return;
+  run.noted = true;
+  oneLogger<LogEvent>().error("door_refuses_signed_knocks", {
+    door: path,
+    refused: run.refused,
+    since: new Date(run.since).toISOString(),
+    status: res.status,
+  });
   const db = pg();
   if (!db) return;
   await noteDoorRefusing(db, path, new Date().toISOString())

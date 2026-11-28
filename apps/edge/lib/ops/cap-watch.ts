@@ -61,7 +61,8 @@ function refusingPage(door: string): { subject: string; body: string } {
   return {
     subject: `A door is refusing signed knocks: ${door}`,
     body:
-      `Three knocks in a row on ${door} carried a signature or a token and were refused, and none was let in since. ` +
+      `Knocks on ${door} that carried a signature or a token have been refused for five minutes or more, three or ` +
+      `more in a row, and none was let in since. ` +
       `Until it is mended, nothing that door receives is taken: on /api/whatsapp, no customer's message.
 
 ` +

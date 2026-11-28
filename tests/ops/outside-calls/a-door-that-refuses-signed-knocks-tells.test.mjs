@@ -3,8 +3,9 @@
  * lane 16's design, 28 Nov 2026). WhatsApp's door and Instagram's refused a knock whose signature failed and wrote
  * nothing: a signing secret that stopped matching would have refused every customer's message, Meta would have stopped
  * delivering, and nothing would have said so. Now each door counts the refusals of knocks that carried a credential, in
- * a row; three with none let in note the door in the pager's memory, which the health sweep pages once a window. Run
- * here with the doors' real wrapper and receivers, a database in memory and the pager handed in.
+ * a row; three with none let in, over five minutes or more, note the door in the pager's memory, which the health sweep
+ * pages once a window. A burst of forged ones notes nothing. Run here with the doors' real wrapper and receivers, a
+ * database in memory, the pager handed in and the clock the test's own (node:test's mock of Date).
  */
 import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,16 +37,39 @@ const doorAt = (answer) => {
 const knock = (url, headers = {}) => new Request(url, { method: "POST", headers, body: "{}" });
 const SIGNED = { "x-hub-signature-256": "sha256=0000" };
 const noted = () => tables.operator_pages.map((r) => [r.key, r.count]);
+const MIN = 60_000;
+/** Three signed knocks refused over five minutes: two, the clock moved on, and the third. */
+async function refusedOverFiveMinutes(t, d, headers) {
+  for (let i = 0; i < 2; i++) await d.knock(knock(d.url, headers));
+  t.mock.timers.tick(5 * MIN);
+  await d.knock(knock(d.url, headers));
+}
 
-test("three signed knocks refused in a row, none let in, note the door for the pager once, and say so", async () => {
+test("signed knocks refused three in a row over five minutes, none let in, note the door for the pager once, and say so", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-28T20:00:00Z") });
   const d = doorAt(() => refuse(401, "bad_signature"));
   const { lines } = await linesOf(async () => {
-    for (let i = 0; i < 4; i++) assert.equal((await d.knock(knock(d.url, SIGNED))).status, 401);
+    await refusedOverFiveMinutes(t, d, SIGNED);
+    t.mock.timers.tick(MIN);
+    assert.equal((await d.knock(knock(d.url, SIGNED))).status, 401);
   });
   const said = lines.filter((l) => l.event === "door_refuses_signed_knocks");
   assert.equal(said.length, 1, "said once, at the third");
-  assert.deepEqual([said[0].level, said[0].door, said[0].refused], ["error", d.path, 3]);
+  assert.deepEqual(
+    [said[0].level, said[0].door, said[0].refused, said[0].since],
+    ["error", d.path, 3, "2026-11-28T20:00:00.000Z"],
+  );
   assert.deepEqual(noted(), [[`${DOOR_REFUSING_PAGE}:${d.path}`, 1]], "noted once, not again at the fourth");
+});
+
+test("a burst of forged signatures (anyone can send the header) notes nothing, however many", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-28T20:00:00Z") });
+  const d = doorAt(() => refuse(401, "bad_signature"));
+  for (let i = 0; i < 20; i++) {
+    await d.knock(knock(d.url, SIGNED));
+    t.mock.timers.tick(10_000);
+  }
+  assert.deepEqual(noted(), [], "twenty in a little over three minutes: not a secret that stopped matching");
 });
 
 test("a stranger's knock with no credential is never counted, so a scanner cannot trip it", async () => {
@@ -54,10 +78,12 @@ test("a stranger's knock with no credential is never counted, so a scanner canno
   assert.deepEqual(noted(), []);
 });
 
-test("a knock let in sets the door's count back to nothing", async () => {
+test("a knock let in sets the door's count back to nothing", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-28T20:00:00Z") });
   let answer = () => refuse(401, "bad_signature");
   const d = doorAt(() => answer());
   for (let i = 0; i < 2; i++) await d.knock(knock(d.url, SIGNED));
+  t.mock.timers.tick(5 * MIN);
   answer = () => json(200, { ok: true });
   await d.knock(knock(d.url, SIGNED));
   answer = () => refuse(401, "bad_signature");
@@ -65,17 +91,18 @@ test("a knock let in sets the door's count back to nothing", async () => {
   assert.deepEqual(noted(), [], "two, one let in, two: never three in a row");
 });
 
-test("a door's answer about the act itself is not a refused credential; Twilio's TwiML and Stripe's 400 are", async () => {
+test("a door's answer about the act itself is not a refused credential; Twilio's TwiML and Stripe's 400 are", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-28T20:00:00Z") });
   const business = doorAt(() => refuse(403, "ad_account_not_owner"));
-  for (let i = 0; i < 3; i++) await business.knock(knock(business.url, { "x-edge-token": "t" }));
+  await refusedOverFiveMinutes(t, business, { "x-edge-token": "t" });
   assert.deepEqual(noted(), [], "an owner's press refused for whose account it is pages nobody");
 
   const twilio = doorAt(() => new Response("<Response/>", { status: 403, headers: { "content-type": "text/xml" } }));
-  for (let i = 0; i < 3; i++) await twilio.knock(knock(twilio.url, { "x-twilio-signature": "s" }));
+  await refusedOverFiveMinutes(t, twilio, { "x-twilio-signature": "s" });
   const stripe = doorAt(() => refuse(400, "signature"));
-  for (let i = 0; i < 3; i++) await stripe.knock(knock(stripe.url, { "stripe-signature": "t=1,v1=0" }));
+  await refusedOverFiveMinutes(t, stripe, { "stripe-signature": "t=1,v1=0" });
   const admin = doorAt(() => refuse(403, "token_signature"));
-  for (let i = 0; i < 3; i++) await admin.knock(knock(admin.url, { "x-edge-token": "t" }));
+  await refusedOverFiveMinutes(t, admin, { "x-edge-token": "t" });
   assert.deepEqual(
     noted().map(([key]) => key),
     [twilio.path, stripe.path, admin.path].map((p) => `${DOOR_REFUSING_PAGE}:${p}`),
