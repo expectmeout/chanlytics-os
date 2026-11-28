@@ -2,7 +2,8 @@
  * The app's side of the shelf (packages/channels/src/files/shelf.ts, the archive plan's B2): a made video's file put
  * on the shelf, what the shelf holds of it read back, and its removal. The relay's own handler answers here, over a
  * bucket in memory, so what the app sends is what the Worker takes. Three answers are kept apart all the way: the
- * shelf holds none, the shelf gave no answer, and the shelf holds other bytes.
+ * shelf holds none, the shelf gave no answer, and the shelf holds other bytes. And the list of what one workspace's
+ * shelf holds (lane 1 of the "Prove it works" plan): whole, or not an answer at all.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,7 +11,7 @@ import { at } from "../../_cron-doors-world.mjs";
 import { importSrc } from "../../_source.mjs";
 import { shaOf, shelfRelay } from "./_shelf.mjs";
 
-const { putOnShelf, readShelfRecord, relayShelfAddress, removeFromShelf } = await importSrc(
+const { listShelf, putOnShelf, readShelfRecord, relayShelfAddress, removeFromShelf } = await importSrc(
   "packages/channels/src/files/shelf.ts",
 );
 const { readShelfTicket } = await import(at("apps/relay/src/ticket.ts"));
@@ -171,4 +172,69 @@ test("the address the video platform is sent to is the relay's, ends as a video'
   assert.equal(part.status, 206);
   assert.deepEqual(new Uint8Array(await part.arrayBuffer()), VIDEO.subarray(0, 1024));
   assert.throws(() => relayShelfAddress({ ...SHELF, relayUrl: "http://relay.example.com" }, VIDEO_OF, ends), /https/);
+});
+
+/* ------------------------------------------------------------------------------- what a workspace's shelf holds -- */
+
+const OTHER_TENANT = "7a1e9f30-2c44-4d1b-8f6a-90b1c2d3e4f5";
+const idOf = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+/** A file's object put straight into the bucket: a list reads keys, never bytes. */
+const shelved = (w, tenant, file) => w.relay.shelf.held.set(`${tenant}/${file}/video`, { bytes: Buffer.from("x") });
+/** The app's world with the relay's answers to a list written by the case: what an older or a broken relay would say. */
+const answering = (answer) => ({ fetch: async (url, init) => answer(String(url), init), sleep: async () => {} });
+const page = (body, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+test("the list of a workspace's shelf is every file it holds, read to its end, under a ticket for that workspace", async () => {
+  const w = world();
+  const all = Array.from({ length: 2_300 }, (_, i) => idOf(i + 1));
+  for (const file of all) shelved(w, TENANT, file);
+  shelved(w, OTHER_TENANT, FILE);
+  w.relay.shelf.held.set(`${TENANT}/stray`, { bytes: Buffer.from("x") });
+  const listed = await listShelf(SHELF, TENANT, w.deps);
+  assert.deepEqual([listed.ok, listed.files.length, listed.other], [true, 2_300, 1]);
+  assert.deepEqual(listed.files, all, "every file once: none of another workspace's, and the stray key only counted");
+  // Three pages, each by GET at the list's own path, its ticket in the header and never in an address.
+  const asks = w.relay.asked;
+  assert.deepEqual(
+    asks.map((ask) => [ask.method, new URL(ask.url).pathname, new URL(ask.url).searchParams.has("ticket")]),
+    Array.from({ length: 3 }, () => ["GET", "/shelf/list", false]),
+  );
+  assert.deepEqual(
+    asks.map((ask) => new URL(ask.url).searchParams.has("cursor")),
+    [false, true, true],
+  );
+  const ticket = await readShelfTicket(TICKET_KEY, asks[0].headers.authorization.slice("Bearer ".length), Date.now());
+  assert.deepEqual([ticket.ok, ticket.tenant, ticket.file, ticket.use], [true, TENANT, null, "list"]);
+  assert.deepEqual(await listShelf(SHELF, idOf(77), w.deps), { ok: true, files: [], other: 0 }, "an empty shelf");
+});
+
+test("half a list is no list: no answer, an older relay, no shelf, or a page that is not one", async () => {
+  const w = world();
+  shelved(w, TENANT, FILE);
+  w.relay.state.down = true;
+  assert.deepEqual(await listShelf(SHELF, TENANT, w.deps), { ok: false }, "a relay that gives no answer");
+  const unbound = world({ shelf: null });
+  assert.deepEqual(await listShelf(SHELF, TENANT, unbound.deps), { ok: false }, "a relay with no shelf");
+  const cases = [
+    ["a relay older than the list, which knows no such path", () => page({ error: "request", reason: "path" }, 404)],
+    ["a ticket it refuses", () => page({ error: "ticket", reason: "use" }, 403)],
+    ["an answer that is no page", () => page({ files: "all of them" })],
+    [
+      "a page that names something that is no id",
+      () => page({ files: [FILE, 7], other: 0, more: false, cursor: null }),
+    ],
+    ["more to come and nowhere to go on from", () => page({ files: [FILE], other: 0, more: true, cursor: null })],
+    ["a page with no word on whether more follows", () => page({ files: [FILE], other: 0 })],
+    ["a list with no end", () => page({ files: [FILE], other: 0, more: true, cursor: "again" })],
+  ];
+  for (const [what, answer] of cases)
+    assert.deepEqual(await listShelf(SHELF, TENANT, answering(answer)), { ok: false }, what);
+  // The first page whole and the second lost: nothing is answered of the first.
+  let asked = 0;
+  const cut = answering(() =>
+    ++asked === 1 ? page({ files: [FILE], other: 0, more: true, cursor: "next" }) : page({ error: "shelf" }, 502),
+  );
+  assert.deepEqual(await listShelf(SHELF, TENANT, cut), { ok: false });
+  assert.equal(asked, 2);
 });

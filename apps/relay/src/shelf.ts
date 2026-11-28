@@ -7,9 +7,11 @@
  *   GET    the same (and /video.<ext>)           its bytes, whole or one range of them: what the video platform fetches
  *   POST   /shelf/<file>/video                   pull the file in from `{ "from": "<address>" }`, held to the ticket's bytes
  *   DELETE /shelf/<file>/video                   take it off the shelf
+ *   GET    /shelf/list[?cursor=<from the last>]  the files one workspace's shelf holds, a page at a time
  *
- * A read's ticket rides the address, since the video platform is handed one; a put's and a delete's ride the
- * `authorization` header and never an address. The ticket is the shelf's own (./ticket.ts `readShelfTicket`): it names
+ * A read's ticket rides the address, since the video platform is handed one; a put's, a delete's and a list's ride the
+ * `authorization` header and never an address. A list's ticket names a workspace and no file, and the list is of that
+ * workspace's keys alone: the app compares it with its own rows, so nothing sits on the shelf that no row names. The ticket is the shelf's own (./ticket.ts `readShelfTicket`): it names
  * the workspace and the file, and the object's key is built from those two and from nothing a request says, so a
  * ticket for one workspace's file reaches no other's. A put's ticket names the very bytes: their size, and the SHA-256
  * the bucket itself holds the upload to, so only that file's own bytes can ever sit under its key.
@@ -44,6 +46,12 @@ export interface ShelfBucket {
     options: { sha256: string; httpMetadata: { contentType: string } },
   ): Promise<ShelfObject>;
   delete(key: string): Promise<void>;
+  /** The keys that begin with `prefix`, in order, a page at a time: `cursor` is there only where `truncated` is. */
+  list(options: {
+    prefix: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
 }
 
 /** What the Worker is set up with for the shelf: the ticket's key, its bucket, and where a file may be pulled from. */
@@ -81,9 +89,17 @@ const DEPS: ShelfDeps = {
 };
 
 const SHELF_PATH = /^\/shelf\/([A-Za-z0-9_-]{1,128})\/video(?:\.[a-z0-9]{1,5})?$/;
+/** Where a workspace's shelf is listed: no file's path, since every file's ends in `/video`. */
+const LIST_PATH = "/shelf/list";
 /** What each method needs its ticket to say. */
 const USE_OF: Record<string, ShelfUse> = { GET: "read", HEAD: "read", POST: "put", DELETE: "delete" };
 const METHODS = "GET, HEAD, POST, DELETE";
+/** A file's key, past its workspace's prefix: what a list names. Any other key under the prefix is only counted. */
+const KEY_IN_A_WORKSPACE = /^([A-Za-z0-9_-]{1,128})\/video$/;
+/** How many keys one page of a list names: the most the bucket gives at once. */
+const LIST_PAGE = 1_000;
+/** The longest cursor a list is handed back: the bucket's own token, passed on as it came. */
+const CURSOR_CHARS_MAX = 2_048;
 /** Everything the shelf holds is a video as Chanlytics plays one. */
 const VIDEO_TYPE = "video/mp4";
 /** The most one video weighs: the app's own number (contracts FILE_VIDEO_BYTES_MAX), written here since nothing of ours is imported. */
@@ -259,6 +275,32 @@ async function answerPull(
   }
 }
 
+/**
+ * A GET of the list: the files one workspace's shelf holds, by the ids in their keys, a page at a time. `more` says
+ * whether another page follows, and only then is there a cursor: the bucket may hand over fewer keys than a page
+ * holds, so a short page is never read as the end. A key under the workspace's prefix that is no file's is counted
+ * and not named: what is not understood is never listed as something to act on.
+ */
+async function answerList(bucket: ShelfBucket, tenant: string, url: URL): Promise<Response> {
+  const cursor = url.searchParams.get("cursor");
+  if (cursor !== null && (cursor.length === 0 || cursor.length > CURSOR_CHARS_MAX))
+    return relayRefusal(false, 400, { error: "request", reason: "cursor" });
+  const prefix = `${tenant}/`;
+  const listed = await bucket.list({ prefix, limit: LIST_PAGE, ...(cursor === null ? {} : { cursor }) });
+  const files: string[] = [];
+  let other = 0;
+  for (const { key } of listed.objects) {
+    const file = KEY_IN_A_WORKSPACE.exec(key.slice(prefix.length))?.[1];
+    if (file && key.startsWith(prefix)) files.push(file);
+    else other += 1;
+  }
+  const next = listed.truncated ? (listed.cursor ?? null) : null;
+  return new Response(JSON.stringify({ files, other, more: listed.truncated, cursor: next }), {
+    status: 200,
+    headers: { "content-type": "application/json", ...NEVER_STORED },
+  });
+}
+
 /** The ticket a request shows: a read's in its address, a write's in its header, and neither from the other place. */
 function ticketOf(request: Request, url: URL, use: ShelfUse): string | null {
   if (use === "read") return url.searchParams.get("ticket");
@@ -269,20 +311,25 @@ function ticketOf(request: Request, url: URL, use: ShelfUse): string | null {
 /** One request of the shelf answered: its ticket read, and what the ticket allows done. */
 export async function answerShelf(request: Request, env: ShelfEnv, deps: ShelfDeps = DEPS): Promise<Response> {
   const head = request.method === "HEAD";
-  const use = USE_OF[request.method];
-  if (!use) return relayRefusal(false, 405, { error: "request", reason: "method" }, { allow: METHODS });
   const url = new URL(request.url);
-  const file = SHELF_PATH.exec(url.pathname)?.[1];
-  if (!file) return relayRefusal(head, 404, { error: "request", reason: "path" });
+  // The list is one path, asked one way; every other path is a file's, and its method says what is asked of it.
+  const listing = url.pathname === LIST_PATH;
+  const use = listing ? (request.method === "GET" ? "list" : undefined) : USE_OF[request.method];
+  if (!use)
+    return relayRefusal(false, 405, { error: "request", reason: "method" }, { allow: listing ? "GET" : METHODS });
+  const file = listing ? null : (SHELF_PATH.exec(url.pathname)?.[1] ?? "");
+  if (file === "") return relayRefusal(head, 404, { error: "request", reason: "path" });
   const read = await readShelfTicket(env.TICKET_KEY, ticketOf(request, url, use), deps.nowMs());
   if (!read.ok) return relayRefusal(head, 403, { error: "ticket", reason: read.reason });
   if (read.use !== use) return relayRefusal(head, 403, { error: "ticket", reason: "use" });
   if (read.file !== file) return relayRefusal(head, 403, { error: "ticket", reason: "other_file" });
   const bucket = env.SHELF;
   if (!bucket) return relayRefusal(head, 503, { error: "shelf", reason: "off" });
-  // The key is the ticket's own workspace and file: nothing a request says is in it.
-  const key = `${read.tenant}/${read.file}/video`;
   try {
+    // A list is of the ticket's own workspace, and of nothing a request names.
+    if (use === "list") return await answerList(bucket, read.tenant, url);
+    // The key is the ticket's own workspace and file: nothing a request says is in it.
+    const key = `${read.tenant}/${read.file}/video`;
     if (use === "read") return await answerRead(bucket, key, request, head);
     if (use === "put") return await answerPull(request, { bucket, key, allowed: env.SHELF_FROM }, read, deps);
     await bucket.delete(key);

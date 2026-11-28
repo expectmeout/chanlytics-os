@@ -1,8 +1,8 @@
 /**
  * The shelf, as the app asks it (the archive plan's B2): the private bucket where a video Chanlytics made keeps a
  * copy of its own, behind the relay (apps/relay/src/shelf.ts), so the video's copy at the video platform can be let go
- * and fetched again. Four things are asked of it: put a file there, read back what it holds, remove it, and the
- * address the video platform fetches it from.
+ * and fetched again. Five things are asked of it: put a file there, read back what it holds, remove it, the address
+ * the video platform fetches it from, and the list of what one workspace's shelf holds.
  *
  * A file is put by having the relay pull it from an address, held to the size and the SHA-256 this side names in the
  * put's ticket: no bytes pass through the app, and only those bytes can end under the file's key. Every ask rides a
@@ -43,8 +43,12 @@ type ShelfPutRefusal = "mismatch" | "size" | "source" | "off" | "failed";
 const PUT_TRY_MS = 35 * SECOND_MS;
 /** A record's read, and a removal. */
 const ASK_TRY_MS = 10 * SECOND_MS;
-/** How long a ticket the app itself uses runs: a put, a delete, and its own read of a record. */
+/** How long a ticket the app itself uses runs: a put, a delete, a list, and its own read of a record. */
 const OWN_TICKET_MS = 5 * MIN_MS;
+/** One page of a workspace's list: the relay names up to a thousand files a page. Asked once: a list is a floor, tried again next pass. */
+const LIST_TRY_MS = 5 * SECOND_MS;
+/** The most pages one list is read for. A shelf holds a workspace's made videos, never this many thousands. */
+const LIST_PAGES_MAX = 10;
 
 const nowOf = (deps: ModelDeps): number => (deps.now ?? Date.now)();
 
@@ -169,4 +173,57 @@ export async function removeFromShelf(shelf: Shelf, video: ShelfVideo, deps: Mod
     deps,
   );
   return reply.outcome === "ok";
+}
+
+/** One page of a list, as the relay answers one, or null where the answer is not a page of the shelf's. */
+function listPageOf(reply: ProviderReply): { files: string[]; other: number; next: string | null } | null {
+  const body = reply.outcome === "ok" && isObjectRecord(reply.json) ? reply.json : null;
+  if (!body || !Array.isArray(body.files) || typeof body.more !== "boolean") return null;
+  const files = body.files.filter((id): id is string => typeof id === "string");
+  // Every name is a file's id, or the page is not one to act on.
+  if (files.length !== body.files.length) return null;
+  const more = body.more ? (typeof body.cursor === "string" && body.cursor ? body.cursor : null) : null;
+  // More to come and nowhere to go on from: half a list, which is no list.
+  if (body.more && !more) return null;
+  return { files, other: typeof body.other === "number" ? body.other : 0, next: more };
+}
+
+/**
+ * What one workspace's shelf holds: the ids of the files with an object there, every page of them, and how many keys
+ * under its name are no file's. `ok: false` where the whole list could not be had (no answer, a relay with no shelf or
+ * older than the list, a page that is not one, more pages than a shelf holds): half a list is never answered, since
+ * what is missing from it would read as missing from the shelf.
+ */
+export async function listShelf(
+  shelf: Shelf,
+  tenantId: string,
+  deps: ModelDeps = {},
+): Promise<{ ok: true; files: string[]; other: number } | { ok: false }> {
+  const base = new URL(shelf.relayUrl);
+  if (base.protocol !== "https:") throw new Error("the relay is reached over https");
+  const ticket = signShelfTicket(shelf.ticketKey, {
+    tenant: tenantId,
+    use: "list",
+    expiresAt: Math.floor((nowOf(deps) + OWN_TICKET_MS) / SECOND_MS),
+  });
+  const files: string[] = [];
+  let other = 0;
+  let cursor: string | null = null;
+  for (let page = 0; page < LIST_PAGES_MAX; page += 1) {
+    const address = new URL("/shelf/list", base);
+    if (cursor) address.searchParams.set("cursor", cursor);
+    const reply = await fetchFromProvider(
+      "relay",
+      address.toString(),
+      { method: "GET", headers: { authorization: `Bearer ${ticket}` }, timeoutMs: LIST_TRY_MS, idempotent: true },
+      deps,
+    );
+    const read = listPageOf(reply);
+    if (!read) return { ok: false };
+    files.push(...read.files);
+    other += read.other;
+    if (!read.next) return { ok: true, files, other };
+    cursor = read.next;
+  }
+  return { ok: false };
 }
