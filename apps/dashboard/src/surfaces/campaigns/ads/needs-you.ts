@@ -56,7 +56,7 @@ function notedHere(): AdsNoted {
 }
 
 /** One count noted for the workspace on screen, and each that hears them told of a change. */
-function note(part: "needing" | "listed", count: number): void {
+function keepCount(part: "needing" | "listed", count: number): void {
   const mine = notedHere();
   if (mine[part] === count) return;
   noted = { ...mine, [part]: count };
@@ -88,7 +88,7 @@ const adsListedNow = (): number | null => {
 
 /** Kept as the Ads page reads its ads, for the strip and Made's views to say; each that hears it is told of a change. */
 export function noteAdsNeeding(count: number): void {
-  note("needing", count);
+  keepCount("needing", count);
 }
 
 /** Hear the count change (the strip draws Content's tab again by it); answers the stop. */
@@ -102,7 +102,7 @@ export const useAdsNeeding = (): number => useSyncExternalStore(hearAdsNeeding, 
 
 /** Kept as the Ads page reads its ads: how many its list holds, which the Ads tab says beside its name on every list. */
 export function noteAdsListed(count: number): void {
-  note("listed", count);
+  keepCount("listed", count);
 }
 
 /** How many ads the Ads tab says, for a component: none before Ads has been read on this visit. */
