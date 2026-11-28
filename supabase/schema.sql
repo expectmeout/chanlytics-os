@@ -3975,6 +3975,39 @@ COMMENT ON FUNCTION public.appointments_through_stamp() IS 'What a visit answere
 
 
 --
+-- Name: appointments_time_taken(uuid, uuid, timestamp with time zone, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.appointments_time_taken(p_tenant_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone) RETURNS boolean
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- One workspace's times are given out one at a time: a second ask waits here until the first has committed or rolled
+  -- back, then reads what it left.
+  perform pg_advisory_xact_lock(hashtextextended('appointments.time:' || p_tenant_id::text, 0));
+  return exists (
+    select 1
+      from public.appointments a
+     where a.tenant_id = p_tenant_id
+       and a.status in ('proposed', 'booked')
+       and a.source <> 'calendar_feed'
+       and (a.expires_at is null or a.expires_at > now())
+       and a.starts_at < p_ends_at
+       and a.ends_at > p_starts_at
+       and not (a.source = 'receptionist' and a.status = 'proposed' and a.contact_id is not distinct from p_contact_id)
+  );
+end $$;
+
+
+--
+-- Name: FUNCTION appointments_time_taken(p_tenant_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.appointments_time_taken(p_tenant_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone) IS 'Whether a time is held by another live visit of the workspace''s record (00730): proposed and not run out, or booked, of any source but the calendar feed''s own copies, overlapping it; the person''s own open request (receptionist, proposed) aside. The rule the open times keep (packages/db listAppointmentsBetween). Takes the workspace''s advisory lock for the rest of the transaction first, so the doors that hold a time (booking_request_open, form_time_request_take) answer two asks one after the other. The service role''s.';
+
+
+--
 -- Name: appointments_worth_stamp(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5160,6 +5193,12 @@ begin
                   where v.id = p_conversation_id and v.tenant_id = p_tenant_id) then
     raise exception 'booking_request_open: no such thread in this workspace' using errcode = 'P0002';
   end if;
+  -- The last slot (00730): a time another live visit of the record holds is taken, asked under the workspace's own
+  -- lock, so of two people who pick it a moment apart one is given it and the other is answered taken. Asked before
+  -- their own open request is let go, so a taken time leaves the one they hold as it is.
+  if public.appointments_time_taken(p_tenant_id, p_contact_id, p_starts_at, p_ends_at) then
+    return jsonb_build_object('error', 'taken');
+  end if;
   -- One open request per person: the one they asked for before is cancelled, its slot free again.
   with gone as (
     update public.appointments a set status = 'cancelled'
@@ -5179,14 +5218,15 @@ begin
                                    coalesce(nullif(btrim(coalesce(p_words, '')), ''), 'Asked for a booking'));
   return jsonb_build_object('appointment', jsonb_build_object('id', v_id, 'expires_at', v_expires),
                             'replaced', to_jsonb(v_replaced), 'hold', v_hold);
-end $$;
+end
+$$;
 
 
 --
 -- Name: FUNCTION booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) IS 'A booking the receptionist asks for (00443, decision 0061): a proposed appointments row (source receptionist) that takes its slot until expires_at, the sooner of 23 hours after it was asked (00679) and an hour before the slot, and its thread''s hold (booking_request, through escalation_open) in one transaction; the person''s open request before it is cancelled. Answers {appointment: {id, expires_at}, replaced, hold}, or {error: too_soon} for a slot an hour away or less. The service role''s.';
+COMMENT ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) IS 'A booking the receptionist asks for (00443, decision 0061): a proposed appointments row (source receptionist) that takes its slot until expires_at, the sooner of 23 hours after it was asked (00679) and an hour before the slot, and its thread''s hold (booking_request, through escalation_open) in one transaction; the person''s open request before it is cancelled. Answers {appointment: {id, expires_at}, replaced, hold}, {error: too_soon} for a slot an hour away or less, or {error: taken} for a time another live visit holds (appointments_time_taken, 00730), with nothing moved. The service role''s.';
 
 
 --
@@ -14879,6 +14919,11 @@ begin
   if not found then
     raise exception 'form_time_request_take: the entry''s person is not there' using errcode = 'P0002';
   end if;
+  -- The last slot (00730): a time another live visit holds is taken, under the workspace's own lock (the same one a
+  -- chat's request takes). The entry is kept as a plain request, as one too soon is, and their own open request stands.
+  if public.appointments_time_taken(p_tenant_id, v_contact.id, p_starts_at, p_ends_at) then
+    return v_taken || jsonb_build_object('time', jsonb_build_object('error', 'taken'));
+  end if;
   -- One open request per person (decision 0061): the one they asked for before is cancelled, its time free again.
   -- Where a chat held that one for a person, the hold becomes a reply owed, as Can't leaves it: they asked again here.
   for v_gone in
@@ -14914,14 +14959,15 @@ begin
   insert into public.form_entry_links (tenant_id, entry_id, kind, appointment_id)
   values (p_tenant_id, v_entry, 'visit', v_id);
   return v_taken || jsonb_build_object('time', jsonb_build_object('appointment_id', v_id, 'expires_at', v_expires));
-end $$;
+end
+$$;
 
 
 --
 -- Name: FUNCTION form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form''s one write with a time asked for (00691, 00704; the Forms plan, F3; decision 0061): form_request_take, then for an entry accepted with its person the same request a chat opens, in one transaction: a proposed visit (source receptionist) held until the sooner of 23 hours on and an hour before it, with no thread and no hold (a form''s request is never a hand-over), the person''s open request before it cancelled (one held in a chat leaves a reply owed there), and the visit named from the entry (form_entry_links visit) and saying it answered the form (through_type form, through_id the form, 00699''s columns). Answers form_request_take''s answer with `time`: {appointment_id, expires_at}, or {error: too_soon} for a time an hour away or less (the entry is kept as a plain request), or none where no time was held (held, a test, closed, stale, forgotten). The same press again answers the time it held. The service role''s alone.';
+COMMENT ON FUNCTION public.form_time_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form''s one write with a time asked for (00691, 00704; the Forms plan, F3; decision 0061): form_request_take, then for an entry accepted with its person the same request a chat opens, in one transaction: a proposed visit (source receptionist) held until the sooner of 23 hours on and an hour before it, with no thread and no hold (a form''s request is never a hand-over), the person''s open request before it cancelled (one held in a chat leaves a reply owed there), and the visit named from the entry (form_entry_links visit) and saying it answered the form (through_type form, through_id the form, 00699''s columns). Answers form_request_take''s answer with `time`: {appointment_id, expires_at}, or {error: too_soon} for a time an hour away or less (the entry is kept as a plain request), or {error: taken} for a time another live visit holds (appointments_time_taken, 00730; the entry kept the same way), or none where no time was held (held, a test, closed, stale, forgotten). The same press again answers the time it held. The service role''s alone.';
 
 
 --
@@ -71714,6 +71760,14 @@ GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id u
 
 REVOKE ALL ON FUNCTION public.appointments_through_stamp() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.appointments_through_stamp() TO service_role;
+
+
+--
+-- Name: FUNCTION appointments_time_taken(p_tenant_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.appointments_time_taken(p_tenant_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.appointments_time_taken(p_tenant_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone) TO service_role;
 
 
 --

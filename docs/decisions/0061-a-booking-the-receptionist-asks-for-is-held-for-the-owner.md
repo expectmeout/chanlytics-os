@@ -228,3 +228,13 @@ sheet), and on a database in CI `tests/forms/time/a-time-asked-for-on-a-form.db.
   on Asks you gets a draft and no send.
 - **A held slot that is never confirmed.** It takes its slot for at most 23 hours, and never past one hour before it, so a
   slot is not lost to a request nobody answers.
+
+## Amended 28 Nov 2026: the last slot is given once (00730)
+
+"Takes its slot" is now kept by the database, not only by the open times the reply was written from. Lane 15 of the
+whole-system plan found that two customers who picked the same last time a moment apart were both given a request,
+and that one after the other was not refused either. `booking_request_open` and `form_time_request_take` now ask
+`appointments_time_taken` under one lock per workspace: a time another live visit holds (a request not run out, or a
+booking, of any source but the calendar feed's own copies, the rule the open times read) is answered `taken`, and
+nothing moves. A chat's request that is taken leaves a reply owed (`booking_reply`) whose line says the time was taken
+just before and asks the owner to offer another; a form's entry is kept as a plain request, as one too soon is.

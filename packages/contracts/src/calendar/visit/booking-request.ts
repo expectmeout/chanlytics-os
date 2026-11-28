@@ -163,6 +163,12 @@ export function otherTimeWords(when: string, offered: readonly string[]): string
 export const BOOKING_REQUEST_WORDS = {
   /** The hold's line (its details): what was asked for. */
   hold: (when: string, service: string | null) => `Asked for ${when}${service ? ` · ${service}` : ""}`,
+  /**
+   * The line a time leaves on the thread when another booking took it a moment before the customer's request was written
+   * (00730): they were told the team will confirm, so the reply owed offers another time.
+   */
+  taken: (when: string, service: string | null) =>
+    `Asked for ${when}${service ? ` · ${service}` : ""}, taken just before by another booking: offer them another time`,
   /** The line Can't leaves on the thread, which now waits on a reply. */
   cant: (when: string, service: string | null) =>
     `Couldn't book ${when}${service ? ` · ${service}` : ""}: reply to them`,

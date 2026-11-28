@@ -36,7 +36,10 @@ const ok = (res) => {
   return res.data;
 };
 
-/** A person, their conversation as a handoff leaves it, and a request of theirs for a slot `fromNowH` hours on. */
+/**
+ * A person, their conversation as a handoff leaves it, and a request of theirs for a slot `fromNowH` hours on, each an
+ * hour after the last one asked here: a time another request holds is taken (00730).
+ */
 async function asked(fromNowH = 72) {
   n += 1;
   const phone = `+1305555${String(2000 + n)}`;
@@ -59,7 +62,7 @@ async function asked(fromNowH = 72) {
       .select("id")
       .single(),
   ).id;
-  const start = Date.now() + fromNowH * HOUR;
+  const start = Date.now() + (fromNowH + n) * HOUR;
   const opened = ok(
     await w.admin.rpc("booking_request_open", {
       p_tenant_id: w.tenant,

@@ -3,8 +3,9 @@
  * keeps the entry as form_request_take does and, for one accepted with its person, opens the same request a chat opens
  * in the same transaction: a proposed visit, the receptionist's, held 23 hours at most and never past an hour before
  * it, in no thread and with no hand-over, the person's request before it let go (one a chat held leaves a reply owed
- * there), named from the entry by its visit link, and saying it answered the form (00704: through_type form). Two
- * people who ask for one time are two requests. The owner answers it with the chat's own door (booking_request_answer);
+ * there), named from the entry by its visit link, and saying it answered the form (00704: through_type form). Of two
+ * people who ask for one time the first holds it, and the second's entry is kept with its time taken (00730). The owner
+ * answers it with the chat's own door (booking_request_answer);
  * past its day Booked it is refused, and the request clock never takes it up. form_booking_open counts a business's own
  * booking page opened from a form. form_requests_open and form_results say the time and the counts. A function body is
  * what reading source cannot prove, so these run against Postgres. Skipped without a local database; never production.
@@ -164,8 +165,12 @@ test(
     const again = await takeAt("ana", "Ana", at);
     assert.equal(again.outcome, "again");
     assert.equal(again.time?.appointment_id, ana.time.appointment_id);
+    // Two people, one time (00730, lane 15): the first holds it; the second's entry is kept, its time taken.
     const bea = await takeAt("bea", "Bea", at);
-    assert.notEqual(bea.time?.appointment_id, ana.time.appointment_id, "two people, one time: two requests");
+    assert.equal(bea.outcome, "accepted", "her request is kept");
+    assert.deepEqual(bea.time, { error: "taken" });
+    assert.equal(await visitOf(bea.entry_id), null, "and holds no time");
+    assert.equal((await visitOf(ana.entry_id)).status, "proposed", "Ana still holds it");
   },
 );
 

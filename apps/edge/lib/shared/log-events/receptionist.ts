@@ -7,6 +7,7 @@ export const RECEPTIONIST_EVENTS = [
   "booking_request_open_failed",
   "booking_request_refused",
   "booking_request_taken",
+  "booking_request_time_taken",
   "booking_request_too_soon",
   "brain_failed",
   "call_back_let_go",

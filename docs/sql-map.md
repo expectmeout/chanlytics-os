@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 241 | 241 |
 | reader | 99 | 0 |
-| the server's | 483 | 412 |
+| the server's | 484 | 412 |
 | computed column | 3 | 0 |
 | trigger | 128 | 94 |
-| all | 954 | 747 |
+| all | 955 | 747 |
 
 ## Called by nothing
 
@@ -110,6 +110,7 @@ being read is dropped by a migration.
 | `appointments_note_change` | trigger | the server | trigger `appointments_note_change on appointments`, `appointments_note_status on appointments` | appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): |
 | `appointments_scrub` | the server's | the server | code `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/erasure/registry/people.ts` | An erasure's hand in the appointments (decision 0036): |
 | `appointments_through_stamp` | trigger | the server | trigger `appointments_through_stamp on appointments` | What a visit answered, stamped before it is written (00699; |
+| `appointments_time_taken` | the server's | the server | SQL `booking_request_open`, `form_time_request_take` | Whether a time is held by another live visit of the workspace's record (00730): |
 | `appointments_worth_stamp` | trigger | the server | trigger `appointments_worth_stamp on appointments` | A visit is worth its service's amount on the day it was booked (00683; |
 | `approval_hash` | the server's | the server | SQL `ad_turn_on`, `content_week_approve` and 4 more | The SHA-256, as hex, of a snapshot's text as jsonb writes it (00681): |
 | `approve_broadcast` | door | a signed-in person, the server | code `packages/db/src/repositories/jobs/jobs.ts` | A member approves a run that waits for a person, as themselves (an owner, an operator, or a partner whose session showed its second factor): |
