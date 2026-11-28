@@ -57,22 +57,17 @@ function bookingOf(value: unknown): BookingWithSources | null {
   };
 }
 
-/** What the rule answered: the bookings, and the window it counted by; null from a database that has no such rule yet. */
-export interface BookingsRead {
-  windowDays: number;
-  bookings: BookingWithSources[];
-}
-
 /**
  * The bookings made in a span with everything each is put down to (bookings_with_sources, on the member's own
  * client): of anyone, or of `people` alone; `of` keeps the bookings one source of that kind touched. Null where the
- * database is from before 00732: a page then says no booking of its own working out.
+ * database is from before 00732: a page then says no booking of its own working out. `windowDays`: the days the
+ * database counted by.
  */
 export async function readBookingsWithSources(
   db: Db,
   tenantId: TenantId,
   span: { since: string; until: string | null; people?: readonly ContactId[]; of?: TouchSubjectType },
-): Promise<BookingsRead | null> {
+): Promise<{ windowDays: number; bookings: BookingWithSources[] } | null> {
   if (span.people?.length === 0) return { windowDays: 0, bookings: [] };
   const { data, error } = await db.rpc("bookings_with_sources", {
     p_tenant_id: tenantId,

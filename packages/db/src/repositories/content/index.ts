@@ -31,4 +31,4 @@ export {
 } from "./touches";
 export type { CommentKept, CommentToKeep, TouchToKeep } from "./touches";
 export { listReviewAsksOf, makePostLink, readBookingsWithSources, readPostLinks, readReviewAskFacts } from "./visits";
-export type { BookingsRead, PostLinkRead, ReviewAskFactsRead, ReviewAskRead } from "./visits";
+export type { PostLinkRead, ReviewAskFactsRead, ReviewAskRead } from "./visits";

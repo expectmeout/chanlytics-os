@@ -23,9 +23,6 @@ export interface CreditSubject {
   id: string;
 }
 
-/** Where a source stands for one booking: the one it is put down to, or one that helped on the way. */
-export type SourceStanding = "main" | "helped";
-
 /** One source of one booking, as the rule answers it. */
 export interface BookingSource {
   type: TouchSubjectType;
@@ -35,7 +32,8 @@ export interface BookingSource {
   ref: string | null;
   /** When the person first touched it inside the window. */
   at: string;
-  standing: SourceStanding;
+  /** Where it stands for this booking: the one source it is put down to, or one that helped on the way. */
+  standing: "main" | "helped";
   /** Whether the booking itself names it. */
   tied: boolean;
 }
@@ -49,11 +47,3 @@ export interface BookingWithSources {
   status: AppointmentStatus;
   sources: BookingSource[];
 }
-
-/** Whether a source is this subject. */
-export const sourceIs = (source: BookingSource, subject: CreditSubject): boolean =>
-  source.type === subject.type && source.id === subject.id;
-
-/** A booking's main source; null only for an answer that names none (which the rule never gives). */
-export const mainSourceOf = (booking: BookingWithSources): BookingSource | null =>
-  booking.sources.find((source) => source.standing === "main") ?? null;

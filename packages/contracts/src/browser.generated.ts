@@ -311,7 +311,7 @@ export { COMMENT_ANSWER_WORDS } from "./content/results/answer-words";
 export { commentAddress, commentIdOf, COMMENTS_ROUTE, isCommentsParam } from "./content/results/comment-address";
 export { COMMENT_DRAFT_CANNOT, commentAnswerPrompt, commentDraftOf } from "./content/results/comment-answer";
 export { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "./content/results/comment-stage";
-export { CREDIT_WINDOW_DAYS, mainSourceOf, sourceIs } from "./content/results/credit";
+export { CREDIT_WINDOW_DAYS } from "./content/results/credit";
 export { nextObserveStep, observeDueAt } from "./content/results/observe";
 export { broughtChainOf, pieceResultLineOf, pieceResultsSaid, resultLineText } from "./content/results/piece-results";
 export { postChatLinkOf, postCodeIn } from "./content/results/post-code";

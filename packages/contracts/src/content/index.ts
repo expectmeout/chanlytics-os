@@ -297,8 +297,8 @@ export { COMMENT_DRAFT_CANNOT, commentAnswerPrompt, commentDraftOf } from "./res
 export type { CommentAnswerFacts, CommentToAnswer } from "./results/comment-answer";
 export { COMMENT_POINT_WORDS, commentStageOf, commentWho } from "./results/comment-stage";
 export type { CommentStage } from "./results/comment-stage";
-export { CREDIT_WINDOW_DAYS, mainSourceOf, sourceIs } from "./results/credit";
-export type { BookingSource, BookingWithSources, CreditSubject, SourceStanding } from "./results/credit";
+export { CREDIT_WINDOW_DAYS } from "./results/credit";
+export type { BookingSource, BookingWithSources, CreditSubject } from "./results/credit";
 export type { CommentAnswerDto, CommentRowDto, CommentsDto, ContentReportDto, ContentWeekDto } from "./results/dtos";
 export { nextObserveStep, observeDueAt } from "./results/observe";
 export type { Observation } from "./results/observe";
