@@ -4,4 +4,4 @@
  * /api/version answers it as `migration`, and the smoke after a deploy holds it to what production has applied
  * (tooling/scripts/checks/smoke.mjs). database/migrations.test.mjs fails a copy the ledger has moved past.
  */
-export const SCHEMA_HEAD = "00729";
+export const SCHEMA_HEAD = "00732";
