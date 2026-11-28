@@ -1,7 +1,8 @@
 /**
  * A stand-in for GitHub's API and the edge's doors, preloaded into the morning line's script:
  * `node --import <this file> tooling/scripts/ops/morning/morning-line.mjs`. What each answers is the JSON file
- * MORNING_STUB names: `workflows`, `runs` by workflow file, `jobs` by run id, `issues` (the open ones), and
+ * MORNING_STUB names: `main` (its newest commit), `workflows`, `runs` by workflow file, `jobs` by run id,
+ * `issues` (the open ones), and
  * `health`, `diag` and `page`, each `[status, body]`. Every request is appended to the file MORNING_SEEN names, a
  * line of JSON each, so a test reads what was asked and what was sent. Nothing leaves the machine.
  *
@@ -35,6 +36,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   const at = target.pathname.replace(/^\/repos\/[^/]+\/[^/]+/, "");
   if (method !== "GET") return json(200, { number: 9 });
+  if (at === "/commits/main") return json(200, { sha: world.main ?? "10a175d150aabbccdd" });
   if (at === "/actions/workflows") return json(200, { workflows: world.workflows ?? [] });
   const runs = /^\/actions\/workflows\/([^/]+)\/runs$/.exec(at);
   if (runs) {

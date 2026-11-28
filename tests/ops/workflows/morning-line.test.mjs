@@ -424,7 +424,8 @@ function runLine(world, env = {}) {
       GITHUB_REPOSITORY: "example/repo",
       GH_TOKEN: "made-up",
       GITHUB_REF: "refs/heads/main",
-      GITHUB_SHA: "10a175d150aabbccdd",
+      // A run's own commit: a pull request's is a merge commit, and the line must never call it main.
+      GITHUB_SHA: "f5b9410c9eeff00112",
       GITHUB_SERVER_URL: "https://github.example",
       GITHUB_RUN_ID: "77",
       EDGE: "https://edge.example.com",

@@ -26,7 +26,7 @@
  *
  *   node tooling/scripts/ops/morning/morning-line.mjs [--summary <file>]
  *
- * Reads GITHUB_REPOSITORY, GH_TOKEN (or GITHUB_TOKEN), GITHUB_REF, GITHUB_SHA, GITHUB_SERVER_URL and GITHUB_RUN_ID;
+ * Reads GITHUB_REPOSITORY, GH_TOKEN (or GITHUB_TOKEN), GITHUB_REF, GITHUB_SERVER_URL and GITHUB_RUN_ID;
  * EDGE (the edge's origin); PAGER_URL and PAGER_KEY (the pager's door and the platform's key); MORNING_LINE; OWNER
  * (who a red issue is assigned to). It exits 1 when it was switched on and the message did not go out, so a line that
  * could not be sent is a red run, and 2 when it could not start. tests/ops/workflows/morning-line.test.mjs runs it.
@@ -379,7 +379,12 @@ async function main() {
     env.GITHUB_SERVER_URL && env.GITHUB_RUN_ID
       ? `${env.GITHUB_SERVER_URL}/${repo}/actions/runs/${env.GITHUB_RUN_ID}`
       : "";
-  const line = compose(results, { nowMs, sha: env.GITHUB_SHA ?? "", runUrl, notes, detail });
+  // Main's own newest commit, asked: a run's own commit is a merge commit on a pull request, and a branch's by hand.
+  const sha = await github("/commits/main").then(
+    (commit) => String(commit.sha ?? ""),
+    () => "",
+  );
+  const line = compose(results, { nowMs, sha, runUrl, notes, detail });
   const summary = `## Morning line: ${line.headline}\n\n${line.summary}\n`;
   const out = arg("summary");
   if (out) fs.appendFileSync(out, summary);
