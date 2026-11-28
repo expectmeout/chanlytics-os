@@ -22,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import type { lastClientError } from "@/client/client-error";
 import { api } from "@/bridge/api";
-import { getActiveWorkspace } from "@/bridge/workspace-on-screen";
+import { getActiveWorkspace } from "@/bridge/workspace/on-screen";
 import { meNow } from "../frame-verbs";
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";

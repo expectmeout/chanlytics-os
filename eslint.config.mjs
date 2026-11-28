@@ -406,6 +406,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/bridge/rehearse",
   "apps/dashboard/src/bridge/surfaces",
   "apps/dashboard/src/bridge/verbs",
+  "apps/dashboard/src/bridge/workspace",
   "apps/dashboard/src/lib",
   "apps/dashboard/src/server/ads",
   "apps/dashboard/src/server/ask",

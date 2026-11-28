@@ -27,7 +27,7 @@ import type { AdAccountDto, AdsLiveDto } from "@chanlytics/contracts";
 import { SECOND_MS } from "@chanlytics/contracts";
 import type { Output } from "../../client/api";
 import { firstDrawWaitsFor } from "../surface-status";
-import { getActiveWorkspace } from "../workspace-on-screen";
+import { getActiveWorkspace } from "../workspace/on-screen";
 
 /** The boot's read (bridge/api read), for the two routes Ads opens on. */
 type AdsReader = <K extends "GET ads/account" | "GET ads/page">(route: K) => Promise<Output<K>>;

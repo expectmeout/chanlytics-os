@@ -14,7 +14,7 @@
  * one place (decision 0015, "The address first"). Its words are contracts' (shell/address.ts).
  *
  * Its own module, importing only those pure words, so the client and the surfaces can both read it without either
- * importing the other. Which workspace the address names is said by a leaf of its own (workspace-on-screen.ts), for the
+ * importing the other. Which workspace the address names is said by a leaf of its own (workspace/on-screen.ts), for the
  * stores a page's chrome reads, which cannot import this module: the route registry it reads imports them.
  */
 import {
@@ -34,9 +34,9 @@ import { askedWorkspaceOf, returnQueryOf } from "../auth/workspace-return";
 import { PHONE_WARM_ROUTES } from "../surfaces/frame/places";
 import { onOnePage, routeHasPage } from "../surfaces/routes";
 import { inPlace } from "../surfaces/see/see-over";
-import { pathWorkspace } from "./workspace-on-screen";
+import { pathWorkspace } from "./workspace/on-screen";
 
-export { getActiveWorkspace, pathWorkspace } from "./workspace-on-screen";
+export { getActiveWorkspace, pathWorkspace } from "./workspace/on-screen";
 
 const LAST_KEY = LAST_WORKSPACE_STORAGE;
 

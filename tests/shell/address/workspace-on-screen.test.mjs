@@ -1,5 +1,5 @@
 /**
- * The workspace on screen, as one leaf says it (bridge/workspace-on-screen.ts).
+ * The workspace on screen, as one leaf says it (bridge/workspace/on-screen.ts).
  *
  * bridge/workspace.ts reads the route registry, which imports each page's chrome, so a store a chrome reads could not ask
  * it which workspace the address names, and three read the address themselves, each its own way (the review of
@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 import { importsOf, parse } from "../../_ast.mjs";
 
-const LEAF = "apps/dashboard/src/bridge/workspace-on-screen.ts";
+const LEAF = "apps/dashboard/src/bridge/workspace/on-screen.ts";
 const win = { location: { pathname: "/w/harbor-studio/inbox", hash: "" } };
 globalThis.window = win;
 
