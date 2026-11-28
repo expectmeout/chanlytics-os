@@ -122,10 +122,16 @@ export const JOB_PAYLOADS = {
   file_shelve: carrying({ file_id: z.string() }),
   post_prepare: carrying({ post_id: z.string(), attempt: z.string() }),
   // `wait`: how many times the send asked again a minute on while a new version of its piece was drawn (00708, call 14).
-  post_publish: carrying({ post_id: z.string(), attempt: z.string(), wait: z.string().optional() }),
+  // `unread`: how many times it asked again a minute on because the open time its words promise could not be read.
+  post_publish: carrying({
+    post_id: z.string(),
+    attempt: z.string(),
+    wait: z.string().optional(),
+    unread: z.string().optional(),
+  }),
   // `seen: "ask"`: a post that went up and could not be read back is asked for again by its own id (00681 verified_at).
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string(), seen: z.string().optional() }),
-  post_google: carrying({ post_id: z.string(), attempt: z.string() }),
+  post_google: carrying({ post_id: z.string(), attempt: z.string(), unread: z.string().optional() }),
   post_take_down: carrying({ action_id: z.string(), attempt: z.string(), by_hand: z.string().optional() }),
   content_plan: carrying({ plan_id: z.string() }),
   content_week_go: carrying({ plan_id: z.string() }),
