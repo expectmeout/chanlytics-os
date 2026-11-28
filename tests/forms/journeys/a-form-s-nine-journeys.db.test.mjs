@@ -27,6 +27,7 @@
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -55,7 +56,9 @@ const ok = (res, what = "") => {
 let digest = 0;
 const hex = () => (digest += 1).toString(16).padStart(64, "0");
 const phoneOf = (n) => `+1646555${String(4000 + n).slice(-4)}`;
-const emailOf = (who) => `${who}-${RUN}@example.com`;
+const emailOf = (who) => `journeys-${who}-${RUN}@example.com`;
+/** A key's hash: unique across every workspace (form_keys_hash), so it is this run's own, never a counter's. */
+const keyHash = createHash("sha256").update(`journeys ${RUN}`).digest("hex");
 const WHERE_FROM = {
   page: "/contact",
   site: "instagram.com",
@@ -117,7 +120,10 @@ before(async () => {
   owner = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   ok(await owner.auth.signInWithPassword({ email: emailOf("owner"), password: `pw-${RUN}-Aa1!` }), "signed in");
   // The business connects its website: a key of its own, which makes its site.
-  kept.key = ok(await owner.rpc("form_key_make", { p_tenant_id: tenantId, p_name: "Studio", p_hash: hex() }), "a key");
+  kept.key = ok(
+    await owner.rpc("form_key_make", { p_tenant_id: tenantId, p_name: "Studio", p_hash: keyHash }),
+    "a key",
+  );
   kept.site = ok(await db.from("form_keys").select("site_id").eq("id", kept.key).single()).site_id;
 });
 
