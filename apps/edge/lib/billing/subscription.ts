@@ -68,13 +68,24 @@ export function setStripeClient(stripe: Stripe | null): void {
 /** How long one call through the shared Stripe client may take. */
 const STRIPE_TIMEOUT_MS = 20_000;
 
+/**
+ * The Stripe API version every call says, named here and not left to the SDK: the SDK pins its own (stripe 23.2.0 pins
+ * this one), so an SDK update that moves it fails the typecheck at this line, where the move is read for checkout,
+ * subscriptions and the webhook before it ships. 2026-11-18.endive since 27 Nov 2026 (was 2026-08-26.dahlia, stripe 22).
+ */
+const STRIPE_API_VERSION = "2026-11-18.endive";
+
 export function stripe(): Stripe | null {
   if (injectedStripe) return injectedStripe;
   const key = env.STRIPE_SECRET_KEY;
   if (!key) return null;
   // Built on first use, not at import: the webhook and the ops share it, and
   // a deployment without a key must still answer "not ready".
-  stripeClient ??= new Stripe(key, { timeout: STRIPE_TIMEOUT_MS, maxNetworkRetries: 1 });
+  stripeClient ??= new Stripe(key, {
+    apiVersion: STRIPE_API_VERSION,
+    timeout: STRIPE_TIMEOUT_MS,
+    maxNetworkRetries: 1,
+  });
   return stripeClient;
 }
 

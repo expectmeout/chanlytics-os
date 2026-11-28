@@ -1035,7 +1035,7 @@ test("resume: a paused subscription is resumed on Stripe, billing from now, and 
   assert.deepEqual(await answer(await knock({ op: "resume" })), [200, { ok: true, status: "active" }]);
   assert.deepEqual(
     s.asked("subscriptions.resume"),
-    [["sub_1", { billing_cycle_anchor: "now", expand: ["default_payment_method"] }]],
+    [["sub_1", { billing_cycle_anchor: { type: "now" }, expand: ["default_payment_method"] }]],
     "billed from now, not back to the pause; the card read with it",
   );
   assert.equal(t.billing_accounts[0].status, "active");
