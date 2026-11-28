@@ -5,7 +5,8 @@
  * person nor event. What answered a request is a link from it (form_entry_links), written by the act itself: a member's
  * reply and their word that it was answered another way on their own client, under the table's row rules; a
  * conversation that arrived with the request's code on the service role. Answered is read, never kept: the requests
- * nobody has answered are form_requests_open's. A read that fails THROWS.
+ * nobody has answered are form_requests_open's, and where any one entry stands is form_entries_standing's (00726). A
+ * read that fails THROWS.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DbFailure, heldContactId, recordOrEmpty, type ContactId, type TenantId } from "@chanlytics/contracts";
@@ -167,9 +168,20 @@ function openTimeKept(kept: unknown): OpenFormRequestTime | null {
   };
 }
 
-/** The requests of a workspace's forms nobody has answered, newest first (form_requests_open). */
-export async function listOpenFormRequests(db: Db, tenantId: TenantId): Promise<OpenFormRequest[]> {
-  const { data, error } = await db.rpc("form_requests_open", { p_tenant_id: tenantId });
+/**
+ * The requests of a workspace's forms nobody has answered, newest first, 200 at most (form_requests_open). `after`
+ * reads on from where a list ended (00726): the request it ended on, by when it came and its id.
+ */
+export async function listOpenFormRequests(
+  db: Db,
+  tenantId: TenantId,
+  after: { createdAt: string; id: string } | null = null,
+): Promise<OpenFormRequest[]> {
+  const { data, error } = await db.rpc("form_requests_open", {
+    p_tenant_id: tenantId,
+    // Named only to read on: the first 200 are asked for as before 00726.
+    ...(after ? { p_before: after.createdAt, p_before_id: after.id } : {}),
+  });
   if (error) throw new DbFailure(error, "form_requests_open");
   const rows: unknown[] = Array.isArray(data) ? data : [];
   return rows.flatMap((line) => {
@@ -226,7 +238,7 @@ const ENTRY_COLUMNS =
 /** Why an entry is held, read back from what was kept; null for a word nobody knows. */
 function heldWhyKept(kept: string | null): FormHeldWhy | null {
   if (kept === "hidden_field" || kept === "too_fast" || kept === "too_many" || kept === "member") return kept;
-  return null;
+  return kept === "elsewhere" ? kept : null;
 }
 
 function entryReadOf(row: {
@@ -293,10 +305,15 @@ export async function findFormRequest(db: Db, tenantId: TenantId, entryId: strin
   return data ? (entryReadOf(data)[0] ?? null) : null;
 }
 
-/** One entry held for a look: the form it is of, the version its visitor saw, and when it came. */
+/**
+ * One entry held for a look: the form it is of, the version its visitor saw, and when it came. A site's (00726) names
+ * its outside form as `formId`, and has no version.
+ */
 export interface HeldFormEntry {
   formId: string;
-  versionId: string;
+  versionId: string | null;
+  /** The form owned by the business's own website it is of; null for a hosted form's. */
+  outsideFormId: string | null;
   createdAt: string;
 }
 
@@ -307,19 +324,21 @@ export interface HeldFormEntry {
 export async function listFormEntriesHeldBefore(db: Db, tenantId: TenantId, before: string): Promise<HeldFormEntry[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("form_entries")
-    .select("form_id, version_id, created_at")
+    .select("form_id, version_id, outside_form_id, created_at")
     .eq("state", "held")
     .eq("test", false)
-    .not("form_id", "is", null)
     .lt("created_at", before)
     .order("created_at")
     .limit(500);
   if (error) throw new DbFailure(error, "form_entries");
-  return data.flatMap((row) =>
-    row.form_id && row.version_id
-      ? [{ formId: row.form_id, versionId: row.version_id, createdAt: row.created_at }]
-      : [],
-  );
+  return data.flatMap((row): HeldFormEntry[] => {
+    const at = row.created_at;
+    if (row.form_id && row.version_id)
+      return [{ formId: row.form_id, versionId: row.version_id, outsideFormId: null, createdAt: at }];
+    return row.outside_form_id
+      ? [{ formId: row.outside_form_id, versionId: null, outsideFormId: row.outside_form_id, createdAt: at }]
+      : [];
+  });
 }
 
 /** What happened to one entry. */
@@ -535,16 +554,22 @@ export async function purgeFormEntries(db: Db): Promise<number> {
   return typeof data === "number" ? data : 0;
 }
 
-/** How many entries wait in each form's held pile, by form: what the list says quietly beside a form. */
+/**
+ * How many entries wait in each form's held pile, by form: what the list says quietly beside a form. A site's form
+ * (00726) is counted under its own id, as a form made here is.
+ */
 export async function countHeldFormEntries(db: Db, tenantId: TenantId): Promise<Map<string, number>> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("form_entries")
-    .select("form_id")
+    .select("form_id, outside_form_id")
     .eq("state", "held")
-    .not("form_id", "is", null)
+    .eq("test", false)
     .limit(1000);
   if (error) throw new DbFailure(error, "form_entries");
   const held = new Map<string, number>();
-  for (const row of data) if (row.form_id) held.set(row.form_id, (held.get(row.form_id) ?? 0) + 1);
+  for (const row of data) {
+    const form = row.form_id ?? row.outside_form_id;
+    if (form) held.set(form, (held.get(form) ?? 0) + 1);
+  }
   return held;
 }

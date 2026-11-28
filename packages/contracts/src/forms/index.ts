@@ -13,7 +13,6 @@ export { readFormAnswers } from "./answers";
 export type { FormAnswer, FormAnswersRead, FormProblem } from "./answers";
 export { FormLinkPress, FormPress, FormRequestPress } from "./dtos";
 export type {
-  EntryHeldWhyDto,
   EntryStandingDto,
   FormEntryRowDto,
   FormHeldDto,
@@ -37,7 +36,7 @@ export {
   FORM_PRESS_WAIT_MS,
   FORM_RESULT_DAYS,
 } from "./limits";
-export type { FormFieldKind } from "./limits";
+export type { EntryHeldWhyDto, FormFieldKind } from "./limits";
 export {
   formSiteNameOf,
   outsideFormNameOf,
@@ -66,6 +65,7 @@ export { answerLimitOf, FORM_PAGE_WORD_KEYS, FormDescription, formDescriptionPro
 export type { FormPageWordKey } from "./shape";
 export { Source, SOURCE_LABELS, sourceFromSeen, sourceInWords } from "./source";
 export type { SourceSeen } from "./source";
+export { entryStandingOf } from "./standing";
 export { formSlotWords, formTimeHolds, formTimesOf, formTimeStatusOf, formTimeWayOf, isFormSlot } from "./times";
 export type { FormTimeDay, FormTimeWay } from "./times";
 export { FORM_SITES_MAX, formFramePath, frameAncestorsOf, isOnSite, websiteLinesOf } from "./website";

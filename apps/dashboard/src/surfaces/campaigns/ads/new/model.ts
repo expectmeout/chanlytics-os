@@ -13,6 +13,7 @@ import type { AdSpecialKind } from "@chanlytics/contracts";
 import type { AdCheckDto, AdDraftAnswer, AdNoWords, AdWordsFault } from "@/server/ads/draft-shape";
 import { currencyWords, type NeedVM } from "../connect/card-model";
 import { ADS_MANAGER } from "../live/words";
+import type { PictureCopy } from "./picture-copy";
 import { moneyOf } from "../model/money";
 import { dayWord } from "../model/words";
 import {
@@ -118,8 +119,11 @@ export interface NewAdVM {
     headline: string | null;
     /** What stands where the words go while there are none: writing, or no words yet. */
     waiting: "writing" | "none" | null;
-    /** Where the picture is read from; null where the draft has no file of its own (the example). */
-    picture: { src: string | null; alt: string; video: boolean };
+    /**
+     * Where the picture is read from; null where the draft has no file of its own (the example). `copy`: a video whose
+     * copy at the video platform is not at hand, as the draft's answer says it; null for a photo, and for a video that is.
+     */
+    picture: { src: string | null; alt: string; video: boolean; copy: PictureCopy | null };
     /** The version on show and its picture, as Meta's own preview of it is asked for; null while there are no words. */
     asks: { version: number; picture: string } | null;
   };
@@ -357,6 +361,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
         src: pictureSrc(picture),
         alt: picture.kind === "video" ? NEW.shown.video(picture.name) : NEW.shown.picture(picture.name),
         video: picture.kind === "video",
+        copy: picture.copy ? { id: picture.id, ...picture.copy, made: picture.made } : null,
       },
       asks: version && picture.id ? { version: shownAt, picture: picture.id } : null,
     },

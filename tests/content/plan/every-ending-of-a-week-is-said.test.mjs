@@ -425,7 +425,8 @@ function jobWorld({ slots, rung = "veto", paused = null, stoppedAt = null, appro
     {
       content_week_approve: (args) => {
         approvals.push(args);
-        if (approveFate === "asks") plan.goes_at = null;
+        // The door lets the week go itself where the rung asks again, and where everything is stopped as it reads it.
+        if (approveFate === "asks" || approveFate === "paused") plan.goes_at = null;
         if (approveFate) return { fate: approveFate };
         Object.assign(plan, { status: "approved", approved_at: new Date(NOW).toISOString(), approval_id: APPROVAL });
         for (const named of args.p_snapshot.slots)
@@ -550,6 +551,23 @@ test("not approved, AI paused: let go, one notice says why, the Week says AI is 
   assert.deepEqual(todayOf(w.page()), { name: WAITING, said: "AI is paused, so nothing goes up." });
   await putTheWeekUp(w.db, job(2));
   assert.equal(w.bell().length, 1, "one ring, whatever the tries");
+});
+
+test("Stop everything pressed after the job's own read and before the door's: nothing approved, and the owner is told as for a pause", async () => {
+  // The job read the workspace as not stopped; the door, reading the stop inside the approval (00727), found it pressed.
+  const w = jobWorld({ approveFate: "paused" });
+  assert.deepEqual(await putTheWeekUp(w.db, job()), { skipped: "paused" });
+  assert.equal(w.approvals.length, 1, "the door was asked, and refused");
+  assert.equal(w.starts.length, 0, "nothing queued to be made");
+  assert.equal(w.plan.goes_at, null, "nothing says it goes up");
+  assert.equal(w.plan.status, "ready");
+  assert.deepEqual(w.bell(), [
+    {
+      kind: "plan_ready",
+      subject: NOT_APPROVED,
+      body: `AI is paused, so nothing went up at ${WHEN}. Nothing goes up until you approve them.`,
+    },
+  ]);
 });
 
 test("not approved, the setting asks again: one notice says the week waits, and the Week offers Approve the week", async () => {
