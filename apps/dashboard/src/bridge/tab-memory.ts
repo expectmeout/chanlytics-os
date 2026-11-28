@@ -28,12 +28,23 @@ declare module "./provided" {
 
 const PLACE_SLOT = "chanlytics.place.v1";
 const DRAFT_SLOT = "chanlytics.drafts.v1";
-/** Every slot this store writes, and the two Leads kept before it: all of them go at sign-out. */
+/**
+ * Every slot this store writes, and the two Leads kept before it: all of them go at sign-out. And what a page keeps in
+ * the tab's session of its own that names one workspace's records or holds a member's words, under no workspace's name:
+ * the sequence the next pile on Leads adds to (campaigns/reach-out/surface.ts pileAsk, its id and its name) and a reply
+ * carried to a thread with what was asked beside it (inbox/carried-reply.ts). Each stayed through a switch of workspace
+ * and a sign-out in the same tab, and the next workspace's Leads said the last one's sequence by name (the review of
+ * 28 Nov 2026, R3.12). tests/shell/keeps/browser-storage.json lists every slot the browser's code writes and whose it is.
+ */
 export const TAB_SLOTS: readonly string[] = [
   PLACE_SLOT,
   DRAFT_SLOT,
   "chanlytics.leads.place.v1",
   "chanlytics.leads.finder.v1",
+  "leads.pile.target",
+  "chanlytics-compose",
+  "chanlytics-not-a-person",
+  "chanlytics-draft-asked",
 ];
 const PLACES_PER_PAGE = 12;
 const DRAFTS_KEPT = 40;

@@ -1,0 +1,311 @@
+{
+  "about": [
+    "Every module of the dashboard's browser code that writes the browser's storage, the slots it writes, and whose each",
+    "is. every-slot-says-whose-it-is.test.mjs finds the writers in the syntax tree (a call of `setItem`) and fails on one",
+    "with no row here, and on a row for a module that writes none. A new slot takes a row in the change that adds it.",
+    "",
+    "in      \"tab\": the tab's session, gone with the tab. \"device\": the browser's local storage, there on the next visit.",
+    "",
+    "device     this device's own: a choice, a clock mark of a window it opened. Nothing of a workspace's records.",
+    "tab        this tab's own mark for its session. Nothing of a workspace's records.",
+    "keyed      one workspace's, kept under the workspace's own slug or id, and never read under another's.",
+    "by record  one workspace's, kept under a record's own id and only read by that id.",
+    "cleared    one workspace's rows or a member's words, removed by the bridge as the tab leaves the workspace or the",
+    "           person leaves the tab: a switch, a sign-out, a session that ended (bridge/surface-cache.ts sealSurfaceCache).",
+    "           Its `slot` is the name itself, or its head where a name carries on after it; the test fills each and runs",
+    "           the clear."
+  ],
+  "writers": {
+    "app/(os)/error.tsx": [
+      {
+        "slot": "the report kept for after the reload",
+        "in": "tab",
+        "whose": "tab",
+        "what": "The error this page load caught (its id, its name, its first line, the page), for the report sheet after the reload that heals it."
+      },
+      {
+        "slot": "chunk-reloaded",
+        "in": "tab",
+        "whose": "tab",
+        "what": "When the page last reloaded for a chunk that would not load, so it does so once."
+      }
+    ],
+    "src/auth/preview-claim.ts": [
+      {
+        "slot": "chanlytics.preview.left-for-google",
+        "in": "tab",
+        "whose": "tab",
+        "what": "A preview's claim, while its visitor signs in with Google; fifteen minutes."
+      }
+    ],
+    "src/bridge/api.ts": [
+      {
+        "slot": "chanlytics.workspace.rebooted",
+        "in": "tab",
+        "whose": "tab",
+        "what": "That the tab went home once for a read the server could place in no workspace, so it does not loop."
+      }
+    ],
+    "src/bridge/ask/notices.ts": [
+      {
+        "slot": "chanlytics.ask.opened",
+        "in": "device",
+        "whose": "device",
+        "what": "When AI was last opened on this device."
+      }
+    ],
+    "src/bridge/ask/palette.ts": [
+      { "slot": "chanlytics:ask:lang", "in": "device", "whose": "device", "what": "The language AI was last asked in." }
+    ],
+    "src/bridge/ask/voice.ts": [
+      {
+        "slot": "ask-voice-live",
+        "in": "tab",
+        "whose": "tab",
+        "what": "The voice session this tab has open, so a second one is not begun."
+      }
+    ],
+    "src/bridge/device-prefs.ts": [
+      {
+        "slot": "the device's preferences",
+        "in": "device",
+        "whose": "device",
+        "what": "The theme and the look chosen on this device."
+      }
+    ],
+    "src/bridge/invitations/accept.ts": [
+      {
+        "slot": "chanlytics.joined",
+        "in": "tab",
+        "whose": "tab",
+        "what": "The words for the workspace this sign-in just joined, said once after the load that follows the accept. It must outlive that load, which seals the cache, so the clear leaves it."
+      }
+    ],
+    "src/bridge/notifications.ts": [
+      {
+        "slot": "the bell's read state, by workspace id",
+        "in": "device",
+        "whose": "keyed",
+        "what": "Which notices this device has read and when it last looked, under the workspace's id."
+      }
+    ],
+    "src/bridge/read-cache.ts": [
+      {
+        "slot": "chanlytics.reads.v1.",
+        "in": "tab",
+        "whose": "cleared",
+        "what": "The reads a page kept in the tab (a person's page, the log), each under the workspace it was asked in."
+      }
+    ],
+    "src/bridge/surface-cache.ts": [
+      {
+        "slot": "chanlytics.surfaces.v2:",
+        "in": "device",
+        "whose": "cleared",
+        "what": "Each surface's last rows, one slot a workspace, drawn before the first read on the next load."
+      }
+    ],
+    "src/bridge/tab-memory.ts": [
+      {
+        "slot": "chanlytics.place.v1",
+        "in": "tab",
+        "whose": "cleared",
+        "what": "Where the member was in each view of a page, under the workspace."
+      },
+      {
+        "slot": "chanlytics.drafts.v1",
+        "in": "tab",
+        "whose": "cleared",
+        "what": "Work half-done (a reply, a Find), under the workspace."
+      }
+    ],
+    "src/bridge/workspace.ts": [
+      {
+        "slot": "chanlytics.workspace",
+        "in": "device",
+        "whose": "device",
+        "what": "The slug of the last workspace used, where the home sends a returning tab. A request, never a grant: the server decides."
+      }
+    ],
+    "src/bridge/zone.ts": [
+      {
+        "slot": "chanlytics.zones.v1",
+        "in": "device",
+        "whose": "keyed",
+        "what": "Each workspace's time zone as last read, under its slug, for the first paint's clock."
+      }
+    ],
+    "src/surfaces/campaigns/ads/connect/use-account.ts": [
+      {
+        "slot": "chanlytics.ads.connect-window.v1",
+        "in": "device",
+        "whose": "device",
+        "what": "When Meta's connect window was opened from this device; an hour."
+      }
+    ],
+    "src/surfaces/campaigns/content/list.tsx": [
+      {
+        "slot": "chanlytics.view.<list>",
+        "in": "device",
+        "whose": "device",
+        "what": "The columns and order chosen for Content's lists on this device."
+      }
+    ],
+    "src/surfaces/campaigns/content/views.tsx": [
+      {
+        "slot": "chanlytics.content.layout",
+        "in": "device",
+        "whose": "device",
+        "what": "Grid or List, as chosen on this device."
+      }
+    ],
+    "src/surfaces/campaigns/home/left-at.ts": [
+      {
+        "slot": "chanlytics.content.left",
+        "in": "device",
+        "whose": "device",
+        "what": "The list and view of Content last shown on a phone: Made, the Library, Ads. Never a piece."
+      }
+    ],
+    "src/surfaces/campaigns/parts/whatsapp-list.ts": [
+      {
+        "slot": "chanlytics-whatsapp-list-asked",
+        "in": "tab",
+        "whose": "keyed",
+        "what": "When WhatsApp's own list was last asked for, with the workspace it was asked in."
+      }
+    ],
+    "src/surfaces/campaigns/reach-out/surface.ts": [
+      {
+        "slot": "leads.pile.target",
+        "in": "tab",
+        "whose": "cleared",
+        "what": "The sequence the next pile on Leads adds to: its id and its name."
+      }
+    ],
+    "src/surfaces/files/footage/use-footage.ts": [
+      {
+        "slot": "chanlytics.drive.connect-window.v1",
+        "in": "device",
+        "whose": "device",
+        "what": "When Google's folder window was opened from this device; fifteen minutes."
+      }
+    ],
+    "src/surfaces/files/video/send.ts": [
+      {
+        "slot": "chanlytics.video-upload.<workspace>.<clip>",
+        "in": "device",
+        "whose": "keyed",
+        "what": "Where a clip's upload stood, to take it up after a reload: the file's id and its address, under the workspace it was going to and the clip's fingerprint; under four hours."
+      }
+    ],
+    "src/surfaces/frame/first-rows.ts": [
+      {
+        "slot": "chanlytics.rows.v1:",
+        "in": "device",
+        "whose": "cleared",
+        "what": "A phone's last screen of rows, one slot a workspace, for the next visit's first paint."
+      }
+    ],
+    "src/surfaces/inbox/carried-reply.ts": [
+      {
+        "slot": "chanlytics-compose",
+        "in": "tab",
+        "whose": "cleared",
+        "what": "A reply carried to a thread from another page: the thread and the words."
+      },
+      {
+        "slot": "chanlytics-not-a-person",
+        "in": "tab",
+        "whose": "cleared",
+        "what": "The person Not a person was asked of, on the way to their page."
+      },
+      {
+        "slot": "chanlytics-draft-asked",
+        "in": "tab",
+        "whose": "cleared",
+        "what": "The thread AI's draft was asked for."
+      }
+    ],
+    "src/surfaces/kit/motion/keyboard.ts": [
+      {
+        "slot": "chanlytics-os-keyboard",
+        "in": "device",
+        "whose": "device",
+        "what": "How tall this phone's keyboard last stood."
+      }
+    ],
+    "src/surfaces/leads/last-order.ts": [
+      {
+        "slot": "chanlytics-leads-order",
+        "in": "device",
+        "whose": "keyed",
+        "what": "The order Leads was last asked in, a workspace at a time under a word made of its slug, never its name; twenty at most."
+      }
+    ],
+    "src/surfaces/people/hooks/view-store.ts": [
+      {
+        "slot": "People's view, by scope",
+        "in": "device",
+        "whose": "device",
+        "what": "The columns, widths and order chosen for People's lists on this device."
+      }
+    ],
+    "src/surfaces/people/person/name-offer.tsx": [
+      {
+        "slot": "chanlytics-person-named-once",
+        "in": "device",
+        "whose": "device",
+        "what": "The members this device has told once how a person is named: their own ids."
+      }
+    ],
+    "src/surfaces/people/person/notices/fact-notices.tsx": [
+      {
+        "slot": "chanlytics.person.hiddenNotices",
+        "in": "device",
+        "whose": "by record",
+        "what": "The notices hidden on a person's page, under the person's id: ids alone."
+      }
+    ],
+    "src/surfaces/reports/surface.ts": [
+      {
+        "slot": "Reports' period",
+        "in": "device",
+        "whose": "device",
+        "what": "The period Reports last showed on this device."
+      }
+    ],
+    "src/surfaces/settings/connections/whatsapp.ts": [
+      {
+        "slot": "chanlytics.whatsapp.signup",
+        "in": "tab",
+        "whose": "tab",
+        "what": "When this tab began WhatsApp's sign-up, so a mark left by a page that is gone is told from one running."
+      }
+    ],
+    "src/surfaces/setup/first-run/hooks.tsx": [
+      {
+        "slot": "chanlytics.setup.landed",
+        "in": "tab",
+        "whose": "tab",
+        "what": "That this tab's session has landed on the first run once."
+      }
+    ],
+    "src/surfaces/setup/override.ts": [
+      {
+        "slot": "chanlytics.setup.landed",
+        "in": "tab",
+        "whose": "tab",
+        "what": "The same mark, written where Setup's read sends the tab there."
+      }
+    ],
+    "src/surfaces/today/zones/setup-card-body.tsx": [
+      {
+        "slot": "today-setup-folded",
+        "in": "device",
+        "whose": "device",
+        "what": "That Today's setup card was folded on this device."
+      }
+    ]
+  }
+}
