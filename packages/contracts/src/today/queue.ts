@@ -595,8 +595,11 @@ export function todayQueue(
   // What each group draws past its cap: the people past those waiting on you, and the searches past those to decide.
   const groups = needYouGroupsOf(queueAll);
   const morePeople = Math.max(0, groups.waiting.length - NEED_YOU_CAPS.waiting) + beyond;
+  // The request the list ended on: where the Inbox reads on from to reach the ones counted and not drawn (00726).
+  const lastListed = todayFacts.formRequests.at(-1);
   return {
     rows: queueAll,
+    requests_beyond: beyond > 0 && lastListed ? { count: beyond, after: lastListed.id } : null,
     more: morePeople + Math.max(0, groups.ok.length - NEED_YOU_CAPS.ok),
     // The PEOPLE past the rows drawn, apart from the rest: the brief said "and 20 more need you" over sixteen people,
     // counting the calls and the search that sort after them.

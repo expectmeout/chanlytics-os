@@ -99,10 +99,12 @@ const PRESSES_LEFT_MS = MIN_MS;
 
 /**
  * How many of an account's presses are still on their way to Meta as its read ends: counted then, so one pressed while
- * the read ran is counted too. None while nothing reaches Meta from this deployment: no read brings one nearer.
+ * the read ran is counted too. While this deployment's switch is off only the pauses are: a stop is never held by it
+ * (tell.ts stopWrites), and no read brings a turning back on nearer.
  */
 async function countPressesLeft(db: Db, tenantId: TenantId, accountId: string, writes: AdsWrites): Promise<number> {
-  return writes === "off" ? 0 : (await listPendingAds(db, tenantId, accountId)).length;
+  const pending = await listPendingAds(db, tenantId, accountId);
+  return writes === "off" ? pending.filter((ad) => ad.intent === "paused").length : pending.length;
 }
 
 /**

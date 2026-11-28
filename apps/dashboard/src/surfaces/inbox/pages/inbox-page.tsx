@@ -34,6 +34,7 @@ import { ixBucketOf, ixNextMoveAt, ixOnPhone, ixRank } from "../rules";
 import { ixDrawnIn, ixSetAside, type IxNeedsYou } from "./needs-you-list";
 import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
+import { RequestsMore } from "../request/more";
 import { RequestSlot } from "../request/slot";
 import { missingThread, openingThread } from "../thread-notices";
 import {
@@ -476,6 +477,7 @@ const inboxPage = (
         sendingIn={vetoRemaining}
         fromLine={commentsLineOr(comments, replies ? <SequenceRepliesLine read={replies} held={threads} /> : null)}
         commentsDoor={commentsDoorOf(comments)}
+        requestsMore={<RequestsMore />}
         toSendOpen={toSendOpen}
         flash={ppFlash}
         needsYou={{

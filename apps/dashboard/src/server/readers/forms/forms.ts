@@ -4,13 +4,15 @@ import "server-only";
  * A business's forms as its own screens read them (00680, 00709; the Forms plan, 3.6): the list in Campaigns › Forms,
  * the forms made here and the ones the business's own website owns (server/connections/outside-forms.ts), one form's sheet, and one
  * request as Inbox answers it, a site's read as the same request shape. Each is read on the member's own session, under its row rules.
- * Nothing here is kept apart from the record: whether a request was answered is read from its links (the requests
- * nobody has answered are form_requests_open's), and what a place brought is form_results'.
+ * Nothing here is kept apart from the record: where an entry stands is read from its links (contracts
+ * forms/standing.ts says each word and where it is read; the requests nobody has answered are form_requests_open's),
+ * and what a place brought is form_results'.
  */
 import {
   AppError,
   FORM_RESULT_DAYS,
   DAY_MS,
+  entryStandingOf,
   FORM_HELD_SAID_AFTER_DAYS,
   formRequestNote,
   formTimeHolds,
@@ -53,9 +55,11 @@ import {
   listFormVersions,
   listOpenFormRequests,
   listWorkspaceFormLinks,
+  readFormEntryStandings,
   readFormResults,
   type FormEntryLink,
   type FormEntryRead,
+  type FormEntryStanding,
   type FormRead,
   type OpenFormRequest,
   type OpenFormRequestTime,
@@ -82,11 +86,9 @@ export const formsList: Reader<undefined, FormsDto> = {
   name: "forms_list",
   async read(rc) {
     const db = rc.ctx.supabase;
-    const [forms, held, outside] = await Promise.all([
-      listForms(db, rc.tenantId),
-      countHeldFormEntries(db, rc.tenantId),
-      readOutsideRows(db, rc.tenantId),
-    ]);
+    const [forms, held] = await Promise.all([listForms(db, rc.tenantId), countHeldFormEntries(db, rc.tenantId)]);
+    // A site's form says its held pile as a form made here does (00726): one count, read once.
+    const outside = await readOutsideRows(db, rc.tenantId, held);
     const versions = await listFormVersions(
       db,
       rc.tenantId,
@@ -110,13 +112,13 @@ export const formsList: Reader<undefined, FormsDto> = {
   },
 };
 
-/** One entry as a sheet lists it. `open`: the requests nobody has answered. `places`: where each link is shared. */
+/** One entry as a sheet lists it. `standings`: where each stands, as read. `places`: where each link is shared. */
 function entryRow(
   entry: FormEntryRead,
-  open: ReadonlySet<string>,
+  standings: ReadonlyMap<string, FormEntryStanding>,
   places: ReadonlyMap<string, string>,
 ): FormEntryRowDto {
-  const standing = entry.test ? "test" : entry.state === "held" ? "held" : open.has(entry.id) ? "open" : "answered";
+  const standing = entryStandingOf({ test: entry.test, held: entry.state === "held" }, standings.get(entry.id));
   return {
     id: entry.id,
     name: entry.reach.name ?? entry.reach.email ?? entry.reach.phone,
@@ -154,12 +156,23 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
   async read(rc, args) {
     const db = rc.ctx.supabase;
     const form = await findFormOrRefuse(rc, args.form);
-    const [live, links, results, entries, open, chat, email] = await Promise.all([
+    // Each entry with where it stands, read for the entries listed and no others (form_entries_standing): an entry
+    // past its sixty days or past Needs you's first 200 is never called answered for not being in that list.
+    const listed = listFormEntries(db, { tenantId: rc.tenantId, formId: form.id, limit: SHEET_ENTRIES }).then(
+      async (entries) => ({
+        entries,
+        standings: await readFormEntryStandings(
+          db,
+          rc.tenantId,
+          entries.map((entry) => entry.id),
+        ),
+      }),
+    );
+    const [live, links, results, { entries, standings }, chat, email] = await Promise.all([
       form.liveVersionId ? findFormVersion(db, rc.tenantId, form.liveVersionId) : null,
       listFormLinks(db, rc.tenantId, form.id),
       readFormResults(db, rc.tenantId, FORM_RESULT_DAYS),
-      listFormEntries(db, { tenantId: rc.tenantId, formId: form.id, limit: SHEET_ENTRIES }),
-      listOpenFormRequests(db, rc.tenantId),
+      listed,
       findOldestActiveChannel(db, rc.tenantId, "whatsapp"),
       sheetEmailOf(rc),
     ]);
@@ -187,9 +200,8 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
           })) ?? null,
       };
     });
-    const openIds = new Set(open.map((request) => request.id));
     const places = new Map(links.map((link) => [link.id, link.place]));
-    const rows = entries.map((entry) => entryRow(entry, openIds, places));
+    const rows = entries.map((entry) => entryRow(entry, standings, places));
     const people = sum((place) => place.people);
     const newPeople = sum((place) => place.newPeople);
     const data: FormSheetDto = {
@@ -336,11 +348,31 @@ function openRequestRow(
   };
 }
 
+/** What a list of requests and held entries is read against: each version its visitors saw, and each site form's shape. */
+async function requestShapesOf(
+  rc: Pick<ReaderContext, "ctx" | "tenantId">,
+  entries: ReadonlyArray<{ versionId: string | null; outsideFormId: string | null }>,
+): Promise<{ describedBy: Map<string, FormDescription>; shapes: Map<string, SiteRequestShape> }> {
+  const db = rc.ctx.supabase;
+  const versionIds = entries.flatMap((entry) => (entry.versionId ? [entry.versionId] : []));
+  const [versions, shapes] = await Promise.all([
+    listFormVersions(db, rc.tenantId, [...new Set(versionIds)]),
+    entries.some((entry) => entry.outsideFormId)
+      ? readSiteRequestShapes(db, rc.tenantId)
+      : new Map<string, SiteRequestShape>(),
+  ]);
+  const describedBy = new Map(
+    versions.flatMap((version) => (version.description ? [[version.id, version.description] as const] : [])),
+  );
+  return { describedBy, shapes };
+}
+
 /**
  * The requests nobody has answered, as Needs you lists them (form_requests_open: sixty days, the newest first, a site
  * form's from its switch on), and how many there are in all (form_requests_open_count: the list stops at 200, the count
  * never does): Today's read carries them, so the page, the Inbox's tab, the one count and AI say the same people. Each
  * is read against the version its visitor saw, or its site form's shape, which says which answer is their own words.
+ * The ones past the list are read on to by formRequestsMore.
  */
 export const formRequestsOpen: Reader<
   undefined,
@@ -355,23 +387,22 @@ export const formRequestsOpen: Reader<
       listFormEntriesHeldBefore(db, rc.tenantId, leftSince),
       countOpenFormRequests(db, rc.tenantId),
     ]);
-    const versionIds = [...open, ...left].flatMap((entry) => (entry.versionId ? [entry.versionId] : []));
-    const [versions, shapes] = await Promise.all([
-      listFormVersions(db, rc.tenantId, [...new Set(versionIds)]),
-      open.some((request) => request.outsideFormId) ? readSiteRequestShapes(db, rc.tenantId) : new Map(),
-    ]);
-    const describedBy = new Map(
-      versions.flatMap((version) => (version.description ? [[version.id, version.description] as const] : [])),
-    );
+    const { describedBy, shapes } = await requestShapesOf(rc, [...open, ...left]);
     const requests = open.map((request) => openRequestRow(request, { describedBy, shapes, now: rc.now }));
-    // Each form's held pile nobody has looked at, the oldest first: its heading as its newest visitor saw it.
+    // Each form's held pile nobody has looked at, the oldest first: its heading as its newest visitor saw it, a
+    // site's form by its name (00726: the door holds what passes its limit).
     const piles = new Map<string, FormHeldDto>();
     for (const entry of left) {
       const pile = piles.get(entry.formId);
-      const heading = describedBy.get(entry.versionId)?.heading ?? pile?.heading ?? "";
+      const said = entry.outsideFormId
+        ? shapes.get(entry.outsideFormId)?.description.heading
+        : entry.versionId
+          ? describedBy.get(entry.versionId)?.heading
+          : undefined;
       piles.set(entry.formId, {
         form_id: entry.formId,
-        heading,
+        ...(entry.outsideFormId ? { site: true } : {}),
+        heading: said ?? pile?.heading ?? "",
         held: (pile?.held ?? 0) + 1,
         oldest_at: pile?.oldest_at ?? entry.createdAt,
       });
@@ -385,14 +416,27 @@ export const formRequestsOpen: Reader<
   },
 };
 
-/** What answered a request, from its links: a member's word first, then a conversation, then the newest reply. */
-function answeredBy(
-  links: Awaited<ReturnType<typeof listFormEntryLinks>>,
-): NonNullable<FormRequestDto["answered"]> | null {
-  const by = (kind: "marked" | "conversation" | "reply") => links.filter((link) => link.kind === kind).at(-1);
-  const link = by("marked") ?? by("conversation") ?? by("reply");
-  if (!link || link.kind === "visit") return null;
-  return { how: link.kind, at: link.createdAt, conversation_id: link.conversationId };
+/**
+ * The requests past those a list holds (00726): the next 200 older than the request it ended on, so every request the
+ * count counts can be reached. `after` is that request's id; one that is not the workspace's reads nothing on.
+ */
+export const formRequestsMore: Reader<{ after: string }, { requests: FormOpenRequestDto[] }> = {
+  name: "form_requests_more",
+  async read(rc, args) {
+    const db = rc.ctx.supabase;
+    const last = await findFormRequest(db, rc.tenantId, args.after);
+    if (!last) return { data: { requests: [] }, rows: [], stamp: readerStamp() };
+    const open = await listOpenFormRequests(db, rc.tenantId, { createdAt: last.createdAt, id: last.id });
+    const { describedBy, shapes } = await requestShapesOf(rc, open);
+    const requests = open.map((request) => openRequestRow(request, { describedBy, shapes, now: rc.now }));
+    return { data: { requests }, rows: [], stamp: readerStamp() };
+  },
+};
+
+/** What answered a request, as form_entries_standing read it; null for one nothing has answered. */
+function answeredBy(stands: FormEntryStanding | undefined, since: string): FormRequestDto["answered"] {
+  if (stands?.standing !== "answered" || !stands.how) return null;
+  return { how: stands.how, at: stands.at ?? since, conversation_id: stands.conversationId };
 }
 
 /** The visit a request asked for: its newest visit link. */
@@ -470,10 +514,6 @@ function requestReadAs(
     : null;
 }
 
-/** Where a request stands: a test, held for a look, still open, or answered. */
-const requestStandingOf = (entry: { test: boolean; state: string }, open: boolean): FormRequestDto["standing"] =>
-  entry.test ? "test" : entry.state === "held" ? "held" : open ? "open" : "answered";
-
 /**
  * One request as Inbox answers it: what was asked, who, how they came, and where it stands. A site form's (00709) is read
  * against its form's shape, names who it is about in its own answers, and is drafted to (Campaigns in three tabs, call 3).
@@ -484,20 +524,21 @@ export const formRequest: Reader<{ id: string }, FormRequestDto> = {
     const db = rc.ctx.supabase;
     const entry = await findFormRequest(db, rc.tenantId, args.id);
     if (!entry) throw new AppError("not_found", "That request isn't here any more.", 404);
-    const [version, shapes, place, links, open, person] = await Promise.all([
+    const [version, shapes, place, links, standings, person] = await Promise.all([
       entry.versionId ? findFormVersion(db, rc.tenantId, entry.versionId) : null,
       entry.outsideFormId ? readSiteRequestShapes(db, rc.tenantId) : null,
       entry.linkId ? findLinkPlace(db, rc.tenantId, entry.linkId) : null,
       listFormEntryLinks(db, rc.tenantId, [entry.id]),
-      listOpenFormRequests(db, rc.tenantId),
+      readFormEntryStandings(db, rc.tenantId, [entry.id]),
       entry.contactId ? findPersonAddress(db, rc.tenantId, entry.contactId) : null,
     ]);
     const readAs = requestReadAs(entry, version, shapes);
     if (!readAs) throw new AppError("not_found", "That request's form can't be read any more.", 404);
     const { described, reach } = readAs;
     const answers = recordOrEmpty(entry.answers);
-    const stillOpen = open.find((request) => request.id === entry.id);
-    const standing = requestStandingOf(entry, !!stillOpen);
+    // Where it stands, by the one rule (contracts forms/standing.ts): read for this entry, whatever its age.
+    const stands = standings.get(entry.id);
+    const standing = entryStandingOf({ test: entry.test, held: entry.state === "held" }, stands);
     const source = Source.safeParse(entry.source);
     const typed = reach.email;
     const data: FormRequestDto = {
@@ -510,13 +551,14 @@ export const formRequest: Reader<{ id: string }, FormRequestDto> = {
       reach,
       place,
       sender: source.success ? sourceInWords(source.data) : null,
-      person: person ? { id: person.id, name: person.name, email: person.email } : null,
+      person: person ? { id: person.id, name: person.name, email: person.email, offers: person.emailOffers } : null,
       // New with the request: their record was made by it, in the same minute (form_results reads it the same way).
       known: person ? Date.parse(person.createdAt) < Date.parse(entry.createdAt) - MIN_MS : null,
       standing,
       held_why: entry.heldWhy,
-      answered: standing === "answered" ? answeredBy(links) : null,
-      unreached: stillOpen?.unreached ?? false,
+      answered: standing === "answered" ? answeredBy(stands, entry.createdAt) : null,
+      // Said only while nobody has answered it: a reply that failed before one that went is history.
+      unreached: (standing === "open" || standing === "aged") && stands?.unreached === true,
       // A person's page is never overwritten by a form: where the two addresses differ, the reply waits for a pick.
       other_email: typed && person?.email && person.email.toLowerCase() !== typed ? typed : null,
       note: formRequestNote(described, answers),
