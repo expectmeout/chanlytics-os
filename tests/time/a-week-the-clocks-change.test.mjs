@@ -19,6 +19,7 @@ import {
   goodUntilOf,
   historySince,
   lateReminderAt,
+  noticeAnswerOf,
   monthSentAt,
   nextMonthStart,
   nextOpenMoment,
@@ -81,6 +82,44 @@ test("the customer is told the time on the business's clock, wherever they write
   assert.match(words, /Mar 8/);
   assert.match(words, /10:00/);
   assert.doesNotMatch(words, /2:00|14:00/, "never London's 2 PM");
+});
+
+test("a booking tool's email moves and cancels a visit at the business's hour across a change", () => {
+  const read = (answer, tz, nowIso) =>
+    noticeAnswerOf(
+      { client_name: "Dana Rivera", client_phone: "(305) 555-0144", service: "Cut", ...answer },
+      tz,
+      ms(nowIso),
+    ).reading;
+  // Moved from Saturday 7 March, 10 AM EST, to Monday 9 March, 10 AM EDT.
+  const moved = read(
+    {
+      kind: "changed",
+      starts_at: "2026-03-09T10:00",
+      ends_at: "2026-03-09T11:00",
+      previous_starts_at: "2026-03-07T10:00",
+    },
+    NY,
+    "2026-03-06T17:00:00.000Z",
+  );
+  assert.deepEqual(
+    [iso(moved.start), iso(moved.end), iso(moved.previousStart)],
+    ["2026-03-09T14:00:00.000Z", "2026-03-09T15:00:00.000Z", "2026-03-07T15:00:00.000Z"],
+  );
+  // Cancelled in London's doubled hour: its first 1:30, BST.
+  const cancelled = read(
+    { kind: "cancelled", starts_at: "2026-10-25T01:30", ends_at: "2026-10-25T02:30" },
+    LONDON,
+    "2026-10-20T09:00:00.000Z",
+  );
+  assert.equal(iso(cancelled.start), "2026-10-25T00:30:00.000Z");
+  // Red before 28 Nov 2026: a booking at a time New York skips read as 1:30 AM EST, an hour before it.
+  const skipped = read(
+    { kind: "booked", starts_at: "2026-03-08T02:30", ends_at: "2026-03-08T03:30" },
+    NY,
+    "2026-03-06T17:00:00.000Z",
+  );
+  assert.equal(iso(skipped.start), "2026-03-08T07:30:00.000Z");
 });
 
 /* ------------------------------------------------------------ its reminders */
