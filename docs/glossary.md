@@ -281,6 +281,7 @@ One name for one thing, in every tree: a folder directly under a package's `src`
 | `sms`              | Text messages                                                                 |
 | `support`          | Get help, and what reaches the support inbox                                  |
 | `templates`        | A message's versions; under `campaigns/` in the source                        |
+| `time`             | When a thing happens: a zone, a day, the weeks the clocks change              |
 | `today`            | The Today page                                                                |
 | `voice`            | Calls and the voice agent                                                     |
 | `waits`            | Who owes the next move on a thread                                            |

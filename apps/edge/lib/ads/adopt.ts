@@ -6,7 +6,7 @@
  * Pure: Meta's answers and the clock are handed in, and nothing here asks anyone anything. The wire's own shapes are
  * channels' (meta-read.ts); the rows are the door's (db reads.ts).
  */
-import { DAY_MS, HOUR_MS, MIN_MS, wallClockAt, zoneDayKey } from "@chanlytics/contracts";
+import { DAY_MS, HOUR_MS, MIN_MS, tomorrowAtIn, wallClockAt, zoneDayKey } from "@chanlytics/contracts";
 import type { MetaAd, MetaAdDay } from "@chanlytics/channels/ads";
 import type { AdDayReadRow, AdReadRow } from "@chanlytics/db/ads";
 import { shownNameOf } from "./tag.js";
@@ -58,12 +58,13 @@ export function rangeOf(depth: ReadDepth, timezone: string, nowMs: number): { si
 export const settledBeforeOf = (timezone: string, nowMs: number): string =>
   dayBefore(nowMs, timezone, ADS_PACE.settleDays - 1);
 
-/** The next time the daily look back falls due: four in the morning in the account's zone, after now. */
+/**
+ * The next time the daily look back falls due: four in the morning in the account's zone, after now. Tomorrow is the
+ * calendar's next day (tomorrowAtIn): 24 hours on from the last hour before a 23-hour day is the day after it.
+ */
 export function nextSettleOf(timezone: string, nowMs: number): string {
   const today = wallClockAt(timezone, zoneDayKey(nowMs, timezone), ADS_PACE.settleHour, 0);
-  const next =
-    today > nowMs ? today : wallClockAt(timezone, zoneDayKey(nowMs + DAY_MS, timezone), ADS_PACE.settleHour, 0);
-  return new Date(next).toISOString();
+  return new Date(today > nowMs ? today : tomorrowAtIn(timezone, nowMs, ADS_PACE.settleHour)).toISOString();
 }
 
 /** Meta's words for an ad it is still deciding about: its owner is waiting to hear. */

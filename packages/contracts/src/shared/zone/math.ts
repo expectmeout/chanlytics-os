@@ -115,12 +115,35 @@ function zoneOffsetMs(tz: string, atMs: number): number {
   return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1000) * 1000;
 }
 
-/** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
+/** Whether an instant reads, in `tz`, as the wall-clock time asked for. */
+function readsAs(tz: string, atMs: number, year: number, month: number, day: number, hh: number, mm: number): boolean {
+  const p = zoneParts(tz, atMs);
+  return p.y === year && p.m === month && p.d === day && p.hh === hh && p.mm === mm;
+}
+
+/**
+ * The instant a wall-clock time in `tz` refers to, the same on either side of UTC and on both days a year the clocks
+ * change. The time is read with the offset in force a day before it and the one a day after: the two are one offset
+ * except near a change, where the one that reads back as the time asked for is it. An hour that happens twice (the
+ * clocks go back) is its first; a time that never happens (they go forward) is read with the offset before the change,
+ * so it falls just after the gap, as Postgres reads it: midnight on a day the clocks skip it is the day's first instant,
+ * 1:00 AM, and never 11 PM the night before.
+ *
+ * Until 28 Nov 2026 this was two passes from a guess, which answered the earlier of the two readings in a zone west of
+ * UTC and the later east of it: in Santiago (6 Sep 2026) and Havana (8 Mar 2026) a day's midnight came back as 11 PM on
+ * the day before, so the day, a post's good-until and every span counted from a day's start were an hour off; and
+ * 1:30 AM on the day the clocks go back was the first 1:30 in New York and the second in London.
+ */
 export function localToUtcMs(tz: string, year: number, month: number, day: number, hh: number, mm: number): number {
   const guess = Date.UTC(year, month - 1, day, hh, mm);
-  const first = guess - zoneOffsetMs(tz, guess);
-  const second = guess - zoneOffsetMs(tz, first);
-  return second;
+  const before = guess - zoneOffsetMs(tz, guess - DAY_MS);
+  const after = guess - zoneOffsetMs(tz, guess + DAY_MS);
+  if (before === after) return before;
+  const firstReads = readsAs(tz, Math.min(before, after), year, month, day, hh, mm);
+  if (firstReads) return Math.min(before, after);
+  if (readsAs(tz, Math.max(before, after), year, month, day, hh, mm)) return Math.max(before, after);
+  // In the gap: read with the offset before the change, which lands as many minutes past the gap as the time was in it.
+  return before;
 }
 
 /** The wall clock of an instant in `tz`. */
