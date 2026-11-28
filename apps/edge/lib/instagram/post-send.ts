@@ -152,6 +152,16 @@ const VERSION_WAIT_MS = MIN_MS;
 const VERSION_WAITS_MOST = 10;
 
 /**
+ * How often a send has asked again already, for each thing it asks again for (a version being made; an opening that
+ * could not be read), as its next ask carries them: both, always, so the next ask's once-only key is its own
+ * (job_kinds.once_parts, 00728) and never the key of the send that writes it.
+ */
+const asksOf = (job: ClaimedJob): { wait: string; unread: string } => ({
+  wait: String(Number(job.payload.wait ?? 0) || 0),
+  unread: String(Number(job.payload.unread ?? 0) || 0),
+});
+
+/**
  * Nothing of a piece goes up while a new version of it is drawn (00708, the version board's call 14): the send asks again a
  * minute on. Once the version plays, what was approved of the one before stops standing and the recheck holds it.
  *
@@ -172,7 +182,12 @@ async function askVersion(db: Db, post: PostRow, job: ClaimedJob): Promise<"go" 
       tenantId: post.tenant_id,
       kind: "post_publish",
       dueAt: new Date(Date.now() + VERSION_WAIT_MS),
-      payload: { post_id: post.id, attempt: String(postJobOf(job).attempt), wait: String(waits + 1) },
+      payload: {
+        post_id: post.id,
+        attempt: String(postJobOf(job).attempt),
+        ...asksOf(job),
+        wait: String(waits + 1),
+      },
     });
     logger({ tenant_id: post.tenant_id }).info("placement_waits_for_version", { post_id: post.id, waits: waits + 1 });
     return "wait";
@@ -206,7 +221,7 @@ async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}): Promis
           tenantId: post.tenant_id,
           kind: "post_publish",
           dueAt: new Date(Date.now() + OPENING_ASK_MS),
-          payload: { post_id: post.id, attempt: String(attempt), unread },
+          payload: { post_id: post.id, attempt: String(attempt), ...asksOf(job), unread },
         }),
     });
   if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });

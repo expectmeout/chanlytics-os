@@ -137,13 +137,15 @@ function world({
     pieces,
     // What the book's reasons are read from, besides the calendar (lib/opportunities/book.ts): none here.
     google_reviews: [],
-    // The run that holds the job: the send says it is about to speak on it (ledger markSpoke).
+    // The run that holds the job: the send says it is about to speak on it (ledger markSpoke). While it runs it holds
+    // its once-only key (jobs_dedupe_live), so a next ask it writes for itself must carry a key of its own (00728).
     jobs: [
       {
         id: "job-1",
         tenant_id: T,
         kind: "post_publish",
         payload: { post_id: POST, attempt: "1" },
+        dedupe_key: `post_publish:${POST}:1`,
         state: "fired",
         attempts: 1,
         due_at: now,
@@ -406,9 +408,10 @@ test("a post that promises open time is not sent while the book cannot be read: 
   assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "opening" });
   assert.equal(w.post().status, "preparing", "neither sent nor held: it asks again");
   const again = w.tables.jobs.find((j) => j.payload.unread === "1");
-  assert.equal(again?.kind, "post_publish", "its own send, written for a minute on");
+  assert.equal(again?.kind, "post_publish", "its own send, written for a minute on, beside the one still running");
   assert.ok(Date.parse(again.due_at) - before >= 59_000, "a minute on");
-  assert.deepEqual(again.payload, { post_id: POST, attempt: "1", unread: "1" });
+  assert.deepEqual(again.payload, { post_id: POST, attempt: "1", wait: "0", unread: "1" });
+  assert.equal(again.dedupe_key, `post_publish:${POST}:1:0:1`, "under a key of its own, which the ledger takes");
   // Asked again, and again: still not sent on a guess.
   assert.deepEqual(await postJobs(w.db, quick).publish(asked(1)), { skipped: "opening" });
   assert.deepEqual(await postJobs(w.db, quick).publish(asked(2)), { skipped: "opening" });
@@ -536,7 +539,9 @@ test("while a new version is made the send waits, a minute at a time, as before"
   const w = reelWith(versioned(OTHER_WORDS));
   assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "version" });
   assert.equal(w.post().status, "preparing");
-  assert.ok(w.tables.jobs.find((j) => j.kind === "post_publish" && j.payload.wait === "1"));
+  // Written beside the send still running, under a key of its own (00728): the ledger refused it under the send's own.
+  const again = w.tables.jobs.find((j) => j.kind === "post_publish" && j.payload.wait === "1");
+  assert.equal(again?.dedupe_key, `post_publish:${POST}:1:1:0`);
   assert.equal(calls.length, 0);
 });
 

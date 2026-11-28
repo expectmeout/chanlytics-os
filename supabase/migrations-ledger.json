@@ -730,6 +730,6 @@
     "00722_the_dashboard_s_acts_write_their_own_events.sql": "7cd595a59a762d5ed3c4514d82954298e964fc800ea1e1e44cae896ec7be3980",
     "00723_a_fact_door_writes_its_event.sql": "4fe05f78c626ad3d0bffe98f7fa940c0e9c096f9224de4e5387136ab19bdfdf2",
     "00724_a_member_s_own_fields_and_reads_ask_who_is_calling.sql": "a9bcc8758531df5c1fe2b699de2fd7628d967060281ffd760a009376ab982c21",
-    "00728_a_post_waits_when_its_opening_cannot_be_read.sql": "9f470a238febf80d9164dd8d1d1c34cb8bd4ce444fbf51e3ff5ab71b638cc835"
+    "00728_a_post_waits_when_its_opening_cannot_be_read.sql": "4891fbdb90001ab023d34917c7b93b91a772cd23b2508794d3d409293153f908"
   }
 }

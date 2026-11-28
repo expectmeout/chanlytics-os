@@ -258,9 +258,18 @@ const job = (attempt = "1") => ({
   payload: { post_id: POST, attempt },
   attempts: 1,
 });
-/** The job as the run holds it on the ledger, so it may say it spoke (markSpoke). */
+/**
+ * The job as the run holds it on the ledger, so it may say it spoke (markSpoke): while it runs it holds its once-only
+ * key (jobs_dedupe_live), so a next ask it writes for itself must carry a key of its own (00728).
+ */
 const fired = (w) => {
-  w.tables.jobs.push({ ...job(), state: "fired", due_at: new Date().toISOString(), spoke_at: null });
+  w.tables.jobs.push({
+    ...job(),
+    dedupe_key: `post_google:${POST}:1`,
+    state: "fired",
+    due_at: new Date().toISOString(),
+    spoke_at: null,
+  });
   return job();
 };
 const asking = () => {
@@ -532,10 +541,11 @@ test("a post that promises open time is not sent while the book cannot be read: 
   const w = world({ asApproved: promised(), faults: unreadable() });
   asking();
   const before = Date.now();
-  assert.deepEqual(await sendGooglePost(w.db, job()), { skipped: "opening" });
+  assert.deepEqual(await sendGooglePost(w.db, fired(w)), { skipped: "opening" });
   assert.equal(w.post().status, "queued", "neither sent nor held: it asks again");
   const again = w.tables.jobs.find((j) => j.kind === "post_google" && j.payload.unread === "1");
-  assert.ok(again, "its own job, written for a minute on");
+  assert.ok(again, "its own job, written for a minute on, beside the one still running");
+  assert.equal(again.dedupe_key, `post_google:${POST}:1:1`, "under a key of its own, which the ledger takes");
   assert.ok(Date.parse(again.due_at) - before >= 59_000);
   const asked = (n) => ({ ...job(), payload: { post_id: POST, attempt: "1", unread: String(n) } });
   assert.deepEqual(await sendGooglePost(w.db, asked(2)), { skipped: "opening" });
