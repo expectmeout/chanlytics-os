@@ -37,21 +37,23 @@ function isFirstKey(tenantId: TenantId, given: string): boolean {
 }
 
 /**
- * Which of the workspace's keys a form came with: one of its own (`keyId`), or its first key (`keyId` null); or why it
- * is refused: a key nobody gave this workspace, or one that has ended. A read that fails THROWS: the door answers the
- * site that it could not check, never that the key is wrong.
+ * Which of the workspace's keys a form came with: one of its own (`keyId`), or its first key (`keyId` null), and the
+ * site that key proves (`siteId`, null until the key's first use makes one); or why it is refused: a key nobody gave
+ * this workspace, or one that has ended. A read that fails THROWS: the door answers the site that it could not check,
+ * never that the key is wrong.
  */
 export async function checkWebsiteFormKey(
   db: Db,
   tenantId: TenantId,
   given: string,
   nowMs: number,
-): Promise<{ ok: true; keyId: string | null } | { ok: false; why: "unknown" | "ended" }> {
+): Promise<{ ok: true; keyId: string | null; siteId: string | null } | { ok: false; why: "unknown" | "ended" }> {
   if (isFirstKey(tenantId, given)) {
     const first = await findFirstFormKey(db, tenantId);
-    return !first || websiteKeyWorks(first, nowMs) ? { ok: true, keyId: null } : { ok: false, why: "ended" };
+    if (first && !websiteKeyWorks(first, nowMs)) return { ok: false, why: "ended" };
+    return { ok: true, keyId: null, siteId: first?.site_id ?? null };
   }
   const own = await findFormKeyByHash(db, tenantId, websiteFormKeyHash(given));
   if (!own) return { ok: false, why: "unknown" };
-  return websiteKeyWorks(own, nowMs) ? { ok: true, keyId: own.id } : { ok: false, why: "ended" };
+  return websiteKeyWorks(own, nowMs) ? { ok: true, keyId: own.id, siteId: own.site_id } : { ok: false, why: "ended" };
 }

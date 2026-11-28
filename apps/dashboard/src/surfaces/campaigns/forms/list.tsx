@@ -11,7 +11,7 @@
 import { useState, type Ref } from "react";
 import { agoWords, type FormListRowDto, type FormsDto, type OutsideFormRowDto } from "@chanlytics/contracts";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { WEBSITE_FORM_WORDS } from "./website/words";
+import { SITE_FORM_WORDS, WEBSITE_FORM_WORDS } from "./website/words";
 import { AskLooking } from "../../files/looking";
 import { Button } from "../../kit/button/button";
 import { gate } from "../../frame-verbs";
@@ -177,7 +177,13 @@ function SiteFormRow(props: { row: OutsideFormRowDto; now: number; open: boolean
       data-off={!row.listed || undefined}
       mark={<Icon name="globe" size={15} />}
       name={row.name}
-      said={<span>{[WEBSITE_FORM_WORDS.formKind[row.form], last].filter(Boolean).join(" · ")}</span>}
+      said={
+        <span>
+          {[WEBSITE_FORM_WORDS.formKind[row.form], last, row.held ? SITE_FORM_WORDS.heldCount(row.held) : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+      }
       end={(place) => (
         <span className={place}>
           <StatePill kind="tone" value="plain" label={SITE_LABEL} />
