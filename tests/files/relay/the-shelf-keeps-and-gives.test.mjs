@@ -417,3 +417,125 @@ test("the Worker's one door sends a shelf's path to the shelf and every other to
   const neither = await entry.fetch(new Request("https://relay.example.com/elsewhere"), env);
   assert.deepEqual(await said(neither), [404, { error: "request", reason: "path" }]);
 });
+
+/* ------------------------------------------------------------------------------- what a workspace's shelf holds -- */
+
+const listTicket = (tenant = TENANT) => signShelfTicket(TICKET_KEY, { tenant, use: "list", expiresAt: NOW_S + 300 });
+/** One ask of the list: its ticket rides the header, as every ticket the app itself uses but a read's does. */
+function askList(w, { method = "GET", bearer = listTicket(), ticket, cursor } = {}) {
+  const url = new URL("https://relay.example.com/shelf/list");
+  if (ticket) url.searchParams.set("ticket", ticket);
+  if (cursor !== undefined) url.searchParams.set("cursor", cursor);
+  const init = { method, headers: bearer ? { authorization: `Bearer ${bearer}` } : {} };
+  return answerShelf(new Request(url, init), w.env, w.deps);
+}
+/** A file's object put straight into the bucket: what a list reads is its key, never its bytes. */
+const put = (w, key) => w.shelf.held.set(key, { bytes: Buffer.from("x"), sha256: "0".repeat(64) });
+const idOf = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+test("the list says which files one workspace's shelf holds, by their ids, and nothing of another's", async () => {
+  const w = world();
+  put(w, KEY_OF(TENANT, FILE));
+  put(w, KEY_OF(TENANT, OTHER_FILE));
+  put(w, KEY_OF(OTHER_TENANT, FILE));
+  assert.deepEqual(await said(await askList(w)), [
+    200,
+    { files: [FILE, OTHER_FILE].sort(), other: 0, more: false, cursor: null },
+  ]);
+  // The prefix asked of the bucket is the ticket's own workspace, whole, with its slash.
+  assert.deepEqual(w.shelf.calls.at(-1), ["list", `${TENANT}/`, null]);
+  assert.deepEqual(await said(await askList(w, { bearer: listTicket(OTHER_TENANT) })), [
+    200,
+    { files: [FILE], other: 0, more: false, cursor: null },
+  ]);
+  // A workspace with nothing there holds none: an answer, not a refusal.
+  const empty = signShelfTicket(TICKET_KEY, { tenant: idOf(9), use: "list", expiresAt: NOW_S + 300 });
+  assert.deepEqual(await said(await askList(w, { bearer: empty })), [
+    200,
+    { files: [], other: 0, more: false, cursor: null },
+  ]);
+  assert.equal((await askList(w)).headers.get("cache-control"), "no-store");
+});
+
+test("a long list comes a page at a time, and its end is said, never guessed from a short page", async () => {
+  const w = world();
+  const all = Array.from({ length: 2_300 }, (_, i) => idOf(i + 1));
+  for (const file of all) put(w, KEY_OF(TENANT, file));
+  const seen = [];
+  let cursor;
+  let pages = 0;
+  for (;;) {
+    const [status, page] = await said(await askList(w, { cursor }));
+    assert.equal(status, 200);
+    seen.push(...page.files);
+    pages += 1;
+    if (!page.more) {
+      assert.equal(page.cursor, null, "the last page hands no cursor on");
+      break;
+    }
+    assert.ok(page.cursor, "more to come names where to go on from");
+    cursor = page.cursor;
+  }
+  assert.equal(pages, 3, "a thousand a page");
+  assert.deepEqual(seen, all, "every file once, in order");
+  // The bucket may hand over fewer keys than a page holds and still have more: `more` is the bucket's own word.
+  const short = world();
+  put(short, KEY_OF(TENANT, FILE));
+  short.shelf.list = async () => ({ objects: [{ key: KEY_OF(TENANT, FILE) }], truncated: true, cursor: "next-page" });
+  assert.deepEqual(await said(await askList(short)), [
+    200,
+    { files: [FILE], other: 0, more: true, cursor: "next-page" },
+  ]);
+});
+
+test("a key under a workspace's name that is no file's is counted, never named", async () => {
+  const w = world();
+  put(w, KEY_OF(TENANT, FILE));
+  put(w, `${TENANT}/${OTHER_FILE}/poster`);
+  put(w, `${TENANT}/stray`);
+  put(w, `${TENANT}/${OTHER_FILE}/video/again`);
+  assert.deepEqual(await said(await askList(w)), [200, { files: [FILE], other: 3, more: false, cursor: null }]);
+});
+
+test("only a list's ticket lists, in the header, by GET: a file's ticket lists nothing and a list's reads no file", async () => {
+  const w = world();
+  await pull(w);
+  const before = w.shelf.calls.length;
+  for (const [what, asked] of [
+    ["a read's ticket", { bearer: ticketFor("read") }],
+    ["a delete's ticket", { bearer: ticketFor("delete") }],
+    ["a put's ticket", { bearer: putTicket() }],
+  ])
+    assert.deepEqual(await said(await askList(w, asked)), [403, { error: "ticket", reason: "use" }], what);
+  // Its ticket rides the header and never an address.
+  assert.equal((await askList(w, { bearer: null, ticket: listTicket() })).status, 403);
+  assert.equal((await askList(w, { bearer: null })).status, 403);
+  // Nor is it opened by a clip's ticket, signed under the same key.
+  const clip = await signTicket(TICKET_KEY, { item: FILE, expiresAt: NOW_S + 300 });
+  assert.equal((await askList(w, { bearer: clip })).status, 403);
+  for (const method of ["POST", "DELETE", "HEAD", "PUT"]) {
+    const answer = await askList(w, { method });
+    assert.deepEqual([answer.status, answer.headers.get("allow")], [405, "GET"], method);
+  }
+  // A list's ticket opens no file: not its record, its bytes, a put or a removal.
+  const list = listTicket();
+  assert.equal((await ask(w, { method: "HEAD", ticket: list })).status, 403);
+  assert.deepEqual(await said(await ask(w, { ticket: list })), [403, { error: "ticket", reason: "use" }]);
+  assert.equal((await ask(w, { method: "DELETE", bearer: list })).status, 403);
+  assert.equal((await ask(w, { method: "POST", bearer: list, body: { from: FROM } })).status, 403);
+  assert.equal(w.shelf.calls.length, before, "the bucket was asked nothing");
+  assert.equal(w.shelf.held.size, 1);
+  // A cursor that is none, and a Worker with no shelf, are each said so.
+  assert.deepEqual(await said(await askList(w, { cursor: "" })), [400, { error: "request", reason: "cursor" }]);
+  assert.deepEqual(await said(await askList(w, { cursor: "c".repeat(2_049) })), [
+    400,
+    { error: "request", reason: "cursor" },
+  ]);
+  assert.deepEqual(await said(await askList(world({ shelf: null }))), [503, { error: "shelf", reason: "off" }]);
+  // A bucket that gives no answer is said as that, and nothing of the failure with it.
+  const silent = world();
+  silent.shelf.list = async () => {
+    throw new Error("internal error at bucket chanlytics-shelf");
+  };
+  assert.deepEqual(await said(await askList(silent)), [502, { error: "shelf", reason: "unreachable" }]);
+});

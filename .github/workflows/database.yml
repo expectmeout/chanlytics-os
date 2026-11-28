@@ -16,12 +16,35 @@ name: Database
 # a push to main asks the same question of everything since main's last replay
 # that passed. Two workflows on every push spent the included minutes by 11
 # September; the question costs a checkout and a git diff.
+#
+# Either deploy order, held on a pull request (28 Nov 2026). Every migration
+# says its order, and a migration is applied before its merge, so the code that
+# meets it first is the release before it. Two steps hold that: a function
+# written again still takes the call main's code makes (deploy-order/old-callers.mjs, read
+# from the schema's snapshot at the base and at the head, on every pull
+# request), and, where the pull request adds a migration, the base's own
+# database suites that read what it writes pass against the new schema
+# (deploy-order/last-release-suites.mjs). A suite the migration fails on purpose is argued
+# in the description, `Last release: <why>`. By hand, `last_release` names a
+# commit to take as the base, for the proof of a migration already on a branch,
+# and `argued` gives the reason a description would; such a run replays and
+# runs that leg alone, and its summary says what the old release came to.
 on:
   pull_request:
   push:
     branches: [main]
   # A merge queue runs the required checks on the queue's own commit (ci.yml).
   merge_group:
+  workflow_dispatch:
+    inputs:
+      last_release:
+        description: "A commit to take as the last release: its database suites that read what this branch's migrations write are run against this branch's schema, and nothing else is"
+        type: string
+        default: ""
+      argued:
+        description: "Why a suite of that release fails on purpose, where one does: what a pull request's description says after 'Last release:'"
+        type: string
+        default: ""
 
 # As ci.yml: a pull request's newer run cancels its older one, and a main commit
 # is never cancelled, each in a group of its own.
@@ -36,10 +59,12 @@ jobs:
     name: Migrations replay, SQL rules hold
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # actions: read, for the push's question: which main commit last replayed green.
+    # actions: read, for the push's question: which main commit last replayed green. pull-requests: read, for the
+    # description's `Last release:` line.
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     steps:
       # The whole history, so the diff below has its base to compare with.
       - uses: actions/checkout@v7
@@ -82,6 +107,15 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: node tooling/scripts/checks/migration-ledger.mjs --base "origin/$BASE_REF"
+      # A migration is applied before its merge, so main's code meets it first. A function the base's code calls keeps
+      # the arguments that call gives, by name, place and type, and what it answers; one that must change behind the
+      # code says "Deploy order: after the deploys" in its migration (tooling/scripts/checks/deploy-order/old-callers.mjs). Read from
+      # supabase/schema.sql at the base and at the head: no stack, and a pass in a second where the schema did not move.
+      - if: github.event_name == 'pull_request'
+        name: A function written again still takes the last release's call
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node tooling/scripts/checks/deploy-order/old-callers.mjs --base "origin/$BASE_REF"
       - if: steps.changed.outputs.db == 'true'
         uses: pnpm/action-setup@v6
       - if: steps.changed.outputs.db == 'true'
@@ -133,10 +167,31 @@ jobs:
       # table whose rows it adds or removes). The whole set took ten of the replay's thirteen minutes on 10 Oct 2026, and
       # Ruben's line is under ten for a push; main runs them all after the merge, and the nightly every night
       # (nightly-database.yml).
-      - if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request'
+      - if: steps.changed.outputs.db == 'true' && github.event_name != 'pull_request' && inputs.last_release == ''
         run: pnpm test:db
       - name: The database suites of what the pull request changed
         if: steps.changed.outputs.db == 'true' && github.event_name == 'pull_request'
         run: node tooling/scripts/checks/changed-tests.mjs --db HEAD^1 HEAD
+      # The other deploy order: the base's code on this schema. The base is checked out beside the branch, and its own
+      # database suites that say a function or a table the added migrations write run against the stack above
+      # (tooling/scripts/checks/deploy-order/last-release-suites.mjs). Nothing runs where no migration is added. A suite the
+      # migration fails on purpose passes the step when the description says `Last release: <why>`.
+      - name: The last release's database suites, against this schema
+        if: steps.changed.outputs.db == 'true' && (github.event_name == 'pull_request' || inputs.last_release != '')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          LAST_RELEASE: ${{ inputs.last_release }}
+          ARGUED: ${{ inputs.argued }}
+        run: |
+          if [ -n "$PR" ]; then
+            PR_BODY="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
+            export PR_BODY
+          elif [ -n "$ARGUED" ]; then
+            # A run by hand has no description: its reason is the input.
+            export PR_BODY="Last release: $ARGUED"
+          fi
+          node tooling/scripts/checks/deploy-order/last-release-suites.mjs "${LAST_RELEASE:-HEAD^1}" HEAD
       - if: always() && steps.changed.outputs.db == 'true'
         run: supabase stop --no-backup
