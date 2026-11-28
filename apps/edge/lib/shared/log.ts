@@ -140,7 +140,9 @@ export function door<A extends unknown[] = []>(
     const id = request?.headers
       ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))
       : globalThis.crypto.randomUUID();
-    return withRequestId(id, async () => named(await answerCaught(request, call), id));
+    // What it is for is the door's path: its outside calls are said under it once it has answered (packages/log).
+    const purpose = request?.url && URL.canParse(request.url) ? new URL(request.url).pathname : undefined;
+    return withRequestId(id, async () => named(await answerCaught(request, call), id), purpose ? { purpose } : {});
   };
   return Object.assign((request: Request) => answer(request, () => handler(request)), {
     with:

@@ -103,3 +103,108 @@ bytes never pass a server of ours. Twelve exceptions in all, each with its why; 
 `console` past the logger: the server's are 0 and the browser's go through its report seam (decision 0151). The three left
 are the phone app's (`app/_layout.tsx`, `shell/files.ts`, `shell/notifications.ts`). They are counted, and they wait for
 the phone app, which is paused.
+
+## The table: each service's rules (28 November 2026, lane 8 of the "prove it works" plan)
+
+Written against main at `10a175d150`, with each vendor's own pages read that day. The door reads the same rows from
+`packages/channels/src/shared/provider-rules.ts`; a change to one is a change to both.
+
+What every row shares, said once:
+
+- **A repeat** is made only where it cannot do the work twice: a read, or a write the service dedupes by a key the call
+  carries. A write that got no answer (a timeout, a dropped connection, a 5xx) is `unknown`: never sent again blind,
+  and settled by what its row names.
+- **Tries in all** are the call's own on a job's first attempt, and one on every later attempt (the request's store says
+  which, from the ledger's `attempts`). So a call asked twice in a job tried five times makes at most six requests, not
+  ten, and a call the door held (an open breaker, a "too many", no room) makes none.
+- **"Too many"** is named on the answer (`tooMany`: the workspace's, the platform's, or one call's own). A 429 is
+  retryable, as it always was; a "too many" said in a 400 or a 403 (Graph's codes, Google's reasons) keeps the outcome
+  its status says, since each adapter already reads it as not now. The wait the service named holds the calls whose
+  limit it spent: the workspace's own where the row says the limit is each workspace's, everyone's where it is the
+  platform's. A wait of up to two seconds that fits the call's deadline is waited out; a longer one hands the call back
+  with `retryAfterMs`. A "too many" that names no wait holds nothing: the caller's backoff chooses. Either way it halves
+  how many of those calls run at once in the instance, and a run of answers raises it back by one.
+- **At once** is per instance and per limit holder, and starts generous, so an ordinary day queues nothing. A call that
+  finds no room waits at most two seconds inside its deadline, then is answered `too_many_at_once` without leaving.
+- **The breaker** opens after five faults in a row (no answer, or a 5xx) and holds for thirty seconds. A workspace's
+  faults open its own breaker, which holds only its calls; the provider's opens when at least two of the faults in the
+  row were other workspaces' than the one with most, or came from calls that name no workspace. After the pause one call
+  goes and the rest wait for its answer. A send to a person (`breaker: "count"`) is always made and only counted. A
+  refusal, a sign-in the service will not take (401, 403) and a "too many" are answers, never faults.
+- **Whose and what for:** each call is counted under the workspace the work acts on and the work's purpose (a door's or
+  a route's path, a job's kind), in one `outside_calls` line when the work ends. Our own two apps are left out.
+- **The service's own name for the request** (`provider_request`: Anthropic's and Stripe's `request-id`, Twilio's
+  `Twilio-Request-Id`, Meta's `x-fb-trace-id` or its error's `fbtrace_id`, Cloudflare's `cf-ray`) rides on the door's
+  own lines, `outside_call_slow` and `breaker_open`: what to hand that service's support.
+
+The rows. "Bound" is each try's; "at once" is the door's starting room.
+
+- **Meta, WhatsApp** (`meta`): bound 15 s for a send, 15 to 30 s for templates. A send is asked once (Meta keeps no
+  key); reads twice. "Too many" is a 400 or 429 with Graph's code: 4, and 613 with subcode 1996, are the app's
+  (everyone's); 80007 is the WhatsApp account's, 130429 the number's throughput (80 messages a second by default),
+  131048 a number held back for spam, 131056 one person written to too often (it holds nobody else). The wait is the
+  usage header's minutes, where Graph sends one. At once 16 per workspace. An unknown send is settled by its receipt (the status
+  webhook for its wamid); the health sweep pages for sends with no receipt after six hours.
+- **Meta, ads** (`meta_ads`): bound 20 s. Reads are asked twice, a change once. "Too many": 4 (the app's), 17 (a
+  sign-in's), 613, and 80000 to 80014 (the ad account's business use case), waited for the usage header's minutes. At
+  once 8 per workspace. An unknown change is settled by reading the ad back (lane 6's Turn on).
+- **Meta, Instagram** (`instagram`) and **Facebook Pages** (`facebook`): bound 10 s for a connect or a read, the
+  caller's for a post. Reads twice; a DM, a comment and a publish once. "Too many": Graph's codes as above (80002 the
+  Instagram account's, 80001 the Page's). At once 8 per workspace. An unknown publish is settled by
+  reading the account's posts and matching the caption (lane 5); a DM by its echo.
+- **Google** (`google`: mail, calendar, Drive, the Business Profile, Places): bound 10 s for a read, 15 s for a send
+  or Drive. Reads twice; a send and a post once. "Too many": a 403 whose reason is `userRateLimitExceeded` is the
+  workspace's (Gmail 6,000 units a minute per user, Drive 325,000, Calendar 600 requests); `rateLimitExceeded` or
+  `quotaExceeded` is the project's; a 429 (a user's mail sending, Drive's backend, the Business Profile's 300 a minute
+  and ten edits a minute per profile) is the workspace's, since Google says it for both. Google names no wait as a
+  rule, so it holds nothing and its gate is lowered. At once 8 per workspace. An unknown post is settled by listing the profile's posts (by time, and now by their words,
+  `summary`); an ask that provably never left is typed (`GoogleUnanswered`, `neverLeft`), and the post on the
+  profile reads it, so a call held for a "too many" is known to have made nothing, as an open breaker's always was.
+- **Gemini** (`gemini`): the platform's key. A 429 holds everyone for its wait; at once 8.
+- **Microsoft 365 mail** (`microsoft`): bound 10 s. Reads twice; a send once. A 429 with Retry-After in seconds is the
+  workspace's (Outlook takes four requests at once per app per mailbox); at once 4 per workspace. Paused with the
+  Microsoft mailbox work.
+- **Twilio** (`twilio`): bound 20 s. Reads twice; a text once. Each workspace has its own subaccount, so a 429 (error
+  20429, "the request was not processed") is the workspace's; at once 16. An unknown text is settled by its status
+  callback.
+- **Retell** (`retell`, the phone line's voice) and **ElevenLabs** (`elevenlabs`, Ask spoken): the platform's accounts.
+  Bound 8 to 25 s. Reads twice; nothing that places a call is built (decision 0038). A 429 holds everyone for its
+  wait; at once 16 and 8.
+- **Anthropic** (`anthropic`): the route's bound (8 s for a read, 20 s for the receptionist, 55 s for Ask and drafts).
+  The door does not pace it: its port asks a fast request again at standard speed on a 429 or a 529, then the fallback
+  model, and a call is always made (`count`). A 429's `retry-after` (seconds) is honoured by the door's retry up to two
+  seconds. A streamed answer ends at the provider when its caller's signal ends.
+- **Resend** (`resend`): bound 15 s for a send, 6 s for a read. A send carries `Idempotency-Key`, the queued row's id
+  (kept 24 hours), so the ledger's repeat is safe; the door asks it once. The limit is the team's (10 a second by
+  default), so a 429 holds everyone for its `retry-after`; at once 8. Its own adapter also waits out a short one and
+  sends the same bytes under the same key.
+- **Cloudflare Stream** (`cloudflare`): bound 8 to 30 s. Reads twice; an upload once. The account's 1,200 requests per
+  five minutes is the platform's: a 429 holds everyone for its `retry-after` seconds; at once 8.
+- **The relay** (`relay`, the shelf): our own Worker, not paced. Bound 10 s for an ask, 35 s for a copy; asks twice.
+- **Apify** (`apify`): bound 20 s. The account's (250,000 requests a minute, 60 a second per resource): a 429 holds
+  everyone for its wait; at once 16.
+- **Firecrawl** (`firecrawl`): bound the page's own plus 2 s; reads only, asked once. The team's: a 429 holds everyone
+  for its wait; at once 8.
+- **Expo** (`expo`, the phone's pushes): bound 10 s. 600 a second per project: a 429 holds everyone for its wait; at
+  once 8.
+  Expo delivers at least once and keeps no key.
+- **TypeSafe** (`typesafe`): bound 6 s, asked once; a 429 holds everyone for its wait; at once 8.
+- **Our two apps** (`edge`, `dashboard`) and **the files bucket** (`storage`): always made (`count`), never paced. A 429
+  from the edge is its answer (a workspace's AI budget spent), never a pace. The bucket's reads count as outside calls;
+  the two apps' calls do not.
+- **Stripe**: its own client, not this door (`apps/edge/lib/billing/subscription.ts`): bound 20 s, one network retry by
+  the client, an `Idempotency-Key` on Checkout. Stripe allows 100 requests a second live, 25 per endpoint, 50 at once;
+  the door does not pace it.
+
+What the door does not do yet, named so it is not taken for done: every adapter still reads its own service's "too
+many" codes beside the door's (WhatsApp's `graphThrottled`, the ads' `slowed`, Instagram's and Facebook's busy codes,
+Gmail's and Drive's pace). They agree with the door's word, `reply.tooMany`, and can fold into it one by one. The
+state is per instance: a "too many" one instance meets is not known to another until it meets it too. And a test world
+that runs several cases in one process meets the providers afresh in each (`resetBreakers`, which lets every breaker,
+hold and gate go): a wait one case's answer named is the door's to keep for the calls after it.
+
+Tests: `tests/ops/outside-calls/each-service-s-pace.test.mjs` (each fix, the service faked: a "too many" in each way a
+service says it, a slow answer, a lost answer, a dead service, a breaker opening and closing, two workspaces of which
+one is failing), `tests/ops/provider-fetch.test.mjs`, `tests/jobs/job-request-name.test.mjs` (the job says whose and
+which try), `tests/edge/request-id-doors.test.mjs` (a door's calls said once, under its path),
+`tests/google/profile/what-the-wire-says-of-a-post.test.mjs`.

@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { signEdgeToken } from "@chanlytics/channels/tokens";
+import { fetchFromProvider, resetBreakers } from "@chanlytics/channels/shared";
 import { ROOT, importSrc } from "../_source.mjs";
 import { logLineOf } from "../_log-lines.mjs";
 import { METHODS, doorFiles } from "./doors/_doors.mjs";
@@ -200,4 +201,19 @@ test("every door names its request: each handler under apps/edge/api answers x-r
     "a door not wrapped in door() or adminDoor() (apps/edge/lib/log.ts) answers without its request's name",
   );
   assert.ok(handlers >= 50, `${handlers} handlers were run`);
+});
+
+test("a door's outside calls are said once it has answered, under its path: a webhook's calls are counted too", async () => {
+  resetBreakers();
+  const metaAnswers = async () => new Response("{}", { status: 200 });
+  const media = door(async () => {
+    await fetchFromProvider("meta", "https://graph.example.com/m1", { timeoutMs: 5_000 }, { fetch: metaAnswers });
+    await fetchFromProvider("meta", "https://graph.example.com/m2", { timeoutMs: 5_000 }, { fetch: metaAnswers });
+    return new Response("ok");
+  });
+  const { lines } = await linesOf(() => media(new Request("https://edge.test/api/whatsapp", { method: "POST" })));
+  const said = lines.filter((l) => l.event === "outside_calls");
+  assert.equal(said.length, 1, "one line for the door's work, never one per call");
+  assert.deepEqual([said[0].purpose, said[0].calls.meta.n], ["/api/whatsapp", 2]);
+  assert.ok(said[0].request_id, "under the request the door named");
 });

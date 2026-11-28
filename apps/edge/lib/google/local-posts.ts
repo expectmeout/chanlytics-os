@@ -7,6 +7,7 @@
  * as `unanswered`, and the profile is asked what it holds (listSentOnProfile) before anything is sent again (post-later.ts).
  */
 import {
+  GoogleUnanswered,
   PlacesError,
   createLocalPost,
   deleteLocalPost,
@@ -44,10 +45,14 @@ const saidNo = (failure: unknown): boolean =>
   failure instanceof PlacesError && failure.status >= 400 && failure.status < 500;
 
 /**
- * The ask never left: the wire to Google is resting after its failures (channels provider-fetch, `breaker_open`, which
- * the Google wire raises by that word). Nothing was made, as when Google says it is too busy.
+ * The ask never left: the door held it (the wire to Google resting after its failures, a "too many" Google asked to be
+ * waited out, no room among the calls at once) or its connection never opened (channels GoogleUnanswered, `neverLeft`).
+ * Nothing was made, as when Google says it is too busy. An open breaker's words are still read, for an error raised
+ * by a copy of the wire that types none.
  */
-const wireRested = (failure: unknown): boolean => failure instanceof Error && failure.message.endsWith("breaker_open");
+const wireRested = (failure: unknown): boolean =>
+  (failure instanceof GoogleUnanswered && failure.neverLeft) ||
+  (failure instanceof Error && failure.message.endsWith("breaker_open"));
 
 /**
  * An ask to post that failed, as its callers read it: too busy to take it (nothing made, asked once more), a plain no

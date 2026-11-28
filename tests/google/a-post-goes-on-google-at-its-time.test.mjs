@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CONTENT_CHECK_WORDS, FILE_WORDS, ON_INSTAGRAM, STANDING_WORDS } from "@chanlytics/contracts";
-import { resetBreakers } from "@chanlytics/channels/shared";
+import { fetchFromProvider, resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.GOOGLE_PLACES_API_KEY = "places-key-for-this-file";
@@ -514,6 +514,24 @@ test("an ask that never left, because the wire to Google is resting, made nothin
   assert.equal(postAsks(), 0, "nothing was asked of Google");
   assert.equal(w.post().status, "queued", "waiting again, not Checking: nothing could have gone up");
   assert.ok(w.tables.jobs.find((j) => j.kind === "post_google" && j.payload.attempt === "2"));
+});
+
+test("an ask the door held for Google's own 'too many', still being waited out, made nothing: it waits for one more ask, as when Google is busy", async () => {
+  // Google said the project's rate was spent and to wait a minute (channels provider-rules): the door holds every call
+  // to it until then, and the post's ask never leaves. Read by the typed error, not by an open breaker's words.
+  resetBreakers();
+  const spent = async () =>
+    new Response(JSON.stringify({ error: { code: 403, errors: [{ reason: "rateLimitExceeded" }] } }), {
+      status: 403,
+      headers: { "retry-after": "60" },
+    });
+  await fetchFromProvider("google", "https://mybusiness.example.com/x", { timeoutMs: 1_000 }, { fetch: spent });
+  const w = world({ keepWire: true });
+  wire(NO_ANSWER, holding());
+  assert.deepEqual(await sendGooglePost(w.db, fired(w)), { skipped: "busy" });
+  assert.equal(postAsks(), 0, "nothing was asked of Google");
+  assert.equal(w.post().status, "queued", "waiting again, not Checking: nothing could have gone up");
+  resetBreakers();
 });
 
 test("a post of another place, or one no longer Checking, is left to its own reconcile", async () => {

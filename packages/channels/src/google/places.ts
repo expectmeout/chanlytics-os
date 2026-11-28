@@ -67,6 +67,22 @@ export class PlacesError extends Error {
   }
 }
 
+/**
+ * No answer came from Google: `fault` is the door's word for it (a timeout, `breaker_open`, `too_many`,
+ * `too_many_at_once`) or the network's, and `neverLeft` whether the ask provably never reached Google (the door held it,
+ * or the connection never opened), so nothing was made. Its message is `google: <fault>`, as the plain error it replaces
+ * said. A caller that asks whether a post may have been made reads `neverLeft`, never the words.
+ */
+export class GoogleUnanswered extends Error {
+  constructor(
+    public readonly fault: string,
+    public readonly neverLeft: boolean,
+  ) {
+    super(`google: ${fault}`);
+    this.name = "GoogleUnanswered";
+  }
+}
+
 export interface PlaceCandidate {
   place_id: string;
   name: string;
@@ -359,7 +375,8 @@ export function placesFetch(fetchImpl: typeof fetch = fetch, timeoutMs = PLACES_
       },
       { fetch: fetchImpl },
     );
-    if (first.status === 0) throw new Error(`google: ${first.error ?? "no answer"}`);
+    // A call that got no answer and left nothing is the door's "not now": held, or a connection that never opened.
+    if (first.status === 0) throw new GoogleUnanswered(first.error ?? "no answer", first.outcome === "retryable");
     return { status: first.status, body: first.text };
   };
 }

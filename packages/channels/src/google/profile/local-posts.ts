@@ -1,6 +1,7 @@
 /**
  * What a business's profile holds, asked of Google: its own posts a page at a time, and one post by its name. The daily
- * read (the edge's content/posts-read.ts) holds them against the posts Chanlytics calls up there.
+ * read (the edge's content/posts-read.ts) holds them against the posts Chanlytics calls up there. Each says its words
+ * (`summary`), so a send that got no answer can be found by them, as Instagram's is by its caption.
  *
  * Read against Google's accounts.locations.localPosts reference (list, get, and the LocalPost resource) on 24 November
  * 2026. A page holds at most 100 posts and names the next by a token; the reference states no order, so nothing here
@@ -23,6 +24,8 @@ export interface GbpLocalPost {
   state: string | null;
   created_at: string | null;
   search_url: string | null;
+  /** The post's words as Google holds them (LocalPost `summary`): what a reconcile matches a lost send's words against. */
+  summary: string | null;
 }
 
 function localPostOf(raw: unknown): GbpLocalPost | null {
@@ -34,6 +37,7 @@ function localPostOf(raw: unknown): GbpLocalPost | null {
     state: nonBlankOrNull(given?.state),
     created_at: nonBlankOrNull(given?.createTime),
     search_url: nonBlankOrNull(given?.searchUrl),
+    summary: nonBlankOrNull(given?.summary),
   };
 }
 

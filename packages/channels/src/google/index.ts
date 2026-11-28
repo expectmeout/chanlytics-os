@@ -18,6 +18,7 @@ export type { OAuthClient, TokenGrant } from "./oauth";
 export {
   findPlacePhotoUri,
   getPlace,
+  GoogleUnanswered,
   parsePlaceDetails,
   parsePlacesSearch,
   PLACE_ID,

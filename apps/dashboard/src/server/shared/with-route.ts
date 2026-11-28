@@ -142,11 +142,17 @@ export function withRoute<T>(
     routeCtx: { params: Promise<Record<string, string | string[] | undefined>> },
   ): Promise<Response> => {
     const id = requestIdOf(req.headers, { trustCaller: false });
-    return withRequestId(id, async () => {
-      const res = await answer(req, routeCtx);
-      res.headers.set(REQUEST_ID_HEADER, id);
-      return res;
-    });
+    // What it is for is the route's path: a call it makes outside our two apps is said under it once it has answered.
+    const purpose = typeof req.url === "string" && URL.canParse(req.url) ? new URL(req.url).pathname : undefined;
+    return withRequestId(
+      id,
+      async () => {
+        const res = await answer(req, routeCtx);
+        res.headers.set(REQUEST_ID_HEADER, id);
+        return res;
+      },
+      purpose ? { purpose } : {},
+    );
   };
 }
 

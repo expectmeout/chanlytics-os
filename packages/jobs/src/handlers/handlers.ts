@@ -641,8 +641,13 @@ export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<Dis
     });
   // The job runs as the request that scheduled it (schedule.ts stamped its name into the payload), so a click's reply,
   // the send it queued and the send's own lines are one search in the log; a job the database scheduled (a clock)
-  // has none and runs as itself, named by its row.
-  const out = await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job));
+  // has none and runs as itself, named by its row. It says whose it is, what for and which try: the provider door
+  // counts its calls under the workspace, asks each once on a later try, and its outside calls are said once it ends.
+  const out = await withRequestId(requestIdShaped(job.payload.request_id) ?? job.id, () => handler(ctx, job), {
+    tenantId: job.tenant_id,
+    purpose: job.kind,
+    ...(job.attempts !== undefined ? { attempt: job.attempts } : {}),
+  });
   return out && typeof out === "object" ? out : "done";
 }
 

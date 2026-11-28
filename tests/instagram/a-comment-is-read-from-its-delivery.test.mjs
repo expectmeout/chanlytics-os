@@ -53,6 +53,38 @@ test("a comment left on an ad names the ad Meta says it was left on, and an id t
   assert.equal(onAd(undefined).adId, null);
 });
 
+/**
+ * A comment on an ad may name two posts: `media.id`, and `media.original_media_id` (the webhooks' comments field). Which
+ * of them is the post Chanlytics sent is not proven: no real comment on a running ad has been read yet. So the reading
+ * is pinned both ways, as it is today, and not changed on a guess (handed on by lane 8's brief, 28 Nov 2026):
+ *   - if Meta names the promoted post itself as `media.id`, the comment is the post's (its id is posts.external_id);
+ *   - if Meta names the ad's own copy as `media.id` and the post as `original_media_id`, the comment is not the post's:
+ *     it is kept on the ad by its `ad_id` where the workspace holds the ad (00719), and the post's own count misses it.
+ * One real comment on a running ad of a post Chanlytics sent settles it: whether its `media.id` is that post's id.
+ */
+test("a comment on an ad that names two posts is read by media.id, both ways, until one real comment settles which", () => {
+  const POST = "18103022591544444";
+  const AD_COPY = "18200000000000001";
+  const onAd = (media) =>
+    instagramEventsOf(
+      change("comments", {
+        from: { id: PERSON, username: "second.account" },
+        media: { media_product_type: "FEED", ad_id: "120243112410030512", ...media },
+        id: "18452487913135082",
+        text: "is saturday free?",
+      }),
+    )[0];
+  const named = onAd({ id: POST, original_media_id: POST });
+  assert.deepEqual([named.mediaId, named.adId], [POST, "120243112410030512"], "the post itself: the post's comment");
+  const copy = onAd({ id: AD_COPY, original_media_id: POST });
+  assert.deepEqual(
+    [copy.mediaId, copy.adId],
+    [AD_COPY, "120243112410030512"],
+    "the ad's own copy: read as named, so it is the ad's comment and not the post's",
+  );
+  assert.equal("originalMediaId" in copy, false, "original_media_id is not read");
+});
+
 test("a reply inside a thread names the thread's first comment as its parent", () => {
   const [event] = instagramEventsOf(
     change("comments", {

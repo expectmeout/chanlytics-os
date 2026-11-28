@@ -44,6 +44,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { emptyBusinessRecord, newReceptionistDefaults } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
+import { resetBreakers } from "@chanlytics/channels/shared";
 
 // Each test file is its own process, so this is the whole environment. Every
 // variable is declared in apps/edge/.env.example except VERCEL_ENV, which the
@@ -134,8 +135,13 @@ export const wire = { answer: null, calls: [] };
   });
 }
 
-/** The wire for one case: `answer` decides, and what was asked is read back. */
+/**
+ * The wire for one case: `answer` decides, and what was asked is read back. Each case meets the providers afresh: a wait
+ * an earlier case's answer named, or a breaker its faults opened, is the provider door's to keep (channels
+ * provider-fetch), and no part of this one.
+ */
 export function wired(answer) {
+  resetBreakers();
   wire.calls = [];
   wire.answer = answer;
   const to = (part) => wire.calls.filter((c) => c.url.includes(part));
