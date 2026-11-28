@@ -83,6 +83,10 @@ export const DB_PATHS = [
   // and the operator's reader, which it runs as a person runs it
   "tests/ai/_model-world.mjs",
   "tooling/scripts/ops/turn-read.mjs",
+  // and a workspace's delete, which its stack suite (console/back-office/delete-tenant/on-a-real-database.db.test.mjs)
+  // runs as a person runs it, against the replayed database: the script and the parts it is split into
+  "tooling/scripts/ops/delete-tenant.mjs",
+  "tooling/scripts/ops/delete-tenant/**",
   // the launcher `pnpm test:db` runs through, and the module it loads
   "tooling/scripts/checks/test.mjs",
   "tooling/scripts/checks/coverage.mjs",
