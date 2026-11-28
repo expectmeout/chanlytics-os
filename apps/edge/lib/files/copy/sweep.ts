@@ -38,7 +38,7 @@ import { scheduleJobOnce } from "@chanlytics/jobs";
 import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { errField, logger } from "../../shared/log.js";
-import { catchUpShelf } from "../shelf/catch-up.js";
+import { keepShelfCaughtUp } from "../shelf/catch-up.js";
 import { COPY_RETURN, LET_GO, SHELF_REQUEUE, SOURCE_GRACE } from "../takes/budgets.js";
 import { streamAccount } from "../video-keys.js";
 import { hearCopyWord } from "./bring-back.js";
@@ -157,7 +157,7 @@ export async function keepCopiesMoving(db: Db, nowMs: number): Promise<CopiesMov
   // One that needed the floor is a line: a copy's job should never go missing.
   if (shelved > 0) log.warn("file_shelve_failed", { why: "left_saving", asked_again: shelved });
   // What the shelf never got, begun; it says its own lines. A failure here is a line too: the cleanup still runs.
-  const owed = await catchUpShelf(db, nowMs).catch((failure: unknown) => {
+  const owed = await keepShelfCaughtUp(db, nowMs).catch((failure: unknown) => {
     log.error("files_sweep_failed", { part: "shelf_owed", error: errField(failure) });
     return 0;
   });

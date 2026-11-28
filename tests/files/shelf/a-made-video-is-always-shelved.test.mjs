@@ -17,7 +17,7 @@ import {
   FILE_SHELF_MINUTES_MAX,
   T,
   beginShelving,
-  catchUpShelf,
+  keepShelfCaughtUp,
   daysAgo,
   ensureCopy,
   fileMadePathOf,
@@ -272,7 +272,7 @@ test("the step has a time: past it no kept file is opened, and what is left wait
   const files = [2, 1].map((days) => bare({ created_at: daysAgo(days) }));
   const w = theWorld({ files, kept: files.map((file, i) => [file.id, videoBytes(i + 1)]) });
   // A pass that began long ago: its time for this step is spent before the first file.
-  assert.equal(await catchUpShelf(w.db, Date.now() - 60_000), 0);
+  assert.equal(await keepShelfCaughtUp(w.db, Date.now() - 60_000), 0);
   assert.deepEqual(w.storage.read, []);
-  assert.equal(await catchUpShelf(w.db, Date.now()), 2);
+  assert.equal(await keepShelfCaughtUp(w.db, Date.now()), 2);
 });

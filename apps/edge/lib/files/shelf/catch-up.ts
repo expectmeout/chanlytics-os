@@ -135,7 +135,7 @@ async function begin(db: Db, owed: ShelfOwed, until: number): Promise<CaughtUp> 
  * The pass's step. Answers how many copies it began or put back. Nothing is asked where this deployment has no shelf
  * (no relay, or no ticket key), or of a database older than 00729.
  */
-export async function catchUpShelf(db: Db, nowMs = Date.now()): Promise<number> {
+export async function keepShelfCaughtUp(db: Db, nowMs = Date.now()): Promise<number> {
   if (!shelfOf()) return 0;
   const owed = await listShelfOwed(db, {
     secondsMax: SHELF_SECONDS_MAX,

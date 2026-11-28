@@ -95,10 +95,10 @@ export async function putShelfCopyBack(
   db: Db,
   copy: { tenantId: TenantId; fileId: string; secondsMax: number },
 ): Promise<boolean> {
-  const asked = { p_tenant_id: copy.tenantId, p_file_id: copy.fileId };
-  const within = await db.rpc("file_shelf_again", { ...asked, p_seconds_max: copy.secondsMax });
+  const inputs = { p_tenant_id: copy.tenantId, p_file_id: copy.fileId };
+  const within = await db.rpc("file_shelf_again", { ...inputs, p_seconds_max: copy.secondsMax });
   const { data, error } =
-    within.error && isMissingDoor(within.error) ? await db.rpc("file_shelf_again", asked) : within;
+    within.error && isMissingDoor(within.error) ? await db.rpc("file_shelf_again", inputs) : within;
   if (error) throw new DbFailure(error, "cannot put the video's shelf copy back");
   return data === true;
 }

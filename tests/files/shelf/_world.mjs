@@ -19,7 +19,7 @@ export { shaOf } from "./_shelf.mjs";
 
 const { shelver } = await import(at("apps/edge/lib/files/shelf/shelve.ts"));
 export const { beginShelving } = await import(at("apps/edge/lib/files/shelf/shelve.ts"));
-export const { catchUpShelf } = await import(at("apps/edge/lib/files/shelf/catch-up.ts"));
+export const { keepShelfCaughtUp } = await import(at("apps/edge/lib/files/shelf/catch-up.ts"));
 export const { fileMadePathOf } = await import(at("packages/contracts/src/files/kinds.ts"));
 export const { FILE_SHELF_MINUTES_MAX } = await import(at("packages/contracts/src/files/limits.ts"));
 
