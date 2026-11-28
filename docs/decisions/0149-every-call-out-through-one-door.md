@@ -66,6 +66,67 @@ page), `tests/shell/own-route.test.mjs` (a page's own-route call), and each move
   caller words the code itself.
 - A failed note of the cap is said and gone past; the line is written first.
 
+## One act, one name: the search that follows it (28 November 2026, lane 8 of the "prove it works" plan)
+
+"My reel didn't post" should be one search. An act gets its name where it enters (`packages/channels/src/tokens/request-id.ts`
+chooses it): an owner's press is named by the dashboard's `withRoute`, a webhook's delivery and a clock's tick by the
+edge's `door()`. Read on main at `a2f4353851`, the name already rode:
+
+- on every log line written inside it, both apps' and every package's (`request_id`, packages/log);
+- from the dashboard to the edge, in `x-request-id` and signed into the edge token (`rid`), so a press's lines in both
+  apps are one search;
+- into every event row, whether TypeScript or a SQL function wrote it (`events.request_id`, 00277, from the header the
+  database client sends on every call);
+- into a job TypeScript schedules (`payload.request_id`, packages/jobs `schedule.ts`), which the runner runs under that
+  name, so the job's own lines, events and next jobs carry it too.
+
+What was missing, and is now carried:
+
+- **A job a SQL door writes** (a post approved, a webhook's reply queued, an event's delivery to its subscriber) ran as
+  its own row id. Since 00731 `jobs_take_their_kind` stamps the insert's request into a payload that names none. A
+  clock's own SQL sends no header, and its jobs run as themselves, named by their row, as before.
+- **Whose and what for**: each unit of work says its workspace, its purpose and its try, and its outside calls in one
+  `outside_calls` line when it ends ("The table", lane 8's part one).
+- **The service's own name for the request** on the door's lines (`provider_request`), for its support.
+
+Where the name rides in the call itself: in our own two apps' calls, as above. No provider is sent it yet. Three could
+carry it and give it back on their receipts: WhatsApp's `biz_opaque_callback_data` (Meta's status webhook returns it; the
+send's field was not found in the reference pages read on 28 Nov), Twilio's status callback address (a query string on
+it is signed with the rest of the address), and Resend's `tags` (letters, digits, `_` and `-` only, so the name is
+written over; returned as `data.tags`). Each changes a live send to customers, so each waits on one real send's proof.
+Until then a receipt is followed by the provider's id the send kept on its message row (`messages.external_id`), which
+the receipt's own line names (`wa_status` `id`, the text's and the email's ids likewise).
+
+### The search
+
+1. **The logs.** In Vercel's logs for both projects (`chanlytics-messaging` for the edge, the dashboard's own), search
+   `request_id:"<the name>"`. The first line names the workspace (`tenant_id`). A press's name is in the dashboard's
+   answer (`x-request-id`) and on its `route_answered` line.
+2. **The database.** One read-only statement, the name and the workspace pasted in (the window keeps it on the
+   workspace's own rows):
+
+```sql
+with act as (select '<the name>'::text as id, '<the workspace>'::uuid as tenant, now() - interval '7 days' as since)
+select 'event' as what, e.created_at as at, e.kind as name, e.subject_type || ' ' || e.subject_id as about, null as stands
+  from public.events e, act
+ where e.tenant_id = act.tenant and e.created_at > act.since and e.request_id = act.id
+union all
+select 'job', j.created_at, j.kind, j.id::text, j.state || coalesce(': ' || j.last_error, '') || ' after ' || j.attempts
+  from public.jobs j, act
+ where j.tenant_id = act.tenant and j.created_at > act.since and j.payload ->> 'request_id' = act.id
+union all
+select 'message', m.created_at, m.channel || ' ' || m.direction, m.id::text, m.status || coalesce(' ' || m.external_id, '')
+  from public.messages m, act
+ where m.tenant_id = act.tenant
+   and m.id in (select e.subject_id from public.events e
+                 where e.tenant_id = act.tenant and e.created_at > act.since
+                   and e.request_id = act.id and e.subject_type = 'message')
+ order by at;
+```
+
+3. **The last service's answer.** A message's `stands` holds the provider's id: search the logs for it (`wa_status` for a
+   WhatsApp receipt). A line with `provider_request` names the service's own record of the call, to hand its support.
+
 ## What the rule reads, 26 November 2026 (round three of the code refinement)
 
 Written against main at `9131fdef1b`. The rule's check (`fetchesIn`) counted a bare `fetch(…)` and `globalThis.fetch(…)`

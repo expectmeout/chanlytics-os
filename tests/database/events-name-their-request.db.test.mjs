@@ -1,5 +1,6 @@
 /**
- * An event row names the request it was written in (00277: events.request_id), on a real Postgres through PostgREST.
+ * An event row names the request it was written in (00277: events.request_id), on a real Postgres through PostgREST,
+ * and so does a job's payload where the writer did not name one (00731: jobs_take_their_kind).
  *
  * The ledger joins the log by that name. From TypeScript, recordEvent files the row with the request it serves
  * (packages/db events.ts). A SQL function's rows have no such argument, so the database client sends the name on every
@@ -93,6 +94,7 @@ before(async () => {
 after(async () => {
   if (skip) return;
   for (const id of made.tenants) {
+    await db.from("jobs").delete().eq("tenant_id", id);
     await db.from("events").delete().eq("tenant_id", id);
     await db.from("tenants").delete().eq("id", id);
   }
@@ -130,6 +132,25 @@ test("recordEvent inside a request files the row with the request's name", { ski
   assert.equal(rows.length, 1, "the row is found by the name, and there is one");
   assert.equal(rows[0].request_id, id);
 });
+
+test(
+  "a job written in a request with no name in its payload takes the request's from the header (00731), and one that names its own keeps it",
+  { skip },
+  async () => {
+    const id = name("job");
+    const due = new Date(Date.now() + 3_600_000).toISOString();
+    const insert = (payload) =>
+      db.from("jobs").insert({ tenant_id: T, kind: "push_send", due_at: due, payload }).select("payload").single();
+    const named = await withRequestId(id, async () => ok(await insert({ notification_id: `n-${RUN}-1` }), "a job"));
+    assert.equal(named.payload.request_id, id, "jobs_take_their_kind read the request's name from request.headers");
+    const own = await withRequestId(id, async () =>
+      ok(await insert({ notification_id: `n-${RUN}-2`, request_id: "iad1::origin-0123456789" }), "a named job"),
+    );
+    assert.equal(own.payload.request_id, "iad1::origin-0123456789", "a payload's own name is kept");
+    const bare = ok(await insert({ notification_id: `n-${RUN}-3` }), "a job outside a request");
+    assert.equal(bare.payload.request_id, undefined, "outside a request there is no name to take");
+  },
+);
 
 test(
   "a row nothing named takes the name from the header the client sent: the column's default reads it",
