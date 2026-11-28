@@ -9,6 +9,7 @@
  * few lines below. Nothing here runs until a video is sent.
  */
 import { HOUR_MS, MIN_MS, SECOND_MS, valueAt } from "@chanlytics/contracts";
+import { getActiveWorkspace } from "@/bridge/workspace";
 
 const MiB = 1024 * 1024;
 /** A chunk: large on a desk, small on a phone's line; each a multiple of 256 KiB, as Stream asks, and inside its 5 to 200 MiB. */
@@ -70,7 +71,12 @@ interface KeptUpload {
   until: number;
 }
 
-const keptKeyOf = (fingerprint: string) => `chanlytics.video-upload.${fingerprint}`;
+/**
+ * A clip's slot: the workspace the address names, then the clip. It was the clip alone, so the same clip added in another
+ * workspace within the address's life (a partner's device, or the next person's) was taken up where the first stood: its
+ * bytes went to the first workspace's file, and the second was told it was kept (the review of 28 Nov 2026, R3.12).
+ */
+const keptKeyOf = (fingerprint: string) => `chanlytics.video-upload.${getActiveWorkspace() ?? "-"}.${fingerprint}`;
 
 /** The address a clip was going to, where this device kept one that still lives; storage that can't be read keeps none. */
 export function keptUploadOf(fingerprint: string): KeptUpload | null {
